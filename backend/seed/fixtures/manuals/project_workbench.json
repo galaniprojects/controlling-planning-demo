@@ -1,0 +1,38 @@
+{
+  "module_id": "project_workbench",
+  "module_name": "Project Workbench",
+  "sections": [
+    {
+      "title": "Overview",
+      "body": "The Project Workbench is the primary workspace for Project Leads. It uses a master-detail layout: a project list on the left and a three-tab workspace on the right. You can also arrive here via deep links from Portfolio Overview."
+    },
+    {
+      "title": "Project List",
+      "body": "The left panel shows projects filtered by your role. Project Leads see their assigned projects; Controllers see all. Each entry shows the project name, RAG indicator, type badge, and next action due. Projects in Draft or Pending Approval status also appear for PLs with appropriate status badges."
+    },
+    {
+      "title": "Overview Tab",
+      "body": "Shows project metadata (name, LoB, status, RAG, timeline), the 3-point comparison table (Baseline vs Current Forecast vs Actuals with variance columns), a monthly trajectory line chart (three lines showing baseline, forecast, and actuals over time), CapEx/OpEx breakdown, and resource plan summary."
+    },
+    {
+      "title": "3-Point Comparison",
+      "body": "The comparison table shows three rows (Baseline, Current Forecast, Actuals) broken out by internal hours, external costs, and total. Variance columns show Plan Drift (forecast vs baseline), Execution Variance (actuals vs forecast), and Total Variance (actuals vs baseline). This gives a complete picture of where the project stands."
+    },
+    {
+      "title": "Forecast & Planning Tab",
+      "body": "In read mode, shows the current forecast grid with months as columns and resource roles + external cost types as rows. To edit, start a Monthly Review cycle which walks through 5 phases: Retrospective, System Suggestions, Editing, Review, and Submit."
+    },
+    {
+      "title": "Monthly Forecast Wizard",
+      "body": "**Phase 1 (Retrospective):** Review last month's forecast vs actuals and acknowledge variances. **Phase 2 (Suggestions):** System shows AI-generated insights based on trends, burn rates, and utilization patterns. Apply or dismiss each suggestion. **Phase 3 (Editing):** Edit the forecast grid directly — both hours and external costs. **Phase 4 (Review):** See all changes grouped by category with old/new/delta values. Add justification text. **Phase 5 (Submit):** Changes become CRs routed to CC Owners for Stage 1 confirmation."
+    },
+    {
+      "title": "Change History Tab",
+      "body": "Shows the chronological log of all change requests for this project. Each CR displays its status, category, summary, timestamp, and whether it was system-suggested. Click any CR to see full details including line-item changes, justification, CC Owner confirmation details, and Controller approval status."
+    },
+    {
+      "title": "System Suggestions",
+      "body": "The system analyzes spending patterns and generates suggestions during the forecast wizard. Types include trend-based adjustments, burn rate projections, actuals-based corrections, and utilization insights. System-suggested changes are flagged in the resulting CR for controller transparency."
+    }
+  ]
+}

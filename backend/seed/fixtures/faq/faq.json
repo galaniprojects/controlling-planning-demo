@@ -1,0 +1,171 @@
+[
+  {
+    "id": "faq-01",
+    "question": "How do I submit a change request for my project?",
+    "summary": "Navigate to Project Workbench, select your project, and use the Change Request panel to create and submit a CR.",
+    "applicable_roles": ["project_lead"],
+    "modules_involved": ["workbench"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open the **Project Workbench** from the Launchpad or sidebar navigation.", "target_module": "workbench"},
+      {"step_number": 2, "instruction": "Select the project you want to modify from the project list on the left panel."},
+      {"step_number": 3, "instruction": "Click the **Change Requests** tab in the project detail view."},
+      {"step_number": 4, "instruction": "Click **+ New Change Request** and select the change category (scope, timeline, resource, external cost, or other)."},
+      {"step_number": 5, "instruction": "Fill in the summary, justification, and detailed change lines. If a system suggestion exists, you can pre-fill from it."},
+      {"step_number": 6, "instruction": "Click **Submit** to send the CR to the relevant Cost Center Owner for confirmation."}
+    ]
+  },
+  {
+    "id": "faq-02",
+    "question": "How do I respond to a resource request?",
+    "summary": "Go to Capacity Management > Request Management, review the request details, and choose Confirm, Partially Fulfill, Counter-Propose, or Decline.",
+    "applicable_roles": ["cost_center_owner"],
+    "modules_involved": ["capacity"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open **Capacity Management** from the Launchpad or sidebar.", "target_module": "capacity"},
+      {"step_number": 2, "instruction": "Click the **Request Management** tab to see incoming requests for your cost center."},
+      {"step_number": 3, "instruction": "Review the request details: project, role/cost type, hours or amount, period, and priority."},
+      {"step_number": 4, "instruction": "Use the **Assignment Preview** to check which team members have availability."},
+      {"step_number": 5, "instruction": "Choose your response: **Confirm** (assign a named person), **Partially Fulfill** (adjust hours or period), **Counter-Propose** (offer an alternative), or **Decline** (with reason)."},
+      {"step_number": 6, "instruction": "Submit your response. The CR will advance to Controller approval if you confirmed."}
+    ]
+  },
+  {
+    "id": "faq-03",
+    "question": "How do I create a what-if scenario?",
+    "summary": "Open the What-If Simulator, click Create New Scenario, add actions to model changes, and review the impact dashboard.",
+    "applicable_roles": ["controller", "executive"],
+    "modules_involved": ["simulator"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open the **What-If Simulator** from the Launchpad or sidebar.", "target_module": "simulator"},
+      {"step_number": 2, "instruction": "In the Scenario Manager, click **+ New Scenario** or clone an existing one."},
+      {"step_number": 3, "instruction": "Give your scenario a name and optional description."},
+      {"step_number": 4, "instruction": "In the Scenario Workspace, use the **Action Panel** on the left to add actions (e.g., delay a project, reduce budget, cut consulting)."},
+      {"step_number": 5, "instruction": "Watch the **Impact Dashboard** on the right update in real-time with each action."},
+      {"step_number": 6, "instruction": "Optionally **Publish** the scenario to share it with other Controllers and Executives."}
+    ]
+  },
+  {
+    "id": "faq-04",
+    "question": "How do I compare scenarios side by side?",
+    "summary": "In the What-If Simulator, select up to 3 scenarios and use the Comparison View to see metrics in parallel columns.",
+    "applicable_roles": ["controller", "executive"],
+    "modules_involved": ["simulator"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open the **What-If Simulator** and go to the Scenario Manager.", "target_module": "simulator"},
+      {"step_number": 2, "instruction": "Select up to **3 scenarios** using the checkboxes next to each scenario card."},
+      {"step_number": 3, "instruction": "Click the **Compare** button that appears when scenarios are selected."},
+      {"step_number": 4, "instruction": "Review the side-by-side comparison: budget, timeline, capacity, and RAG changes for each scenario."},
+      {"step_number": 5, "instruction": "The first column always shows the **Current State** as a baseline for comparison."}
+    ]
+  },
+  {
+    "id": "faq-05",
+    "question": "How do I check my team's utilization?",
+    "summary": "Open Capacity Management and use the My Team heatmap to see per-person utilization by month.",
+    "applicable_roles": ["cost_center_owner"],
+    "modules_involved": ["capacity"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open **Capacity Management** from the Launchpad.", "target_module": "capacity"},
+      {"step_number": 2, "instruction": "The **My Team** tab shows your cost center's utilization heatmap."},
+      {"step_number": 3, "instruction": "Rows represent team members grouped by role. Columns are months. Colors indicate utilization: blue (under 70%), green (70-90%), amber (90-100%), red (over 100%)."},
+      {"step_number": 4, "instruction": "Click any person row to open the **Person Detail Drawer** showing their full allocation breakdown."},
+      {"step_number": 5, "instruction": "Check the summary bar at the top for team-level metrics: average utilization, headcount, and over/under-allocated count."}
+    ]
+  },
+  {
+    "id": "faq-06",
+    "question": "How do I approve or reject a change request?",
+    "summary": "As a Controller, go to Portfolio Overview, find pending CRs in the approval queue, review details, and approve or reject.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["portfolio"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open the **Portfolio Overview** module.", "target_module": "portfolio"},
+      {"step_number": 2, "instruction": "Check the **Pending Approvals** section or notification badge showing CRs awaiting your review."},
+      {"step_number": 3, "instruction": "Click a CR to see its full details: summary, justification, change details, CC Owner confirmation, and comments."},
+      {"step_number": 4, "instruction": "Review the impact on the project's budget, timeline, and RAG status."},
+      {"step_number": 5, "instruction": "Click **Approve** to accept, **Reject** with a reason, or **Send Back** requesting modifications."}
+    ]
+  },
+  {
+    "id": "faq-07",
+    "question": "How do I use the AI Advisor?",
+    "summary": "In a scenario workspace, open the AI Advisor panel, describe your goal in natural language, and select one of the suggested solution paths.",
+    "applicable_roles": ["controller", "executive"],
+    "modules_involved": ["simulator"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open a scenario in the **What-If Simulator** workspace.", "target_module": "simulator"},
+      {"step_number": 2, "instruction": "Expand the **AI Advisor** panel on the right side."},
+      {"step_number": 3, "instruction": "Type your goal in natural language, e.g., 'Find 2M in savings' or 'Get all teams below 95% utilization'."},
+      {"step_number": 4, "instruction": "Review the 2-3 solution paths presented, each with different trade-offs and headline numbers."},
+      {"step_number": 5, "instruction": "Click **Apply** on your chosen path to add its constituent actions to the scenario."},
+      {"step_number": 6, "instruction": "Review the updated Impact Dashboard — all applied actions appear in the action list and can be individually undone."}
+    ]
+  },
+  {
+    "id": "faq-08",
+    "question": "How do I view the organization-wide capacity overview?",
+    "summary": "In Capacity Management, switch to the Organization Overview tab to see utilization across all cost centers.",
+    "applicable_roles": ["controller", "cost_center_owner", "executive"],
+    "modules_involved": ["capacity"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open **Capacity Management** from the Launchpad.", "target_module": "capacity"},
+      {"step_number": 2, "instruction": "Click the **Organization Overview** tab at the top."},
+      {"step_number": 3, "instruction": "The heatmap shows utilization across all cost centers. Use the pivot selector to view **by LoB**, **by Role**, or **by Cost Center**."},
+      {"step_number": 4, "instruction": "Click any cell or row to open a bottom drawer showing project-level consumption detail for that dimension."}
+    ]
+  },
+  {
+    "id": "faq-09",
+    "question": "How do I update my project's monthly forecast?",
+    "summary": "Open your project in Project Workbench, navigate to the Forecast tab, and edit the monthly values for internal or external line items.",
+    "applicable_roles": ["project_lead"],
+    "modules_involved": ["workbench"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open the **Project Workbench** and select your project.", "target_module": "workbench"},
+      {"step_number": 2, "instruction": "Click the **Forecast** tab to see the monthly forecast grid."},
+      {"step_number": 3, "instruction": "Click any cell to edit the forecasted hours or amount for that month and line item."},
+      {"step_number": 4, "instruction": "The system automatically recalculates totals and variance indicators as you edit."},
+      {"step_number": 5, "instruction": "For significant changes, consider submitting a **Change Request** to maintain controller visibility and audit trail."}
+    ]
+  },
+  {
+    "id": "faq-10",
+    "question": "How do I switch between personas in the demo?",
+    "summary": "Use the persona switcher in the top-right corner of the Launchpad to switch between the four demo personas.",
+    "applicable_roles": ["controller", "cost_center_owner", "project_lead", "executive"],
+    "modules_involved": ["launchpad"],
+    "steps": [
+      {"step_number": 1, "instruction": "Look for the **persona avatar** in the top-right corner of the application header."},
+      {"step_number": 2, "instruction": "Click the avatar to open the **Persona Switcher** dropdown."},
+      {"step_number": 3, "instruction": "Select one of the four personas: Anna Meier (Controller), Thomas Brenner (CC Owner), Priya Sharma (Project Lead), or Dr. Klaus Weber (Executive)."},
+      {"step_number": 4, "instruction": "The application will reload with the selected persona's view, showing role-appropriate modules, data, and actions."}
+    ]
+  },
+  {
+    "id": "faq-11",
+    "question": "How do I manage planning parameters?",
+    "summary": "As a Controller, open the Administration module and navigate to Planning Parameters to view and edit system-wide settings.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["administration"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open the **Administration** module from the Launchpad or sidebar.", "target_module": "administration"},
+      {"step_number": 2, "instruction": "In the left panel, select **Planning Parameters** from the entity type list."},
+      {"step_number": 3, "instruction": "Review the current parameters: Fiscal Year Start, Planning Horizon, RAG thresholds, Target Utilization, and Scenario Cap."},
+      {"step_number": 4, "instruction": "Click a parameter row to edit its current value."},
+      {"step_number": 5, "instruction": "Use the **Reset** button to restore any parameter to its default value."}
+    ]
+  },
+  {
+    "id": "faq-12",
+    "question": "How do I view the audit trail for administrative changes?",
+    "summary": "Open the Administration module and scroll to the Audit Trail section at the bottom to see all logged changes.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["administration"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open the **Administration** module.", "target_module": "administration"},
+      {"step_number": 2, "instruction": "Scroll to the **Audit Trail** section at the bottom of the page."},
+      {"step_number": 3, "instruction": "The log shows: timestamp, who made the change, entity type, entity name, action, field changed, and old/new values."},
+      {"step_number": 4, "instruction": "Use the filters to narrow by entity type, user, or date range."}
+    ]
+  }
+]

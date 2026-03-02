@@ -1,0 +1,182 @@
+[
+  {
+    "goal_id": "goal-savings-2m",
+    "goal_pattern": "find.*savings|cut.*budget|reduce.*spend|save.*money|find.*2m|save.*2",
+    "goal_display": "Find approximately 2M in savings",
+    "paths": [
+      {
+        "path_id": "savings-conservative",
+        "name": "Conservative: Defer & Reduce",
+        "approach_description": "Defer the two planned projects (Data Warehouse Consolidation and AI/ML Lab) to next fiscal year and reduce consulting spend by 15% across the three highest-consulting projects. This avoids disrupting any active projects.",
+        "trade_offs": "Delays strategic initiatives by 6-12 months. Consulting reduction may slow some project deliveries. No impact on active project timelines or headcount.",
+        "headline_numbers": {
+          "budget_delta": -1950000,
+          "projects_affected": 5,
+          "capacity_impact": "Frees 3.5 FTE from Mar-Jun 2026",
+          "rag_changes": "No RAG downgrades"
+        },
+        "constituent_actions": [
+          {"scope": "project", "project_id": "proj-dwh", "action_type": "delay", "parameters": {"months": 12}},
+          {"scope": "project", "project_id": "proj-aiml", "action_type": "remove", "parameters": {}},
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"percentage": -15, "direction": "decrease", "category": "external"}},
+          {"scope": "project", "project_id": "proj-sensor", "action_type": "adjust_budget", "parameters": {"percentage": -15, "direction": "decrease", "category": "external"}},
+          {"scope": "project", "project_id": "proj-sap", "action_type": "adjust_budget", "parameters": {"percentage": -15, "direction": "decrease", "category": "external"}}
+        ]
+      },
+      {
+        "path_id": "savings-moderate",
+        "name": "Moderate: Targeted Cuts & Optimization",
+        "approach_description": "Remove the AI/ML Lab, defer Data Warehouse by 6 months, pause the Telematics Dashboard for 3 months, and apply a 10% across-the-board cut to all external costs. Optimizes current portfolio without eliminating active work.",
+        "trade_offs": "Telematics Dashboard delayed by ~3 months. External vendor relationships may need renegotiation. Some amber projects may shift toward red temporarily.",
+        "headline_numbers": {
+          "budget_delta": -2100000,
+          "projects_affected": 8,
+          "capacity_impact": "Frees 4.0 FTE from Mar-Jun 2026",
+          "rag_changes": "1 project may shift Green to Amber"
+        },
+        "constituent_actions": [
+          {"scope": "project", "project_id": "proj-aiml", "action_type": "remove", "parameters": {}},
+          {"scope": "project", "project_id": "proj-dwh", "action_type": "delay", "parameters": {"months": 6}},
+          {"scope": "project", "project_id": "proj-telem", "action_type": "pause", "parameters": {"from_month": "2026-03"}},
+          {"scope": "portfolio", "rule_type": "cap_cost_category", "parameters": {"cost_type": "ext-consulting", "percentage": -10}}
+        ]
+      },
+      {
+        "path_id": "savings-aggressive",
+        "name": "Aggressive: Deep Portfolio Restructuring",
+        "approach_description": "Apply a 20% across-the-board budget cut to all active and planned projects. This achieves maximum savings but significantly impacts delivery timelines and team utilization across all cost centers.",
+        "trade_offs": "High risk of delivery delays across the portfolio. Multiple projects may shift to Red RAG. Significant under-utilization in several cost centers. May require staff reallocation or reduction.",
+        "headline_numbers": {
+          "budget_delta": -3200000,
+          "projects_affected": 12,
+          "capacity_impact": "Reduces demand by 8.5 FTE across all CCs",
+          "rag_changes": "3 projects shift to Red, 4 to Amber"
+        },
+        "constituent_actions": [
+          {"scope": "portfolio", "rule_type": "across_the_board_cut", "parameters": {"percentage": 20}}
+        ]
+      }
+    ]
+  },
+  {
+    "goal_id": "goal-utilization-95",
+    "goal_pattern": "utilization.*below.*95|reduce.*utilization|over.?alloc|capacity.*pressure|get.*teams.*under",
+    "goal_display": "Get all teams below 95% utilization",
+    "paths": [
+      {
+        "path_id": "util-redistribute",
+        "name": "Redistribute: Cross-CC Resource Sharing",
+        "approach_description": "Shift 2 resources from the over-utilized MUC AppDev team to under-utilized Budapest AppDev for Q2 2026. Delays non-critical ERP work by 1 month to create breathing room.",
+        "trade_offs": "ERP Phase 2 timeline extends by 1 month. Cross-location coordination overhead. Budapest team needs onboarding time for ERP context.",
+        "headline_numbers": {
+          "budget_delta": 0,
+          "projects_affected": 2,
+          "capacity_impact": "MUC AppDev drops from 105% to 88%, BUD AppDev rises from 78% to 85%",
+          "rag_changes": "No RAG changes"
+        },
+        "constituent_actions": [
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "delay", "parameters": {"months": 1}},
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "change_resources", "parameters": {"role": "role-sr-dev", "hours_delta": -24, "from_month": "2026-03", "to_month": "2026-06"}}
+        ]
+      },
+      {
+        "path_id": "util-defer-work",
+        "name": "Defer: Push Non-Essential Work to Q3",
+        "approach_description": "Defer the start of Data Warehouse Consolidation by 3 months and reduce Sensor Data Pipeline resource allocation by 20% in Q2. This relieves pressure on MUC AppDev without impacting critical path projects.",
+        "trade_offs": "Data Warehouse project starts later. Sensor pipeline development velocity reduced temporarily. Freed capacity could be used for ERP testing push.",
+        "headline_numbers": {
+          "budget_delta": -180000,
+          "projects_affected": 2,
+          "capacity_impact": "MUC AppDev drops from 105% to 90%, overall portfolio at 84%",
+          "rag_changes": "No RAG changes"
+        },
+        "constituent_actions": [
+          {"scope": "project", "project_id": "proj-dwh", "action_type": "delay", "parameters": {"months": 3}},
+          {"scope": "project", "project_id": "proj-sensor", "action_type": "change_resources", "parameters": {"role": "role-dev", "hours_delta": -16, "from_month": "2026-03", "to_month": "2026-06"}}
+        ]
+      }
+    ]
+  },
+  {
+    "goal_id": "goal-rail-focus",
+    "goal_pattern": "rail.*focus|prioritize.*rail|accelerate.*rail|rail.*investment|rail.*digital",
+    "goal_display": "Prioritize Rail Systems investments",
+    "paths": [
+      {
+        "path_id": "rail-accelerate",
+        "name": "Accelerate: Fast-Track Rail Diagnostics",
+        "approach_description": "Accelerate Rail Diagnostics Platform by 3 months and increase its budget by 200K to bring in additional developer capacity. Fund this by reducing the Fleet Portal v2 budget by 10% and deferring the AI/ML Lab.",
+        "trade_offs": "Fleet Portal v2 scope reduced. AI/ML Lab delayed indefinitely. Rail-focused cost centers see increased utilization.",
+        "headline_numbers": {
+          "budget_delta": -5000,
+          "projects_affected": 3,
+          "capacity_impact": "BUD AppDev increases from 78% to 90%",
+          "rag_changes": "Fleet Portal may shift Green to Amber"
+        },
+        "constituent_actions": [
+          {"scope": "project", "project_id": "proj-raildiag", "action_type": "accelerate", "parameters": {"months": 3}},
+          {"scope": "project", "project_id": "proj-raildiag", "action_type": "adjust_budget", "parameters": {"amount": 200000, "direction": "increase"}},
+          {"scope": "project", "project_id": "proj-fleet", "action_type": "adjust_budget", "parameters": {"percentage": -10, "direction": "decrease"}},
+          {"scope": "project", "project_id": "proj-aiml", "action_type": "remove", "parameters": {}}
+        ]
+      },
+      {
+        "path_id": "rail-balanced",
+        "name": "Balanced: Incremental Rail Investment",
+        "approach_description": "Increase Predictive Maintenance PoC budget by 100K for additional ML training data and infrastructure, funded by a 5% consulting reduction across non-Rail projects.",
+        "trade_offs": "Minor consulting reduction in non-Rail projects. Overall portfolio budget stays roughly flat. No timeline impacts.",
+        "headline_numbers": {
+          "budget_delta": -50000,
+          "projects_affected": 4,
+          "capacity_impact": "Minimal — additional budget goes to external costs",
+          "rag_changes": "No RAG changes"
+        },
+        "constituent_actions": [
+          {"scope": "project", "project_id": "proj-predmaint", "action_type": "adjust_budget", "parameters": {"amount": 100000, "direction": "increase"}},
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}},
+          {"scope": "project", "project_id": "proj-sap", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}},
+          {"scope": "project", "project_id": "proj-fleet", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}}
+        ]
+      }
+    ]
+  },
+  {
+    "goal_id": "goal-risk-reduction",
+    "goal_pattern": "reduce.*risk|fix.*red|address.*amber|improve.*rag|no.*red|eliminate.*risk",
+    "goal_display": "Eliminate Red RAG projects",
+    "paths": [
+      {
+        "path_id": "risk-budget-increase",
+        "name": "Fund It: Increase ERP Budget",
+        "approach_description": "Increase ERP Phase 2 budget by 150K to cover the over-run trajectory and extend the timeline by 2 months. Fund the increase from the planned AI/ML Lab budget. This directly addresses the root cause of the Red RAG status.",
+        "trade_offs": "AI/ML Lab budget reduced or deferred. ERP end date moves from Sep to Nov 2026. Addresses the core issue rather than masking it.",
+        "headline_numbers": {
+          "budget_delta": -50000,
+          "projects_affected": 2,
+          "capacity_impact": "MUC AppDev utilization extends 2 months longer",
+          "rag_changes": "ERP Phase 2 moves from Red to Amber"
+        },
+        "constituent_actions": [
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"amount": 150000, "direction": "increase"}},
+          {"scope": "project", "project_id": "proj-aiml", "action_type": "adjust_budget", "parameters": {"amount": -150000, "direction": "decrease"}}
+        ]
+      },
+      {
+        "path_id": "risk-scope-reduction",
+        "name": "Reduce Scope: Trim ERP Non-Essentials",
+        "approach_description": "Reduce ERP Phase 2 scope by cutting 20% of external costs (consulting and training) and reducing Senior Developer allocation by 15 hours/month. This brings forecast back within budget ceiling without additional funding.",
+        "trade_offs": "Some ERP features may be deferred to a Phase 3. Reduced consulting may slow SAP integration specialist support. Risk of quality impact if scope reduction is not carefully managed.",
+        "headline_numbers": {
+          "budget_delta": -85000,
+          "projects_affected": 1,
+          "capacity_impact": "Frees 0.5 FTE from MUC AppDev",
+          "rag_changes": "ERP Phase 2 moves from Red to Amber"
+        },
+        "constituent_actions": [
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"percentage": -20, "direction": "decrease", "category": "external"}},
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "change_resources", "parameters": {"role": "role-sr-dev", "hours_delta": -15, "from_month": "2026-03", "to_month": "2026-09"}}
+        ]
+      }
+    ]
+  }
+]

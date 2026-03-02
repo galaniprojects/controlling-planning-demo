@@ -1,0 +1,34 @@
+{
+  "module_id": "capacity_management",
+  "module_name": "Capacity Management",
+  "sections": [
+    {
+      "title": "Overview",
+      "body": "Capacity Management helps Cost Center Owners manage team utilization and respond to resource requests. It has two main tabs: My Team (your cost center's heatmap) and Organization Overview (cross-CC comparison). A Request Management sub-view handles incoming resource and external cost requests."
+    },
+    {
+      "title": "My Team Tab",
+      "body": "Shows your cost center's utilization as a heatmap grid. Rows are people grouped by role, columns are months. Each cell is color-coded by utilization percentage. A summary bar at the top shows team-level metrics: average utilization, headcount, over/under-allocated count."
+    },
+    {
+      "title": "Heatmap Colors",
+      "body": "**Blue** (below 70%): Under-utilized — person has available capacity. **Green** (70-90%): Healthy utilization range. **Amber** (90-100%): Near capacity — limited availability. **Red** (above 100%): Over-allocated — needs immediate attention. Cell backgrounds use reduced opacity with the color as accent."
+    },
+    {
+      "title": "Person Detail Drawer",
+      "body": "Click any person row or cell to open a bottom drawer showing their full allocation breakdown: which projects they're assigned to, hours per month, confirmed vs pending allocations, and utilization trend over time."
+    },
+    {
+      "title": "Request Management",
+      "body": "The Request Management sub-view shows incoming resource and external cost requests directed at your cost center. Requests are grouped by forecast cycle. Each request shows the project, requested role/cost type, hours or amount, period, and priority."
+    },
+    {
+      "title": "Response Actions",
+      "body": "For each request, you can: **Confirm** (accept as-is, assigning a named person for resource requests), **Partially Fulfill** (adjust hours, amount, or period), **Counter-Propose** (offer an alternative such as a different person or role), or **Decline** (with required reason). The Assignment Preview shows candidate people with their current utilization to help you choose."
+    },
+    {
+      "title": "Organization Overview Tab",
+      "body": "Shows utilization across all cost centers in a single heatmap. Supports three pivot dimensions: by LoB, by Role, and by Cost Center. Click any cell or row to open a bottom drawer showing project-level consumption detail for that dimension."
+    }
+  ]
+}

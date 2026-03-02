@@ -1,0 +1,38 @@
+{
+  "module_id": "portfolio_overview",
+  "module_name": "Portfolio Overview",
+  "sections": [
+    {
+      "title": "Overview",
+      "body": "Portfolio Overview provides a comprehensive view of all projects and services across the organization. It has three tabs: Dashboard, Intake Queue, and Approvals. Controllers and executives use this module to monitor portfolio health, review new submissions, and approve change requests."
+    },
+    {
+      "title": "Dashboard Tab",
+      "body": "The Dashboard shows a KPI summary row at the top (total budget, YTD spend, forecast-at-completion, variance, CapEx/OpEx split, Run/Change ratio), followed by a filter bar and the portfolio tree table. The tree is expandable: LoB → Program → Project/Service. Each row shows RAG status, budget figures, and timeline. Click any project row to open a summary panel on the right."
+    },
+    {
+      "title": "Portfolio Tree Navigation",
+      "body": "Expand LoB rows to see programs and projects underneath. Aggregate values (budget, variance) roll up at each level. Use the filter bar to narrow by LoB, status, RAG color, cost center, or type (project vs service). Sort by any column header."
+    },
+    {
+      "title": "Summary Panel",
+      "body": "Clicking a project opens a slide-in panel on the right showing RAG status, budget snapshot (baseline/forecast/actuals), timeline bar, last CR summary, and a forecast trend sparkline. Use the 'Open in Workbench' button to navigate to the full project detail in the Project Workbench module."
+    },
+    {
+      "title": "Charts",
+      "body": "Three charts complement the table: Budget by LoB (stacked bar), Forecast Trajectory (line chart showing how total forecast shifted over time), and RAG Distribution (donut chart). These update based on active filters."
+    },
+    {
+      "title": "Intake Queue Tab",
+      "body": "Shows pending new project submissions. Each row displays the project name, submitter, LoB, estimated budget, timeline, and submission date. Click a row to see the full estimation. Controllers can Approve, Reject, or Send Back with comments. Approved projects become active with their estimation locked in as the baseline."
+    },
+    {
+      "title": "Approvals Tab",
+      "body": "Shows change requests that have passed CC Owner confirmation (Stage 2). Each row shows the project, CR summary, submitter, confirming CC Owner, and cost impact. Click to see full details including what changed, justification, and whether the change was system-suggested. Controllers can Approve, Reject, or Send Back."
+    },
+    {
+      "title": "RAG Indicators",
+      "body": "Green means variance below 5%. Amber means 5-10%. Red means above 10%. The combined RAG takes the worst of budget RAG and timeline RAG. Hover over any RAG indicator to see the specific variance percentages."
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "module_id": "administration",
+  "module_name": "Administration",
+  "sections": [
+    {
+      "title": "Overview",
+      "body": "The Administration module is accessible only to Controllers. It provides CRUD operations for organizational master data (Tier 1) and planning parameter management (Tier 2). All changes are logged in the audit trail."
+    },
+    {
+      "title": "Entity Type Selector",
+      "body": "The left panel lists all manageable entity types: Cost Centers, Competence Centers, Lines of Business, Locations, People, and Rate Tables. Select an entity type to see its data table on the right."
+    },
+    {
+      "title": "CRUD Operations",
+      "body": "For each entity type, you can create new entries, edit existing ones, and deactivate records. **Important:** CPC uses deactivation instead of deletion — deactivated records are hidden from active views but preserved for historical accuracy. Deactivation may cascade (e.g., deactivating a cost center affects its people)."
+    },
+    {
+      "title": "Cost Center Management",
+      "body": "Create cost centers with a name, location, and competence center assignment. Edit to change assignments. Deactivate to remove from active views while preserving allocation history."
+    },
+    {
+      "title": "People Management",
+      "body": "Add people with name, role type, and cost center assignment. Edit to transfer between cost centers or change roles. Deactivate when someone leaves. The system preserves all historical allocations and cost calculations."
+    },
+    {
+      "title": "Rate Table Management",
+      "body": "View and update hourly rates per role per competence center. When updating a rate, set the new effective date. The system preserves the previous rate and effective date for audit purposes. Historical cost calculations always use the rate that was in effect at the time."
+    },
+    {
+      "title": "Planning Parameters",
+      "body": "Configure system-wide settings: Fiscal Year Start Month, Planning Horizon, RAG thresholds (Amber and Red percentages), Target Utilization, and Maximum Scenarios per User. Each parameter shows its current value, default value, and data type. Use the Reset button to restore defaults."
+    },
+    {
+      "title": "Audit Trail",
+      "body": "All administrative changes are logged with timestamp, who made the change, what entity was affected, the specific field changed, and old/new values. The audit log is visible at the bottom of the Administration module."
+    }
+  ]
+}

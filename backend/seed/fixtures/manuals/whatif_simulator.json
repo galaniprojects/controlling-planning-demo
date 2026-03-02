@@ -1,0 +1,38 @@
+{
+  "module_id": "whatif_simulator",
+  "module_name": "What-If Simulator",
+  "sections": [
+    {
+      "title": "Overview",
+      "body": "The What-If Simulator lets Controllers and Executives model hypothetical portfolio scenarios without affecting live data. It operates in three phases: Scenario Manager (browse/create), Scenario Workspace (build and analyze), and Comparison View (side-by-side analysis)."
+    },
+    {
+      "title": "Scenario Manager",
+      "body": "The landing view shows your saved scenarios and published scenarios from others. Each scenario card shows its name, author, status (private/published), and headline impact. Create a new scenario from scratch or clone an existing one. Delete scenarios you own. Publish scenarios to make them visible to other Controllers and Executives."
+    },
+    {
+      "title": "Scenario Workspace",
+      "body": "The workspace has a split layout: an action panel on the left and an impact dashboard on the right. Add actions to model changes, and the impact dashboard updates immediately with the recalculated results."
+    },
+    {
+      "title": "Actions",
+      "body": "Actions can target individual projects or the entire portfolio. Types include: Delay Project, Remove Project, Reduce Budget, Cut Consulting, Accelerate Project, Add Budget, and Across-the-Board Cut. Each action specifies parameters (e.g., delay by N months, reduce by X%). Every action returns the full recalculated scenario state."
+    },
+    {
+      "title": "Impact Dashboard",
+      "body": "Shows the cascading effects of all applied actions: total budget delta, number of projects affected, FTE impact, RAG status changes, and capacity utilization shifts per cost center. Drill down into any metric to see project-level detail."
+    },
+    {
+      "title": "Comparison View",
+      "body": "Select up to 3 scenarios to compare side-by-side. The comparison shows key metrics (budget, timeline, capacity, RAG changes) for each scenario in parallel columns. This helps decision-makers evaluate trade-offs between conservative and aggressive approaches."
+    },
+    {
+      "title": "AI Advisor",
+      "body": "The AI Advisor panel (collapsible, right side) lets you describe a goal in natural language — for example, 'Find 2M in savings' or 'Get all teams below 95% utilization'. The system matches your goal to pre-computed solution paths and presents 2-3 options with different trade-offs. Select a path to apply its constituent actions to your scenario."
+    },
+    {
+      "title": "Important Notes",
+      "body": "Scenarios are sandboxes — they never affect live portfolio data. All impact calculations are performed server-side. Pre-built scenarios use pre-computed snapshots for instant loading. The AI Advisor uses pattern matching, not a live AI model."
+    }
+  ]
+}

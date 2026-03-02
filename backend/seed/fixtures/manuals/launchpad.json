@@ -1,0 +1,30 @@
+{
+  "module_id": "launchpad",
+  "module_name": "Launchpad",
+  "sections": [
+    {
+      "title": "Overview",
+      "body": "The Launchpad is your home screen in CPC. It provides a quick overview of what needs your attention and gives you access to all modules. The content you see is tailored to your role — controllers see pending approvals, cost center owners see resource requests, and project leads see forecast deadlines."
+    },
+    {
+      "title": "Notifications & Alerts",
+      "body": "The top section displays role-aware alerts. **Controllers** see pending change requests and new project submissions. **Cost Center Owners** see incoming resource requests. **Project Leads** see forecast review deadlines and CR status updates. **Executives** see portfolio health summaries. Click any notification to navigate directly to the relevant screen."
+    },
+    {
+      "title": "Module Tiles",
+      "body": "The middle section shows module cards ordered by relevance to your role. Each tile displays the module name, a brief description, and a contextual metric (e.g., 'Your 4 projects, 1 forecast overdue'). Click a tile to open that module full-screen. Modules you don't have access to are hidden."
+    },
+    {
+      "title": "Quick Metrics Strip",
+      "body": "The bottom strip shows 5 portfolio-level KPIs visible to all roles: Total IT Budget, YTD Spend, Portfolio Variance, Overall Utilization, and Run/Change Ratio. These give a quick pulse check without opening any module."
+    },
+    {
+      "title": "Submit New Project",
+      "body": "Project Leads see a prominent 'Submit New Project' button. This is the only entry point for creating new project proposals. Clicking it opens a structured form where you define the project scope, timeline, resource needs, and external costs. The system auto-calculates estimated costs from blended hourly rates. Once submitted, the proposal appears in the Controller's Intake Queue."
+    },
+    {
+      "title": "Role Switcher",
+      "body": "The role switcher dropdown in the top-right corner lets you switch between demo personas. Each persona has different module access, data visibility, and write permissions. Switching roles immediately updates all views to reflect that role's perspective."
+    }
+  ]
+}
