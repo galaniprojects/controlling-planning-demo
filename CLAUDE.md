@@ -25,7 +25,7 @@
 
 ## Build Phases
 1. **Phase A:** Foundation — Database schema + seed data
-2. **Phase B:** Backend API (89 endpoints across 8 groups)
+2. **Phase B:** Backend API (90 endpoints across 8 groups) ✅
 3. **Phase C:** Frontend Shell (routing, layout, role switcher)
 4. **Phase D:** Module UIs (Portfolio, Workbench, Capacity, Simulator, Admin)
 5. **Phase E:** Documentation content + polish

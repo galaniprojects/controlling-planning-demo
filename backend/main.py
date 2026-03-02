@@ -1,5 +1,6 @@
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from database import Base, engine
 
@@ -7,6 +8,14 @@ app = FastAPI(
     title="CPC Demo API",
     description="Controlling & Planning Centre — Demo Application",
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # In-memory store for JSON fixtures (loaded on startup)
@@ -28,8 +37,22 @@ def startup():
 
 # --- Routers ---
 from routers.admin import router as admin_router  # noqa: E402
+from routers.reference import router as reference_router  # noqa: E402
+from routers.documentation import router as docs_router  # noqa: E402
+from routers.global_launchpad import router as launchpad_router  # noqa: E402
+from routers.portfolio import router as portfolio_router  # noqa: E402
+from routers.workbench import router as workbench_router  # noqa: E402
+from routers.capacity import router as capacity_router  # noqa: E402
+from routers.scenarios import router as scenarios_router  # noqa: E402
 
 app.include_router(admin_router)
+app.include_router(reference_router)
+app.include_router(docs_router)
+app.include_router(launchpad_router)
+app.include_router(portfolio_router)
+app.include_router(workbench_router)
+app.include_router(capacity_router)
+app.include_router(scenarios_router)
 
 
 @app.get("/health")

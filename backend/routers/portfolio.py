@@ -1,0 +1,499 @@
+"""Portfolio Overview endpoints (Section 10.3) — 14 endpoints."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from config import DEMO_DATE
+from database import get_db
+from dependencies import get_current_user, require_role
+from models.change_requests import ChangeRequest, CRChangeDetail
+from models.financial import Actuals, Baseline, Forecast
+from models.projects import Project
+from schemas.common import CurrentUser
+from schemas.portfolio import (
+    ApprovalAction,
+    ApprovalItem,
+    BudgetSnapshot,
+    CRChangeDetailResponse,
+    CRDetailResponse,
+    IntakeDetail,
+    IntakeItem,
+    ProjectSummary,
+    RejectAction,
+    SendBackAction,
+    TimelineInfo,
+)
+from services.portfolio_service import (
+    build_portfolio_tree,
+    compute_portfolio_kpis,
+    compute_project_financials,
+)
+
+router = APIRouter(prefix="/api/portfolio", tags=["Portfolio Overview"])
+
+
+# ---------------------------------------------------------------------------
+# Dashboard (4 endpoints)
+# ---------------------------------------------------------------------------
+
+@router.get("/kpis")
+def get_portfolio_kpis(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Get portfolio-level KPI summary."""
+    kpis = compute_portfolio_kpis(db)
+    # Augment with additional fields for the full portfolio KPI response
+    total_baseline = (
+        db.query(func.coalesce(func.sum(Baseline.amount_eur), 0)).scalar()
+    )
+    total_forecast = (
+        db.query(func.coalesce(func.sum(Forecast.amount_eur), 0)).scalar()
+    )
+
+    # CapEx/OpEx split
+    capex_forecast = (
+        db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
+        .join(Project, Forecast.project_id == Project.id)
+        .filter(Project.capex_opex == "capex")
+        .scalar()
+    )
+    opex_forecast = float(total_forecast) - float(capex_forecast)
+
+    return {
+        "total_budget": kpis["total_budget"],
+        "ytd_spend": kpis["ytd_spend"],
+        "forecast_at_completion": round(float(total_forecast), 2),
+        "overall_variance_pct": kpis["portfolio_variance_pct"],
+        "capex_opex_split": {
+            "capex": round(float(capex_forecast), 2),
+            "opex": round(opex_forecast, 2),
+        },
+        "run_change_ratio": kpis["run_change_ratio"],
+    }
+
+
+@router.get("/projects")
+def get_portfolio_tree(
+    lob: str | None = None,
+    status: str | None = None,
+    rag: str | None = None,
+    type: str | None = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Get hierarchical portfolio tree (LoB -> Program -> Project)."""
+    filters = {}
+    if lob:
+        filters["lob"] = lob
+    if status:
+        filters["status"] = status
+    if rag:
+        filters["rag"] = rag
+    if type:
+        filters["type"] = type
+
+    tree = build_portfolio_tree(db, filters)
+    return {"items": tree, "total": len(tree)}
+
+
+@router.get("/projects/{project_id}/summary")
+def get_project_summary(
+    project_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Get project summary panel data."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    fins = compute_project_financials(db, project_id)
+
+    # Last CR summary
+    last_cr = (
+        db.query(ChangeRequest)
+        .filter(ChangeRequest.project_id == project_id)
+        .order_by(ChangeRequest.submission_timestamp.desc())
+        .first()
+    )
+    last_cr_summary = None
+    if last_cr:
+        last_cr_summary = f"{last_cr.change_category}: {last_cr.summary} ({last_cr.status})"
+
+    # Forecast sparkline (monthly forecast amounts)
+    sparkline_rows = (
+        db.query(Forecast.month, func.sum(Forecast.amount_eur).label("total"))
+        .filter(Forecast.project_id == project_id)
+        .group_by(Forecast.month)
+        .order_by(Forecast.month)
+        .all()
+    )
+    sparkline = [{"month": r.month, "amount": round(float(r.total), 2)} for r in sparkline_rows]
+
+    return ProjectSummary(
+        id=project.id,
+        name=project.name,
+        rag=project.rag_status,
+        budget_snapshot=BudgetSnapshot(
+            baseline=fins["baseline_total"],
+            forecast=fins["forecast_total"],
+            actuals_ytd=fins["actuals_ytd"],
+            plan_drift_pct=fins["plan_drift_pct"],
+        ),
+        timeline=TimelineInfo(
+            start=project.start_month,
+            end=project.end_month,
+            projected_end=project.projected_end_month,
+        ),
+        last_cr_summary=last_cr_summary,
+        forecast_sparkline=sparkline,
+    )
+
+
+@router.get("/charts")
+def get_dashboard_charts(
+    lob: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Get chart data for portfolio dashboard."""
+    from models.organization import LineOfBusiness
+
+    # Budget by LoB
+    lobs = db.query(LineOfBusiness).all()
+    budget_by_lob = []
+    for l in lobs:
+        query = db.query(func.coalesce(func.sum(Project.total_budget), 0)).filter(
+            Project.lob_id == l.id, Project.is_active.is_(True)
+        )
+        budget = float(query.scalar())
+        budget_by_lob.append({"lob_id": l.id, "lob_name": l.name, "budget": round(budget, 2)})
+
+    # Forecast trajectory (monthly totals)
+    query = (
+        db.query(Forecast.month, func.sum(Forecast.amount_eur).label("forecast"))
+        .group_by(Forecast.month)
+        .order_by(Forecast.month)
+    )
+    if lob:
+        query = query.join(Project, Forecast.project_id == Project.id).filter(Project.lob_id == lob)
+    forecast_trajectory = [{"month": r.month, "forecast": round(float(r.forecast), 2)} for r in query.all()]
+
+    # RAG distribution
+    rag_dist = (
+        db.query(Project.rag_status, func.count(Project.id))
+        .filter(Project.is_active.is_(True), Project.rag_status.isnot(None))
+        .group_by(Project.rag_status)
+        .all()
+    )
+    rag_distribution = {status: count for status, count in rag_dist}
+
+    return {
+        "budget_by_lob": budget_by_lob,
+        "forecast_trajectory": forecast_trajectory,
+        "rag_distribution": rag_distribution,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Intake Queue (5 endpoints)
+# ---------------------------------------------------------------------------
+
+@router.get("/intake")
+def get_intake_queue(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Get pending project submissions."""
+    query = db.query(Project).filter(Project.status == "pending_approval")
+
+    # PL sees only own submissions
+    if user.role == "project_lead":
+        query = query.filter(Project.pl_person_id == user.person_id)
+
+    projects = query.all()
+    items = [
+        IntakeItem(
+            project_id=p.id,
+            name=p.name,
+            submitted_by=p.pl.name if p.pl else None,
+            lob=p.lob.name if p.lob else p.lob_id,
+            estimated_budget=float(p.total_budget) if p.total_budget else None,
+            submission_date=str(p.created_at) if p.created_at else None,
+            status=p.status,
+        )
+        for p in projects
+    ]
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/intake/{project_id}")
+def get_intake_detail(
+    project_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Get full detail of a pending submission."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    return IntakeDetail(
+        project_id=project.id,
+        name=project.name,
+        description=project.description,
+        lob_id=project.lob_id,
+        lob_name=project.lob.name if project.lob else "",
+        start_month=project.start_month,
+        end_month=project.end_month,
+        estimated_budget=float(project.total_budget) if project.total_budget else None,
+        capex_opex=project.capex_opex,
+        status=project.status,
+    )
+
+
+@router.put("/intake/{project_id}/approve")
+def approve_project(
+    project_id: str,
+    body: ApprovalAction | None = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Approve a pending project submission."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if project.status != "pending_approval":
+        raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_approval'")
+
+    project.status = "active"
+    db.commit()
+    db.refresh(project)
+
+    return {"id": project.id, "name": project.name, "status": project.status}
+
+
+@router.put("/intake/{project_id}/reject")
+def reject_project(
+    project_id: str,
+    body: RejectAction,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Reject a pending project submission."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if project.status != "pending_approval":
+        raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_approval'")
+
+    project.status = "rejected"
+    db.commit()
+    db.refresh(project)
+
+    return {"id": project.id, "name": project.name, "status": project.status}
+
+
+@router.put("/intake/{project_id}/send-back")
+def send_back_project(
+    project_id: str,
+    body: SendBackAction,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Send a pending project submission back for revision."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if project.status != "pending_approval":
+        raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_approval'")
+
+    project.status = "draft"
+    db.commit()
+    db.refresh(project)
+
+    return {"id": project.id, "name": project.name, "status": project.status}
+
+
+# ---------------------------------------------------------------------------
+# Approvals (5 endpoints)
+# ---------------------------------------------------------------------------
+
+def _build_cr_detail(cr: ChangeRequest) -> CRDetailResponse:
+    """Build a full CR detail response."""
+    return CRDetailResponse(
+        id=cr.id,
+        project_id=cr.project_id,
+        project_name=cr.project.name if cr.project else "",
+        status=cr.status,
+        change_category=cr.change_category,
+        summary=cr.summary,
+        justification=cr.justification,
+        is_system_suggested=cr.is_system_suggested,
+        submitted_by=cr.submitted_by.name if cr.submitted_by else "",
+        submission_date=str(cr.submission_timestamp),
+        cc_owner=cr.cc_owner.name if cr.cc_owner else None,
+        cc_status=cr.cc_status,
+        cc_comments=cr.cc_comments,
+        controller=cr.controller.name if cr.controller else None,
+        controller_status=cr.controller_status,
+        controller_comments=cr.controller_comments,
+        changes=[
+            CRChangeDetailResponse(
+                field_changed=d.field_changed,
+                old_value=d.old_value,
+                new_value=d.new_value,
+                delta=d.delta,
+                line_item_type=d.line_item_type,
+                month=d.month,
+            )
+            for d in cr.change_details
+        ],
+    )
+
+
+@router.get("/approvals")
+def get_pending_approvals(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Get CRs pending controller approval (Stage 2 only)."""
+    crs = (
+        db.query(ChangeRequest)
+        .filter(ChangeRequest.status == "pending_controller_approval")
+        .order_by(ChangeRequest.submission_timestamp.desc())
+        .all()
+    )
+
+    # Compute EUR impact from change details
+    items = []
+    for cr in crs:
+        delta_sum = 0.0
+        for d in cr.change_details:
+            if d.delta:
+                try:
+                    delta_sum += float(d.delta.replace("€", "").replace(",", "").strip())
+                except (ValueError, AttributeError):
+                    pass
+
+        items.append(
+            ApprovalItem(
+                cr_id=cr.id,
+                project_id=cr.project_id,
+                project_name=cr.project.name if cr.project else "",
+                summary=cr.summary,
+                submitted_by=cr.submitted_by.name if cr.submitted_by else "",
+                confirmed_by_cc_owner=cr.cc_owner.name if cr.cc_owner else None,
+                impact_eur_delta=round(delta_sum, 2) if delta_sum != 0 else None,
+                submission_date=str(cr.submission_timestamp),
+                system_suggested=cr.is_system_suggested,
+            )
+        )
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/approvals/{cr_id}")
+def get_approval_detail(
+    cr_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Get full CR detail for approval."""
+    cr = db.query(ChangeRequest).filter(ChangeRequest.id == cr_id).first()
+    if not cr:
+        raise HTTPException(404, "Change request not found")
+    return _build_cr_detail(cr)
+
+
+@router.put("/approvals/{cr_id}/approve")
+def approve_cr(
+    cr_id: int,
+    body: ApprovalAction | None = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Approve a change request (updates forecast)."""
+    cr = db.query(ChangeRequest).filter(ChangeRequest.id == cr_id).first()
+    if not cr:
+        raise HTTPException(404, "Change request not found")
+    if cr.status != "pending_controller_approval":
+        raise HTTPException(409, f"CR status is '{cr.status}', expected 'pending_controller_approval'")
+
+    cr.status = "approved"
+    cr.controller_id = user.person_id
+    cr.controller_status = "approved"
+    cr.controller_approval_timestamp = datetime.utcnow()
+    if body and body.comments:
+        cr.controller_comments = body.comments
+
+    # Update forecast rows from change details
+    for detail in cr.change_details:
+        if detail.month and detail.new_value:
+            row = (
+                db.query(Forecast)
+                .filter(
+                    Forecast.project_id == cr.project_id,
+                    Forecast.month == detail.month,
+                    Forecast.sub_category == detail.field_changed,
+                )
+                .first()
+            )
+            if row:
+                try:
+                    row.amount_eur = float(detail.new_value.replace("€", "").replace(",", "").strip())
+                except (ValueError, AttributeError):
+                    pass
+
+    db.commit()
+    return _build_cr_detail(cr)
+
+
+@router.put("/approvals/{cr_id}/reject")
+def reject_cr(
+    cr_id: int,
+    body: RejectAction,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Reject a change request."""
+    cr = db.query(ChangeRequest).filter(ChangeRequest.id == cr_id).first()
+    if not cr:
+        raise HTTPException(404, "Change request not found")
+    if cr.status != "pending_controller_approval":
+        raise HTTPException(409, f"CR status is '{cr.status}', expected 'pending_controller_approval'")
+
+    cr.status = "rejected"
+    cr.controller_id = user.person_id
+    cr.controller_status = "rejected"
+    cr.controller_approval_timestamp = datetime.utcnow()
+    cr.controller_comments = body.reason
+    db.commit()
+    return _build_cr_detail(cr)
+
+
+@router.put("/approvals/{cr_id}/send-back")
+def send_back_cr(
+    cr_id: int,
+    body: SendBackAction,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Send a change request back for revision."""
+    cr = db.query(ChangeRequest).filter(ChangeRequest.id == cr_id).first()
+    if not cr:
+        raise HTTPException(404, "Change request not found")
+    if cr.status != "pending_controller_approval":
+        raise HTTPException(409, f"CR status is '{cr.status}', expected 'pending_controller_approval'")
+
+    cr.status = "sent_back_by_controller"
+    cr.controller_id = user.person_id
+    cr.controller_status = "sent_back"
+    cr.controller_comments = body.comments
+    db.commit()
+    return _build_cr_detail(cr)

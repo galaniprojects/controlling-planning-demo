@@ -66,10 +66,26 @@ The server will start on **http://localhost:8000**.
 
 Open your browser and go to:
 - **http://localhost:8000/health** — should show `{"status": "ok"}`
-- **http://localhost:8000/docs** — interactive API documentation (Swagger UI)
+- **http://localhost:8000/docs** — interactive API documentation (Swagger UI) — 90 endpoints across 8 groups
 - **http://localhost:8000/redoc** — alternative API documentation (ReDoc)
 
 The database file (`cpc_demo.db`) is created automatically on first startup with all demo data pre-loaded.
+
+### 2.6 Test with different personas
+
+All API requests require an `X-Current-User` header. Available personas:
+
+| Header Value | Name | Role | Access |
+|-------------|------|------|--------|
+| `persona-controller` | Anna Meier | Controller | Full access (admin, approvals, scenarios) |
+| `persona-cc-owner` | Thomas Brenner | Cost Center Owner | Capacity management (cc-muc-appdev) |
+| `persona-pl` | Priya Sharma | Project Lead | Project workbench, forecast cycles |
+| `persona-exec` | Dr. Klaus Weber | Executive | Dashboard, scenarios (read-only) |
+
+Example with curl:
+```bash
+curl -H "X-Current-User: persona-controller" http://localhost:8000/api/portfolio/kpis
+```
 
 ---
 
