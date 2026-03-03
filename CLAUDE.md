@@ -28,12 +28,22 @@
 2. **Phase B:** Backend API (90 endpoints across 8 groups) ✅
 3. **Phase C:** Frontend Shell (routing, layout, role switcher) ✅
 4. **Phase D:** Module UIs — split into 5 sessions:
-   - **D1:** Portfolio Overview (7.2, 10.3) — tree, filters, charts, approvals
-   - **D2:** Project Workbench (7.3, 10.4) — master-detail, forecast wizard
+   - **D1:** Portfolio Overview (7.2, 10.3) — tree, filters, charts, approvals ✅
+   - **D2:** Project Workbench (7.3, 10.4) — master-detail, forecast wizard ← NEXT
    - **D3:** Capacity Management (7.4, 10.5) — heatmap, request management
    - **D4:** What-If Simulator (7.5, 10.6) — scenarios, AI Advisor
    - **D5:** Administration (7.6, 10.9) — CRUD tables, parameters
 5. **Phase E:** Documentation content + polish
+
+## D1 Established Components (reuse in D2–D5)
+- `components/shared/ExpandableTreeTable` — generic recursive tree table → D2, D4
+- `components/shared/FilterBar` — horizontal Select dropdowns with Clear → all modules
+- `components/shared/Skeleton` — pulsing loading placeholder → all modules
+- `components/shared/ModuleGuideButton` — fetches `/api/docs/modules/{id}` → all modules (IDs use underscores: `project_workbench`, `capacity_management`, `whatif_simulator`, `administration`)
+- `components/charts/*` — Recharts wrappers (bar, line, donut) → D2, D4
+- **Tab pattern:** Use controlled `value` + `useEffect` to reset on role change (NOT `defaultValue`)
+- **Action pattern:** idle → mode → textarea → submit → result → `onActionComplete` callback
+- shadcn components installed: button, card, badge, dropdown-menu, separator, tooltip, tabs, select, table, textarea
 
 ## Cross-Module Navigation Rule
 - Wire inbound links during the module's own session
