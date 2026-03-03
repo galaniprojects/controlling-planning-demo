@@ -26,7 +26,7 @@
 ## Build Phases
 1. **Phase A:** Foundation — Database schema + seed data
 2. **Phase B:** Backend API (90 endpoints across 8 groups) ✅
-3. **Phase C:** Frontend Shell (routing, layout, role switcher)
+3. **Phase C:** Frontend Shell (routing, layout, role switcher) ✅
 4. **Phase D:** Module UIs (Portfolio, Workbench, Capacity, Simulator, Admin)
 5. **Phase E:** Documentation content + polish
 
@@ -54,7 +54,7 @@ cd backend && python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python main.py  # Runs on http://localhost:8000, Swagger at /docs
 
-# Frontend (when built)
+# Frontend
 cd frontend && npm install && npm run dev  # Runs on http://localhost:5173
 
 # Reset demo data

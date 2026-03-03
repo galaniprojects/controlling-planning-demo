@@ -91,15 +91,29 @@ curl -H "X-Current-User: persona-controller" http://localhost:8000/api/portfolio
 
 ## 3. Frontend Setup
 
-> **Note:** The frontend is not yet built. This section will be updated in Phase C.
+### 3.1 Install Node.js dependencies
 
 ```bash
 cd frontend
 npm install
+```
+
+### 3.2 Start the frontend dev server
+
+```bash
 npm run dev
 ```
 
 The frontend will run on **http://localhost:5173**.
+
+It proxies all `/api/*` requests to the backend on port 8000, so **make sure the backend is running first**.
+
+### 3.3 Verify it's working
+
+Open **http://localhost:5173** in your browser. You should see:
+- The CPC Launchpad with notifications, module tiles, and KPI metrics
+- A role switcher dropdown (top right) with 4 demo personas
+- Switching roles changes notifications, visible modules, and navigates to the role's default module
 
 ---
 

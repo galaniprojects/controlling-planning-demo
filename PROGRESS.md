@@ -1,9 +1,9 @@
 # CPC Demo — Build Progress
 
 ## Current Status
-Phase: B (complete)
-Last completed: Phase B — Backend API (90 endpoints)
-Next up: Phase C — Frontend shell
+Phase: C (complete)
+Last completed: Phase C — Frontend shell (commit: 222172d)
+Next up: Phase D — Module UIs (Portfolio Overview first, then Workbench, Capacity, Simulator, Admin)
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -23,7 +23,16 @@ Next up: Phase C — Frontend shell
   - Project Workbench: 11 endpoints (project list, overview, forecast grid, 5-phase forecast cycle, CR history)
   - Capacity Management: 14 endpoints (team summary, heatmap, request management, org overview)
   - What-If Simulator: 12 endpoints (scenario CRUD, actions, drill-down, comparison, AI advisor)
-- [ ] Phase C: Frontend shell
+- [x] Phase C: Frontend shell
+  - Vite + React + TypeScript with Tailwind v4 and shadcn/ui
+  - Design tokens: blue-800 primary, slate-50 bg, Inter font, RAG colors
+  - API client with X-Current-User header + Vite proxy to backend:8000
+  - RoleContext: 4-persona switcher, auto-navigates to default module
+  - TopBar: CPC logo, route-aware breadcrumb, help button, role dropdown
+  - Launchpad: role-filtered notifications, module tile grid, 5-KPI strip
+  - SidePanel (content shrinks, 380px) and BottomDrawer (overlay, 40vh)
+  - Routing: / + 5 module placeholder routes with /* for future nesting
+  - Submit New Project button (PL-only, shell — form in Phase D)
 - [ ] Phase D: Module UIs
 - [ ] Phase E: Documentation content + polish
 
@@ -95,6 +104,42 @@ Next up: Phase C — Frontend shell
 - backend/dependencies.py — get_current_user, require_role
 - backend/main.py — CORS middleware, 8 router registrations
 - backend/routers/admin.py — 20 new endpoints + existing reset-demo
+
+## Phase C Details
+
+### Frontend Architecture
+- **Framework**: Vite 7 + React 19 + TypeScript, Tailwind v4 (Vite plugin), shadcn/ui
+- **Dev server**: `npm run dev` on port 5173, Vite proxy forwards /api/* to backend:8000
+- **Host binding**: `127.0.0.1` (required for preview tooling)
+
+### Directory Structure
+| Directory | Files |
+|-----------|-------|
+| frontend/src/api/ | client.ts (fetch wrapper + X-Current-User header), endpoints.ts (typed API functions) |
+| frontend/src/types/ | api.ts (TS interfaces mirroring backend Pydantic schemas) |
+| frontend/src/contexts/ | RoleContext.tsx, SidePanelContext.tsx, BottomDrawerContext.tsx |
+| frontend/src/lib/ | utils.ts (cn()), routes.ts (MODULE_ROUTES, ROUTE_LABELS), formatters.ts (€, %), rag.ts (severity/RAG colors) |
+| frontend/src/components/layout/ | AppLayout, TopBar, Breadcrumb, RoleSwitcher, HelpButton, SidePanel, BottomDrawer, PlaceholderModule |
+| frontend/src/components/ui/ | button, card, badge, dropdown-menu, separator, tooltip (shadcn) |
+| frontend/src/modules/launchpad/ | Launchpad, NotificationsList, ModuleGrid, KPIStrip, SubmitProjectButton |
+
+### Key Frontend Patterns
+- **API client**: Module-level `currentUserId` variable, `setCurrentUser()` updates it, all `api.get/post/put/delete` calls auto-attach the header
+- **Role switching**: `useRole().switchRole(id)` → updates API header → fetches new context → components re-render and re-fetch role-dependent data
+- **SidePanel**: Custom component (NOT shadcn Sheet), `fixed right-0 w-[380px]`, main content gets `mr-[380px]` when open (shrink, not overlay)
+- **BottomDrawer**: `fixed bottom-0 h-[40vh]` with `bg-black/30` overlay
+- **Routing**: react-router-dom v7, `/*` on module routes to support nested routes in Phase D
+
+### shadcn/ui Components Installed
+button, card, badge, dropdown-menu, separator, tooltip
+
+### Personas (for X-Current-User header)
+| ID | Name | Role | Default Module |
+|----|------|------|----------------|
+| persona-controller | Anna Meier | controller | portfolio |
+| persona-cc-owner | Thomas Brenner | cost_center_owner | capacity |
+| persona-pl | Priya Sharma | project_lead | workbench |
+| persona-exec | Dr. Klaus Weber | executive | portfolio |
 
 ## Deviations from Spec
 - Repository named `vision-demo-prototype` instead of `cpc-demo` (user preference)
