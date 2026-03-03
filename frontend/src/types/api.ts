@@ -478,3 +478,148 @@ export interface OrgDetailItem {
   hours_allocated: number;
   has_pending_crs: boolean;
 }
+
+// --- What-If Simulator ---
+
+export interface ScenarioListItem {
+  id: number;
+  name: string;
+  description: string | null;
+  status: string;
+  author_name: string;
+  created_at: string;
+  modified_at: string;
+  headline_impact: string | null;
+}
+
+export interface ScenarioListResponse {
+  my_scenarios: ScenarioListItem[];
+  published_scenarios: ScenarioListItem[];
+}
+
+export interface ScenarioCreateResponse {
+  id: number;
+  name: string;
+  status: string;
+}
+
+export interface ScenarioAction {
+  id: number;
+  action_order: number;
+  scope: string;
+  action_type: string;
+  project_id: string | null;
+  parameters: Record<string, unknown>;
+  impact_delta: Record<string, unknown>;
+  group_label: string | null;
+}
+
+export interface ScenarioMetadata {
+  id: number;
+  name: string;
+  description: string | null;
+  status: string;
+  author_name: string;
+}
+
+export interface ScenarioImpactDashboard {
+  total_budget_original: number;
+  total_budget_adjusted: number;
+  total_budget_delta: number;
+  rag_distribution: Record<string, number>;
+  headline?: string;
+}
+
+export interface ScenarioProjectState {
+  project_id: string;
+  project_name: string;
+  original_budget: number;
+  adjusted_budget: number;
+  budget_delta: number;
+  original_rag: string | null;
+  adjusted_rag: string | null;
+  is_affected: boolean;
+}
+
+export interface ScenarioCapacityImpact {
+  cost_center_id: string;
+  month: string;
+  original_utilization_pct: number;
+  adjusted_utilization_pct: number;
+  fte_delta: number;
+}
+
+export interface ScenarioDetail {
+  metadata: ScenarioMetadata;
+  actions: ScenarioAction[];
+  impact_dashboard: ScenarioImpactDashboard;
+  project_states: ScenarioProjectState[];
+  capacity_impacts: ScenarioCapacityImpact[];
+  narrative_summary?: string;
+}
+
+export interface ScenarioMetadataUpdateResponse {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
+export interface ScenarioStatusResponse {
+  id: number;
+  status: string;
+}
+
+// D4b types (defined now, used in D4b session)
+
+export interface AdvisorHeadlineNumbers {
+  budget_delta: number;
+  projects_affected: number;
+  capacity_impact: string;
+  rag_changes: string;
+}
+
+export interface AdvisorConstituentAction {
+  scope: string;
+  project_id: string | null;
+  action_type: string;
+  parameters: Record<string, unknown>;
+}
+
+export interface AdvisorPath {
+  path_id: string;
+  name: string;
+  approach_description: string;
+  trade_offs: string;
+  headline_numbers: AdvisorHeadlineNumbers;
+  constituent_actions: AdvisorConstituentAction[];
+}
+
+export interface AdvisorQueryResponse {
+  paths: AdvisorPath[];
+  matched_goal?: string;
+  message?: string;
+}
+
+export interface ComparisonColumnData {
+  name: string;
+  budget: number;
+  delta?: number;
+  rag: string | null;
+}
+
+export interface ComparisonColumn {
+  label: string;
+  scenario_id?: number;
+  data: Record<string, ComparisonColumnData>;
+}
+
+export interface ComparisonResponse {
+  columns: ComparisonColumn[];
+  total_scenarios: number;
+}
+
+export interface DrillDownResponse {
+  items: Record<string, unknown>[];
+  total: number;
+  level: string;
+}

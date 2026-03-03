@@ -7,6 +7,7 @@ import { Launchpad } from '@/modules/launchpad/Launchpad';
 import { PortfolioOverview } from '@/modules/portfolio/PortfolioOverview';
 import { ProjectWorkbench } from '@/modules/workbench/ProjectWorkbench';
 import { CapacityManagement } from '@/modules/capacity/CapacityManagement';
+import { WhatIfSimulator } from '@/modules/simulator/WhatIfSimulator';
 import { PlaceholderModule } from '@/components/layout/PlaceholderModule';
 
 export default function App() {
@@ -21,7 +22,7 @@ export default function App() {
                 <Route path="/portfolio/*" element={<PortfolioOverview />} />
                 <Route path="/workbench/*" element={<ProjectWorkbench />} />
                 <Route path="/capacity/*" element={<CapacityManagement />} />
-                <Route path="/simulator/*" element={<PlaceholderModule name="What-If Simulator" />} />
+                <Route path="/simulator/*" element={<WhatIfSimulator />} />
                 <Route path="/admin/*" element={<PlaceholderModule name="Administration" />} />
               </Routes>
             </AppLayout>

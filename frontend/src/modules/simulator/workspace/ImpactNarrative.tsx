@@ -1,0 +1,47 @@
+import { Info } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import type { ScenarioImpactDashboard } from '@/types/api';
+
+interface Props {
+  impact: ScenarioImpactDashboard;
+  affectedCount: number;
+}
+
+function formatCurrency(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000)
+    return `€${(value / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `€${(value / 1_000).toFixed(0)}K`;
+  return `€${value.toFixed(0)}`;
+}
+
+function generateNarrative(
+  impact: ScenarioImpactDashboard,
+  affectedCount: number,
+): string {
+  if (impact.headline) return impact.headline;
+
+  const delta = impact.total_budget_delta;
+  const pct =
+    impact.total_budget_original !== 0
+      ? ((delta / impact.total_budget_original) * 100).toFixed(1)
+      : '0.0';
+  const direction =
+    delta < 0 ? 'reduces' : delta > 0 ? 'increases' : 'maintains';
+
+  const rag = impact.rag_distribution;
+  return `This scenario ${direction} total portfolio spend by ${formatCurrency(Math.abs(delta))} (${delta <= 0 ? '' : '+'}${pct}%). ${affectedCount} project(s) affected. RAG distribution: ${rag.green ?? 0} Green, ${rag.amber ?? 0} Amber, ${rag.red ?? 0} Red.`;
+}
+
+export function ImpactNarrative({ impact, affectedCount }: Props) {
+  const narrative = generateNarrative(impact, affectedCount);
+
+  return (
+    <Card className="bg-indigo-50 border-indigo-100 p-4">
+      <div className="flex gap-3">
+        <Info className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
+        <p className="text-sm text-slate-700 leading-relaxed">{narrative}</p>
+      </div>
+    </Card>
+  );
+}

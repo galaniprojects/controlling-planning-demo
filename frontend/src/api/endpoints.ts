@@ -33,6 +33,14 @@ import type {
   OrgSummary,
   OrgHeatmapRow,
   OrgDetailItem,
+  ScenarioListResponse,
+  ScenarioCreateResponse,
+  ScenarioDetail,
+  ScenarioMetadataUpdateResponse,
+  ScenarioStatusResponse,
+  AdvisorQueryResponse,
+  ComparisonResponse,
+  DrillDownResponse,
 } from '@/types/api';
 
 export const rolesApi = {
@@ -277,6 +285,86 @@ export const capacityApi = {
     if (month) q.set('month', month);
     return api.get<ListResponse<OrgDetailItem>>(
       `/api/capacity/org/heatmap/${dimId}/detail?${q}`,
+    );
+  },
+};
+
+// --- What-If Simulator ---
+
+export const scenariosApi = {
+  // Scenario Manager
+  list: () => api.get<ScenarioListResponse>('/api/scenarios'),
+
+  create: (body: { name: string; description?: string; clone_from?: number }) =>
+    api.post<ScenarioCreateResponse>('/api/scenarios', body),
+
+  remove: (scenarioId: number) =>
+    api.delete<{ status: string }>(`/api/scenarios/${scenarioId}`),
+
+  publish: (scenarioId: number) =>
+    api.put<ScenarioStatusResponse>(`/api/scenarios/${scenarioId}/publish`),
+
+  unpublish: (scenarioId: number) =>
+    api.put<ScenarioStatusResponse>(`/api/scenarios/${scenarioId}/unpublish`),
+
+  // Workspace
+  getDetail: (scenarioId: number) =>
+    api.get<ScenarioDetail>(`/api/scenarios/${scenarioId}`),
+
+  updateMetadata: (
+    scenarioId: number,
+    body: { name?: string; description?: string },
+  ) =>
+    api.put<ScenarioMetadataUpdateResponse>(
+      `/api/scenarios/${scenarioId}/metadata`,
+      body,
+    ),
+
+  applyAction: (
+    scenarioId: number,
+    body: {
+      scope: string;
+      action_type: string;
+      project_id?: string;
+      parameters: Record<string, unknown>;
+    },
+  ) => api.post<ScenarioDetail>(`/api/scenarios/${scenarioId}/actions`, body),
+
+  removeAction: (scenarioId: number, actionId: number) =>
+    api.delete<ScenarioDetail>(
+      `/api/scenarios/${scenarioId}/actions/${actionId}`,
+    ),
+
+  reorderActions: (scenarioId: number, actionIds: number[]) =>
+    api.put<{ status: string }>(
+      `/api/scenarios/${scenarioId}/actions/reorder`,
+      { action_ids: actionIds },
+    ),
+
+  // D4b: AI Advisor
+  advisorQuery: (scenarioId: number, goal: string) =>
+    api.post<AdvisorQueryResponse>(
+      `/api/scenarios/${scenarioId}/advisor/query`,
+      { goal },
+    ),
+
+  advisorApply: (scenarioId: number, pathId: string) =>
+    api.post<ScenarioDetail>(
+      `/api/scenarios/${scenarioId}/advisor/apply`,
+      { path_id: pathId },
+    ),
+
+  // D4b: Comparison & Drill-Down
+  compare: (scenarioIds: number[]) =>
+    api.post<ComparisonResponse>('/api/scenarios/compare', {
+      scenario_ids: scenarioIds,
+    }),
+
+  drillDown: (scenarioId: number, level: string, parentId?: string) => {
+    const q = new URLSearchParams({ level });
+    if (parentId) q.set('parent_id', parentId);
+    return api.get<DrillDownResponse>(
+      `/api/scenarios/${scenarioId}/drill-down?${q}`,
     );
   },
 };

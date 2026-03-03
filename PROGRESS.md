@@ -1,9 +1,9 @@
 # CPC Demo — Build Progress
 
 ## Current Status
-Phase: D3 (complete)
-Last completed: Phase D3 — Capacity Management module
-Next up: Phase D4 — What-If Simulator
+Phase: D4a (complete)
+Last completed: Phase D4a — What-If Simulator (Scenario Manager + Workspace Core)
+Next up: Phase D4b — What-If Simulator (AI Advisor + Comparison View + Drill-Down)
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -37,7 +37,8 @@ Next up: Phase D4 — What-If Simulator
   - [x] D1: Portfolio Overview — expandable tree, filter bar, charts, intake queue, approvals (Section 7.2)
   - [x] D2: Project Workbench — master-detail, 3-point comparison, trajectory chart, forecast wizard (Section 7.3)
   - [x] D3: Capacity Management — CSS grid heatmap, utilization colors, request management, org overview (Section 7.4)
-  - [ ] D4: What-If Simulator — scenario workspace, split layout, comparison view, AI Advisor (Section 7.5)
+  - [x] D4a: What-If Simulator — Scenario Manager + Workspace Core (Section 7.5.6–7.5.7)
+  - [ ] D4b: What-If Simulator — AI Advisor + Comparison + Drill-Down (Section 7.5.8–7.5.9)
   - [ ] D5: Administration — entity selector, CRUD tables, detail panel, planning parameters (Section 7.6)
 - [ ] Phase E: Documentation content + polish
 
@@ -327,6 +328,85 @@ Before committing at the end of each D-session:
 - Resource Requests button had badge counter (spec says "no badge counter") → Removed badge, kept blue accent color shift for visual emphasis
 - Request queue grouped only by status → Added monthly cycle grouping within each status section (e.g., "March 2026 Cycle")
 - Backend org summary query used wrong CR status string `pending_controller` → Fixed to `pending_controller_approval`
+
+## Phase D4a Details — What-If Simulator (Scenario Manager + Workspace Core)
+
+### New Files (13)
+| Directory | Files |
+|-----------|-------|
+| frontend/src/components/ui/ | dialog.tsx (shadcn CLI) |
+| frontend/src/modules/simulator/ | WhatIfSimulator.tsx, useScenarioState.ts |
+| frontend/src/modules/simulator/workspace/ | ScenarioWorkspace.tsx, ActionPanel.tsx, AddActionForm.tsx, ActionItem.tsx, ImpactNarrative.tsx, KPIComparisonStrip.tsx, ScenarioPortfolioTree.tsx |
+| frontend/src/modules/simulator/manager/ | ScenarioManager.tsx, ScenarioTable.tsx, CreateScenarioModal.tsx |
+
+### Modified Files (3)
+- `src/types/api.ts` — Added ~120 lines of scenario types (D4a + D4b types pre-defined: ScenarioListItem, ScenarioAction, ScenarioDetail, AdvisorPath, ComparisonResponse, DrillDownResponse, etc.)
+- `src/api/endpoints.ts` — Added scenariosApi (14 functions: list, create, remove, publish, unpublish, getDetail, updateMetadata, applyAction, removeAction, reorderActions + 4 D4b stubs)
+- `src/App.tsx` — Replaced PlaceholderModule with WhatIfSimulator for /simulator/* route
+
+### New shadcn Components
+- dialog (for CreateScenarioModal)
+
+### Key Architecture
+
+**Orchestrator (WhatIfSimulator.tsx)**:
+- 3-phase state: `'manager' | { view: 'workspace', scenarioId } | 'comparison'`
+- Role gating: Controller + Executive only; PL/CC Owner see ShieldAlert no-access card
+- Resets to manager phase on role switch
+
+**Scenario Manager (ScenarioManager.tsx)**:
+- Fetches `scenariosApi.list()` → two ScenarioTable instances ("My Scenarios" + "Published Scenarios")
+- Handles CRUD: create (with optional clone_from), publish, unpublish, delete
+- "Compare Scenarios" button disabled (D4b placeholder)
+
+**Scenario Workspace (ScenarioWorkspace.tsx)**:
+- Split layout: ActionPanel (380px left) + Impact Dashboard (flex-1 right)
+- Single source of truth via `useScenarioState(scenarioId)` hook
+- AI Advisor toggle button disabled with tooltip (D4b slot)
+
+**useScenarioState hook**:
+- useReducer state machine (following useForecastCycle pattern)
+- Server-authoritative: every apply/remove returns full ScenarioDetail, stored wholesale
+- Auto-loads via useEffect with loadedRef guard
+
+**AddActionForm (config-driven)**:
+- Two sections: Project Actions (5 types) + Portfolio Rules (2 types)
+- Config arrays define each type: `{ scope, action_type, label, requires_project, parameters[] }`
+- Dynamic rendering: number → Input, select → Select
+- LoB options fetched from referenceApi
+
+**ActionItem**:
+- Handles BOTH seed-data types (defer_project, adjust_external_cost, increase_budget, apply_pct_cut) AND engine types (reduce_budget, remove_project, delay_project, cut_consulting, across_the_board_cut, reduce_lob)
+- `formatDelta()` handles budget_delta, total_budget_delta, budget_freed (negated for savings display)
+
+### D4b Integration Points (pre-wired)
+1. **AI Advisor panel**: ScenarioWorkspace has disabled toggle button → D4b adds AIAdvisorPanel and enables it
+2. **Comparison View**: WhatIfSimulator has 'comparison' phase → D4b replaces placeholder with ComparisonView
+3. **Drill-Down drawer**: ScenarioPortfolioTree row clicks are no-ops → D4b adds onRowClick → DrillDownDrawer
+4. **All types + API functions**: Already defined in D4a → D4b only imports
+
+### Persona → Person Mapping (scenario ownership)
+- `persona-controller` → `p-meier` (Anna Meier): owns scenarios 1 (Budget Pressure) & 2 (Rail Digitalization)
+- `persona-exec` → `p-weber` (Dr. Klaus Weber): owns scenario 3 (Worst Case)
+
+### Bugs Fixed During Session
+- `budget_freed` deltas displayed as positive/red (increase) instead of negative/green (savings) → Negated budget_freed in formatDelta: `delta = -Math.abs(Number(impact.budget_freed))`
+- Delta column showed "€-200K" (euro before minus) instead of "-€200K" → Extracted sign separately: `${sign}€${formatted}`
+- Pre-seeded scenario snapshots lost when actions added/removed (engine recalculates from scratch, doesn't understand seed action types like defer_project) → This is expected backend behavior; restored by deleting SQLite DB and restarting
+
+### Verification Results
+- [x] Controller (Anna Meier): Manager shows 2 "My Scenarios" + 1 "Published" (by Weber)
+- [x] Executive (Dr. Klaus Weber): Manager shows 1 "My Scenario" + 1 "Published" (by Meier) — verified via API
+- [x] PL (Priya Sharma): 403 Forbidden — verified via API, frontend shows no-access card
+- [x] CC Owner (Thomas Brenner): 403 Forbidden — verified via API, frontend shows no-access card
+- [x] Workspace: Scenario 1 shows 5 actions with correct green deltas, KPI strip (€4.5M→€4.3M, -6.5%), narrative headline, portfolio tree with Changed badges
+- [x] Portfolio tree: Delta column shows correct format (-€200K, -€63K, -€17K, -€18K in green)
+- [x] RAG distribution: Colored dots (green/amber/red) with "changed" indicator on affected projects
+- [x] Action apply/remove: Backend recalculation engine works for new scenarios (tested remove_project)
+- [x] Scenario CRUD: Create, delete, publish/unpublish all working via API
+- [x] AddAction form: Config-driven tabs (Project Actions / Portfolio Rules), action type dropdown, project selector
+- [x] Zero console errors, all API calls succeeding
+- [x] Guide button: moduleId="whatif_simulator" renders in side panel
 
 ## Deviations from Spec
 - Repository named `vision-demo-prototype` instead of `cpc-demo` (user preference)
