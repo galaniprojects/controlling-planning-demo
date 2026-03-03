@@ -16,7 +16,7 @@ export function SidePanel({ title, children, onClose }: SidePanelProps) {
           &times;
         </Button>
       </div>
-      <div>{children}</div>
+      <div className="p-4">{children}</div>
     </aside>
   );
 }

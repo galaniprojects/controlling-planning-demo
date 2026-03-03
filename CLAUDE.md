@@ -24,11 +24,22 @@
 - What-If: every action returns full recalculated state; pre-built scenarios use pre-computed snapshots
 
 ## Build Phases
-1. **Phase A:** Foundation — Database schema + seed data
+1. **Phase A:** Foundation — Database schema + seed data ✅
 2. **Phase B:** Backend API (90 endpoints across 8 groups) ✅
 3. **Phase C:** Frontend Shell (routing, layout, role switcher) ✅
-4. **Phase D:** Module UIs (Portfolio, Workbench, Capacity, Simulator, Admin)
+4. **Phase D:** Module UIs — split into 5 sessions:
+   - **D1:** Portfolio Overview (7.2, 10.3) — tree, filters, charts, approvals
+   - **D2:** Project Workbench (7.3, 10.4) — master-detail, forecast wizard
+   - **D3:** Capacity Management (7.4, 10.5) — heatmap, request management
+   - **D4:** What-If Simulator (7.5, 10.6) — scenarios, AI Advisor
+   - **D5:** Administration (7.6, 10.9) — CRUD tables, parameters
 5. **Phase E:** Documentation content + polish
+
+## Cross-Module Navigation Rule
+- Wire inbound links during the module's own session
+- Outbound links to unbuilt modules → navigate to route but show placeholder gracefully
+- Retroactively connect outbound links when target module is built
+- Final verification of all cross-module links in Phase E
 
 ## Session Protocol
 1. **Start:** Always read `PROGRESS.md` first to understand current state

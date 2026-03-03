@@ -1,9 +1,9 @@
 # CPC Demo — Build Progress
 
 ## Current Status
-Phase: C (complete)
-Last completed: Phase C — Frontend shell (commit: 222172d)
-Next up: Phase D — Module UIs (Portfolio Overview first, then Workbench, Capacity, Simulator, Admin)
+Phase: D1 (complete)
+Last completed: Phase D1 — Portfolio Overview module
+Next up: Phase D2 — Project Workbench
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -33,7 +33,12 @@ Next up: Phase D — Module UIs (Portfolio Overview first, then Workbench, Capac
   - SidePanel (content shrinks, 380px) and BottomDrawer (overlay, 40vh)
   - Routing: / + 5 module placeholder routes with /* for future nesting
   - Submit New Project button (PL-only, shell — form in Phase D)
-- [ ] Phase D: Module UIs
+- [ ] Phase D: Module UIs (split into 5 sessions)
+  - [x] D1: Portfolio Overview — expandable tree, filter bar, charts, intake queue, approvals (Section 7.2)
+  - [ ] D2: Project Workbench — master-detail, 3-point comparison, trajectory chart, forecast wizard (Section 7.3)
+  - [ ] D3: Capacity Management — CSS grid heatmap, utilization colors, bottom drawer, request mgmt (Section 7.4)
+  - [ ] D4: What-If Simulator — scenario workspace, split layout, comparison view, AI Advisor (Section 7.5)
+  - [ ] D5: Administration — entity selector, CRUD tables, detail panel, planning parameters (Section 7.6)
 - [ ] Phase E: Documentation content + polish
 
 ## Phase A Details
@@ -141,8 +146,93 @@ button, card, badge, dropdown-menu, separator, tooltip
 | persona-pl | Priya Sharma | project_lead | workbench |
 | persona-exec | Dr. Klaus Weber | executive | portfolio |
 
+## Phase D Session Plan
+
+Phase D is split into 5 dedicated sessions (D1–D5), one per module. This keeps each session focused on a single spec section and its matching API endpoints / mock data.
+
+### Build Order & Dependencies
+| Session | Module | Spec | Establishes | Reused By |
+|---------|--------|------|-------------|-----------|
+| D1 | Portfolio Overview | 7.2, 10.3 | Expandable tree, filter bar, chart components, approval action pattern | D2, D4 |
+| D2 | Project Workbench | 7.3, 10.4 | Master-detail, 3-point comparison, trajectory chart, forecast wizard | D4 |
+| D3 | Capacity Management | 7.4, 10.5 | CSS grid heatmap, utilization color coding, bottom drawer detail | D4 |
+| D4 | What-If Simulator | 7.5, 10.6 | Scenario workspace (split layout), comparison view, AI Advisor panel | — |
+| D5 | Administration | 7.6, 10.9 | CRUD tables, entity selector, planning parameters | — |
+
+### Cross-Module Navigation (Critical)
+Each module has deep-links into other modules (notification click-throughs, portfolio → workbench, etc.). Handle as follows:
+- **Wire up links INTO the current module** during that session (e.g., in D1, ensure notifications can link to Portfolio views)
+- **Leave placeholder/no-op hooks for links OUT** to modules not yet built (e.g., Portfolio → Workbench drill-down during D1 should navigate to the route but show the placeholder)
+- **Connect outbound links retroactively** when the target module is built (e.g., in D2, verify Portfolio → Workbench links now land on real content)
+- **Final pass in Phase E** to verify ALL cross-module links work end-to-end
+
+### Per-Session Checklist
+Before committing at the end of each D-session:
+- [ ] All endpoints for the module return correct data (verify via Swagger or frontend)
+- [ ] Screen renders correctly for each role that has access
+- [ ] Demo walkthrough anchors (Section 6.15) for this module work
+- [ ] Role-dependent visibility and permissions enforced
+- [ ] Drill-down and cross-module navigation functional (inbound links work; outbound to unbuilt modules gracefully degrade)
+- [ ] Design tokens applied (colors, typography, spacing per Section 9)
+- [ ] Loading states present
+- [ ] PROGRESS.md updated with session details
+
+## Phase D1 Details — Portfolio Overview
+
+### New Files (23)
+| Directory | Files |
+|-----------|-------|
+| frontend/src/components/ui/ | tabs.tsx, select.tsx, table.tsx, textarea.tsx (shadcn CLI) |
+| frontend/src/components/shared/ | Skeleton.tsx, FilterBar.tsx, ExpandableTreeTable.tsx, ModuleGuideButton.tsx |
+| frontend/src/components/charts/ | BudgetByLobChart.tsx, ForecastTrajectoryChart.tsx, RAGDonutChart.tsx |
+| frontend/src/modules/portfolio/ | PortfolioOverview.tsx |
+| frontend/src/modules/portfolio/dashboard/ | DashboardTab.tsx, PortfolioKPIRow.tsx, PortfolioTree.tsx, ProjectSummaryPanel.tsx, DashboardCharts.tsx |
+| frontend/src/modules/portfolio/intake/ | IntakeTab.tsx, IntakeTable.tsx, IntakeDetailPanel.tsx |
+| frontend/src/modules/portfolio/approvals/ | ApprovalsTab.tsx, ApprovalsTable.tsx, CRDetailPanel.tsx |
+
+### Modified Files (4)
+- `src/types/api.ts` — Added ~12 portfolio interfaces (PortfolioKPIs, ProjectTreeNode, ProjectSummary, ChartData, IntakeItem/Detail, ApprovalItem, CRDetail, etc.)
+- `src/api/endpoints.ts` — Added portfolioApi (14 functions), referenceApi.getLobs(), docsApi.getModuleManual()
+- `src/App.tsx` — Replaced PlaceholderModule with PortfolioOverview
+- `src/lib/routes.ts` — Added sub-route labels for /portfolio/intake and /portfolio/approvals
+
+### New Dependencies
+- `recharts` — charting library for bar, line, and donut charts
+
+### New shadcn Components
+- tabs, select, table, textarea
+
+### Reusable Components Established (for D2–D5)
+- **ExpandableTreeTable** — Generic recursive tree table with expand/collapse, depth-based indentation, row selection → Reused by D2 (Workbench), D4 (Simulator)
+- **FilterBar** — Horizontal row of shadcn Select dropdowns with clear button → Reused by all modules
+- **Skeleton** — Pulsing loading placeholder → Reused by all modules
+- **ModuleGuideButton** — Fetches /api/docs/modules/{id}, renders in SidePanel → Reused by all modules
+- **Chart wrappers** (BudgetByLob, ForecastTrajectory, RAGDonut) → Partially reused by D2, D4
+
+### Key Patterns
+- **Controlled Tabs with role-aware reset**: Uses `value` (not `defaultValue`) on shadcn Tabs with useEffect to reset to "dashboard" when switching to a role that doesn't have the current tab
+- **Side panel action pattern**: Idle → select action mode → textarea for reason/comment → submit → result message → onActionComplete callback refreshes parent
+- **Filter-driven data fetching**: Filter state in orchestrator, passed as query params to API, triggers re-fetch via useEffect
+
+### Bugs Fixed During Verification
+- SidePanel children div lacked padding → Added `className="p-4"` to children wrapper
+- Module guide button used wrong module ID ("portfolio" vs "portfolio_overview") → Fixed to match fixture data
+- Tab content disappeared on role switch → Changed from uncontrolled `defaultValue` to controlled `value` with role-aware reset useEffect
+
+### Verification Results
+- [x] Demo Scenario 2: Expand Truck Systems → Digital Braking Platform → ERP Integration Phase 2 → summary panel shows Red RAG, budget overrun, sparkline, "Open in Workbench" button
+- [x] Demo Scenario 3: Intake Queue tab → Autonomous Braking Prototype → detail panel with Approve/Reject/Send Back
+- [x] Demo Scenario 4: Approvals tab → 3 pending CRs → CR detail with changes table and action buttons
+- [x] Demo Scenario 14: Guide button → Portfolio Overview Guide renders in side panel
+- [x] Role restrictions: Controller sees all 3 tabs; Executive sees Dashboard only; Project Lead sees Dashboard + Intake Queue
+- [x] Filter bar: LoB dropdown opens with 3 options, selecting "Truck Systems" filters tree to single row, Clear resets
+- [x] Charts: Budget by LoB (bar), Forecast Trajectory (line), RAG Distribution (donut with center label "22 projects")
+- [x] Loading states: Skeleton loaders while data fetches
+- [x] Cross-module nav: "Open in Workbench" navigates to placeholder gracefully
+
 ## Deviations from Spec
 - Repository named `vision-demo-prototype` instead of `cpc-demo` (user preference)
+- Phase D split into 5 sessions (D1–D5) instead of a single phase — one session per module for better focus and context management
 
 ## Known Issues
 - None

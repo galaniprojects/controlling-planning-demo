@@ -9,6 +9,8 @@ export const MODULE_ROUTES: Record<string, string> = {
 export const ROUTE_LABELS: Record<string, string> = {
   '/': 'Launchpad',
   '/portfolio': 'Portfolio Overview',
+  '/portfolio/intake': 'Intake Queue',
+  '/portfolio/approvals': 'Approvals',
   '/workbench': 'Project Workbench',
   '/capacity': 'Capacity Management',
   '/simulator': 'What-If Simulator',
