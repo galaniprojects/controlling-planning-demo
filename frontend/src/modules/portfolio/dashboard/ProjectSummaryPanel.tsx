@@ -172,7 +172,7 @@ export function ProjectSummaryPanel({ projectId }: Props) {
         variant="outline"
         size="sm"
         className="w-full"
-        onClick={() => navigate('/workbench')}
+        onClick={() => navigate(`/workbench?project=${data.id}`)}
       >
         Open in Workbench
         <ArrowRight className="h-4 w-4 ml-1.5" />

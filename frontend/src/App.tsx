@@ -5,6 +5,7 @@ import { BottomDrawerProvider } from '@/contexts/BottomDrawerContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Launchpad } from '@/modules/launchpad/Launchpad';
 import { PortfolioOverview } from '@/modules/portfolio/PortfolioOverview';
+import { ProjectWorkbench } from '@/modules/workbench/ProjectWorkbench';
 import { PlaceholderModule } from '@/components/layout/PlaceholderModule';
 
 export default function App() {
@@ -17,7 +18,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Launchpad />} />
                 <Route path="/portfolio/*" element={<PortfolioOverview />} />
-                <Route path="/workbench/*" element={<PlaceholderModule name="Project Workbench" />} />
+                <Route path="/workbench/*" element={<ProjectWorkbench />} />
                 <Route path="/capacity/*" element={<PlaceholderModule name="Capacity Management" />} />
                 <Route path="/simulator/*" element={<PlaceholderModule name="What-If Simulator" />} />
                 <Route path="/admin/*" element={<PlaceholderModule name="Administration" />} />

@@ -15,6 +15,15 @@ import type {
   ApprovalItem,
   CRDetail,
   LoBRef,
+  WorkbenchProjectListItem,
+  ProjectOverview,
+  ForecastGridRow,
+  ForecastCycleStartResponse,
+  SuggestionItem,
+  ForecastChange,
+  ReviewGroup,
+  SubmittedCR,
+  CRHistoryItem,
 } from '@/types/api';
 
 export const rolesApi = {
@@ -107,4 +116,77 @@ export interface ModuleManual {
 export const docsApi = {
   getModuleManual: (moduleId: string) =>
     api.get<ModuleManual>(`/api/docs/modules/${moduleId}`),
+};
+
+// --- Project Workbench ---
+
+export const workbenchApi = {
+  // Project list (left panel)
+  getProjects: () =>
+    api.get<ListResponse<WorkbenchProjectListItem>>('/api/projects'),
+
+  // Overview tab
+  getOverview: (projectId: string) =>
+    api.get<ProjectOverview>(`/api/projects/${projectId}/overview`),
+
+  // Forecast grid (read mode)
+  getForecast: (projectId: string) =>
+    api.get<ListResponse<ForecastGridRow>>(`/api/projects/${projectId}/forecast`),
+
+  // Forecast cycle (5-phase wizard)
+  startCycle: (projectId: string) =>
+    api.post<ForecastCycleStartResponse>(
+      `/api/projects/${projectId}/forecast-cycle/start`,
+      {},
+    ),
+  acknowledgeRetrospective: (
+    projectId: string,
+    cycleId: string,
+    explanations: Record<string, string>,
+  ) =>
+    api.put<{ status: string; phase: number }>(
+      `/api/projects/${projectId}/forecast-cycle/${cycleId}/acknowledge`,
+      { explanations },
+    ),
+  getSuggestions: (projectId: string, cycleId: string) =>
+    api.get<ListResponse<SuggestionItem>>(
+      `/api/projects/${projectId}/forecast-cycle/${cycleId}/suggestions`,
+    ),
+  saveEdits: (
+    projectId: string,
+    cycleId: string,
+    changes: ForecastChange[],
+    appliedSuggestionIds: number[],
+  ) =>
+    api.put<{ status: string; total_changes: number; phase: number }>(
+      `/api/projects/${projectId}/forecast-cycle/${cycleId}/edit`,
+      { changes, applied_suggestion_ids: appliedSuggestionIds },
+    ),
+  getReview: (projectId: string, cycleId: string) =>
+    api.get<ListResponse<ReviewGroup>>(
+      `/api/projects/${projectId}/forecast-cycle/${cycleId}/review`,
+    ),
+  submitCycle: (projectId: string, cycleId: string, groups: ReviewGroup[]) =>
+    api.put<ListResponse<SubmittedCR>>(
+      `/api/projects/${projectId}/forecast-cycle/${cycleId}/submit`,
+      { groups },
+    ),
+
+  // Change history
+  getChangeRequests: (
+    projectId: string,
+    params?: { category?: string; status?: string },
+  ) => {
+    const query = new URLSearchParams();
+    if (params?.category) query.set('category', params.category);
+    if (params?.status) query.set('status', params.status);
+    const qs = query.toString();
+    return api.get<ListResponse<CRHistoryItem>>(
+      `/api/projects/${projectId}/change-requests${qs ? '?' + qs : ''}`,
+    );
+  },
+  getChangeRequestDetail: (projectId: string, crId: number) =>
+    api.get<CRHistoryItem>(
+      `/api/projects/${projectId}/change-requests/${crId}`,
+    ),
 };

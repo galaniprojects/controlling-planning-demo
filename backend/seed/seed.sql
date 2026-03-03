@@ -858,28 +858,28 @@ INSERT INTO system_suggestions (
  'Senior Developer hours have exceeded forecast by 12% on average over the last 3 months. Actuals: Jan 134 hrs (forecast 120), Feb 136 hrs (forecast 120), Mar 135 hrs (forecast 120).',
  'Adjust remaining months upward by 12% — increase Senior Developer forecast from 120 hrs/mo to 135 hrs/mo for Apr–Sep 2026.',
  'Prevents under-forecasting and avoids a budget variance surprise at project close. Estimated additional cost: €14,250 over 6 months at €95/hr.',
- '{"change_category":"resource","role_type_id":"role-sr-dev","adjustment_pct":12,"months":["2026-04","2026-05","2026-06","2026-07","2026-08","2026-09"],"new_hours_per_month":135}',
+ '[{"category":"internal","sub_category":"role-sr-dev","month":"2026-04","old_value":120,"new_value":135},{"category":"internal","sub_category":"role-sr-dev","month":"2026-05","old_value":120,"new_value":135},{"category":"internal","sub_category":"role-sr-dev","month":"2026-06","old_value":120,"new_value":135},{"category":"internal","sub_category":"role-sr-dev","month":"2026-07","old_value":120,"new_value":135},{"category":"internal","sub_category":"role-sr-dev","month":"2026-08","old_value":120,"new_value":135},{"category":"internal","sub_category":"role-sr-dev","month":"2026-09","old_value":120,"new_value":135}]',
  '2026-02-28 06:00:00'),
 
 (2, 'proj-erp2', 'burn_rate',
  'At the current monthly spending rate of €115,000/mo actual vs €98,000/mo forecast, the total project budget will be exhausted by July 2026 — 2 months before the planned end date of September 2026.',
  'Request a budget increase of approximately €120,000 to cover the remaining project period at the current burn rate.',
  'Without this increase the project will face a hard budget stop in July 2026. A CR should be raised immediately to maintain controller visibility.',
- '{"change_category":"resource","budget_increase_amount":120000,"justification_template":"Current burn rate exceeds forecast by 17%. Additional budget required to complete integration and testing phases through September 2026."}',
+ '[]',
  '2026-02-28 06:00:00'),
 
 (3, 'proj-sensor', 'actuals_correction',
  'Consulting costs exceeded forecast by 47% in both December 2025 (actual €22,050 vs forecast €15,000) and January 2026 (actual €21,800 vs forecast €15,000). The pattern has persisted for two consecutive months.',
  'Increase the consulting cost forecast from €15,000/mo to €22,000/mo for the remaining project period (Feb–Dec 2026) to align forecast with actual spend patterns.',
  'Correcting the forecast eliminates a growing actuals-to-forecast variance that will otherwise flag as a budget overrun at portfolio level.',
- '{"change_category":"external_cost","cost_type_id":"ext-consulting","new_amount_per_month":22000,"period_start":"2026-02","period_end":"2026-12","old_amount_per_month":15000}',
+ '[{"category":"external","sub_category":"ext-consulting","month":"2026-02","old_value":15000,"new_value":22000},{"category":"external","sub_category":"ext-consulting","month":"2026-03","old_value":15000,"new_value":22000},{"category":"external","sub_category":"ext-consulting","month":"2026-04","old_value":15000,"new_value":22000},{"category":"external","sub_category":"ext-consulting","month":"2026-05","old_value":15000,"new_value":22000},{"category":"external","sub_category":"ext-consulting","month":"2026-06","old_value":15000,"new_value":22000},{"category":"external","sub_category":"ext-consulting","month":"2026-07","old_value":15000,"new_value":22000},{"category":"external","sub_category":"ext-consulting","month":"2026-08","old_value":15000,"new_value":22000},{"category":"external","sub_category":"ext-consulting","month":"2026-09","old_value":15000,"new_value":22000},{"category":"external","sub_category":"ext-consulting","month":"2026-10","old_value":15000,"new_value":22000},{"category":"external","sub_category":"ext-consulting","month":"2026-11","old_value":15000,"new_value":22000},{"category":"external","sub_category":"ext-consulting","month":"2026-12","old_value":15000,"new_value":22000}]',
  '2026-02-28 06:00:00'),
 
 (4, 'proj-predmaint', 'utilization',
  'Developer hours allocated are 35% below the approved forecast for both December 2025 (actual 66 hrs vs forecast 100 hrs) and January 2026 (actual 63 hrs vs forecast 100 hrs). Low utilization may indicate resource is partially assigned elsewhere.',
  'Reduce Developer allocation from 100 hrs/mo to 65 hrs/mo for the remaining period, or reassign freed capacity to other projects to improve portfolio utilization efficiency.',
  'Over-allocation in forecast overstates project costs by ~€2,625/mo and inflates CC utilization metrics. Correcting the forecast improves planning accuracy.',
- '{"change_category":"resource","role_type_id":"role-dev","new_hours_per_month":65,"period_start":"2026-02","period_end":"2026-12","old_hours_per_month":100}',
+ '[{"category":"internal","sub_category":"role-dev","month":"2026-02","old_value":100,"new_value":65},{"category":"internal","sub_category":"role-dev","month":"2026-03","old_value":100,"new_value":65},{"category":"internal","sub_category":"role-dev","month":"2026-04","old_value":100,"new_value":65},{"category":"internal","sub_category":"role-dev","month":"2026-05","old_value":100,"new_value":65},{"category":"internal","sub_category":"role-dev","month":"2026-06","old_value":100,"new_value":65},{"category":"internal","sub_category":"role-dev","month":"2026-07","old_value":100,"new_value":65},{"category":"internal","sub_category":"role-dev","month":"2026-08","old_value":100,"new_value":65},{"category":"internal","sub_category":"role-dev","month":"2026-09","old_value":100,"new_value":65},{"category":"internal","sub_category":"role-dev","month":"2026-10","old_value":100,"new_value":65},{"category":"internal","sub_category":"role-dev","month":"2026-11","old_value":100,"new_value":65},{"category":"internal","sub_category":"role-dev","month":"2026-12","old_value":100,"new_value":65}]',
  '2026-02-28 06:00:00');
 
 -- =============================================================================

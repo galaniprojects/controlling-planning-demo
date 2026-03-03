@@ -225,3 +225,155 @@ export interface LoBRef {
   project_count: number;
   total_budget: number;
 }
+
+// --- Project Workbench ---
+
+export interface WorkbenchProjectListItem {
+  id: string;
+  name: string;
+  rag: string | null;
+  type: string;
+  status: string;
+  is_service: boolean;
+}
+
+export interface ProjectMetadata {
+  id: string;
+  name: string;
+  lob: string;
+  status: string;
+  rag: string | null;
+  timeline: {
+    start: string | null;
+    end: string | null;
+    projected_end: string | null;
+  };
+  pl_name: string | null;
+}
+
+export interface ThreePointComparison {
+  baseline: number;
+  forecast: number;
+  actuals: number;
+  plan_drift_pct: number;
+  execution_variance: number;
+  total_variance: number;
+}
+
+export interface TrajectoryPoint {
+  month: string;
+  baseline: number;
+  forecast: number;
+  actuals: number;
+}
+
+export interface ResourcePlanSummaryItem {
+  role_id: string;
+  role_name: string;
+  total_hours: number;
+}
+
+export interface ProjectOverview {
+  metadata: ProjectMetadata;
+  three_point_comparison: ThreePointComparison;
+  trajectory_chart: TrajectoryPoint[];
+  capex_opex: { type: string };
+  resource_plan_summary: ResourcePlanSummaryItem[];
+}
+
+export interface ForecastMonthCell {
+  month: string;
+  forecast_hours: number;
+  forecast_amount: number;
+  baseline_hours: number;
+  baseline_amount: number;
+  actuals_hours: number;
+  actuals_amount: number;
+}
+
+export interface ForecastGridRow {
+  category: string;
+  sub_category: string;
+  sub_category_name: string;
+  months: ForecastMonthCell[];
+}
+
+export interface RetrospectiveItem {
+  category: string;
+  sub_category: string;
+  forecast: number;
+  actual: number;
+  variance: number;
+  variance_pct: number;
+  significant: boolean;
+}
+
+export interface ForecastCycleStartResponse {
+  cycle_id: string;
+  phase: number;
+  retrospective_data: RetrospectiveItem[];
+  skippable: boolean;
+}
+
+export interface SuggestionPreFilledChange {
+  category: string;
+  sub_category: string;
+  month: string;
+  old_value: number;
+  new_value: number;
+  delta: number;
+  suggestion_id: number;
+}
+
+export interface SuggestionItem {
+  id: number;
+  type: string;
+  observation: string;
+  recommendation: string;
+  impact_description: string;
+  pre_filled_changes: SuggestionPreFilledChange[];
+}
+
+export interface ForecastChange {
+  category: string;
+  sub_category: string;
+  month: string;
+  old_value: number;
+  new_value: number;
+  delta: number;
+  suggestion_id?: number;
+}
+
+export interface ReviewGroup {
+  type: string;
+  items: ForecastChange[];
+  count: number;
+  justification?: string;
+}
+
+export interface SubmittedCR {
+  id: number;
+  status: string;
+  category: string;
+}
+
+export interface CRHistoryChange {
+  field: string;
+  old: string | null;
+  new: string | null;
+  delta: string | null;
+  month: string | null;
+}
+
+export interface CRHistoryItem {
+  id: number;
+  project_id: string;
+  status: string;
+  change_category: string;
+  summary: string;
+  justification: string | null;
+  is_system_suggested: boolean;
+  submitted_by: string;
+  submission_date: string;
+  changes: CRHistoryChange[];
+}

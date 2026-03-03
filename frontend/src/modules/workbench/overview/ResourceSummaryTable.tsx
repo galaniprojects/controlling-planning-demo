@@ -1,0 +1,52 @@
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import type { ResourcePlanSummaryItem } from '@/types/api';
+
+interface Props {
+  items: ResourcePlanSummaryItem[];
+}
+
+export function ResourceSummaryTable({ items }: Props) {
+  if (items.length === 0) {
+    return (
+      <div className="border border-slate-200 rounded-lg p-4">
+        <h3 className="text-sm font-medium text-slate-500 mb-2">
+          Resource Plan
+        </h3>
+        <p className="text-sm text-slate-400">No resource allocations.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-slate-200 rounded-lg p-4">
+      <h3 className="text-sm font-medium text-slate-500 mb-2">
+        Resource Plan
+      </h3>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Role</TableHead>
+            <TableHead className="text-right">Total Hours</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((item) => (
+            <TableRow key={item.role_id}>
+              <TableCell className="text-sm">{item.role_name}</TableCell>
+              <TableCell className="text-sm text-right">
+                {item.total_hours.toLocaleString()}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}

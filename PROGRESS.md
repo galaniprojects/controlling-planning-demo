@@ -1,9 +1,9 @@
 # CPC Demo — Build Progress
 
 ## Current Status
-Phase: D1 (complete)
-Last completed: Phase D1 — Portfolio Overview module
-Next up: Phase D2 — Project Workbench
+Phase: D2 (complete)
+Last completed: Phase D2 — Project Workbench module
+Next up: Phase D3 — Capacity Management
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -35,7 +35,7 @@ Next up: Phase D2 — Project Workbench
   - Submit New Project button (PL-only, shell — form in Phase D)
 - [ ] Phase D: Module UIs (split into 5 sessions)
   - [x] D1: Portfolio Overview — expandable tree, filter bar, charts, intake queue, approvals (Section 7.2)
-  - [ ] D2: Project Workbench — master-detail, 3-point comparison, trajectory chart, forecast wizard (Section 7.3)
+  - [x] D2: Project Workbench — master-detail, 3-point comparison, trajectory chart, forecast wizard (Section 7.3)
   - [ ] D3: Capacity Management — CSS grid heatmap, utilization colors, bottom drawer, request mgmt (Section 7.4)
   - [ ] D4: What-If Simulator — scenario workspace, split layout, comparison view, AI Advisor (Section 7.5)
   - [ ] D5: Administration — entity selector, CRUD tables, detail panel, planning parameters (Section 7.6)
@@ -229,6 +229,58 @@ Before committing at the end of each D-session:
 - [x] Charts: Budget by LoB (bar), Forecast Trajectory (line), RAG Distribution (donut with center label "22 projects")
 - [x] Loading states: Skeleton loaders while data fetches
 - [x] Cross-module nav: "Open in Workbench" navigates to placeholder gracefully
+
+## Phase D2 Details — Project Workbench
+
+### New Files (20)
+| Directory | Files |
+|-----------|-------|
+| frontend/src/components/ui/ | input.tsx (shadcn CLI) |
+| frontend/src/components/charts/ | ProjectTrajectoryChart.tsx |
+| frontend/src/components/shared/ | StatusBadge.tsx |
+| frontend/src/modules/workbench/ | ProjectWorkbench.tsx, ProjectListPanel.tsx, ProjectWorkspace.tsx |
+| frontend/src/modules/workbench/overview/ | OverviewTab.tsx, MetadataBar.tsx, ThreePointTable.tsx, CapexOpexDisplay.tsx, ResourceSummaryTable.tsx |
+| frontend/src/modules/workbench/forecast/ | ForecastTab.tsx, ForecastGrid.tsx, ForecastWizard.tsx, useForecastCycle.ts, Phase1Retrospective.tsx, Phase2Suggestions.tsx, Phase3EditForecast.tsx, Phase4Review.tsx, Phase5Confirmation.tsx |
+| frontend/src/modules/workbench/history/ | ChangeHistoryTab.tsx, CRHistoryList.tsx |
+
+### Modified Files (4)
+- `src/types/api.ts` — Added ~15 workbench interfaces (WorkbenchProjectListItem, ProjectOverview, ThreePointComparison, TrajectoryPoint, ForecastGridRow, RetrospectiveItem, ForecastCycleStartResponse, SuggestionItem, ForecastChange, ReviewGroup, SubmittedCR, CRHistoryItem, etc.)
+- `src/api/endpoints.ts` — Added workbenchApi (11 functions: getProjects, getOverview, getForecast, startCycle, acknowledgeRetrospective, getSuggestions, saveEdits, getReview, submitCycle, getChangeRequests, getChangeRequestDetail)
+- `src/App.tsx` — Replaced PlaceholderModule with ProjectWorkbench for /workbench/* route
+- `src/modules/portfolio/dashboard/ProjectSummaryPanel.tsx` — Changed "Open in Workbench" to navigate(`/workbench?project=${data.id}`) for cross-module navigation
+- `backend/seed/seed.sql` — Updated system_suggestions pre_filled_changes_json to use per-cell array format
+
+### New shadcn Components
+- input (for editable forecast cells in Phase 3)
+
+### New Shared Components (for D3–D5)
+- **ProjectTrajectoryChart** — 3-series (baseline dashed, forecast solid, actuals solid) Recharts LineChart → Reused by D4 (scenario comparison)
+- **StatusBadge** — Color-coded snake_case-to-readable badge (pending=amber, approved=green, rejected=red, sent_back=slate) → Reused by D3, D4
+
+### Architecture: Master-Detail Layout
+- **Left panel**: Collapsible project list (~280px) with RAG dots, type badges, status badges, role-filtered
+- **Right panel**: 3-tab workspace (Overview, Forecast & Planning, Change History) for selected project
+- **URL pre-selection**: `?project=proj-erp2` query param auto-selects project on mount
+
+### Key Patterns
+- **useReducer state machine**: `useForecastCycle.ts` manages 5-phase wizard state with typed actions (START_CYCLE, ACKNOWLEDGE_RETRO, SET_SUGGESTIONS, UPDATE_CELL, SET_REVIEW_GROUPS, SUBMIT_SUCCESS, GO_BACK)
+- **useRef guard**: Prevents React Strict Mode double-invocation of startCycle() in ForecastWizard
+- **Name mapping**: ForecastTab fetches forecast grid to build sub_category→display_name lookup, passed through to Phase1Retrospective
+- **Suggestion pre-fills**: Applied suggestion changes populate editable grid cells with blue highlighting; manual edits show yellow
+
+### Bugs Fixed During Verification
+- Phase 1 Retrospective showed raw IDs (`role-sr-dev`) instead of display names → Added nameMap prop chain from ForecastTab → ForecastWizard → Phase1Retrospective
+- React Strict Mode caused double startCycle() call, corrupting backend in-memory cycle state → Added useRef guard in ForecastWizard
+- Suggestion pre_filled_changes_json in seed data used compact metadata format instead of per-cell arrays → Updated seed SQL to use `[{category, sub_category, month, old_value, new_value}]` format
+
+### Verification Results
+- [x] Demo Scenario 5: Full 5-phase forecast wizard (Phase 1: retrospective with flagged items → Phase 2: 2 suggestions applied → Phase 3: 6 blue pre-filled cells → Phase 4: review with justification → Phase 5: CR-26 created)
+- [x] Demo Scenario 6: Change History tab with 10+ CRs, category/status filters, sparkles icon for system-suggested CRs
+- [x] Role-based views: Controller sees all projects, no wizard button; PL sees 4 filtered projects + wizard button; all roles see all 3 tabs
+- [x] Cross-module navigation: Portfolio → expand tree → click ERP Integration Phase 2 → "Open in Workbench" → navigates to /workbench?project=proj-erp2 with project auto-selected
+- [x] Overview tab: MetadataBar (name, RAG, status, LoB, PL), ThreePointTable (baseline/forecast/actuals/variance), ProjectTrajectoryChart (3-line), CapEx badge, ResourceSummaryTable
+- [x] Loading states: Skeleton loaders on all data fetches
+- [x] Phase stepper: Horizontal 5-step indicator with checkmarks for completed steps, blue ring for current
 
 ## Deviations from Spec
 - Repository named `vision-demo-prototype` instead of `cpc-demo` (user preference)

@@ -1,0 +1,70 @@
+import { Badge } from '@/components/ui/badge';
+import { ragBgColor } from '@/lib/rag';
+import { cn } from '@/lib/utils';
+import type { ProjectMetadata } from '@/types/api';
+
+interface Props {
+  metadata: ProjectMetadata;
+}
+
+export function MetadataBar({ metadata }: Props) {
+  // Timeline progress
+  let timelinePct = 0;
+  if (metadata.timeline.start && metadata.timeline.end) {
+    const start = new Date(metadata.timeline.start + '-01');
+    const end = new Date(metadata.timeline.end + '-01');
+    const now = new Date('2026-02-15');
+    const total = end.getTime() - start.getTime();
+    if (total > 0) {
+      timelinePct = Math.max(
+        0,
+        Math.min(100, ((now.getTime() - start.getTime()) / total) * 100),
+      );
+    }
+  }
+
+  return (
+    <div className="space-y-3 p-4 bg-white border border-slate-200 rounded-lg">
+      <div className="flex items-center gap-2 flex-wrap">
+        <h2 className="text-lg font-semibold text-slate-800">
+          {metadata.name}
+        </h2>
+        {metadata.rag && (
+          <Badge className={cn('text-xs capitalize', ragBgColor(metadata.rag))}>
+            {metadata.rag}
+          </Badge>
+        )}
+        <Badge variant="outline" className="text-xs capitalize">
+          {metadata.status}
+        </Badge>
+      </div>
+
+      <div className="flex items-center gap-4 text-sm text-slate-500">
+        <span>LoB: {metadata.lob}</span>
+        {metadata.pl_name && <span>PL: {metadata.pl_name}</span>}
+      </div>
+
+      {/* Timeline bar */}
+      {metadata.timeline.start && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-slate-400">
+            <span>{metadata.timeline.start}</span>
+            <span>{metadata.timeline.end || '?'}</span>
+          </div>
+          <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-blue-600 transition-all"
+              style={{ width: `${timelinePct}%` }}
+            />
+          </div>
+          {metadata.timeline.projected_end &&
+            metadata.timeline.projected_end !== metadata.timeline.end && (
+              <p className="text-xs text-amber-600">
+                Projected end: {metadata.timeline.projected_end}
+              </p>
+            )}
+        </div>
+      )}
+    </div>
+  );
+}
