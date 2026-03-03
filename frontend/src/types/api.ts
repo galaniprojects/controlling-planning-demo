@@ -377,3 +377,104 @@ export interface CRHistoryItem {
   submission_date: string;
   changes: CRHistoryChange[];
 }
+
+// --- Capacity Management ---
+
+export interface CapacityContext {
+  default_tab: string;
+  managed_cost_center_id: string | null;
+  pending_request_count: number;
+}
+
+export interface TeamSummary {
+  headcount: number;
+  avg_utilization_pct: number;
+  over_allocated_count: number;
+  pending_request_count: number;
+}
+
+export interface UtilizationCell {
+  month: string;
+  value: number;
+  color: 'blue' | 'green' | 'amber' | 'red';
+}
+
+export interface PersonHeatmapRow {
+  person_id: string;
+  name: string;
+  utilization: UtilizationCell[];
+}
+
+export interface RoleHeatmapRow {
+  role_id: string;
+  role_name: string;
+  aggregate_utilization: UtilizationCell[];
+  people: PersonHeatmapRow[];
+}
+
+export interface PersonMonthAllocation {
+  month: string;
+  total_hours: number;
+  utilization_pct: number;
+  projects: { project_id: string; project_name: string; hours: number }[];
+}
+
+export interface PersonDetail {
+  person_id: string;
+  name: string;
+  role: string;
+  allocations_by_month: PersonMonthAllocation[];
+  pending_requests: { id: number; project_id: string; hours: number }[];
+}
+
+export interface CapacityRequestItem {
+  id: number;
+  project_id: string;
+  project_name: string;
+  request_type: string;
+  role_or_cost_type: string;
+  hours_or_amount: number;
+  period_start: string;
+  period_end: string;
+  priority: string;
+  status: string;
+  assigned_person_id: string | null;
+  explanation: string | null;
+}
+
+export interface AssignmentProjection {
+  month: string;
+  current_hours: number;
+  added_hours: number;
+  total_hours: number;
+  utilization_pct: number;
+}
+
+export interface AssignmentPreview {
+  person_id: string;
+  person_name: string;
+  monthly_projections: AssignmentProjection[];
+  exceeds_100_pct: boolean;
+  recommendation: string;
+}
+
+export interface OrgSummary {
+  total_headcount: number;
+  avg_utilization_pct: number;
+  over_allocated_cc_count: number;
+  pending_controller_approval_count: number;
+}
+
+export interface OrgHeatmapRow {
+  id: string;
+  name: string;
+  utilization: UtilizationCell[];
+  children: OrgHeatmapRow[];
+}
+
+export interface OrgDetailItem {
+  project_id: string;
+  project_name: string;
+  hours_allocated: number;
+  has_pending_crs: boolean;
+}

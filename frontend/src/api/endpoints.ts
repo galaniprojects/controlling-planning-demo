@@ -24,6 +24,15 @@ import type {
   ReviewGroup,
   SubmittedCR,
   CRHistoryItem,
+  CapacityContext,
+  TeamSummary,
+  RoleHeatmapRow,
+  PersonDetail,
+  CapacityRequestItem,
+  AssignmentPreview,
+  OrgSummary,
+  OrgHeatmapRow,
+  OrgDetailItem,
 } from '@/types/api';
 
 export const rolesApi = {
@@ -189,4 +198,85 @@ export const workbenchApi = {
     api.get<CRHistoryItem>(
       `/api/projects/${projectId}/change-requests/${crId}`,
     ),
+};
+
+// --- Capacity Management ---
+
+export const capacityApi = {
+  // Context
+  getContext: () => api.get<CapacityContext>('/api/capacity/context'),
+
+  // My Team
+  getTeamSummary: (ccId: string) =>
+    api.get<TeamSummary>(`/api/capacity/my-team/${ccId}/summary`),
+  getTeamHeatmap: (ccId: string, from?: string, to?: string) => {
+    const q = new URLSearchParams();
+    if (from) q.set('from_month', from);
+    if (to) q.set('to_month', to);
+    const qs = q.toString();
+    return api.get<ListResponse<RoleHeatmapRow>>(
+      `/api/capacity/my-team/${ccId}/heatmap${qs ? '?' + qs : ''}`,
+    );
+  },
+  getPersonDetail: (ccId: string, personId: string) =>
+    api.get<PersonDetail>(
+      `/api/capacity/my-team/${ccId}/people/${personId}/detail`,
+    ),
+
+  // Requests
+  getRequests: (ccId: string) =>
+    api.get<ListResponse<CapacityRequestItem>>(
+      `/api/capacity/requests/${ccId}`,
+    ),
+  getRequestDetail: (ccId: string, reqId: number) =>
+    api.get<CapacityRequestItem>(
+      `/api/capacity/requests/${ccId}/${reqId}`,
+    ),
+  getAssignmentPreview: (ccId: string, reqId: number, personId: string) =>
+    api.get<AssignmentPreview>(
+      `/api/capacity/requests/${ccId}/${reqId}/assignment-preview?person_id=${personId}`,
+    ),
+  confirmRequest: (ccId: string, reqId: number, assignedPersonId?: string) =>
+    api.put<CapacityRequestItem>(
+      `/api/capacity/requests/${ccId}/${reqId}/confirm`,
+      { assigned_person_id: assignedPersonId ?? null },
+    ),
+  partiallyFulfill: (
+    ccId: string,
+    reqId: number,
+    adjustedValue: number,
+    assignedPersonId?: string,
+  ) =>
+    api.put<CapacityRequestItem>(
+      `/api/capacity/requests/${ccId}/${reqId}/partially-fulfill`,
+      { adjusted_value: adjustedValue, assigned_person_id: assignedPersonId ?? null },
+    ),
+  counterPropose: (ccId: string, reqId: number, explanation: string) =>
+    api.put<CapacityRequestItem>(
+      `/api/capacity/requests/${ccId}/${reqId}/counter-propose`,
+      { explanation, alternative_resource_plan: [] },
+    ),
+  declineRequest: (ccId: string, reqId: number, reason: string) =>
+    api.put<CapacityRequestItem>(
+      `/api/capacity/requests/${ccId}/${reqId}/decline`,
+      { reason },
+    ),
+
+  // Org Overview
+  getOrgSummary: () => api.get<OrgSummary>('/api/capacity/org/summary'),
+  getOrgHeatmap: (pivot: string, from?: string, to?: string) => {
+    const q = new URLSearchParams({ pivot });
+    if (from) q.set('from_month', from);
+    if (to) q.set('to_month', to);
+    return api.get<ListResponse<OrgHeatmapRow>>(
+      `/api/capacity/org/heatmap?${q}`,
+    );
+  },
+  getOrgHeatmapDetail: (dimId: string, pivot: string, month?: string) => {
+    const q = new URLSearchParams({ pivot });
+    if (month) q.set('month', month);
+    return api.get<ListResponse<OrgDetailItem>>(
+      `/api/capacity/org/heatmap/${dimId}/detail?${q}`,
+    );
+  },
 };

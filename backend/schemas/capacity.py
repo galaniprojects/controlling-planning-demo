@@ -84,6 +84,7 @@ class OrgSummary(BaseModel):
     total_headcount: int
     avg_utilization_pct: float
     over_allocated_cc_count: int
+    pending_controller_approval_count: int
 
 
 class OrgHeatmapRow(BaseModel):

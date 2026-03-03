@@ -13,6 +13,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   '/portfolio/approvals': 'Approvals',
   '/workbench': 'Project Workbench',
   '/capacity': 'Capacity Management',
+  '/capacity/requests': 'Resource Requests',
   '/simulator': 'What-If Simulator',
   '/admin': 'Administration',
 };

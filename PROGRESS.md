@@ -1,9 +1,9 @@
 # CPC Demo — Build Progress
 
 ## Current Status
-Phase: D2 (complete)
-Last completed: Phase D2 — Project Workbench module
-Next up: Phase D3 — Capacity Management
+Phase: D3 (complete)
+Last completed: Phase D3 — Capacity Management module
+Next up: Phase D4 — What-If Simulator
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -36,7 +36,7 @@ Next up: Phase D3 — Capacity Management
 - [ ] Phase D: Module UIs (split into 5 sessions)
   - [x] D1: Portfolio Overview — expandable tree, filter bar, charts, intake queue, approvals (Section 7.2)
   - [x] D2: Project Workbench — master-detail, 3-point comparison, trajectory chart, forecast wizard (Section 7.3)
-  - [ ] D3: Capacity Management — CSS grid heatmap, utilization colors, bottom drawer, request mgmt (Section 7.4)
+  - [x] D3: Capacity Management — CSS grid heatmap, utilization colors, request management, org overview (Section 7.4)
   - [ ] D4: What-If Simulator — scenario workspace, split layout, comparison view, AI Advisor (Section 7.5)
   - [ ] D5: Administration — entity selector, CRUD tables, detail panel, planning parameters (Section 7.6)
 - [ ] Phase E: Documentation content + polish
@@ -281,6 +281,52 @@ Before committing at the end of each D-session:
 - [x] Overview tab: MetadataBar (name, RAG, status, LoB, PL), ThreePointTable (baseline/forecast/actuals/variance), ProjectTrajectoryChart (3-line), CapEx badge, ResourceSummaryTable
 - [x] Loading states: Skeleton loaders on all data fetches
 - [x] Phase stepper: Horizontal 5-step indicator with checkmarks for completed steps, blue ring for current
+
+## Phase D3 Details — Capacity Management
+
+### New Files (18)
+| Directory | Files |
+|-----------|-------|
+| frontend/src/modules/capacity/ | CapacityManagement.tsx |
+| frontend/src/modules/capacity/myteam/ | MyTeamTab.tsx, TeamHeatmap.tsx, TeamSummaryBar.tsx |
+| frontend/src/modules/capacity/org/ | OrgOverviewTab.tsx, OrgHeatmap.tsx, OrgSummaryBar.tsx |
+| frontend/src/modules/capacity/requests/ | RequestManagement.tsx, RequestListPanel.tsx, RequestDetail.tsx, RequestActionBar.tsx, AvailabilityContext.tsx, AssignmentPreview.tsx |
+| frontend/src/modules/capacity/shared/ | HeatmapGrid.tsx, UtilizationCell.tsx, SummaryCard.tsx |
+| frontend/src/modules/capacity/detail/ | PersonDetailDrawer.tsx, OrgDetailDrawer.tsx |
+
+### Modified Files (3)
+- `src/types/api.ts` — Added ~15 capacity interfaces (CapacityContext, TeamSummary, UtilizationCell, RoleHeatmapRow, PersonHeatmapRow, PersonDetail, CapacityRequestItem, AssignmentPreview, OrgSummary, OrgHeatmapRow, OrgDetailItem, etc.)
+- `src/api/endpoints.ts` — Added capacityApi (14 functions: getContext, getTeamSummary, getTeamHeatmap, getPersonDetail, getRequests, getRequestDetail, getAssignmentPreview, confirmRequest, partiallyFulfill, counterPropose, declineRequest, getOrgSummary, getOrgHeatmap, getOrgHeatmapDetail)
+- `src/App.tsx` — Replaced PlaceholderModule with CapacityManagement for /capacity/* route
+
+### Key Architecture
+- **CSS Grid Heatmap**: Generic `HeatmapGrid` with expandable tree rows, month columns, color-coded `UtilizationCell` (blue <70%, green 70-90%, amber 90-100%, red >100%)
+- **Request Management**: Master-detail layout with collapsible request list, 4-action state machine (Confirm/Partial/Counter/Decline)
+- **Availability Context**: For resource requests shows team heatmap with person selection + assignment preview; for external costs shows info box
+- **Role-based views**: Controller sees CC selector + both tabs; CC Owner sees own CC + both tabs + requests; Executive sees Org Overview only
+- **Org Overview**: Pivot selector (Cost Center/Role/LoB) with aggregated heatmap
+
+### Reusable Components (for D4–D5)
+- **HeatmapGrid** — Generic expandable tree heatmap with CSS grid → D4 capacity impact visualization
+- **UtilizationCell** — Color-coded utilization percentage badge → D4
+- **SummaryCard** — Icon + label + value KPI card → general use
+
+### Verification Results
+- [x] Controller (Anna Meier): My Team tab with CC selector, all CCs visible, Org Overview tab with heatmap
+- [x] CC Owner (Thomas Brenner): My Team tab with own CC, Resource Requests button with visual emphasis (no badge counter per spec), request management master-detail
+- [x] My Team: Summary cards (headcount 8, utilization 80%, over-allocated 0, pending requests 4), heatmap with expandable role groups
+- [x] Heatmap: Color-coded utilization cells, person rows nested under role groups (Business Analyst, Developer, Project Manager, Solution Architect)
+- [x] Resource Requests: 4 pending requests grouped by monthly cycle (e.g., "March 2026 Cycle"), left panel with priority badges (low/medium/high), right panel with request detail + availability context + action buttons
+- [x] Org Overview: 4 KPI cards (headcount 29, utilization 77.2%, over-allocated CCs 0, pending controller approvals 3), heatmap by Cost Center with 6 rows
+- [x] Cross-module nav: Project links in request detail navigate to /workbench?project={id}
+- [x] Zero console errors, all API calls succeeding
+
+### Bugs Fixed During Session
+- `RequestManagement.tsx` was truncated mid-write from previous session context exhaustion (line 78, unterminated string) → Reconstructed complete component from sub-component interface analysis
+- Org Summary missing `pending_controller_approval_count` field → Added to backend schema, endpoint (query CRs with status `pending_controller_approval`), frontend type, and UI (4th KPI card)
+- Resource Requests button had badge counter (spec says "no badge counter") → Removed badge, kept blue accent color shift for visual emphasis
+- Request queue grouped only by status → Added monthly cycle grouping within each status section (e.g., "March 2026 Cycle")
+- Backend org summary query used wrong CR status string `pending_controller` → Fixed to `pending_controller_approval`
 
 ## Deviations from Spec
 - Repository named `vision-demo-prototype` instead of `cpc-demo` (user preference)

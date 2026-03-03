@@ -425,7 +425,17 @@ def get_org_summary(
                 over_count += 1
                 break
 
-    return OrgSummary(total_headcount=total_headcount, avg_utilization_pct=avg_util, over_allocated_cc_count=over_count)
+    # Count CRs pending controller approval
+    pending_controller = db.query(func.count(ChangeRequest.id)).filter(
+        ChangeRequest.status == "pending_controller_approval",
+    ).scalar()
+
+    return OrgSummary(
+        total_headcount=total_headcount,
+        avg_utilization_pct=avg_util,
+        over_allocated_cc_count=over_count,
+        pending_controller_approval_count=pending_controller,
+    )
 
 
 @router.get("/org/heatmap")
