@@ -41,6 +41,15 @@ import type {
   AdvisorQueryResponse,
   ComparisonResponse,
   DrillDownResponse,
+  AdminContext,
+  RefCostCenter,
+  RefCompetenceCenter,
+  RefLocation,
+  RefRole,
+  RefPerson,
+  AdminRateEntry,
+  AdminParameter,
+  AuditLogEntry,
 } from '@/types/api';
 
 export const rolesApi = {
@@ -115,6 +124,11 @@ export const portfolioApi = {
 
 export const referenceApi = {
   getLobs: () => api.get<ListResponse<LoBRef>>('/api/reference/lobs'),
+  getCostCenters: () => api.get<ListResponse<RefCostCenter>>('/api/reference/cost-centers'),
+  getCompetenceCenters: () => api.get<ListResponse<RefCompetenceCenter>>('/api/reference/competence-centers'),
+  getLocations: () => api.get<ListResponse<RefLocation>>('/api/reference/locations'),
+  getRoles: () => api.get<ListResponse<RefRole>>('/api/reference/roles'),
+  getPeople: () => api.get<ListResponse<RefPerson>>('/api/reference/people'),
 };
 
 // --- Documentation ---
@@ -367,4 +381,71 @@ export const scenariosApi = {
       `/api/scenarios/${scenarioId}/drill-down?${q}`,
     );
   },
+};
+
+// --- Administration ---
+
+export const adminApi = {
+  getContext: () => api.get<AdminContext>('/api/admin/context'),
+
+  // Cost Centers
+  createCostCenter: (data: { name: string; location_id: string; competence_center_id: string }) =>
+    api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/cost-centers', data),
+  updateCostCenter: (id: string, data: { name?: string; location_id?: string; competence_center_id?: string }) =>
+    api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/cost-centers/${id}`, data),
+  deactivateCostCenter: (id: string) =>
+    api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/cost-centers/${id}/deactivate`),
+
+  // Competence Centers
+  createCompetenceCenter: (data: { name: string }) =>
+    api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/competence-centers', data),
+  updateCompetenceCenter: (id: string, data: { name?: string }) =>
+    api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/competence-centers/${id}`, data),
+
+  // Lines of Business
+  createLoB: (data: { name: string; description?: string }) =>
+    api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/lobs', data),
+  updateLoB: (id: string, data: { name?: string; description?: string }) =>
+    api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/lobs/${id}`, data),
+
+  // Locations
+  createLocation: (data: { city: string; country: string }) =>
+    api.post<{ id: string; city: string; country: string; is_active: boolean }>('/api/admin/locations', data),
+  updateLocation: (id: string, data: { city?: string; country?: string }) =>
+    api.put<{ id: string; city: string; country: string; is_active: boolean }>(`/api/admin/locations/${id}`, data),
+
+  // People
+  createPerson: (data: { name: string; role_type_id: string; cost_center_id?: string }) =>
+    api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/people', data),
+  updatePerson: (id: string, data: { name?: string; role_type_id?: string; cost_center_id?: string }) =>
+    api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/people/${id}`, data),
+  deactivatePerson: (id: string) =>
+    api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/people/${id}/deactivate`),
+
+  // Rate Tables
+  getRates: () =>
+    api.get<ListResponse<AdminRateEntry>>('/api/admin/rates'),
+  updateRates: (changes: { role_type_id: string; competence_center_id: string; new_rate: number; effective_date: string }[]) =>
+    api.put<ListResponse<{ role_type_id: string; competence_center_id: string; new_rate: number; effective_date: string }>>('/api/admin/rates', { changes }),
+
+  // Planning Parameters
+  getParameters: () =>
+    api.get<ListResponse<AdminParameter>>('/api/admin/parameters'),
+  updateParameters: (changes: { key: string; new_value: string }[]) =>
+    api.put<ListResponse<{ key: string; name: string; current_value: string }>>('/api/admin/parameters', { changes }),
+  resetParameters: (keys?: string[]) =>
+    api.post<ListResponse<{ key: string; name: string; current_value: string }>>('/api/admin/parameters/reset', { keys: keys ?? null }),
+
+  // Audit Log
+  getAuditLog: (entityType?: string, limit?: number) => {
+    const q = new URLSearchParams();
+    if (entityType) q.set('entity_type', entityType);
+    if (limit) q.set('limit', String(limit));
+    const qs = q.toString();
+    return api.get<ListResponse<AuditLogEntry>>(`/api/admin/audit-log${qs ? '?' + qs : ''}`);
+  },
+
+  // Demo Reset
+  resetDemo: () =>
+    api.post<{ status: string; message: string }>('/api/admin/reset-demo', {}),
 };

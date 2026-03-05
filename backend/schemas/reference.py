@@ -59,6 +59,17 @@ class RoleResponse(BaseModel):
     rates: list[RateInfo]
 
 
+class PersonResponse(BaseModel):
+    id: str
+    name: str
+    role_type_id: str
+    role_name: str
+    cost_center_id: str | None
+    cost_center_name: str
+    utilization_pct: float
+    is_active: bool
+
+
 class CostTypeResponse(BaseModel):
     id: str
     name: str

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from dependencies import get_current_user
+from models.capacity import Allocation
 from models.financial import ExternalCostType
 from models.organization import CompetenceCenter, CostCenter, LineOfBusiness, Location
 from models.people import Person, RateTable, RoleType
@@ -20,9 +21,11 @@ from schemas.reference import (
     CostTypeResponse,
     LoBResponse,
     LocationResponse,
+    PersonResponse,
     RateInfo,
     RoleResponse,
 )
+from services.calculations import FTE_HOURS
 
 router = APIRouter(prefix="/api/reference", tags=["Reference Data"])
 
@@ -163,6 +166,38 @@ def get_roles(
             )
         items.append(
             RoleResponse(id=role.id, name=role.name, rates=rates)
+        )
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/people")
+def get_people(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Get all people with role, cost center, and current utilization."""
+    people = db.query(Person).order_by(Person.name).all()
+    # Current month utilization
+    demo_month = "2026-03"
+    items = []
+    for p in people:
+        alloc_hours = (
+            db.query(func.coalesce(func.sum(Allocation.hours), 0))
+            .filter(Allocation.person_id == p.id, Allocation.month == demo_month)
+            .scalar()
+        )
+        util_pct = round(float(alloc_hours) / FTE_HOURS * 100, 1) if alloc_hours else 0.0
+        items.append(
+            PersonResponse(
+                id=p.id,
+                name=p.name,
+                role_type_id=p.role_type_id,
+                role_name=p.role_type.name if p.role_type else "",
+                cost_center_id=p.cost_center_id,
+                cost_center_name=p.cost_center.name if p.cost_center else "",
+                utilization_pct=util_pct,
+                is_active=p.is_active,
+            )
         )
     return {"items": items, "total": len(items)}
 

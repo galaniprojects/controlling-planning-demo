@@ -1,9 +1,9 @@
 # CPC Demo — Build Progress
 
 ## Current Status
-Phase: D4b (complete)
-Last completed: Phase D4b — What-If Simulator (AI Advisor + Comparison View + Drill-Down)
-Next up: Phase D5 — Administration (Sections 7.6, 10.9)
+Phase: D5 (complete)
+Last completed: Phase D5 — Administration (Sections 7.6, 10.9)
+Next up: Phase E — Documentation content + polish
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -39,7 +39,7 @@ Next up: Phase D5 — Administration (Sections 7.6, 10.9)
   - [x] D3: Capacity Management — CSS grid heatmap, utilization colors, request management, org overview (Section 7.4)
   - [x] D4a: What-If Simulator — Scenario Manager + Workspace Core (Section 7.5.6–7.5.7)
   - [x] D4b: What-If Simulator — AI Advisor + Comparison + Drill-Down (Section 7.5.8–7.5.9)
-  - [ ] D5: Administration — entity selector, CRUD tables, detail panel, planning parameters (Section 7.6)
+  - [x] D5: Administration — entity selector, CRUD tables, rate tables, planning parameters, audit log (Section 7.6)
 - [ ] Phase E: Documentation content + polish
 
 ## Phase A Details
@@ -459,6 +459,63 @@ Before committing at the end of each D-session:
 - [x] API verification: advisor query returns 3 paths, advisor apply creates actions + narrative
 - [x] Zero console errors throughout all testing
 - [x] Demo database reset to clean state after verification
+
+## Phase D5 Details — Administration
+
+### New Files (12)
+| Directory | Files |
+|-----------|-------|
+| frontend/src/modules/admin/ | Administration.tsx, EntitySelector.tsx |
+| frontend/src/modules/admin/entities/ | EntityFormDialog.tsx, CostCentersPanel.tsx, CompetenceCentersPanel.tsx, LoBsPanel.tsx, LocationsPanel.tsx, PeoplePanel.tsx, RateTablePanel.tsx |
+| frontend/src/modules/admin/parameters/ | PlanningParameters.tsx |
+| frontend/src/modules/admin/audit/ | AuditLogPanel.tsx |
+
+### Modified Files (4)
+- `src/types/api.ts` — Added ~90 lines: AdminContext, RefCostCenter, RefCompetenceCenterCC, RefCompetenceCenter, RefLocation, RefRole, RefPerson, AdminRateEntry, AdminParameter, AuditLogEntry
+- `src/api/endpoints.ts` — Added adminApi (20 functions), extended referenceApi (5 new functions: getCostCenters, getCompetenceCenters, getLocations, getRoles, getPeople)
+- `src/App.tsx` — Replaced PlaceholderModule with Administration for /admin/* route
+- `backend/routers/reference.py` — Added GET /api/reference/people endpoint (~30 lines)
+- `backend/schemas/reference.py` — Added PersonResponse Pydantic model
+
+### Key Architecture
+
+**Layout**: Header (h1 + Reset Demo + Guide) → 5 SummaryCards → EntitySelector sidebar (220px) + Panel content
+
+**Entity Selector**: Vertical nav with 8 items in 2 groups:
+- ENTITIES: Cost Centers, Competence Centers, Lines of Business, Locations, People, Rate Tables
+- SYSTEM: Planning Parameters, Audit Log
+
+**EntityFormDialog**: Config-driven dialog form for create/edit across all entity types. Field definitions per type (text, textarea, select) with required validation.
+
+**Rate Tables**: Inline editing (not Dialog) with batch save. Changed rows highlighted amber. Save Changes / Discard buttons with success feedback.
+
+**Planning Parameters**: Grouped Card form (Fiscal, Planning, Thresholds, Limits) with per-group Save Changes and Reset to Defaults. Edit controls: month Select, integer Input, percentage Input.
+
+**Audit Log**: Filterable table with entity type dropdown. Color-coded action badges (create=green, update=blue, deactivate=slate).
+
+**Demo Reset**: Red button in header → confirmation Dialog → adminApi.resetDemo() → window.location.reload()
+
+### Backend Addition
+- GET /api/reference/people: Returns all people with role_name, cost_center_name, utilization_pct (calculated from allocations for 2026-03), is_active flag
+
+### Patterns Reused
+- Role-gating: ShieldAlert card (from WhatIfSimulator.tsx) — controller only
+- SummaryCard component (from capacity module)
+- ModuleGuideButton (moduleId="administration")
+- Skeleton loading states
+- Dialog confirmation for destructive actions (deactivate, demo reset)
+
+### Verification Results
+- [x] Non-controller roles → 403 Forbidden (verified via API for executive persona)
+- [x] Controller → loads with correct summary counts (6 CCs, 32 people, 3 LoBs, 3 locations, 3 competence centers)
+- [x] All 8 sections navigate via entity selector
+- [x] Demo Scenario #16: Add new cost center "SHG Data Analytics" (Munich, App Dev) → appears in table, count updates 6→7
+- [x] Demo Scenario #17: Update Senior Developer rate from €95→€105 → "1 rate(s) updated successfully", previous rate €95 preserved with date 2026-01-01
+- [x] Audit log: Shows create action for "SHG Data Analytics" by Anna Meier with correct timestamp
+- [x] Demo Reset: Confirmation dialog → resets all data → count returns to 6, all changes reverted
+- [x] All entity panels render correctly: Cost Centers (7 cols), Competence Centers (5 cols), LoBs (5 cols), Locations (4 cols), People (6 cols), Rate Tables (6 cols inline-editable)
+- [x] Planning Parameters: Fiscal Settings group with month selector, default values shown
+- [x] Zero console errors throughout testing
 
 ## Deviations from Spec
 - Repository named `vision-demo-prototype` instead of `cpc-demo` (user preference)

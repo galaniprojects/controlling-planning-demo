@@ -8,7 +8,7 @@ import { PortfolioOverview } from '@/modules/portfolio/PortfolioOverview';
 import { ProjectWorkbench } from '@/modules/workbench/ProjectWorkbench';
 import { CapacityManagement } from '@/modules/capacity/CapacityManagement';
 import { WhatIfSimulator } from '@/modules/simulator/WhatIfSimulator';
-import { PlaceholderModule } from '@/components/layout/PlaceholderModule';
+import { Administration } from '@/modules/admin/Administration';
 
 export default function App() {
   return (
@@ -23,7 +23,7 @@ export default function App() {
                 <Route path="/workbench/*" element={<ProjectWorkbench />} />
                 <Route path="/capacity/*" element={<CapacityManagement />} />
                 <Route path="/simulator/*" element={<WhatIfSimulator />} />
-                <Route path="/admin/*" element={<PlaceholderModule name="Administration" />} />
+                <Route path="/admin/*" element={<Administration />} />
               </Routes>
             </AppLayout>
           </BottomDrawerProvider>

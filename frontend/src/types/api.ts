@@ -623,3 +623,99 @@ export interface DrillDownResponse {
   total: number;
   level: string;
 }
+
+// --- Administration ---
+
+export interface AdminContext {
+  cost_center_count: number;
+  people_count: number;
+  lob_count: number;
+  location_count: number;
+  competence_center_count: number;
+  last_rate_update: string | null;
+  last_parameter_change: string | null;
+}
+
+export interface RefCostCenter {
+  id: string;
+  name: string;
+  location_id: string;
+  location_name: string;
+  competence_center_id: string;
+  competence_center_name: string;
+  headcount: number;
+  is_active: boolean;
+}
+
+export interface RefCompetenceCenterCC {
+  id: string;
+  name: string;
+}
+
+export interface RefCompetenceCenter {
+  id: string;
+  name: string;
+  blended_rate: number;
+  cost_centers: RefCompetenceCenterCC[];
+  is_active: boolean;
+}
+
+export interface RefLocation {
+  id: string;
+  city: string;
+  country: string;
+  cost_center_count: number;
+  is_active: boolean;
+}
+
+export interface RefRole {
+  id: string;
+  name: string;
+  rates: { competence_center_id: string; competence_center_name: string; hourly_rate: number; effective_date: string }[];
+}
+
+export interface RefPerson {
+  id: string;
+  name: string;
+  role_type_id: string;
+  role_name: string;
+  cost_center_id: string | null;
+  cost_center_name: string;
+  utilization_pct: number;
+  is_active: boolean;
+}
+
+export interface AdminRateEntry {
+  id: number;
+  role_type_id: string;
+  role_name: string;
+  competence_center_id: string;
+  competence_center_name: string;
+  current_rate: number;
+  effective_date: string;
+  previous_rate: number | null;
+  previous_effective_date: string | null;
+}
+
+export interface AdminParameter {
+  key: string;
+  name: string;
+  description: string;
+  current_value: string;
+  default_value: string;
+  data_type: string;
+  group: string;
+}
+
+export interface AuditLogEntry {
+  id: number;
+  timestamp: string;
+  user_name: string;
+  entity_type: string;
+  entity_id: string;
+  entity_name: string | null;
+  action: string;
+  field_changed: string | null;
+  old_value: string | null;
+  new_value: string | null;
+}
