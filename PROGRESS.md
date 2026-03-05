@@ -1,9 +1,9 @@
 # CPC Demo — Build Progress
 
 ## Current Status
-Phase: D5 (complete)
-Last completed: Phase D5 — Administration (Sections 7.6, 10.9)
-Next up: Phase E — Documentation content + polish
+Phase: E (complete)
+Last completed: Phase E — Documentation + Polish + Verification
+All phases complete. Application ready for demo.
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -40,7 +40,7 @@ Next up: Phase E — Documentation content + polish
   - [x] D4a: What-If Simulator — Scenario Manager + Workspace Core (Section 7.5.6–7.5.7)
   - [x] D4b: What-If Simulator — AI Advisor + Comparison + Drill-Down (Section 7.5.8–7.5.9)
   - [x] D5: Administration — entity selector, CRUD tables, rate tables, planning parameters, audit log (Section 7.6)
-- [ ] Phase E: Documentation content + polish
+- [x] Phase E: Documentation content + polish + verification
 
 ## Phase A Details
 
@@ -516,6 +516,60 @@ Before committing at the end of each D-session:
 - [x] All entity panels render correctly: Cost Centers (7 cols), Competence Centers (5 cols), LoBs (5 cols), Locations (4 cols), People (6 cols), Rate Tables (6 cols inline-editable)
 - [x] Planning Parameters: Fiscal Settings group with month selector, default values shown
 - [x] Zero console errors throughout testing
+
+## Phase E Details — Documentation + Polish + Verification
+
+### New Files (0)
+No new files created. All changes were modifications to existing files.
+
+### Modified Files (4)
+- `frontend/src/types/api.ts` — Added FAQStep, FAQSummary, FAQDetail interfaces (~15 lines)
+- `frontend/src/api/endpoints.ts` — Added docsApi.getFAQs() and docsApi.getFAQDetail() functions, imported new types
+- `frontend/src/components/layout/HelpButton.tsx` — Replaced 33-line stub with full FAQ panel (~120 lines): role-filtered FAQ list, step-by-step detail view, target_module deep-linking
+- `frontend/src/modules/launchpad/NotificationsList.tsx` — Fixed deep-link routing: workbench links use `?project=` query params instead of path segments
+- `frontend/src/modules/portfolio/PortfolioOverview.tsx` — Fixed tab URL sync race condition: don't reset tab while role context is loading, sync tab from URL on location change
+
+### Key Implementation Details
+
+**FAQ Panel (HelpButton.tsx)**:
+- FAQPanelContent manages list/detail state via useState
+- List view: fetches all FAQs, filters by `context.role` matching `applicable_roles`
+- Detail view: numbered steps with blue circle badges, "Back to FAQs" navigation
+- Steps with `target_module` get clickable link using MODULE_ROUTES + useNavigate
+- Panel closes on navigation to maintain UX flow
+
+**Notification Deep-Link Fix**:
+- Old: `route + "/" + entity_id` → produced invalid paths like `/workbench/proj-erp2`
+- New: module-aware routing — workbench uses `?project=` query param, others navigate to module root
+
+**Portfolio Tab Sync Fix**:
+- Race condition: useEffect reset tab to "dashboard" before role context loaded (showIntake was false when context=null)
+- Fix: guard with `if (!role) return` and add location.pathname sync effect
+
+### Bugs Found & Fixed During Verification
+1. **Portfolio tab URL sync**: Navigating to `/portfolio/intake` showed Dashboard tab due to race condition in role-context-dependent useEffect → Fixed with null guard and pathname sync
+2. **Notification deep links**: `/workbench/proj-erp2` was an invalid route → Fixed to use `?project=` query params
+
+### Demo Walkthrough Results (17 Scenarios)
+- [x] Scenario 1: 4 roles switch correctly, correct landing pages and module access
+- [x] Scenario 2: Portfolio tree: Truck Systems → Digital Braking Platform → ERP Phase 2 → Red RAG, budget snapshot, sparkline
+- [x] Scenario 3: Intake Queue: Autonomous Braking Prototype → detail panel with Approve/Reject/Send Back
+- [x] Scenario 4: Approvals: 3 pending CRs (2 ERP, 1 Sensor) → detail panel
+- [x] Scenario 5: Forecast wizard: 5-phase flow (verified D2, API operational)
+- [x] Scenario 6: Change History: 10 CRs with category/status filters, expandable cards
+- [x] Scenario 7: Team heatmap: Lena Fischer at 105% (Mar-May), Markus Wolf at 48% (Apr+), color coding correct
+- [x] Scenario 8: Resource Requests: 4 pending, master-detail, assignment preview, action buttons
+- [x] Scenario 9: Org Overview: 29 headcount, 77.2% utilization, heatmap by Cost Center with 6 rows
+- [x] Scenario 10: What-If workspace: Budget Pressure scenario, 5 actions, KPI strip (€4.5M→€4.3M), portfolio impact
+- [x] Scenario 11: New scenario creation (verified D4a, API operational)
+- [x] Scenario 12: Comparison: POST /compare returns correct multi-column data with Current State
+- [x] Scenario 13: AI Advisor: 3 paths (Conservative/Moderate/Aggressive) for "Find 2M in savings"
+- [x] Scenario 14: Module Guide: renders in side panel with structured sections
+- [x] Scenario 15: FAQ: role-filtered list (8 for Controller, 3 for PL), step-by-step detail with deep links
+- [x] Scenario 16: Add cost center via API (SHG Data Analytics created successfully)
+- [x] Scenario 17: Rate table: 12 entries accessible via API
+- [x] Zero console errors throughout entire walkthrough
+- [x] Demo data reset to clean state after verification
 
 ## Deviations from Spec
 - Repository named `vision-demo-prototype` instead of `cpc-demo` (user preference)

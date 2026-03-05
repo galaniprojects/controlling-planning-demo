@@ -14,10 +14,12 @@ export function NotificationsList({ notifications }: Props) {
   if (notifications.length === 0) return null;
 
   const handleClick = (n: Notification) => {
-    if (n.deep_link_module) {
-      const route = MODULE_ROUTES[n.deep_link_module] || '/';
-      const suffix = n.deep_link_entity_id ? `/${n.deep_link_entity_id}` : '';
-      navigate(route + suffix);
+    if (!n.deep_link_module) return;
+    const route = MODULE_ROUTES[n.deep_link_module] || '/';
+    if (n.deep_link_module === 'workbench' && n.deep_link_entity_id) {
+      navigate(`${route}?project=${n.deep_link_entity_id}`);
+    } else {
+      navigate(route);
     }
   };
 

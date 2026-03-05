@@ -50,6 +50,8 @@ import type {
   AdminRateEntry,
   AdminParameter,
   AuditLogEntry,
+  FAQSummary,
+  FAQDetail,
 } from '@/types/api';
 
 export const rolesApi = {
@@ -147,6 +149,8 @@ export interface ModuleManual {
 export const docsApi = {
   getModuleManual: (moduleId: string) =>
     api.get<ModuleManual>(`/api/docs/modules/${moduleId}`),
+  getFAQs: () => api.get<ListResponse<FAQSummary>>('/api/docs/faq'),
+  getFAQDetail: (faqId: string) => api.get<FAQDetail>(`/api/docs/faq/${faqId}`),
 };
 
 // --- Project Workbench ---

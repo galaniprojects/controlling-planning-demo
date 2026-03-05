@@ -719,3 +719,23 @@ export interface AuditLogEntry {
   old_value: string | null;
   new_value: string | null;
 }
+
+// --- Documentation / FAQ ---
+
+export interface FAQStep {
+  step_number: number;
+  instruction: string;
+  target_module: string | null;
+}
+
+export interface FAQSummary {
+  id: string;
+  question: string;
+  summary: string;
+  applicable_roles: string[];
+  modules_involved: string[];
+}
+
+export interface FAQDetail extends FAQSummary {
+  steps: FAQStep[];
+}

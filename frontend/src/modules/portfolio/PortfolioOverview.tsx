@@ -24,11 +24,18 @@ export function PortfolioOverview() {
 
   const [activeTab, setActiveTab] = useState(() => getTabFromPath(location.pathname));
 
+  // Sync tab from URL when location changes (e.g. notification deep link)
+  useEffect(() => {
+    const tab = getTabFromPath(location.pathname);
+    if (tab !== activeTab) setActiveTab(tab);
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Reset to dashboard if current tab is no longer available for this role
   useEffect(() => {
+    if (!role) return; // Don't reset while context is still loading
     if (activeTab === 'intake' && !showIntake) setActiveTab('dashboard');
     if (activeTab === 'approvals' && !showApprovals) setActiveTab('dashboard');
-  }, [activeTab, showIntake, showApprovals]);
+  }, [activeTab, role, showIntake, showApprovals]);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
