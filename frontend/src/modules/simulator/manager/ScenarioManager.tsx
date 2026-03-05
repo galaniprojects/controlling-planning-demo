@@ -1,11 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, GitCompare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { scenariosApi } from '@/api/endpoints';
 import { useRole } from '@/contexts/RoleContext';
@@ -96,15 +91,10 @@ export function ScenarioManager({ onOpenScenario, onCompare }: Props) {
     <div className="space-y-6">
       {/* Actions bar */}
       <div className="flex items-center justify-end gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="outline" size="sm" disabled>
-              <GitCompare className="h-4 w-4 mr-1.5" />
-              Compare Scenarios
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Coming in next update</TooltipContent>
-        </Tooltip>
+        <Button variant="outline" size="sm" onClick={onCompare}>
+          <GitCompare className="h-4 w-4 mr-1.5" />
+          Compare Scenarios
+        </Button>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-1.5" />
           Create New Scenario

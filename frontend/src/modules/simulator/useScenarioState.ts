@@ -1,6 +1,6 @@
 import { useReducer, useCallback, useEffect, useRef } from 'react';
 import { scenariosApi } from '@/api/endpoints';
-import type { ScenarioDetail } from '@/types/api';
+import type { AdvisorQueryResponse, ScenarioDetail } from '@/types/api';
 
 // --- State ---
 
@@ -8,12 +8,16 @@ interface ScenarioWorkspaceState {
   loading: boolean;
   error: string | null;
   scenario: ScenarioDetail | null;
+  advisorLoading: boolean;
+  advisorNarrative: string | null;
 }
 
 const initialState: ScenarioWorkspaceState = {
   loading: false,
   error: null,
   scenario: null,
+  advisorLoading: false,
+  advisorNarrative: null,
 };
 
 // --- Actions ---
@@ -27,6 +31,8 @@ type ScenarioStateAction =
       name?: string;
       description?: string;
     }
+  | { type: 'SET_ADVISOR_LOADING'; payload: boolean }
+  | { type: 'SET_ADVISOR_NARRATIVE'; payload: string | null }
   | { type: 'RESET' };
 
 // --- Reducer ---
@@ -41,7 +47,7 @@ function reducer(
     case 'SET_ERROR':
       return { ...state, loading: false, error: action.payload };
     case 'SET_SCENARIO':
-      return { loading: false, error: null, scenario: action.payload };
+      return { ...state, loading: false, error: null, scenario: action.payload };
     case 'UPDATE_METADATA': {
       if (!state.scenario) return state;
       return {
@@ -58,6 +64,10 @@ function reducer(
         },
       };
     }
+    case 'SET_ADVISOR_LOADING':
+      return { ...state, advisorLoading: action.payload };
+    case 'SET_ADVISOR_NARRATIVE':
+      return { ...state, advisorNarrative: action.payload };
     case 'RESET':
       return initialState;
     default:
@@ -158,6 +168,48 @@ export function useScenarioState(scenarioId: number | null) {
     [scenarioId],
   );
 
+  const advisorQuery = useCallback(
+    async (goal: string): Promise<AdvisorQueryResponse | null> => {
+      if (scenarioId === null) return null;
+      dispatch({ type: 'SET_ADVISOR_LOADING', payload: true });
+      dispatch({ type: 'SET_ADVISOR_NARRATIVE', payload: null });
+      try {
+        return await scenariosApi.advisorQuery(scenarioId, goal);
+      } catch (e) {
+        dispatch({
+          type: 'SET_ERROR',
+          payload: e instanceof Error ? e.message : 'Advisor query failed',
+        });
+        return null;
+      } finally {
+        dispatch({ type: 'SET_ADVISOR_LOADING', payload: false });
+      }
+    },
+    [scenarioId],
+  );
+
+  const advisorApply = useCallback(
+    async (pathId: string) => {
+      if (scenarioId === null) return;
+      dispatch({ type: 'SET_LOADING' });
+      try {
+        const result = await scenariosApi.advisorApply(scenarioId, pathId);
+        dispatch({ type: 'SET_SCENARIO', payload: result });
+        dispatch({
+          type: 'SET_ADVISOR_NARRATIVE',
+          payload: result.narrative_summary ?? null,
+        });
+      } catch (e) {
+        dispatch({
+          type: 'SET_ERROR',
+          payload:
+            e instanceof Error ? e.message : 'Failed to apply advisor path',
+        });
+      }
+    },
+    [scenarioId],
+  );
+
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' });
   }, []);
@@ -181,6 +233,8 @@ export function useScenarioState(scenarioId: number | null) {
     applyAction,
     removeAction,
     reorderActions,
+    advisorQuery,
+    advisorApply,
     reset,
   };
 }

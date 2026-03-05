@@ -5,6 +5,7 @@ import { useRole } from '@/contexts/RoleContext';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
 import { ScenarioManager } from './manager/ScenarioManager';
 import { ScenarioWorkspace } from './workspace/ScenarioWorkspace';
+import { ComparisonView } from './comparison/ComparisonView';
 
 type SimulatorPhase =
   | { view: 'manager' }
@@ -69,11 +70,7 @@ export function WhatIfSimulator() {
       )}
 
       {phase.view === 'comparison' && (
-        <Card className="p-8 text-center">
-          <p className="text-sm text-slate-500">
-            Comparison View will be available in the next update.
-          </p>
-        </Card>
+        <ComparisonView onBack={() => setPhase({ view: 'manager' })} />
       )}
     </div>
   );

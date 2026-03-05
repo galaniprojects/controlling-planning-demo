@@ -1,17 +1,15 @@
-import { useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { useBottomDrawer } from '@/contexts/BottomDrawerContext';
 import { useScenarioState } from '../useScenarioState';
 import { ActionPanel } from './ActionPanel';
 import { ImpactNarrative } from './ImpactNarrative';
 import { KPIComparisonStrip } from './KPIComparisonStrip';
 import { ScenarioPortfolioTree } from './ScenarioPortfolioTree';
+import { AIAdvisorPanel } from '../advisor/AIAdvisorPanel';
+import { DrillDownContent } from '../drilldown/DrillDownContent';
 
 interface Props {
   scenarioId: number;
@@ -24,13 +22,27 @@ export function ScenarioWorkspace({ scenarioId, onBack }: Props) {
     updateMetadata,
     applyAction,
     removeAction,
+    advisorQuery,
+    advisorApply,
   } = useScenarioState(scenarioId);
 
-  const { scenario, loading, error } = state;
+  const { scenario, loading, error, advisorLoading, advisorNarrative } = state;
+  const [showAdvisor, setShowAdvisor] = useState(false);
+  const { openDrawer } = useBottomDrawer();
 
   const affectedCount = useMemo(
     () => scenario?.project_states.filter((p) => p.is_affected).length ?? 0,
     [scenario],
+  );
+
+  const handleProjectRowClick = useCallback(
+    (node: { id: string; name: string }) => {
+      openDrawer(
+        node.name,
+        <DrillDownContent scenarioId={scenarioId} projectId={node.id} />,
+      );
+    },
+    [scenarioId, openDrawer],
   );
 
   if (error) {
@@ -76,15 +88,15 @@ export function ScenarioWorkspace({ scenarioId, onBack }: Props) {
           <ArrowLeft className="h-4 w-4 mr-1.5" />
           Back to Scenarios
         </Button>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="outline" size="sm" disabled>
-              <Sparkles className="h-4 w-4 mr-1.5" />
-              AI Advisor
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Coming in next update</TooltipContent>
-        </Tooltip>
+        <Button
+          variant={showAdvisor ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setShowAdvisor((v) => !v)}
+          className={showAdvisor ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
+        >
+          <Sparkles className="h-4 w-4 mr-1.5" />
+          AI Advisor
+        </Button>
       </div>
 
       {/* Split layout */}
@@ -102,7 +114,7 @@ export function ScenarioWorkspace({ scenarioId, onBack }: Props) {
           />
         </div>
 
-        {/* Right: Impact Dashboard */}
+        {/* Center: Impact Dashboard */}
         <div className="flex-1 min-w-0 space-y-4">
           <ImpactNarrative
             impact={scenario.impact_dashboard}
@@ -115,8 +127,20 @@ export function ScenarioWorkspace({ scenarioId, onBack }: Props) {
           <ScenarioPortfolioTree
             projectStates={scenario.project_states}
             loading={loading}
+            onRowClick={handleProjectRowClick}
           />
         </div>
+
+        {/* Right: AI Advisor Panel (conditional) */}
+        {showAdvisor && (
+          <AIAdvisorPanel
+            scenarioId={scenarioId}
+            onAdvisorQuery={advisorQuery}
+            onAdvisorApply={advisorApply}
+            advisorLoading={advisorLoading}
+            advisorNarrative={advisorNarrative}
+          />
+        )}
       </div>
     </div>
   );

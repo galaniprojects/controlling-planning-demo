@@ -1,9 +1,9 @@
 # CPC Demo — Build Progress
 
 ## Current Status
-Phase: D4a (complete)
-Last completed: Phase D4a — What-If Simulator (Scenario Manager + Workspace Core)
-Next up: Phase D4b — What-If Simulator (AI Advisor + Comparison View + Drill-Down)
+Phase: D4b (complete)
+Last completed: Phase D4b — What-If Simulator (AI Advisor + Comparison View + Drill-Down)
+Next up: Phase D5 — Administration (Sections 7.6, 10.9)
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -38,7 +38,7 @@ Next up: Phase D4b — What-If Simulator (AI Advisor + Comparison View + Drill-D
   - [x] D2: Project Workbench — master-detail, 3-point comparison, trajectory chart, forecast wizard (Section 7.3)
   - [x] D3: Capacity Management — CSS grid heatmap, utilization colors, request management, org overview (Section 7.4)
   - [x] D4a: What-If Simulator — Scenario Manager + Workspace Core (Section 7.5.6–7.5.7)
-  - [ ] D4b: What-If Simulator — AI Advisor + Comparison + Drill-Down (Section 7.5.8–7.5.9)
+  - [x] D4b: What-If Simulator — AI Advisor + Comparison + Drill-Down (Section 7.5.8–7.5.9)
   - [ ] D5: Administration — entity selector, CRUD tables, detail panel, planning parameters (Section 7.6)
 - [ ] Phase E: Documentation content + polish
 
@@ -407,6 +407,58 @@ Before committing at the end of each D-session:
 - [x] AddAction form: Config-driven tabs (Project Actions / Portfolio Rules), action type dropdown, project selector
 - [x] Zero console errors, all API calls succeeding
 - [x] Guide button: moduleId="whatif_simulator" renders in side panel
+
+### Phase D4b Details
+
+**New Files (6):**
+- `frontend/src/modules/simulator/advisor/PathCard.tsx` (~90 LOC) — Solution path card with headline numbers, trade-offs, Apply button
+- `frontend/src/modules/simulator/advisor/AIAdvisorPanel.tsx` (~150 LOC) — 370px indigo panel: goal input, loading animation (cycling text), path cards, narrative summary
+- `frontend/src/modules/simulator/drilldown/DrillDownContent.tsx` (~120 LOC) — BottomDrawer content: budget comparison grid + RAG dot comparison
+- `frontend/src/modules/simulator/comparison/ScenarioSelector.tsx` (~100 LOC) — Checkbox list (max 3), Compare button with count
+- `frontend/src/modules/simulator/comparison/ComparisonTable.tsx` (~110 LOC) — Dynamic-column table: Current State + scenario columns, budget/delta/RAG per project
+- `frontend/src/modules/simulator/comparison/ComparisonView.tsx` (~150 LOC) — Two-phase (select → results) with KPI summary cards + ComparisonTable
+
+**Modified Files (6):**
+- `backend/routers/scenarios.py` — Fixed 3 field name bugs (goal_display, constituent_actions)
+- `frontend/src/modules/simulator/useScenarioState.ts` — Added advisorLoading/advisorNarrative state, advisorQuery/advisorApply callbacks
+- `frontend/src/modules/simulator/workspace/ScenarioWorkspace.tsx` — Enabled AI Advisor toggle, added AIAdvisorPanel, added drill-down via BottomDrawer
+- `frontend/src/modules/simulator/workspace/ScenarioPortfolioTree.tsx` — Added onRowClick prop, threaded to ExpandableTreeTable
+- `frontend/src/modules/simulator/manager/ScenarioManager.tsx` — Enabled Compare button (removed disabled Tooltip wrapper)
+- `frontend/src/modules/simulator/WhatIfSimulator.tsx` — Replaced comparison placeholder with ComparisonView
+
+**New shadcn components:** checkbox
+
+**AI Advisor Flow:**
+1. Toggle "AI Advisor" button → 370px indigo panel slides in from right
+2. Type goal (e.g., "Find €2M in savings") → "Analyze Portfolio" button
+3. Loading: pulsing indigo dot + cycling text (3 phases)
+4. Results: 3 PathCards (Conservative/Moderate/Aggressive) with headline numbers
+5. "Apply to Scenario" → actions created with group_label, dashboard recalculates, narrative shown
+
+**Comparison View Flow:**
+1. "Compare Scenarios" from Manager → ScenarioSelector with checkboxes (max 3)
+2. "Compare" → API call → KPI summary cards per column + full project comparison table
+3. Current State pinned as first column, scenario columns show deltas (green savings / red increases)
+
+**Drill-Down Flow:**
+1. Click project row in ScenarioPortfolioTree → BottomDrawer opens
+2. Shows original budget, scenario budget, delta (color-coded), original RAG, scenario RAG
+
+### Bugs Fixed During D4b
+- Backend `goal.get("goal_name")` → `goal.get("goal_display")` (fixture uses `goal_display`)
+- Backend `path.get("actions")` → `path.get("constituent_actions")` (fixture uses `constituent_actions`, 2 occurrences)
+
+### D4b Verification Results
+- [x] AI Advisor: Goal input → 3 paths returned → Apply Conservative → 5 actions created with group_label, dashboard recalculates
+- [x] AI Advisor narrative: Summary text displayed after apply
+- [x] Drill-Down: Project row click → BottomDrawer opens with budget/RAG detail
+- [x] Comparison: Select 2 scenarios → Current State + 2 columns → 23 projects with correct deltas
+- [x] Comparison KPI cards: Total budget per column, delta vs baseline, RAG distribution dots
+- [x] Executive persona: Correct scenarios visible, all flows work
+- [x] PL / CC Owner: Still see no-access card (unchanged)
+- [x] API verification: advisor query returns 3 paths, advisor apply creates actions + narrative
+- [x] Zero console errors throughout all testing
+- [x] Demo database reset to clean state after verification
 
 ## Deviations from Spec
 - Repository named `vision-demo-prototype` instead of `cpc-demo` (user preference)

@@ -354,7 +354,7 @@ def query_advisor(
         return {"paths": [], "message": "No matching recommendations found for this goal."}
 
     paths = get_paths_for_goal(goal)
-    return {"paths": paths, "matched_goal": goal.get("goal_name", "")}
+    return {"paths": paths, "matched_goal": goal.get("goal_display", "")}
 
 
 @router.post("/{scenario_id}/advisor/apply")
@@ -381,7 +381,7 @@ def apply_advisor_path(
         ScenarioAction.scenario_id == scenario_id
     ).scalar()
 
-    for i, action_def in enumerate(path.get("actions", [])):
+    for i, action_def in enumerate(path.get("constituent_actions", [])):
         action = ScenarioAction(
             scenario_id=scenario_id,
             action_order=max_order + i + 1,
@@ -401,5 +401,5 @@ def apply_advisor_path(
 
     actions = db.query(ScenarioAction).filter(ScenarioAction.scenario_id == scenario_id).order_by(ScenarioAction.action_order).all()
     result = recalculate_scenario(db, scenario, actions)
-    result["narrative_summary"] = f"Applied '{path.get('name', '')}' path with {len(path.get('actions', []))} actions."
+    result["narrative_summary"] = f"Applied '{path.get('name', '')}' path with {len(path.get('constituent_actions', []))} actions."
     return result

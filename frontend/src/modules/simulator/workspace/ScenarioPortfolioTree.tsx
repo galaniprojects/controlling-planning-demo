@@ -43,9 +43,10 @@ function RagDot({ rag }: { rag: string | null }) {
 interface Props {
   projectStates: ScenarioProjectState[];
   loading: boolean;
+  onRowClick?: (node: { id: string; name: string }) => void;
 }
 
-export function ScenarioPortfolioTree({ projectStates, loading }: Props) {
+export function ScenarioPortfolioTree({ projectStates, loading, onRowClick }: Props) {
   const nodes: TreeNode[] = useMemo(
     () =>
       projectStates.map((p) => ({
@@ -152,7 +153,7 @@ export function ScenarioPortfolioTree({ projectStates, loading }: Props) {
       <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
         Portfolio Impact ({nodes.length} projects)
       </h4>
-      <ExpandableTreeTable data={nodes} columns={columns} />
+      <ExpandableTreeTable data={nodes} columns={columns} onRowClick={onRowClick} />
     </div>
   );
 }
