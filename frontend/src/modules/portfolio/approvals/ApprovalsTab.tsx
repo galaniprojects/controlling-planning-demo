@@ -4,6 +4,7 @@ import { useSidePanel } from '@/contexts/SidePanelContext';
 import { portfolioApi } from '@/api/endpoints';
 import { ApprovalsTable } from './ApprovalsTable';
 import { CRDetailPanel } from './CRDetailPanel';
+import { CRDetailWorkspace } from './CRDetailWorkspace';
 import type { ApprovalItem } from '@/types/api';
 
 export function ApprovalsTab() {
@@ -13,6 +14,7 @@ export function ApprovalsTab() {
   const [items, setItems] = useState<ApprovalItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | undefined>();
+  const [detailCrId, setDetailCrId] = useState<number | null>(null);
 
   const fetchItems = useCallback(() => {
     setLoading(true);
@@ -26,6 +28,14 @@ export function ApprovalsTab() {
   useEffect(() => {
     fetchItems();
   }, [currentRoleId, fetchItems]);
+
+  const handleOpenDetail = useCallback(
+    (crId: number) => {
+      setDetailCrId(crId);
+      closePanel();
+    },
+    [closePanel],
+  );
 
   const handleSelect = useCallback(
     (crId: number) => {
@@ -43,12 +53,26 @@ export function ApprovalsTab() {
               closePanel();
               setSelectedId(undefined);
             }}
+            onOpenDetail={handleOpenDetail}
           />,
         );
       }
     },
-    [selectedId, openPanel, closePanel, fetchItems],
+    [selectedId, openPanel, closePanel, fetchItems, handleOpenDetail],
   );
+
+  if (detailCrId) {
+    return (
+      <CRDetailWorkspace
+        crId={detailCrId}
+        onBack={() => setDetailCrId(null)}
+        onActionComplete={() => {
+          setDetailCrId(null);
+          fetchItems();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -57,6 +81,7 @@ export function ApprovalsTab() {
         loading={loading}
         selectedId={selectedId}
         onSelect={handleSelect}
+        onOpenDetail={handleOpenDetail}
       />
     </div>
   );

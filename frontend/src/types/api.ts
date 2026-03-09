@@ -86,6 +86,10 @@ export interface PortfolioKPIs {
   overall_variance_pct: number;
   capex_opex_split: { capex: number; opex: number };
   run_change_ratio: string;
+  run_total: number;
+  change_total: number;
+  run_pct: number;
+  change_pct: number;
 }
 
 export interface TimelineInfo {
@@ -138,7 +142,9 @@ export interface BudgetByLob {
 
 export interface ForecastTrajectoryPoint {
   month: string;
+  baseline: number;
   forecast: number;
+  actuals: number | null;
 }
 
 export interface ChartData {
@@ -159,6 +165,28 @@ export interface IntakeItem {
   status: string;
 }
 
+export interface IntakeResourcePlanItem {
+  role_id: string;
+  role_name: string;
+  months: { month: string; hours: number; amount: number }[];
+  total_hours: number;
+  total_amount: number;
+}
+
+export interface IntakeExternalCostItem {
+  cost_type_id: string;
+  cost_type_name: string;
+  months: { month: string; amount: number }[];
+  total_amount: number;
+}
+
+export interface IntakeBudgetSummary {
+  internal_total: number;
+  external_total: number;
+  grand_total: number;
+  capex_opex: string;
+}
+
 export interface IntakeDetail {
   project_id: string;
   name: string;
@@ -170,6 +198,10 @@ export interface IntakeDetail {
   estimated_budget: number | null;
   capex_opex: string;
   status: string;
+  pl_name?: string | null;
+  resource_plan?: IntakeResourcePlanItem[];
+  external_cost_plan?: IntakeExternalCostItem[];
+  budget_summary?: IntakeBudgetSummary;
 }
 
 // Approvals

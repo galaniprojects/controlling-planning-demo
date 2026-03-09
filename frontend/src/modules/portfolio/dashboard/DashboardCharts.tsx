@@ -7,9 +7,11 @@ import type { ChartData } from '@/types/api';
 
 interface Props {
   data: ChartData | null;
+  activeRag?: string | null;
+  onRagClick?: (rag: string) => void;
 }
 
-export function DashboardCharts({ data }: Props) {
+export function DashboardCharts({ data, activeRag, onRagClick }: Props) {
   if (!data) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -50,7 +52,7 @@ export function DashboardCharts({ data }: Props) {
           <CardTitle className="text-sm font-medium text-slate-600">RAG Distribution</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <RAGDonutChart data={data.rag_distribution} />
+          <RAGDonutChart data={data.rag_distribution} activeRag={activeRag} onSegmentClick={onRagClick} />
         </CardContent>
       </Card>
     </div>

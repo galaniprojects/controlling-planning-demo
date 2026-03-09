@@ -34,7 +34,6 @@ export function PortfolioKPIRow({ data }: Props) {
     { label: 'Forecast at Completion', value: formatCurrency(data.forecast_at_completion) },
     { label: 'Overall Variance', value: formatPercent(data.overall_variance_pct) },
     { label: 'CapEx / OpEx', value: `${capexPct}% / ${opexPct}%` },
-    { label: 'Run / Change', value: data.run_change_ratio },
   ];
 
   return (
@@ -47,6 +46,19 @@ export function PortfolioKPIRow({ data }: Props) {
           </CardContent>
         </Card>
       ))}
+      <Card>
+        <CardContent className="p-4">
+          <p className="text-xs text-slate-500 mb-1">Run / Change</p>
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold text-slate-800">
+              Run: {formatCurrency(data.run_total)} ({data.run_pct}%)
+            </p>
+            <p className="text-sm font-semibold text-slate-800">
+              Change: {formatCurrency(data.change_total)} ({data.change_pct}%)
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

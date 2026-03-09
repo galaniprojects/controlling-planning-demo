@@ -75,7 +75,15 @@ export const modulesApi = {
 
 export const portfolioApi = {
   // Dashboard
-  getKPIs: () => api.get<PortfolioKPIs>('/api/portfolio/kpis'),
+  getKPIs: (params?: { lob?: string; status?: string; rag?: string; type?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.lob) query.set('lob', params.lob);
+    if (params?.status) query.set('status', params.status);
+    if (params?.rag) query.set('rag', params.rag);
+    if (params?.type) query.set('type', params.type);
+    const qs = query.toString();
+    return api.get<PortfolioKPIs>(`/api/portfolio/kpis${qs ? '?' + qs : ''}`);
+  },
   getProjects: (params?: { lob?: string; status?: string; rag?: string; type?: string }) => {
     const query = new URLSearchParams();
     if (params?.lob) query.set('lob', params.lob);

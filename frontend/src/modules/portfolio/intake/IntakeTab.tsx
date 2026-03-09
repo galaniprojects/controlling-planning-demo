@@ -5,6 +5,7 @@ import { useSidePanel } from '@/contexts/SidePanelContext';
 import { portfolioApi } from '@/api/endpoints';
 import { IntakeTable } from './IntakeTable';
 import { IntakeDetailPanel } from './IntakeDetailPanel';
+import { IntakeDetailWorkspace } from './IntakeDetailWorkspace';
 import type { IntakeItem } from '@/types/api';
 
 export function IntakeTab() {
@@ -15,6 +16,7 @@ export function IntakeTab() {
   const [items, setItems] = useState<IntakeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | undefined>();
+  const [detailProjectId, setDetailProjectId] = useState<string | null>(null);
   const deepLinkHandled = useRef(false);
 
   const fetchItems = useCallback(() => {
@@ -29,6 +31,14 @@ export function IntakeTab() {
   useEffect(() => {
     fetchItems();
   }, [currentRoleId, fetchItems]);
+
+  const handleOpenDetail = useCallback(
+    (projectId: string) => {
+      setDetailProjectId(projectId);
+      closePanel();
+    },
+    [closePanel],
+  );
 
   // Auto-select project from URL deep-link (?project=...)
   useEffect(() => {
@@ -47,13 +57,14 @@ export function IntakeTab() {
             closePanel();
             setSelectedId(undefined);
           }}
+          onOpenDetail={handleOpenDetail}
         />,
       );
       // Clean up the URL param
       searchParams.delete('project');
       setSearchParams(searchParams, { replace: true });
     }
-  }, [items, searchParams, setSearchParams, openPanel, closePanel, fetchItems]);
+  }, [items, searchParams, setSearchParams, openPanel, closePanel, fetchItems, handleOpenDetail]);
 
   const handleSelect = useCallback(
     (projectId: string) => {
@@ -71,12 +82,26 @@ export function IntakeTab() {
               closePanel();
               setSelectedId(undefined);
             }}
+            onOpenDetail={handleOpenDetail}
           />,
         );
       }
     },
-    [selectedId, openPanel, closePanel, fetchItems],
+    [selectedId, openPanel, closePanel, fetchItems, handleOpenDetail],
   );
+
+  if (detailProjectId) {
+    return (
+      <IntakeDetailWorkspace
+        projectId={detailProjectId}
+        onBack={() => setDetailProjectId(null)}
+        onActionComplete={() => {
+          setDetailProjectId(null);
+          fetchItems();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -85,6 +110,7 @@ export function IntakeTab() {
         loading={loading}
         selectedId={selectedId}
         onSelect={handleSelect}
+        onOpenDetail={handleOpenDetail}
       />
     </div>
   );

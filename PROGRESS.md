@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v2 Session 1 (complete)
-Last completed: v2 Session 1 — Small Tweaks
-Branch: `v2/session-1-small-tweaks`
+Phase: v2 Session 2 (complete)
+Last completed: v2 Session 2 — Portfolio Overview Improvements
+Branch: `v2/session-2-portfolio`
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -597,6 +597,39 @@ Branch: `v2/session-1-small-tweaks` (7 commits)
 - [x] Notification deep-link: "1 new project awaiting review" → Intake tab with Autonomous Braking Prototype detail panel
 - [x] Zero console errors across all modules
 
+## v2 Session 2 — Portfolio Overview Improvements
+
+Branch: `v2/session-2-portfolio` (1 commit, 18 files changed, +998/-69)
+
+### Completed Items
+- [x] **2.2.2 — CR Routing Bug Fix**: Non-resource CRs (external_cost, budget, timeline) now skip CC confirmation and go straight to `pending_controller_approval`. Resource CRs still route through `pending_cc_confirmation`. Fixed in `backend/routers/workbench.py`.
+- [x] **2.1.2 — Forecast Trajectory Chart Fix**: Rewrote backend to compute 3 cumulative series (baseline, forecast, actuals). Actuals = null for future months. Frontend chart rewritten with 3 lines (baseline dashed gray, forecast solid blue, actuals solid dark), legend, and CartesianGrid. Backend: `portfolio.py`. Frontend: `ForecastTrajectoryChart.tsx`, `api.ts`.
+- [x] **2.1.3 — Run/Change Ratio with Percentages**: Backend `compute_portfolio_kpis()` now returns `run_total`, `change_total`, `run_pct`, `change_pct`. KPI card shows two lines: "Run: €2,1M (17%)" / "Change: €9,9M (83%)". Backend: `portfolio_service.py`, `portfolio.py`. Frontend: `PortfolioKPIRow.tsx`, `api.ts`.
+- [x] **2.1.4 — Dynamic KPI Filtering**: KPIs now update when LoB/Status/RAG/Type filters are applied. Backend `compute_portfolio_kpis()` accepts `filters` dict, builds filtered project ID list, uses `Project.id.in_(project_ids)` on all financial queries. Frontend passes same filter params to both tree and KPI endpoints. Backend: `portfolio_service.py`, `portfolio.py`. Frontend: `endpoints.ts`, `DashboardTab.tsx`.
+- [x] **2.1.1 — Interactive RAG Doughnut**: Added Recharts Tooltip (RAG label, count, percentage), click-to-filter (toggles RAG filter), opacity dimming for non-active segments, cursor pointer. Clicking green segment filters dashboard to green-RAG projects only, clicking again clears. Frontend: `RAGDonutChart.tsx`, `DashboardCharts.tsx`, `DashboardTab.tsx`.
+- [x] **2.2.1 — Approvals Detail Workspace**: New full-width CRDetailWorkspace with: back button, header (project + CR summary + badges), change details table (field/month/old/proposed/delta with color coding), justification card, impact summary (total delta + category), CC owner confirmation section, action buttons (Approve/Reject/Send Back). Two-level pattern: click row → side panel → "Open Full Detail" → workspace. Double-click row goes directly to workspace. Frontend: NEW `CRDetailWorkspace.tsx`, modified `ApprovalsTab.tsx`, `CRDetailPanel.tsx`, `ApprovalsTable.tsx`.
+- [x] **2.3 — Intake Detail Workspace**: Extended backend intake detail endpoint with resource_plan (internal forecast by role, monthly hours/amounts, totals), external_cost_plan (by cost type, monthly amounts, totals), budget_summary (internal/external/grand total, capex_opex), pl_name. New full-width IntakeDetailWorkspace with same two-level pattern. Backend: `portfolio.py`. Frontend: NEW `IntakeDetailWorkspace.tsx`, modified `IntakeTab.tsx`, `IntakeDetailPanel.tsx`, `IntakeTable.tsx`, `api.ts`.
+
+### Files Changed
+- **Backend (3 modified)**: `routers/workbench.py`, `routers/portfolio.py`, `services/portfolio_service.py`
+- **Frontend (2 new, 14 modified)**: NEW `CRDetailWorkspace.tsx`, NEW `IntakeDetailWorkspace.tsx`, + 14 modified files (types, API, charts, dashboard, approvals, intake)
+
+### Verification Results
+- [x] Dashboard KPIs: Total Budget €9,9M, YTD €7,0M, Forecast €11,4M, Variance +1,2%, CapEx/OpEx 59%/41%, Run/Change with amounts and percentages
+- [x] Dynamic KPI filtering: RAG=Green → KPIs update (€9,9M→€6,5M, variance 0,0%, CapEx/OpEx 45%/55%)
+- [x] Forecast Trajectory: 3 cumulative lines with legend (Actuals, Baseline, Forecast)
+- [x] RAG Doughnut: 22 projects, green/amber/red segments
+- [x] Approvals tab: 3 CRs visible (CR routing fix confirmed — non-resource CRs now appear)
+- [x] CR side panel: Shows detail, "Open Full Detail" button works
+- [x] CRDetailWorkspace: Full change table, justification, impact summary, CC owner, action buttons
+- [x] Intake Queue: Autonomous Braking Prototype visible
+- [x] Intake side panel: Shows detail, "Open Full Detail" button works
+- [x] IntakeDetailWorkspace: Budget summary, "No resource or cost plan data" message (correct for pending project), action buttons
+- [x] Zero console errors throughout testing
+
+### Known Issues Resolved
+- **CR Routing Bug (6.1)**: FIXED — non-resource CRs now route correctly
+- **Forecast Chart (6.3)**: FIXED — cumulative 3-series chart working
+
 ## Known Issues
-- **CR Routing Bug (6.1)**: Non-resource CRs stuck at `pending_cc_confirmation` — no CC Owner UI to advance them. Documented; fix deferred to Session 2.
-- **Forecast Chart (6.3)**: Shows monthly totals (not cumulative), missing baseline/actuals series. Documented; fix deferred to Session 2.
+None currently tracked.
