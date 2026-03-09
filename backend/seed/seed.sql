@@ -6243,3 +6243,99 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-joshi', 'svc-dba', '2026-11', 40, 1),
 ('p-joshi', 'svc-dba', '2026-12', 40, 1);
 
+
+
+-- =============================================================================
+-- 15. forecast_snapshots — Historical point-in-time forecast totals
+-- Used by Forecast Accuracy report. Each row = total forecast-at-completion
+-- as it was known at snapshot_month.
+-- =============================================================================
+INSERT INTO forecast_snapshots (project_id, snapshot_month, forecast_total) VALUES
+-- proj-erp2 (total_budget=1,200,000, RAG=red — consistently underestimated, forecast grew)
+('proj-erp2', '2025-01', 1050000.00),
+('proj-erp2', '2025-02', 1060000.00),
+('proj-erp2', '2025-03', 1070000.00),
+('proj-erp2', '2025-04', 1085000.00),
+('proj-erp2', '2025-05', 1100000.00),
+('proj-erp2', '2025-06', 1120000.00),
+('proj-erp2', '2025-07', 1145000.00),
+('proj-erp2', '2025-08', 1170000.00),
+('proj-erp2', '2025-09', 1200000.00),
+('proj-erp2', '2025-10', 1230000.00),
+('proj-erp2', '2025-11', 1260000.00),
+('proj-erp2', '2025-12', 1280000.00),
+('proj-erp2', '2026-01', 1300000.00),
+('proj-erp2', '2026-02', 1320000.00),
+-- proj-sensor (total_budget=600,000, RAG=amber — moderate overrun)
+('proj-sensor', '2025-06', 580000.00),
+('proj-sensor', '2025-07', 585000.00),
+('proj-sensor', '2025-08', 590000.00),
+('proj-sensor', '2025-09', 600000.00),
+('proj-sensor', '2025-10', 610000.00),
+('proj-sensor', '2025-11', 620000.00),
+('proj-sensor', '2025-12', 635000.00),
+('proj-sensor', '2026-01', 645000.00),
+('proj-sensor', '2026-02', 660000.00),
+-- proj-sap (total_budget=2,000,000, RAG=green — stable, close tracking)
+('proj-sap', '2024-01', 1980000.00),
+('proj-sap', '2024-03', 1985000.00),
+('proj-sap', '2024-06', 1990000.00),
+('proj-sap', '2024-09', 1995000.00),
+('proj-sap', '2024-12', 2000000.00),
+('proj-sap', '2025-03', 2005000.00),
+('proj-sap', '2025-06', 2010000.00),
+('proj-sap', '2025-09', 2015000.00),
+('proj-sap', '2025-12', 2020000.00),
+('proj-sap', '2026-01', 2020000.00),
+('proj-sap', '2026-02', 2025000.00),
+-- proj-brake (total_budget=250,000, RAG=green — very stable)
+('proj-brake', '2025-03', 248000.00),
+('proj-brake', '2025-06', 249000.00),
+('proj-brake', '2025-09', 250000.00),
+('proj-brake', '2025-12', 251000.00),
+('proj-brake', '2026-01', 252000.00),
+('proj-brake', '2026-02', 252000.00),
+-- proj-predmaint (total_budget=500,000, RAG=amber — drifting up)
+('proj-predmaint', '2025-09', 490000.00),
+('proj-predmaint', '2025-10', 500000.00),
+('proj-predmaint', '2025-11', 510000.00),
+('proj-predmaint', '2025-12', 525000.00),
+('proj-predmaint', '2026-01', 540000.00),
+('proj-predmaint', '2026-02', 555000.00),
+-- proj-signal (total_budget=1,500,000, RAG=green — slight under-forecast)
+('proj-signal', '2024-06', 1520000.00),
+('proj-signal', '2024-09', 1515000.00),
+('proj-signal', '2024-12', 1510000.00),
+('proj-signal', '2025-03', 1505000.00),
+('proj-signal', '2025-06', 1500000.00),
+('proj-signal', '2025-09', 1498000.00),
+('proj-signal', '2025-12', 1495000.00),
+('proj-signal', '2026-01', 1492000.00),
+('proj-signal', '2026-02', 1490000.00),
+-- proj-raildiag (total_budget=700,000, RAG=green — stable)
+('proj-raildiag', '2025-06', 695000.00),
+('proj-raildiag', '2025-09', 698000.00),
+('proj-raildiag', '2025-12', 700000.00),
+('proj-raildiag', '2026-01', 702000.00),
+('proj-raildiag', '2026-02', 705000.00),
+-- proj-fleet (total_budget=450,000, RAG=green — stable)
+('proj-fleet', '2025-01', 445000.00),
+('proj-fleet', '2025-03', 447000.00),
+('proj-fleet', '2025-06', 448000.00),
+('proj-fleet', '2025-09', 450000.00),
+('proj-fleet', '2025-12', 452000.00),
+('proj-fleet', '2026-01', 453000.00),
+('proj-fleet', '2026-02', 455000.00),
+-- proj-telem (total_budget=300,000, RAG=amber — moderate drift)
+('proj-telem', '2025-09', 295000.00),
+('proj-telem', '2025-10', 300000.00),
+('proj-telem', '2025-11', 308000.00),
+('proj-telem', '2025-12', 315000.00),
+('proj-telem', '2026-01', 322000.00),
+('proj-telem', '2026-02', 330000.00),
+-- proj-cloud (total_budget=400,000, RAG=green — stable)
+('proj-cloud', '2025-06', 398000.00),
+('proj-cloud', '2025-09', 400000.00),
+('proj-cloud', '2025-12', 402000.00),
+('proj-cloud', '2026-01', 403000.00),
+('proj-cloud', '2026-02', 405000.00);

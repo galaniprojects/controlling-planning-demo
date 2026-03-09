@@ -1,0 +1,34 @@
+{
+  "module_id": "reporting",
+  "module_name": "Reporting",
+  "sections": [
+    {
+      "title": "Overview",
+      "body": "The Reporting module provides cross-cutting analytical views that span multiple projects, cost centers, and time periods. All roles can access this module. Reports are **role-scoped**: controllers and executives see all data, CC owners see their cost center, and project leads see their projects."
+    },
+    {
+      "title": "Report Library",
+      "body": "The landing page shows all available reports as cards. **Standard Reports** are pre-built analytical views. **My Saved Views** shows any report configurations you have saved for quick access. Click any card to open the report."
+    },
+    {
+      "title": "Standard Reports",
+      "body": "Five standard reports are available: **Programme / Multi-Project Rollup** for consolidated financials, **Cost Center Financial Summary** for per-CC analysis, **Vendor Spend Analysis** for external cost tracking, **Forecast Accuracy** for retrospective forecast quality, and **Year-over-Year Comparison** for spending trajectory analysis."
+    },
+    {
+      "title": "Report Viewer",
+      "body": "Each report opens in a viewer with a **filter bar** at the top, a **KPI summary row** below it, and the main content area showing either a **chart** or **table** view. Use the toggle to switch between chart and table. Filters update all sections when changed."
+    },
+    {
+      "title": "Customizing Reports",
+      "body": "Click the **Customize** button to open a configuration panel where you can show/hide columns, change the grouping dimension, adjust sort order, and select visualization type. These customizations apply immediately to the current view."
+    },
+    {
+      "title": "Exporting Data",
+      "body": "Click **Export** to download the current report as an Excel file. The export respects all active filters and customizations. The file includes a data sheet with headers, rows, and a summary row, plus a metadata sheet noting the report name, export date, and active filters."
+    },
+    {
+      "title": "Saving Views",
+      "body": "Click **Save View** to save your current filter and customization settings as a named view. Saved views appear in the Report Library under **My Saved Views** for quick access. You can rename or delete saved views from the library."
+    }
+  ]
+}

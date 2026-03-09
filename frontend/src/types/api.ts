@@ -776,3 +776,186 @@ export interface FAQSummary {
 export interface FAQDetail extends FAQSummary {
   steps: FAQStep[];
 }
+
+// --- Reporting ---
+
+export interface ReportListItem {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+}
+
+export interface SavedViewItem {
+  id: number;
+  report_id: string;
+  name: string;
+  config: ReportConfig;
+  created_at: string;
+  modified_at: string;
+}
+
+export interface ReportConfig {
+  filters: Record<string, string>;
+  columns: string[];
+  grouping: string;
+  sort_column: string;
+  sort_direction: 'asc' | 'desc';
+  viz_type: string;
+}
+
+export interface ProgrammeRollupRow {
+  project_id: string;
+  project_name: string;
+  lob_id: string;
+  lob_name: string;
+  status: string;
+  rag: string | null;
+  baseline_budget: number;
+  current_forecast: number;
+  actuals_to_date: number;
+  remaining_forecast: number;
+  variance: number;
+  variance_pct: number;
+}
+
+export interface ProgrammeRollupKPIs {
+  project_count: number;
+  total_baseline: number;
+  total_forecast: number;
+  overall_variance: number;
+  overall_variance_pct: number;
+  rag_distribution: Record<string, number>;
+}
+
+export interface ProgrammeRollupResponse {
+  kpis: ProgrammeRollupKPIs;
+  rows: ProgrammeRollupRow[];
+  chart_data: { name: string; baseline: number; forecast: number; actuals: number }[];
+  total: number;
+}
+
+export interface CCFinancialRow {
+  project_id: string;
+  project_name: string;
+  internal_hours: number;
+  internal_cost: number;
+  external_cost: number;
+  total_cost: number;
+  pct_of_cc_budget: number;
+  status: string;
+}
+
+export interface CCFinancialKPIs {
+  total_budget_allocated: number;
+  total_actuals: number;
+  total_internal_cost: number;
+  total_external_cost: number;
+  active_project_count: number;
+}
+
+export interface CCFinancialResponse {
+  kpis: CCFinancialKPIs;
+  rows: CCFinancialRow[];
+  chart_data: {
+    pie: { name: string; value: number }[];
+    trend: { month: string; spend: number }[];
+  };
+  total: number;
+}
+
+export interface VendorSpendRow {
+  vendor_name: string;
+  total_ordered: number;
+  total_invoiced: number;
+  total_open: number;
+  total_accruals: number;
+  project_count: number;
+  po_count: number;
+}
+
+export interface VendorDrillDownRow {
+  project_id: string;
+  project_name: string;
+  month: string;
+  cost_type: string;
+  amount: number;
+  status: string | null;
+  po_number: string | null;
+}
+
+export interface VendorSpendKPIs {
+  total_vendor_spend: number;
+  active_vendor_count: number;
+  total_po_count: number;
+  open_commitments: number;
+}
+
+export interface VendorSpendResponse {
+  kpis: VendorSpendKPIs;
+  rows: VendorSpendRow[];
+  chart_data: {
+    bar: { vendor: string; total: number }[];
+  };
+  total: number;
+}
+
+export interface ForecastAccuracyRow {
+  project_id: string;
+  project_name: string;
+  lob_id: string;
+  lob_name: string;
+  forecast_value: number;
+  actual_value: number;
+  variance: number;
+  variance_pct: number;
+  accuracy_rating: string;
+}
+
+export interface ForecastAccuracyKPIs {
+  avg_accuracy_pct: number;
+  within_5_count: number;
+  above_15_count: number;
+  bias_direction: string;
+  bias_amount: number;
+}
+
+export interface ForecastAccuracyResponse {
+  kpis: ForecastAccuracyKPIs;
+  rows: ForecastAccuracyRow[];
+  chart_data: { project_name: string; forecast: number; actual: number; lob: string; rating: string }[];
+  total: number;
+}
+
+export interface YoYMonthRow {
+  month: string;
+  month_num: number;
+  fy_current: number;
+  fy_previous: number;
+  delta: number;
+  delta_pct: number;
+  cumulative_current: number;
+  cumulative_previous: number;
+}
+
+export interface YoYKPIs {
+  fy_current_ytd: number;
+  fy_previous_ytd: number;
+  ytd_delta: number;
+  trajectory: string;
+  fy_current_label: string;
+  fy_previous_label: string;
+}
+
+export interface YoYResponse {
+  kpis: YoYKPIs;
+  rows: YoYMonthRow[];
+  chart_data: {
+    month: string;
+    fy_current: number;
+    fy_previous: number;
+    fy_current_monthly: number;
+    fy_previous_monthly: number;
+  }[];
+  total: number;
+}

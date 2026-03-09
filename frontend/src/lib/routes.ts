@@ -3,6 +3,7 @@ export const MODULE_ROUTES: Record<string, string> = {
   workbench: '/workbench',
   capacity: '/capacity',
   simulator: '/simulator',
+  reporting: '/reporting',
   admin: '/admin',
 };
 
@@ -15,5 +16,6 @@ export const ROUTE_LABELS: Record<string, string> = {
   '/capacity': 'Capacity Management',
   '/capacity/requests': 'Resource Requests',
   '/simulator': 'What-If Simulator',
+  '/reporting': 'Reporting',
   '/admin': 'Administration',
 };

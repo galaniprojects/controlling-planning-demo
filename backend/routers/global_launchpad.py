@@ -39,21 +39,22 @@ MODULES = [
     {"id": "workbench", "name": "Project Workbench", "description": "Project detail view with forecast planning, change requests, and trend analysis."},
     {"id": "capacity", "name": "Capacity Management", "description": "Team utilization heatmaps, resource allocation, and request management."},
     {"id": "simulator", "name": "What-If Simulator", "description": "Scenario planning tool for budget optimization with AI-assisted recommendations."},
+    {"id": "reporting", "name": "Reporting", "description": "Cross-cutting analytical reports with export and saved view capabilities."},
     {"id": "admin", "name": "Administration", "description": "System configuration: organizational structure, rates, and planning parameters."},
 ]
 
 MODULE_VISIBILITY = {
-    "controller": ["portfolio", "workbench", "capacity", "simulator", "admin"],
-    "cost_center_owner": ["portfolio", "workbench", "capacity"],
-    "project_lead": ["portfolio", "workbench"],
-    "executive": ["portfolio", "simulator"],
+    "controller": ["portfolio", "workbench", "capacity", "simulator", "reporting", "admin"],
+    "cost_center_owner": ["portfolio", "workbench", "capacity", "reporting"],
+    "project_lead": ["portfolio", "workbench", "reporting"],
+    "executive": ["portfolio", "simulator", "reporting"],
 }
 
 MODULE_SORT = {
-    "controller": {"portfolio": 1, "workbench": 2, "capacity": 3, "simulator": 4, "admin": 5},
-    "cost_center_owner": {"capacity": 1, "workbench": 2, "portfolio": 3},
-    "project_lead": {"workbench": 1, "portfolio": 2},
-    "executive": {"portfolio": 1, "simulator": 2},
+    "controller": {"portfolio": 1, "workbench": 2, "capacity": 3, "simulator": 4, "reporting": 5, "admin": 6},
+    "cost_center_owner": {"capacity": 1, "workbench": 2, "portfolio": 3, "reporting": 4},
+    "project_lead": {"workbench": 1, "portfolio": 2, "reporting": 3},
+    "executive": {"portfolio": 1, "simulator": 2, "reporting": 3},
 }
 
 
@@ -191,6 +192,9 @@ def _compute_module_metric(db: Session, module_id: str, user: CurrentUser) -> st
 
     elif module_id == "simulator":
         return "What-if scenario planning"
+
+    elif module_id == "reporting":
+        return "5 standard reports"
 
     elif module_id == "admin":
         return "System configuration"
