@@ -162,7 +162,7 @@ def get_project_forecast(
             rows_map[key] = {"category": f.category, "sub_category": f.sub_category, "sub_category_name": name, "months": []}
         bl = bl_map.get(f.sub_category, {}).get(f.month, {})
         ac = ac_map.get(f.sub_category, {}).get(f.month, {})
-        rows_map[key]["months"].append({
+        cell = {
             "month": f.month,
             "forecast_hours": float(f.hours or 0),
             "forecast_amount": float(f.amount_eur),
@@ -170,7 +170,13 @@ def get_project_forecast(
             "baseline_amount": bl.get("amount", 0),
             "actuals_hours": ac.get("hours", 0),
             "actuals_amount": ac.get("amount", 0),
-        })
+        }
+        # External cost procurement fields
+        if f.category == "external":
+            cell["ext_status"] = f.ext_status
+            cell["po_number"] = f.po_number
+            cell["vendor"] = f.vendor
+        rows_map[key]["months"].append(cell)
 
     items = list(rows_map.values())
     return {"items": items, "total": len(items)}
