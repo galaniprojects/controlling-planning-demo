@@ -1,21 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useRole } from '@/contexts/RoleContext';
-import { notificationsApi, kpisApi, modulesApi } from '@/api/endpoints';
-import type { Notification, PortfolioKPISummary, ModuleTile } from '@/types/api';
+import { notificationsApi, modulesApi } from '@/api/endpoints';
+import type { Notification, ModuleTile } from '@/types/api';
 import { NotificationsList } from './NotificationsList';
 import { ModuleGrid } from './ModuleGrid';
-import { KPIStrip } from './KPIStrip';
 import { SubmitProjectButton } from './SubmitProjectButton';
 
 export function Launchpad() {
   const { currentRoleId, context } = useRole();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [kpis, setKpis] = useState<PortfolioKPISummary | null>(null);
   const [modules, setModules] = useState<ModuleTile[]>([]);
 
   useEffect(() => {
     notificationsApi.getAll().then((res) => setNotifications(res.items));
-    kpisApi.getPortfolioSummary().then(setKpis);
     modulesApi.getAll().then((res) => setModules(res.items));
   }, [currentRoleId]);
 
@@ -32,8 +29,6 @@ export function Launchpad() {
         {isProjectLead && <SubmitProjectButton />}
       </div>
       <ModuleGrid modules={modules} />
-
-      {kpis && <KPIStrip kpis={kpis} />}
     </div>
   );
 }

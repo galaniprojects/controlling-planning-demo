@@ -15,10 +15,6 @@
       "body": "The middle section shows module cards ordered by relevance to your role. Each tile displays the module name, a brief description, and a contextual metric (e.g., 'Your 4 projects, 1 forecast overdue'). Click a tile to open that module full-screen. Modules you don't have access to are hidden."
     },
     {
-      "title": "Quick Metrics Strip",
-      "body": "The bottom strip shows 5 portfolio-level KPIs visible to all roles: Total IT Budget, YTD Spend, Portfolio Variance, Overall Utilization, and Run/Change Ratio. These give a quick pulse check without opening any module."
-    },
-    {
       "title": "Submit New Project",
       "body": "Project Leads see a prominent 'Submit New Project' button. This is the only entry point for creating new project proposals. Clicking it opens a structured form where you define the project scope, timeline, resource needs, and external costs. The system auto-calculates estimated costs from blended hourly rates. Once submitted, the proposal appears in the Controller's Intake Queue."
     },
