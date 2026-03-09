@@ -148,6 +148,12 @@ def get_project_forecast(
     for a in actuals_list:
         ac_map.setdefault(a.sub_category, {})[a.month] = {"hours": float(a.hours or 0), "amount": float(a.amount_eur)}
 
+    # Pre-load hourly rates for internal roles (first rate per role_type_id)
+    rate_rows = db.query(RateTable).all()
+    rate_map: dict[str, float] = {}
+    for rt in rate_rows:
+        rate_map.setdefault(rt.role_type_id, float(rt.hourly_rate))
+
     rows_map = {}
     for f in forecasts:
         key = (f.category, f.sub_category)
@@ -159,7 +165,10 @@ def get_project_forecast(
                 from models.financial import ExternalCostType
                 ct = db.query(ExternalCostType).filter(ExternalCostType.id == f.sub_category).first()
                 name = ct.name if ct else f.sub_category
-            rows_map[key] = {"category": f.category, "sub_category": f.sub_category, "sub_category_name": name, "months": []}
+            row_data: dict = {"category": f.category, "sub_category": f.sub_category, "sub_category_name": name, "months": []}
+            if f.category == "internal":
+                row_data["hourly_rate"] = rate_map.get(f.sub_category)
+            rows_map[key] = row_data
         bl = bl_map.get(f.sub_category, {}).get(f.month, {})
         ac = ac_map.get(f.sub_category, {}).get(f.month, {})
         cell = {

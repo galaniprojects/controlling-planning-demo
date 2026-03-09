@@ -332,6 +332,7 @@ export interface ForecastGridRow {
   sub_category: string;
   sub_category_name: string;
   months: ForecastMonthCell[];
+  hourly_rate?: number | null; // Internal rows only
 }
 
 export interface RetrospectiveItem {

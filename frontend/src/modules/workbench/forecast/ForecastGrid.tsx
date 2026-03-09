@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatCurrencyDetailed } from '@/lib/formatters';
 import { workbenchApi } from '@/api/endpoints';
 import type { ForecastGridRow, ForecastMonthCell } from '@/types/api';
 import {
@@ -274,11 +274,17 @@ function formatMonth(m: string): string {
 function InternalMonthCell({ row, month }: { row: ForecastGridRow; month: string }) {
   const cell = row.months.find((c) => c.month === month);
   if (!cell) return <span className="text-slate-300">—</span>;
+  const rate = row.hourly_rate;
   return (
     <div>
       <span className="text-sm font-medium">
-        {cell.forecast_hours.toLocaleString()}
+        {cell.forecast_hours.toLocaleString()} hrs
       </span>
+      {rate && (
+        <span className="block text-[10px] text-slate-400">
+          {formatCurrencyDetailed(cell.forecast_hours * rate)}
+        </span>
+      )}
       <span className="block text-[10px] text-slate-400">
         BL: {cell.baseline_hours.toLocaleString()}
       </span>
@@ -297,9 +303,15 @@ function InternalYearCell({ row, months }: { row: ForecastGridRow; months: strin
   if (cells.length === 0) return <span className="text-slate-300">—</span>;
   const totalHours = cells.reduce((sum, c) => sum + c.forecast_hours, 0);
   const totalBL = cells.reduce((sum, c) => sum + c.baseline_hours, 0);
+  const rate = row.hourly_rate;
   return (
     <div>
-      <span className="text-sm font-medium">{totalHours.toLocaleString()}</span>
+      <span className="text-sm font-medium">{totalHours.toLocaleString()} hrs</span>
+      {rate && (
+        <span className="block text-[10px] text-slate-400">
+          {formatCurrency(totalHours * rate)}
+        </span>
+      )}
       <span className="block text-[10px] text-slate-400">
         BL: {totalBL.toLocaleString()}
       </span>
