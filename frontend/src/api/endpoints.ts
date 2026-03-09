@@ -52,6 +52,14 @@ import type {
   AuditLogEntry,
   FAQSummary,
   FAQDetail,
+  ReportListItem,
+  SavedViewItem,
+  ProgrammeRollupResponse,
+  CCFinancialResponse,
+  VendorSpendResponse,
+  VendorDrillDownRow,
+  ForecastAccuracyResponse,
+  YoYResponse,
 } from '@/types/api';
 
 export const rolesApi = {
@@ -461,4 +469,76 @@ export const adminApi = {
   // Demo Reset
   resetDemo: () =>
     api.post<{ status: string; message: string }>('/api/admin/reset-demo', {}),
+};
+
+// --- Reporting ---
+
+export const reportsApi = {
+  getReportList: () =>
+    api.get<ListResponse<ReportListItem>>('/api/reports'),
+
+  getProgrammeRollup: (params?: { lob?: string; status?: string; rag?: string; type?: string; grouping?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.lob) q.set('lob', params.lob);
+    if (params?.status) q.set('status', params.status);
+    if (params?.rag) q.set('rag', params.rag);
+    if (params?.type) q.set('type', params.type);
+    if (params?.grouping) q.set('grouping', params.grouping);
+    const qs = q.toString();
+    return api.get<ProgrammeRollupResponse>(`/api/reports/programme-rollup${qs ? '?' + qs : ''}`);
+  },
+
+  getCCFinancialSummary: (params?: { cost_center?: string; type?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.cost_center) q.set('cost_center', params.cost_center);
+    if (params?.type) q.set('type', params.type);
+    const qs = q.toString();
+    return api.get<CCFinancialResponse>(`/api/reports/cc-financial-summary${qs ? '?' + qs : ''}`);
+  },
+
+  getVendorSpend: (params?: { vendor?: string; lob?: string; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.vendor) q.set('vendor', params.vendor);
+    if (params?.lob) q.set('lob', params.lob);
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString();
+    return api.get<VendorSpendResponse>(`/api/reports/vendor-spend${qs ? '?' + qs : ''}`);
+  },
+
+  getVendorDrillDown: (vendorName: string) =>
+    api.get<ListResponse<VendorDrillDownRow>>(`/api/reports/vendor-spend/${encodeURIComponent(vendorName)}/details`),
+
+  getForecastAccuracy: (params?: { horizon?: string; lob?: string; type?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.horizon) q.set('horizon', params.horizon);
+    if (params?.lob) q.set('lob', params.lob);
+    if (params?.type) q.set('type', params.type);
+    const qs = q.toString();
+    return api.get<ForecastAccuracyResponse>(`/api/reports/forecast-accuracy${qs ? '?' + qs : ''}`);
+  },
+
+  getYearOverYear: (params?: { fy_current?: string; fy_previous?: string; lob?: string; cost_type?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.fy_current) q.set('fy_current', params.fy_current);
+    if (params?.fy_previous) q.set('fy_previous', params.fy_previous);
+    if (params?.lob) q.set('lob', params.lob);
+    if (params?.cost_type) q.set('cost_type', params.cost_type);
+    const qs = q.toString();
+    return api.get<YoYResponse>(`/api/reports/year-over-year${qs ? '?' + qs : ''}`);
+  },
+
+  getSavedViews: () =>
+    api.get<ListResponse<SavedViewItem>>('/api/reports/saved-views'),
+
+  createSavedView: (data: { report_id: string; name: string; config: Record<string, unknown> }) =>
+    api.post<SavedViewItem>('/api/reports/saved-views', data),
+
+  updateSavedView: (viewId: number, data: { name?: string; config?: Record<string, unknown> }) =>
+    api.put<SavedViewItem>(`/api/reports/saved-views/${viewId}`, data),
+
+  deleteSavedView: (viewId: number) =>
+    api.delete<{ status: string }>(`/api/reports/saved-views/${viewId}`),
+
+  exportReport: (reportId: string) =>
+    `/api/reports/${reportId}/export`,
 };

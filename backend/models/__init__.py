@@ -10,6 +10,7 @@ from models.change_requests import ChangeRequest, CRChangeDetail
 from models.scenarios import Scenario, ScenarioAction, ScenarioState, ScenarioCapacityImpact
 from models.system import PlanningParameter, KPIDefinition, Notification, AuditLog, SystemSuggestion
 from models.users import DemoPersona
+from models.reporting import ForecastSnapshot, SavedView
 
 __all__ = [
     "LineOfBusiness", "Location", "CompetenceCenter", "CostCenter",
@@ -21,4 +22,5 @@ __all__ = [
     "Scenario", "ScenarioAction", "ScenarioState", "ScenarioCapacityImpact",
     "PlanningParameter", "KPIDefinition", "Notification", "AuditLog", "SystemSuggestion",
     "DemoPersona",
+    "ForecastSnapshot", "SavedView",
 ]
