@@ -10,7 +10,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatCurrencyDetailed } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { workbenchApi } from '@/api/endpoints';
 import type { ForecastGridRow, ForecastChange, SuggestionItem } from '@/types/api';
@@ -163,20 +163,29 @@ export function Phase3EditForecast({
       );
     }
 
+    const rate = isInternal ? row.hourly_rate : undefined;
+
     return (
-      <button
-        className={cn(
-          'text-sm font-medium cursor-pointer px-1.5 py-0.5 rounded transition-colors w-full text-right',
-          isSuggested && 'bg-blue-50 text-blue-700',
-          isChanged && !isSuggested && 'bg-yellow-50 text-yellow-700',
-          !isChanged && 'hover:bg-slate-100',
+      <div>
+        <button
+          className={cn(
+            'text-sm font-medium cursor-pointer px-1.5 py-0.5 rounded transition-colors w-full text-right',
+            isSuggested && 'bg-blue-50 text-blue-700',
+            isChanged && !isSuggested && 'bg-yellow-50 text-yellow-700',
+            !isChanged && 'hover:bg-slate-100',
+          )}
+          onClick={() => setEditingCell(cellKey)}
+        >
+          {isInternal
+            ? `${displayValue.toLocaleString()} hrs`
+            : formatCurrency(displayValue)}
+        </button>
+        {isInternal && rate && (
+          <span className="block text-[10px] text-slate-400 text-right pr-1.5">
+            {formatCurrencyDetailed(displayValue * rate)}
+          </span>
         )}
-        onClick={() => setEditingCell(cellKey)}
-      >
-        {isInternal
-          ? displayValue.toLocaleString()
-          : formatCurrency(displayValue)}
-      </button>
+      </div>
     );
   };
 
