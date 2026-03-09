@@ -38,7 +38,7 @@
           {"scope": "project", "project_id": "proj-aiml", "action_type": "remove", "parameters": {}},
           {"scope": "project", "project_id": "proj-dwh", "action_type": "delay", "parameters": {"months": 6}},
           {"scope": "project", "project_id": "proj-telem", "action_type": "pause", "parameters": {"from_month": "2026-03"}},
-          {"scope": "portfolio", "rule_type": "cap_cost_category", "parameters": {"cost_type": "ext-consulting", "percentage": -10}}
+          {"scope": "portfolio", "action_type": "cap_cost_category", "parameters": {"cost_type": "ext-consulting", "percentage": -10}}
         ]
       },
       {
@@ -53,7 +53,7 @@
           "rag_changes": "3 projects shift to Red, 4 to Amber"
         },
         "constituent_actions": [
-          {"scope": "portfolio", "rule_type": "across_the_board_cut", "parameters": {"percentage": 20}}
+          {"scope": "portfolio", "action_type": "across_the_board_cut", "parameters": {"percentage": 20}}
         ]
       }
     ]

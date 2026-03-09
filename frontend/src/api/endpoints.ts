@@ -139,6 +139,7 @@ export const referenceApi = {
   getLocations: () => api.get<ListResponse<RefLocation>>('/api/reference/locations'),
   getRoles: () => api.get<ListResponse<RefRole>>('/api/reference/roles'),
   getPeople: () => api.get<ListResponse<RefPerson>>('/api/reference/people'),
+  getCostTypes: () => api.get<ListResponse<{ id: string; name: string }>>('/api/reference/cost-types'),
 };
 
 // --- Documentation ---

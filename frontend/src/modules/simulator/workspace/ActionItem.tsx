@@ -7,6 +7,12 @@ import {
   TrendingDown,
   Layers,
   X,
+  Pause,
+  Users,
+  Filter,
+  Snowflake,
+  ShieldAlert,
+  TrendingUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +38,13 @@ const ACTION_ICONS: Record<string, React.ElementType> = {
   apply_pct_cut: TrendingDown,
   reduce_lob: Layers,
   cut_by_lob: Layers,
+  pause_project: Pause,
+  change_allocation: Users,
+  change_resources: Users,
+  cut_by_type: Filter,
+  freeze_new_starts: Snowflake,
+  cap_cost_category: ShieldAlert,
+  rate_escalation: TrendingUp,
 };
 
 function describeAction(
@@ -65,6 +78,19 @@ function describeAction(
     case 'reduce_lob':
     case 'cut_by_lob':
       return `Cut LoB: ${params.lob_id} (${params.percentage ?? params.pct ?? '?'}%)`;
+    case 'pause_project':
+      return `Pause: ${pName} from ${params.start_month ?? params.from_month ?? '?'}`;
+    case 'change_allocation':
+    case 'change_resources':
+      return `${params.action === 'remove' ? 'Remove' : params.action === 'add' ? 'Add' : 'Modify'} Resources: ${pName} (${params.hours_per_month ?? params.hours_delta ?? '?'}h/mo)`;
+    case 'cut_by_type':
+      return `Cut ${params.target_type === 'service' ? 'Services' : params.target_type === 'project' ? 'Projects' : 'All'}: ${params.reduction_pct ?? params.percentage ?? '?'}%`;
+    case 'freeze_new_starts':
+      return `Freeze New Starts after ${params.cutoff_month ?? '?'}`;
+    case 'cap_cost_category':
+      return `Cap Cost Category: €${Number(params.cap_amount ?? 0).toLocaleString()} ${params.cap_period ?? 'annual'}`;
+    case 'rate_escalation':
+      return `Rate +${params.increase_pct ?? '?'}% (${params.scope_type ?? '?'}) from ${params.effective_month ?? '?'}`;
     default:
       return `${action.action_type}${pName ? ': ' + pName : ''}`;
   }

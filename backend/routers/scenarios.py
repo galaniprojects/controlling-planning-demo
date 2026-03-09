@@ -386,7 +386,7 @@ def apply_advisor_path(
             scenario_id=scenario_id,
             action_order=max_order + i + 1,
             scope=action_def.get("scope", "project"),
-            action_type=action_def.get("action_type", "adjust_budget"),
+            action_type=action_def.get("action_type", action_def.get("rule_type", "adjust_budget")),
             project_id=action_def.get("project_id"),
             parameters_json=json.dumps(action_def.get("parameters", {})),
             impact_delta_json=json.dumps(action_def.get("impact_delta", {})),

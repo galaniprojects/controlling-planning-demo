@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v2 Session 3 (complete)
-Last completed: v2 Session 3 — Project Workbench Improvements
-Branch: `v2/session-3-workbench`
+Phase: v2 Session 4 (complete)
+Last completed: v2 Session 4 — What-If Simulator Enhancements
+Branch: `v2/session-4-whatif`
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -651,6 +651,35 @@ Branch: `v2/session-3-workbench` (8 commits)
 ### Files Changed
 - **Backend (3 modified)**: `models/financial.py`, `routers/workbench.py`, `seed/seed.sql`
 - **Frontend (4 modified)**: `types/api.ts`, `ForecastGrid.tsx`, `Phase3EditForecast.tsx`, `Phase4Review.tsx`, `ProjectTrajectoryChart.tsx`
+
+## v2 Session 4 — What-If Simulator Enhancements
+
+Branch: `v2/session-4-whatif`
+
+### Completed Items
+- [x] **4.3 — Fix Delay/Accelerate Timeline Modeling**: Replaced no-op stub with real engine logic. Delay queries monthly forecasts, sums first N future months as "freed" budget, reduces adjusted_budget, extends end date. Accelerate calculates 5% monthly premium per compressed month, shortens end date.
+- [x] **4.1.1 — Pause Project Action**: New project-scope action. Queries forecast from start_month onward and subtracts total from adjusted_budget.
+- [x] **4.1.2 — Change Resource Allocation Action**: New project-scope action. Looks up hourly rate from RateTable for role, calculates delta = hours × rate × months. Supports add/remove/modify modes.
+- [x] **4.1.3 — Cut by Type Portfolio Rule**: New portfolio-scope action. Filters working state by is_service flag based on target_type (project/service/all), applies percentage reduction.
+- [x] **4.1.4 — Freeze New Starts Portfolio Rule**: New portfolio-scope action. Zeros out adjusted_budget for projects with start date after cutoff_month.
+- [x] **4.1.5 — Cap Cost Category Portfolio Rule**: New portfolio-scope action. Queries external costs by sub_category, applies proportional cap or percentage-based reduction. Supports both absolute cap and percentage variant.
+- [x] **4.2 — Rate Escalation Action**: New portfolio-scope action with multi-select scope selector. Finds matching Person IDs by scope type (role/cost_center/location), queries Allocations from effective_month, calculates cost increase using average hourly rate.
+- [x] **Engine: Per-action impact delta computation**: Engine now computes budget_delta for each action by snapshotting total budget before/after. Pre-seeded scenarios retain their rich impact_delta fields.
+- [x] **Engine: Action type aliases**: Added _ACTION_ALIASES map to normalize advisor fixture names (defer_project→delay_project, change_resources→change_allocation, etc.).
+- [x] **Advisor apply fix**: Router now falls back to rule_type when action_type missing. Fixed goals.json rule_type→action_type for 2 portfolio-scope entries.
+- [x] **Frontend: AddActionForm extended**: Added text and multi-select parameter types, 2 new project actions (pause, change_allocation), 4 new portfolio actions (cut_by_type, freeze_new_starts, cap_cost_category, rate_escalation). Dynamic reference data fetching, conditional options for rate escalation scope_values.
+- [x] **Frontend: ActionItem extended**: Added icons (Pause, Users, Filter, Snowflake, ShieldAlert, TrendingUp) and descriptions for all new action types.
+- [x] **Frontend: getCostTypes API**: Added getCostTypes() to referenceApi for cap_cost_category form.
+
+### New Capabilities
+- What-If Simulator now supports **13 action types** (was 7): adjust_budget, remove_project, delay_project, accelerate_project, cut_consulting, pause_project, change_allocation, across_the_board_cut, reduce_lob, cut_by_type, freeze_new_starts, cap_cost_category, rate_escalation
+- Multi-select parameter type for Rate Escalation scope values
+- Conditional form options (scope_values populates based on scope_type selection)
+- Per-action budget delta computation for engine-calculated actions
+
+### Files Changed
+- **Backend (3 modified)**: `services/scenario_engine.py` (full rewrite), `routers/scenarios.py` (1-line fix), `seed/fixtures/advisor/goals.json` (rule_type→action_type)
+- **Frontend (3 modified)**: `api/endpoints.ts` (getCostTypes), `modules/simulator/workspace/AddActionForm.tsx` (full rewrite), `modules/simulator/workspace/ActionItem.tsx` (new icons + descriptions)
 
 ## Known Issues
 None currently tracked.

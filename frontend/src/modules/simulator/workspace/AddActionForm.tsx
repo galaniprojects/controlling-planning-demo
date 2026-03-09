@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -17,9 +18,10 @@ import type { ScenarioProjectState } from '@/types/api';
 interface ParameterConfig {
   key: string;
   label: string;
-  type: 'number' | 'select';
+  type: 'number' | 'select' | 'text' | 'multi-select';
   placeholder?: string;
   options?: { value: string; label: string }[];
+  dependsOn?: string;
 }
 
 interface ActionTypeConfig {
@@ -37,12 +39,7 @@ const PROJECT_ACTIONS: ActionTypeConfig[] = [
     label: 'Adjust Budget (%)',
     requires_project: true,
     parameters: [
-      {
-        key: 'percentage',
-        label: 'Percentage',
-        type: 'number',
-        placeholder: '-15',
-      },
+      { key: 'percentage', label: 'Percentage', type: 'number', placeholder: '-15' },
     ],
   },
   {
@@ -58,12 +55,7 @@ const PROJECT_ACTIONS: ActionTypeConfig[] = [
     label: 'Delay Project',
     requires_project: true,
     parameters: [
-      {
-        key: 'months',
-        label: 'Months to Delay',
-        type: 'number',
-        placeholder: '3',
-      },
+      { key: 'months', label: 'Months to Delay', type: 'number', placeholder: '3' },
     ],
   },
   {
@@ -72,12 +64,7 @@ const PROJECT_ACTIONS: ActionTypeConfig[] = [
     label: 'Accelerate Project',
     requires_project: true,
     parameters: [
-      {
-        key: 'months',
-        label: 'Months Forward',
-        type: 'number',
-        placeholder: '3',
-      },
+      { key: 'months', label: 'Months Forward', type: 'number', placeholder: '3' },
     ],
   },
   {
@@ -86,12 +73,35 @@ const PROJECT_ACTIONS: ActionTypeConfig[] = [
     label: 'Cut Consulting',
     requires_project: true,
     parameters: [
+      { key: 'percentage', label: 'Cut Percentage', type: 'number', placeholder: '15' },
+    ],
+  },
+  {
+    scope: 'project',
+    action_type: 'pause_project',
+    label: 'Pause Project',
+    requires_project: true,
+    parameters: [
+      { key: 'start_month', label: 'Pause From (YYYY-MM)', type: 'text', placeholder: '2026-03' },
+    ],
+  },
+  {
+    scope: 'project',
+    action_type: 'change_allocation',
+    label: 'Change Resource Allocation',
+    requires_project: true,
+    parameters: [
+      { key: 'role_type_id', label: 'Role', type: 'select', options: [] },
       {
-        key: 'percentage',
-        label: 'Cut Percentage',
-        type: 'number',
-        placeholder: '15',
+        key: 'action', label: 'Action', type: 'select', options: [
+          { value: 'add', label: 'Add' },
+          { value: 'remove', label: 'Remove' },
+          { value: 'modify', label: 'Modify' },
+        ],
       },
+      { key: 'hours_per_month', label: 'Hours per Month', type: 'number', placeholder: '40' },
+      { key: 'start_month', label: 'Start Month (YYYY-MM)', type: 'text', placeholder: '2026-03' },
+      { key: 'end_month', label: 'End Month (YYYY-MM)', type: 'text', placeholder: '2026-09' },
     ],
   },
 ];
@@ -103,12 +113,7 @@ const PORTFOLIO_ACTIONS: ActionTypeConfig[] = [
     label: 'Across-the-Board Cut',
     requires_project: false,
     parameters: [
-      {
-        key: 'percentage',
-        label: 'Cut Percentage',
-        type: 'number',
-        placeholder: '20',
-      },
+      { key: 'percentage', label: 'Cut Percentage', type: 'number', placeholder: '20' },
     ],
   },
   {
@@ -118,12 +123,66 @@ const PORTFOLIO_ACTIONS: ActionTypeConfig[] = [
     requires_project: false,
     parameters: [
       { key: 'lob_id', label: 'Line of Business', type: 'select', options: [] },
+      { key: 'percentage', label: 'Cut Percentage', type: 'number', placeholder: '15' },
+    ],
+  },
+  {
+    scope: 'portfolio',
+    action_type: 'cut_by_type',
+    label: 'Cut by Type',
+    requires_project: false,
+    parameters: [
       {
-        key: 'percentage',
-        label: 'Cut Percentage',
-        type: 'number',
-        placeholder: '15',
+        key: 'target_type', label: 'Target', type: 'select', options: [
+          { value: 'project', label: 'Projects Only' },
+          { value: 'service', label: 'Services Only' },
+          { value: 'all', label: 'All' },
+        ],
       },
+      { key: 'reduction_pct', label: 'Reduction %', type: 'number', placeholder: '10' },
+    ],
+  },
+  {
+    scope: 'portfolio',
+    action_type: 'freeze_new_starts',
+    label: 'Freeze New Starts',
+    requires_project: false,
+    parameters: [
+      { key: 'cutoff_month', label: 'Cutoff Month (YYYY-MM)', type: 'text', placeholder: '2026-03' },
+    ],
+  },
+  {
+    scope: 'portfolio',
+    action_type: 'cap_cost_category',
+    label: 'Cap Cost Category',
+    requires_project: false,
+    parameters: [
+      { key: 'cost_type_id', label: 'Cost Type', type: 'select', options: [] },
+      { key: 'cap_amount', label: 'Cap Amount (EUR)', type: 'number', placeholder: '500000' },
+      {
+        key: 'cap_period', label: 'Period', type: 'select', options: [
+          { value: 'annual', label: 'Annual' },
+          { value: 'monthly', label: 'Monthly' },
+        ],
+      },
+    ],
+  },
+  {
+    scope: 'portfolio',
+    action_type: 'rate_escalation',
+    label: 'Rate Escalation',
+    requires_project: false,
+    parameters: [
+      {
+        key: 'scope_type', label: 'Scope', type: 'select', options: [
+          { value: 'role', label: 'Role' },
+          { value: 'cost_center', label: 'Cost Center' },
+          { value: 'location', label: 'Location' },
+        ],
+      },
+      { key: 'scope_values', label: 'Scope Values', type: 'multi-select', options: [], dependsOn: 'scope_type' },
+      { key: 'increase_pct', label: 'Increase %', type: 'number', placeholder: '5' },
+      { key: 'effective_month', label: 'Effective From (YYYY-MM)', type: 'text', placeholder: '2026-04' },
     ],
   },
 ];
@@ -141,35 +200,63 @@ interface Props {
   loading: boolean;
 }
 
+type RefOptions = { value: string; label: string }[];
+
 export function AddActionForm({ onApplyAction, projectStates, loading }: Props) {
   const [section, setSection] = useState<'project' | 'portfolio'>('project');
   const [selectedAction, setSelectedAction] = useState('');
   const [selectedProject, setSelectedProject] = useState('');
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
-  const [lobOptions, setLobOptions] = useState<
-    { value: string; label: string }[]
-  >([]);
 
-  // Fetch LoB options once
+  // Reference data options
+  const [lobOptions, setLobOptions] = useState<RefOptions>([]);
+  const [roleOptions, setRoleOptions] = useState<RefOptions>([]);
+  const [costCenterOptions, setCostCenterOptions] = useState<RefOptions>([]);
+  const [locationOptions, setLocationOptions] = useState<RefOptions>([]);
+  const [costTypeOptions, setCostTypeOptions] = useState<RefOptions>([]);
+
+  // Fetch reference data once
   useEffect(() => {
     referenceApi.getLobs().then((res) => {
-      setLobOptions(
-        res.items.map((l) => ({ value: l.id, label: l.name })),
-      );
+      setLobOptions(res.items.map((l) => ({ value: l.id, label: l.name })));
+    });
+    referenceApi.getRoles().then((res) => {
+      setRoleOptions(res.items.map((r) => ({ value: r.id, label: r.name })));
+    });
+    referenceApi.getCostCenters().then((res) => {
+      setCostCenterOptions(res.items.map((c) => ({ value: c.id, label: c.name })));
+    });
+    referenceApi.getLocations().then((res) => {
+      setLocationOptions(res.items.map((l) => ({ value: l.id, label: `${l.city}` })));
+    });
+    referenceApi.getCostTypes().then((res) => {
+      setCostTypeOptions(res.items.map((t) => ({ value: t.id, label: t.name })));
     });
   }, []);
 
   const actions = section === 'project' ? PROJECT_ACTIONS : PORTFOLIO_ACTIONS;
   const config = actions.find((a) => a.action_type === selectedAction);
 
-  // Inject dynamic LoB options
+  // Inject dynamic options
   const parameters = useMemo(() => {
     if (!config) return [];
     return config.parameters.map((p) => {
       if (p.key === 'lob_id') return { ...p, options: lobOptions };
+      if (p.key === 'role_type_id') return { ...p, options: roleOptions };
+      if (p.key === 'cost_type_id') return { ...p, options: costTypeOptions };
+
+      // Conditional scope_values for rate escalation
+      if (p.key === 'scope_values' && p.dependsOn === 'scope_type') {
+        const scopeType = paramValues['scope_type'];
+        if (scopeType === 'role') return { ...p, options: roleOptions };
+        if (scopeType === 'cost_center') return { ...p, options: costCenterOptions };
+        if (scopeType === 'location') return { ...p, options: locationOptions };
+        return { ...p, options: [] };
+      }
+
       return p;
     });
-  }, [config, lobOptions]);
+  }, [config, lobOptions, roleOptions, costCenterOptions, locationOptions, costTypeOptions, paramValues]);
 
   const projectOptions = useMemo(
     () =>
@@ -196,12 +283,35 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
     setParamValues({});
   };
 
+  const handleParamChange = (key: string, value: string) => {
+    setParamValues((prev) => {
+      const next = { ...prev, [key]: value };
+      // Reset scope_values when scope_type changes
+      if (key === 'scope_type') {
+        delete next['scope_values'];
+      }
+      return next;
+    });
+  };
+
+  const handleMultiSelectToggle = (key: string, value: string) => {
+    setParamValues((prev) => {
+      const current = prev[key] ? prev[key].split(',').filter(Boolean) : [];
+      const updated = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+      return { ...prev, [key]: updated.join(',') };
+    });
+  };
+
   const canApply = () => {
     if (!config) return false;
     if (config.requires_project && !selectedProject) return false;
     for (const p of parameters) {
-      if (!paramValues[p.key] && p.type === 'number') continue; // optional number
+      if (p.type === 'number') continue; // optional
       if (p.type === 'select' && !paramValues[p.key]) return false;
+      if (p.type === 'text' && !paramValues[p.key]) return false;
+      if (p.type === 'multi-select' && !paramValues[p.key]) return false;
     }
     return true;
   };
@@ -212,7 +322,13 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
     for (const p of parameters) {
       const val = paramValues[p.key];
       if (val) {
-        params[p.key] = p.type === 'number' ? Number(val) : val;
+        if (p.type === 'number') {
+          params[p.key] = Number(val);
+        } else if (p.type === 'multi-select') {
+          params[p.key] = val.split(',').filter(Boolean);
+        } else {
+          params[p.key] = val;
+        }
       }
     }
     await onApplyAction({
@@ -289,9 +405,7 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
           {p.type === 'select' ? (
             <Select
               value={paramValues[p.key] || ''}
-              onValueChange={(v) =>
-                setParamValues((prev) => ({ ...prev, [p.key]: v }))
-              }
+              onValueChange={(v) => handleParamChange(p.key, v)}
             >
               <SelectTrigger className="text-sm">
                 <SelectValue placeholder={`Select ${p.label}...`} />
@@ -304,14 +418,39 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
                 ))}
               </SelectContent>
             </Select>
+          ) : p.type === 'multi-select' ? (
+            <div className="border rounded-md max-h-36 overflow-y-auto p-2 space-y-1.5">
+              {(p.options ?? []).length === 0 ? (
+                <p className="text-xs text-slate-400 py-1">Select scope first</p>
+              ) : (
+                (p.options ?? []).map((opt) => {
+                  const selected = (paramValues[p.key] || '').split(',').includes(opt.value);
+                  return (
+                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox
+                        checked={selected}
+                        onCheckedChange={() => handleMultiSelectToggle(p.key, opt.value)}
+                      />
+                      <span className="text-sm text-slate-700">{opt.label}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          ) : p.type === 'text' ? (
+            <Input
+              type="text"
+              placeholder={p.placeholder}
+              value={paramValues[p.key] || ''}
+              onChange={(e) => handleParamChange(p.key, e.target.value)}
+              className="text-sm"
+            />
           ) : (
             <Input
               type="number"
               placeholder={p.placeholder}
               value={paramValues[p.key] || ''}
-              onChange={(e) =>
-                setParamValues((prev) => ({ ...prev, [p.key]: e.target.value }))
-              }
+              onChange={(e) => handleParamChange(p.key, e.target.value)}
               className="text-sm"
             />
           )}
