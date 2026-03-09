@@ -43,24 +43,52 @@ router = APIRouter(prefix="/api/portfolio", tags=["Portfolio Overview"])
 
 @router.get("/kpis")
 def get_portfolio_kpis(
+    lob: str | None = None,
+    status: str | None = None,
+    rag: str | None = None,
+    type: str | None = None,
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(get_current_user),
 ):
-    """Get portfolio-level KPI summary."""
-    kpis = compute_portfolio_kpis(db)
-    # Augment with additional fields for the full portfolio KPI response
-    total_baseline = (
-        db.query(func.coalesce(func.sum(Baseline.amount_eur), 0)).scalar()
-    )
+    """Get portfolio-level KPI summary (optionally filtered)."""
+    filters = {}
+    if lob:
+        filters["lob"] = lob
+    if status:
+        filters["status"] = status
+    if rag:
+        filters["rag"] = rag
+    if type:
+        filters["type"] = type
+
+    kpis = compute_portfolio_kpis(db, filters)
+
+    # Build project filter for CapEx/OpEx split
+    proj_filter = [Project.is_active.is_(True)]
+    if lob:
+        proj_filter.append(Project.lob_id == lob)
+    if status:
+        proj_filter.append(Project.status == status)
+    if rag:
+        proj_filter.append(Project.rag_status == rag)
+    if type:
+        if type == "service":
+            proj_filter.append(Project.is_service.is_(True))
+        elif type == "project":
+            proj_filter.append(Project.is_service.is_(False))
+
     total_forecast = (
-        db.query(func.coalesce(func.sum(Forecast.amount_eur), 0)).scalar()
+        db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
+        .join(Project, Forecast.project_id == Project.id)
+        .filter(*proj_filter)
+        .scalar()
     )
 
     # CapEx/OpEx split
     capex_forecast = (
         db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
         .join(Project, Forecast.project_id == Project.id)
-        .filter(Project.capex_opex == "capex")
+        .filter(*proj_filter, Project.capex_opex == "capex")
         .scalar()
     )
     opex_forecast = float(total_forecast) - float(capex_forecast)
@@ -75,6 +103,10 @@ def get_portfolio_kpis(
             "opex": round(opex_forecast, 2),
         },
         "run_change_ratio": kpis["run_change_ratio"],
+        "run_total": kpis["run_total"],
+        "change_total": kpis["change_total"],
+        "run_pct": kpis["run_pct"],
+        "change_pct": kpis["change_pct"],
     }
 
 
@@ -175,15 +207,30 @@ def get_dashboard_charts(
         budget = float(query.scalar())
         budget_by_lob.append({"lob_id": l.id, "lob_name": l.name, "budget": round(budget, 2)})
 
-    # Forecast trajectory (monthly totals)
-    query = (
-        db.query(Forecast.month, func.sum(Forecast.amount_eur).label("forecast"))
-        .group_by(Forecast.month)
-        .order_by(Forecast.month)
-    )
+    # Forecast trajectory (cumulative baseline + forecast + actuals)
+    fc_q = db.query(Forecast.month, func.sum(Forecast.amount_eur).label("total")).group_by(Forecast.month).order_by(Forecast.month)
+    bl_q = db.query(Baseline.month, func.sum(Baseline.amount_eur).label("total")).group_by(Baseline.month).order_by(Baseline.month)
+    ac_q = db.query(Actuals.month, func.sum(Actuals.amount_eur).label("total")).filter(Actuals.month <= DEMO_DATE).group_by(Actuals.month).order_by(Actuals.month)
     if lob:
-        query = query.join(Project, Forecast.project_id == Project.id).filter(Project.lob_id == lob)
-    forecast_trajectory = [{"month": r.month, "forecast": round(float(r.forecast), 2)} for r in query.all()]
+        fc_q = fc_q.join(Project, Forecast.project_id == Project.id).filter(Project.lob_id == lob)
+        bl_q = bl_q.join(Project, Baseline.project_id == Project.id).filter(Project.lob_id == lob)
+        ac_q = ac_q.join(Project, Actuals.project_id == Project.id).filter(Project.lob_id == lob)
+    fc_map = {r.month: float(r.total) for r in fc_q.all()}
+    bl_map = {r.month: float(r.total) for r in bl_q.all()}
+    ac_map = {r.month: float(r.total) for r in ac_q.all()}
+    all_months = sorted(set(fc_map) | set(bl_map) | set(ac_map))
+    cum_bl = cum_fc = cum_ac = 0.0
+    forecast_trajectory = []
+    for m in all_months:
+        cum_bl += bl_map.get(m, 0)
+        cum_fc += fc_map.get(m, 0)
+        point = {"month": m, "baseline": round(cum_bl, 2), "forecast": round(cum_fc, 2)}
+        if m in ac_map:
+            cum_ac += ac_map[m]
+            point["actuals"] = round(cum_ac, 2)
+        else:
+            point["actuals"] = None
+        forecast_trajectory.append(point)
 
     # RAG distribution
     rag_dist = (
@@ -239,23 +286,88 @@ def get_intake_detail(
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(get_current_user),
 ):
-    """Get full detail of a pending submission."""
+    """Get full detail of a pending submission including resource/cost plans."""
+    from models.people import RoleType
+    from models.financial import ExternalCostType
+
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
 
-    return IntakeDetail(
-        project_id=project.id,
-        name=project.name,
-        description=project.description,
-        lob_id=project.lob_id,
-        lob_name=project.lob.name if project.lob else "",
-        start_month=project.start_month,
-        end_month=project.end_month,
-        estimated_budget=float(project.total_budget) if project.total_budget else None,
-        capex_opex=project.capex_opex,
-        status=project.status,
+    # Resource plan: internal forecast rows grouped by role
+    internal_rows = (
+        db.query(Forecast.sub_category, Forecast.month, Forecast.hours, Forecast.amount_eur)
+        .filter(Forecast.project_id == project_id, Forecast.category == "internal")
+        .order_by(Forecast.sub_category, Forecast.month)
+        .all()
     )
+    resource_plan: dict[str, dict] = {}
+    for row in internal_rows:
+        role = db.query(RoleType).filter(RoleType.id == row.sub_category).first()
+        role_name = role.name if role else row.sub_category
+        if row.sub_category not in resource_plan:
+            resource_plan[row.sub_category] = {
+                "role_id": row.sub_category, "role_name": role_name,
+                "months": [], "total_hours": 0, "total_amount": 0,
+            }
+        resource_plan[row.sub_category]["months"].append({
+            "month": row.month, "hours": float(row.hours or 0),
+            "amount": round(float(row.amount_eur), 2),
+        })
+        resource_plan[row.sub_category]["total_hours"] += float(row.hours or 0)
+        resource_plan[row.sub_category]["total_amount"] += float(row.amount_eur)
+    for rp in resource_plan.values():
+        rp["total_hours"] = round(rp["total_hours"], 1)
+        rp["total_amount"] = round(rp["total_amount"], 2)
+
+    # External cost plan
+    external_rows = (
+        db.query(Forecast.sub_category, Forecast.month, Forecast.amount_eur)
+        .filter(Forecast.project_id == project_id, Forecast.category == "external")
+        .order_by(Forecast.sub_category, Forecast.month)
+        .all()
+    )
+    external_plan: dict[str, dict] = {}
+    for row in external_rows:
+        ct = db.query(ExternalCostType).filter(ExternalCostType.id == row.sub_category).first()
+        ct_name = ct.name if ct else row.sub_category
+        if row.sub_category not in external_plan:
+            external_plan[row.sub_category] = {
+                "cost_type_id": row.sub_category, "cost_type_name": ct_name,
+                "months": [], "total_amount": 0,
+            }
+        external_plan[row.sub_category]["months"].append({
+            "month": row.month, "amount": round(float(row.amount_eur), 2),
+        })
+        external_plan[row.sub_category]["total_amount"] += float(row.amount_eur)
+    for ep in external_plan.values():
+        ep["total_amount"] = round(ep["total_amount"], 2)
+
+    # Budget summary
+    internal_total = sum(rp["total_amount"] for rp in resource_plan.values())
+    external_total = sum(ep["total_amount"] for ep in external_plan.values())
+
+    return {
+        "project_id": project.id,
+        "name": project.name,
+        "description": project.description,
+        "lob_id": project.lob_id,
+        "lob_name": project.lob.name if project.lob else "",
+        "start_month": project.start_month,
+        "end_month": project.end_month,
+        "estimated_budget": float(project.total_budget) if project.total_budget else None,
+        "capex_opex": project.capex_opex,
+        "status": project.status,
+        "pl_name": project.pl.name if project.pl else None,
+        "resource_plan": list(resource_plan.values()),
+        "external_cost_plan": list(external_plan.values()),
+        "budget_summary": {
+            "internal_total": round(internal_total, 2),
+            "external_total": round(external_total, 2),
+            "grand_total": round(internal_total + external_total, 2),
+            "capex_opex": project.capex_opex,
+        },
+    }
 
 
 @router.put("/intake/{project_id}/approve")

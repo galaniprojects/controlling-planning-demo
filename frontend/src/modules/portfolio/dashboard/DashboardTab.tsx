@@ -59,7 +59,7 @@ export function DashboardTab() {
     if (filters.rag) params.rag = filters.rag;
     if (filters.type) params.type = filters.type;
 
-    portfolioApi.getKPIs().then(setKpis).catch(() => {});
+    portfolioApi.getKPIs(params).then(setKpis).catch(() => {});
 
     setTreeLoading(true);
     portfolioApi
@@ -113,6 +113,10 @@ export function DashboardTab() {
     setFilters({ lob: '', status: '', rag: '', type: '' });
   }, []);
 
+  const handleRagClick = useCallback((rag: string) => {
+    setFilters((prev) => ({ ...prev, rag: prev.rag === rag ? '' : rag }));
+  }, []);
+
   const filterConfigs: FilterConfig[] = [
     {
       key: 'lob',
@@ -139,7 +143,7 @@ export function DashboardTab() {
         selectedId={selectedProjectId}
         onProjectSelect={handleProjectSelect}
       />
-      <DashboardCharts data={charts} />
+      <DashboardCharts data={charts} activeRag={filters.rag || null} onRagClick={handleRagClick} />
     </div>
   );
 }

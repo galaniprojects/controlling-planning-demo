@@ -17,9 +17,10 @@ interface Props {
   loading: boolean;
   selectedId?: string;
   onSelect: (projectId: string) => void;
+  onOpenDetail?: (projectId: string) => void;
 }
 
-export function IntakeTable({ items, loading, selectedId, onSelect }: Props) {
+export function IntakeTable({ items, loading, selectedId, onSelect, onOpenDetail }: Props) {
   if (loading) {
     return (
       <div className="space-y-2">
@@ -60,6 +61,7 @@ export function IntakeTable({ items, loading, selectedId, onSelect }: Props) {
                 selectedId === item.project_id ? 'bg-blue-50' : 'hover:bg-slate-50',
               )}
               onClick={() => onSelect(item.project_id)}
+              onDoubleClick={() => onOpenDetail?.(item.project_id)}
             >
               <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">
                 {item.name}

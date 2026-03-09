@@ -326,21 +326,17 @@ def submit_forecast_cycle(
     if not cycle:
         raise HTTPException(404, "No active forecast cycle")
 
-    # INVESTIGATION (v2 6.1 — CR Routing Bug):
-    # CRs created here start at "pending_cc_confirmation", which requires CC Owner
-    # confirmation before advancing to "pending_controller_approval". Resource-type
-    # CRs work because CC Owners process them via Request Management. Non-resource
-    # CRs (budget/timeline changes) have NO CC Owner UI to confirm them, so they
-    # are stuck and never reach the Controller's Approvals tab.
-    # Fix deferred to v2 Session 2.
     created_crs = []
     for group in (body.groups or cycle.review_groups):
+        group_type = group.get("type", "other")
+        # Resource CRs need CC Owner confirmation; others go straight to controller
+        initial_status = "pending_cc_confirmation" if group_type == "resource" else "pending_controller_approval"
         cr = ChangeRequest(
             project_id=project_id,
             submitted_by_id=user.person_id,
             submission_timestamp=datetime.utcnow(),
-            status="pending_cc_confirmation",
-            change_category=group.get("type", "other"),
+            status=initial_status,
+            change_category=group_type,
             summary=group.get("justification", f"Forecast update: {group.get('type', 'changes')}"),
             justification=group.get("justification"),
             is_system_suggested=any(

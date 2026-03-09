@@ -18,9 +18,10 @@ interface Props {
   loading: boolean;
   selectedId?: number;
   onSelect: (crId: number) => void;
+  onOpenDetail?: (crId: number) => void;
 }
 
-export function ApprovalsTable({ items, loading, selectedId, onSelect }: Props) {
+export function ApprovalsTable({ items, loading, selectedId, onSelect, onOpenDetail }: Props) {
   if (loading) {
     return (
       <div className="space-y-2">
@@ -62,6 +63,7 @@ export function ApprovalsTable({ items, loading, selectedId, onSelect }: Props) 
                 selectedId === item.cr_id ? 'bg-blue-50' : 'hover:bg-slate-50',
               )}
               onClick={() => onSelect(item.cr_id)}
+              onDoubleClick={() => onOpenDetail?.(item.cr_id)}
             >
               <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">
                 {item.project_name}

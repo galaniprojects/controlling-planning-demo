@@ -14,16 +14,17 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { Separator } from '@/components/ui/separator';
 import { portfolioApi } from '@/api/endpoints';
 import type { CRDetail } from '@/types/api';
-import { Check, X, Undo2, Sparkles } from 'lucide-react';
+import { Check, X, Undo2, Sparkles, Maximize2 } from 'lucide-react';
 
 interface Props {
   crId: number;
   onActionComplete: () => void;
+  onOpenDetail?: (crId: number) => void;
 }
 
 type ActionMode = 'idle' | 'approve' | 'reject' | 'send-back';
 
-export function CRDetailPanel({ crId, onActionComplete }: Props) {
+export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
   const [data, setData] = useState<CRDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionMode, setActionMode] = useState<ActionMode>('idle');
@@ -100,6 +101,14 @@ export function CRDetailPanel({ crId, onActionComplete }: Props) {
           )}
         </div>
       </div>
+
+      {/* Open Full Detail */}
+      {onOpenDetail && (
+        <Button variant="outline" size="sm" className="w-full" onClick={() => onOpenDetail(crId)}>
+          <Maximize2 className="h-3.5 w-3.5 mr-1" />
+          Open Full Detail
+        </Button>
+      )}
 
       {/* Justification */}
       {data.justification && (

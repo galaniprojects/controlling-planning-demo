@@ -7,16 +7,17 @@ import { formatCurrency } from '@/lib/formatters';
 import { useRole } from '@/contexts/RoleContext';
 import { portfolioApi } from '@/api/endpoints';
 import type { IntakeDetail } from '@/types/api';
-import { Check, X, Undo2 } from 'lucide-react';
+import { Check, X, Undo2, Maximize2 } from 'lucide-react';
 
 interface Props {
   projectId: string;
   onActionComplete: () => void;
+  onOpenDetail?: (projectId: string) => void;
 }
 
 type ActionMode = 'idle' | 'approve' | 'reject' | 'send-back';
 
-export function IntakeDetailPanel({ projectId, onActionComplete }: Props) {
+export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }: Props) {
   const { context } = useRole();
   const isController = context?.role === 'controller';
 
@@ -88,6 +89,14 @@ export function IntakeDetailPanel({ projectId, onActionComplete }: Props) {
           <p className="text-sm text-slate-600">{data.description}</p>
         )}
       </div>
+
+      {/* Open Full Detail */}
+      {onOpenDetail && (
+        <Button variant="outline" size="sm" className="w-full" onClick={() => onOpenDetail(projectId)}>
+          <Maximize2 className="h-3.5 w-3.5 mr-1" />
+          Open Full Detail
+        </Button>
+      )}
 
       {/* Details */}
       <div className="space-y-3">

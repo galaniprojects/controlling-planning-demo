@@ -21,31 +21,57 @@ from services.calculations import (
 )
 
 
-def compute_portfolio_kpis(db: Session) -> dict:
-    """Compute portfolio-level KPI summary for the launchpad."""
-    # Total budget (sum of all active project total_budget)
+def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
+    """Compute portfolio-level KPI summary, optionally filtered."""
+    filters = filters or {}
+
+    # Build filtered project ID list
+    proj_q = db.query(Project.id).filter(Project.is_active.is_(True))
+    if filters.get("lob"):
+        proj_q = proj_q.filter(Project.lob_id == filters["lob"])
+    if filters.get("status"):
+        proj_q = proj_q.filter(Project.status == filters["status"])
+    if filters.get("rag"):
+        proj_q = proj_q.filter(Project.rag_status == filters["rag"])
+    if filters.get("type"):
+        if filters["type"] == "service":
+            proj_q = proj_q.filter(Project.is_service.is_(True))
+        elif filters["type"] == "project":
+            proj_q = proj_q.filter(Project.is_service.is_(False))
+    project_ids = [r[0] for r in proj_q.all()]
+
+    if not project_ids:
+        return {
+            "total_budget": 0, "ytd_spend": 0, "portfolio_variance_pct": 0,
+            "overall_utilization_pct": 0, "run_change_ratio": "50/50",
+            "run_total": 0, "change_total": 0, "run_pct": 50, "change_pct": 50,
+        }
+
+    # Total budget
     total_budget = (
         db.query(func.coalesce(func.sum(Project.total_budget), 0))
-        .filter(Project.is_active.is_(True))
+        .filter(Project.id.in_(project_ids))
         .scalar()
     )
 
     # YTD spend (actuals through demo date)
     ytd_spend = (
         db.query(func.coalesce(func.sum(Actuals.amount_eur), 0))
-        .filter(Actuals.month <= DEMO_DATE)
+        .filter(Actuals.project_id.in_(project_ids), Actuals.month <= DEMO_DATE)
         .scalar()
     )
 
     # Total forecast at completion
     total_forecast = (
         db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
+        .filter(Forecast.project_id.in_(project_ids))
         .scalar()
     )
 
     # Total baseline
     total_baseline = (
         db.query(func.coalesce(func.sum(Baseline.amount_eur), 0))
+        .filter(Baseline.project_id.in_(project_ids))
         .scalar()
     )
 
@@ -71,12 +97,12 @@ def compute_portfolio_kpis(db: Session) -> dict:
     # Run/Change ratio — services use annual_budget, projects use total_budget
     run_budget = (
         db.query(func.coalesce(func.sum(Project.annual_budget), 0))
-        .filter(Project.is_active.is_(True), Project.is_service.is_(True))
+        .filter(Project.id.in_(project_ids), Project.is_service.is_(True))
         .scalar()
     )
     change_budget = (
         db.query(func.coalesce(func.sum(Project.total_budget), 0))
-        .filter(Project.is_active.is_(True), Project.is_service.is_(False))
+        .filter(Project.id.in_(project_ids), Project.is_service.is_(False))
         .scalar()
     )
     total = float(run_budget or 0) + float(change_budget or 0)
@@ -92,6 +118,10 @@ def compute_portfolio_kpis(db: Session) -> dict:
         "portfolio_variance_pct": round(portfolio_variance_pct, 1),
         "overall_utilization_pct": overall_utilization,
         "run_change_ratio": f"{run_pct}/{change_pct}",
+        "run_total": round(float(run_budget or 0), 2),
+        "change_total": round(float(change_budget or 0), 2),
+        "run_pct": run_pct,
+        "change_pct": change_pct,
     }
 
 
