@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: E (complete)
-Last completed: Phase E — Documentation + Polish + Verification
-All phases complete. Application ready for demo.
+Phase: v2 Session 1 (complete)
+Last completed: v2 Session 1 — Small Tweaks
+Branch: `v2/session-1-small-tweaks`
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -575,5 +575,28 @@ No new files created. All changes were modifications to existing files.
 - Repository named `vision-demo-prototype` instead of `cpc-demo` (user preference)
 - Phase D split into 5 sessions (D1–D5) instead of a single phase — one session per module for better focus and context management
 
+## v2 Session 1 — Small Tweaks
+
+Branch: `v2/session-1-small-tweaks` (7 commits)
+
+### Completed Items
+- [x] **0.1 — CPC → CRETA Rename**: All user-visible strings (browser tab, TopBar, Swagger, start.sh), infrastructure (DB filename cpc_demo.db → creta_demo.db), and 7 documentation files updated. Old database must be deleted on first run.
+- [x] **1.2 — Role Switch → Launchpad**: RoleSwitcher.tsx always navigates to `/` instead of role's default module. Removed unused MODULE_ROUTES import.
+- [x] **1.3 — Remove KPI Strip from Launchpad**: Deleted KPIStrip.tsx, removed imports/state/render from Launchpad.tsx, removed "Quick Metrics Strip" section from launchpad.json fixture. Portfolio Dashboard KPIs unaffected.
+- [x] **6.4 — Markdown Bold Rendering**: New `renderMarkdownBold.tsx` utility splits on `**...**` and returns `<strong>` React elements. Applied in ModuleGuideButton (section bodies) and HelpButton (FAQ step instructions).
+- [x] **6.5 — European Currency Formatting**: Rewrote `formatters.ts` with 4 functions: `formatCurrency` (€1,2M style), `formatCurrencyDelta` (+/- prefix), `formatCurrencyDetailed` (€14.400,00 via Intl), `formatPercent` (comma decimal). Deduplicated 7 local copies in simulator module. Fixed percentage decimals to use comma.
+- [x] **1.1 — Notification Deep-Links**: Expanded NotificationsList `handleClick` with module-specific routing (portfolio → `/portfolio/intake?project=`, capacity → `?person=`). IntakeTab reads `?project=` param and auto-opens detail panel with useRef guard.
+- [x] **6.3 & 6.1 — Investigation Documentation**: Added investigation comments to ForecastTrajectoryChart.tsx (monthly totals, not cumulative; missing baseline/actuals series) and workbench.py (non-resource CRs stuck at pending_cc_confirmation). Both fixes deferred to Session 2.
+
+### Verification Results (all pass)
+- [x] Browser tab says "CRETA", TopBar shows "CRETA", Swagger says "CRETA Demo API"
+- [x] Role switch always lands on Launchpad (tested from /simulator)
+- [x] Launchpad: notifications + module tiles only (no KPI strip)
+- [x] Guide panel: **Blue**, **Green**, **Amber**, **Red** render as bold in Capacity Management guide
+- [x] Euro format: `€9,9M`, `€4,5M`, `€1,2M`, `-6,5%`, `+1,2%` throughout Portfolio + Simulator
+- [x] Notification deep-link: "1 new project awaiting review" → Intake tab with Autonomous Braking Prototype detail panel
+- [x] Zero console errors across all modules
+
 ## Known Issues
-- None
+- **CR Routing Bug (6.1)**: Non-resource CRs stuck at `pending_cc_confirmation` — no CC Owner UI to advance them. Documented; fix deferred to Session 2.
+- **Forecast Chart (6.3)**: Shows monthly totals (not cumulative), missing baseline/actuals series. Documented; fix deferred to Session 2.
