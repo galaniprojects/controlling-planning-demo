@@ -9,16 +9,9 @@ import type {
   ComparisonResponse,
   ComparisonColumn,
 } from '@/types/api';
+import { formatCurrency, formatCurrencyDelta } from '@/lib/formatters';
 import { ScenarioSelector } from './ScenarioSelector';
 import { ComparisonTable } from './ComparisonTable';
-
-function formatCurrency(value: number): string {
-  const abs = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  if (abs >= 1_000_000) return `${sign}€${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}€${(abs / 1_000).toFixed(0)}K`;
-  return `${sign}€${abs.toFixed(0)}`;
-}
 
 function ColumnSummaryCard({
   column,
@@ -51,8 +44,7 @@ function ColumnSummaryCard({
         <p
           className={`text-sm font-medium ${delta < 0 ? 'text-green-600' : 'text-red-600'}`}
         >
-          {delta > 0 ? '+' : ''}
-          {formatCurrency(delta)}
+          {formatCurrencyDelta(delta)}
         </p>
       )}
       <div className="flex items-center gap-2 text-xs text-slate-500">

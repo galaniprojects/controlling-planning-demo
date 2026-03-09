@@ -8,14 +8,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { ComparisonColumn } from '@/types/api';
-
-function formatCurrency(value: number): string {
-  const abs = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  if (abs >= 1_000_000) return `${sign}€${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}€${(abs / 1_000).toFixed(0)}K`;
-  return `${sign}€${abs.toFixed(0)}`;
-}
+import { formatCurrency, formatCurrencyDelta } from '@/lib/formatters';
 
 function RagDot({ rag }: { rag: string | null }) {
   if (!rag)
@@ -106,8 +99,7 @@ export function ComparisonTable({ columns }: ComparisonTableProps) {
                       <span
                         className={`text-xs ${d.delta < 0 ? 'text-green-600' : 'text-red-600'}`}
                       >
-                        {d.delta > 0 ? '+' : ''}
-                        {formatCurrency(d.delta)}
+                        {formatCurrencyDelta(d.delta)}
                       </span>
                     )}
                   </TableCell>

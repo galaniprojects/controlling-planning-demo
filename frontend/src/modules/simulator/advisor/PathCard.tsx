@@ -2,14 +2,7 @@ import { TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import type { AdvisorPath } from '@/types/api';
-
-function formatCurrency(value: number): string {
-  const abs = Math.abs(value);
-  const sign = value < 0 ? '-' : value > 0 ? '+' : '';
-  if (abs >= 1_000_000) return `${sign}€${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}€${(abs / 1_000).toFixed(0)}K`;
-  return `${sign}€${abs.toFixed(0)}`;
-}
+import { formatCurrencyDelta } from '@/lib/formatters';
 
 interface PathCardProps {
   path: AdvisorPath;
@@ -52,7 +45,7 @@ export function PathCard({ path, onApply, applying }: PathCardProps) {
           <p
             className={`text-sm font-semibold ${isSavings ? 'text-green-600' : 'text-red-600'}`}
           >
-            {formatCurrency(hn.budget_delta)}
+            {formatCurrencyDelta(hn.budget_delta)}
           </p>
         </div>
         <div className="bg-slate-50 rounded px-2 py-1.5">
