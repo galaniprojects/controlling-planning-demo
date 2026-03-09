@@ -4,10 +4,24 @@ import json
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from config import DEMO_DATE
+from models.capacity import Allocation
 from models.financial import Baseline, Forecast
+from models.organization import CostCenter
+from models.people import Person, RateTable
 from models.projects import Project
 from models.scenarios import Scenario, ScenarioAction, ScenarioCapacityImpact, ScenarioState
-from services.calculations import compute_plan_drift, compute_budget_rag
+from services.calculations import compute_plan_drift, compute_budget_rag, add_months, month_diff
+
+
+# Action type aliases — normalise advisor fixture names to engine names
+_ACTION_ALIASES = {
+    "defer_project": "delay_project",
+    "delay": "delay_project",
+    "accelerate": "accelerate_project",
+    "remove": "remove_project",
+    "pause": "pause_project",
+    "change_resources": "change_allocation",
+}
 
 
 def get_scenario_state(db: Session, scenario_id: int) -> dict:
@@ -85,24 +99,13 @@ def get_scenario_state(db: Session, scenario_id: int) -> dict:
             "capacity_impacts": capacity_impacts,
         }
     else:
-        # No snapshots — return basic state with actions
-        action_list = [
-            {
-                "id": a.id, "action_order": a.action_order, "scope": a.scope,
-                "action_type": a.action_type, "project_id": a.project_id,
-                "parameters": json.loads(a.parameters_json) if a.parameters_json else {},
-                "impact_delta": json.loads(a.impact_delta_json) if a.impact_delta_json else {},
-                "group_label": a.group_label,
-            }
-            for a in actions
-        ]
         return recalculate_scenario(db, scenario, actions)
 
 
 def recalculate_scenario(db: Session, scenario: Scenario, actions: list[ScenarioAction]) -> dict:
     """Recalculate scenario from scratch by applying actions to current portfolio state."""
     projects = db.query(Project).filter(Project.is_active.is_(True)).all()
-    
+
     # Build working state: project_id -> {budget, rag, ...}
     working = {}
     for p in projects:
@@ -120,20 +123,37 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
             "rag": p.rag_status, "lob_id": p.lob_id,
             "is_service": p.is_service, "is_affected": False,
             "start": p.start_month, "end": p.end_month,
+            "status": p.status,
         }
 
-    # Apply actions
+    # Apply actions — compute per-action budget delta
     action_list = []
     for a in actions:
         params = json.loads(a.parameters_json) if a.parameters_json else {}
-        _apply_action(working, a.action_type, a.scope, a.project_id, params)
-        action_list.append({
-            "id": a.id, "action_order": a.action_order, "scope": a.scope,
-            "action_type": a.action_type, "project_id": a.project_id,
-            "parameters": params,
-            "impact_delta": json.loads(a.impact_delta_json) if a.impact_delta_json else {},
-            "group_label": a.group_label,
-        })
+
+        # Use pre-computed delta if available (pre-seeded scenarios)
+        if a.impact_delta_json:
+            _apply_action(db, working, a.action_type, a.scope, a.project_id, params)
+            action_list.append({
+                "id": a.id, "action_order": a.action_order, "scope": a.scope,
+                "action_type": a.action_type, "project_id": a.project_id,
+                "parameters": params,
+                "impact_delta": json.loads(a.impact_delta_json),
+                "group_label": a.group_label,
+            })
+        else:
+            # Snapshot total budget before, apply, snapshot after
+            before = sum(s["adjusted_budget"] for s in working.values())
+            _apply_action(db, working, a.action_type, a.scope, a.project_id, params)
+            after = sum(s["adjusted_budget"] for s in working.values())
+            budget_delta = round(after - before, 2)
+            action_list.append({
+                "id": a.id, "action_order": a.action_order, "scope": a.scope,
+                "action_type": a.action_type, "project_id": a.project_id,
+                "parameters": params,
+                "impact_delta": {"budget_delta": budget_delta},
+                "group_label": a.group_label,
+            })
 
     # Build result
     project_states = []
@@ -176,36 +196,275 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
     }
 
 
-def _apply_action(working: dict, action_type: str, scope: str, project_id: str | None, params: dict):
+def _apply_action(db: Session, working: dict, action_type: str, scope: str,
+                   project_id: str | None, params: dict):
     """Apply a single action to the working state."""
+    # Normalise aliases
+    action_type = _ACTION_ALIASES.get(action_type, action_type)
+
     if scope == "project" and project_id and project_id in working:
-        state = working[project_id]
-        state["is_affected"] = True
-        if action_type == "remove_project":
-            state["adjusted_budget"] = 0
-        elif action_type == "reduce_budget" or action_type == "adjust_budget":
-            pct = params.get("percentage", params.get("pct", 0))
-            if pct:
-                state["adjusted_budget"] *= (1 - float(pct) / 100)
-            amount = params.get("amount", 0)
-            if amount:
-                state["adjusted_budget"] += float(amount)
-        elif action_type == "delay_project":
-            pass  # Budget stays same, timeline shifts (not modeled in simple calc)
-        elif action_type == "cut_consulting":
-            pct = params.get("percentage", params.get("pct", 15))
-            # Assume external costs are ~30% of budget
-            state["adjusted_budget"] -= state["adjusted_budget"] * 0.3 * (float(pct) / 100)
+        _apply_project_action(db, working, action_type, project_id, params)
     elif scope == "portfolio":
-        if action_type == "across_the_board_cut":
-            pct = params.get("percentage", params.get("pct", 0))
-            for state in working.values():
-                state["adjusted_budget"] *= (1 - float(pct) / 100)
+        _apply_portfolio_action(db, working, action_type, params)
+
+
+# ---------------------------------------------------------------------------
+# Project-scoped actions
+# ---------------------------------------------------------------------------
+
+def _apply_project_action(db: Session, working: dict, action_type: str,
+                          project_id: str, params: dict):
+    state = working[project_id]
+    state["is_affected"] = True
+
+    if action_type == "remove_project":
+        state["adjusted_budget"] = 0
+
+    elif action_type in ("reduce_budget", "adjust_budget"):
+        pct = params.get("percentage", params.get("pct", 0))
+        if pct:
+            state["adjusted_budget"] *= (1 - float(pct) / 100)
+        amount = params.get("amount", 0)
+        if amount:
+            state["adjusted_budget"] += float(amount)
+
+    elif action_type == "increase_budget":
+        amount = float(params.get("amount", 0))
+        state["adjusted_budget"] += amount
+
+    elif action_type == "delay_project":
+        # Shift remaining budget forward by N months.
+        # The first N future months become empty → that budget is "freed".
+        months = int(params.get("months", params.get("months_forward", 3)))
+        future_forecasts = (
+            db.query(Forecast.month, func.sum(Forecast.amount_eur))
+            .filter(Forecast.project_id == project_id, Forecast.month > DEMO_DATE)
+            .group_by(Forecast.month)
+            .order_by(Forecast.month)
+            .all()
+        )
+        freed = sum(float(amt) for _month, amt in future_forecasts[:months])
+        state["adjusted_budget"] -= freed
+        if state["end"]:
+            state["end"] = add_months(state["end"], months)
+
+    elif action_type == "accelerate_project":
+        # Project finishes sooner; small premium for compression.
+        months = int(params.get("months", params.get("months_forward", 3)))
+        future_total = float(
+            db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
+            .filter(Forecast.project_id == project_id, Forecast.month > DEMO_DATE)
+            .scalar()
+        )
+        if state["end"] and state["start"]:
+            remaining = month_diff(DEMO_DATE, state["end"])
+            if remaining > 0:
+                monthly_rate = future_total / remaining
+                premium = monthly_rate * 0.05 * months
+                state["adjusted_budget"] += premium
+            state["end"] = add_months(state["end"], -months)
+
+    elif action_type == "pause_project":
+        # Zero out all budget from start_month onward.
+        start_month = params.get("start_month", params.get("from_month", DEMO_DATE))
+        paused = float(
+            db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
+            .filter(Forecast.project_id == project_id, Forecast.month >= start_month)
+            .scalar()
+        )
+        state["adjusted_budget"] -= paused
+
+    elif action_type == "change_allocation":
+        # Add/remove/modify resource allocation — calculate EUR delta.
+        role_type_id = params.get("role_type_id", params.get("role"))
+        action_mode = params.get("action", "modify")
+        hours_per_month = float(params.get("hours_per_month", params.get("hours_delta", 0)))
+        start_month = params.get("start_month", params.get("from_month", DEMO_DATE))
+        end_month = params.get("end_month", params.get("to_month", state.get("end") or "2027-12"))
+
+        # Look up hourly rate for the role
+        rate_entry = (
+            db.query(RateTable)
+            .filter(RateTable.role_type_id == role_type_id)
+            .order_by(RateTable.effective_date.desc())
+            .first()
+        )
+        hourly_rate = float(rate_entry.hourly_rate) if rate_entry else 85.0
+
+        num_months = max(month_diff(start_month, end_month) + 1, 1)
+        if action_mode == "remove":
+            hours_per_month = -abs(hours_per_month)
+        elif action_mode == "add":
+            hours_per_month = abs(hours_per_month)
+
+        delta = hours_per_month * hourly_rate * num_months
+        state["adjusted_budget"] += delta
+
+    elif action_type == "cut_consulting":
+        pct = params.get("percentage", params.get("pct", 15))
+        state["adjusted_budget"] -= state["adjusted_budget"] * 0.3 * (float(pct) / 100)
+
+    elif action_type == "adjust_external_cost":
+        # Similar to cut_consulting but uses explicit percentage
+        pct = float(params.get("adjustment_pct", params.get("percentage", 15)))
+        state["adjusted_budget"] -= state["adjusted_budget"] * 0.3 * (abs(pct) / 100)
+
+
+# ---------------------------------------------------------------------------
+# Portfolio-scoped actions
+# ---------------------------------------------------------------------------
+
+def _apply_portfolio_action(db: Session, working: dict, action_type: str, params: dict):
+
+    if action_type in ("across_the_board_cut", "apply_pct_cut"):
+        pct = float(params.get("percentage", params.get("adjustment_pct", params.get("pct", 0))))
+        for state in working.values():
+            state["adjusted_budget"] *= (1 - abs(pct) / 100)
+            state["is_affected"] = True
+
+    elif action_type in ("reduce_lob", "cut_by_lob"):
+        lob_id = params.get("lob_id")
+        pct = float(params.get("percentage", params.get("pct", 0)))
+        for state in working.values():
+            if state["lob_id"] == lob_id:
+                state["adjusted_budget"] *= (1 - abs(pct) / 100)
                 state["is_affected"] = True
-        elif action_type == "reduce_lob" or action_type == "cut_by_lob":
-            lob_id = params.get("lob_id")
-            pct = params.get("percentage", params.get("pct", 0))
-            for state in working.values():
-                if state["lob_id"] == lob_id:
-                    state["adjusted_budget"] *= (1 - float(pct) / 100)
-                    state["is_affected"] = True
+
+    elif action_type == "cut_by_type":
+        target_type = params.get("target_type", "all")
+        pct = float(params.get("reduction_pct", params.get("percentage", 10)))
+        for state in working.values():
+            match = (
+                target_type == "all"
+                or (target_type == "service" and state["is_service"])
+                or (target_type == "project" and not state["is_service"])
+            )
+            if match:
+                state["adjusted_budget"] *= (1 - abs(pct) / 100)
+                state["is_affected"] = True
+
+    elif action_type == "freeze_new_starts":
+        cutoff_month = params.get("cutoff_month", DEMO_DATE)
+        for state in working.values():
+            if state["start"] and state["start"] > cutoff_month:
+                state["adjusted_budget"] = 0
+                state["is_affected"] = True
+
+    elif action_type == "cap_cost_category":
+        _apply_cap_cost_category(db, working, params)
+
+    elif action_type == "rate_escalation":
+        _apply_rate_escalation(db, working, params)
+
+
+def _apply_cap_cost_category(db: Session, working: dict, params: dict):
+    """Cap or percentage-cut a specific external cost type across the portfolio."""
+    cost_type_id = params.get("cost_type_id", params.get("cost_type"))
+    if not cost_type_id:
+        return
+
+    # Gather total external cost by project for this cost type
+    results = (
+        db.query(Forecast.project_id, func.sum(Forecast.amount_eur))
+        .filter(
+            Forecast.category == "external",
+            Forecast.sub_category == cost_type_id,
+            Forecast.month > DEMO_DATE,
+        )
+        .group_by(Forecast.project_id)
+        .all()
+    )
+    total_by_project = {pid: float(amt) for pid, amt in results}
+    grand_total = sum(total_by_project.values())
+
+    if grand_total <= 0:
+        return
+
+    # Percentage-based variant (used by advisor fixtures)
+    pct = params.get("percentage")
+    if pct and not params.get("cap_amount"):
+        pct = abs(float(pct))
+        for pid, amt in total_by_project.items():
+            if pid in working:
+                working[pid]["adjusted_budget"] -= amt * (pct / 100)
+                working[pid]["is_affected"] = True
+        return
+
+    # Absolute cap variant
+    cap_amount = float(params.get("cap_amount", 0))
+    if cap_amount <= 0:
+        return
+    cap_period = params.get("cap_period", "annual")
+    if cap_period == "monthly":
+        cap_amount *= 12
+
+    if grand_total > cap_amount:
+        reduction_ratio = 1 - (cap_amount / grand_total)
+        for pid, amt in total_by_project.items():
+            if pid in working:
+                working[pid]["adjusted_budget"] -= amt * reduction_ratio
+                working[pid]["is_affected"] = True
+
+
+def _apply_rate_escalation(db: Session, working: dict, params: dict):
+    """Model hourly rate increases by role, cost center, or location."""
+    scope_type = params.get("scope_type")
+    scope_values = params.get("scope_values", [])
+    # Support single-value legacy format
+    if not scope_values and params.get("scope_value"):
+        scope_values = [params["scope_value"]]
+    if not scope_type or not scope_values:
+        return
+
+    increase_pct = float(params.get("increase_pct", 5))
+    effective_month = params.get("effective_month", DEMO_DATE)
+
+    # Find matching person IDs
+    person_query = db.query(Person.id).filter(Person.is_active.is_(True))
+    if scope_type == "role":
+        person_query = person_query.filter(Person.role_type_id.in_(scope_values))
+    elif scope_type == "cost_center":
+        person_query = person_query.filter(Person.cost_center_id.in_(scope_values))
+    elif scope_type == "location":
+        cc_ids = [
+            row[0] for row in
+            db.query(CostCenter.id).filter(CostCenter.location_id.in_(scope_values)).all()
+        ]
+        if not cc_ids:
+            return
+        person_query = person_query.filter(Person.cost_center_id.in_(cc_ids))
+    else:
+        return
+
+    matching_person_ids = [row[0] for row in person_query.all()]
+    if not matching_person_ids:
+        return
+
+    # Total allocated hours per project from effective_month onward
+    allocations = (
+        db.query(Allocation.project_id, func.sum(Allocation.hours))
+        .filter(
+            Allocation.person_id.in_(matching_person_ids),
+            Allocation.month >= effective_month,
+        )
+        .group_by(Allocation.project_id)
+        .all()
+    )
+
+    # Average hourly rate for matching people
+    avg_rate = 85.0
+    rate_result = (
+        db.query(func.avg(RateTable.hourly_rate))
+        .join(Person, Person.role_type_id == RateTable.role_type_id)
+        .filter(Person.id.in_(matching_person_ids))
+        .scalar()
+    )
+    if rate_result:
+        avg_rate = float(rate_result)
+
+    for pid, total_hours in allocations:
+        if pid in working:
+            current_cost = float(total_hours) * avg_rate
+            increase = current_cost * (increase_pct / 100)
+            working[pid]["adjusted_budget"] += increase
+            working[pid]["is_affected"] = True
