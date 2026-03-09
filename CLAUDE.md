@@ -1,7 +1,7 @@
-# CPC Demo App — Claude Code Project Instructions
+# CRETA Demo App — Claude Code Project Instructions
 
 ## Project Overview
-- **Name:** CPC (Controlling & Planning Centre) Demo App
+- **Name:** CRETA (Controlling, Reporting, Estimation, Tracking & Allocations) Demo App
 - **Repo:** vision-demo-prototype (private)
 - **Purpose:** Demo application for Knorr-Bremse IT financial planning transformation, replacing legacy CaPa tool
 - **Type:** Demo with realistic mock data — not connected to any real database

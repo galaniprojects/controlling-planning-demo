@@ -1,4 +1,4 @@
-# CPC Demo — Build Progress
+# CRETA Demo — Build Progress
 
 ## Current Status
 Phase: E (complete)
@@ -28,7 +28,7 @@ All phases complete. Application ready for demo.
   - Design tokens: blue-800 primary, slate-50 bg, Inter font, RAG colors
   - API client with X-Current-User header + Vite proxy to backend:8000
   - RoleContext: 4-persona switcher, auto-navigates to default module
-  - TopBar: CPC logo, route-aware breadcrumb, help button, role dropdown
+  - TopBar: CRETA logo, route-aware breadcrumb, help button, role dropdown
   - Launchpad: role-filtered notifications, module tile grid, 5-KPI strip
   - SidePanel (content shrinks, 380px) and BottomDrawer (overlay, 40vh)
   - Routing: / + 5 module placeholder routes with /* for future nesting

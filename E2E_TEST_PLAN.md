@@ -1,4 +1,4 @@
-# CPC Demo App — End-to-End Visual Test Plan
+# CRETA Demo App — End-to-End Visual Test Plan
 
 This document provides step-by-step instructions for a **full visual browser walkthrough** of all 17 demo scenarios. Give this to a fresh Claude Code session to execute.
 
@@ -362,5 +362,5 @@ Navigate to `http://localhost:5173` in the preview browser. The default role is 
 - **Backend not responding:** Check `http://localhost:8000/health`. Restart with `cd backend && source .venv/bin/activate && python main.py`
 - **Frontend HMR stuck:** Stop and restart the dev server
 - **Stale data after testing:** Reset with `POST /api/admin/reset-demo`
-- **Scenario data lost after actions:** Expected — What-If engine recalculates. Reset DB by deleting `backend/cpc_demo.db` and restarting backend.
+- **Scenario data lost after actions:** Expected — What-If engine recalculates. Reset DB by deleting `backend/creta_demo.db` and restarting backend.
 - **Tab URL sync issue:** If portfolio tabs don't match URL, check that `PortfolioOverview.tsx` has the pathname sync useEffect.

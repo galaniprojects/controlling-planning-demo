@@ -5,8 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine
 
 app = FastAPI(
-    title="CPC Demo API",
-    description="Controlling & Planning Centre — Demo Application",
+    title="CRETA Demo API",
+    description="Controlling, Reporting, Estimation, Tracking & Allocations — Demo Application",
     version="0.1.0",
 )
 

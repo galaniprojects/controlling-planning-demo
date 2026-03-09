@@ -12,7 +12,7 @@
     },
     {
       "title": "CRUD Operations",
-      "body": "For each entity type, you can create new entries, edit existing ones, and deactivate records. **Important:** CPC uses deactivation instead of deletion — deactivated records are hidden from active views but preserved for historical accuracy. Deactivation may cascade (e.g., deactivating a cost center affects its people)."
+      "body": "For each entity type, you can create new entries, edit existing ones, and deactivate records. **Important:** CRETA uses deactivation instead of deletion — deactivated records are hidden from active views but preserved for historical accuracy. Deactivation may cascade (e.g., deactivating a cost center affects its people)."
     },
     {
       "title": "Cost Center Management",

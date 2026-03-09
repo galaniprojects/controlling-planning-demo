@@ -13,7 +13,7 @@ export function TopBar() {
           onClick={() => navigate('/')}
           className="text-lg font-semibold text-blue-800 hover:text-blue-900"
         >
-          CPC
+          CRETA
         </button>
         <Breadcrumb />
       </div>
