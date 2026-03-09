@@ -1,4 +1,4 @@
-# CPC Demo App — Setup Guide
+# CRETA Demo App — Setup Guide
 
 Step-by-step instructions to get the project running from scratch.
 
@@ -69,7 +69,9 @@ Open your browser and go to:
 - **http://localhost:8000/docs** — interactive API documentation (Swagger UI) — 90 endpoints across 8 groups
 - **http://localhost:8000/redoc** — alternative API documentation (ReDoc)
 
-The database file (`cpc_demo.db`) is created automatically on first startup with all demo data pre-loaded.
+The database file (`creta_demo.db`) is created automatically on first startup with all demo data pre-loaded.
+
+> **Upgrading from v1:** If you have an existing `cpc_demo.db`, delete it and restart. The new `creta_demo.db` will be created automatically.
 
 ### 2.6 Test with different personas
 
@@ -111,9 +113,9 @@ It proxies all `/api/*` requests to the backend on port 8000, so **make sure the
 ### 3.3 Verify it's working
 
 Open **http://localhost:5173** in your browser. You should see:
-- The CPC Launchpad with notifications, module tiles, and KPI metrics
+- The CRETA Launchpad with notifications and module tiles
 - A role switcher dropdown (top right) with 4 demo personas
-- Switching roles changes notifications, visible modules, and navigates to the role's default module
+- Switching roles changes notifications and visible modules, and returns to the Launchpad
 
 ---
 
@@ -156,5 +158,5 @@ deactivate
 - Kill it: `kill -9 <PID>` (replace `<PID>` with the process ID from the previous command)
 
 ### Database issues
-- Delete the database file and restart: `rm backend/cpc_demo.db && python main.py`
+- Delete the database file and restart: `rm backend/creta_demo.db && python main.py`
 - Or use the reset endpoint: `curl -X POST http://localhost:8000/api/admin/reset-demo`

@@ -4,6 +4,7 @@ import { ExpandableTreeTable } from '@/components/shared/ExpandableTreeTable';
 import { Skeleton } from '@/components/shared/Skeleton';
 import type { ScenarioProjectState } from '@/types/api';
 import type { TreeTableColumn } from '@/components/shared/ExpandableTreeTable';
+import { formatCurrency, formatCurrencyDelta } from '@/lib/formatters';
 
 interface TreeNode {
   id: string;
@@ -15,15 +16,6 @@ interface TreeNode {
   adjusted_rag: string | null;
   is_affected: boolean;
   children?: TreeNode[];
-}
-
-function formatCurrency(value: number): string {
-  const abs = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  if (abs >= 1_000_000)
-    return `${sign}€${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${sign}€${(abs / 1_000).toFixed(0)}K`;
-  return `${sign}€${abs.toFixed(0)}`;
 }
 
 function RagDot({ rag }: { rag: string | null }) {
@@ -105,8 +97,7 @@ export function ScenarioPortfolioTree({ projectStates, loading, onRowClick }: Pr
             node.budget_delta < 0 ? 'text-green-600' : 'text-red-600';
           return (
             <span className={`text-sm font-medium ${color}`}>
-              {node.budget_delta > 0 ? '+' : ''}
-              {formatCurrency(node.budget_delta)}
+              {formatCurrencyDelta(node.budget_delta)}
             </span>
           );
         },

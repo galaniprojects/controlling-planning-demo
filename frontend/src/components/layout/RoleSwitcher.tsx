@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
-import { MODULE_ROUTES } from '@/lib/routes';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,10 +16,7 @@ export function RoleSwitcher() {
   const handleSwitch = async (roleId: string) => {
     if (roleId === currentRoleId) return;
     await switchRole(roleId);
-    const role = roles.find((r) => r.id === roleId);
-    if (role) {
-      navigate(MODULE_ROUTES[role.default_module] || '/');
-    }
+    navigate('/');
   };
 
   return (

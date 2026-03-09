@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { BookOpen } from 'lucide-react';
 import { useSidePanel } from '@/contexts/SidePanelContext';
 import { docsApi } from '@/api/endpoints';
+import { renderMarkdownBold } from '@/lib/renderMarkdownBold';
 
 interface Props {
   moduleId: string;
@@ -22,7 +23,7 @@ export function ModuleGuideButton({ moduleId }: Props) {
           {manual.sections.map((section, i) => (
             <div key={i} className="space-y-2">
               <h3 className="text-sm font-semibold text-slate-800">{section.title}</h3>
-              <p className="text-sm text-slate-600 whitespace-pre-line">{section.body}</p>
+              <p className="text-sm text-slate-600 whitespace-pre-line">{renderMarkdownBold(section.body)}</p>
             </div>
           ))}
         </div>,

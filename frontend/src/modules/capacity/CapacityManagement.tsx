@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+// TODO (v2 Session 2): Handle ?person= query param for notification deep-links
+//   — auto-select person in heatmap and open drill-down drawer
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';

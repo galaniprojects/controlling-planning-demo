@@ -16,11 +16,22 @@ export function NotificationsList({ notifications }: Props) {
   const handleClick = (n: Notification) => {
     if (!n.deep_link_module) return;
     const route = MODULE_ROUTES[n.deep_link_module] || '/';
-    if (n.deep_link_module === 'workbench' && n.deep_link_entity_id) {
-      navigate(`${route}?project=${n.deep_link_entity_id}`);
-    } else {
-      navigate(route);
+    const eid = n.deep_link_entity_id;
+
+    if (eid) {
+      switch (n.deep_link_module) {
+        case 'workbench':
+          navigate(`${route}?project=${eid}`);
+          return;
+        case 'portfolio':
+          navigate(`/portfolio/intake?project=${eid}`);
+          return;
+        case 'capacity':
+          navigate(`${route}?person=${eid}`);
+          return;
+      }
     }
+    navigate(route);
   };
 
   return (

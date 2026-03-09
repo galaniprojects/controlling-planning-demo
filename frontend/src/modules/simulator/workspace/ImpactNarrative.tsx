@@ -1,18 +1,11 @@
 import { Info } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import type { ScenarioImpactDashboard } from '@/types/api';
+import { formatCurrency } from '@/lib/formatters';
 
 interface Props {
   impact: ScenarioImpactDashboard;
   affectedCount: number;
-}
-
-function formatCurrency(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000)
-    return `€${(value / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `€${(value / 1_000).toFixed(0)}K`;
-  return `€${value.toFixed(0)}`;
 }
 
 function generateNarrative(
@@ -24,8 +17,8 @@ function generateNarrative(
   const delta = impact.total_budget_delta;
   const pct =
     impact.total_budget_original !== 0
-      ? ((delta / impact.total_budget_original) * 100).toFixed(1)
-      : '0.0';
+      ? ((delta / impact.total_budget_original) * 100).toFixed(1).replace('.', ',')
+      : '0,0';
   const direction =
     delta < 0 ? 'reduces' : delta > 0 ? 'increases' : 'maintains';
 

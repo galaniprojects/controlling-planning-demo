@@ -12,6 +12,7 @@ import { MODULE_ROUTES } from '@/lib/routes';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import type { FAQSummary, FAQDetail } from '@/types/api';
+import { renderMarkdownBold } from '@/lib/renderMarkdownBold';
 
 function FAQPanelContent() {
   const { context } = useRole();
@@ -76,7 +77,7 @@ function FAQPanelContent() {
                 {step.step_number}
               </span>
               <div className="space-y-1">
-                <p className="text-sm text-slate-700">{step.instruction.replace(/\*\*(.*?)\*\*/g, '$1')}</p>
+                <p className="text-sm text-slate-700">{renderMarkdownBold(step.instruction)}</p>
                 {step.target_module && (
                   <button
                     onClick={() => handleNavigate(step.target_module!)}

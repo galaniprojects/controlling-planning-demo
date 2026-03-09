@@ -1,8 +1,8 @@
-# CPC Demo App — Claude Code Handoff
+# CRETA Demo App — Claude Code Handoff
 
 ## 1. Project Summary
 
-Build a fully working demo application called CPC (Controlling & Planning Centre) for Knorr-Bremse's IT financial planning transformation. The app replaces a legacy tool called CaPa with a modern planning and reporting system. This is a **demo with realistic mock data** — not connected to any real database. Its purpose is to show stakeholders (controllers, IT directors, executives) what the end-state system can do, securing buy-in and funding.
+Build a fully working demo application called CRETA (Controlling, Reporting, Estimation, Tracking & Allocations) for Knorr-Bremse's IT financial planning transformation. The app replaces a legacy tool called CaPa with a modern planning and reporting system. This is a **demo with realistic mock data** — not connected to any real database. Its purpose is to show stakeholders (controllers, IT directors, executives) what the end-state system can do, securing buy-in and funding.
 
 Success means: a presenter can switch between four roles, walk through 17 distinct demo scenarios (Section 6.15 of the spec), and every screen renders with realistic data — no empty states, no placeholder text, no broken workflows. The app should look and feel like a polished enterprise tool, not a prototype.
 
@@ -37,7 +37,7 @@ The specification file `CPC_Demo_App_Specification.md` is the single source of t
 | Layer | Technology | Version Guidance |
 |-------|-----------|-----------------|
 | **Backend** | FastAPI (Python) | Python 3.12+, FastAPI latest stable |
-| **ORM** | SQLAlchemy | Required — abstracts DB engine for future migration to MariaDB/PostgreSQL. Connection string today: `sqlite:///./cpc_demo.db` |
+| **ORM** | SQLAlchemy | Required — abstracts DB engine for future migration to MariaDB/PostgreSQL. Connection string today: `sqlite:///./creta_demo.db` |
 | **Database** | SQLite | Embedded, single file. No database server. |
 | **Frontend** | React (Vite) | Node 20 LTS, latest Vite |
 | **Component Library** | shadcn/ui (Radix UI + Tailwind CSS) | See Section 9.1 |
@@ -292,7 +292,7 @@ This application is too large for a single Claude Code session. Use the followin
 Maintain a `PROGRESS.md` file in the repository root. Update it at the end of every session with:
 
 ```markdown
-# CPC Demo — Build Progress
+# CRETA Demo — Build Progress
 
 ## Current Status
 Phase: [A/B/C/D/E]
@@ -406,7 +406,7 @@ git commit -m "Initial commit: spec and handoff documents"
 
 Create `PROGRESS.md` with initial state and commit:
 ```bash
-echo "# CPC Demo — Build Progress\n\n## Current Status\nPhase: Not started\nNext up: Phase A — Database schema + seed data" > PROGRESS.md
+echo "# CRETA Demo — Build Progress\n\n## Current Status\nPhase: Not started\nNext up: Phase A — Database schema + seed data" > PROGRESS.md
 git add PROGRESS.md
 git commit -m "Add progress tracking"
 ```

@@ -10,6 +10,12 @@ import {
 import type { ForecastTrajectoryPoint } from '@/types/api';
 import { formatCurrency } from '@/lib/formatters';
 
+// INVESTIGATION (v2 6.3): This chart shows monthly forecast totals (SUM per month),
+// NOT cumulative spend. Backend computes SUM(Forecast.amount_eur) GROUP BY month
+// (portfolio.py:178-186). Only shows forecast line — missing baseline and actuals
+// series. "Numbers don't match" reports likely stem from users comparing monthly
+// totals here with annual/cumulative figures elsewhere. Fix deferred to v2 Session 2.
+
 interface Props {
   data: ForecastTrajectoryPoint[];
 }

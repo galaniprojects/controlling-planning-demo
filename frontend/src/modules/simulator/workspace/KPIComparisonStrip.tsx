@@ -1,17 +1,11 @@
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import type { ScenarioImpactDashboard } from '@/types/api';
+import { formatCurrency } from '@/lib/formatters';
 
 interface Props {
   impact: ScenarioImpactDashboard;
   affectedCount: number;
-}
-
-function formatCurrency(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `€${(value / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `€${(value / 1_000).toFixed(0)}K`;
-  return `€${value.toFixed(0)}`;
 }
 
 function DeltaIndicator({ delta }: { delta: number }) {
@@ -75,8 +69,8 @@ function KPICard({
 export function KPIComparisonStrip({ impact, affectedCount }: Props) {
   const pctChange =
     impact.total_budget_original !== 0
-      ? ((impact.total_budget_delta / impact.total_budget_original) * 100).toFixed(1)
-      : '0.0';
+      ? ((impact.total_budget_delta / impact.total_budget_original) * 100).toFixed(1).replace('.', ',')
+      : '0,0';
 
   const rag = impact.rag_distribution;
 
@@ -91,7 +85,7 @@ export function KPIComparisonStrip({ impact, affectedCount }: Props) {
       <KPICard
         label="Budget Change"
         currentValue="Baseline"
-        scenarioValue={`${Number(pctChange) > 0 ? '+' : ''}${pctChange}%`}
+        scenarioValue={`${Number(pctChange.replace(',', '.')) > 0 ? '+' : ''}${pctChange}%`}
         delta={impact.total_budget_delta}
       />
       <Card className="p-4 space-y-2">
