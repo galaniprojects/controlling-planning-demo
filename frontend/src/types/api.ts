@@ -321,6 +321,10 @@ export interface ForecastMonthCell {
   baseline_amount: number;
   actuals_hours: number;
   actuals_amount: number;
+  // External cost procurement fields (only for category='external')
+  ext_status?: string | null;
+  po_number?: string | null;
+  vendor?: string | null;
 }
 
 export interface ForecastGridRow {
