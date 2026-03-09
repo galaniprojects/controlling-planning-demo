@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v2 Session 2 (complete)
-Last completed: v2 Session 2 — Portfolio Overview Improvements
-Branch: `v2/session-2-portfolio`
+Phase: v2 Session 3 (complete)
+Last completed: v2 Session 3 — Project Workbench Improvements
+Branch: `v2/session-3-workbench`
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -630,6 +630,27 @@ Branch: `v2/session-2-portfolio` (1 commit, 18 files changed, +998/-69)
 ### Known Issues Resolved
 - **CR Routing Bug (6.1)**: FIXED — non-resource CRs now route correctly
 - **Forecast Chart (6.3)**: FIXED — cumulative 3-series chart working
+
+## v2 Session 3 — Project Workbench Improvements
+
+Branch: `v2/session-3-workbench` (8 commits)
+
+### Completed Items
+- [x] **3.5/6.2 — Confirmed CRs in Seed Data**: Audited all 16 approved CRs, fixed 8 that weren't reflected in forecast rows. Updated forecast amounts/hours for CRs 3, 11, 12, 14, 16, 19, 24, 25. Added missing ext-training row for CR 19.
+- [x] **3.2 — External Cost Status Detail**: Added `ext_status`, `po_number`, `vendor` columns to Forecast model. Updated all 1511 forecast rows with procurement statuses (planned/ordered/goods_received/invoiced) based on month vs demo date. Frontend: ExternalCostStatusBadge component, status summary bar, status filter dropdown, vendor/PO tooltips.
+- [x] **3.1 — Actuals Line Fix**: Backend returns null instead of 0 for months without actuals data. Frontend chart uses `connectNulls={false}` so actuals line stops at Jan 2026.
+- [x] **3.3 — Collapsible Yearly View**: New `useCollapsibleYears` hook groups months by year. Current year (2026) expanded by default, other years collapsed into summary columns with yearly totals. Chevron toggle to expand/collapse. Applied to ForecastGrid.
+- [x] **3.4 — Internal Resources Show Euro Values**: Backend looks up hourly rates from rate_table and includes in forecast response. Frontend shows EUR equivalent below hours in forecast grid cells (formatCurrencyDetailed for months, formatCurrency for year summaries).
+- [x] **3.6 — Monthly Review Formatting**: Phase4Review formats values by group type (hours + suffix for resources, full EUR for external costs). Phase3EditForecast shows EUR equivalent below editable hours inputs.
+- [x] **3.6.1 — Future-Only Editing + Collapsed History**: Phase3EditForecast uses useCollapsibleYears hook. Past months (before 2026-02) are read-only with grey background. Older years collapse into summary columns.
+
+### New Files
+- `frontend/src/hooks/useCollapsibleYears.ts` — Reusable hook for year-based column grouping
+- `frontend/src/modules/workbench/forecast/ExternalCostStatusBadge.tsx` — Color-coded procurement status badge
+
+### Files Changed
+- **Backend (3 modified)**: `models/financial.py`, `routers/workbench.py`, `seed/seed.sql`
+- **Frontend (4 modified)**: `types/api.ts`, `ForecastGrid.tsx`, `Phase3EditForecast.tsx`, `Phase4Review.tsx`, `ProjectTrajectoryChart.tsx`
 
 ## Known Issues
 None currently tracked.
