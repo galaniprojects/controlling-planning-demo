@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v2 Session 4 (complete)
-Last completed: v2 Session 4 — What-If Simulator Enhancements
-Branch: `v2/session-4-whatif`
+Phase: v2 Session 5 (complete) — ALL v2 SESSIONS DONE
+Last completed: v2 Session 5B — Reporting Module Completion
+Branch: `v2/session-5-reporting`
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -680,6 +680,68 @@ Branch: `v2/session-4-whatif`
 ### Files Changed
 - **Backend (3 modified)**: `services/scenario_engine.py` (full rewrite), `routers/scenarios.py` (1-line fix), `seed/fixtures/advisor/goals.json` (rule_type→action_type)
 - **Frontend (3 modified)**: `api/endpoints.ts` (getCostTypes), `modules/simulator/workspace/AddActionForm.tsx` (full rewrite), `modules/simulator/workspace/ActionItem.tsx` (new icons + descriptions)
+
+## v2 Session 5A — Reporting Module Backend + First 3 Reports
+
+Branch: `v2/session-5-reporting`
+
+### Completed Items (Backend)
+- [x] **5.1 — Reporting Models**: Created `SavedView` and `ReportSchedule` SQLAlchemy models with JSON config column
+- [x] **5.2 — Seed Data**: Added reporting seed data to seed.sql (no pre-seeded saved views — created at runtime)
+- [x] **5.3.1 — Programme Rollup API**: `GET /api/reports/programme-rollup` with LoB/status/RAG/type filters, KPIs, chart_data, grouped rows
+- [x] **5.3.2 — CC Financial Summary API**: `GET /api/reports/cc-financial-summary` with cost_center/type filters, KPIs, pie/trend chart data
+- [x] **5.3.3 — Vendor Spend API**: `GET /api/reports/vendor-spend` with vendor/lob/status filters, KPIs, bar chart data, drill-down endpoint
+- [x] **5.3.4 — Forecast Accuracy API**: `GET /api/reports/forecast-accuracy` with lob/type/horizon filters, accuracy KPIs, scatter chart data
+- [x] **5.3.5 — Year-over-Year API**: `GET /api/reports/year-over-year` with lob/cost_type filters, YTD comparison KPIs, monthly + cumulative chart data
+- [x] **5.5 — Excel Export**: `GET /api/reports/{report_id}/export` returns XLSX via openpyxl with styled headers, formatted data, auto-column widths
+- [x] **5.6 — Saved Views CRUD API**: Full CRUD for saved views (`GET/POST /api/reports/saved-views`, `PUT/DELETE /api/reports/saved-views/{id}`)
+
+### Completed Items (Frontend — Session 5A)
+- [x] **Reporting Shell**: Route `/reporting` with `ReportLibrary` (5 report cards) and `ReportViewerWrapper` (dynamic report loader)
+- [x] **ReportViewer**: Reusable report shell with back link, title, toolbar (Customize/Save View/Export), FilterBar, KPI row, Chart/Table toggle
+- [x] **Programme Rollup Report**: Full report with LoB grouping, RAG badges, 5 KPIs, stacked bar chart
+- [x] **CC Financial Summary Report**: Full report with cost center filter (auto-set for CC Owner role), pie + trend charts
+- [x] **Vendor Spend Report**: Full report with expandable vendor drill-down, procurement status badges, bar chart
+
+## v2 Session 5B — Reporting Module Completion
+
+Branch: `v2/session-5-reporting` (continued)
+
+### Completed Items
+- [x] **5.3.4 — Forecast Accuracy Report (frontend)**: Table with project/LoB/forecast/actual/variance columns, scatter plot chart (ComposedChart with Scatter grouped by LoB + Line for diagonal perfect-accuracy reference), rating badges (green/amber/red), configurable columns + sort
+- [x] **5.3.5 — Year-over-Year Report (frontend)**: Dual-series line chart with Cumulative/Monthly toggle, 7-column table with delta coloring, FY comparison KPIs, configurable columns + sort
+- [x] **5.4 — Report Configurator**: Right-side Sheet drawer with column visibility checkboxes and sort order dropdowns. Available on Forecast Accuracy and YoY reports (reports with flat tables)
+- [x] **5.5 — Excel Export (frontend)**: Export button on all 5 reports. Uses fetch() with X-Current-User header, blob download with Content-Disposition filename extraction
+- [x] **5.6 — Saved Views (frontend)**: Save View dialog on all 5 reports. SavedViewCard in library with click-to-navigate, rename dialog, delete. Reports load saved config from `?view=ID` query param
+- [x] **Bug fixes**: Fixed React Rules of Hooks violation (useMemo after early return), fixed Radix UI SelectItem empty-value crash in ReportConfigurator
+
+### New Files Created (Session 5B)
+| File | Purpose |
+|------|---------|
+| `components/ui/sheet.tsx` | shadcn Sheet (CLI install) |
+| `reports/ForecastAccuracyReport.tsx` | Forecast accuracy report with configurable columns |
+| `reports/ForecastAccuracyChart.tsx` | Scatter plot chart (ComposedChart) |
+| `reports/YoYReport.tsx` | Year-over-year report with configurable columns |
+| `reports/YoYChart.tsx` | Dual-series line chart |
+| `viewer/ReportConfigurator.tsx` | Right-side Sheet drawer for column/sort config |
+
+### Files Modified (Session 5B)
+| File | Changes |
+|------|---------|
+| `viewer/ReportViewer.tsx` | Added reportId, export handler, configurator + save view props |
+| `viewer/ReportViewerWrapper.tsx` | Added ForecastAccuracy + YoY report routing |
+| `library/ReportLibrary.tsx` | Fetch + display saved views with rename/delete |
+| `library/SavedViewCard.tsx` | Saved view card with navigation + menu |
+| `viewer/SaveViewDialog.tsx` | Save view name dialog |
+| `reports/ProgrammeRollupReport.tsx` | Added reportId, onSaveView, saved view loading |
+| `reports/CCFinancialReport.tsx` | Added reportId, onSaveView, saved view loading |
+| `reports/VendorSpendReport.tsx` | Added reportId, onSaveView, saved view loading |
+
+### Reporting Module Summary
+- **5 standard reports**: Programme Rollup, CC Financial Summary, Vendor Spend, Forecast Accuracy, Year-over-Year
+- **12 backend endpoints**: 5 report data + 1 drill-down + 1 export + 5 saved view CRUD
+- **Toolbar features**: Customize (column visibility + sort), Save View, Excel Export
+- **Saved views**: Full CRUD with library display, click-to-load, rename, delete
 
 ## Known Issues
 None currently tracked.

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
 import { reportsApi, referenceApi } from '@/api/endpoints';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -18,6 +19,7 @@ const TYPE_OPTIONS = [
 
 export function CCFinancialReport() {
   const { currentRoleId, context } = useRole();
+  const [searchParams] = useSearchParams();
   const role = context?.role ?? '';
   const [data, setData] = useState<CCFinancialResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,6 +42,18 @@ export function CCFinancialReport() {
   useEffect(() => {
     referenceApi.getCostCenters().then((r) => setCostCenters(r.items)).catch(() => {});
   }, []);
+
+  // Load saved view config if ?view=ID
+  useEffect(() => {
+    const viewId = searchParams.get('view');
+    if (!viewId) return;
+    reportsApi.getSavedViews().then((r) => {
+      const sv = r.items.find((v) => v.id === Number(viewId));
+      if (!sv) return;
+      if (sv.config.filters) setFilters((f) => ({ ...f, ...sv.config.filters }));
+      if (sv.config.viz_type === 'chart' || sv.config.viz_type === 'table') setView(sv.config.viz_type);
+    }).catch(() => {});
+  }, [searchParams]);
 
   const fetchData = useCallback(() => {
     setLoading(true);
@@ -176,9 +190,25 @@ export function CCFinancialReport() {
     </div>
   );
 
+  const handleSaveView = (name: string) => {
+    reportsApi.createSavedView({
+      report_id: 'cc-financial-summary',
+      name,
+      config: {
+        filters,
+        columns: [],
+        grouping: '',
+        sort_column: '',
+        sort_direction: 'asc',
+        viz_type: view,
+      },
+    }).catch(() => {});
+  };
+
   return (
     <ReportViewer
       title="Cost Center Financial Summary"
+      reportId="cc-financial-summary"
       filters={filterConfigs}
       filterValues={filters}
       onFilterChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
@@ -188,6 +218,7 @@ export function CCFinancialReport() {
       onViewChange={setView}
       chartContent={<CCFinancialCharts pie={chart_data.pie} trend={chart_data.trend} />}
       tableContent={tableContent}
+      onSaveView={handleSaveView}
     />
   );
 }

@@ -1,5 +1,9 @@
+import { useEffect, useState } from 'react';
 import { BarChart3, Building2, Truck, Target, CalendarRange } from 'lucide-react';
 import { ReportCard } from './ReportCard';
+import { SavedViewCard } from './SavedViewCard';
+import { reportsApi } from '@/api/endpoints';
+import type { SavedViewItem } from '@/types/api';
 
 const REPORTS = [
   {
@@ -35,6 +39,32 @@ const REPORTS = [
 ];
 
 export function ReportLibrary() {
+  const [savedViews, setSavedViews] = useState<SavedViewItem[]>([]);
+
+  useEffect(() => {
+    reportsApi.getSavedViews().then((r) => setSavedViews(r.items)).catch(() => {});
+  }, []);
+
+  const handleRename = async (id: number, name: string) => {
+    try {
+      await reportsApi.updateSavedView(id, { name });
+      setSavedViews((views) =>
+        views.map((v) => (v.id === id ? { ...v, name, modified_at: new Date().toISOString() } : v)),
+      );
+    } catch {
+      // silent fail for demo
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await reportsApi.deleteSavedView(id);
+      setSavedViews((views) => views.filter((v) => v.id !== id));
+    } catch {
+      // silent fail for demo
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -54,11 +84,24 @@ export function ReportLibrary() {
 
       <div>
         <h2 className="text-sm font-medium text-slate-600 mb-3">My Saved Views</h2>
-        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-          <p className="text-sm text-slate-400">
-            No saved views yet. Open a report and click "Save View" to save your filter configuration.
-          </p>
-        </div>
+        {savedViews.length > 0 ? (
+          <div className="grid grid-cols-3 gap-4">
+            {savedViews.map((v) => (
+              <SavedViewCard
+                key={v.id}
+                view={v}
+                onRename={handleRename}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+            <p className="text-sm text-slate-400">
+              No saved views yet. Open a report and click "Save View" to save your filter configuration.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
