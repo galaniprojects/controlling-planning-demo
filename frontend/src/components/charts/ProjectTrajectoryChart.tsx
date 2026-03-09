@@ -70,6 +70,7 @@ export function ProjectTrajectoryChart({ data, height = 240 }: Props) {
           strokeWidth={2}
           dot={false}
           activeDot={{ r: 4 }}
+          connectNulls={false}
         />
       </LineChart>
     </ResponsiveContainer>

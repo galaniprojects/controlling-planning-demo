@@ -42,6 +42,10 @@ class Forecast(Base):
     sub_category: Mapped[str] = mapped_column(String(50), nullable=False)
     hours: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     amount_eur: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    # External cost procurement tracking (nullable — only for category='external')
+    ext_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    po_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    vendor: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
 
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="forecasts")

@@ -10,8 +10,25 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatCurrencyDetailed } from '@/lib/formatters';
 import type { ReviewGroup } from '@/types/api';
+
+/** Format a review item value based on group type */
+function formatReviewValue(value: number, groupType: string): string {
+  if (groupType === 'resource') {
+    return `${value.toLocaleString()} hrs`;
+  }
+  return formatCurrencyDetailed(value);
+}
+
+/** Format delta based on group type */
+function formatReviewDelta(value: number, groupType: string): string {
+  const sign = value > 0 ? '+' : '';
+  if (groupType === 'resource') {
+    return `${sign}${value.toLocaleString()} hrs`;
+  }
+  return `${sign}${formatCurrencyDetailed(value)}`;
+}
 import { Sparkles } from 'lucide-react';
 
 interface Props {
@@ -106,14 +123,13 @@ export function Phase4Review({
                       </TableCell>
                       <TableCell className="text-sm">{item.month}</TableCell>
                       <TableCell className="text-right text-sm">
-                        {item.old_value.toLocaleString()}
+                        {formatReviewValue(item.old_value, group.type)}
                       </TableCell>
                       <TableCell className="text-right text-sm font-medium">
-                        {item.new_value.toLocaleString()}
+                        {formatReviewValue(item.new_value, group.type)}
                       </TableCell>
                       <TableCell className="text-right text-sm">
-                        {item.delta > 0 ? '+' : ''}
-                        {item.delta.toLocaleString()}
+                        {formatReviewDelta(item.delta, group.type)}
                       </TableCell>
                       <TableCell>
                         {item.suggestion_id != null && (

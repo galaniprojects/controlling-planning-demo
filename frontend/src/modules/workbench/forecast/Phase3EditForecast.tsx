@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -10,10 +10,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatCurrencyDetailed } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { workbenchApi } from '@/api/endpoints';
-import type { ForecastGridRow, ForecastChange, SuggestionItem } from '@/types/api';
+import type { ForecastGridRow, ForecastChange, ForecastMonthCell, SuggestionItem } from '@/types/api';
+import { useCollapsibleYears } from '@/hooks/useCollapsibleYears';
+import { ChevronRight } from 'lucide-react';
+
+const DEMO_DATE = '2026-02';
 
 interface Props {
   projectId: string;
@@ -67,23 +71,43 @@ export function Phase3EditForecast({
       .finally(() => setGridLoading(false));
   }, [projectId]);
 
-  if (gridLoading) {
-    return (
-      <div className="space-y-2">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-48 w-full" />
-      </div>
-    );
-  }
+  const allMonths = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.flatMap((r) => r.months.map((m) => m.month))),
+      ).sort(),
+    [rows],
+  );
 
-  const allMonths = Array.from(
-    new Set(rows.flatMap((r) => r.months.map((m) => m.month))),
-  ).sort();
+  // For Phase3, expand the current year and the year with recent past months
+  const currentYear = parseInt(DEMO_DATE.slice(0, 4), 10);
+  const yearsWithRecentPast = useMemo(() => {
+    const years = new Set<number>();
+    years.add(currentYear);
+    // Also expand the previous year if it has months within 4 months before demo date
+    const prevYear = currentYear - 1;
+    const fourMonthsAgo = `${prevYear}-${String(parseInt(DEMO_DATE.slice(5, 7), 10) + 12 - 4).padStart(2, '0')}`;
+    if (allMonths.some((m) => m.startsWith(String(prevYear)) && m >= fourMonthsAgo)) {
+      years.add(prevYear);
+    }
+    return Array.from(years);
+  }, [allMonths, currentYear]);
 
-  const internalRows = rows.filter((r) => r.category === 'internal');
-  const externalRows = rows.filter((r) => r.category === 'external');
+  const { columns, toggleYear } = useCollapsibleYears({
+    allMonths,
+    currentMonth: DEMO_DATE,
+    defaultExpandedYears: yearsWithRecentPast,
+  });
 
-  // Helper to get working value for a cell
+  const internalRows = useMemo(
+    () => rows.filter((r) => r.category === 'internal'),
+    [rows],
+  );
+  const externalRows = useMemo(
+    () => rows.filter((r) => r.category === 'external'),
+    [rows],
+  );
+
   const getWorkingValue = (subCategory: string, month: string) => {
     return workingChanges.find(
       (c) => c.sub_category === subCategory && c.month === month,
@@ -91,6 +115,8 @@ export function Phase3EditForecast({
   };
 
   const totalDelta = workingChanges.reduce((sum, c) => sum + c.delta, 0);
+
+  const isEditable = (month: string) => month >= DEMO_DATE;
 
   const handleCellEdit = (
     category: string,
@@ -127,11 +153,12 @@ export function Phase3EditForecast({
     const change = getWorkingValue(row.sub_category, month);
     const displayValue = change ? change.new_value : originalValue;
     const cellKey = `${row.sub_category}:${month}`;
+    const canEdit = isEditable(month);
     const isEditing = editingCell === cellKey;
     const isSuggested = change?.suggestion_id != null;
     const isChanged = change != null;
 
-    if (isEditing) {
+    if (isEditing && canEdit) {
       return (
         <Input
           type="number"
@@ -163,22 +190,98 @@ export function Phase3EditForecast({
       );
     }
 
+    const rate = isInternal ? row.hourly_rate : undefined;
+
+    if (!canEdit) {
+      // Read-only past cell
+      return (
+        <div className="bg-slate-50 rounded px-1.5 py-0.5">
+          <span className="text-sm text-slate-500">
+            {isInternal
+              ? `${displayValue.toLocaleString()} hrs`
+              : formatCurrency(displayValue)}
+          </span>
+          {isInternal && rate && (
+            <span className="block text-[10px] text-slate-300">
+              {formatCurrencyDetailed(displayValue * rate)}
+            </span>
+          )}
+        </div>
+      );
+    }
+
     return (
-      <button
-        className={cn(
-          'text-sm font-medium cursor-pointer px-1.5 py-0.5 rounded transition-colors w-full text-right',
-          isSuggested && 'bg-blue-50 text-blue-700',
-          isChanged && !isSuggested && 'bg-yellow-50 text-yellow-700',
-          !isChanged && 'hover:bg-slate-100',
+      <div>
+        <button
+          className={cn(
+            'text-sm font-medium cursor-pointer px-1.5 py-0.5 rounded transition-colors w-full text-right',
+            isSuggested && 'bg-blue-50 text-blue-700',
+            isChanged && !isSuggested && 'bg-yellow-50 text-yellow-700',
+            !isChanged && 'hover:bg-slate-100',
+          )}
+          onClick={() => setEditingCell(cellKey)}
+        >
+          {isInternal
+            ? `${displayValue.toLocaleString()} hrs`
+            : formatCurrency(displayValue)}
+        </button>
+        {isInternal && rate && (
+          <span className="block text-[10px] text-slate-400 text-right pr-1.5">
+            {formatCurrencyDetailed(displayValue * rate)}
+          </span>
         )}
-        onClick={() => setEditingCell(cellKey)}
-      >
-        {isInternal
-          ? displayValue.toLocaleString()
-          : formatCurrency(displayValue)}
-      </button>
+      </div>
     );
   };
+
+  /** Render a year summary cell (collapsed year column) */
+  const renderYearSummary = (
+    category: string,
+    row: ForecastGridRow,
+    months: string[],
+  ) => {
+    const isInternal = category === 'internal';
+    const cells = months
+      .map((m) => row.months.find((c) => c.month === m))
+      .filter(Boolean) as ForecastMonthCell[];
+    if (cells.length === 0) return <span className="text-slate-300">—</span>;
+
+    const total = isInternal
+      ? cells.reduce((s, c) => s + c.forecast_hours, 0)
+      : cells.reduce((s, c) => s + c.forecast_amount, 0);
+    const rate = isInternal ? row.hourly_rate : undefined;
+
+    return (
+      <div className="bg-slate-50 rounded px-1.5 py-0.5">
+        <span className="text-sm text-slate-500">
+          {isInternal ? `${total.toLocaleString()} hrs` : formatCurrency(total)}
+        </span>
+        {isInternal && rate && (
+          <span className="block text-[10px] text-slate-300">
+            {formatCurrency(total * rate)}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  /** Format month label */
+  const formatMonth = (m: string): string => {
+    const [y, mo] = m.split('-');
+    const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${names[parseInt(mo, 10) - 1]} ${y.slice(2)}`;
+  };
+
+  if (gridLoading) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
+
+  const colCount = columns.length + 1;
 
   return (
     <div className="space-y-4">
@@ -187,21 +290,41 @@ export function Phase3EditForecast({
           Phase 3: Edit Forecast
         </h3>
         <p className="text-sm text-slate-500 mt-1">
-          Click any cell to edit. Blue cells are from applied suggestions,
-          yellow cells are manual changes.
+          Click any cell to edit future months. Past months are read-only (greyed out).
+          Blue cells are from applied suggestions, yellow cells are manual changes.
         </p>
       </div>
 
-      <div className="border border-slate-200 rounded-lg overflow-x-auto">
+      <div className="border border-slate-200 rounded-lg overflow-x-auto max-w-full">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50">
-              <TableHead className="sticky left-0 bg-slate-50 min-w-[180px]">
+              <TableHead className="sticky left-0 bg-slate-50 min-w-[180px] z-10">
                 Line Item
               </TableHead>
-              {allMonths.map((m) => (
-                <TableHead key={m} className="text-right min-w-[90px]">
-                  {m}
+              {columns.map((col) => (
+                <TableHead
+                  key={col.key}
+                  className={cn(
+                    'text-right min-w-[90px]',
+                    col.type === 'year' && 'cursor-pointer select-none hover:bg-slate-100',
+                    col.type === 'month' && !isEditable(col.month) && 'bg-slate-100/50',
+                  )}
+                  onClick={col.type === 'year' ? () => toggleYear(col.year) : undefined}
+                >
+                  {col.type === 'month' ? (
+                    <span>
+                      {formatMonth(col.month)}
+                      {!isEditable(col.month) && (
+                        <span className="block text-[9px] text-slate-400">read-only</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-end gap-1">
+                      <ChevronRight className="h-3 w-3" />
+                      {col.year}
+                    </span>
+                  )}
                 </TableHead>
               ))}
             </TableRow>
@@ -211,7 +334,7 @@ export function Phase3EditForecast({
               <>
                 <TableRow className="bg-slate-50/50">
                   <TableCell
-                    colSpan={allMonths.length + 1}
+                    colSpan={colCount}
                     className="font-medium text-xs text-slate-500 uppercase tracking-wide"
                   >
                     Internal Resources (Hours)
@@ -219,12 +342,14 @@ export function Phase3EditForecast({
                 </TableRow>
                 {internalRows.map((row) => (
                   <TableRow key={row.sub_category}>
-                    <TableCell className="sticky left-0 bg-white font-medium text-sm">
+                    <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
                       {row.sub_category_name}
                     </TableCell>
-                    {allMonths.map((m) => (
-                      <TableCell key={m} className="p-1">
-                        {renderEditableCell('internal', row, m)}
+                    {columns.map((col) => (
+                      <TableCell key={col.key} className="p-1">
+                        {col.type === 'month'
+                          ? renderEditableCell('internal', row, col.month)
+                          : renderYearSummary('internal', row, col.months)}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -236,7 +361,7 @@ export function Phase3EditForecast({
               <>
                 <TableRow className="bg-slate-50/50">
                   <TableCell
-                    colSpan={allMonths.length + 1}
+                    colSpan={colCount}
                     className="font-medium text-xs text-slate-500 uppercase tracking-wide"
                   >
                     External Costs (EUR)
@@ -244,12 +369,14 @@ export function Phase3EditForecast({
                 </TableRow>
                 {externalRows.map((row) => (
                   <TableRow key={row.sub_category}>
-                    <TableCell className="sticky left-0 bg-white font-medium text-sm">
+                    <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
                       {row.sub_category_name}
                     </TableCell>
-                    {allMonths.map((m) => (
-                      <TableCell key={m} className="p-1">
-                        {renderEditableCell('external', row, m)}
+                    {columns.map((col) => (
+                      <TableCell key={col.key} className="p-1">
+                        {col.type === 'month'
+                          ? renderEditableCell('external', row, col.month)
+                          : renderYearSummary('external', row, col.months)}
                       </TableCell>
                     ))}
                   </TableRow>

@@ -296,7 +296,7 @@ export interface TrajectoryPoint {
   month: string;
   baseline: number;
   forecast: number;
-  actuals: number;
+  actuals: number | null;
 }
 
 export interface ResourcePlanSummaryItem {
@@ -321,6 +321,10 @@ export interface ForecastMonthCell {
   baseline_amount: number;
   actuals_hours: number;
   actuals_amount: number;
+  // External cost procurement fields (only for category='external')
+  ext_status?: string | null;
+  po_number?: string | null;
+  vendor?: string | null;
 }
 
 export interface ForecastGridRow {
@@ -328,6 +332,7 @@ export interface ForecastGridRow {
   sub_category: string;
   sub_category_name: string;
   months: ForecastMonthCell[];
+  hourly_rate?: number | null; // Internal rows only
 }
 
 export interface RetrospectiveItem {
