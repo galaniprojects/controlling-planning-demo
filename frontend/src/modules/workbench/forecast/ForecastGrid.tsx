@@ -29,6 +29,8 @@ import {
   STATUS_SUMMARY_ORDER,
   getStatusLabel,
 } from './ExternalCostStatusBadge';
+import { useCollapsibleYears, type Column } from '@/hooks/useCollapsibleYears';
+import { ChevronRight, ChevronDown } from 'lucide-react';
 
 interface Props {
   projectId: string;
@@ -57,6 +59,10 @@ export function ForecastGrid({ projectId }: Props) {
       ).sort(),
     [rows],
   );
+
+  const { columns, expandedYears, toggleYear } = useCollapsibleYears({
+    allMonths,
+  });
 
   const internalRows = useMemo(
     () => rows.filter((r) => r.category === 'internal'),
@@ -116,6 +122,8 @@ export function ForecastGrid({ projectId }: Props) {
     return <p className="text-sm text-slate-400">No forecast data available.</p>;
   }
 
+  const colCount = columns.length + 1; // +1 for sticky label column
+
   return (
     <div className="space-y-3">
       {/* External cost status summary bar */}
@@ -142,27 +150,39 @@ export function ForecastGrid({ projectId }: Props) {
         </div>
       )}
 
-      <div className="border border-slate-200 rounded-lg overflow-x-auto">
+      <div className="border border-slate-200 rounded-lg overflow-x-auto max-w-full">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50">
               <TableHead className="sticky left-0 bg-slate-50 min-w-[180px] z-10">
                 Line Item
               </TableHead>
-              {allMonths.map((m) => (
-                <TableHead key={m} className="text-right min-w-[100px]">
-                  {m}
+              {columns.map((col) => (
+                <TableHead
+                  key={col.key}
+                  className={`text-right min-w-[100px] ${col.type === 'year' ? 'cursor-pointer select-none hover:bg-slate-100' : ''}`}
+                  onClick={col.type === 'year' ? () => toggleYear(col.year) : undefined}
+                >
+                  {col.type === 'month' ? (
+                    formatMonth(col.month)
+                  ) : (
+                    <span className="flex items-center justify-end gap-1">
+                      <ChevronRight className="h-3 w-3" />
+                      {col.year}
+                    </span>
+                  )}
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
+            {/* Expanded year sub-headers (chevron to collapse) */}
             {/* Internal Resources group */}
             {internalRows.length > 0 && (
               <>
                 <TableRow className="bg-slate-50/50">
                   <TableCell
-                    colSpan={allMonths.length + 1}
+                    colSpan={colCount}
                     className="font-medium text-xs text-slate-500 uppercase tracking-wide"
                   >
                     Internal Resources (Hours)
@@ -173,30 +193,15 @@ export function ForecastGrid({ projectId }: Props) {
                     <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
                       {row.sub_category_name}
                     </TableCell>
-                    {allMonths.map((m) => {
-                      const cell = row.months.find((c) => c.month === m);
-                      return (
-                        <TableCell key={m} className="text-right">
-                          {cell ? (
-                            <div>
-                              <span className="text-sm font-medium">
-                                {cell.forecast_hours.toLocaleString()}
-                              </span>
-                              <span className="block text-[10px] text-slate-400">
-                                BL: {cell.baseline_hours.toLocaleString()}
-                              </span>
-                              {cell.actuals_hours > 0 && (
-                                <span className="block text-[10px] text-slate-400">
-                                  Act: {cell.actuals_hours.toLocaleString()}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-slate-300">—</span>
-                          )}
-                        </TableCell>
-                      );
-                    })}
+                    {columns.map((col) => (
+                      <TableCell key={col.key} className="text-right">
+                        {col.type === 'month' ? (
+                          <InternalMonthCell row={row} month={col.month} />
+                        ) : (
+                          <InternalYearCell row={row} months={col.months} />
+                        )}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 ))}
               </>
@@ -207,7 +212,7 @@ export function ForecastGrid({ projectId }: Props) {
               <>
                 <TableRow className="bg-slate-50/50">
                   <TableCell
-                    colSpan={allMonths.length + 1}
+                    colSpan={colCount}
                     className="font-medium text-xs text-slate-500 uppercase tracking-wide"
                   >
                     <div className="flex items-center justify-between">
@@ -238,18 +243,15 @@ export function ForecastGrid({ projectId }: Props) {
                     <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
                       {row.sub_category_name}
                     </TableCell>
-                    {allMonths.map((m) => {
-                      const cell = row.months.find((c) => c.month === m);
-                      return (
-                        <TableCell key={m} className="text-right">
-                          {cell ? (
-                            <ExternalCostCell cell={cell} />
-                          ) : (
-                            <span className="text-slate-300">—</span>
-                          )}
-                        </TableCell>
-                      );
-                    })}
+                    {columns.map((col) => (
+                      <TableCell key={col.key} className="text-right">
+                        {col.type === 'month' ? (
+                          <ExternalMonthCell row={row} month={col.month} />
+                        ) : (
+                          <ExternalYearCell row={row} months={col.months} />
+                        )}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 ))}
               </>
@@ -261,8 +263,55 @@ export function ForecastGrid({ projectId }: Props) {
   );
 }
 
-/** External cost cell with status badge and vendor tooltip */
-function ExternalCostCell({ cell }: { cell: ForecastMonthCell }) {
+/** Format YYYY-MM as short label, e.g. "Jan 26" */
+function formatMonth(m: string): string {
+  const [y, mo] = m.split('-');
+  const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${names[parseInt(mo, 10) - 1]} ${y.slice(2)}`;
+}
+
+/** Internal resource: single month cell */
+function InternalMonthCell({ row, month }: { row: ForecastGridRow; month: string }) {
+  const cell = row.months.find((c) => c.month === month);
+  if (!cell) return <span className="text-slate-300">—</span>;
+  return (
+    <div>
+      <span className="text-sm font-medium">
+        {cell.forecast_hours.toLocaleString()}
+      </span>
+      <span className="block text-[10px] text-slate-400">
+        BL: {cell.baseline_hours.toLocaleString()}
+      </span>
+      {cell.actuals_hours > 0 && (
+        <span className="block text-[10px] text-slate-400">
+          Act: {cell.actuals_hours.toLocaleString()}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Internal resource: year summary cell (sum of hours) */
+function InternalYearCell({ row, months }: { row: ForecastGridRow; months: string[] }) {
+  const cells = months.map((m) => row.months.find((c) => c.month === m)).filter(Boolean) as ForecastMonthCell[];
+  if (cells.length === 0) return <span className="text-slate-300">—</span>;
+  const totalHours = cells.reduce((sum, c) => sum + c.forecast_hours, 0);
+  const totalBL = cells.reduce((sum, c) => sum + c.baseline_hours, 0);
+  return (
+    <div>
+      <span className="text-sm font-medium">{totalHours.toLocaleString()}</span>
+      <span className="block text-[10px] text-slate-400">
+        BL: {totalBL.toLocaleString()}
+      </span>
+    </div>
+  );
+}
+
+/** External cost: single month cell with status badge */
+function ExternalMonthCell({ row, month }: { row: ForecastGridRow; month: string }) {
+  const cell = row.months.find((c) => c.month === month);
+  if (!cell) return <span className="text-slate-300">—</span>;
+
   const content = (
     <div>
       <span className="text-sm font-medium">
@@ -284,7 +333,6 @@ function ExternalCostCell({ cell }: { cell: ForecastMonthCell }) {
     </div>
   );
 
-  // Show tooltip with vendor/PO info if available
   if (cell.vendor || cell.po_number) {
     return (
       <TooltipProvider>
@@ -302,4 +350,20 @@ function ExternalCostCell({ cell }: { cell: ForecastMonthCell }) {
   }
 
   return content;
+}
+
+/** External cost: year summary cell (sum of amounts) */
+function ExternalYearCell({ row, months }: { row: ForecastGridRow; months: string[] }) {
+  const cells = months.map((m) => row.months.find((c) => c.month === m)).filter(Boolean) as ForecastMonthCell[];
+  if (cells.length === 0) return <span className="text-slate-300">—</span>;
+  const totalAmount = cells.reduce((sum, c) => sum + c.forecast_amount, 0);
+  const totalBL = cells.reduce((sum, c) => sum + c.baseline_amount, 0);
+  return (
+    <div>
+      <span className="text-sm font-medium">{formatCurrency(totalAmount)}</span>
+      <span className="block text-[10px] text-slate-400">
+        BL: {formatCurrency(totalBL)}
+      </span>
+    </div>
+  );
 }
