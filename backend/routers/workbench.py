@@ -86,7 +86,7 @@ def get_project_overview(
     ac_map = {r.month: round(float(r.total), 2) for r in actuals_rows}
     all_months = sorted(set(bl_map) | set(fc_map) | set(ac_map))
     trajectory = [
-        {"month": m, "baseline": bl_map.get(m, 0), "forecast": fc_map.get(m, 0), "actuals": ac_map.get(m, 0)}
+        {"month": m, "baseline": bl_map.get(m, 0), "forecast": fc_map.get(m, 0), "actuals": ac_map.get(m) if m in ac_map else None}
         for m in all_months
     ]
 

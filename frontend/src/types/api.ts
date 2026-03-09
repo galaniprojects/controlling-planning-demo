@@ -296,7 +296,7 @@ export interface TrajectoryPoint {
   month: string;
   baseline: number;
   forecast: number;
-  actuals: number;
+  actuals: number | null;
 }
 
 export interface ResourcePlanSummaryItem {
