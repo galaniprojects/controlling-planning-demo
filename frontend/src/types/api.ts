@@ -336,7 +336,7 @@ export interface ProjectOverview {
   metadata: ProjectMetadata;
   three_point_comparison: ThreePointComparison;
   trajectory_chart: TrajectoryPoint[];
-  capex_opex: { type: string };
+  capex_opex: { type: string; capex_amount?: number; opex_amount?: number; capex_pct?: number; opex_pct?: number };
   resource_plan_summary: ResourcePlanSummaryItem[];
 }
 
@@ -358,6 +358,7 @@ export interface ForecastGridRow {
   category: string;
   sub_category: string;
   sub_category_name: string;
+  capex_opex?: string | null;
   months: ForecastMonthCell[];
   hourly_rate?: number | null; // Internal rows only
 }

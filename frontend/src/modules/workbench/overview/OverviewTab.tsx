@@ -52,7 +52,13 @@ export function OverviewTab({ projectId }: Props) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <CapexOpexDisplay type={data.capex_opex.type} />
+        <CapexOpexDisplay
+          type={data.capex_opex.type}
+          capexAmount={data.capex_opex.capex_amount}
+          opexAmount={data.capex_opex.opex_amount}
+          capexPct={data.capex_opex.capex_pct}
+          opexPct={data.capex_opex.opex_pct}
+        />
         <ResourceSummaryTable items={data.resource_plan_summary} />
       </div>
     </div>

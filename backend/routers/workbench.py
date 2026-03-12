@@ -90,8 +90,33 @@ def get_project_overview(
         for m in all_months
     ]
 
-    # CapEx/OpEx
-    capex_opex = {"type": project.capex_opex}
+    # CapEx/OpEx — aggregate from line items
+    capex_rows = (
+        db.query(
+            Forecast.capex_opex,
+            func.sum(Forecast.amount_eur).label("total"),
+        )
+        .filter(Forecast.project_id == project_id, Forecast.capex_opex.isnot(None))
+        .group_by(Forecast.capex_opex)
+        .all()
+    )
+    capex_totals = {r.capex_opex: round(float(r.total), 2) for r in capex_rows}
+    capex_amt = capex_totals.get("capex", 0)
+    opex_amt = capex_totals.get("opex", 0)
+    total_co = capex_amt + opex_amt
+    if capex_amt > 0 and opex_amt > 0:
+        co_type = "mixed"
+    elif opex_amt > 0:
+        co_type = "opex"
+    else:
+        co_type = "capex"
+    capex_opex = {
+        "type": co_type,
+        "capex_amount": capex_amt,
+        "opex_amount": opex_amt,
+        "capex_pct": round((capex_amt / total_co) * 100, 1) if total_co else 0,
+        "opex_pct": round((opex_amt / total_co) * 100, 1) if total_co else 0,
+    }
 
     # Resource plan summary
     internal_rows = (
@@ -165,7 +190,7 @@ def get_project_forecast(
                 from models.financial import ExternalCostType
                 ct = db.query(ExternalCostType).filter(ExternalCostType.id == f.sub_category).first()
                 name = ct.name if ct else f.sub_category
-            row_data: dict = {"category": f.category, "sub_category": f.sub_category, "sub_category_name": name, "months": []}
+            row_data: dict = {"category": f.category, "sub_category": f.sub_category, "sub_category_name": name, "capex_opex": f.capex_opex, "months": []}
             if f.category == "internal":
                 row_data["hourly_rate"] = rate_map.get(f.sub_category)
             rows_map[key] = row_data
