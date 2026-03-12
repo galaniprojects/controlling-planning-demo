@@ -25,6 +25,7 @@ import type {
   ReviewGroup,
   SubmittedCR,
   CRHistoryItem,
+  TimelineData,
   CapacityContext,
   TeamSummary,
   RoleHeatmapRow,
@@ -202,6 +203,10 @@ export const workbenchApi = {
   // Overview tab
   getOverview: (projectId: string) =>
     api.get<ProjectOverview>(`/api/projects/${projectId}/overview`),
+
+  // Timeline visualization
+  getTimeline: (projectId: string) =>
+    api.get<TimelineData>(`/api/projects/${projectId}/timeline`),
 
   // Forecast grid (read mode)
   getForecast: (projectId: string) =>

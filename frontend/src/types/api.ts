@@ -340,6 +340,51 @@ export interface ProjectOverview {
   resource_plan_summary: ResourcePlanSummaryItem[];
 }
 
+// Timeline Visualization
+export interface TimelineMonthPoint {
+  month: string;
+  baseline: number;
+  forecast: number;
+  actuals: number | null;
+  is_elapsed: boolean;
+  overrun: boolean;
+}
+
+export interface TimelineCumulativePoint {
+  month: string;
+  baseline: number;
+  forecast: number;
+  actuals: number | null;
+}
+
+export interface TimelinePhase {
+  name: string;
+  phase_number: number;
+  baseline_start: string;
+  baseline_end: string;
+  forecast_start: string;
+  forecast_end: string;
+  color: string;
+  slip_months: number;
+}
+
+export interface TimelineSummary {
+  baseline_total: number;
+  forecast_total: number;
+  ytd_actuals: number;
+  plan_drift: number;
+  execution_variance: number;
+}
+
+export interface TimelineData {
+  monthly_data: TimelineMonthPoint[];
+  cumulative_data: TimelineCumulativePoint[];
+  phases: TimelinePhase[];
+  summary: TimelineSummary;
+  budget_ceiling: number;
+  today_month: string;
+}
+
 export interface ForecastMonthCell {
   month: string;
   forecast_hours: number;
