@@ -41,6 +41,16 @@ export function formatCurrencyDetailed(value: number): string {
   }).format(value);
 }
 
+/**
+ * European number format for non-currency values (hours, quantities).
+ * Examples: 14.400  1.200  850
+ */
+export function formatNumber(value: number): string {
+  return new Intl.NumberFormat('de-DE', {
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 export function formatPercent(value: number): string {
   const sign = value > 0 ? '+' : '';
   return `${sign}${value.toFixed(1).replace('.', ',')}%`;
