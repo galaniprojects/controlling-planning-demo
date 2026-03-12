@@ -48,6 +48,18 @@ class ModuleTile(BaseModel):
     sort_order: int
 
 
+class PendingAction(BaseModel):
+    id: str
+    type: str
+    title: str
+    description: str
+    urgency: str  # "urgent" | "info"
+    deep_link_module: str
+    deep_link_entity_id: str | None = None
+    deep_link_tab: str | None = None
+    timestamp: str | None = None
+
+
 class ResourcePlanItem(BaseModel):
     role_type_id: str
     hours_per_month: float

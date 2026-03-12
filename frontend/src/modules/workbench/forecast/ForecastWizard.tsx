@@ -7,7 +7,7 @@ import { Phase2Suggestions } from './Phase2Suggestions';
 import { Phase3EditForecast } from './Phase3EditForecast';
 import { Phase4Review } from './Phase4Review';
 import { Phase5Confirmation } from './Phase5Confirmation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Check } from 'lucide-react';
 
 interface Props {
   projectId: string;
@@ -82,7 +82,7 @@ export function ForecastWizard({ projectId, nameMap, onComplete, onCancel }: Pro
                         : 'bg-slate-100 text-slate-400'
                   }`}
                 >
-                  {isDone ? '✓' : phaseNum}
+                  {isDone ? <Check className="h-3.5 w-3.5" /> : phaseNum}
                 </div>
                 <span
                   className={`text-xs ${

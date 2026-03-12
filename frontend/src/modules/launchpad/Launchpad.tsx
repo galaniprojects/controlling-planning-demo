@@ -1,34 +1,56 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
-import { notificationsApi, modulesApi } from '@/api/endpoints';
-import type { Notification, ModuleTile } from '@/types/api';
-import { NotificationsList } from './NotificationsList';
-import { ModuleGrid } from './ModuleGrid';
-import { SubmitProjectButton } from './SubmitProjectButton';
+import { modulesApi, launchpadApi } from '@/api/endpoints';
+import type { ModuleTile, PendingAction } from '@/types/api';
+import { LaunchpadHeader } from './LaunchpadHeader';
+import { ModuleTilesGrid } from './ModuleTilesGrid';
+import { PendingActionsPanel } from './PendingActionsPanel';
 
 export function Launchpad() {
   const { currentRoleId, context } = useRole();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const navigate = useNavigate();
   const [modules, setModules] = useState<ModuleTile[]>([]);
+  const [actions, setActions] = useState<PendingAction[]>([]);
+  const [actionsLoading, setActionsLoading] = useState(true);
 
   useEffect(() => {
-    notificationsApi.getAll().then((res) => setNotifications(res.items));
     modulesApi.getAll().then((res) => setModules(res.items));
+
+    setActionsLoading(true);
+    launchpadApi
+      .getPendingActions()
+      .then((res) => setActions(res.items))
+      .catch(() => setActions([]))
+      .finally(() => setActionsLoading(false));
   }, [currentRoleId]);
 
   const isProjectLead = context?.role === 'project_lead';
 
   return (
     <div className="px-6 py-6 space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-800">Launchpad</h1>
+      {/* Zone 1: CRETA Branding + Greeting */}
+      <LaunchpadHeader
+        userName={context?.user_name || ''}
+        role={context?.role || ''}
+      />
 
-      <NotificationsList notifications={notifications} />
+      {/* Zone 2 + Zone 3 side by side */}
+      <div className="flex gap-6">
+        {/* Zone 2: Module Tiles */}
+        <div className="flex-1">
+          <ModuleTilesGrid
+            modules={modules}
+            isProjectLead={isProjectLead}
+            onSubmitProject={() => navigate('/workbench')}
+          />
+        </div>
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-700">Modules</h2>
-        {isProjectLead && <SubmitProjectButton />}
+        {/* Zone 3: Pending Actions */}
+        <div className="w-[280px] shrink-0">
+          <PendingActionsPanel actions={actions} loading={actionsLoading} />
+        </div>
       </div>
-      <ModuleGrid modules={modules} />
     </div>
   );
 }

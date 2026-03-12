@@ -1,83 +1,77 @@
 import { useState, useMemo } from 'react';
+import { groupMonthsByYear, isJanuary } from '@/lib/yearColumns';
 
-export interface MonthColumn {
-  type: 'month';
-  key: string;
-  month: string; // YYYY-MM
+const CURRENT_YEAR = 2026;
+
+export type VisibleColumn =
+  | { type: 'month'; key: string; year: number; isJanuary: boolean }
+  | { type: 'yearSummary'; year: number; months: string[] };
+
+export interface YearGroup {
   year: number;
+  months: string[];
+  isExpanded: boolean;
 }
 
-export interface YearColumn {
-  type: 'year';
-  key: string;
-  year: number;
-  months: string[]; // YYYY-MM list for summing
+export interface UseCollapsibleYearsResult {
+  yearGroups: YearGroup[];
+  toggleYear: (year: number) => void;
+  visibleColumns: VisibleColumn[];
 }
 
-export type Column = MonthColumn | YearColumn;
+/**
+ * Hook for collapsible year columns. Groups months by year, tracks
+ * expanded/collapsed state per year (current year expanded by default),
+ * and produces a flat list of visible columns for rendering.
+ *
+ * The hook does NOT compute sums — callers handle that since sum logic
+ * differs by data type (hours vs EUR).
+ */
+export function useCollapsibleYears(months: string[]): UseCollapsibleYearsResult {
+  const grouped = useMemo(() => groupMonthsByYear(months), [months]);
 
-interface Options {
-  allMonths: string[]; // sorted YYYY-MM list
-  currentMonth?: string; // default: '2026-02'
-  defaultExpandedYears?: number[]; // default: [current year]
-}
-
-export function useCollapsibleYears({
-  allMonths,
-  currentMonth = '2026-02',
-  defaultExpandedYears,
-}: Options) {
-  const currentYear = parseInt(currentMonth.slice(0, 4), 10);
-
-  const [expandedYears, setExpandedYears] = useState<Set<number>>(
-    () => new Set(defaultExpandedYears ?? [currentYear]),
-  );
-
-  const toggleYear = (year: number) => {
-    setExpandedYears((prev) => {
-      const next = new Set(prev);
-      if (next.has(year)) {
-        next.delete(year);
-      } else {
-        next.add(year);
-      }
-      return next;
-    });
-  };
-
-  const columns = useMemo<Column[]>(() => {
-    // Group months by year
-    const yearMonths: Record<number, string[]> = {};
-    for (const m of allMonths) {
-      const yr = parseInt(m.slice(0, 4), 10);
-      if (!yearMonths[yr]) yearMonths[yr] = [];
-      yearMonths[yr].push(m);
+  const [expandedState, setExpandedState] = useState<Record<number, boolean>>(() => {
+    const initial: Record<number, boolean> = {};
+    for (const year of grouped.keys()) {
+      initial[year] = year === CURRENT_YEAR;
     }
+    return initial;
+  });
 
-    const years = Object.keys(yearMonths)
-      .map(Number)
-      .sort();
-    const result: Column[] = [];
+  const yearGroups: YearGroup[] = useMemo(() => {
+    return Array.from(grouped.entries()).map(([year, yearMonths]) => ({
+      year,
+      months: yearMonths,
+      isExpanded: expandedState[year] ?? false,
+    }));
+  }, [grouped, expandedState]);
 
-    for (const yr of years) {
-      if (expandedYears.has(yr)) {
-        // Expanded — individual month columns
-        for (const m of yearMonths[yr]) {
-          result.push({ type: 'month', key: m, month: m, year: yr });
+  const visibleColumns: VisibleColumn[] = useMemo(() => {
+    const cols: VisibleColumn[] = [];
+    for (const group of yearGroups) {
+      if (group.isExpanded) {
+        for (const m of group.months) {
+          cols.push({
+            type: 'month',
+            key: m,
+            year: group.year,
+            isJanuary: isJanuary(m),
+          });
         }
       } else {
-        // Collapsed — single summary column
-        result.push({
-          type: 'year',
-          key: `year-${yr}`,
-          year: yr,
-          months: yearMonths[yr],
+        cols.push({
+          type: 'yearSummary',
+          year: group.year,
+          months: group.months,
         });
       }
     }
+    return cols;
+  }, [yearGroups]);
 
-    return result;
-  }, [allMonths, expandedYears]);
+  function toggleYear(year: number) {
+    setExpandedState((prev) => ({ ...prev, [year]: !prev[year] }));
+  }
 
-  return { columns, expandedYears, toggleYear };
+  return { yearGroups, toggleYear, visibleColumns };
 }

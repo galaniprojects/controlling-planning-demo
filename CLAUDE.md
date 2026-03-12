@@ -86,3 +86,33 @@ curl -X POST http://localhost:8000/api/admin/reset-demo
 - Commit after every meaningful milestone
 - Descriptive messages: `"Phase X: description of what was done"`
 - Do not squash — preserve build history
+
+## v3 Implementation
+
+### Specification Documents
+- `CRETA_v3_Change_Specification.md` — authoritative spec for all v3 changes (supersedes v1 and v2 specs where conflicts exist)
+- `CRETA_v3_Section9_Seed_Data.md` — authoritative spec for the complete seed data overhaul
+- `Session_1_Guide.md` through `Session_6_Guide.md` — per-session implementation roadmaps
+
+### Session Workflow
+1. At the start of each session, read the session guide for the current session
+2. Reference the two spec documents for design detail when the guide points to a spec section (e.g., "see §3.1")
+3. At the end of each session, update `PROGRESS.md` with:
+   - What was completed (list each item from the session guide)
+   - Verification results (which checklist items pass/fail)
+   - Issues found (anything that needs attention)
+   - What the next session should start with
+4. Commit `PROGRESS.md` and all changes
+
+### Key Constraints
+- Demo date: March 2026. All time-dependent logic (elapsed month tinting, actuals cutoffs, forecast boundaries, pending action triggers) uses this date.
+- European number formatting: dot for thousands, comma for decimals (€14.400,00)
+- No emojis anywhere in the UI — text and Lucide icons only
+- Tech stack: FastAPI + SQLAlchemy (backend), React + Vite + shadcn/ui + Recharts (frontend), SQLite for demo
+- The v1 and v2 specification documents are not part of the v3 workflow. Work from the codebase plus the v3 documents only.
+
+### Git Discipline
+- Create a new branch for each session with a descriptive name
+- Commit after every meaningful milestone within a session
+- Descriptive commit messages: `"v3 Session 1: collapsible year columns component"`, `"v3 Session 1: Launchpad redesign"`
+- Update `PROGRESS.md` as the final commit of each session

@@ -15,16 +15,20 @@ from models.change_requests import ChangeRequest
 from models.capacity import ResourceRequest
 from models.people import RateTable
 from models.projects import Project
+from models.scenarios import Scenario
 from models.system import Notification
 from models.users import DemoPersona
 from schemas.common import CurrentUser
+from config import DEMO_DATE
 from schemas.global_launchpad import (
     ModuleTile,
     NotificationResponse,
+    PendingAction,
     ProjectCreate,
     RoleContext,
     RoleInfo,
 )
+from services.calculations import add_months
 from services.portfolio_service import compute_portfolio_kpis
 
 router = APIRouter(prefix="/api", tags=["Global / Launchpad"])
@@ -200,6 +204,254 @@ def _compute_module_metric(db: Session, module_id: str, user: CurrentUser) -> st
         return "System configuration"
 
     return ""
+
+
+@router.get("/launchpad/pending-actions")
+def get_pending_actions(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Get dynamically computed pending actions for the current user's role."""
+    actions: list[PendingAction] = []
+    prev_month = add_months(DEMO_DATE, -1)
+
+    if user.role == "project_lead":
+        # Action #1: Forecast Due — active owned projects where current month not yet submitted
+        owned_projects = (
+            db.query(Project)
+            .filter(
+                Project.id.in_(user.project_ids),
+                Project.status == "active",
+                Project.is_service.is_(False),
+            )
+            .all()
+        )
+        for proj in owned_projects:
+            lfsm = proj.last_forecast_submitted_month
+            if lfsm is None or lfsm < DEMO_DATE:
+                # Check if it's overdue (previous month also not submitted)
+                if lfsm is None or lfsm < prev_month:
+                    # Action #2: Forecast Overdue
+                    actions.append(PendingAction(
+                        id=f"forecast-overdue-{proj.id}",
+                        type="forecast_overdue",
+                        title="Monthly forecast overdue",
+                        description=f"{proj.name} — {prev_month} forecast was not submitted",
+                        urgency="urgent",
+                        deep_link_module="workbench",
+                        deep_link_entity_id=proj.id,
+                        deep_link_tab="forecast",
+                    ))
+                else:
+                    # Action #1: Forecast Due (current month)
+                    actions.append(PendingAction(
+                        id=f"forecast-due-{proj.id}",
+                        type="forecast_due",
+                        title="Monthly forecast due",
+                        description=f"{proj.name} — submit {DEMO_DATE} forecast",
+                        urgency="info",
+                        deep_link_module="workbench",
+                        deep_link_entity_id=proj.id,
+                        deep_link_tab="forecast",
+                    ))
+
+        # Action #6: CR Feedback Received
+        feedback_crs = (
+            db.query(ChangeRequest)
+            .join(Project, ChangeRequest.project_id == Project.id)
+            .filter(
+                ChangeRequest.submitted_by_id == user.person_id,
+                ChangeRequest.status.in_(["sent_back_by_cc", "sent_back_by_controller", "sent_back"]),
+            )
+            .all()
+        )
+        for cr in feedback_crs:
+            actions.append(PendingAction(
+                id=f"cr-feedback-{cr.id}",
+                type="cr_feedback",
+                title="Change request returned with feedback",
+                description=f"CR #{cr.id} for {cr.project.name}",
+                urgency="info",
+                deep_link_module="workbench",
+                deep_link_entity_id=cr.project_id,
+                deep_link_tab="history",
+                timestamp=cr.created_at.isoformat() if cr.created_at else None,
+            ))
+
+        # Action #7: CR Decision (approved/rejected in last 14 days)
+        decided_crs = (
+            db.query(ChangeRequest)
+            .join(Project, ChangeRequest.project_id == Project.id)
+            .filter(
+                ChangeRequest.submitted_by_id == user.person_id,
+                ChangeRequest.status.in_(["approved", "rejected"]),
+            )
+            .all()
+        )
+        for cr in decided_crs:
+            ts = cr.controller_approval_timestamp or cr.cc_confirmation_timestamp or cr.created_at
+            decision = "approved" if cr.status == "approved" else "rejected"
+            actions.append(PendingAction(
+                id=f"cr-decision-{cr.id}",
+                type="cr_decision",
+                title=f"Change request {decision}",
+                description=f"CR #{cr.id} for {cr.project.name}",
+                urgency="info",
+                deep_link_module="workbench",
+                deep_link_entity_id=cr.project_id,
+                deep_link_tab="history",
+                timestamp=ts.isoformat() if ts else None,
+            ))
+
+        # Action #8: Project Submission Decision
+        for proj in owned_projects:
+            if proj.status in ("active", "rejected"):
+                # Check if recently transitioned (using modified_at as proxy)
+                if proj.modified_at and proj.modified_at.isoformat()[:7] >= prev_month:
+                    # Could be a recently decided submission — skip for projects that were always active
+                    pass
+
+    elif user.role == "controller":
+        # Action #2 (info): Forecast overdue projects
+        overdue_projects = (
+            db.query(Project)
+            .filter(
+                Project.status == "active",
+                Project.is_service.is_(False),
+                (Project.last_forecast_submitted_month.is_(None))
+                | (Project.last_forecast_submitted_month < prev_month),
+            )
+            .all()
+        )
+        if overdue_projects:
+            names = ", ".join(p.name for p in overdue_projects[:3])
+            suffix = f" and {len(overdue_projects) - 3} more" if len(overdue_projects) > 3 else ""
+            actions.append(PendingAction(
+                id="forecast-overdue-controller",
+                type="forecast_overdue",
+                title="Projects with overdue forecasts",
+                description=f"{names}{suffix}",
+                urgency="info",
+                deep_link_module="portfolio",
+            ))
+
+        # Action #4: CR Pending Approval (Stage 2)
+        pending_crs = (
+            db.query(ChangeRequest)
+            .join(Project, ChangeRequest.project_id == Project.id)
+            .filter(ChangeRequest.status == "pending_controller_approval")
+            .all()
+        )
+        for cr in pending_crs:
+            actions.append(PendingAction(
+                id=f"cr-approval-{cr.id}",
+                type="cr_pending_approval",
+                title="Change request awaiting approval",
+                description=f"CR #{cr.id} for {cr.project.name} — {cr.summary[:60]}",
+                urgency="urgent",
+                deep_link_module="portfolio",
+                deep_link_entity_id=str(cr.id),
+                deep_link_tab="approvals",
+                timestamp=cr.submission_timestamp.isoformat() if cr.submission_timestamp else None,
+            ))
+
+        # Action #5: New Project Pending Review
+        pending_projects = (
+            db.query(Project)
+            .filter(Project.status == "pending_approval")
+            .all()
+        )
+        for proj in pending_projects:
+            actions.append(PendingAction(
+                id=f"project-review-{proj.id}",
+                type="project_pending_review",
+                title="New project pending review",
+                description=proj.name,
+                urgency="urgent",
+                deep_link_module="portfolio",
+                deep_link_entity_id=proj.id,
+                deep_link_tab="intake",
+                timestamp=proj.created_at.isoformat() if proj.created_at else None,
+            ))
+
+        # Action #9: Scenario Published (controller sees)
+        published_scenarios = (
+            db.query(Scenario)
+            .filter(Scenario.status == "published")
+            .all()
+        )
+        for sc in published_scenarios:
+            actions.append(PendingAction(
+                id=f"scenario-published-{sc.id}",
+                type="scenario_published",
+                title="New scenario published",
+                description=sc.name,
+                urgency="info",
+                deep_link_module="simulator",
+                deep_link_entity_id=str(sc.id),
+                timestamp=sc.modified_at.isoformat() if sc.modified_at else None,
+            ))
+
+    elif user.role == "cost_center_owner":
+        # Action #3: CR Pending Confirmation (Stage 1)
+        # Show CRs where cc_owner_id matches OR is NULL (not yet assigned, routed to the CC owner)
+        pending_crs = (
+            db.query(ChangeRequest)
+            .join(Project, ChangeRequest.project_id == Project.id)
+            .filter(
+                ChangeRequest.status == "pending_cc_confirmation",
+                (ChangeRequest.cc_owner_id == user.person_id)
+                | (ChangeRequest.cc_owner_id.is_(None)),
+            )
+            .all()
+        )
+        for cr in pending_crs:
+            actions.append(PendingAction(
+                id=f"cr-confirm-{cr.id}",
+                type="cr_pending_confirmation",
+                title="Change request pending confirmation",
+                description=f"CR #{cr.id} for {cr.project.name} — {cr.summary[:60]}",
+                urgency="urgent",
+                deep_link_module="capacity",
+                deep_link_entity_id=str(cr.id),
+                deep_link_tab="requests",
+                timestamp=cr.submission_timestamp.isoformat() if cr.submission_timestamp else None,
+            ))
+
+    elif user.role == "executive":
+        # Action #9: Scenario Published (executive sees)
+        published_scenarios = (
+            db.query(Scenario)
+            .filter(Scenario.status == "published")
+            .all()
+        )
+        for sc in published_scenarios:
+            actions.append(PendingAction(
+                id=f"scenario-published-{sc.id}",
+                type="scenario_published",
+                title="New scenario published",
+                description=sc.name,
+                urgency="info",
+                deep_link_module="simulator",
+                deep_link_entity_id=str(sc.id),
+                timestamp=sc.modified_at.isoformat() if sc.modified_at else None,
+            ))
+
+    # Sort: urgent first, then by timestamp descending
+    def sort_key(a: PendingAction) -> tuple:
+        urgency_rank = 0 if a.urgency == "urgent" else 1
+        ts = a.timestamp or ""
+        return (urgency_rank, ts)
+
+    actions.sort(key=sort_key)
+    # Reverse within urgency groups so newest first
+    urgent = [a for a in actions if a.urgency == "urgent"]
+    info = [a for a in actions if a.urgency == "info"]
+    urgent.sort(key=lambda a: a.timestamp or "", reverse=True)
+    info.sort(key=lambda a: a.timestamp or "", reverse=True)
+    actions = urgent + info
+
+    return {"items": [a.model_dump() for a in actions], "total": len(actions)}
 
 
 @router.post("/projects")

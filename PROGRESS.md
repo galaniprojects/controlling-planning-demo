@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v2 Session 5 (complete) — ALL v2 SESSIONS DONE
-Last completed: v2 Session 5B — Reporting Module Completion
-Branch: `v2/session-5-reporting`
+Phase: v3 Session 1 (complete)
+Last completed: v3 Session 1 — Global Patterns + Launchpad
+Branch: `v3/session-1-global-patterns-launchpad`
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -41,6 +41,67 @@ Branch: `v2/session-5-reporting`
   - [x] D4b: What-If Simulator — AI Advisor + Comparison + Drill-Down (Section 7.5.8–7.5.9)
   - [x] D5: Administration — entity selector, CRUD tables, rate tables, planning parameters, audit log (Section 7.6)
 - [x] Phase E: Documentation content + polish + verification
+- [ ] v3 Overhaul (demo date: March 2026)
+  - [x] v3 Session 1: Global Patterns + Launchpad
+
+## v3 Session 1 — Global Patterns + Launchpad
+
+### Summary
+First session of the v3 overhaul. Built foundational global components and completely rebuilt the Launchpad with a dynamic pending actions engine.
+
+### Changes
+
+**Config + Fonts:**
+- `backend/config.py`: DEMO_DATE changed from "2026-02" to "2026-03"
+- `frontend/index.html`: Added IBM Plex Mono font
+- `frontend/src/index.css`: Added `--font-mono` CSS variable and `.font-tabular` utility class
+
+**Shared Utilities:**
+- `frontend/src/lib/yearColumns.ts` (new): groupMonthsByYear, isElapsedMonth, formatMonthShort, isJanuary
+- `frontend/src/lib/formatters.ts`: Added formatNumber() for European number formatting (de-DE locale)
+
+**Collapsible Year Columns:**
+- `frontend/src/hooks/useCollapsibleYears.ts` (new): Reusable hook — current year (2026) expanded by default, others collapsed. Returns yearGroups, toggleYear, visibleColumns. Does not compute sums (callers handle that).
+
+**ForecastGrid Refactor:**
+- `frontend/src/modules/workbench/forecast/ForecastGrid.tsx`: Two-row header (year labels + month sub-headers), year boundary borders at January (border-l-2), elapsed month tinting (#fafafa for months before 2026-03), monospace font-tabular class, European number formatting. Year summary columns compute sums when collapsed.
+- `frontend/src/modules/workbench/forecast/ForecastWizard.tsx`: Replaced emoji checkmark with Lucide Check icon
+
+**Backend Pending Actions:**
+- `backend/models/projects.py`: Added last_forecast_submitted_month column for forecast due/overdue detection
+- `backend/seed/seed.sql`: Seeded forecast submission months (proj-erp2 overdue, proj-sensor/proj-predmaint due)
+- `backend/schemas/global_launchpad.py`: Added PendingAction schema
+- `backend/routers/global_launchpad.py`: GET /api/launchpad/pending-actions endpoint with 9 action types:
+  1. forecast_due (PL) — current month has no forecast rows
+  2. forecast_overdue (PL urgent, Controller info) — previous month not submitted
+  3. cr_pending_confirmation (CC Owner) — CRs at pending_cc_confirmation
+  4. cr_pending_approval (Controller) — CRs at pending_controller_approval
+  5. project_pending_review (Controller) — projects at pending_approval
+  6. cr_feedback (PL) — CRs sent back by CC/controller
+  7. cr_decision (PL) — CRs approved/rejected within 14 days
+  8. project_decision (PL) — projects recently transitioned
+  9. scenario_published (Controller, Executive) — published scenarios within 14 days
+
+**Launchpad Redesign:**
+- `frontend/src/types/api.ts`: Added PendingAction interface
+- `frontend/src/api/endpoints.ts`: Added launchpadApi.getPendingActions()
+- `frontend/src/modules/launchpad/LaunchpadHeader.tsx` (new): Zone 1 — CRETA acronym (bold blue first letters), greeting, role badge
+- `frontend/src/modules/launchpad/ModuleTilesGrid.tsx` (new): Zone 2 — 2-column grid, primary module blue border, PL-only Submit New Project tile
+- `frontend/src/modules/launchpad/PendingActionsPanel.tsx` (new): Zone 3 — 280px panel, urgency bars, deep-link navigation, empty state
+- `frontend/src/modules/launchpad/Launchpad.tsx`: Complete rewrite to three-zone layout
+- Removed: NotificationsList.tsx, ModuleGrid.tsx (replaced)
+
+### Verified
+- Collapsible year columns work in ForecastGrid (toggle, sums, year boundaries)
+- Elapsed month tinting on Jan/Feb 2026 (bg-[#fafafa])
+- European number formatting (de-DE) with monospace tabular alignment
+- Launchpad renders all three zones for all 4 roles
+- Pending actions populate correctly per role from system state
+- Submit New Project tile visible only for PL role
+- No emojis in UI
+
+### Next
+- v3 Session 2 (per v3_session_guides/Session_2_Guide.md)
 
 ## Phase A Details
 
