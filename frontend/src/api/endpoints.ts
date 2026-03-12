@@ -23,6 +23,7 @@ import type {
   SuggestionItem,
   ForecastChange,
   ReviewGroup,
+  CostCentreGroup,
   SubmittedCR,
   CRHistoryItem,
   TimelineData,
@@ -245,10 +246,10 @@ export const workbenchApi = {
     api.get<ListResponse<ReviewGroup>>(
       `/api/projects/${projectId}/forecast-cycle/${cycleId}/review`,
     ),
-  submitCycle: (projectId: string, cycleId: string, groups: ReviewGroup[]) =>
+  submitCycle: (projectId: string, cycleId: string, groups: ReviewGroup[], costCentreGroups?: CostCentreGroup[]) =>
     api.put<ListResponse<SubmittedCR>>(
       `/api/projects/${projectId}/forecast-cycle/${cycleId}/submit`,
-      { groups },
+      { groups, cost_centre_groups: costCentreGroups },
     ),
 
   // Change history

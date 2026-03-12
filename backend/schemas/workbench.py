@@ -54,6 +54,7 @@ class EditRequest(BaseModel):
 
 class SubmitRequest(BaseModel):
     groups: list[dict] = []
+    cost_centre_groups: list[dict] | None = None
 
 
 class CRHistoryItem(BaseModel):

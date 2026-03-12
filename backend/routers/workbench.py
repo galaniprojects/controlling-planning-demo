@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from database import get_db
 from dependencies import get_current_user
-from models.capacity import ResourceRequest
+from models.capacity import Allocation, ResourceRequest
+from models.organization import CostCenter
 from models.change_requests import ChangeRequest, CRChangeDetail
 from models.financial import Actuals, Baseline, Forecast
 from models.people import Person, RateTable, RoleType
@@ -457,28 +458,149 @@ def save_edits(
 @router.get("/{project_id}/forecast-cycle/{cycle_id}/review")
 def get_review(
     project_id: str, cycle_id: str,
+    db: Session = Depends(get_db),
     _user: CurrentUser = Depends(get_current_user),
 ):
-    """Phase 4: Get grouped changes for review before submission."""
+    """Phase 4: Get grouped changes for review with cost centre grouping."""
     cycle = get_cycle_by_id(project_id, cycle_id)
     if not cycle:
         raise HTTPException(404, "No active forecast cycle")
 
-    # Group changes by type
-    resource_changes = [c for c in cycle.working_changes if c.get("category") == "internal"]
-    external_changes = [c for c in cycle.working_changes if c.get("category") == "external"]
-    other_changes = [c for c in cycle.working_changes if c.get("category") not in ("internal", "external")]
+    # Build a mapping: sub_category → cost_center_id for internal items
+    # via allocations → person → cost_center
+    sub_cat_to_cc: dict[str, str] = {}
+    allocs = (
+        db.query(Allocation.person_id)
+        .filter(Allocation.project_id == project_id)
+        .distinct()
+        .all()
+    )
+    person_ids = [a.person_id for a in allocs]
+    if person_ids:
+        persons = db.query(Person).filter(Person.id.in_(person_ids)).all()
+        for p in persons:
+            if p.cost_center_id and p.role_type_id:
+                sub_cat_to_cc[p.role_type_id] = p.cost_center_id
 
-    groups = []
+    # Load cost centre names
+    cc_names: dict[str, str] = {}
+    all_cc_ids = set(sub_cat_to_cc.values())
+    if all_cc_ids:
+        ccs = db.query(CostCenter).filter(CostCenter.id.in_(all_cc_ids)).all()
+        cc_names = {cc.id: cc.name for cc in ccs}
+
+    # Default cost centre for external items: project's primary CC
+    # (use the CC with most allocations, or a fallback)
+    default_cc_id = None
+    if sub_cat_to_cc:
+        from collections import Counter
+        cc_counts = Counter(sub_cat_to_cc.values())
+        default_cc_id = cc_counts.most_common(1)[0][0]
+
+    # Build DetailViewGrid-style line items from working changes
+    from models.financial import ExternalCostType
+    changes = cycle.working_changes
+    all_months = sorted({c.get("month", "") for c in changes if c.get("month")})
+
+    # Group changes by sub_category for line items
+    line_items_map: dict[str, dict] = {}
+    for ch in changes:
+        sub_cat = ch.get("sub_category", "")
+        if sub_cat not in line_items_map:
+            cat = ch.get("category", "")
+            if cat == "internal":
+                role = db.query(RoleType).filter(RoleType.id == sub_cat).first()
+                name = role.name if role else sub_cat
+            else:
+                ect = db.query(ExternalCostType).filter(ExternalCostType.id == sub_cat).first()
+                name = ect.name if ect else sub_cat
+            line_items_map[sub_cat] = {
+                "id": sub_cat,
+                "label": name,
+                "category": cat,
+                "capex_opex": None,
+                "is_system_suggested": ch.get("suggestion_id") is not None,
+                "months": {},
+            }
+
+        line_items_map[sub_cat]["months"][ch["month"]] = {
+            "before": round(ch.get("old_value", 0), 2),
+            "after": round(ch.get("new_value", 0), 2),
+            "delta": round(ch.get("delta", 0), 2),
+        }
+        if ch.get("suggestion_id") is not None:
+            line_items_map[sub_cat]["is_system_suggested"] = True
+
+    # Convert to list format
+    grid_line_items = []
+    for sub_cat, li in line_items_map.items():
+        months_list = []
+        for m in all_months:
+            mv = li["months"].get(m)
+            if mv:
+                months_list.append({"month": m, "before": mv["before"], "after": mv["after"], "delta": mv["delta"]})
+            else:
+                months_list.append({"month": m, "before": None, "after": None, "delta": None})
+        grid_line_items.append({
+            "id": li["id"],
+            "label": li["label"],
+            "category": li["category"],
+            "capex_opex": li.get("capex_opex"),
+            "is_system_suggested": li.get("is_system_suggested", False),
+            "months": months_list,
+        })
+
+    # Group by cost centre
+    cc_groups_map: dict[str, dict] = {}
+    for ch in changes:
+        sub_cat = ch.get("sub_category", "")
+        cat = ch.get("category", "")
+        if cat == "internal":
+            cc_id = sub_cat_to_cc.get(sub_cat, default_cc_id or "unknown")
+        else:
+            cc_id = default_cc_id or "external"
+        if cc_id not in cc_groups_map:
+            cc_groups_map[cc_id] = {
+                "id": cc_id,
+                "name": cc_names.get(cc_id, cc_id),
+                "line_items": [],
+                "items": [],
+            }
+        # Track which line items belong to this CC
+        li_info = line_items_map.get(sub_cat, {})
+        if sub_cat not in [x["id"] for x in cc_groups_map[cc_id]["line_items"]]:
+            cc_groups_map[cc_id]["line_items"].append({
+                "id": sub_cat,
+                "label": li_info.get("label", sub_cat),
+            })
+        cc_groups_map[cc_id]["items"].append(ch)
+
+    cost_centre_groups = list(cc_groups_map.values())
+
+    # Also preserve the old-style groups for backward compatibility with submit
+    resource_changes = [c for c in changes if c.get("category") == "internal"]
+    external_changes = [c for c in changes if c.get("category") == "external"]
+    other_changes = [c for c in changes if c.get("category") not in ("internal", "external")]
+    legacy_groups = []
     if resource_changes:
-        groups.append({"type": "resource", "items": resource_changes, "count": len(resource_changes)})
+        legacy_groups.append({"type": "resource", "items": resource_changes, "count": len(resource_changes)})
     if external_changes:
-        groups.append({"type": "external_cost", "items": external_changes, "count": len(external_changes)})
+        legacy_groups.append({"type": "external_cost", "items": external_changes, "count": len(external_changes)})
     if other_changes:
-        groups.append({"type": "other", "items": other_changes, "count": len(other_changes)})
+        legacy_groups.append({"type": "other", "items": other_changes, "count": len(other_changes)})
 
-    cycle.review_groups = groups
-    return {"items": groups, "total": len(groups)}
+    cycle.review_groups = legacy_groups
+    cycle.cost_centre_groups = cost_centre_groups
+
+    return {
+        "items": legacy_groups,
+        "total": len(legacy_groups),
+        "grid_data": {
+            "months": all_months,
+            "line_items": grid_line_items,
+        },
+        "cost_centre_groups": cost_centre_groups,
+    }
 
 
 @router.put("/{project_id}/forecast-cycle/{cycle_id}/submit")
@@ -488,49 +610,91 @@ def submit_forecast_cycle(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Phase 5: Submit forecast cycle — creates CRs."""
+    """Phase 5: Submit forecast cycle — creates one CR per cost centre."""
     cycle = get_cycle_by_id(project_id, cycle_id)
     if not cycle:
         raise HTTPException(404, "No active forecast cycle")
 
+    # Use cost centre groups if available (v3 redesign), otherwise legacy groups
+    cc_groups = body.cost_centre_groups or cycle.cost_centre_groups
     created_crs = []
-    for group in (body.groups or cycle.review_groups):
-        group_type = group.get("type", "other")
-        # Resource CRs need CC Owner confirmation; others go straight to controller
-        initial_status = "pending_cc_confirmation" if group_type == "resource" else "pending_controller_approval"
-        cr = ChangeRequest(
-            project_id=project_id,
-            submitted_by_id=user.person_id,
-            submission_timestamp=datetime.utcnow(),
-            status=initial_status,
-            change_category=group_type,
-            summary=group.get("justification", f"Forecast update: {group.get('type', 'changes')}"),
-            justification=group.get("justification"),
-            is_system_suggested=any(
-                sid in cycle.applied_suggestion_ids
-                for sid in [c.get("suggestion_id") for c in group.get("items", [])]
-            ),
-        )
-        db.add(cr)
-        db.flush()
 
-        for item in group.get("items", []):
-            detail = CRChangeDetail(
-                change_request_id=cr.id,
-                field_changed=item.get("sub_category", ""),
-                old_value=str(item.get("old_value", "")),
-                new_value=str(item.get("new_value", "")),
-                delta=str(item.get("delta", "")),
-                line_item_type=item.get("category"),
-                month=item.get("month"),
+    if cc_groups:
+        for group in cc_groups:
+            cc_name = group.get("name", group.get("id", ""))
+            items = group.get("items", [])
+            justification = group.get("justification", "")
+            categories = {c.get("category") for c in items}
+            has_internal = "internal" in categories
+            change_category = "resource" if has_internal else "external_cost"
+            initial_status = "pending_cc_confirmation" if has_internal else "pending_controller_approval"
+
+            cr = ChangeRequest(
+                project_id=project_id,
+                submitted_by_id=user.person_id,
+                submission_timestamp=datetime.utcnow(),
+                status=initial_status,
+                change_category=change_category,
+                summary=justification or f"Forecast update: {cc_name}",
+                justification=justification,
+                is_system_suggested=any(
+                    c.get("suggestion_id") in cycle.applied_suggestion_ids
+                    for c in items if c.get("suggestion_id") is not None
+                ),
             )
-            db.add(detail)
+            db.add(cr)
+            db.flush()
 
-        created_crs.append({"id": cr.id, "status": cr.status, "category": cr.change_category})
+            for item in items:
+                detail = CRChangeDetail(
+                    change_request_id=cr.id,
+                    field_changed=item.get("sub_category", ""),
+                    old_value=str(item.get("old_value", "")),
+                    new_value=str(item.get("new_value", "")),
+                    delta=str(item.get("delta", "")),
+                    line_item_type=item.get("category"),
+                    month=item.get("month"),
+                )
+                db.add(detail)
+
+            created_crs.append({"id": cr.id, "status": cr.status, "category": cr.change_category, "cost_centre": cc_name})
+    else:
+        # Legacy fallback: group by type
+        for group in (body.groups or cycle.review_groups):
+            group_type = group.get("type", "other")
+            initial_status = "pending_cc_confirmation" if group_type == "resource" else "pending_controller_approval"
+            cr = ChangeRequest(
+                project_id=project_id,
+                submitted_by_id=user.person_id,
+                submission_timestamp=datetime.utcnow(),
+                status=initial_status,
+                change_category=group_type,
+                summary=group.get("justification", f"Forecast update: {group.get('type', 'changes')}"),
+                justification=group.get("justification"),
+                is_system_suggested=any(
+                    sid in cycle.applied_suggestion_ids
+                    for sid in [c.get("suggestion_id") for c in group.get("items", [])]
+                ),
+            )
+            db.add(cr)
+            db.flush()
+
+            for item in group.get("items", []):
+                detail = CRChangeDetail(
+                    change_request_id=cr.id,
+                    field_changed=item.get("sub_category", ""),
+                    old_value=str(item.get("old_value", "")),
+                    new_value=str(item.get("new_value", "")),
+                    delta=str(item.get("delta", "")),
+                    line_item_type=item.get("category"),
+                    month=item.get("month"),
+                )
+                db.add(detail)
+
+            created_crs.append({"id": cr.id, "status": cr.status, "category": cr.change_category})
 
     db.commit()
     clear_cycle(project_id)
-
     return {"items": created_crs, "total": len(created_crs)}
 
 

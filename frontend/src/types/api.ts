@@ -461,6 +461,28 @@ export interface ReviewGroup {
   justification?: string;
 }
 
+export interface ReviewGridLineItem {
+  id: string;
+  label: string;
+  category: string;
+  capex_opex: string | null;
+  is_system_suggested: boolean;
+  months: { month: string; before: number | null; after: number | null; delta: number | null }[];
+}
+
+export interface ReviewGridData {
+  months: string[];
+  line_items: ReviewGridLineItem[];
+}
+
+export interface CostCentreGroup {
+  id: string;
+  name: string;
+  line_items: { id: string; label: string }[];
+  items: ForecastChange[];
+  justification?: string;
+}
+
 export interface SubmittedCR {
   id: number;
   status: string;
