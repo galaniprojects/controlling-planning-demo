@@ -1,0 +1,73 @@
+import { useNavigate } from 'react-router-dom';
+import { Plus } from 'lucide-react';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { MODULE_ROUTES } from '@/lib/routes';
+import type { ModuleTile } from '@/types/api';
+
+interface Props {
+  modules: ModuleTile[];
+  isProjectLead: boolean;
+  onSubmitProject: () => void;
+}
+
+export function ModuleTilesGrid({ modules, isProjectLead, onSubmitProject }: Props) {
+  const navigate = useNavigate();
+
+  const visibleModules = modules
+    .filter((m) => m.visible)
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      {visibleModules.map((mod) => {
+        const isPrimary = mod.sort_order === 1;
+        return (
+          <Card
+            key={mod.id}
+            className={`cursor-pointer transition-shadow hover:shadow-md ${
+              isPrimary ? 'border-2 border-blue-800' : ''
+            }`}
+            onClick={() => navigate(MODULE_ROUTES[mod.id] || '/')}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base">{mod.name}</CardTitle>
+                {isPrimary && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    Default
+                  </Badge>
+                )}
+              </div>
+              <CardDescription className="text-xs">{mod.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm font-medium text-blue-800">
+                {mod.contextual_metric}
+              </p>
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {/* Submit New Project tile — PL only */}
+      {isProjectLead && (
+        <Card
+          className="cursor-pointer border-2 border-dashed border-slate-300 hover:border-slate-400 transition-colors flex items-center justify-center min-h-[120px]"
+          onClick={onSubmitProject}
+        >
+          <div className="text-center py-4">
+            <Plus className="h-8 w-8 text-slate-400 mx-auto mb-2" />
+            <p className="text-sm font-medium text-slate-500">Submit New Project</p>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}

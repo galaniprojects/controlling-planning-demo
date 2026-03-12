@@ -3,6 +3,7 @@ import type {
   RoleInfo,
   RoleContext,
   Notification,
+  PendingAction,
   PortfolioKPISummary,
   ModuleTile,
   ListResponse,
@@ -69,6 +70,11 @@ export const kpisApi = {
 
 export const modulesApi = {
   getAll: () => api.get<ListResponse<ModuleTile>>('/api/modules'),
+};
+
+export const launchpadApi = {
+  getPendingActions: () =>
+    api.get<ListResponse<PendingAction>>('/api/launchpad/pending-actions'),
 };
 
 // --- Portfolio Overview ---

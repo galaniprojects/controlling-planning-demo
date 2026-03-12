@@ -32,6 +32,19 @@ export interface Notification {
   is_read: boolean;
 }
 
+// Pending Actions
+export interface PendingAction {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  urgency: 'urgent' | 'info';
+  deep_link_module: string;
+  deep_link_entity_id: string | null;
+  deep_link_tab: string | null;
+  timestamp: string | null;
+}
+
 // KPIs
 export interface PortfolioKPISummary {
   total_budget: number;
