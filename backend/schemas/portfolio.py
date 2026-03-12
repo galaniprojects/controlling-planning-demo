@@ -110,6 +110,41 @@ class CRChangeDetailResponse(BaseModel):
     month: str | None
 
 
+class DetailViewMonthValue(BaseModel):
+    month: str
+    proposed: float
+    proposed_eur: float
+    current: float | None = None
+    current_eur: float | None = None
+    is_changed: bool = False
+
+
+class DetailViewLineItemSchema(BaseModel):
+    id: str
+    name: str
+    category: str  # internal | external
+    unit: str  # hours | eur
+    months: list[DetailViewMonthValue]
+    proposed_total: float
+    proposed_total_eur: float
+    current_total: float | None = None
+    current_total_eur: float | None = None
+
+
+class DetailViewKPISchema(BaseModel):
+    label: str
+    value: float
+    format: str  # currency | currency_delta
+    color: str | None = None
+    secondary_label: str | None = None
+
+
+class DetailViewGridData(BaseModel):
+    months: list[str]
+    line_items: list[DetailViewLineItemSchema]
+    kpis: list[DetailViewKPISchema]
+
+
 class CRDetailResponse(BaseModel):
     id: int
     project_id: str
@@ -128,3 +163,4 @@ class CRDetailResponse(BaseModel):
     controller_status: str | None
     controller_comments: str | None
     changes: list[CRChangeDetailResponse]
+    grid_data: DetailViewGridData | None = None

@@ -1,21 +1,14 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { StatusBadge } from '@/components/shared/StatusBadge';
+import { DetailViewGrid } from '@/components/shared/DetailViewGrid';
+import { DetailViewKPIStrip } from '@/components/shared/DetailViewKPIStrip';
 import { useRole } from '@/contexts/RoleContext';
 import { portfolioApi } from '@/api/endpoints';
-import { formatCurrency } from '@/lib/formatters';
 import type { IntakeDetail } from '@/types/api';
 import { ArrowLeft, Check, X, Undo2 } from 'lucide-react';
 
@@ -71,21 +64,6 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
     }
   };
 
-  // Collect unique months from resource plan for column headers
-  const resourceMonths = useMemo(() => {
-    if (!data?.resource_plan) return [];
-    const months = new Set<string>();
-    data.resource_plan.forEach((rp) => rp.months.forEach((m) => months.add(m.month)));
-    return Array.from(months).sort();
-  }, [data?.resource_plan]);
-
-  const externalMonths = useMemo(() => {
-    if (!data?.external_cost_plan) return [];
-    const months = new Set<string>();
-    data.external_cost_plan.forEach((ep) => ep.months.forEach((m) => months.add(m.month)));
-    return Array.from(months).sort();
-  }, [data?.external_cost_plan]);
-
   if (loading) {
     return (
       <div className="space-y-4">
@@ -103,146 +81,69 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
 
   return (
     <div className="space-y-6">
-      {/* Back button */}
-      <Button variant="ghost" size="sm" onClick={onBack} className="text-slate-600">
-        <ArrowLeft className="h-4 w-4 mr-1" />
-        Back to Intake Queue
-      </Button>
+      {/* Breadcrumb + Back */}
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <Button variant="ghost" size="sm" onClick={onBack} className="text-slate-600 -ml-2">
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Intake Queue
+        </Button>
+        <span>/</span>
+        <span className="text-slate-700 font-medium truncate">{data.name}</span>
+      </div>
 
       {/* Header */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         <h2 className="text-xl font-semibold text-slate-800">{data.name}</h2>
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="outline" className="text-xs capitalize">
-            {data.status.replace(/_/g, ' ')}
-          </Badge>
-          <span className="text-sm text-slate-500">{data.lob_name}</span>
-          {data.pl_name && <span className="text-sm text-slate-500">PL: {data.pl_name}</span>}
-          <span className="text-sm text-slate-400">
-            {data.start_month} — {data.end_month || 'Ongoing'}
-          </span>
+          <StatusBadge status={data.status} />
+          {data.capex_opex && (
+            <span className="text-xs text-slate-500 uppercase">{data.capex_opex}</span>
+          )}
         </div>
-        {data.description && (
-          <p className="text-sm text-slate-600 mt-2">{data.description}</p>
-        )}
+        <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm max-w-lg">
+          <div className="text-slate-500">Requesting LoB</div>
+          <div className="text-slate-700 font-medium">{data.lob_name}</div>
+          {data.pl_name && (
+            <>
+              <div className="text-slate-500">Project Lead</div>
+              <div className="text-slate-700">{data.pl_name}</div>
+            </>
+          )}
+          <div className="text-slate-500">Proposed Timeline</div>
+          <div className="text-slate-700">
+            {data.start_month} — {data.end_month || 'Ongoing'}
+          </div>
+        </div>
       </div>
+
+      {/* Business Case / Justification */}
+      {data.description && (
+        <>
+          <Separator />
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Business Case</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-slate-600">{data.description}</p>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       <Separator />
 
-      {/* Resource Plan Table */}
-      {data.resource_plan && data.resource_plan.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Resource Plan</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border border-slate-200 overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="px-3 py-2 text-xs whitespace-nowrap">Role</TableHead>
-                    {resourceMonths.map((m) => (
-                      <TableHead key={m} className="px-3 py-2 text-xs text-right whitespace-nowrap">{m}</TableHead>
-                    ))}
-                    <TableHead className="px-3 py-2 text-xs text-right font-semibold whitespace-nowrap">Total Hours</TableHead>
-                    <TableHead className="px-3 py-2 text-xs text-right font-semibold whitespace-nowrap">Total EUR</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.resource_plan.map((rp) => (
-                    <TableRow key={rp.role_id}>
-                      <TableCell className="px-3 py-2 text-sm text-slate-700 whitespace-nowrap">{rp.role_name}</TableCell>
-                      {resourceMonths.map((m) => {
-                        const md = rp.months.find((x) => x.month === m);
-                        return (
-                          <TableCell key={m} className="px-3 py-2 text-sm text-slate-600 text-right">
-                            {md ? md.hours : '—'}
-                          </TableCell>
-                        );
-                      })}
-                      <TableCell className="px-3 py-2 text-sm text-slate-700 text-right font-medium">{rp.total_hours}</TableCell>
-                      <TableCell className="px-3 py-2 text-sm text-slate-700 text-right font-medium">{formatCurrency(rp.total_amount)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* External Cost Plan */}
-      {data.external_cost_plan && data.external_cost_plan.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">External Cost Plan</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border border-slate-200 overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="px-3 py-2 text-xs whitespace-nowrap">Cost Type</TableHead>
-                    {externalMonths.map((m) => (
-                      <TableHead key={m} className="px-3 py-2 text-xs text-right whitespace-nowrap">{m}</TableHead>
-                    ))}
-                    <TableHead className="px-3 py-2 text-xs text-right font-semibold whitespace-nowrap">Total EUR</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.external_cost_plan.map((ep) => (
-                    <TableRow key={ep.cost_type_id}>
-                      <TableCell className="px-3 py-2 text-sm text-slate-700 whitespace-nowrap">{ep.cost_type_name}</TableCell>
-                      {externalMonths.map((m) => {
-                        const md = ep.months.find((x) => x.month === m);
-                        return (
-                          <TableCell key={m} className="px-3 py-2 text-sm text-slate-600 text-right">
-                            {md ? formatCurrency(md.amount) : '—'}
-                          </TableCell>
-                        );
-                      })}
-                      <TableCell className="px-3 py-2 text-sm text-slate-700 text-right font-medium">{formatCurrency(ep.total_amount)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Budget Summary */}
-      {data.budget_summary && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Budget Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-xs text-slate-500">Internal Costs</p>
-                <p className="text-lg font-semibold text-slate-800">{formatCurrency(data.budget_summary.internal_total)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500">External Costs</p>
-                <p className="text-lg font-semibold text-slate-800">{formatCurrency(data.budget_summary.external_total)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500">Grand Total</p>
-                <p className="text-lg font-semibold text-slate-800">{formatCurrency(data.budget_summary.grand_total)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500">CapEx / OpEx</p>
-                <p className="text-lg font-semibold text-slate-800 capitalize">{data.budget_summary.capex_opex}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* No plans message */}
-      {(!data.resource_plan || data.resource_plan.length === 0) &&
-       (!data.external_cost_plan || data.external_cost_plan.length === 0) && (
+      {/* Detail View Grid */}
+      {data.grid_data && data.grid_data.line_items.length > 0 ? (
+        <div className="space-y-4">
+          <DetailViewGrid
+            lineItems={data.grid_data.line_items}
+            months={data.grid_data.months}
+            cellPattern="intake"
+          />
+          <DetailViewKPIStrip kpis={data.grid_data.kpis} />
+        </div>
+      ) : (
         <div className="rounded-md border border-slate-200 p-6 text-center text-sm text-slate-400">
           No resource or cost plan data submitted yet.
         </div>
@@ -276,7 +177,7 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setActionMode('send-back')}>
                   <Undo2 className="h-3.5 w-3.5 mr-1" />
-                  Send Back
+                  Request Changes
                 </Button>
               </div>
             ) : (

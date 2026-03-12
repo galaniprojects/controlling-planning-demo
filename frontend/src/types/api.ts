@@ -1,7 +1,16 @@
+import type { DetailViewLineItem, DetailViewKPI } from '@/lib/detailViewTypes';
+
 // Response envelope
 export interface ListResponse<T> {
   items: T[];
   total: number;
+}
+
+// Detail View Grid response shape (used by CR detail, intake detail)
+export interface DetailViewGridDataResponse {
+  months: string[];
+  line_items: DetailViewLineItem[];
+  kpis: DetailViewKPI[];
 }
 
 // Role types
@@ -218,6 +227,7 @@ export interface IntakeDetail {
   resource_plan?: IntakeResourcePlanItem[];
   external_cost_plan?: IntakeExternalCostItem[];
   budget_summary?: IntakeBudgetSummary;
+  grid_data?: DetailViewGridDataResponse;
 }
 
 // Approvals
@@ -261,6 +271,7 @@ export interface CRDetail {
   controller_status: string | null;
   controller_comments: string | null;
   changes: CRChangeDetail[];
+  grid_data?: DetailViewGridDataResponse;
 }
 
 // Reference data
