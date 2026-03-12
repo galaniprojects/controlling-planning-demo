@@ -93,12 +93,15 @@ export interface ProjectCreate {
 // --- Portfolio Overview ---
 
 export interface PortfolioKPIs {
-  total_budget: number;
-  ytd_spend: number;
-  forecast_at_completion: number;
-  overall_variance_pct: number;
-  capex_opex_split: { capex: number; opex: number };
-  run_change_ratio: string;
+  baseline: number;
+  current_forecast: number;
+  ytd_actuals: number;
+  plan_drift_amount: number;
+  plan_drift_pct: number;
+  capex_total: number;
+  opex_total: number;
+  capex_pct: number;
+  opex_pct: number;
   run_total: number;
   change_total: number;
   run_pct: number;

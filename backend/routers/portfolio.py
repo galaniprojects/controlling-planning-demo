@@ -93,16 +93,22 @@ def get_portfolio_kpis(
     )
     opex_forecast = float(total_forecast) - float(capex_forecast)
 
+    capex_val = round(float(capex_forecast), 2)
+    opex_val = round(opex_forecast, 2)
+    total_co = capex_val + opex_val
+    capex_pct = round(capex_val / total_co * 100) if total_co > 0 else 0
+    opex_pct = 100 - capex_pct
+
     return {
-        "total_budget": kpis["total_budget"],
-        "ytd_spend": kpis["ytd_spend"],
-        "forecast_at_completion": round(float(total_forecast), 2),
-        "overall_variance_pct": kpis["portfolio_variance_pct"],
-        "capex_opex_split": {
-            "capex": round(float(capex_forecast), 2),
-            "opex": round(opex_forecast, 2),
-        },
-        "run_change_ratio": kpis["run_change_ratio"],
+        "baseline": kpis["baseline"],
+        "current_forecast": kpis["current_forecast"],
+        "ytd_actuals": kpis["ytd_actuals"],
+        "plan_drift_amount": kpis["plan_drift_amount"],
+        "plan_drift_pct": kpis["plan_drift_pct"],
+        "capex_total": capex_val,
+        "opex_total": opex_val,
+        "capex_pct": capex_pct,
+        "opex_pct": opex_pct,
         "run_total": kpis["run_total"],
         "change_total": kpis["change_total"],
         "run_pct": kpis["run_pct"],
