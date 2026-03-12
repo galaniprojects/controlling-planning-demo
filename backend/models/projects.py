@@ -42,6 +42,7 @@ class Project(Base):
     is_service: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     annual_budget: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)  # For services
     total_budget: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)  # Total baseline budget
+    last_forecast_submitted_month: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)  # YYYY-MM — last month PL submitted forecast
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     modified_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

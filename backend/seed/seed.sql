@@ -170,6 +170,16 @@ INSERT INTO projects (id, name, description, lob_id, program_id, status, rag_sta
 ('proj-workshop',  'Workshop Management Tool',     'Digital tool for workshop scheduling and operations management',        'lob-rs', NULL,       'completed',        'green', 'capex', '2023-06', '2025-03', '2025-03', 'p-kiss',    0, NULL,  220000.00, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-autobrake', 'Autonomous Braking Prototype', 'Prototype autonomous emergency braking system for next-gen trucks',    'lob-ts', NULL,       'pending_approval', NULL,    'capex', '2026-06', '2027-12', NULL,       'p-sharma',  0, NULL,  900000.00, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
+-- Forecast submission tracking for pending actions engine
+-- ERP Integration: overdue — last submitted January (February was never submitted)
+UPDATE projects SET last_forecast_submitted_month = '2026-01' WHERE id = 'proj-erp2';
+-- Sensor Data Pipeline: due — last submitted February (March not yet submitted)
+UPDATE projects SET last_forecast_submitted_month = '2026-02' WHERE id = 'proj-sensor';
+-- Predictive Maintenance: due — last submitted February (March not yet submitted)
+UPDATE projects SET last_forecast_submitted_month = '2026-02' WHERE id = 'proj-predmaint';
+-- Other active projects: up to date
+UPDATE projects SET last_forecast_submitted_month = '2026-03' WHERE id IN ('proj-sap', 'proj-brake', 'proj-signal', 'proj-raildiag', 'proj-fleet', 'proj-telem', 'proj-cloud');
+
 -- =============================================================================
 -- 10b. services (8 operational services — is_service=1, no end_month)
 -- =============================================================================
