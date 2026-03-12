@@ -86,7 +86,7 @@ def get_project_overview(
     ac_map = {r.month: round(float(r.total), 2) for r in actuals_rows}
     all_months = sorted(set(bl_map) | set(fc_map) | set(ac_map))
     trajectory = [
-        {"month": m, "baseline": bl_map.get(m, 0), "forecast": fc_map.get(m, 0), "actuals": ac_map.get(m, 0)}
+        {"month": m, "baseline": bl_map.get(m, 0), "forecast": fc_map.get(m, 0), "actuals": ac_map.get(m) if m in ac_map else None}
         for m in all_months
     ]
 
@@ -148,6 +148,12 @@ def get_project_forecast(
     for a in actuals_list:
         ac_map.setdefault(a.sub_category, {})[a.month] = {"hours": float(a.hours or 0), "amount": float(a.amount_eur)}
 
+    # Pre-load hourly rates for internal roles (first rate per role_type_id)
+    rate_rows = db.query(RateTable).all()
+    rate_map: dict[str, float] = {}
+    for rt in rate_rows:
+        rate_map.setdefault(rt.role_type_id, float(rt.hourly_rate))
+
     rows_map = {}
     for f in forecasts:
         key = (f.category, f.sub_category)
@@ -159,10 +165,13 @@ def get_project_forecast(
                 from models.financial import ExternalCostType
                 ct = db.query(ExternalCostType).filter(ExternalCostType.id == f.sub_category).first()
                 name = ct.name if ct else f.sub_category
-            rows_map[key] = {"category": f.category, "sub_category": f.sub_category, "sub_category_name": name, "months": []}
+            row_data: dict = {"category": f.category, "sub_category": f.sub_category, "sub_category_name": name, "months": []}
+            if f.category == "internal":
+                row_data["hourly_rate"] = rate_map.get(f.sub_category)
+            rows_map[key] = row_data
         bl = bl_map.get(f.sub_category, {}).get(f.month, {})
         ac = ac_map.get(f.sub_category, {}).get(f.month, {})
-        rows_map[key]["months"].append({
+        cell = {
             "month": f.month,
             "forecast_hours": float(f.hours or 0),
             "forecast_amount": float(f.amount_eur),
@@ -170,7 +179,13 @@ def get_project_forecast(
             "baseline_amount": bl.get("amount", 0),
             "actuals_hours": ac.get("hours", 0),
             "actuals_amount": ac.get("amount", 0),
-        })
+        }
+        # External cost procurement fields
+        if f.category == "external":
+            cell["ext_status"] = f.ext_status
+            cell["po_number"] = f.po_number
+            cell["vendor"] = f.vendor
+        rows_map[key]["months"].append(cell)
 
     items = list(rows_map.values())
     return {"items": items, "total": len(items)}

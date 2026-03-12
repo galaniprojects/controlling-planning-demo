@@ -692,5 +692,117 @@ Branch: `v2/session-2-portfolio` (1 commit, 18 files changed, +998/-69)
 - **CR Routing Bug (6.1)**: FIXED — non-resource CRs now route correctly
 - **Forecast Chart (6.3)**: FIXED — cumulative 3-series chart working
 
+## v2 Session 3 — Project Workbench Improvements
+
+Branch: `v2/session-3-workbench` (8 commits)
+
+### Completed Items
+- [x] **3.5/6.2 — Confirmed CRs in Seed Data**: Audited all 16 approved CRs, fixed 8 that weren't reflected in forecast rows. Updated forecast amounts/hours for CRs 3, 11, 12, 14, 16, 19, 24, 25. Added missing ext-training row for CR 19.
+- [x] **3.2 — External Cost Status Detail**: Added `ext_status`, `po_number`, `vendor` columns to Forecast model. Updated all 1511 forecast rows with procurement statuses (planned/ordered/goods_received/invoiced) based on month vs demo date. Frontend: ExternalCostStatusBadge component, status summary bar, status filter dropdown, vendor/PO tooltips.
+- [x] **3.1 — Actuals Line Fix**: Backend returns null instead of 0 for months without actuals data. Frontend chart uses `connectNulls={false}` so actuals line stops at Jan 2026.
+- [x] **3.3 — Collapsible Yearly View**: New `useCollapsibleYears` hook groups months by year. Current year (2026) expanded by default, other years collapsed into summary columns with yearly totals. Chevron toggle to expand/collapse. Applied to ForecastGrid.
+- [x] **3.4 — Internal Resources Show Euro Values**: Backend looks up hourly rates from rate_table and includes in forecast response. Frontend shows EUR equivalent below hours in forecast grid cells (formatCurrencyDetailed for months, formatCurrency for year summaries).
+- [x] **3.6 — Monthly Review Formatting**: Phase4Review formats values by group type (hours + suffix for resources, full EUR for external costs). Phase3EditForecast shows EUR equivalent below editable hours inputs.
+- [x] **3.6.1 — Future-Only Editing + Collapsed History**: Phase3EditForecast uses useCollapsibleYears hook. Past months (before 2026-02) are read-only with grey background. Older years collapse into summary columns.
+
+### New Files
+- `frontend/src/hooks/useCollapsibleYears.ts` — Reusable hook for year-based column grouping
+- `frontend/src/modules/workbench/forecast/ExternalCostStatusBadge.tsx` — Color-coded procurement status badge
+
+### Files Changed
+- **Backend (3 modified)**: `models/financial.py`, `routers/workbench.py`, `seed/seed.sql`
+- **Frontend (4 modified)**: `types/api.ts`, `ForecastGrid.tsx`, `Phase3EditForecast.tsx`, `Phase4Review.tsx`, `ProjectTrajectoryChart.tsx`
+
+## v2 Session 4 — What-If Simulator Enhancements
+
+Branch: `v2/session-4-whatif`
+
+### Completed Items
+- [x] **4.3 — Fix Delay/Accelerate Timeline Modeling**: Replaced no-op stub with real engine logic. Delay queries monthly forecasts, sums first N future months as "freed" budget, reduces adjusted_budget, extends end date. Accelerate calculates 5% monthly premium per compressed month, shortens end date.
+- [x] **4.1.1 — Pause Project Action**: New project-scope action. Queries forecast from start_month onward and subtracts total from adjusted_budget.
+- [x] **4.1.2 — Change Resource Allocation Action**: New project-scope action. Looks up hourly rate from RateTable for role, calculates delta = hours × rate × months. Supports add/remove/modify modes.
+- [x] **4.1.3 — Cut by Type Portfolio Rule**: New portfolio-scope action. Filters working state by is_service flag based on target_type (project/service/all), applies percentage reduction.
+- [x] **4.1.4 — Freeze New Starts Portfolio Rule**: New portfolio-scope action. Zeros out adjusted_budget for projects with start date after cutoff_month.
+- [x] **4.1.5 — Cap Cost Category Portfolio Rule**: New portfolio-scope action. Queries external costs by sub_category, applies proportional cap or percentage-based reduction. Supports both absolute cap and percentage variant.
+- [x] **4.2 — Rate Escalation Action**: New portfolio-scope action with multi-select scope selector. Finds matching Person IDs by scope type (role/cost_center/location), queries Allocations from effective_month, calculates cost increase using average hourly rate.
+- [x] **Engine: Per-action impact delta computation**: Engine now computes budget_delta for each action by snapshotting total budget before/after. Pre-seeded scenarios retain their rich impact_delta fields.
+- [x] **Engine: Action type aliases**: Added _ACTION_ALIASES map to normalize advisor fixture names (defer_project→delay_project, change_resources→change_allocation, etc.).
+- [x] **Advisor apply fix**: Router now falls back to rule_type when action_type missing. Fixed goals.json rule_type→action_type for 2 portfolio-scope entries.
+- [x] **Frontend: AddActionForm extended**: Added text and multi-select parameter types, 2 new project actions (pause, change_allocation), 4 new portfolio actions (cut_by_type, freeze_new_starts, cap_cost_category, rate_escalation). Dynamic reference data fetching, conditional options for rate escalation scope_values.
+- [x] **Frontend: ActionItem extended**: Added icons (Pause, Users, Filter, Snowflake, ShieldAlert, TrendingUp) and descriptions for all new action types.
+- [x] **Frontend: getCostTypes API**: Added getCostTypes() to referenceApi for cap_cost_category form.
+
+### New Capabilities
+- What-If Simulator now supports **13 action types** (was 7): adjust_budget, remove_project, delay_project, accelerate_project, cut_consulting, pause_project, change_allocation, across_the_board_cut, reduce_lob, cut_by_type, freeze_new_starts, cap_cost_category, rate_escalation
+- Multi-select parameter type for Rate Escalation scope values
+- Conditional form options (scope_values populates based on scope_type selection)
+- Per-action budget delta computation for engine-calculated actions
+
+### Files Changed
+- **Backend (3 modified)**: `services/scenario_engine.py` (full rewrite), `routers/scenarios.py` (1-line fix), `seed/fixtures/advisor/goals.json` (rule_type→action_type)
+- **Frontend (3 modified)**: `api/endpoints.ts` (getCostTypes), `modules/simulator/workspace/AddActionForm.tsx` (full rewrite), `modules/simulator/workspace/ActionItem.tsx` (new icons + descriptions)
+
+## v2 Session 5A — Reporting Module Backend + First 3 Reports
+
+Branch: `v2/session-5-reporting`
+
+### Completed Items (Backend)
+- [x] **5.1 — Reporting Models**: Created `SavedView` and `ReportSchedule` SQLAlchemy models with JSON config column
+- [x] **5.2 — Seed Data**: Added reporting seed data to seed.sql (no pre-seeded saved views — created at runtime)
+- [x] **5.3.1 — Programme Rollup API**: `GET /api/reports/programme-rollup` with LoB/status/RAG/type filters, KPIs, chart_data, grouped rows
+- [x] **5.3.2 — CC Financial Summary API**: `GET /api/reports/cc-financial-summary` with cost_center/type filters, KPIs, pie/trend chart data
+- [x] **5.3.3 — Vendor Spend API**: `GET /api/reports/vendor-spend` with vendor/lob/status filters, KPIs, bar chart data, drill-down endpoint
+- [x] **5.3.4 — Forecast Accuracy API**: `GET /api/reports/forecast-accuracy` with lob/type/horizon filters, accuracy KPIs, scatter chart data
+- [x] **5.3.5 — Year-over-Year API**: `GET /api/reports/year-over-year` with lob/cost_type filters, YTD comparison KPIs, monthly + cumulative chart data
+- [x] **5.5 — Excel Export**: `GET /api/reports/{report_id}/export` returns XLSX via openpyxl with styled headers, formatted data, auto-column widths
+- [x] **5.6 — Saved Views CRUD API**: Full CRUD for saved views (`GET/POST /api/reports/saved-views`, `PUT/DELETE /api/reports/saved-views/{id}`)
+
+### Completed Items (Frontend — Session 5A)
+- [x] **Reporting Shell**: Route `/reporting` with `ReportLibrary` (5 report cards) and `ReportViewerWrapper` (dynamic report loader)
+- [x] **ReportViewer**: Reusable report shell with back link, title, toolbar (Customize/Save View/Export), FilterBar, KPI row, Chart/Table toggle
+- [x] **Programme Rollup Report**: Full report with LoB grouping, RAG badges, 5 KPIs, stacked bar chart
+- [x] **CC Financial Summary Report**: Full report with cost center filter (auto-set for CC Owner role), pie + trend charts
+- [x] **Vendor Spend Report**: Full report with expandable vendor drill-down, procurement status badges, bar chart
+
+## v2 Session 5B — Reporting Module Completion
+
+Branch: `v2/session-5-reporting` (continued)
+
+### Completed Items
+- [x] **5.3.4 — Forecast Accuracy Report (frontend)**: Table with project/LoB/forecast/actual/variance columns, scatter plot chart (ComposedChart with Scatter grouped by LoB + Line for diagonal perfect-accuracy reference), rating badges (green/amber/red), configurable columns + sort
+- [x] **5.3.5 — Year-over-Year Report (frontend)**: Dual-series line chart with Cumulative/Monthly toggle, 7-column table with delta coloring, FY comparison KPIs, configurable columns + sort
+- [x] **5.4 — Report Configurator**: Right-side Sheet drawer with column visibility checkboxes and sort order dropdowns. Available on Forecast Accuracy and YoY reports (reports with flat tables)
+- [x] **5.5 — Excel Export (frontend)**: Export button on all 5 reports. Uses fetch() with X-Current-User header, blob download with Content-Disposition filename extraction
+- [x] **5.6 — Saved Views (frontend)**: Save View dialog on all 5 reports. SavedViewCard in library with click-to-navigate, rename dialog, delete. Reports load saved config from `?view=ID` query param
+- [x] **Bug fixes**: Fixed React Rules of Hooks violation (useMemo after early return), fixed Radix UI SelectItem empty-value crash in ReportConfigurator
+
+### New Files Created (Session 5B)
+| File | Purpose |
+|------|---------|
+| `components/ui/sheet.tsx` | shadcn Sheet (CLI install) |
+| `reports/ForecastAccuracyReport.tsx` | Forecast accuracy report with configurable columns |
+| `reports/ForecastAccuracyChart.tsx` | Scatter plot chart (ComposedChart) |
+| `reports/YoYReport.tsx` | Year-over-year report with configurable columns |
+| `reports/YoYChart.tsx` | Dual-series line chart |
+| `viewer/ReportConfigurator.tsx` | Right-side Sheet drawer for column/sort config |
+
+### Files Modified (Session 5B)
+| File | Changes |
+|------|---------|
+| `viewer/ReportViewer.tsx` | Added reportId, export handler, configurator + save view props |
+| `viewer/ReportViewerWrapper.tsx` | Added ForecastAccuracy + YoY report routing |
+| `library/ReportLibrary.tsx` | Fetch + display saved views with rename/delete |
+| `library/SavedViewCard.tsx` | Saved view card with navigation + menu |
+| `viewer/SaveViewDialog.tsx` | Save view name dialog |
+| `reports/ProgrammeRollupReport.tsx` | Added reportId, onSaveView, saved view loading |
+| `reports/CCFinancialReport.tsx` | Added reportId, onSaveView, saved view loading |
+| `reports/VendorSpendReport.tsx` | Added reportId, onSaveView, saved view loading |
+
+### Reporting Module Summary
+- **5 standard reports**: Programme Rollup, CC Financial Summary, Vendor Spend, Forecast Accuracy, Year-over-Year
+- **12 backend endpoints**: 5 report data + 1 drill-down + 1 export + 5 saved view CRUD
+- **Toolbar features**: Customize (column visibility + sort), Save View, Excel Export
+- **Saved views**: Full CRUD with library display, click-to-load, rename, delete
+
 ## Known Issues
 None currently tracked.
