@@ -8,12 +8,32 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatNumber } from '@/lib/formatters';
+import { formatMonthShort, isElapsedMonth } from '@/lib/yearColumns';
+import { useCollapsibleYears } from '@/hooks/useCollapsibleYears';
+import type { VisibleColumn } from '@/hooks/useCollapsibleYears';
 import { workbenchApi } from '@/api/endpoints';
-import type { ForecastGridRow } from '@/types/api';
+import type { ForecastGridRow, ForecastMonthCell } from '@/types/api';
 
 interface Props {
   projectId: string;
+}
+
+function findCell(row: ForecastGridRow, month: string): ForecastMonthCell | undefined {
+  return row.months.find((c) => c.month === month);
+}
+
+function sumCells(
+  row: ForecastGridRow,
+  months: string[],
+  field: 'forecast_hours' | 'forecast_amount' | 'baseline_hours' | 'baseline_amount' | 'actuals_hours' | 'actuals_amount',
+): number {
+  let total = 0;
+  for (const m of months) {
+    const cell = findCell(row, m);
+    if (cell) total += cell[field];
+  }
+  return total;
 }
 
 export function ForecastGrid({ projectId }: Props) {
@@ -29,6 +49,13 @@ export function ForecastGrid({ projectId }: Props) {
       .finally(() => setLoading(false));
   }, [projectId]);
 
+  // Collect all unique months
+  const allMonths = Array.from(
+    new Set(rows.flatMap((r) => r.months.map((m) => m.month))),
+  ).sort();
+
+  const { yearGroups, toggleYear, visibleColumns } = useCollapsibleYears(allMonths);
+
   if (loading) {
     return (
       <div className="space-y-2">
@@ -42,28 +69,148 @@ export function ForecastGrid({ projectId }: Props) {
     return <p className="text-sm text-slate-400">No forecast data available.</p>;
   }
 
-  // Collect all unique months
-  const allMonths = Array.from(
-    new Set(rows.flatMap((r) => r.months.map((m) => m.month))),
-  ).sort();
-
   const internalRows = rows.filter((r) => r.category === 'internal');
   const externalRows = rows.filter((r) => r.category === 'external');
+
+  function renderYearHeaders() {
+    return (
+      <TableRow className="bg-slate-50">
+        <TableHead className="sticky left-0 bg-slate-50 min-w-[180px]" rowSpan={2}>
+          Line Item
+        </TableHead>
+        {yearGroups.map((g) => (
+          <TableHead
+            key={g.year}
+            colSpan={g.isExpanded ? g.months.length : 1}
+            className="text-center cursor-pointer select-none border-l-2 border-slate-300"
+            onClick={() => toggleYear(g.year)}
+          >
+            <span className="text-[#1e40af] font-semibold">
+              {g.isExpanded ? '\u25BE' : '\u25B8'} {g.year}
+            </span>
+          </TableHead>
+        ))}
+      </TableRow>
+    );
+  }
+
+  function renderMonthHeaders() {
+    return (
+      <TableRow className="bg-slate-50">
+        {visibleColumns.map((col) => {
+          if (col.type === 'yearSummary') {
+            return (
+              <TableHead key={`sum-${col.year}`} className="text-right min-w-[90px] text-xs text-slate-400 border-l-2 border-slate-300">
+                Total
+              </TableHead>
+            );
+          }
+          const elapsed = isElapsedMonth(col.key);
+          return (
+            <TableHead
+              key={col.key}
+              className={`text-right min-w-[100px] ${col.isJanuary ? 'border-l-2 border-slate-300 font-semibold' : ''} ${elapsed ? 'bg-[#fafafa]' : ''}`}
+            >
+              {formatMonthShort(col.key)}
+            </TableHead>
+          );
+        })}
+      </TableRow>
+    );
+  }
+
+  function renderInternalCell(row: ForecastGridRow, col: VisibleColumn) {
+    if (col.type === 'yearSummary') {
+      const total = sumCells(row, col.months, 'forecast_hours');
+      const blTotal = sumCells(row, col.months, 'baseline_hours');
+      return (
+        <TableCell key={`sum-${col.year}`} className="text-right border-l-2 border-slate-300">
+          <div>
+            <span className="font-tabular font-medium">{formatNumber(total)}</span>
+            <span className="block text-[10px] text-slate-400 font-tabular">
+              BL: {formatNumber(blTotal)}
+            </span>
+          </div>
+        </TableCell>
+      );
+    }
+    const cell = findCell(row, col.key);
+    const elapsed = isElapsedMonth(col.key);
+    return (
+      <TableCell
+        key={col.key}
+        className={`text-right ${col.isJanuary ? 'border-l-2 border-slate-300' : ''} ${elapsed ? 'bg-[#fafafa]' : ''}`}
+      >
+        {cell ? (
+          <div>
+            <span className="font-tabular font-medium">
+              {formatNumber(cell.forecast_hours)}
+            </span>
+            <span className="block text-[10px] text-slate-400 font-tabular">
+              BL: {formatNumber(cell.baseline_hours)}
+            </span>
+            {cell.actuals_hours > 0 && (
+              <span className="block text-[10px] text-slate-400 font-tabular">
+                Act: {formatNumber(cell.actuals_hours)}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="text-slate-300">&mdash;</span>
+        )}
+      </TableCell>
+    );
+  }
+
+  function renderExternalCell(row: ForecastGridRow, col: VisibleColumn) {
+    if (col.type === 'yearSummary') {
+      const total = sumCells(row, col.months, 'forecast_amount');
+      const blTotal = sumCells(row, col.months, 'baseline_amount');
+      return (
+        <TableCell key={`sum-${col.year}`} className="text-right border-l-2 border-slate-300">
+          <div>
+            <span className="font-tabular font-medium">{formatCurrency(total)}</span>
+            <span className="block text-[10px] text-slate-400 font-tabular">
+              BL: {formatCurrency(blTotal)}
+            </span>
+          </div>
+        </TableCell>
+      );
+    }
+    const cell = findCell(row, col.key);
+    const elapsed = isElapsedMonth(col.key);
+    return (
+      <TableCell
+        key={col.key}
+        className={`text-right ${col.isJanuary ? 'border-l-2 border-slate-300' : ''} ${elapsed ? 'bg-[#fafafa]' : ''}`}
+      >
+        {cell ? (
+          <div>
+            <span className="font-tabular font-medium">
+              {formatCurrency(cell.forecast_amount)}
+            </span>
+            <span className="block text-[10px] text-slate-400 font-tabular">
+              BL: {formatCurrency(cell.baseline_amount)}
+            </span>
+            {cell.actuals_amount > 0 && (
+              <span className="block text-[10px] text-slate-400 font-tabular">
+                Act: {formatCurrency(cell.actuals_amount)}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="text-slate-300">&mdash;</span>
+        )}
+      </TableCell>
+    );
+  }
 
   return (
     <div className="border border-slate-200 rounded-lg overflow-x-auto">
       <Table>
         <TableHeader>
-          <TableRow className="bg-slate-50">
-            <TableHead className="sticky left-0 bg-slate-50 min-w-[180px]">
-              Line Item
-            </TableHead>
-            {allMonths.map((m) => (
-              <TableHead key={m} className="text-right min-w-[100px]">
-                {m}
-              </TableHead>
-            ))}
-          </TableRow>
+          {renderYearHeaders()}
+          {renderMonthHeaders()}
         </TableHeader>
         <TableBody>
           {/* Internal Resources group */}
@@ -71,7 +218,7 @@ export function ForecastGrid({ projectId }: Props) {
             <>
               <TableRow className="bg-slate-50/50">
                 <TableCell
-                  colSpan={allMonths.length + 1}
+                  colSpan={visibleColumns.length + 1}
                   className="font-medium text-xs text-slate-500 uppercase tracking-wide"
                 >
                   Internal Resources (Hours)
@@ -82,30 +229,7 @@ export function ForecastGrid({ projectId }: Props) {
                   <TableCell className="sticky left-0 bg-white font-medium text-sm">
                     {row.sub_category_name}
                   </TableCell>
-                  {allMonths.map((m) => {
-                    const cell = row.months.find((c) => c.month === m);
-                    return (
-                      <TableCell key={m} className="text-right">
-                        {cell ? (
-                          <div>
-                            <span className="text-sm font-medium">
-                              {cell.forecast_hours.toLocaleString()}
-                            </span>
-                            <span className="block text-[10px] text-slate-400">
-                              BL: {cell.baseline_hours.toLocaleString()}
-                            </span>
-                            {cell.actuals_hours > 0 && (
-                              <span className="block text-[10px] text-slate-400">
-                                Act: {cell.actuals_hours.toLocaleString()}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
-                      </TableCell>
-                    );
-                  })}
+                  {visibleColumns.map((col) => renderInternalCell(row, col))}
                 </TableRow>
               ))}
             </>
@@ -116,7 +240,7 @@ export function ForecastGrid({ projectId }: Props) {
             <>
               <TableRow className="bg-slate-50/50">
                 <TableCell
-                  colSpan={allMonths.length + 1}
+                  colSpan={visibleColumns.length + 1}
                   className="font-medium text-xs text-slate-500 uppercase tracking-wide"
                 >
                   External Costs (EUR)
@@ -127,30 +251,7 @@ export function ForecastGrid({ projectId }: Props) {
                   <TableCell className="sticky left-0 bg-white font-medium text-sm">
                     {row.sub_category_name}
                   </TableCell>
-                  {allMonths.map((m) => {
-                    const cell = row.months.find((c) => c.month === m);
-                    return (
-                      <TableCell key={m} className="text-right">
-                        {cell ? (
-                          <div>
-                            <span className="text-sm font-medium">
-                              {formatCurrency(cell.forecast_amount)}
-                            </span>
-                            <span className="block text-[10px] text-slate-400">
-                              BL: {formatCurrency(cell.baseline_amount)}
-                            </span>
-                            {cell.actuals_amount > 0 && (
-                              <span className="block text-[10px] text-slate-400">
-                                Act: {formatCurrency(cell.actuals_amount)}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
-                      </TableCell>
-                    );
-                  })}
+                  {visibleColumns.map((col) => renderExternalCell(row, col))}
                 </TableRow>
               ))}
             </>
