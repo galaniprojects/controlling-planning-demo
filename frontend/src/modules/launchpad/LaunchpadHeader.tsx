@@ -35,7 +35,7 @@ export function LaunchpadHeader({ userName, role }: Props) {
   return (
     <div className="text-center py-6">
       {/* CRETA Acronym */}
-      <div className="flex items-center justify-center gap-0 text-lg tracking-wide mb-3">
+      <div className="flex items-center justify-center gap-0 text-base tracking-wide mb-3 flex-wrap">
         {CRETA_WORDS.map((word, i) => (
           <span key={word.letter} className="inline-flex items-center">
             {i > 0 && <span className="mx-1.5 text-slate-300">·</span>}
