@@ -6349,3 +6349,32 @@ INSERT INTO forecast_snapshots (project_id, snapshot_month, forecast_total) VALU
 ('proj-cloud', '2025-12', 402000.00),
 ('proj-cloud', '2026-01', 403000.00),
 ('proj-cloud', '2026-02', 405000.00);
+
+-- =============================================================================
+-- CapEx/OpEx per line item classification (v3 §10)
+-- =============================================================================
+
+-- Default: All baselines/forecasts/actuals get capex_opex from their project-level setting
+-- Step 1: Set all rows to their project's capex_opex value
+UPDATE baselines SET capex_opex = (SELECT p.capex_opex FROM projects p WHERE p.id = baselines.project_id);
+UPDATE forecasts SET capex_opex = (SELECT p.capex_opex FROM projects p WHERE p.id = forecasts.project_id);
+UPDATE actuals  SET capex_opex = (SELECT p.capex_opex FROM projects p WHERE p.id = actuals.project_id);
+
+-- Step 2: Mixed CapEx/OpEx overrides — training and travel are OpEx even on CapEx projects
+-- ERP Integration Phase 2: dev roles = capex, training/travel = opex
+UPDATE baselines SET capex_opex = 'opex' WHERE project_id = 'proj-erp2' AND sub_category IN ('ext-training', 'ext-travel');
+UPDATE forecasts SET capex_opex = 'opex' WHERE project_id = 'proj-erp2' AND sub_category IN ('ext-training', 'ext-travel');
+UPDATE actuals  SET capex_opex = 'opex' WHERE project_id = 'proj-erp2' AND sub_category IN ('ext-training', 'ext-travel');
+
+-- SAP S/4HANA Migration: migration work = capex, training/maintenance = opex
+UPDATE baselines SET capex_opex = 'opex' WHERE project_id = 'proj-sap' AND sub_category IN ('ext-training', 'ext-maintenance-sw', 'ext-maintenance-hw');
+UPDATE forecasts SET capex_opex = 'opex' WHERE project_id = 'proj-sap' AND sub_category IN ('ext-training', 'ext-maintenance-sw', 'ext-maintenance-hw');
+UPDATE actuals  SET capex_opex = 'opex' WHERE project_id = 'proj-sap' AND sub_category IN ('ext-training', 'ext-maintenance-sw', 'ext-maintenance-hw');
+
+-- IAM Overhaul (proj-predmaint used as proxy): core implementation = capex, training = opex
+UPDATE baselines SET capex_opex = 'opex' WHERE project_id = 'proj-predmaint' AND sub_category IN ('ext-training', 'ext-travel');
+UPDATE forecasts SET capex_opex = 'opex' WHERE project_id = 'proj-predmaint' AND sub_category IN ('ext-training', 'ext-travel');
+UPDATE actuals  SET capex_opex = 'opex' WHERE project_id = 'proj-predmaint' AND sub_category IN ('ext-training', 'ext-travel');
+
+-- Step 3: Update project-level capex_opex to 'mixed' where line items have both
+UPDATE projects SET capex_opex = 'mixed' WHERE id IN ('proj-erp2', 'proj-sap', 'proj-predmaint');
