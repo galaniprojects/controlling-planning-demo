@@ -18,6 +18,13 @@ const STATUS_OPTIONS = [
   { value: 'completed', label: 'Completed' },
 ];
 
+const FISCAL_YEAR_OPTIONS = [
+  { value: '2024', label: 'FY 2024' },
+  { value: '2025', label: 'FY 2025' },
+  { value: '2026', label: 'FY 2026' },
+  { value: '2027', label: 'FY 2027' },
+];
+
 export function VendorSpendReport() {
   const { currentRoleId } = useRole();
   const [searchParams] = useSearchParams();
@@ -29,6 +36,7 @@ export function VendorSpendReport() {
     vendor: '',
     lob: '',
     status: '',
+    fiscal_year: '2026',
   });
   const [expandedVendor, setExpandedVendor] = useState<string | null>(null);
   const [drillDown, setDrillDown] = useState<VendorDrillDownRow[]>([]);
@@ -56,6 +64,7 @@ export function VendorSpendReport() {
     if (filters.vendor) params.vendor = filters.vendor;
     if (filters.lob) params.lob = filters.lob;
     if (filters.status) params.status = filters.status;
+    if (filters.fiscal_year) params.fiscal_year = filters.fiscal_year;
 
     reportsApi
       .getVendorSpend(params)
@@ -96,6 +105,7 @@ export function VendorSpendReport() {
       options: lobs.map((l) => ({ value: l.id, label: l.name })),
     },
     { key: 'status', label: 'Project Status', options: STATUS_OPTIONS },
+    { key: 'fiscal_year', label: 'Fiscal Year', options: FISCAL_YEAR_OPTIONS },
   ];
 
   if (loading) {
@@ -215,7 +225,7 @@ export function VendorSpendReport() {
       filters={filterConfigs}
       filterValues={filters}
       onFilterChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
-      onFilterClear={() => setFilters({ vendor: '', lob: '', status: '' })}
+      onFilterClear={() => setFilters({ vendor: '', lob: '', status: '', fiscal_year: '2026' })}
       kpis={kpiRow}
       view={view}
       onViewChange={setView}

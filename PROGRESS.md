@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v3 Session 3 (complete)
-Last completed: v3 Session 3 — Project Workbench: Timeline, CapEx/OpEx, CR Detail, Phase 4 Redesign
-Branch: `v3/session-3-workbench-timeline`
+Phase: v3 Session 4 (complete)
+Last completed: v3 Session 4 — Reporting Year Selectors, Bug Fixes, Dead Code Cleanup, Pending Actions Verification
+Branch: `v3/session-4-reports-bugs-cleanup`
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -45,6 +45,55 @@ Branch: `v3/session-3-workbench-timeline`
   - [x] v3 Session 1: Global Patterns + Launchpad
   - [x] v3 Session 2: Detail View Component + Portfolio
   - [x] v3 Session 3: Project Workbench — Timeline, CapEx/OpEx, CR Detail, Phase 4 Redesign
+  - [x] v3 Session 4: Reporting Year Selectors, Bug Fixes, Dead Code Cleanup, Pending Actions Verification
+
+## v3 Session 4 — Reporting Year Selectors + Bug Fixes + Cleanup
+
+### Summary
+Added fiscal year selectors to all 5 reports, fixed scenario publish error handling and intake approve endpoint (baseline generation + notification), removed 2 orphaned v2 files, and fixed pending action type #8 (project submission decision).
+
+### Changes
+
+**Item 1: Year Selector in Reports**
+- `backend/routers/reports.py` — Added `fiscal_year` query param to Programme Rollup, CC Financial Summary, Vendor Spend, Forecast Accuracy endpoints; passed through to export endpoint
+- `backend/services/report_service.py` — All 4 compute functions now accept `fiscal_year` param and filter Baseline/Forecast/Actuals queries by year prefix
+- `frontend/src/api/endpoints.ts` — Added `fiscal_year` param to 4 report API methods
+- `frontend/src/modules/reporting/reports/ProgrammeRollupReport.tsx` — Added Fiscal Year filter (FY 2024–2027, default 2026)
+- `frontend/src/modules/reporting/reports/CCFinancialReport.tsx` — Added Fiscal Year filter
+- `frontend/src/modules/reporting/reports/VendorSpendReport.tsx` — Added Fiscal Year filter
+- `frontend/src/modules/reporting/reports/ForecastAccuracyReport.tsx` — Added Fiscal Year filter
+- `frontend/src/modules/reporting/reports/YoYReport.tsx` — Added Current Year and Previous Year filter dropdowns (multi-year range selector), wired existing fy_current/fy_previous backend params
+
+**Item 2: Scenario Publish Bug Fix**
+- `frontend/src/modules/simulator/manager/ScenarioManager.tsx` — Wrapped handlePublish/handleUnpublish/handleDelete in try/finally so refresh() always runs even on API failure. Backend was already correctly persisting status changes.
+
+**Item 3: Intake Approve Bug Fix**
+- `backend/routers/portfolio.py` — Approve endpoint now: sets status to active + green RAG, copies Forecast rows into Baseline records (snapshot at approval), calculates total_budget, creates Notification for submitting PL (action type #8)
+
+**Item 4: Dead Code Cleanup**
+- Removed `frontend/src/modules/launchpad/SubmitProjectButton.tsx` (replaced by direct SubmitProjectDialog import)
+- Removed `frontend/src/components/layout/PlaceholderModule.tsx` (unused placeholder component)
+
+**Item 5: Pending Action Verification**
+- `backend/routers/global_launchpad.py` — Fixed action type #8 (project submission decision): replaced empty `pass` block with query against unread Notification records for project_workbench deep links
+- All 9 action types verified working with current seed data
+
+### Verification Results
+- [x] Year selector visible and functional in Programme Rollup report (FY 2026 default)
+- [x] Year-over-Year report has Current Year and Previous Year dropdowns
+- [x] Year selector correctly filters backend data by fiscal year
+- [x] Scenario publish persists and status badge updates correctly
+- [x] Scenario publish/unpublish/delete handlers resilient to API errors
+- [x] Intake approve changes project status to active with green RAG
+- [x] Intake approve generates baseline values from forecast data
+- [x] Intake approve creates notification for submitting PL
+- [x] No orphaned v2 code remains
+- [x] Pending action #8 fires correctly for project leads
+- [x] All 9 pending action types verified: PL sees forecast due/overdue, CR feedback, CR decisions; Controller sees overdue forecasts, CR approvals, project reviews, published scenarios; CC Owner sees CR confirmations; Executive sees published scenarios
+- [x] No console errors, backend starts cleanly
+
+### Next Session
+Session 5: Seed Data Overhaul — complete rewrite of seed.sql per CRETA_v3_Section9_Seed_Data.md
 
 ## v3 Session 3 — Project Workbench: Timeline, CapEx/OpEx, CR Detail, Phase 4 Redesign
 
@@ -108,7 +157,7 @@ Built the Project Timeline visualization (monthly bar chart + cumulative line ch
 - [x] Backend endpoints return correct data shapes (timeline, review with grid_data + cost_centre_groups)
 
 ### Next Session
-Session 4: Capacity Management — heatmap visualization, request management, org overview
+Session 4: Reporting Year Selectors + Bug Fixes + Cleanup (completed)
 
 ## v3 Session 2 — Detail View Component + Portfolio
 

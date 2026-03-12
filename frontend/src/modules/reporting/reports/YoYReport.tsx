@@ -28,6 +28,13 @@ const COST_TYPE_OPTIONS = [
   { value: 'all', label: 'All' },
 ];
 
+const FISCAL_YEAR_OPTIONS = [
+  { value: '2024', label: 'FY 2024' },
+  { value: '2025', label: 'FY 2025' },
+  { value: '2026', label: 'FY 2026' },
+  { value: '2027', label: 'FY 2027' },
+];
+
 export function YoYReport() {
   const { currentRoleId } = useRole();
   const [searchParams] = useSearchParams();
@@ -39,6 +46,8 @@ export function YoYReport() {
   const [filters, setFilters] = useState<Record<string, string>>({
     lob: '',
     cost_type: '',
+    fy_current: '2026',
+    fy_previous: '2025',
   });
   const [visibleCols, setVisibleCols] = useState(ALL_COLUMNS.map((c) => c.key));
   const [sortColumn, setSortColumn] = useState('');
@@ -68,6 +77,8 @@ export function YoYReport() {
     const params: Record<string, string> = {};
     if (filters.lob) params.lob = filters.lob;
     if (filters.cost_type) params.cost_type = filters.cost_type;
+    if (filters.fy_current) params.fy_current = filters.fy_current;
+    if (filters.fy_previous) params.fy_previous = filters.fy_previous;
 
     reportsApi
       .getYearOverYear(params)
@@ -87,6 +98,8 @@ export function YoYReport() {
       options: lobs.map((l) => ({ value: l.id, label: l.name })),
     },
     { key: 'cost_type', label: 'Cost Type', options: COST_TYPE_OPTIONS },
+    { key: 'fy_current', label: 'Current Year', options: FISCAL_YEAR_OPTIONS },
+    { key: 'fy_previous', label: 'Previous Year', options: FISCAL_YEAR_OPTIONS },
   ];
 
   // Sort rows — must be before early returns to satisfy Rules of Hooks
@@ -246,7 +259,7 @@ export function YoYReport() {
       filters={filterConfigs}
       filterValues={filters}
       onFilterChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
-      onFilterClear={() => setFilters({ lob: '', cost_type: '' })}
+      onFilterClear={() => setFilters({ lob: '', cost_type: '', fy_current: '2026', fy_previous: '2025' })}
       kpis={kpiRow}
       view={view}
       onViewChange={setView}
