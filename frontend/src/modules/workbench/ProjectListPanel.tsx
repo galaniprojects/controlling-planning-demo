@@ -1,10 +1,11 @@
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { ragBgColor } from '@/lib/rag';
+import { SubmitProjectDialog } from '@/components/shared/SubmitProjectDialog';
 import { cn } from '@/lib/utils';
 import type { WorkbenchProjectListItem } from '@/types/api';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react';
 
 interface Props {
   projects: WorkbenchProjectListItem[];
@@ -13,6 +14,8 @@ interface Props {
   onSelect: (id: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  isProjectLead?: boolean;
+  onProjectCreated?: () => void;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -27,7 +30,11 @@ export function ProjectListPanel({
   onSelect,
   collapsed,
   onToggleCollapse,
+  isProjectLead,
+  onProjectCreated,
 }: Props) {
+  const [submitOpen, setSubmitOpen] = useState(false);
+
   return (
     <div
       className={cn(
@@ -42,18 +49,31 @@ export function ProjectListPanel({
             Projects
           </span>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 w-7 p-0"
-          onClick={onToggleCollapse}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="h-4 w-4 text-slate-500" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4 text-slate-500" />
+        <div className="flex items-center gap-1">
+          {!collapsed && isProjectLead && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-blue-700 hover:text-blue-800 hover:bg-blue-50"
+              onClick={() => setSubmitOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5 mr-0.5" />
+              New
+            </Button>
           )}
-        </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0"
+            onClick={onToggleCollapse}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="h-4 w-4 text-slate-500" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4 text-slate-500" />
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* List */}
@@ -113,6 +133,12 @@ export function ProjectListPanel({
           )}
         </div>
       )}
+
+      <SubmitProjectDialog
+        open={submitOpen}
+        onOpenChange={setSubmitOpen}
+        onSuccess={onProjectCreated}
+      />
     </div>
   );
 }

@@ -83,6 +83,22 @@ export const modulesApi = {
 export const launchpadApi = {
   getPendingActions: () =>
     api.get<ListResponse<PendingAction>>('/api/launchpad/pending-actions'),
+  createProject: (data: {
+    name: string;
+    description?: string;
+    lob_id: string;
+    start_month: string;
+    end_month?: string;
+    capex_opex?: string;
+  }) =>
+    api.post<{ id: string; name: string; status: string; estimated_cost: number }>(
+      '/api/launchpad/projects',
+      data,
+    ),
+  submitProject: (projectId: string) =>
+    api.put<{ id: string; name: string; status: string }>(
+      `/api/launchpad/projects/${projectId}/submit`,
+    ),
 };
 
 // --- Portfolio Overview ---
