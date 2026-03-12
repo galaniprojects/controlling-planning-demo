@@ -304,12 +304,28 @@ def get_pending_actions(
             ))
 
         # Action #8: Project Submission Decision
-        for proj in owned_projects:
-            if proj.status in ("active", "rejected"):
-                # Check if recently transitioned (using modified_at as proxy)
-                if proj.modified_at and proj.modified_at.isoformat()[:7] >= prev_month:
-                    # Could be a recently decided submission — skip for projects that were always active
-                    pass
+        # Check for unread notifications about project approvals/rejections
+        from models.system import Notification
+        submission_notifications = (
+            db.query(Notification)
+            .filter(
+                Notification.user_person_id == user.person_id,
+                Notification.is_read.is_(False),
+                Notification.deep_link_module == "project_workbench",
+            )
+            .all()
+        )
+        for notif in submission_notifications:
+            actions.append(PendingAction(
+                id=f"submission-decision-{notif.id}",
+                type="project_submission_decision",
+                title="Project submission approved",
+                description=notif.message,
+                urgency="info",
+                deep_link_module="workbench",
+                deep_link_entity_id=notif.deep_link_entity_id,
+                timestamp=notif.created_at.isoformat() if notif.created_at else None,
+            ))
 
     elif user.role == "controller":
         # Action #2 (info): Forecast overdue projects
