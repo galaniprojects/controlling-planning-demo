@@ -263,6 +263,22 @@ export const workbenchApi = {
     api.get<CRHistoryItem>(
       `/api/projects/${projectId}/change-requests/${crId}`,
     ),
+  getCRDetailView: (projectId: string, crId: number) =>
+    api.get<{
+      cr_id: number;
+      project_id: string;
+      project_name: string;
+      summary: string;
+      status: string;
+      change_category: string;
+      justification: string | null;
+      is_system_suggested: boolean;
+      submitted_by: string;
+      submission_date: string;
+      decided_by: string | null;
+      decided_date: string | null;
+      grid_data: import('@/lib/detailViewTypes').DetailViewGridData | null;
+    }>(`/api/projects/${projectId}/change-requests/${crId}/detail-view`),
 };
 
 // --- Capacity Management ---

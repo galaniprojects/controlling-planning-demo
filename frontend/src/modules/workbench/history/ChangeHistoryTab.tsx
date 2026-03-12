@@ -71,7 +71,7 @@ export function ChangeHistoryTab({ projectId }: Props) {
           ))}
         </div>
       ) : (
-        <CRHistoryList items={items} />
+        <CRHistoryList items={items} projectId={projectId} />
       )}
     </div>
   );

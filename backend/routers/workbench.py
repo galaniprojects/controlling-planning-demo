@@ -474,3 +474,49 @@ def get_project_cr_detail(
             for d in cr.change_details
         ],
     )
+
+
+@router.get("/{project_id}/change-requests/{cr_id}/detail-view")
+def get_cr_detail_view(
+    project_id: str, cr_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Get CR detail view data in DetailViewGrid format (for full detail modal)."""
+    from routers.portfolio import _build_cr_grid_data
+
+    cr = (
+        db.query(ChangeRequest)
+        .filter(ChangeRequest.id == cr_id, ChangeRequest.project_id == project_id)
+        .first()
+    )
+    if not cr:
+        raise HTTPException(404, "Change request not found")
+
+    grid_data = _build_cr_grid_data(cr, db)
+
+    # Determine decided_by (CC Owner or Controller who took action)
+    decided_by = None
+    decided_date = None
+    if cr.controller and cr.controller_approval_timestamp:
+        decided_by = cr.controller.name if cr.controller else None
+        decided_date = str(cr.controller_approval_timestamp)
+    elif cr.cc_owner and cr.cc_confirmation_timestamp:
+        decided_by = cr.cc_owner.name if cr.cc_owner else None
+        decided_date = str(cr.cc_confirmation_timestamp)
+
+    return {
+        "cr_id": cr.id,
+        "project_id": cr.project_id,
+        "project_name": cr.project.name if cr.project else "",
+        "summary": cr.summary,
+        "status": cr.status,
+        "change_category": cr.change_category,
+        "justification": cr.justification,
+        "is_system_suggested": cr.is_system_suggested,
+        "submitted_by": cr.submitted_by.name if cr.submitted_by else "",
+        "submission_date": str(cr.submission_timestamp),
+        "decided_by": decided_by,
+        "decided_date": decided_date,
+        "grid_data": grid_data.model_dump() if grid_data else None,
+    }
