@@ -29,6 +29,13 @@ const TYPE_OPTIONS = [
   { value: 'service', label: 'Service' },
 ];
 
+const FISCAL_YEAR_OPTIONS = [
+  { value: '2024', label: 'FY 2024' },
+  { value: '2025', label: 'FY 2025' },
+  { value: '2026', label: 'FY 2026' },
+  { value: '2027', label: 'FY 2027' },
+];
+
 function ragBadge(rag: string | null) {
   if (!rag) return <span className="text-xs text-slate-400">—</span>;
   const colors: Record<string, string> = {
@@ -55,6 +62,7 @@ export function ProgrammeRollupReport() {
     status: '',
     rag: '',
     type: '',
+    fiscal_year: '2026',
   });
 
   useEffect(() => {
@@ -80,6 +88,7 @@ export function ProgrammeRollupReport() {
     if (filters.status) params.status = filters.status;
     if (filters.rag) params.rag = filters.rag;
     if (filters.type) params.type = filters.type;
+    if (filters.fiscal_year) params.fiscal_year = filters.fiscal_year;
 
     reportsApi
       .getProgrammeRollup(params)
@@ -101,6 +110,7 @@ export function ProgrammeRollupReport() {
     { key: 'status', label: 'Status', options: STATUS_OPTIONS },
     { key: 'rag', label: 'RAG', options: RAG_OPTIONS },
     { key: 'type', label: 'Type', options: TYPE_OPTIONS },
+    { key: 'fiscal_year', label: 'Fiscal Year', options: FISCAL_YEAR_OPTIONS },
   ];
 
   if (loading) {
@@ -228,7 +238,7 @@ export function ProgrammeRollupReport() {
       filters={filterConfigs}
       filterValues={filters}
       onFilterChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
-      onFilterClear={() => setFilters({ lob: '', status: '', rag: '', type: '' })}
+      onFilterClear={() => setFilters({ lob: '', status: '', rag: '', type: '', fiscal_year: '2026' })}
       kpis={kpiRow}
       view={view}
       onViewChange={setView}

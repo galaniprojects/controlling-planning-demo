@@ -32,6 +32,13 @@ const HORIZON_OPTIONS = [
   { value: '12', label: '12 months' },
 ];
 
+const FISCAL_YEAR_OPTIONS = [
+  { value: '2024', label: 'FY 2024' },
+  { value: '2025', label: 'FY 2025' },
+  { value: '2026', label: 'FY 2026' },
+  { value: '2027', label: 'FY 2027' },
+];
+
 function ratingBadge(rating: string) {
   const colors: Record<string, string> = {
     green: 'bg-green-100 text-green-700',
@@ -63,6 +70,7 @@ export function ForecastAccuracyReport() {
     lob: '',
     type: '',
     horizon: '6',
+    fiscal_year: '2026',
   });
   const [visibleCols, setVisibleCols] = useState(ALL_COLUMNS.map((c) => c.key));
   const [sortColumn, setSortColumn] = useState('');
@@ -93,6 +101,7 @@ export function ForecastAccuracyReport() {
     if (filters.lob) params.lob = filters.lob;
     if (filters.type) params.type = filters.type;
     if (filters.horizon) params.horizon = filters.horizon;
+    if (filters.fiscal_year) params.fiscal_year = filters.fiscal_year;
 
     reportsApi
       .getForecastAccuracy(params)
@@ -113,6 +122,7 @@ export function ForecastAccuracyReport() {
     },
     { key: 'type', label: 'Type', options: TYPE_OPTIONS },
     { key: 'horizon', label: 'Forecast Horizon', options: HORIZON_OPTIONS },
+    { key: 'fiscal_year', label: 'Fiscal Year', options: FISCAL_YEAR_OPTIONS },
   ];
 
   // Sort rows — must be before early returns to satisfy Rules of Hooks
@@ -247,7 +257,7 @@ export function ForecastAccuracyReport() {
       filters={filterConfigs}
       filterValues={filters}
       onFilterChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
-      onFilterClear={() => setFilters({ lob: '', type: '', horizon: '6' })}
+      onFilterClear={() => setFilters({ lob: '', type: '', horizon: '6', fiscal_year: '2026' })}
       kpis={kpiRow}
       view={view}
       onViewChange={setView}

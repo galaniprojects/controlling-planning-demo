@@ -17,6 +17,13 @@ const TYPE_OPTIONS = [
   { value: 'service', label: 'Service' },
 ];
 
+const FISCAL_YEAR_OPTIONS = [
+  { value: '2024', label: 'FY 2024' },
+  { value: '2025', label: 'FY 2025' },
+  { value: '2026', label: 'FY 2026' },
+  { value: '2027', label: 'FY 2027' },
+];
+
 export function CCFinancialReport() {
   const { currentRoleId, context } = useRole();
   const [searchParams] = useSearchParams();
@@ -28,6 +35,7 @@ export function CCFinancialReport() {
   const [filters, setFilters] = useState<Record<string, string>>({
     cost_center: '',
     type: '',
+    fiscal_year: '2026',
   });
 
   // Pre-set cost center for CC Owner
@@ -60,6 +68,7 @@ export function CCFinancialReport() {
     const params: Record<string, string> = {};
     if (filters.cost_center) params.cost_center = filters.cost_center;
     if (filters.type) params.type = filters.type;
+    if (filters.fiscal_year) params.fiscal_year = filters.fiscal_year;
 
     reportsApi
       .getCCFinancialSummary(params)
@@ -79,6 +88,7 @@ export function CCFinancialReport() {
       options: costCenters.map((cc) => ({ value: cc.id, label: cc.name })),
     },
     { key: 'type', label: 'Type', options: TYPE_OPTIONS },
+    { key: 'fiscal_year', label: 'Fiscal Year', options: FISCAL_YEAR_OPTIONS },
   ];
 
   if (loading) {
@@ -212,7 +222,7 @@ export function CCFinancialReport() {
       filters={filterConfigs}
       filterValues={filters}
       onFilterChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
-      onFilterClear={() => setFilters({ cost_center: '', type: '' })}
+      onFilterClear={() => setFilters({ cost_center: '', type: '', fiscal_year: '2026' })}
       kpis={kpiRow}
       view={view}
       onViewChange={setView}

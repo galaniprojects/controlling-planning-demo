@@ -521,30 +521,33 @@ export const reportsApi = {
   getReportList: () =>
     api.get<ListResponse<ReportListItem>>('/api/reports'),
 
-  getProgrammeRollup: (params?: { lob?: string; status?: string; rag?: string; type?: string; grouping?: string }) => {
+  getProgrammeRollup: (params?: { lob?: string; status?: string; rag?: string; type?: string; grouping?: string; fiscal_year?: string }) => {
     const q = new URLSearchParams();
     if (params?.lob) q.set('lob', params.lob);
     if (params?.status) q.set('status', params.status);
     if (params?.rag) q.set('rag', params.rag);
     if (params?.type) q.set('type', params.type);
     if (params?.grouping) q.set('grouping', params.grouping);
+    if (params?.fiscal_year) q.set('fiscal_year', params.fiscal_year);
     const qs = q.toString();
     return api.get<ProgrammeRollupResponse>(`/api/reports/programme-rollup${qs ? '?' + qs : ''}`);
   },
 
-  getCCFinancialSummary: (params?: { cost_center?: string; type?: string }) => {
+  getCCFinancialSummary: (params?: { cost_center?: string; type?: string; fiscal_year?: string }) => {
     const q = new URLSearchParams();
     if (params?.cost_center) q.set('cost_center', params.cost_center);
     if (params?.type) q.set('type', params.type);
+    if (params?.fiscal_year) q.set('fiscal_year', params.fiscal_year);
     const qs = q.toString();
     return api.get<CCFinancialResponse>(`/api/reports/cc-financial-summary${qs ? '?' + qs : ''}`);
   },
 
-  getVendorSpend: (params?: { vendor?: string; lob?: string; status?: string }) => {
+  getVendorSpend: (params?: { vendor?: string; lob?: string; status?: string; fiscal_year?: string }) => {
     const q = new URLSearchParams();
     if (params?.vendor) q.set('vendor', params.vendor);
     if (params?.lob) q.set('lob', params.lob);
     if (params?.status) q.set('status', params.status);
+    if (params?.fiscal_year) q.set('fiscal_year', params.fiscal_year);
     const qs = q.toString();
     return api.get<VendorSpendResponse>(`/api/reports/vendor-spend${qs ? '?' + qs : ''}`);
   },
@@ -552,11 +555,12 @@ export const reportsApi = {
   getVendorDrillDown: (vendorName: string) =>
     api.get<ListResponse<VendorDrillDownRow>>(`/api/reports/vendor-spend/${encodeURIComponent(vendorName)}/details`),
 
-  getForecastAccuracy: (params?: { horizon?: string; lob?: string; type?: string }) => {
+  getForecastAccuracy: (params?: { horizon?: string; lob?: string; type?: string; fiscal_year?: string }) => {
     const q = new URLSearchParams();
     if (params?.horizon) q.set('horizon', params.horizon);
     if (params?.lob) q.set('lob', params.lob);
     if (params?.type) q.set('type', params.type);
+    if (params?.fiscal_year) q.set('fiscal_year', params.fiscal_year);
     const qs = q.toString();
     return api.get<ForecastAccuracyResponse>(`/api/reports/forecast-accuracy${qs ? '?' + qs : ''}`);
   },
