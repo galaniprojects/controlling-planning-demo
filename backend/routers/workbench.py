@@ -12,7 +12,7 @@ from models.capacity import ResourceRequest
 from models.change_requests import ChangeRequest, CRChangeDetail
 from models.financial import Actuals, Baseline, Forecast
 from models.people import Person, RateTable, RoleType
-from models.projects import Project
+from models.projects import Project, ProjectPhase
 from models.system import SystemSuggestion
 from schemas.common import CurrentUser
 from schemas.workbench import (
@@ -149,6 +149,133 @@ def get_project_overview(
         "capex_opex": capex_opex,
         "resource_plan_summary": resource_summary,
     }
+
+
+@router.get("/{project_id}/timeline")
+def get_project_timeline(
+    project_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Get project timeline data for the timeline visualization chart."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    today_month = DEMO_DATE[:7]  # "2026-03"
+
+    # Gather monthly data from all three series
+    baseline_rows = (
+        db.query(Baseline.month, func.sum(Baseline.amount_eur).label("total"))
+        .filter(Baseline.project_id == project_id)
+        .group_by(Baseline.month).order_by(Baseline.month).all()
+    )
+    forecast_rows = (
+        db.query(Forecast.month, func.sum(Forecast.amount_eur).label("total"))
+        .filter(Forecast.project_id == project_id)
+        .group_by(Forecast.month).order_by(Forecast.month).all()
+    )
+    actuals_rows = (
+        db.query(Actuals.month, func.sum(Actuals.amount_eur).label("total"))
+        .filter(Actuals.project_id == project_id)
+        .group_by(Actuals.month).order_by(Actuals.month).all()
+    )
+
+    bl_map = {r.month: round(float(r.total), 2) for r in baseline_rows}
+    fc_map = {r.month: round(float(r.total), 2) for r in forecast_rows}
+    ac_map = {r.month: round(float(r.total), 2) for r in actuals_rows}
+    all_months = sorted(set(bl_map) | set(fc_map) | set(ac_map))
+
+    # Monthly data with overrun and elapsed flags
+    monthly_data = []
+    cum_baseline = 0.0
+    cum_forecast = 0.0
+    cum_actuals = 0.0
+    cumulative_data = []
+
+    for m in all_months:
+        bl = bl_map.get(m, 0)
+        fc = fc_map.get(m, 0)
+        ac = ac_map.get(m) if m in ac_map else None
+        is_elapsed = m < today_month
+        overrun = False
+        if ac is not None and fc > 0 and ac > fc:
+            overrun = True
+
+        monthly_data.append({
+            "month": m,
+            "baseline": bl,
+            "forecast": fc,
+            "actuals": ac,
+            "is_elapsed": is_elapsed,
+            "overrun": overrun,
+        })
+
+        cum_baseline += bl
+        cum_forecast += fc
+        if ac is not None:
+            cum_actuals += ac
+
+        cumulative_data.append({
+            "month": m,
+            "baseline": round(cum_baseline, 2),
+            "forecast": round(cum_forecast, 2),
+            "actuals": round(cum_actuals, 2) if m <= today_month and m in ac_map else None,
+        })
+
+    # Phases
+    phases = (
+        db.query(ProjectPhase)
+        .filter(ProjectPhase.project_id == project_id)
+        .order_by(ProjectPhase.phase_number)
+        .all()
+    )
+    phases_data = [
+        {
+            "name": p.name,
+            "phase_number": p.phase_number,
+            "baseline_start": p.baseline_start,
+            "baseline_end": p.baseline_end,
+            "forecast_start": p.forecast_start,
+            "forecast_end": p.forecast_end,
+            "color": p.color,
+            "slip_months": _month_diff(p.forecast_end, p.baseline_end),
+        }
+        for p in phases
+    ]
+
+    # Summary
+    baseline_total = round(sum(bl_map.values()), 2)
+    forecast_total = round(sum(fc_map.values()), 2)
+    ytd_actuals = round(sum(v for m, v in ac_map.items() if m <= today_month), 2)
+    plan_drift = round(((forecast_total - baseline_total) / baseline_total * 100) if baseline_total else 0, 1)
+    # Execution variance: YTD actuals vs YTD forecast
+    ytd_forecast = round(sum(v for m, v in fc_map.items() if m <= today_month), 2)
+    execution_variance = round(((ytd_actuals - ytd_forecast) / ytd_forecast * 100) if ytd_forecast else 0, 1)
+
+    budget_ceiling = float(project.total_budget) if project.total_budget else baseline_total
+
+    return {
+        "monthly_data": monthly_data,
+        "cumulative_data": cumulative_data,
+        "phases": phases_data,
+        "summary": {
+            "baseline_total": baseline_total,
+            "forecast_total": forecast_total,
+            "ytd_actuals": ytd_actuals,
+            "plan_drift": plan_drift,
+            "execution_variance": execution_variance,
+        },
+        "budget_ceiling": budget_ceiling,
+        "today_month": today_month,
+    }
+
+
+def _month_diff(a: str, b: str) -> int:
+    """Return the number of months between two YYYY-MM strings (a - b)."""
+    ay, am = int(a[:4]), int(a[5:7])
+    by, bm = int(b[:4]), int(b[5:7])
+    return (ay - by) * 12 + (am - bm)
 
 
 @router.get("/{project_id}/forecast")
