@@ -6349,3 +6349,82 @@ INSERT INTO forecast_snapshots (project_id, snapshot_month, forecast_total) VALU
 ('proj-cloud', '2025-12', 402000.00),
 ('proj-cloud', '2026-01', 403000.00),
 ('proj-cloud', '2026-02', 405000.00);
+
+-- =============================================================================
+-- CapEx/OpEx per line item classification (v3 §10)
+-- =============================================================================
+
+-- Default: All baselines/forecasts/actuals get capex_opex from their project-level setting
+-- Step 1: Set all rows to their project's capex_opex value
+UPDATE baselines SET capex_opex = (SELECT p.capex_opex FROM projects p WHERE p.id = baselines.project_id);
+UPDATE forecasts SET capex_opex = (SELECT p.capex_opex FROM projects p WHERE p.id = forecasts.project_id);
+UPDATE actuals  SET capex_opex = (SELECT p.capex_opex FROM projects p WHERE p.id = actuals.project_id);
+
+-- Step 2: Mixed CapEx/OpEx overrides — training and travel are OpEx even on CapEx projects
+-- ERP Integration Phase 2: dev roles = capex, training/travel = opex
+UPDATE baselines SET capex_opex = 'opex' WHERE project_id = 'proj-erp2' AND sub_category IN ('ext-training', 'ext-travel');
+UPDATE forecasts SET capex_opex = 'opex' WHERE project_id = 'proj-erp2' AND sub_category IN ('ext-training', 'ext-travel');
+UPDATE actuals  SET capex_opex = 'opex' WHERE project_id = 'proj-erp2' AND sub_category IN ('ext-training', 'ext-travel');
+
+-- SAP S/4HANA Migration: migration work = capex, training/maintenance = opex
+UPDATE baselines SET capex_opex = 'opex' WHERE project_id = 'proj-sap' AND sub_category IN ('ext-training', 'ext-maintenance-sw', 'ext-maintenance-hw');
+UPDATE forecasts SET capex_opex = 'opex' WHERE project_id = 'proj-sap' AND sub_category IN ('ext-training', 'ext-maintenance-sw', 'ext-maintenance-hw');
+UPDATE actuals  SET capex_opex = 'opex' WHERE project_id = 'proj-sap' AND sub_category IN ('ext-training', 'ext-maintenance-sw', 'ext-maintenance-hw');
+
+-- IAM Overhaul (proj-predmaint used as proxy): core implementation = capex, training = opex
+UPDATE baselines SET capex_opex = 'opex' WHERE project_id = 'proj-predmaint' AND sub_category IN ('ext-training', 'ext-travel');
+UPDATE forecasts SET capex_opex = 'opex' WHERE project_id = 'proj-predmaint' AND sub_category IN ('ext-training', 'ext-travel');
+UPDATE actuals  SET capex_opex = 'opex' WHERE project_id = 'proj-predmaint' AND sub_category IN ('ext-training', 'ext-travel');
+
+-- Step 3: Update project-level capex_opex to 'mixed' where line items have both
+UPDATE projects SET capex_opex = 'mixed' WHERE id IN ('proj-erp2', 'proj-sap', 'proj-predmaint');
+
+-- =============================================================================
+-- Project Phases (v3 §9.10) — for timeline visualization
+-- =============================================================================
+
+-- Full phases (4-5 phases) — with baseline vs forecast slip
+INSERT INTO project_phases (project_id, phase_number, name, baseline_start, baseline_end, forecast_start, forecast_end, color) VALUES
+-- ERP Integration Phase 2 (2025-01 to 2026-09, projected 2026-11 = slip)
+('proj-erp2', 1, 'Discovery',  '2025-01', '2025-03', '2025-01', '2025-03', '#6366f1'),
+('proj-erp2', 2, 'Design',     '2025-04', '2025-06', '2025-04', '2025-07', '#8b5cf6'),
+('proj-erp2', 3, 'Build',      '2025-07', '2025-12', '2025-08', '2026-02', '#a78bfa'),
+('proj-erp2', 4, 'Test',       '2026-01', '2026-05', '2026-03', '2026-07', '#c4b5fd'),
+('proj-erp2', 5, 'Rollout',    '2026-06', '2026-09', '2026-08', '2026-11', '#ddd6fe'),
+
+-- SAP S/4HANA Migration (2024-01 to 2026-06, on track)
+('proj-sap', 1, 'Assessment',  '2024-01', '2024-04', '2024-01', '2024-04', '#0ea5e9'),
+('proj-sap', 2, 'Design',      '2024-05', '2024-09', '2024-05', '2024-10', '#38bdf8'),
+('proj-sap', 3, 'Migration',   '2024-10', '2025-06', '2024-11', '2025-07', '#7dd3fc'),
+('proj-sap', 4, 'Validation',  '2025-07', '2025-12', '2025-08', '2026-01', '#bae6fd'),
+('proj-sap', 5, 'Go-Live',     '2026-01', '2026-06', '2026-02', '2026-06', '#e0f2fe'),
+
+-- Signaling System Upgrade (2024-06 to 2026-03, on track)
+('proj-signal', 1, 'Requirements',    '2024-06', '2024-09', '2024-06', '2024-09', '#f59e0b'),
+('proj-signal', 2, 'Engineering',     '2024-10', '2025-06', '2024-10', '2025-06', '#fbbf24'),
+('proj-signal', 3, 'Integration',     '2025-07', '2025-12', '2025-07', '2026-01', '#fcd34d'),
+('proj-signal', 4, 'Commissioning',   '2026-01', '2026-03', '2026-02', '2026-03', '#fde68a'),
+
+-- Connected Vehicle Platform (future: proj-telem as proxy, 2025-09 to 2026-09)
+('proj-telem', 1, 'Concept',       '2025-09', '2025-11', '2025-09', '2025-11', '#10b981'),
+('proj-telem', 2, 'Architecture',  '2025-12', '2026-02', '2025-12', '2026-02', '#34d399'),
+('proj-telem', 3, 'Development',   '2026-03', '2026-06', '2026-03', '2026-06', '#6ee7b7'),
+('proj-telem', 4, 'Integration',   '2026-07', '2026-08', '2026-07', '2026-08', '#a7f3d0'),
+('proj-telem', 5, 'Launch',        '2026-09', '2026-09', '2026-09', '2026-09', '#d1fae5');
+
+-- Partial phases (2-3 phases)
+INSERT INTO project_phases (project_id, phase_number, name, baseline_start, baseline_end, forecast_start, forecast_end, color) VALUES
+-- Rail Diagnostics Platform (2025-06 to 2027-06)
+('proj-raildiag', 1, 'Planning',        '2025-06', '2025-09', '2025-06', '2025-10', '#ec4899'),
+('proj-raildiag', 2, 'Implementation',  '2025-10', '2026-12', '2025-11', '2027-02', '#f472b6'),
+('proj-raildiag', 3, 'Go-Live',         '2027-01', '2027-06', '2027-03', '2027-06', '#f9a8d4'),
+
+-- Fleet Portal v2 (2025-01 to 2026-06)
+('proj-fleet', 1, 'Development',  '2025-01', '2025-08', '2025-01', '2025-09', '#14b8a6'),
+('proj-fleet', 2, 'Testing',      '2025-09', '2026-02', '2025-10', '2026-03', '#2dd4bf'),
+('proj-fleet', 3, 'Deployment',   '2026-03', '2026-06', '2026-04', '2026-06', '#5eead4'),
+
+-- Predictive Maintenance PoC / IAM Overhaul proxy (2025-09 to 2026-12)
+('proj-predmaint', 1, 'Assessment',      '2025-09', '2025-12', '2025-09', '2026-01', '#f97316'),
+('proj-predmaint', 2, 'Implementation',  '2026-01', '2026-08', '2026-02', '2026-09', '#fb923c'),
+('proj-predmaint', 3, 'Rollout',         '2026-09', '2026-12', '2026-10', '2026-12', '#fdba74');

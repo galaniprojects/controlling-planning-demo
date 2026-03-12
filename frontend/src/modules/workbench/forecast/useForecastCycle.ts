@@ -5,6 +5,8 @@ import type {
   SuggestionItem,
   ForecastChange,
   ReviewGroup,
+  ReviewGridData,
+  CostCentreGroup,
   SubmittedCR,
   ForecastCycleStartResponse,
 } from '@/types/api';
@@ -32,6 +34,8 @@ export interface ForecastCycleState {
 
   // Phase 4
   reviewGroups: ReviewGroup[];
+  reviewGridData: ReviewGridData | null;
+  costCentreGroups: CostCentreGroup[];
   justifications: Record<string, string>;
 
   // Phase 5
@@ -51,6 +55,8 @@ const initialState: ForecastCycleState = {
   dismissedSuggestionIds: [],
   workingChanges: [],
   reviewGroups: [],
+  reviewGridData: null,
+  costCentreGroups: [],
   justifications: {},
   submittedCRs: [],
 };
@@ -69,7 +75,7 @@ type Action =
   | { type: 'DISMISS_SUGGESTION'; id: number }
   | { type: 'ADVANCE_TO_EDIT' }
   | { type: 'UPDATE_CELL'; payload: ForecastChange }
-  | { type: 'SET_REVIEW_GROUPS'; payload: ReviewGroup[] }
+  | { type: 'SET_REVIEW_GROUPS'; payload: ReviewGroup[]; gridData?: ReviewGridData; ccGroups?: CostCentreGroup[] }
   | { type: 'SET_JUSTIFICATION'; groupType: string; text: string }
   | { type: 'SUBMIT_SUCCESS'; payload: SubmittedCR[] }
   | { type: 'GO_BACK' }
@@ -147,7 +153,14 @@ function reducer(state: ForecastCycleState, action: Action): ForecastCycleState 
     }
 
     case 'SET_REVIEW_GROUPS':
-      return { ...state, reviewGroups: action.payload, phase: 4, loading: false };
+      return {
+        ...state,
+        reviewGroups: action.payload,
+        reviewGridData: action.gridData ?? null,
+        costCentreGroups: action.ccGroups ?? [],
+        phase: 4,
+        loading: false,
+      };
 
     case 'SET_JUSTIFICATION':
       return {
@@ -265,7 +278,12 @@ export function useForecastCycle(projectId: string) {
         state.appliedSuggestionIds,
       );
       const reviewRes = await workbenchApi.getReview(projectId, state.cycleId);
-      dispatch({ type: 'SET_REVIEW_GROUPS', payload: reviewRes.items });
+      dispatch({
+        type: 'SET_REVIEW_GROUPS',
+        payload: reviewRes.items,
+        gridData: (reviewRes as Record<string, unknown>).grid_data as ReviewGridData | undefined,
+        ccGroups: (reviewRes as Record<string, unknown>).cost_centre_groups as CostCentreGroup[] | undefined,
+      });
     } catch (e) {
       dispatch({
         type: 'SET_ERROR',
@@ -282,7 +300,13 @@ export function useForecastCycle(projectId: string) {
     if (!state.cycleId) return;
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      // Attach justifications to groups before submitting
+      // Attach justifications to cost centre groups (v3) or legacy groups
+      const ccGroupsWithJustifications = state.costCentreGroups.length > 0
+        ? state.costCentreGroups.map((g) => ({
+            ...g,
+            justification: state.justifications[g.id] || '',
+          }))
+        : undefined;
       const groupsWithJustifications = state.reviewGroups.map((g) => ({
         ...g,
         justification: state.justifications[g.type] || '',
@@ -291,6 +315,7 @@ export function useForecastCycle(projectId: string) {
         projectId,
         state.cycleId,
         groupsWithJustifications,
+        ccGroupsWithJustifications,
       );
       dispatch({ type: 'SUBMIT_SUCCESS', payload: result.items });
     } catch (e) {
@@ -299,7 +324,7 @@ export function useForecastCycle(projectId: string) {
         payload: (e as Error).message || 'Failed to submit forecast cycle',
       });
     }
-  }, [projectId, state.cycleId, state.reviewGroups, state.justifications]);
+  }, [projectId, state.cycleId, state.reviewGroups, state.costCentreGroups, state.justifications]);
 
   const goBack = useCallback(() => {
     dispatch({ type: 'GO_BACK' });

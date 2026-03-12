@@ -23,8 +23,10 @@ import type {
   SuggestionItem,
   ForecastChange,
   ReviewGroup,
+  CostCentreGroup,
   SubmittedCR,
   CRHistoryItem,
+  TimelineData,
   CapacityContext,
   TeamSummary,
   RoleHeatmapRow,
@@ -83,6 +85,22 @@ export const modulesApi = {
 export const launchpadApi = {
   getPendingActions: () =>
     api.get<ListResponse<PendingAction>>('/api/launchpad/pending-actions'),
+  createProject: (data: {
+    name: string;
+    description?: string;
+    lob_id: string;
+    start_month: string;
+    end_month?: string;
+    capex_opex?: string;
+  }) =>
+    api.post<{ id: string; name: string; status: string; estimated_cost: number }>(
+      '/api/launchpad/projects',
+      data,
+    ),
+  submitProject: (projectId: string) =>
+    api.put<{ id: string; name: string; status: string }>(
+      `/api/launchpad/projects/${projectId}/submit`,
+    ),
 };
 
 // --- Portfolio Overview ---
@@ -187,6 +205,10 @@ export const workbenchApi = {
   getOverview: (projectId: string) =>
     api.get<ProjectOverview>(`/api/projects/${projectId}/overview`),
 
+  // Timeline visualization
+  getTimeline: (projectId: string) =>
+    api.get<TimelineData>(`/api/projects/${projectId}/timeline`),
+
   // Forecast grid (read mode)
   getForecast: (projectId: string) =>
     api.get<ListResponse<ForecastGridRow>>(`/api/projects/${projectId}/forecast`),
@@ -224,10 +246,10 @@ export const workbenchApi = {
     api.get<ListResponse<ReviewGroup>>(
       `/api/projects/${projectId}/forecast-cycle/${cycleId}/review`,
     ),
-  submitCycle: (projectId: string, cycleId: string, groups: ReviewGroup[]) =>
+  submitCycle: (projectId: string, cycleId: string, groups: ReviewGroup[], costCentreGroups?: CostCentreGroup[]) =>
     api.put<ListResponse<SubmittedCR>>(
       `/api/projects/${projectId}/forecast-cycle/${cycleId}/submit`,
-      { groups },
+      { groups, cost_centre_groups: costCentreGroups },
     ),
 
   // Change history
@@ -247,6 +269,22 @@ export const workbenchApi = {
     api.get<CRHistoryItem>(
       `/api/projects/${projectId}/change-requests/${crId}`,
     ),
+  getCRDetailView: (projectId: string, crId: number) =>
+    api.get<{
+      cr_id: number;
+      project_id: string;
+      project_name: string;
+      summary: string;
+      status: string;
+      change_category: string;
+      justification: string | null;
+      is_system_suggested: boolean;
+      submitted_by: string;
+      submission_date: string;
+      decided_by: string | null;
+      decided_date: string | null;
+      grid_data: import('@/lib/detailViewTypes').DetailViewGridData | null;
+    }>(`/api/projects/${projectId}/change-requests/${crId}/detail-view`),
 };
 
 // --- Capacity Management ---

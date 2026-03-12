@@ -14,6 +14,7 @@ class ForecastCycleState:
     working_changes: list = field(default_factory=list)
     applied_suggestion_ids: list = field(default_factory=list)
     review_groups: list = field(default_factory=list)
+    cost_centre_groups: list = field(default_factory=list)
 
 
 _active_cycles: dict[str, ForecastCycleState] = {}

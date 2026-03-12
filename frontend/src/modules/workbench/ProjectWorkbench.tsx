@@ -45,6 +45,14 @@ export function ProjectWorkbench() {
   }, [searchParams, projects]);
 
   const role = context?.role ?? '';
+  const isProjectLead = role === 'project_lead';
+
+  function refreshProjects() {
+    workbenchApi
+      .getProjects()
+      .then((res) => setProjects(res.items))
+      .catch(() => setProjects([]));
+  }
 
   return (
     <div className="px-6 py-6 space-y-4">
@@ -64,6 +72,8 @@ export function ProjectWorkbench() {
           onSelect={setSelectedId}
           collapsed={collapsed}
           onToggleCollapse={() => setCollapsed((c) => !c)}
+          isProjectLead={isProjectLead}
+          onProjectCreated={refreshProjects}
         />
 
         {/* Right panel — workspace */}

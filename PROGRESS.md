@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v3 Session 2 (complete)
-Last completed: v3 Session 2 — Detail View Component + Portfolio
-Branch: `v3/session-2-detail-view-portfolio`
+Phase: v3 Session 3 (complete)
+Last completed: v3 Session 3 — Project Workbench: Timeline, CapEx/OpEx, CR Detail, Phase 4 Redesign
+Branch: `v3/session-3-workbench-timeline`
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -44,6 +44,71 @@ Branch: `v3/session-2-detail-view-portfolio`
 - [ ] v3 Overhaul (demo date: March 2026)
   - [x] v3 Session 1: Global Patterns + Launchpad
   - [x] v3 Session 2: Detail View Component + Portfolio
+  - [x] v3 Session 3: Project Workbench — Timeline, CapEx/OpEx, CR Detail, Phase 4 Redesign
+
+## v3 Session 3 — Project Workbench: Timeline, CapEx/OpEx, CR Detail, Phase 4 Redesign
+
+### Summary
+Built the Project Timeline visualization (monthly bar chart + cumulative line chart with phases), moved CapEx/OpEx to per-line-item classification, added full detail view for Change History CRs, added Submit New Project button in Workbench panel header, and redesigned Phase 4 of the forecast cycle with cost-centre-grouped justifications and a comparison grid.
+
+### Changes
+
+**Item 4: CapEx/OpEx Per Line Item**
+- `backend/models/financial.py` — Added `capex_opex` column (String(10), nullable) to Baseline, Forecast, Actuals models
+- `backend/seed/seed.sql` — ALTER TABLE + UPDATE statements classifying line items: mixed projects (ERP, SAP, IAM) have both capex/opex rows; services and some projects are fully opex; remainder fully capex
+- `backend/routers/workbench.py` — Overview endpoint computes CapEx/OpEx split from line items (capex_amount, opex_amount, capex_pct, opex_pct); forecast grid includes capex_opex per row
+- `frontend/src/types/api.ts` — Updated types with capex_opex fields
+- `frontend/src/modules/workbench/overview/CapexOpexDisplay.tsx` — Updated to show split when mixed classification
+- `frontend/src/modules/workbench/forecast/ForecastGrid.tsx` — CapEx/OpEx badge per row next to line item name
+
+**Item 3: Submit New Project in Workbench**
+- `frontend/src/modules/workbench/ProjectListPanel.tsx` — Added "+" button in header, visible only for project_lead role; opens SubmitProjectDialog
+- `frontend/src/modules/workbench/SubmitProjectDialog.tsx` — New Dialog component with form fields (name, description, LoB select, timeline, capex_opex); calls POST /api/launchpad/projects + PUT submit
+- `frontend/src/modules/workbench/ProjectWorkbench.tsx` — Passes role info to ProjectListPanel
+
+**Item 2: Change History Full Detail View**
+- `backend/routers/workbench.py` — New endpoint GET /api/projects/{project_id}/change-requests/{cr_id}/detail-view returning DetailViewGrid format (months, line_items with before/after/delta, kpis)
+- `frontend/src/api/endpoints.ts` — Added getCRDetailView method to workbenchApi
+- `frontend/src/modules/workbench/history/CRHistoryList.tsx` — Added "View Full Detail" button in expanded section; passes projectId prop
+- `frontend/src/modules/workbench/history/CRDetailModal.tsx` — New Dialog with header (CR title, status badge, dates), DetailViewGrid (comparison, read-only), DetailViewKPIStrip, no action buttons
+- `frontend/src/modules/workbench/history/ChangeHistoryTab.tsx` — Fixed missing projectId prop to CRHistoryList
+
+**Item 1: Project Timeline Visualization**
+- `backend/models/projects.py` — New ProjectPhase model (phase_number, name, baseline_start/end, forecast_start/end, color)
+- `backend/models/__init__.py` — Added ProjectPhase export
+- `backend/seed/seed.sql` — Phase seed data: full phases (4-5) for ERP, SAP, Signaling, Telematics; partial (3) for Rail Diagnostics, Fleet Portal, Predictive Maintenance
+- `backend/routers/workbench.py` — New endpoint GET /api/projects/{project_id}/timeline returning monthly_data (baseline/forecast/actuals with overrun flags), cumulative_data, phases (with slip calculation), summary (baseline_total, forecast_total, ytd_actuals, plan_drift, execution_variance), budget_ceiling, today_month
+- `frontend/src/types/api.ts` — Added TimelineData, TimelineMonthPoint, TimelineCumulativePoint, TimelinePhase, TimelineSummary types
+- `frontend/src/api/endpoints.ts` — Added getTimeline method
+- `frontend/src/modules/workbench/overview/ProjectTimelineChart.tsx` — Monthly grouped BarChart (baseline grey, forecast blue, actuals green, overruns red) with fixed Y-axis + horizontal scroll, TODAY line, January year separators, elapsed tinting; Cumulative LineChart with budget ceiling; Monthly/Cumulative toggle
+- `frontend/src/modules/workbench/overview/PhaseStrip.tsx` — CSS grid phase segments below chart aligned with months; tooltip with baseline/forecast dates and slip; graceful degradation (no phases → no strip)
+- `frontend/src/modules/workbench/overview/TimelineSummaryStrip.tsx` — Horizontal KPI row: Baseline, Forecast, YTD Actuals, Plan Drift, Exec. Variance
+- `frontend/src/modules/workbench/overview/OverviewTab.tsx` — Fetches timeline data in parallel with overview; renders ProjectTimelineChart above ThreePointTable
+
+**Item 5: Forecast Cycle Phase 4 Redesign**
+- `backend/routers/workbench.py` — Redesigned review endpoint to return grid_data (DetailViewGrid format) and cost_centre_groups (mapped via Allocation → Person → CostCenter); redesigned submit endpoint to create one CR per cost centre with per-CC justifications
+- `backend/schemas/workbench.py` — Updated SubmitRequest with optional cost_centre_groups parameter
+- `backend/services/forecast_cycle.py` — Added cost_centre_groups field to ForecastCycleState
+- `frontend/src/types/api.ts` — Added ReviewGridData, ReviewGridLineItem, CostCentreGroup types
+- `frontend/src/api/endpoints.ts` — Updated submitCycle to accept optional costCentreGroups
+- `frontend/src/modules/workbench/forecast/useForecastCycle.ts` — Added reviewGridData and costCentreGroups state fields; updated SET_REVIEW_GROUPS action; updated saveEditsAndAdvance and submitCycle
+- `frontend/src/modules/workbench/forecast/Phase4Review.tsx` — Rewritten: comparison grid table (before/after/delta per month per line item), CapEx/OpEx badges, system-suggested Sparkles icons, per-cost-centre justification cards with fallback to legacy per-type grouping
+- `frontend/src/modules/workbench/forecast/ForecastWizard.tsx` — Passes reviewGridData and costCentreGroups props to Phase4Review
+
+### Verification Results
+- [x] Timeline chart renders for ERP Integration Phase 2 with 5 phases, monthly bars, TODAY line, year separators
+- [x] Cumulative view shows budget ceiling dashed line, three data series
+- [x] Phase strip aligned with chart months, tooltips show slip info
+- [x] Summary strip shows Baseline €1.3M, Forecast €1.4M, YTD Actuals €907K, Plan Drift +7.8%, Exec. Variance -9.5%
+- [x] Projects without phases (services, AI/ML Lab) show no phase strip — graceful degradation
+- [x] CapEx/OpEx classification visible in overview (Cost Classification card)
+- [x] Submit New Project button hidden for controller role, visible for project_lead
+- [x] Change History tab renders CR list with filters and status badges
+- [x] TypeScript compiles cleanly with all new types
+- [x] Backend endpoints return correct data shapes (timeline, review with grid_data + cost_centre_groups)
+
+### Next Session
+Session 4: Capacity Management — heatmap visualization, request management, org overview
 
 ## v3 Session 2 — Detail View Component + Portfolio
 

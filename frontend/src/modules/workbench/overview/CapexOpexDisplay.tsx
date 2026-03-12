@@ -1,12 +1,19 @@
 import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from '@/lib/formatters';
 
 interface Props {
   type: string;
+  capexAmount?: number;
+  opexAmount?: number;
+  capexPct?: number;
+  opexPct?: number;
 }
 
-export function CapexOpexDisplay({ type }: Props) {
+export function CapexOpexDisplay({ type, capexAmount, opexAmount, capexPct, opexPct }: Props) {
   const label =
     type === 'capex' ? 'CapEx' : type === 'opex' ? 'OpEx' : 'Mixed';
+
+  const isMixed = type === 'mixed' && capexAmount != null && opexAmount != null;
 
   return (
     <div className="border border-slate-200 rounded-lg p-4">
@@ -19,6 +26,31 @@ export function CapexOpexDisplay({ type }: Props) {
       >
         {label}
       </Badge>
+      {isMixed && (
+        <div className="mt-3 space-y-2">
+          {/* Split bar */}
+          <div className="flex h-2 rounded-full overflow-hidden">
+            <div
+              className="bg-blue-500"
+              style={{ width: `${capexPct}%` }}
+            />
+            <div
+              className="bg-amber-500"
+              style={{ width: `${opexPct}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-slate-600">
+            <span>
+              <span className="inline-block w-2 h-2 rounded-full bg-blue-500 mr-1" />
+              CapEx {capexPct?.toFixed(0)}% ({formatCurrency(capexAmount!)})
+            </span>
+            <span>
+              <span className="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1" />
+              OpEx {opexPct?.toFixed(0)}% ({formatCurrency(opexAmount!)})
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

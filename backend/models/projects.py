@@ -56,3 +56,21 @@ class Project(Base):
     actuals: Mapped[list["Actuals"]] = relationship(back_populates="project")
     allocations: Mapped[list["Allocation"]] = relationship(back_populates="project")
     change_requests: Mapped[list["ChangeRequest"]] = relationship(back_populates="project")
+    phases: Mapped[list["ProjectPhase"]] = relationship(back_populates="project", order_by="ProjectPhase.phase_number")
+
+
+class ProjectPhase(Base):
+    __tablename__ = "project_phases"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    phase_number: Mapped[int] = mapped_column(nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    baseline_start: Mapped[str] = mapped_column(String(7), nullable=False)  # YYYY-MM
+    baseline_end: Mapped[str] = mapped_column(String(7), nullable=False)
+    forecast_start: Mapped[str] = mapped_column(String(7), nullable=False)
+    forecast_end: Mapped[str] = mapped_column(String(7), nullable=False)
+    color: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    # Relationships
+    project: Mapped["Project"] = relationship(back_populates="phases")

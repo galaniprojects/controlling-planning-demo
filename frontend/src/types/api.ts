@@ -336,8 +336,53 @@ export interface ProjectOverview {
   metadata: ProjectMetadata;
   three_point_comparison: ThreePointComparison;
   trajectory_chart: TrajectoryPoint[];
-  capex_opex: { type: string };
+  capex_opex: { type: string; capex_amount?: number; opex_amount?: number; capex_pct?: number; opex_pct?: number };
   resource_plan_summary: ResourcePlanSummaryItem[];
+}
+
+// Timeline Visualization
+export interface TimelineMonthPoint {
+  month: string;
+  baseline: number;
+  forecast: number;
+  actuals: number | null;
+  is_elapsed: boolean;
+  overrun: boolean;
+}
+
+export interface TimelineCumulativePoint {
+  month: string;
+  baseline: number;
+  forecast: number;
+  actuals: number | null;
+}
+
+export interface TimelinePhase {
+  name: string;
+  phase_number: number;
+  baseline_start: string;
+  baseline_end: string;
+  forecast_start: string;
+  forecast_end: string;
+  color: string;
+  slip_months: number;
+}
+
+export interface TimelineSummary {
+  baseline_total: number;
+  forecast_total: number;
+  ytd_actuals: number;
+  plan_drift: number;
+  execution_variance: number;
+}
+
+export interface TimelineData {
+  monthly_data: TimelineMonthPoint[];
+  cumulative_data: TimelineCumulativePoint[];
+  phases: TimelinePhase[];
+  summary: TimelineSummary;
+  budget_ceiling: number;
+  today_month: string;
 }
 
 export interface ForecastMonthCell {
@@ -358,6 +403,7 @@ export interface ForecastGridRow {
   category: string;
   sub_category: string;
   sub_category_name: string;
+  capex_opex?: string | null;
   months: ForecastMonthCell[];
   hourly_rate?: number | null; // Internal rows only
 }
@@ -412,6 +458,28 @@ export interface ReviewGroup {
   type: string;
   items: ForecastChange[];
   count: number;
+  justification?: string;
+}
+
+export interface ReviewGridLineItem {
+  id: string;
+  label: string;
+  category: string;
+  capex_opex: string | null;
+  is_system_suggested: boolean;
+  months: { month: string; before: number | null; after: number | null; delta: number | null }[];
+}
+
+export interface ReviewGridData {
+  months: string[];
+  line_items: ReviewGridLineItem[];
+}
+
+export interface CostCentreGroup {
+  id: string;
+  name: string;
+  line_items: { id: string; label: string }[];
+  items: ForecastChange[];
   justification?: string;
 }
 

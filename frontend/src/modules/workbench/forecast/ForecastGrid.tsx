@@ -7,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { formatCurrency, formatNumber } from '@/lib/formatters';
 import { formatMonthShort, isElapsedMonth } from '@/lib/yearColumns';
@@ -227,7 +228,14 @@ export function ForecastGrid({ projectId }: Props) {
               {internalRows.map((row) => (
                 <TableRow key={row.sub_category}>
                   <TableCell className="sticky left-0 bg-white font-medium text-sm">
-                    {row.sub_category_name}
+                    <div className="flex items-center gap-1.5">
+                      {row.sub_category_name}
+                      {row.capex_opex && (
+                        <Badge variant="outline" className={`text-[9px] px-1 py-0 h-3.5 ${row.capex_opex === 'capex' ? 'text-blue-600 border-blue-200' : 'text-amber-600 border-amber-200'}`}>
+                          {row.capex_opex === 'capex' ? 'CapEx' : 'OpEx'}
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   {visibleColumns.map((col) => renderInternalCell(row, col))}
                 </TableRow>
@@ -249,7 +257,14 @@ export function ForecastGrid({ projectId }: Props) {
               {externalRows.map((row) => (
                 <TableRow key={row.sub_category}>
                   <TableCell className="sticky left-0 bg-white font-medium text-sm">
-                    {row.sub_category_name}
+                    <div className="flex items-center gap-1.5">
+                      {row.sub_category_name}
+                      {row.capex_opex && (
+                        <Badge variant="outline" className={`text-[9px] px-1 py-0 h-3.5 ${row.capex_opex === 'capex' ? 'text-blue-600 border-blue-200' : 'text-amber-600 border-amber-200'}`}>
+                          {row.capex_opex === 'capex' ? 'CapEx' : 'OpEx'}
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   {visibleColumns.map((col) => renderExternalCell(row, col))}
                 </TableRow>
