@@ -445,13 +445,48 @@ def approve_project(
     user: CurrentUser = Depends(require_role("controller")),
 ):
     """Approve a pending project submission."""
+    from models.system import Notification
+
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
     if project.status != "pending_approval":
         raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_approval'")
 
+    # 1. Change status to active
     project.status = "active"
+    project.rag_status = "green"  # New projects start green
+
+    # 2. Generate baseline values from submitted forecast data
+    forecasts = db.query(Forecast).filter(Forecast.project_id == project_id).all()
+    for f in forecasts:
+        baseline = Baseline(
+            project_id=f.project_id,
+            month=f.month,
+            category=f.category,
+            sub_category=f.sub_category,
+            hours=f.hours,
+            amount_eur=f.amount_eur,
+            capex_opex=f.capex_opex,
+        )
+        db.add(baseline)
+
+    # Calculate total budget from baselines
+    total_budget = sum(float(f.amount_eur or 0) for f in forecasts)
+    if total_budget > 0:
+        project.total_budget = round(total_budget, 2)
+
+    # 3. Create notification for the submitting PL (action type #8)
+    if project.pl_person_id:
+        notification = Notification(
+            user_person_id=project.pl_person_id,
+            message=f"Your project \"{project.name}\" has been approved and is now active.",
+            severity="info",
+            deep_link_module="project_workbench",
+            deep_link_entity_id=project.id,
+        )
+        db.add(notification)
+
     db.commit()
     db.refresh(project)
 
