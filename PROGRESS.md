@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v3 Session 1 (complete)
-Last completed: v3 Session 1 — Global Patterns + Launchpad
-Branch: `v3/session-1-global-patterns-launchpad`
+Phase: v3 Session 2 (complete)
+Last completed: v3 Session 2 — Detail View Component + Portfolio
+Branch: `v3/session-2-detail-view-portfolio`
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -43,6 +43,48 @@ Branch: `v3/session-1-global-patterns-launchpad`
 - [x] Phase E: Documentation content + polish + verification
 - [ ] v3 Overhaul (demo date: March 2026)
   - [x] v3 Session 1: Global Patterns + Launchpad
+  - [x] v3 Session 2: Detail View Component + Portfolio
+
+## v3 Session 2 — Detail View Component + Portfolio
+
+### Summary
+Built the reusable DetailViewGrid component (comparison + intake cell patterns) and deployed it in Portfolio Overview's Approvals and Intake workspaces. Restructured KPIs to a 4+2 layout and added per-filter reset.
+
+### Changes
+
+**New components (3 files)**
+- `frontend/src/components/shared/DetailViewGrid.tsx` — Reusable month-by-line-item grid with two cell patterns: comparison (3-line stack: proposed/delta/current with color-coded deltas) and intake (single values). Uses `useCollapsibleYears` hook, elapsed month tinting, sticky left column, category section headers (INTERNAL RESOURCES / EXTERNAL COSTS)
+- `frontend/src/components/shared/DetailViewKPIStrip.tsx` — Three horizontal KPI cards below grid with optional color coding
+- `frontend/src/lib/detailViewTypes.ts` — Shared TypeScript types for detail view data structures
+
+**Per-filter reset**
+- `frontend/src/components/shared/FilterBar.tsx` — Added "Show All" option (sentinel `"__all__"`) to each active filter dropdown for individual filter clearing
+
+**KPI restructuring**
+- `backend/services/portfolio_service.py` — Updated `compute_portfolio_kpis()` return shape: baseline, current_forecast, ytd_actuals, plan_drift_amount, plan_drift_pct
+- `backend/routers/portfolio.py` — Updated KPI endpoint with new field names, added capex_pct/opex_pct
+- `frontend/src/modules/portfolio/dashboard/PortfolioKPIRow.tsx` — Rewritten: 4-card primary row (Baseline, Current Forecast, YTD Actuals, Plan Drift) + 2-card secondary row (Run/Change, CapEx/OpEx). Plan Drift color-coded by threshold
+- `frontend/src/types/api.ts` — Updated `PortfolioKPIs` interface
+
+**Approvals detail workspace (comparison pattern)**
+- `backend/routers/portfolio.py` — Added `_build_cr_grid_data()` that transforms CR change details into structured grid format with line items, months, current/proposed values, and KPI strip data. Added `_parse_numeric()` helper
+- `backend/schemas/portfolio.py` — Added `DetailViewMonthValue`, `DetailViewLineItemSchema`, `DetailViewKPISchema`, `DetailViewGridData` schemas. Added `grid_data` to `CRDetailResponse`
+- `frontend/src/modules/portfolio/approvals/CRDetailWorkspace.tsx` — Complete rewrite: breadcrumb navigation, restructured header (status badge, category badge, system-suggested badge, project name, submitted by, CC Owner), DetailViewGrid with comparison pattern, KPI strip, justification/CC comments cards, action buttons
+
+**Intake detail workspace (intake pattern)**
+- `backend/routers/portfolio.py` — Added grid_data to intake detail endpoint with resource plan → internal, external cost plan → external transformation
+- `frontend/src/modules/portfolio/intake/IntakeDetailWorkspace.tsx` — Complete rewrite: breadcrumb, header (status, LoB, project lead, timeline), business case card, DetailViewGrid with intake pattern, KPI strip, controller-only action buttons
+
+### Verification Results
+- [x] Per-filter reset: "Show All" appears when filter is active, clears individual filter
+- [x] KPIs: Baseline €11,2M, Current Forecast €11,4M displayed correctly; recalculate on filter change
+- [x] Approvals detail: Grid renders with comparison cells (3-line stack), category headers, KPI strip
+- [x] Intake detail: Grid shows empty state correctly (pending project has no resource data)
+- [x] All Portfolio tabs functional (Dashboard, Intake Queue, Approvals)
+- [x] Action buttons (Approve/Reject/Request Changes) present and functional
+
+### Next Session
+Session 3: Change History + Forecast Cycle Review — will reuse DetailViewGrid in additional contexts
 
 ## v3 Session 1 — Global Patterns + Launchpad
 

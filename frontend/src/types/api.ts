@@ -1,7 +1,16 @@
+import type { DetailViewLineItem, DetailViewKPI } from '@/lib/detailViewTypes';
+
 // Response envelope
 export interface ListResponse<T> {
   items: T[];
   total: number;
+}
+
+// Detail View Grid response shape (used by CR detail, intake detail)
+export interface DetailViewGridDataResponse {
+  months: string[];
+  line_items: DetailViewLineItem[];
+  kpis: DetailViewKPI[];
 }
 
 // Role types
@@ -93,12 +102,15 @@ export interface ProjectCreate {
 // --- Portfolio Overview ---
 
 export interface PortfolioKPIs {
-  total_budget: number;
-  ytd_spend: number;
-  forecast_at_completion: number;
-  overall_variance_pct: number;
-  capex_opex_split: { capex: number; opex: number };
-  run_change_ratio: string;
+  baseline: number;
+  current_forecast: number;
+  ytd_actuals: number;
+  plan_drift_amount: number;
+  plan_drift_pct: number;
+  capex_total: number;
+  opex_total: number;
+  capex_pct: number;
+  opex_pct: number;
   run_total: number;
   change_total: number;
   run_pct: number;
@@ -215,6 +227,7 @@ export interface IntakeDetail {
   resource_plan?: IntakeResourcePlanItem[];
   external_cost_plan?: IntakeExternalCostItem[];
   budget_summary?: IntakeBudgetSummary;
+  grid_data?: DetailViewGridDataResponse;
 }
 
 // Approvals
@@ -258,6 +271,7 @@ export interface CRDetail {
   controller_status: string | null;
   controller_comments: string | null;
   changes: CRChangeDetail[];
+  grid_data?: DetailViewGridDataResponse;
 }
 
 // Reference data

@@ -4,17 +4,11 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { DetailViewGrid } from '@/components/shared/DetailViewGrid';
+import { DetailViewKPIStrip } from '@/components/shared/DetailViewKPIStrip';
+import { StatusBadge } from '@/components/shared/StatusBadge';
 import { portfolioApi } from '@/api/endpoints';
-import { formatCurrency } from '@/lib/formatters';
 import type { CRDetail } from '@/types/api';
 import { ArrowLeft, Check, X, Undo2, Sparkles } from 'lucide-react';
 
@@ -82,30 +76,25 @@ export function CRDetailWorkspace({ crId, onBack, onActionComplete }: Props) {
     return <p className="text-sm text-slate-400">Change request not found.</p>;
   }
 
-  // Compute total delta from changes
-  const totalDelta = data.changes.reduce((sum, c) => {
-    const d = parseFloat(c.delta || '0');
-    return sum + (isNaN(d) ? 0 : d);
-  }, 0);
-
   return (
     <div className="space-y-6">
-      {/* Back button */}
-      <Button variant="ghost" size="sm" onClick={onBack} className="text-slate-600">
-        <ArrowLeft className="h-4 w-4 mr-1" />
-        Back to Approvals
-      </Button>
+      {/* Breadcrumb + Back */}
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <Button variant="ghost" size="sm" onClick={onBack} className="text-slate-600 -ml-2">
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Approvals
+        </Button>
+        <span>/</span>
+        <span className="text-slate-700 font-medium truncate">{data.summary}</span>
+      </div>
 
       {/* Header */}
-      <div className="space-y-2">
-        <p className="text-xs text-slate-500">{data.project_name}</p>
+      <div className="space-y-3">
         <h2 className="text-xl font-semibold text-slate-800">{data.summary}</h2>
         <div className="flex items-center gap-2 flex-wrap">
+          <StatusBadge status={data.status} />
           <Badge variant="outline" className="text-xs capitalize">
-            {data.change_category}
-          </Badge>
-          <Badge variant="outline" className="text-xs capitalize">
-            {data.status.replace(/_/g, ' ')}
+            {data.change_category.replace(/_/g, ' ')}
           </Badge>
           {data.is_system_suggested && (
             <Badge className="bg-indigo-100 text-indigo-700 text-xs">
@@ -113,55 +102,63 @@ export function CRDetailWorkspace({ crId, onBack, onActionComplete }: Props) {
               System Suggested
             </Badge>
           )}
-          <span className="text-sm text-slate-500">by {data.submitted_by}</span>
-          <span className="text-sm text-slate-400">
-            {new Date(data.submission_date).toLocaleDateString()}
-          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm max-w-lg">
+          <div className="text-slate-500">Project</div>
+          <div className="text-slate-700 font-medium">{data.project_name}</div>
+          <div className="text-slate-500">Submitted by</div>
+          <div className="text-slate-700">
+            {data.submitted_by}
+            <span className="text-slate-400 ml-2">
+              {new Date(data.submission_date).toLocaleDateString()}
+            </span>
+          </div>
+          {data.cc_owner && (
+            <>
+              <div className="text-slate-500">Confirmed by (CC Owner)</div>
+              <div className="text-slate-700">
+                {data.cc_owner}
+                {data.cc_status && (
+                  <span className="text-slate-400 ml-2 capitalize">
+                    ({data.cc_status})
+                  </span>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       <Separator />
 
-      {/* Change Details Table */}
-      {data.changes.length > 0 && (
+      {/* Detail View Grid */}
+      {data.grid_data ? (
+        <div className="space-y-4">
+          <DetailViewGrid
+            lineItems={data.grid_data.line_items}
+            months={data.grid_data.months}
+            cellPattern="comparison"
+          />
+          <DetailViewKPIStrip kpis={data.grid_data.kpis} />
+        </div>
+      ) : (
+        /* Fallback: show raw changes if no grid data */
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">Change Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border border-slate-200 overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="px-3 py-2 text-xs">Field</TableHead>
-                    <TableHead className="px-3 py-2 text-xs">Month</TableHead>
-                    <TableHead className="px-3 py-2 text-xs text-right">Old Value</TableHead>
-                    <TableHead className="px-3 py-2 text-xs text-right">Proposed Value</TableHead>
-                    <TableHead className="px-3 py-2 text-xs text-right">Delta</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.changes.map((c, i) => {
-                    const delta = parseFloat(c.delta || '0');
-                    return (
-                      <TableRow key={i}>
-                        <TableCell className="px-3 py-2 text-sm text-slate-700">{c.field_changed}</TableCell>
-                        <TableCell className="px-3 py-2 text-sm text-slate-500">{c.month || '—'}</TableCell>
-                        <TableCell className="px-3 py-2 text-sm text-slate-500 text-right">{c.old_value || '—'}</TableCell>
-                        <TableCell className="px-3 py-2 text-sm text-slate-700 text-right font-medium">{c.new_value || '—'}</TableCell>
-                        <TableCell className="px-3 py-2 text-sm text-right font-medium">
-                          {c.delta ? (
-                            <span className={delta > 0 ? 'text-red-600' : delta < 0 ? 'text-green-600' : 'text-slate-500'}>
-                              {delta > 0 ? '+' : ''}{c.delta}
-                            </span>
-                          ) : '—'}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <p className="text-sm text-slate-500">
+              This change request does not contain monthly value changes for grid display.
+            </p>
+            <ul className="mt-2 space-y-1">
+              {data.changes.map((c, i) => (
+                <li key={i} className="text-sm text-slate-600">
+                  {c.field_changed}: {c.old_value ?? '—'} → {c.new_value ?? '—'}
+                  {c.month && <span className="text-slate-400 ml-1">({c.month})</span>}
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}
@@ -178,54 +175,17 @@ export function CRDetailWorkspace({ crId, onBack, onActionComplete }: Props) {
         </Card>
       )}
 
-      {/* Impact Summary + CC Owner */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* CC Owner Comments */}
+      {data.cc_comments && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm font-medium">Impact Summary</CardTitle>
+            <CardTitle className="text-sm font-medium">CC Owner Comments</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-slate-500">Total Budget Delta</p>
-                <p className={`text-lg font-semibold ${totalDelta > 0 ? 'text-red-600' : totalDelta < 0 ? 'text-green-600' : 'text-slate-800'}`}>
-                  {totalDelta !== 0 ? formatCurrency(totalDelta) : '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500">Change Category</p>
-                <p className="text-lg font-semibold text-slate-800 capitalize">{data.change_category}</p>
-              </div>
-            </div>
+            <p className="text-sm text-slate-600">{data.cc_comments}</p>
           </CardContent>
         </Card>
-
-        {data.cc_owner && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium">CC Owner Confirmation</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Confirmed by</span>
-                  <span className="text-slate-700">{data.cc_owner}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Status</span>
-                  <span className="text-slate-700 capitalize">{data.cc_status?.replace(/_/g, ' ') || '—'}</span>
-                </div>
-                {data.cc_comments && (
-                  <div className="pt-1">
-                    <p className="text-xs text-slate-500">Comments</p>
-                    <p className="text-slate-600">{data.cc_comments}</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      )}
 
       {/* Action Result */}
       {actionResult && (
@@ -255,7 +215,7 @@ export function CRDetailWorkspace({ crId, onBack, onActionComplete }: Props) {
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setActionMode('send-back')}>
                   <Undo2 className="h-3.5 w-3.5 mr-1" />
-                  Send Back
+                  Request Changes
                 </Button>
               </div>
             ) : (
