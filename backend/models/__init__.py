@@ -3,7 +3,7 @@
 
 from models.organization import LineOfBusiness, Location, CompetenceCenter, CostCenter
 from models.people import RoleType, Person, RateTable
-from models.projects import Program, Project
+from models.projects import Program, Project, ProjectPhase
 from models.financial import ExternalCostType, Baseline, Forecast, Actuals
 from models.capacity import Allocation, ResourceRequest
 from models.change_requests import ChangeRequest, CRChangeDetail
@@ -15,7 +15,7 @@ from models.reporting import ForecastSnapshot, SavedView
 __all__ = [
     "LineOfBusiness", "Location", "CompetenceCenter", "CostCenter",
     "RoleType", "Person", "RateTable",
-    "Program", "Project",
+    "Program", "Project", "ProjectPhase",
     "ExternalCostType", "Baseline", "Forecast", "Actuals",
     "Allocation", "ResourceRequest",
     "ChangeRequest", "CRChangeDetail",
