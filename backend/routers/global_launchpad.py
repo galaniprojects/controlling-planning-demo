@@ -304,28 +304,24 @@ def get_pending_actions(
             ))
 
         # Action #8: Project Submission Decision
-        # Check for unread notifications about project approvals/rejections
-        from models.system import Notification
-        submission_notifications = (
-            db.query(Notification)
-            .filter(
-                Notification.user_person_id == user.person_id,
-                Notification.is_read.is_(False),
-                Notification.deep_link_module == "project_workbench",
-            )
-            .all()
-        )
-        for notif in submission_notifications:
-            actions.append(PendingAction(
-                id=f"submission-decision-{notif.id}",
-                type="project_submission_decision",
-                title="Project submission approved",
-                description=notif.message,
-                urgency="info",
-                deep_link_module="workbench",
-                deep_link_entity_id=notif.deep_link_entity_id,
-                timestamp=notif.created_at.isoformat() if notif.created_at else None,
-            ))
+        for proj in owned_projects:
+            if proj.status in ("active", "rejected"):
+                # Check if recently transitioned (modified_at != created_at means a status change)
+                if (proj.modified_at and proj.created_at
+                        and proj.modified_at > proj.created_at
+                        and proj.modified_at.isoformat()[:7] >= prev_month):
+                    decision = "approved" if proj.status == "active" else "returned"
+                    actions.append(PendingAction(
+                        id=f"project-decision-{proj.id}",
+                        type="project_decision",
+                        title=f"Project submission {decision}",
+                        description=proj.name,
+                        urgency="info",
+                        deep_link_module="workbench",
+                        deep_link_entity_id=proj.id,
+                        deep_link_tab=None,
+                        timestamp=proj.modified_at.isoformat(),
+                    ))
 
     elif user.role == "controller":
         # Action #2 (info): Forecast overdue projects

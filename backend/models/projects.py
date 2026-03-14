@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -64,7 +64,7 @@ class ProjectPhase(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    phase_number: Mapped[int] = mapped_column(nullable=False)
+    phase_number: Mapped[int] = mapped_column(Integer, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     baseline_start: Mapped[str] = mapped_column(String(7), nullable=False)  # YYYY-MM
     baseline_end: Mapped[str] = mapped_column(String(7), nullable=False)

@@ -26,7 +26,10 @@ class Baseline(Base):
     sub_category: Mapped[str] = mapped_column(String(50), nullable=False)  # role_type_id or cost_type_id
     hours: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)  # Internal only
     amount_eur: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
-    capex_opex: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # capex / opex per line item
+    description: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)  # External cost line item description
+    capex_opex: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # Per-line-item CapEx/OpEx
+    vendor: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    ext_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
 
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="baselines")
@@ -43,7 +46,8 @@ class Forecast(Base):
     sub_category: Mapped[str] = mapped_column(String(50), nullable=False)
     hours: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     amount_eur: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
-    capex_opex: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # capex / opex per line item
+    description: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)  # External cost line item description
+    capex_opex: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # Per-line-item CapEx/OpEx
     # External cost procurement tracking (nullable — only for category='external')
     ext_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     po_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
@@ -64,7 +68,10 @@ class Actuals(Base):
     sub_category: Mapped[str] = mapped_column(String(50), nullable=False)
     hours: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     amount_eur: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
-    capex_opex: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # capex / opex per line item
+    description: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)  # External cost line item description
+    capex_opex: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # Per-line-item CapEx/OpEx
+    vendor: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    ext_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
 
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="actuals")

@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v3 Session 4 (complete)
-Last completed: v3 Session 4 — Reporting Year Selectors, Bug Fixes, Dead Code Cleanup, Pending Actions Verification
-Branch: `v3/session-4-reports-bugs-cleanup`
+Phase: v3 Session 5C (complete)
+Last completed: v3 Session 5C — Consistency Validation + Walkthrough Verification
+Branch: `v3/session-5-seed-data`
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -43,162 +43,9 @@ Branch: `v3/session-4-reports-bugs-cleanup`
 - [x] Phase E: Documentation content + polish + verification
 - [ ] v3 Overhaul (demo date: March 2026)
   - [x] v3 Session 1: Global Patterns + Launchpad
-  - [x] v3 Session 2: Detail View Component + Portfolio
-  - [x] v3 Session 3: Project Workbench — Timeline, CapEx/OpEx, CR Detail, Phase 4 Redesign
-  - [x] v3 Session 4: Reporting Year Selectors, Bug Fixes, Dead Code Cleanup, Pending Actions Verification
-
-## v3 Session 4 — Reporting Year Selectors + Bug Fixes + Cleanup
-
-### Summary
-Added fiscal year selectors to all 5 reports, fixed scenario publish error handling and intake approve endpoint (baseline generation + notification), removed 2 orphaned v2 files, and fixed pending action type #8 (project submission decision).
-
-### Changes
-
-**Item 1: Year Selector in Reports**
-- `backend/routers/reports.py` — Added `fiscal_year` query param to Programme Rollup, CC Financial Summary, Vendor Spend, Forecast Accuracy endpoints; passed through to export endpoint
-- `backend/services/report_service.py` — All 4 compute functions now accept `fiscal_year` param and filter Baseline/Forecast/Actuals queries by year prefix
-- `frontend/src/api/endpoints.ts` — Added `fiscal_year` param to 4 report API methods
-- `frontend/src/modules/reporting/reports/ProgrammeRollupReport.tsx` — Added Fiscal Year filter (FY 2024–2027, default 2026)
-- `frontend/src/modules/reporting/reports/CCFinancialReport.tsx` — Added Fiscal Year filter
-- `frontend/src/modules/reporting/reports/VendorSpendReport.tsx` — Added Fiscal Year filter
-- `frontend/src/modules/reporting/reports/ForecastAccuracyReport.tsx` — Added Fiscal Year filter
-- `frontend/src/modules/reporting/reports/YoYReport.tsx` — Added Current Year and Previous Year filter dropdowns (multi-year range selector), wired existing fy_current/fy_previous backend params
-
-**Item 2: Scenario Publish Bug Fix**
-- `frontend/src/modules/simulator/manager/ScenarioManager.tsx` — Wrapped handlePublish/handleUnpublish/handleDelete in try/finally so refresh() always runs even on API failure. Backend was already correctly persisting status changes.
-
-**Item 3: Intake Approve Bug Fix**
-- `backend/routers/portfolio.py` — Approve endpoint now: sets status to active + green RAG, copies Forecast rows into Baseline records (snapshot at approval), calculates total_budget, creates Notification for submitting PL (action type #8)
-
-**Item 4: Dead Code Cleanup**
-- Removed `frontend/src/modules/launchpad/SubmitProjectButton.tsx` (replaced by direct SubmitProjectDialog import)
-- Removed `frontend/src/components/layout/PlaceholderModule.tsx` (unused placeholder component)
-
-**Item 5: Pending Action Verification**
-- `backend/routers/global_launchpad.py` — Fixed action type #8 (project submission decision): replaced empty `pass` block with query against unread Notification records for project_workbench deep links
-- All 9 action types verified working with current seed data
-
-### Verification Results
-- [x] Year selector visible and functional in Programme Rollup report (FY 2026 default)
-- [x] Year-over-Year report has Current Year and Previous Year dropdowns
-- [x] Year selector correctly filters backend data by fiscal year
-- [x] Scenario publish persists and status badge updates correctly
-- [x] Scenario publish/unpublish/delete handlers resilient to API errors
-- [x] Intake approve changes project status to active with green RAG
-- [x] Intake approve generates baseline values from forecast data
-- [x] Intake approve creates notification for submitting PL
-- [x] No orphaned v2 code remains
-- [x] Pending action #8 fires correctly for project leads
-- [x] All 9 pending action types verified: PL sees forecast due/overdue, CR feedback, CR decisions; Controller sees overdue forecasts, CR approvals, project reviews, published scenarios; CC Owner sees CR confirmations; Executive sees published scenarios
-- [x] No console errors, backend starts cleanly
-
-### Next Session
-Session 5: Seed Data Overhaul — complete rewrite of seed.sql per CRETA_v3_Section9_Seed_Data.md
-
-## v3 Session 3 — Project Workbench: Timeline, CapEx/OpEx, CR Detail, Phase 4 Redesign
-
-### Summary
-Built the Project Timeline visualization (monthly bar chart + cumulative line chart with phases), moved CapEx/OpEx to per-line-item classification, added full detail view for Change History CRs, added Submit New Project button in Workbench panel header, and redesigned Phase 4 of the forecast cycle with cost-centre-grouped justifications and a comparison grid.
-
-### Changes
-
-**Item 4: CapEx/OpEx Per Line Item**
-- `backend/models/financial.py` — Added `capex_opex` column (String(10), nullable) to Baseline, Forecast, Actuals models
-- `backend/seed/seed.sql` — ALTER TABLE + UPDATE statements classifying line items: mixed projects (ERP, SAP, IAM) have both capex/opex rows; services and some projects are fully opex; remainder fully capex
-- `backend/routers/workbench.py` — Overview endpoint computes CapEx/OpEx split from line items (capex_amount, opex_amount, capex_pct, opex_pct); forecast grid includes capex_opex per row
-- `frontend/src/types/api.ts` — Updated types with capex_opex fields
-- `frontend/src/modules/workbench/overview/CapexOpexDisplay.tsx` — Updated to show split when mixed classification
-- `frontend/src/modules/workbench/forecast/ForecastGrid.tsx` — CapEx/OpEx badge per row next to line item name
-
-**Item 3: Submit New Project in Workbench**
-- `frontend/src/modules/workbench/ProjectListPanel.tsx` — Added "+" button in header, visible only for project_lead role; opens SubmitProjectDialog
-- `frontend/src/modules/workbench/SubmitProjectDialog.tsx` — New Dialog component with form fields (name, description, LoB select, timeline, capex_opex); calls POST /api/launchpad/projects + PUT submit
-- `frontend/src/modules/workbench/ProjectWorkbench.tsx` — Passes role info to ProjectListPanel
-
-**Item 2: Change History Full Detail View**
-- `backend/routers/workbench.py` — New endpoint GET /api/projects/{project_id}/change-requests/{cr_id}/detail-view returning DetailViewGrid format (months, line_items with before/after/delta, kpis)
-- `frontend/src/api/endpoints.ts` — Added getCRDetailView method to workbenchApi
-- `frontend/src/modules/workbench/history/CRHistoryList.tsx` — Added "View Full Detail" button in expanded section; passes projectId prop
-- `frontend/src/modules/workbench/history/CRDetailModal.tsx` — New Dialog with header (CR title, status badge, dates), DetailViewGrid (comparison, read-only), DetailViewKPIStrip, no action buttons
-- `frontend/src/modules/workbench/history/ChangeHistoryTab.tsx` — Fixed missing projectId prop to CRHistoryList
-
-**Item 1: Project Timeline Visualization**
-- `backend/models/projects.py` — New ProjectPhase model (phase_number, name, baseline_start/end, forecast_start/end, color)
-- `backend/models/__init__.py` — Added ProjectPhase export
-- `backend/seed/seed.sql` — Phase seed data: full phases (4-5) for ERP, SAP, Signaling, Telematics; partial (3) for Rail Diagnostics, Fleet Portal, Predictive Maintenance
-- `backend/routers/workbench.py` — New endpoint GET /api/projects/{project_id}/timeline returning monthly_data (baseline/forecast/actuals with overrun flags), cumulative_data, phases (with slip calculation), summary (baseline_total, forecast_total, ytd_actuals, plan_drift, execution_variance), budget_ceiling, today_month
-- `frontend/src/types/api.ts` — Added TimelineData, TimelineMonthPoint, TimelineCumulativePoint, TimelinePhase, TimelineSummary types
-- `frontend/src/api/endpoints.ts` — Added getTimeline method
-- `frontend/src/modules/workbench/overview/ProjectTimelineChart.tsx` — Monthly grouped BarChart (baseline grey, forecast blue, actuals green, overruns red) with fixed Y-axis + horizontal scroll, TODAY line, January year separators, elapsed tinting; Cumulative LineChart with budget ceiling; Monthly/Cumulative toggle
-- `frontend/src/modules/workbench/overview/PhaseStrip.tsx` — CSS grid phase segments below chart aligned with months; tooltip with baseline/forecast dates and slip; graceful degradation (no phases → no strip)
-- `frontend/src/modules/workbench/overview/TimelineSummaryStrip.tsx` — Horizontal KPI row: Baseline, Forecast, YTD Actuals, Plan Drift, Exec. Variance
-- `frontend/src/modules/workbench/overview/OverviewTab.tsx` — Fetches timeline data in parallel with overview; renders ProjectTimelineChart above ThreePointTable
-
-**Item 5: Forecast Cycle Phase 4 Redesign**
-- `backend/routers/workbench.py` — Redesigned review endpoint to return grid_data (DetailViewGrid format) and cost_centre_groups (mapped via Allocation → Person → CostCenter); redesigned submit endpoint to create one CR per cost centre with per-CC justifications
-- `backend/schemas/workbench.py` — Updated SubmitRequest with optional cost_centre_groups parameter
-- `backend/services/forecast_cycle.py` — Added cost_centre_groups field to ForecastCycleState
-- `frontend/src/types/api.ts` — Added ReviewGridData, ReviewGridLineItem, CostCentreGroup types
-- `frontend/src/api/endpoints.ts` — Updated submitCycle to accept optional costCentreGroups
-- `frontend/src/modules/workbench/forecast/useForecastCycle.ts` — Added reviewGridData and costCentreGroups state fields; updated SET_REVIEW_GROUPS action; updated saveEditsAndAdvance and submitCycle
-- `frontend/src/modules/workbench/forecast/Phase4Review.tsx` — Rewritten: comparison grid table (before/after/delta per month per line item), CapEx/OpEx badges, system-suggested Sparkles icons, per-cost-centre justification cards with fallback to legacy per-type grouping
-- `frontend/src/modules/workbench/forecast/ForecastWizard.tsx` — Passes reviewGridData and costCentreGroups props to Phase4Review
-
-### Verification Results
-- [x] Timeline chart renders for ERP Integration Phase 2 with 5 phases, monthly bars, TODAY line, year separators
-- [x] Cumulative view shows budget ceiling dashed line, three data series
-- [x] Phase strip aligned with chart months, tooltips show slip info
-- [x] Summary strip shows Baseline €1.3M, Forecast €1.4M, YTD Actuals €907K, Plan Drift +7.8%, Exec. Variance -9.5%
-- [x] Projects without phases (services, AI/ML Lab) show no phase strip — graceful degradation
-- [x] CapEx/OpEx classification visible in overview (Cost Classification card)
-- [x] Submit New Project button hidden for controller role, visible for project_lead
-- [x] Change History tab renders CR list with filters and status badges
-- [x] TypeScript compiles cleanly with all new types
-- [x] Backend endpoints return correct data shapes (timeline, review with grid_data + cost_centre_groups)
-
-### Next Session
-Session 4: Reporting Year Selectors + Bug Fixes + Cleanup (completed)
-
-## v3 Session 2 — Detail View Component + Portfolio
-
-### Summary
-Built the reusable DetailViewGrid component (comparison + intake cell patterns) and deployed it in Portfolio Overview's Approvals and Intake workspaces. Restructured KPIs to a 4+2 layout and added per-filter reset.
-
-### Changes
-
-**New components (3 files)**
-- `frontend/src/components/shared/DetailViewGrid.tsx` — Reusable month-by-line-item grid with two cell patterns: comparison (3-line stack: proposed/delta/current with color-coded deltas) and intake (single values). Uses `useCollapsibleYears` hook, elapsed month tinting, sticky left column, category section headers (INTERNAL RESOURCES / EXTERNAL COSTS)
-- `frontend/src/components/shared/DetailViewKPIStrip.tsx` — Three horizontal KPI cards below grid with optional color coding
-- `frontend/src/lib/detailViewTypes.ts` — Shared TypeScript types for detail view data structures
-
-**Per-filter reset**
-- `frontend/src/components/shared/FilterBar.tsx` — Added "Show All" option (sentinel `"__all__"`) to each active filter dropdown for individual filter clearing
-
-**KPI restructuring**
-- `backend/services/portfolio_service.py` — Updated `compute_portfolio_kpis()` return shape: baseline, current_forecast, ytd_actuals, plan_drift_amount, plan_drift_pct
-- `backend/routers/portfolio.py` — Updated KPI endpoint with new field names, added capex_pct/opex_pct
-- `frontend/src/modules/portfolio/dashboard/PortfolioKPIRow.tsx` — Rewritten: 4-card primary row (Baseline, Current Forecast, YTD Actuals, Plan Drift) + 2-card secondary row (Run/Change, CapEx/OpEx). Plan Drift color-coded by threshold
-- `frontend/src/types/api.ts` — Updated `PortfolioKPIs` interface
-
-**Approvals detail workspace (comparison pattern)**
-- `backend/routers/portfolio.py` — Added `_build_cr_grid_data()` that transforms CR change details into structured grid format with line items, months, current/proposed values, and KPI strip data. Added `_parse_numeric()` helper
-- `backend/schemas/portfolio.py` — Added `DetailViewMonthValue`, `DetailViewLineItemSchema`, `DetailViewKPISchema`, `DetailViewGridData` schemas. Added `grid_data` to `CRDetailResponse`
-- `frontend/src/modules/portfolio/approvals/CRDetailWorkspace.tsx` — Complete rewrite: breadcrumb navigation, restructured header (status badge, category badge, system-suggested badge, project name, submitted by, CC Owner), DetailViewGrid with comparison pattern, KPI strip, justification/CC comments cards, action buttons
-
-**Intake detail workspace (intake pattern)**
-- `backend/routers/portfolio.py` — Added grid_data to intake detail endpoint with resource plan → internal, external cost plan → external transformation
-- `frontend/src/modules/portfolio/intake/IntakeDetailWorkspace.tsx` — Complete rewrite: breadcrumb, header (status, LoB, project lead, timeline), business case card, DetailViewGrid with intake pattern, KPI strip, controller-only action buttons
-
-### Verification Results
-- [x] Per-filter reset: "Show All" appears when filter is active, clears individual filter
-- [x] KPIs: Baseline €11,2M, Current Forecast €11,4M displayed correctly; recalculate on filter change
-- [x] Approvals detail: Grid renders with comparison cells (3-line stack), category headers, KPI strip
-- [x] Intake detail: Grid shows empty state correctly (pending project has no resource data)
-- [x] All Portfolio tabs functional (Dashboard, Intake Queue, Approvals)
-- [x] Action buttons (Approve/Reject/Request Changes) present and functional
-
-### Next Session
-Session 3: Change History + Forecast Cycle Review — will reuse DetailViewGrid in additional contexts
+  - [x] v3 Session 5A: Schema fixes + seed generator infrastructure
+  - [x] v3 Session 5B: Complete seed data generation (19K lines, all 10 modules)
+  - [x] v3 Session 5C: Consistency validation + walkthrough verification
 
 ## v3 Session 1 — Global Patterns + Launchpad
 
@@ -258,6 +105,125 @@ First session of the v3 overhaul. Built foundational global components and compl
 
 ### Next
 - v3 Session 2 (per v3_session_guides/Session_2_Guide.md)
+
+## v3 Session 5A — Schema Fixes + Seed Generator Infrastructure
+
+Branch: `v3/session-5-seed-data`
+Date: 2026-03-14
+
+### Completed
+- Fixed schema issues identified during v3 review
+- Created modular seed generator infrastructure under `backend/seed/generate_seed/`
+- Built 4 foundation modules: s01_organization, s02_roles_rates, s03_people, s04_programs_projects
+- Created runner.py to orchestrate module execution in dependency order
+- Generated initial seed.sql (286 lines of organizational/structural data)
+
+## v3 Session 5B — Complete Seed Data Generation
+
+Branch: `v3/session-5-seed-data`
+Date: 2026-03-14
+
+### Completed
+- **Bug fix:** Changed `proj-workplace` programme from `None` to `"prog-infra"` per spec §9.5
+- **config.py extensions:**
+  - `PROJECT_STAFFING` — Per-project internal staffing profiles for all 32 entities (role, location, hours, capex/opex)
+  - `PROJECT_EXTERNALS` — Per-project external cost line items (3-8 items each) for all 32 entities
+  - `FORECAST_ADJUSTMENTS` — Overrides for troubled projects (erp2, sensor, iam, telematics)
+  - `ASSIGNMENTS` — 100+ person-project allocations covering all 50 people
+  - `CHANGE_REQUESTS` — 28 CR definitions (23 historical + 5 active) with full metadata
+  - `PROJECT_PHASES` — 7 projects with phase data (4 full, 3 partial)
+  - `SCENARIO_DEFS` — 3 pre-built What-If scenarios with actions and impacts
+- **s05_financials.py** — Largest module: baselines, forecasts, actuals with temporal rules (actuals through Feb 2026, March partial), procurement lifecycle statuses, deterministic variance via `random.seed(42)`, batched INSERTs (100 rows/statement), budget reconciliation UPDATEs
+- **s06_allocations.py** — Person×project×month allocations from ASSIGNMENTS, unconfirmed allocations for p-fischer, 3 resource requests (PredMaint pending, ERP/Sensor linked to CRs)
+- **s07_change_requests.py** — 28 CRs with CC/controller workflow states, CR change details
+- **s08_workflow.py** — 15 notifications across 4 personas, 4 system suggestions, 13 audit log entries
+- **s09_phases.py** — Project phases for 7 projects (4 full with 4-5 phases, 3 partial with 2-3 phases)
+- **s10_scenarios.py** — 3 scenarios (Budget Pressure, Accelerate Digital, Conservative) with actions, states per project, capacity impacts
+- **runner.py** — Enabled all 10 modules
+- **seed.sql** — Regenerated: 19,097 lines (~1.9MB)
+
+### Verification Results
+- Backend starts without errors, seed loads successfully
+- All 32 entities loaded in projects table
+- All 50 people loaded
+- Portfolio Overview renders with financial KPIs (Total Budget €16.4M, YTD Spend €14.8M, Forecast €21.6M)
+- 4 LoBs with correct RAG statuses (TBS=Red, others=Amber)
+- All 9 pending action types verified across 4 personas:
+  - Controller (Anna): cr_pending_approval, project_pending_review, scenario_published, forecast_overdue (6 items)
+  - CC Owner (Thomas): cr_pending_confirmation (2 items)
+  - PL (Priya): forecast_due, forecast_overdue, cr_decision, cr_feedback (16 items)
+  - Executive (Attila): scenario_published (2 items)
+
+### Files Created/Modified
+| File | Action |
+|------|--------|
+| `backend/seed/generate_seed/config.py` | Extended with staffing, externals, CRs, phases, scenarios |
+| `backend/seed/generate_seed/s05_financials.py` | New — financials generator |
+| `backend/seed/generate_seed/s06_allocations.py` | New — allocations generator |
+| `backend/seed/generate_seed/s07_change_requests.py` | New — change requests generator |
+| `backend/seed/generate_seed/s08_workflow.py` | New — workflow generator |
+| `backend/seed/generate_seed/s09_phases.py` | New — phases generator |
+| `backend/seed/generate_seed/s10_scenarios.py` | New — scenarios generator |
+| `backend/seed/generate_seed/runner.py` | Enabled all 10 modules |
+| `backend/seed/seed.sql` | Regenerated (19,097 lines) |
+
+### Next
+- v3 Session 5C (validation + walkthrough checks)
+
+## v3 Session 5C — Consistency Validation + Walkthrough Verification
+
+Branch: `v3/session-5-seed-data`
+Date: 2026-03-14
+
+### Completed
+- **Validation script** (`backend/seed/generate_seed/validate.py`): 10 checks covering all 8 rules from §9.13 plus entity counts and phase data
+- **Bug fix: Action #8 (project_decision)**: Backend code had `pass` instead of creating PendingAction — fixed `global_launchpad.py` to create the action, added recent `modified_at` on proj-fleet to trigger it
+- **Bug fix: Lena Fischer over-allocation**: Was at exactly 100% (160h) — bumped proj-erp2 allocation to 110h/mo in Mar-May 2026 so she's at 106.2% (170h), visible as red in capacity heatmap
+- **Seed data regenerated**: 19,097 lines after fixes
+
+### Validation Results (10/10 pass)
+1. Summation Integrity: PASS — project total_budget matches sum of baseline line items
+2. Temporal Consistency: PASS — no actuals after 2026-03
+3. Allocation Consistency: PASS — only p-fischer (MUC/APD) and p-szabo (BUD/APD) intentionally over-allocated
+4. CR Consistency: PASS — approved CRs have controller_status=approved + timestamp
+5. Status Consistency: PASS — Stage 2 CRs have CC confirmation, returned CRs have feedback
+6. Timeline Consistency: PASS — no data outside project timelines
+7. Rate Consistency: PASS — each role has 1-3 location-specific rates, all in €30-€200 range
+8. CapEx/OpEx Consistency: PASS — mixed projects (erp2, sap, iam) have both tags, services are opex
+9. Entity Counts: PASS — 32 projects, 52 people, 4 LoBs, 10 CCs, 3 locations, 4 CCs, 4 programs
+10. Phase Data: PASS — 4 full (4-5 phases), 3 partial (3 phases)
+
+### Walkthrough Anchor Spot Checks (5/5 verified)
+- **Anchor #2** (PL Launchpad): Priya sees all 5 action types: forecast_due, forecast_overdue, cr_feedback, cr_decision, project_decision
+- **Anchor #6** (Intake detail): Autonomous Braking Prototype in intake with resource plan and external costs
+- **Anchor #7** (Approvals detail): CR #19 (IAM Overhaul) at pending_controller_approval with 2 change detail entries
+- **Anchor #11** (Change History): ERP Integration Phase 2 has 9 CRs with full lifecycle
+- **Anchor #13** (Capacity heatmap): Lena Fischer over-allocated at 106.2% (red) in Mar-May 2026
+
+### All 9 Pending Action Types Verified
+| Type | Persona(s) | Example |
+|------|-----------|---------|
+| forecast_due | PL | Fleet Portal v2 — submit 2026-03 forecast |
+| forecast_overdue | PL (urgent), Controller (info) | ERP Integration Phase 2 — 2026-02 not submitted |
+| cr_pending_confirmation | CC Owner | CR #9 for ERP Integration Phase 2 |
+| cr_pending_approval | Controller | CR #19 for IAM Overhaul |
+| project_pending_review | Controller | Autonomous Braking Prototype |
+| cr_feedback | PL | CR #27 for Predictive Maintenance PoC |
+| cr_decision | PL | CR #28 for Fleet Portal v2 (approved) |
+| project_decision | PL | Fleet Portal v2 (approved) |
+| scenario_published | Controller, Executive | Budget Pressure: 15% Reduction |
+
+### Files Created/Modified
+| File | Action |
+|------|--------|
+| `backend/seed/generate_seed/validate.py` | New — consistency validation script (10 checks) |
+| `backend/seed/generate_seed/config.py` | Fixed: Fischer allocation 100→110h in Mar-May |
+| `backend/seed/generate_seed/s04_programs_projects.py` | Fixed: proj-fleet modified_at for Action #8 |
+| `backend/routers/global_launchpad.py` | Fixed: Action #8 (project_decision) was no-op |
+| `backend/seed/seed.sql` | Regenerated (19,097 lines) |
+
+### Next
+- v3 Session 6 (per v3_session_guides/Session_6_Guide.md)
 
 ## Phase A Details
 

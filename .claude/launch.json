@@ -10,10 +10,11 @@
     },
     {
       "name": "frontend",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "/Users/vasilis/.nvm/versions/node/v22.19.0/bin/node",
+      "runtimeArgs": ["/Users/vasilis/.nvm/versions/node/v22.19.0/bin/npm", "run", "dev"],
       "port": 5173,
-      "cwd": "frontend"
+      "cwd": "frontend",
+      "env": {"PATH": "/Users/vasilis/.nvm/versions/node/v22.19.0/bin:/usr/bin:/bin"}
     }
   ]
 }
