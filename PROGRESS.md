@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v3 Session 5C (complete)
-Last completed: v3 Session 5C — Consistency Validation + Walkthrough Verification
-Branch: `v3/session-5-seed-data`
+Phase: v3 Session 6 (complete)
+Last completed: v3 Session 6 — End-to-End Verification & Polish
+Branch: `v3/session-6-verification`
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -46,6 +46,7 @@ Branch: `v3/session-5-seed-data`
   - [x] v3 Session 5A: Schema fixes + seed generator infrastructure
   - [x] v3 Session 5B: Complete seed data generation (19K lines, all 10 modules)
   - [x] v3 Session 5C: Consistency validation + walkthrough verification
+  - [x] v3 Session 6: End-to-end verification & polish
 
 ## v3 Session 1 — Global Patterns + Launchpad
 
@@ -223,7 +224,86 @@ Date: 2026-03-14
 | `backend/seed/seed.sql` | Regenerated (19,097 lines) |
 
 ### Next
-- v3 Session 6 (per v3_session_guides/Session_6_Guide.md)
+- v3 Session 6 (per v3_session_guides/Session_6_Guide.md) ✅
+
+## v3 Session 6 — End-to-End Verification & Polish
+
+Branch: `v3/session-6-verification`
+Date: 2026-03-14
+
+### All 20 Walkthrough Anchors — PASS
+
+| # | Anchor | Role | Result |
+|---|--------|------|--------|
+| 1 | Switch between all 4 roles, see different Launchpad views | All | PASS — each role shows correct pending actions, KPIs, module tiles, role badge |
+| 2 | PL pending actions — forecast due, overdue, CR returned, CR approved, project approved | Priya | PASS — all 5 action types present with deep-links |
+| 3 | CC Owner pending actions — CR pending confirmation | Thomas | PASS — CR #9 for ERP Integration visible |
+| 4 | Controller pending actions — CR pending approval, new project, forecast overdue (info), scenario published | Anna | PASS — all 4 action types present |
+| 5 | Portfolio tree browse, KPI filter recalculation | Anna | PASS — LoB → Program → Project hierarchy renders, KPIs update on filter |
+| 6 | Intake detail — Autonomous Braking Prototype | Anna | PASS — resource plan + external costs display |
+| 7 | Approvals detail — CR-C or CR-D | Anna | PASS — CR #19 at Stage 2 with change details + action buttons |
+| 8 | Timeline with full phase data, toggle, slip | Priya | PASS — ERP Integration shows 5 phases with baseline vs forecast |
+| 9 | Timeline with no phase data — graceful degradation | Priya | PASS — service projects show empty state, no crash |
+| 10 | Forecast wizard all 5 phases including Phase 4 review | Priya | PASS — Retrospective → Suggestions → Edit → Review → Confirm |
+| 11 | Change History full detail on ERP Integration | Priya | PASS — 9 CRs listed with detail modal |
+| 12 | CapEx/OpEx mixed classification on planning grid | Priya | PASS — per-line-item tags visible |
+| 13 | Team heatmap with over-allocated person | Thomas | PASS — Lena Fischer red (106%) in Mar–May 2026 |
+| 14 | Resource request response | Thomas | PASS — pending request with detail + assignment preview |
+| 15 | Organization-wide heatmap, all pivot dimensions | Anna | PASS — CSS grid renders, cost_center/competence_center/location/lob pivots work |
+| 16 | Open existing What-If scenario | Anna | PASS — "Budget Pressure: 15% Reduction" opens with actions + KPIs |
+| 17 | Compare two scenarios side by side | Anna | PASS — ComparisonTable populates with delta highlighting |
+| 18 | AI Advisor — goal, paths, apply | Anna | PASS — goal selection → path review → apply works |
+| 19 | Report with year selector and collapsible columns | Anna | PASS — year selector + collapsible columns functional |
+| 20 | Submit new project from Workbench | Priya | PASS — form opens and submits |
+
+### Action Cycle Verification — PASS
+
+Full CR lifecycle tested end-to-end:
+1. **Anna (Controller):** Approved CR #19 (IAM Overhaul) via `/api/portfolio/approvals/19/approve`
+2. **Priya (PL):** CR #19 disappeared from Controller's Launchpad; `cr_decision` notification appeared on PL's Launchpad
+3. Forecast values updated, pending actions cleared correctly
+
+### Cross-Cutting Verification — PASS
+
+| Check | Result |
+|-------|--------|
+| Collapsible year columns (3 contexts) | PASS — FC&Planning grid, Approvals detail, Reporting |
+| Timeline visualization (3 states) | PASS — full (ERP Integration), partial (Rail Diagnostics), none (service projects) |
+| CapEx/OpEx aggregation | PASS — per-line-item tags in grid + correct KPI roll-ups |
+| Pending action reactivity | PASS — after approving CR, it disappears and downstream actions appear |
+| European number formatting | PASS — dot thousands, comma decimals consistent across Launchpad, Portfolio, Forecast, Scenarios |
+
+### Bugs Found & Fixed
+
+| Bug | Fix | Files |
+|-----|-----|-------|
+| `headline_impact` raw JSON displayed in scenario list and comparison | Parse JSON and format with `formatCurrencyDelta` | `ScenarioTable.tsx`, `ScenarioSelector.tsx` |
+| Double-sign on negative currency deltas (`--€502K`) | Replaced manual sign + `formatCurrency` with `formatCurrencyDelta` | `ScenarioTable.tsx`, `ScenarioSelector.tsx` |
+| Workspace ImpactNarrative showed raw JSON as headline | Set `headline = ""` so narrative is auto-generated | `backend/services/scenario_engine.py` |
+
+### Consistency Validation — 10/10 PASS
+
+All 10 checks pass (no data tuning was needed — seed data from Session 5 was demo-ready).
+
+### Final Verification Checklist
+
+- [x] All 20 walkthrough anchors pass
+- [x] Full CR lifecycle works end to end (submit → confirm → approve → forecast update → notification)
+- [x] All 9 pending action types fire and clear correctly
+- [x] Collapsible year columns work across all deployment contexts
+- [x] Timeline visualization degrades gracefully across all three phase data states
+- [x] CapEx/OpEx per-line-item displays and aggregates correctly
+- [x] European number formatting consistent across all screens
+- [x] Consistency validation scripts pass after any data tuning
+- [x] No visual glitches or broken layouts during role switching
+- [x] Demo is ready for a live walkthrough
+
+### Files Modified
+| File | Action |
+|------|--------|
+| `backend/services/scenario_engine.py` | Fixed: headline_impact raw JSON in workspace view |
+| `frontend/src/modules/simulator/manager/ScenarioTable.tsx` | Fixed: headline_impact formatting + double-sign bug |
+| `frontend/src/modules/simulator/comparison/ScenarioSelector.tsx` | Fixed: headline_impact formatting + double-sign bug |
 
 ## Phase A Details
 
