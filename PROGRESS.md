@@ -1,8 +1,8 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v3 Session 5B (complete)
-Last completed: v3 Session 5B — Complete Seed Data Generation
+Phase: v3 Session 5C (complete)
+Last completed: v3 Session 5C — Consistency Validation + Walkthrough Verification
 Branch: `v3/session-5-seed-data`
 
 ## Completed
@@ -45,6 +45,7 @@ Branch: `v3/session-5-seed-data`
   - [x] v3 Session 1: Global Patterns + Launchpad
   - [x] v3 Session 5A: Schema fixes + seed generator infrastructure
   - [x] v3 Session 5B: Complete seed data generation (19K lines, all 10 modules)
+  - [x] v3 Session 5C: Consistency validation + walkthrough verification
 
 ## v3 Session 1 — Global Patterns + Launchpad
 
@@ -164,6 +165,61 @@ Date: 2026-03-14
 | `backend/seed/generate_seed/s09_phases.py` | New — phases generator |
 | `backend/seed/generate_seed/s10_scenarios.py` | New — scenarios generator |
 | `backend/seed/generate_seed/runner.py` | Enabled all 10 modules |
+| `backend/seed/seed.sql` | Regenerated (19,097 lines) |
+
+### Next
+- v3 Session 5C (validation + walkthrough checks)
+
+## v3 Session 5C — Consistency Validation + Walkthrough Verification
+
+Branch: `v3/session-5-seed-data`
+Date: 2026-03-14
+
+### Completed
+- **Validation script** (`backend/seed/generate_seed/validate.py`): 10 checks covering all 8 rules from §9.13 plus entity counts and phase data
+- **Bug fix: Action #8 (project_decision)**: Backend code had `pass` instead of creating PendingAction — fixed `global_launchpad.py` to create the action, added recent `modified_at` on proj-fleet to trigger it
+- **Bug fix: Lena Fischer over-allocation**: Was at exactly 100% (160h) — bumped proj-erp2 allocation to 110h/mo in Mar-May 2026 so she's at 106.2% (170h), visible as red in capacity heatmap
+- **Seed data regenerated**: 19,097 lines after fixes
+
+### Validation Results (10/10 pass)
+1. Summation Integrity: PASS — project total_budget matches sum of baseline line items
+2. Temporal Consistency: PASS — no actuals after 2026-03
+3. Allocation Consistency: PASS — only p-fischer (MUC/APD) and p-szabo (BUD/APD) intentionally over-allocated
+4. CR Consistency: PASS — approved CRs have controller_status=approved + timestamp
+5. Status Consistency: PASS — Stage 2 CRs have CC confirmation, returned CRs have feedback
+6. Timeline Consistency: PASS — no data outside project timelines
+7. Rate Consistency: PASS — each role has 1-3 location-specific rates, all in €30-€200 range
+8. CapEx/OpEx Consistency: PASS — mixed projects (erp2, sap, iam) have both tags, services are opex
+9. Entity Counts: PASS — 32 projects, 52 people, 4 LoBs, 10 CCs, 3 locations, 4 CCs, 4 programs
+10. Phase Data: PASS — 4 full (4-5 phases), 3 partial (3 phases)
+
+### Walkthrough Anchor Spot Checks (5/5 verified)
+- **Anchor #2** (PL Launchpad): Priya sees all 5 action types: forecast_due, forecast_overdue, cr_feedback, cr_decision, project_decision
+- **Anchor #6** (Intake detail): Autonomous Braking Prototype in intake with resource plan and external costs
+- **Anchor #7** (Approvals detail): CR #19 (IAM Overhaul) at pending_controller_approval with 2 change detail entries
+- **Anchor #11** (Change History): ERP Integration Phase 2 has 9 CRs with full lifecycle
+- **Anchor #13** (Capacity heatmap): Lena Fischer over-allocated at 106.2% (red) in Mar-May 2026
+
+### All 9 Pending Action Types Verified
+| Type | Persona(s) | Example |
+|------|-----------|---------|
+| forecast_due | PL | Fleet Portal v2 — submit 2026-03 forecast |
+| forecast_overdue | PL (urgent), Controller (info) | ERP Integration Phase 2 — 2026-02 not submitted |
+| cr_pending_confirmation | CC Owner | CR #9 for ERP Integration Phase 2 |
+| cr_pending_approval | Controller | CR #19 for IAM Overhaul |
+| project_pending_review | Controller | Autonomous Braking Prototype |
+| cr_feedback | PL | CR #27 for Predictive Maintenance PoC |
+| cr_decision | PL | CR #28 for Fleet Portal v2 (approved) |
+| project_decision | PL | Fleet Portal v2 (approved) |
+| scenario_published | Controller, Executive | Budget Pressure: 15% Reduction |
+
+### Files Created/Modified
+| File | Action |
+|------|--------|
+| `backend/seed/generate_seed/validate.py` | New — consistency validation script (10 checks) |
+| `backend/seed/generate_seed/config.py` | Fixed: Fischer allocation 100→110h in Mar-May |
+| `backend/seed/generate_seed/s04_programs_projects.py` | Fixed: proj-fleet modified_at for Action #8 |
+| `backend/routers/global_launchpad.py` | Fixed: Action #8 (project_decision) was no-op |
 | `backend/seed/seed.sql` | Regenerated (19,097 lines) |
 
 ### Next

@@ -732,9 +732,9 @@ ASSIGNMENTS = [
     ("p-brenner", "proj-erp2",      40,  "2024-07", "2026-09", {}),  # Sr Arch oversight
     ("p-brenner", "svc-tbs-maint",  60,  "2024-01", "2026-12", {}),
 
-    # p-fischer (Sr Dev): ERP + SAP — OVER-ALLOCATION candidate in MUC
+    # p-fischer (Sr Dev): ERP + SAP — OVER-ALLOCATED in MUC (106% Mar-May 2026)
     ("p-fischer", "proj-erp2",      80,  "2024-07", "2026-09",
-     {"2026-03": 100, "2026-04": 100, "2026-05": 100}),
+     {"2026-03": 110, "2026-04": 110, "2026-05": 110}),
     ("p-fischer", "proj-sap",       60,  "2024-01", "2026-06", {}),
 
     # p-wolf (Sr Dev): brake until 2026-03, then under-utilized

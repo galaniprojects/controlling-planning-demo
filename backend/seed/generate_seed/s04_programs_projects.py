@@ -47,12 +47,18 @@ def generate() -> str:
             # Specific overrides for pending action triggers
             if p["id"] == "proj-erp2":
                 last_fc = "2026-01"  # Overdue — Feb not submitted
-            elif p["id"] in ("proj-sensor", "proj-predmaint"):
+            elif p["id"] in ("proj-sensor", "proj-predmaint", "proj-fleet"):
                 last_fc = "2026-02"  # Due — March not yet submitted
 
             projected_end = p.get("end")
             if p["id"] == "proj-erp2":
                 projected_end = "2026-09"  # Extended timeline
+
+            # modified_at: differs from created_at for recently-approved projects
+            # to trigger Action #8 (project_decision) for the PL
+            modified = CREATED_AT
+            if p["id"] == "proj-fleet":
+                modified = "2026-02-15 09:00:00"  # Recently approved from pending_approval
 
             rows.append(
                 f"({sql_str(p['id'])}, {sql_str(p['name'])}, NULL, "
@@ -61,7 +67,7 @@ def generate() -> str:
                 f"{sql_str(p['start'])}, {sql_str(p.get('end'))}, {sql_str(projected_end)}, "
                 f"{sql_str(p.get('pl'))}, {is_svc}, "
                 f"{sql_str(annual)}, {sql_str(total)}, "
-                f"{sql_str(last_fc)}, 1, '{CREATED_AT}', '{CREATED_AT}')"
+                f"{sql_str(last_fc)}, 1, '{CREATED_AT}', '{modified}')"
             )
         lines.append(",\n".join(rows) + ";")
         lines.append("")

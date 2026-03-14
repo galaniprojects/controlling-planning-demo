@@ -306,10 +306,22 @@ def get_pending_actions(
         # Action #8: Project Submission Decision
         for proj in owned_projects:
             if proj.status in ("active", "rejected"):
-                # Check if recently transitioned (using modified_at as proxy)
-                if proj.modified_at and proj.modified_at.isoformat()[:7] >= prev_month:
-                    # Could be a recently decided submission — skip for projects that were always active
-                    pass
+                # Check if recently transitioned (modified_at != created_at means a status change)
+                if (proj.modified_at and proj.created_at
+                        and proj.modified_at > proj.created_at
+                        and proj.modified_at.isoformat()[:7] >= prev_month):
+                    decision = "approved" if proj.status == "active" else "returned"
+                    actions.append(PendingAction(
+                        id=f"project-decision-{proj.id}",
+                        type="project_decision",
+                        title=f"Project submission {decision}",
+                        description=proj.name,
+                        urgency="info",
+                        deep_link_module="workbench",
+                        deep_link_entity_id=proj.id,
+                        deep_link_tab=None,
+                        timestamp=proj.modified_at.isoformat(),
+                    ))
 
     elif user.role == "controller":
         # Action #2 (info): Forecast overdue projects

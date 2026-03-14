@@ -253,7 +253,7 @@ INSERT INTO projects (id, name, description, lob_id, program_id, status, rag_sta
 -- lob-dnd
 INSERT INTO projects (id, name, description, lob_id, program_id, status, rag_status, capex_opex, start_month, end_month, projected_end_month, pl_person_id, is_service, annual_budget, total_budget, last_forecast_submitted_month, is_active, created_at, modified_at) VALUES
 ('proj-sensor', 'Sensor Data Pipeline', NULL, 'lob-dnd', 'prog-fleet', 'active', 'amber', 'capex', '2025-03', '2026-12', '2026-12', 'p-sharma', 0, NULL, 600000, '2026-02', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-fleet', 'Fleet Portal v2', NULL, 'lob-dnd', 'prog-fleet', 'active', 'green', 'capex', '2025-01', '2026-06', '2026-06', 'p-sharma', 0, NULL, 450000, '2026-02', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-fleet', 'Fleet Portal v2', NULL, 'lob-dnd', 'prog-fleet', 'active', 'green', 'capex', '2025-01', '2026-06', '2026-06', 'p-sharma', 0, NULL, 450000, '2026-02', 1, '2026-01-15 10:00:00', '2026-02-15 09:00:00'),
 ('proj-telematics', 'Telematics Dashboard', NULL, 'lob-dnd', 'prog-fleet', 'active', 'amber', 'capex', '2025-06', '2026-09', '2026-09', NULL, 0, NULL, 300000, '2026-02', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-dwh', 'Data Warehouse Consolidation', NULL, 'lob-dnd', NULL, 'planned', 'green', 'capex', '2026-07', '2027-09', '2027-09', NULL, 0, NULL, 550000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-aiml', 'AI/ML Experimentation Lab', NULL, 'lob-dnd', NULL, 'active', 'green', 'opex', '2025-09', '2026-06', '2026-06', NULL, 0, NULL, 200000, '2026-02', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
@@ -15956,9 +15956,9 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-fischer', 'proj-erp2', '2025-12', 80, 1),
 ('p-fischer', 'proj-erp2', '2026-01', 80, 1),
 ('p-fischer', 'proj-erp2', '2026-02', 80, 1),
-('p-fischer', 'proj-erp2', '2026-03', 100, 0),
-('p-fischer', 'proj-erp2', '2026-04', 100, 0),
-('p-fischer', 'proj-erp2', '2026-05', 100, 0),
+('p-fischer', 'proj-erp2', '2026-03', 110, 0),
+('p-fischer', 'proj-erp2', '2026-04', 110, 0),
+('p-fischer', 'proj-erp2', '2026-05', 110, 0),
 ('p-fischer', 'proj-erp2', '2026-06', 80, 0),
 ('p-fischer', 'proj-erp2', '2026-07', 80, 1),
 ('p-fischer', 'proj-erp2', '2026-08', 80, 1),
