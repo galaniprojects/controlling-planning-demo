@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -12,13 +13,16 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { cn } from '@/lib/utils';
 import type { CRHistoryItem } from '@/types/api';
 import { ChevronDown, Sparkles } from 'lucide-react';
+import { CRDetailModal } from './CRDetailModal';
 
 interface Props {
   items: CRHistoryItem[];
+  projectId: string;
 }
 
-export function CRHistoryList({ items }: Props) {
+export function CRHistoryList({ items, projectId }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [detailCrId, setDetailCrId] = useState<number | null>(null);
 
   if (items.length === 0) {
     return (
@@ -133,11 +137,29 @@ export function CRHistoryList({ items }: Props) {
                     System-suggested change
                   </div>
                 )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setDetailCrId(cr.id)}
+                >
+                  View Full Detail
+                </Button>
               </div>
             )}
           </div>
         );
       })}
+
+      {detailCrId !== null && (
+        <CRDetailModal
+          projectId={projectId}
+          crId={detailCrId}
+          open={detailCrId !== null}
+          onOpenChange={(open) => { if (!open) setDetailCrId(null); }}
+        />
+      )}
     </div>
   );
 }

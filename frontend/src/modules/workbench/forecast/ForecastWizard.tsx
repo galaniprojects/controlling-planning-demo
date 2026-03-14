@@ -149,6 +149,8 @@ export function ForecastWizard({ projectId, nameMap, onComplete, onCancel }: Pro
       {state.phase === 4 && (
         <Phase4Review
           reviewGroups={state.reviewGroups}
+          reviewGridData={state.reviewGridData}
+          costCentreGroups={state.costCentreGroups}
           justifications={state.justifications}
           onSetJustification={(type, text) =>
             cycle.setJustification(type, text)

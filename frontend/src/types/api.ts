@@ -1,7 +1,16 @@
+import type { DetailViewLineItem, DetailViewKPI } from '@/lib/detailViewTypes';
+
 // Response envelope
 export interface ListResponse<T> {
   items: T[];
   total: number;
+}
+
+// Detail View Grid response shape (used by CR detail, intake detail)
+export interface DetailViewGridDataResponse {
+  months: string[];
+  line_items: DetailViewLineItem[];
+  kpis: DetailViewKPI[];
 }
 
 // Role types
@@ -93,12 +102,15 @@ export interface ProjectCreate {
 // --- Portfolio Overview ---
 
 export interface PortfolioKPIs {
-  total_budget: number;
-  ytd_spend: number;
-  forecast_at_completion: number;
-  overall_variance_pct: number;
-  capex_opex_split: { capex: number; opex: number };
-  run_change_ratio: string;
+  baseline: number;
+  current_forecast: number;
+  ytd_actuals: number;
+  plan_drift_amount: number;
+  plan_drift_pct: number;
+  capex_total: number;
+  opex_total: number;
+  capex_pct: number;
+  opex_pct: number;
   run_total: number;
   change_total: number;
   run_pct: number;
@@ -215,6 +227,7 @@ export interface IntakeDetail {
   resource_plan?: IntakeResourcePlanItem[];
   external_cost_plan?: IntakeExternalCostItem[];
   budget_summary?: IntakeBudgetSummary;
+  grid_data?: DetailViewGridDataResponse;
 }
 
 // Approvals
@@ -258,6 +271,7 @@ export interface CRDetail {
   controller_status: string | null;
   controller_comments: string | null;
   changes: CRChangeDetail[];
+  grid_data?: DetailViewGridDataResponse;
 }
 
 // Reference data
@@ -322,8 +336,53 @@ export interface ProjectOverview {
   metadata: ProjectMetadata;
   three_point_comparison: ThreePointComparison;
   trajectory_chart: TrajectoryPoint[];
-  capex_opex: { type: string };
+  capex_opex: { type: string; capex_amount?: number; opex_amount?: number; capex_pct?: number; opex_pct?: number };
   resource_plan_summary: ResourcePlanSummaryItem[];
+}
+
+// Timeline Visualization
+export interface TimelineMonthPoint {
+  month: string;
+  baseline: number;
+  forecast: number;
+  actuals: number | null;
+  is_elapsed: boolean;
+  overrun: boolean;
+}
+
+export interface TimelineCumulativePoint {
+  month: string;
+  baseline: number;
+  forecast: number;
+  actuals: number | null;
+}
+
+export interface TimelinePhase {
+  name: string;
+  phase_number: number;
+  baseline_start: string;
+  baseline_end: string;
+  forecast_start: string;
+  forecast_end: string;
+  color: string;
+  slip_months: number;
+}
+
+export interface TimelineSummary {
+  baseline_total: number;
+  forecast_total: number;
+  ytd_actuals: number;
+  plan_drift: number;
+  execution_variance: number;
+}
+
+export interface TimelineData {
+  monthly_data: TimelineMonthPoint[];
+  cumulative_data: TimelineCumulativePoint[];
+  phases: TimelinePhase[];
+  summary: TimelineSummary;
+  budget_ceiling: number;
+  today_month: string;
 }
 
 export interface ForecastMonthCell {
@@ -344,6 +403,7 @@ export interface ForecastGridRow {
   category: string;
   sub_category: string;
   sub_category_name: string;
+  capex_opex?: string | null;
   months: ForecastMonthCell[];
   hourly_rate?: number | null; // Internal rows only
 }
@@ -398,6 +458,28 @@ export interface ReviewGroup {
   type: string;
   items: ForecastChange[];
   count: number;
+  justification?: string;
+}
+
+export interface ReviewGridLineItem {
+  id: string;
+  label: string;
+  category: string;
+  capex_opex: string | null;
+  is_system_suggested: boolean;
+  months: { month: string; before: number | null; after: number | null; delta: number | null }[];
+}
+
+export interface ReviewGridData {
+  months: string[];
+  line_items: ReviewGridLineItem[];
+}
+
+export interface CostCentreGroup {
+  id: string;
+  name: string;
+  line_items: { id: string; label: string }[];
+  items: ForecastChange[];
   justification?: string;
 }
 

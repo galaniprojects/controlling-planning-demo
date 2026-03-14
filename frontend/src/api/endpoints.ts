@@ -23,8 +23,10 @@ import type {
   SuggestionItem,
   ForecastChange,
   ReviewGroup,
+  CostCentreGroup,
   SubmittedCR,
   CRHistoryItem,
+  TimelineData,
   CapacityContext,
   TeamSummary,
   RoleHeatmapRow,
@@ -83,6 +85,22 @@ export const modulesApi = {
 export const launchpadApi = {
   getPendingActions: () =>
     api.get<ListResponse<PendingAction>>('/api/launchpad/pending-actions'),
+  createProject: (data: {
+    name: string;
+    description?: string;
+    lob_id: string;
+    start_month: string;
+    end_month?: string;
+    capex_opex?: string;
+  }) =>
+    api.post<{ id: string; name: string; status: string; estimated_cost: number }>(
+      '/api/launchpad/projects',
+      data,
+    ),
+  submitProject: (projectId: string) =>
+    api.put<{ id: string; name: string; status: string }>(
+      `/api/launchpad/projects/${projectId}/submit`,
+    ),
 };
 
 // --- Portfolio Overview ---
@@ -187,6 +205,10 @@ export const workbenchApi = {
   getOverview: (projectId: string) =>
     api.get<ProjectOverview>(`/api/projects/${projectId}/overview`),
 
+  // Timeline visualization
+  getTimeline: (projectId: string) =>
+    api.get<TimelineData>(`/api/projects/${projectId}/timeline`),
+
   // Forecast grid (read mode)
   getForecast: (projectId: string) =>
     api.get<ListResponse<ForecastGridRow>>(`/api/projects/${projectId}/forecast`),
@@ -224,10 +246,10 @@ export const workbenchApi = {
     api.get<ListResponse<ReviewGroup>>(
       `/api/projects/${projectId}/forecast-cycle/${cycleId}/review`,
     ),
-  submitCycle: (projectId: string, cycleId: string, groups: ReviewGroup[]) =>
+  submitCycle: (projectId: string, cycleId: string, groups: ReviewGroup[], costCentreGroups?: CostCentreGroup[]) =>
     api.put<ListResponse<SubmittedCR>>(
       `/api/projects/${projectId}/forecast-cycle/${cycleId}/submit`,
-      { groups },
+      { groups, cost_centre_groups: costCentreGroups },
     ),
 
   // Change history
@@ -247,6 +269,22 @@ export const workbenchApi = {
     api.get<CRHistoryItem>(
       `/api/projects/${projectId}/change-requests/${crId}`,
     ),
+  getCRDetailView: (projectId: string, crId: number) =>
+    api.get<{
+      cr_id: number;
+      project_id: string;
+      project_name: string;
+      summary: string;
+      status: string;
+      change_category: string;
+      justification: string | null;
+      is_system_suggested: boolean;
+      submitted_by: string;
+      submission_date: string;
+      decided_by: string | null;
+      decided_date: string | null;
+      grid_data: import('@/lib/detailViewTypes').DetailViewGridData | null;
+    }>(`/api/projects/${projectId}/change-requests/${crId}/detail-view`),
 };
 
 // --- Capacity Management ---
@@ -483,30 +521,33 @@ export const reportsApi = {
   getReportList: () =>
     api.get<ListResponse<ReportListItem>>('/api/reports'),
 
-  getProgrammeRollup: (params?: { lob?: string; status?: string; rag?: string; type?: string; grouping?: string }) => {
+  getProgrammeRollup: (params?: { lob?: string; status?: string; rag?: string; type?: string; grouping?: string; fiscal_year?: string }) => {
     const q = new URLSearchParams();
     if (params?.lob) q.set('lob', params.lob);
     if (params?.status) q.set('status', params.status);
     if (params?.rag) q.set('rag', params.rag);
     if (params?.type) q.set('type', params.type);
     if (params?.grouping) q.set('grouping', params.grouping);
+    if (params?.fiscal_year) q.set('fiscal_year', params.fiscal_year);
     const qs = q.toString();
     return api.get<ProgrammeRollupResponse>(`/api/reports/programme-rollup${qs ? '?' + qs : ''}`);
   },
 
-  getCCFinancialSummary: (params?: { cost_center?: string; type?: string }) => {
+  getCCFinancialSummary: (params?: { cost_center?: string; type?: string; fiscal_year?: string }) => {
     const q = new URLSearchParams();
     if (params?.cost_center) q.set('cost_center', params.cost_center);
     if (params?.type) q.set('type', params.type);
+    if (params?.fiscal_year) q.set('fiscal_year', params.fiscal_year);
     const qs = q.toString();
     return api.get<CCFinancialResponse>(`/api/reports/cc-financial-summary${qs ? '?' + qs : ''}`);
   },
 
-  getVendorSpend: (params?: { vendor?: string; lob?: string; status?: string }) => {
+  getVendorSpend: (params?: { vendor?: string; lob?: string; status?: string; fiscal_year?: string }) => {
     const q = new URLSearchParams();
     if (params?.vendor) q.set('vendor', params.vendor);
     if (params?.lob) q.set('lob', params.lob);
     if (params?.status) q.set('status', params.status);
+    if (params?.fiscal_year) q.set('fiscal_year', params.fiscal_year);
     const qs = q.toString();
     return api.get<VendorSpendResponse>(`/api/reports/vendor-spend${qs ? '?' + qs : ''}`);
   },
@@ -514,11 +555,12 @@ export const reportsApi = {
   getVendorDrillDown: (vendorName: string) =>
     api.get<ListResponse<VendorDrillDownRow>>(`/api/reports/vendor-spend/${encodeURIComponent(vendorName)}/details`),
 
-  getForecastAccuracy: (params?: { horizon?: string; lob?: string; type?: string }) => {
+  getForecastAccuracy: (params?: { horizon?: string; lob?: string; type?: string; fiscal_year?: string }) => {
     const q = new URLSearchParams();
     if (params?.horizon) q.set('horizon', params.horizon);
     if (params?.lob) q.set('lob', params.lob);
     if (params?.type) q.set('type', params.type);
+    if (params?.fiscal_year) q.set('fiscal_year', params.fiscal_year);
     const qs = q.toString();
     return api.get<ForecastAccuracyResponse>(`/api/reports/forecast-accuracy${qs ? '?' + qs : ''}`);
   },

@@ -88,6 +88,7 @@ def get_programme_rollup(
     rag: str | None = None,
     type: str | None = None,
     grouping: str = "lob",
+    fiscal_year: int | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -102,7 +103,7 @@ def get_programme_rollup(
     if type:
         filters["type"] = type
 
-    return compute_programme_rollup(db, user, filters, grouping)
+    return compute_programme_rollup(db, user, filters, grouping, fiscal_year=fiscal_year)
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +114,7 @@ def get_programme_rollup(
 def get_cc_financial_summary(
     cost_center: str | None = None,
     type: str | None = None,
+    fiscal_year: int | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -123,7 +125,7 @@ def get_cc_financial_summary(
     if type:
         filters["type"] = type
 
-    return compute_cc_financial_summary(db, user, filters)
+    return compute_cc_financial_summary(db, user, filters, fiscal_year=fiscal_year)
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +137,7 @@ def get_vendor_spend(
     vendor: str | None = None,
     lob: str | None = None,
     status: str | None = None,
+    fiscal_year: int | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -147,7 +150,7 @@ def get_vendor_spend(
     if status:
         filters["status"] = status
 
-    return compute_vendor_spend(db, user, filters)
+    return compute_vendor_spend(db, user, filters, fiscal_year=fiscal_year)
 
 
 @router.get("/vendor-spend/{vendor_name}/details")
@@ -170,6 +173,7 @@ def get_forecast_accuracy(
     horizon: int = 6,
     lob: str | None = None,
     type: str | None = None,
+    fiscal_year: int | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -180,7 +184,7 @@ def get_forecast_accuracy(
     if type:
         filters["type"] = type
 
-    return compute_forecast_accuracy(db, user, filters, horizon)
+    return compute_forecast_accuracy(db, user, filters, horizon, fiscal_year=fiscal_year)
 
 
 # ---------------------------------------------------------------------------
@@ -353,6 +357,7 @@ def export_report(
     fy_current: int = 2026,
     fy_previous: int = 2025,
     cost_type: str | None = None,
+    fiscal_year: int | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -379,13 +384,13 @@ def export_report(
 
     # Fetch data
     if report_id == "programme-rollup":
-        data = compute_programme_rollup(db, user, filters)
+        data = compute_programme_rollup(db, user, filters, fiscal_year=fiscal_year)
     elif report_id == "cc-financial-summary":
-        data = compute_cc_financial_summary(db, user, filters)
+        data = compute_cc_financial_summary(db, user, filters, fiscal_year=fiscal_year)
     elif report_id == "vendor-spend":
-        data = compute_vendor_spend(db, user, filters)
+        data = compute_vendor_spend(db, user, filters, fiscal_year=fiscal_year)
     elif report_id == "forecast-accuracy":
-        data = compute_forecast_accuracy(db, user, filters, horizon)
+        data = compute_forecast_accuracy(db, user, filters, horizon, fiscal_year=fiscal_year)
     elif report_id == "year-over-year":
         data = compute_year_over_year(db, user, filters, fy_current, fy_previous)
     else:

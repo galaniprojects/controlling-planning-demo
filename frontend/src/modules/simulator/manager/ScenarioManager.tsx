@@ -56,18 +56,27 @@ export function ScenarioManager({ onOpenScenario, onCompare }: Props) {
   };
 
   const handlePublish = async (id: number) => {
-    await scenariosApi.publish(id);
-    refresh();
+    try {
+      await scenariosApi.publish(id);
+    } finally {
+      refresh();
+    }
   };
 
   const handleUnpublish = async (id: number) => {
-    await scenariosApi.unpublish(id);
-    refresh();
+    try {
+      await scenariosApi.unpublish(id);
+    } finally {
+      refresh();
+    }
   };
 
   const handleDelete = async (id: number) => {
-    await scenariosApi.remove(id);
-    refresh();
+    try {
+      await scenariosApi.remove(id);
+    } finally {
+      refresh();
+    }
   };
 
   const handleCreated = (id: number) => {

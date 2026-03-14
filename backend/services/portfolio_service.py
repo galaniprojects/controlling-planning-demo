@@ -42,8 +42,8 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
 
     if not project_ids:
         return {
-            "total_budget": 0, "ytd_spend": 0, "portfolio_variance_pct": 0,
-            "overall_utilization_pct": 0, "run_change_ratio": "50/50",
+            "baseline": 0, "current_forecast": 0, "ytd_actuals": 0,
+            "plan_drift_amount": 0, "plan_drift_pct": 0,
             "run_total": 0, "change_total": 0, "run_pct": 50, "change_pct": 50,
         }
 
@@ -112,12 +112,16 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
     else:
         run_pct = change_pct = 50
 
+    baseline_val = round(float(total_baseline), 2)
+    forecast_val = round(float(total_forecast), 2)
+    plan_drift_amount = round(forecast_val - baseline_val, 2)
+
     return {
-        "total_budget": round(float(total_budget), 2),
-        "ytd_spend": round(float(ytd_spend), 2),
-        "portfolio_variance_pct": round(portfolio_variance_pct, 1),
-        "overall_utilization_pct": overall_utilization,
-        "run_change_ratio": f"{run_pct}/{change_pct}",
+        "baseline": baseline_val,
+        "current_forecast": forecast_val,
+        "ytd_actuals": round(float(ytd_spend), 2),
+        "plan_drift_amount": plan_drift_amount,
+        "plan_drift_pct": round(portfolio_variance_pct, 1),
         "run_total": round(float(run_budget or 0), 2),
         "change_total": round(float(change_budget or 0), 2),
         "run_pct": run_pct,
