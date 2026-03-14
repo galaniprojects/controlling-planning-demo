@@ -79,7 +79,9 @@ def get_scenario_state(db: Session, scenario_id: int) -> dict:
             for a in actions
         ]
 
-        headline = scenario.headline_impact or ""
+        # headline_impact is stored as JSON string for the scenario list;
+        # the workspace generates a proper narrative, so leave headline empty here.
+        headline = ""
 
         return {
             "metadata": {

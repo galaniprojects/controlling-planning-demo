@@ -3,6 +3,22 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { ScenarioListItem } from '@/types/api';
+import { formatCurrencyDelta } from '@/lib/formatters';
+
+function formatHeadlineImpact(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    const delta = parsed.total_budget_delta;
+    const count = parsed.action_count;
+    if (typeof delta === 'number') {
+      return `${formatCurrencyDelta(delta)} (${count} action${count !== 1 ? 's' : ''})`;
+    }
+  } catch {
+    // Not JSON
+  }
+  return raw;
+}
 
 interface ScenarioSelectorProps {
   scenarios: ScenarioListItem[];
@@ -92,7 +108,7 @@ export function ScenarioSelector({
               </Badge>
               {s.headline_impact && (
                 <span className="text-xs text-slate-400 max-w-[160px] truncate">
-                  {s.headline_impact}
+                  {formatHeadlineImpact(s.headline_impact)}
                 </span>
               )}
             </label>

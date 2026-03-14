@@ -17,6 +17,22 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { ScenarioListItem } from '@/types/api';
+import { formatCurrencyDelta } from '@/lib/formatters';
+
+function formatHeadlineImpact(raw: string | null): string {
+  if (!raw) return '—';
+  try {
+    const parsed = JSON.parse(raw);
+    const delta = parsed.total_budget_delta;
+    const count = parsed.action_count;
+    if (typeof delta === 'number') {
+      return `${formatCurrencyDelta(delta)} (${count} action${count !== 1 ? 's' : ''})`;
+    }
+  } catch {
+    // Not JSON — return as-is
+  }
+  return raw;
+}
 
 interface Props {
   title: string;
@@ -112,7 +128,7 @@ export function ScenarioTable({
                   {formatDate(s.modified_at)}
                 </TableCell>
                 <TableCell className="text-xs text-slate-600 max-w-[200px] truncate">
-                  {s.headline_impact || '—'}
+                  {formatHeadlineImpact(s.headline_impact)}
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>
