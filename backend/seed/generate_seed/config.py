@@ -205,7 +205,7 @@ PROJECTS = [
     # --- Corporate IT (8) ---
     {"id": "proj-cloud3",    "name": "Cloud Migration Wave 3",        "lob": "lob-cit", "prog": "prog-infra","type": "project", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2025-01", "end": "2026-06", "budget": 400000,  "narrative": "well_managed",       "pl": None},
     {"id": "proj-iam",       "name": "Identity & Access Management Overhaul", "lob": "lob-cit", "prog": None, "type": "project", "status": "active",          "rag": "amber", "capex_opex": "capex", "start": "2025-01", "end": "2026-09", "budget": 350000,  "narrative": "troubled",          "pl": None},
-    {"id": "proj-workplace", "name": "Workplace Modernization",       "lob": "lob-cit", "prog": None,        "type": "project", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2025-06", "end": "2026-06", "budget": 300000,  "narrative": "well_managed",       "pl": None},
+    {"id": "proj-workplace", "name": "Workplace Modernization",       "lob": "lob-cit", "prog": "prog-infra","type": "project", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2025-06", "end": "2026-06", "budget": 300000,  "narrative": "well_managed",       "pl": None},
     {"id": "proj-datacenter","name": "Data Center Consolidation",     "lob": "lob-cit", "prog": None,        "type": "project", "status": "completed",        "rag": "green", "capex_opex": "opex",  "start": "2021-06", "end": "2023-12", "budget": 800000,  "narrative": "completed",         "pl": None},
     {"id": "proj-wan",       "name": "Global WAN Refresh",            "lob": "lob-cit", "prog": None,        "type": "project", "status": "completed",        "rag": "green", "capex_opex": "capex", "start": "2022-01", "end": "2024-06", "budget": 600000,  "narrative": "completed",         "pl": None},
     {"id": "svc-netsec",     "name": "Network & Security Operations", "lob": "lob-cit", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 350000,  "narrative": "steady_service",    "pl": None},
@@ -310,4 +310,876 @@ DEMO_PERSONAS = [
     {"id": "persona-cc-owner",   "person_id": "p-brenner", "role": "cost_center_owner",  "display_name": "Thomas Brenner", "title": "Head of Application Development",   "default_module": "capacity",  "managed_cc": "cc-muc-apd","owned_projects": None},
     {"id": "persona-pl",         "person_id": "p-sharma",  "role": "project_lead",       "display_name": "Priya Sharma",   "title": "Senior Project Lead",               "default_module": "workbench", "managed_cc": None,        "owned_projects": '["proj-erp2","proj-sensor","proj-predmaint","proj-fleet","proj-autobrake"]'},
     {"id": "persona-exec",       "person_id": "p-biber",   "role": "executive",          "display_name": "Attila Biber",   "title": "VP IT Strategy & Governance",       "default_module": "portfolio", "managed_cc": None,        "owned_projects": None},
+]
+
+# ---------------------------------------------------------------------------
+# Internal Staffing Profiles per Project/Service
+# Each entry: {role, loc, hours, capex_opex}
+# hours = monthly hours for that role on the project
+# ---------------------------------------------------------------------------
+
+PROJECT_STAFFING = {
+    # --- TBS ---
+    "proj-erp2": [
+        {"role": "role-sr-dev",  "loc": "loc-muc", "hours": 80,  "co": "capex"},
+        {"role": "role-sr-dev",  "loc": "loc-pun", "hours": 40,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-muc", "hours": 60,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-pun", "hours": 40,  "co": "capex"},
+        {"role": "role-qa",      "loc": "loc-muc", "hours": 40,  "co": "capex"},
+        {"role": "role-sap",     "loc": "loc-muc", "hours": 40,  "co": "capex"},
+        {"role": "role-ba",      "loc": "loc-muc", "hours": 30,  "co": "capex"},
+    ],
+    "proj-sap": [
+        {"role": "role-sap",     "loc": "loc-muc", "hours": 80,  "co": "capex"},
+        {"role": "role-sap",     "loc": "loc-pun", "hours": 40,  "co": "capex"},
+        {"role": "role-sr-dev",  "loc": "loc-bud", "hours": 60,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 80,  "co": "capex"},
+        {"role": "role-ba",      "loc": "loc-pun", "hours": 30,  "co": "capex"},
+        {"role": "role-qa",      "loc": "loc-bud", "hours": 40,  "co": "capex"},
+    ],
+    "proj-brake": [
+        {"role": "role-sr-dev",  "loc": "loc-bud", "hours": 40,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 60,  "co": "capex"},
+        {"role": "role-qa",      "loc": "loc-bud", "hours": 30,  "co": "capex"},
+    ],
+    "proj-autobrake": [
+        {"role": "role-sr-arch", "loc": "loc-muc", "hours": 40,  "co": "capex"},
+        {"role": "role-sr-dev",  "loc": "loc-muc", "hours": 80,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 120, "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-pun", "hours": 80,  "co": "capex"},
+        {"role": "role-qa",      "loc": "loc-bud", "hours": 40,  "co": "capex"},
+        {"role": "role-ba",      "loc": "loc-muc", "hours": 20,  "co": "capex"},
+    ],
+    "proj-legacy": [
+        {"role": "role-sysadmin","loc": "loc-muc", "hours": 60,  "co": "opex"},
+        {"role": "role-dev",     "loc": "loc-muc", "hours": 40,  "co": "opex"},
+    ],
+    "proj-connveh": [
+        {"role": "role-sr-arch", "loc": "loc-muc", "hours": 40,  "co": "capex"},
+        {"role": "role-sr-dev",  "loc": "loc-muc", "hours": 60,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 100, "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-pun", "hours": 80,  "co": "capex"},
+        {"role": "role-qa",      "loc": "loc-bud", "hours": 40,  "co": "capex"},
+        {"role": "role-cloud",   "loc": "loc-muc", "hours": 30,  "co": "capex"},
+    ],
+    "svc-sap-ops": [
+        {"role": "role-sap",     "loc": "loc-muc", "hours": 60,  "co": "opex"},
+        {"role": "role-sysadmin","loc": "loc-pun", "hours": 40,  "co": "opex"},
+    ],
+    "svc-euc": [
+        {"role": "role-sysadmin","loc": "loc-muc", "hours": 60,  "co": "opex"},
+        {"role": "role-jr-dev",  "loc": "loc-muc", "hours": 40,  "co": "opex"},
+    ],
+    "svc-tbs-maint": [
+        {"role": "role-dev",     "loc": "loc-muc", "hours": 60,  "co": "opex"},
+        {"role": "role-dev",     "loc": "loc-pun", "hours": 40,  "co": "opex"},
+        {"role": "role-qa",      "loc": "loc-muc", "hours": 20,  "co": "opex"},
+    ],
+
+    # --- RVS ---
+    "proj-signal": [
+        {"role": "role-sr-dev",  "loc": "loc-bud", "hours": 60,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 80,  "co": "capex"},
+        {"role": "role-sr-arch", "loc": "loc-bud", "hours": 30,  "co": "capex"},
+        {"role": "role-qa",      "loc": "loc-bud", "hours": 30,  "co": "capex"},
+    ],
+    "proj-raildiag": [
+        {"role": "role-sr-dev",  "loc": "loc-bud", "hours": 40,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 60,  "co": "capex"},
+        {"role": "role-qa",      "loc": "loc-bud", "hours": 20,  "co": "capex"},
+        {"role": "role-ba",      "loc": "loc-pun", "hours": 20,  "co": "capex"},
+    ],
+    "proj-predmaint": [
+        {"role": "role-sr-dev",  "loc": "loc-muc", "hours": 40,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-pun", "hours": 60,  "co": "capex"},
+        {"role": "role-data-eng","loc": "loc-muc", "hours": 30,  "co": "capex"},
+        {"role": "role-qa",      "loc": "loc-pun", "hours": 20,  "co": "capex"},
+    ],
+    "proj-workshop": [
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 60,  "co": "capex"},
+        {"role": "role-ba",      "loc": "loc-pun", "hours": 20,  "co": "capex"},
+        {"role": "role-qa",      "loc": "loc-bud", "hours": 20,  "co": "capex"},
+    ],
+    "proj-railsafety": [
+        {"role": "role-sr-arch", "loc": "loc-muc", "hours": 30,  "co": "capex"},
+        {"role": "role-sr-dev",  "loc": "loc-bud", "hours": 60,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 80,  "co": "capex"},
+        {"role": "role-qa",      "loc": "loc-bud", "hours": 30,  "co": "capex"},
+    ],
+    "svc-rail-desk": [
+        {"role": "role-sysadmin","loc": "loc-bud", "hours": 60,  "co": "opex"},
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 40,  "co": "opex"},
+    ],
+    "svc-rail-maint": [
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 60,  "co": "opex"},
+        {"role": "role-qa",      "loc": "loc-bud", "hours": 30,  "co": "opex"},
+    ],
+    "svc-signal-sup": [
+        {"role": "role-sysadmin","loc": "loc-bud", "hours": 40,  "co": "opex"},
+        {"role": "role-network", "loc": "loc-bud", "hours": 30,  "co": "opex"},
+    ],
+
+    # --- Corporate IT ---
+    "proj-cloud3": [
+        {"role": "role-cloud",   "loc": "loc-muc", "hours": 60,  "co": "opex"},
+        {"role": "role-cloud",   "loc": "loc-pun", "hours": 40,  "co": "opex"},
+        {"role": "role-sysadmin","loc": "loc-muc", "hours": 30,  "co": "opex"},
+    ],
+    "proj-iam": [
+        {"role": "role-network", "loc": "loc-muc", "hours": 40,  "co": "capex"},
+        {"role": "role-cloud",   "loc": "loc-muc", "hours": 30,  "co": "capex"},
+        {"role": "role-sysadmin","loc": "loc-bud", "hours": 30,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-muc", "hours": 40,  "co": "capex"},
+    ],
+    "proj-workplace": [
+        {"role": "role-sysadmin","loc": "loc-muc", "hours": 40,  "co": "opex"},
+        {"role": "role-cloud",   "loc": "loc-bud", "hours": 40,  "co": "opex"},
+        {"role": "role-dev",     "loc": "loc-pun", "hours": 60,  "co": "opex"},
+    ],
+    "proj-datacenter": [
+        {"role": "role-cloud",   "loc": "loc-muc", "hours": 80,  "co": "opex"},
+        {"role": "role-sysadmin","loc": "loc-muc", "hours": 60,  "co": "opex"},
+        {"role": "role-network", "loc": "loc-muc", "hours": 40,  "co": "opex"},
+    ],
+    "proj-wan": [
+        {"role": "role-network", "loc": "loc-muc", "hours": 60,  "co": "capex"},
+        {"role": "role-network", "loc": "loc-bud", "hours": 40,  "co": "capex"},
+        {"role": "role-sysadmin","loc": "loc-pun", "hours": 40,  "co": "capex"},
+    ],
+    "svc-netsec": [
+        {"role": "role-network", "loc": "loc-muc", "hours": 40,  "co": "opex"},
+        {"role": "role-cloud",   "loc": "loc-muc", "hours": 30,  "co": "opex"},
+        {"role": "role-sysadmin","loc": "loc-pun", "hours": 40,  "co": "opex"},
+    ],
+    "svc-middleware": [
+        {"role": "role-sysadmin","loc": "loc-muc", "hours": 50,  "co": "opex"},
+        {"role": "role-dev",     "loc": "loc-muc", "hours": 40,  "co": "opex"},
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 40,  "co": "opex"},
+    ],
+    "svc-dba": [
+        {"role": "role-sysadmin","loc": "loc-pun", "hours": 50,  "co": "opex"},
+        {"role": "role-dev",     "loc": "loc-pun", "hours": 30,  "co": "opex"},
+    ],
+
+    # --- Digital & Data ---
+    "proj-sensor": [
+        {"role": "role-data-eng","loc": "loc-muc", "hours": 40,  "co": "capex"},
+        {"role": "role-sr-dev",  "loc": "loc-muc", "hours": 40,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-pun", "hours": 40,  "co": "capex"},
+        {"role": "role-cloud",   "loc": "loc-bud", "hours": 30,  "co": "capex"},
+    ],
+    "proj-fleet": [
+        {"role": "role-sr-dev",  "loc": "loc-bud", "hours": 40,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 60,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-pun", "hours": 40,  "co": "capex"},
+        {"role": "role-qa",      "loc": "loc-bud", "hours": 20,  "co": "capex"},
+    ],
+    "proj-telematics": [
+        {"role": "role-data-eng","loc": "loc-bud", "hours": 40,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-bud", "hours": 40,  "co": "capex"},
+        {"role": "role-qa",      "loc": "loc-bud", "hours": 20,  "co": "capex"},
+    ],
+    "proj-dwh": [
+        {"role": "role-data-eng","loc": "loc-muc", "hours": 60,  "co": "capex"},
+        {"role": "role-data-eng","loc": "loc-bud", "hours": 40,  "co": "capex"},
+        {"role": "role-data-sci","loc": "loc-muc", "hours": 30,  "co": "capex"},
+        {"role": "role-dev",     "loc": "loc-pun", "hours": 40,  "co": "capex"},
+    ],
+    "proj-aiml": [
+        {"role": "role-data-sci","loc": "loc-muc", "hours": 40,  "co": "opex"},
+        {"role": "role-data-eng","loc": "loc-bud", "hours": 40,  "co": "opex"},
+        {"role": "role-dev",     "loc": "loc-pun", "hours": 30,  "co": "opex"},
+    ],
+    "svc-dataplatform": [
+        {"role": "role-data-eng","loc": "loc-muc", "hours": 40,  "co": "opex"},
+        {"role": "role-sysadmin","loc": "loc-bud", "hours": 30,  "co": "opex"},
+    ],
+    "svc-iot": [
+        {"role": "role-cloud",   "loc": "loc-bud", "hours": 30,  "co": "opex"},
+        {"role": "role-sysadmin","loc": "loc-pun", "hours": 30,  "co": "opex"},
+    ],
+}
+
+# ---------------------------------------------------------------------------
+# External Cost Line Items per Project
+# Each: {desc, cat, vendor, co (capex/opex), base (monthly baseline EUR),
+#         fcst (monthly forecast if differs from base, or None)}
+# ---------------------------------------------------------------------------
+
+PROJECT_EXTERNALS = {
+    "proj-erp2": [
+        {"desc": "SAP Implementation Support",       "cat": "ext-consulting",   "vendor": "Deloitte",         "co": "capex", "base": 15000},
+        {"desc": "Process Advisory",                  "cat": "ext-consulting",   "vendor": "MHP Consulting",   "co": "capex", "base": 5000},
+        {"desc": "Application Developers (3 FTE)",    "cat": "ext-leased-staff", "vendor": "TCS",              "co": "capex", "base": 12000},
+        {"desc": "Azure DevOps Licenses",             "cat": "ext-sw-licenses",  "vendor": "Microsoft",        "co": "opex",  "base": 2000},
+        {"desc": "SAP S/4HANA Certification",         "cat": "ext-training",     "vendor": "SAP Education",    "co": "opex",  "base": 3000},
+        {"desc": "Munich-Budapest Team Visits",       "cat": "ext-travel",       "vendor": None,               "co": "opex",  "base": 1500},
+        {"desc": "Penetration Testing",               "cat": "ext-other",        "vendor": "SecureWorks",      "co": "opex",  "base": 2000},
+    ],
+    "proj-sap": [
+        {"desc": "SAP Consulting Services",           "cat": "ext-consulting",   "vendor": "Accenture",        "co": "capex", "base": 20000},
+        {"desc": "SAP License Fees",                  "cat": "ext-sw-licenses",  "vendor": "SAP",              "co": "capex", "base": 8000},
+        {"desc": "Cloud Infrastructure",              "cat": "ext-cloud",        "vendor": "AWS",              "co": "capex", "base": 5000},
+        {"desc": "SAP Training Programme",            "cat": "ext-training",     "vendor": "SAP Education",    "co": "opex",  "base": 2000},
+        {"desc": "SAP Maintenance Support",           "cat": "ext-sw-maint",     "vendor": "SAP",              "co": "opex",  "base": 3000},
+    ],
+    "proj-brake": [
+        {"desc": "Embedded Systems Consulting",       "cat": "ext-consulting",   "vendor": "Vector Informatik","co": "capex", "base": 4000},
+        {"desc": "Test Equipment Maintenance",        "cat": "ext-hw-maint",     "vendor": "National Instruments","co": "capex","base": 2000},
+        {"desc": "Munich-Budapest Travel",            "cat": "ext-travel",       "vendor": None,               "co": "opex",  "base": 1000},
+    ],
+    "proj-autobrake": [
+        {"desc": "ADAS Consulting",                   "cat": "ext-consulting",   "vendor": "Continental Engineering","co": "capex","base": 8000},
+        {"desc": "Simulation Platform License",       "cat": "ext-sw-licenses",  "vendor": "dSPACE",           "co": "capex", "base": 5000},
+        {"desc": "GPU Cloud Compute",                 "cat": "ext-cloud",        "vendor": "AWS",              "co": "capex", "base": 6000},
+        {"desc": "Safety Certification",              "cat": "ext-other",        "vendor": "TUV Rheinland",    "co": "capex", "base": 3000},
+    ],
+    "proj-legacy": [
+        {"desc": "Decommission Advisory",             "cat": "ext-consulting",   "vendor": "Capgemini",        "co": "opex",  "base": 3000},
+        {"desc": "Data Migration Tools",              "cat": "ext-sw-licenses",  "vendor": "Informatica",      "co": "opex",  "base": 2000},
+    ],
+    "proj-connveh": [
+        {"desc": "Connected Platform Consulting",     "cat": "ext-consulting",   "vendor": "Bosch Engineering","co": "capex", "base": 10000},
+        {"desc": "Azure IoT Hub",                     "cat": "ext-cloud",        "vendor": "Microsoft",        "co": "capex", "base": 8000},
+        {"desc": "V2X Communication Licenses",        "cat": "ext-sw-licenses",  "vendor": "Qualcomm",         "co": "capex", "base": 5000},
+        {"desc": "Cybersecurity Assessment",          "cat": "ext-other",        "vendor": "NCC Group",        "co": "capex", "base": 3000},
+    ],
+    "svc-sap-ops": [
+        {"desc": "SAP Basis Support",                 "cat": "ext-sw-maint",     "vendor": "SAP",              "co": "opex",  "base": 5000},
+        {"desc": "Infrastructure Hosting",            "cat": "ext-cloud",        "vendor": "AWS",              "co": "opex",  "base": 4000},
+    ],
+    "svc-euc": [
+        {"desc": "Helpdesk Software License",         "cat": "ext-sw-licenses",  "vendor": "ServiceNow",       "co": "opex",  "base": 2500},
+        {"desc": "Hardware Refresh Cycle",             "cat": "ext-hw-maint",     "vendor": "Dell",             "co": "opex",  "base": 3000},
+    ],
+    "svc-tbs-maint": [
+        {"desc": "Application Monitoring",            "cat": "ext-sw-licenses",  "vendor": "Datadog",          "co": "opex",  "base": 2000},
+        {"desc": "Vendor Support Contracts",          "cat": "ext-sw-maint",     "vendor": "Various",          "co": "opex",  "base": 3000},
+    ],
+
+    # --- RVS ---
+    "proj-signal": [
+        {"desc": "Signaling Consulting",              "cat": "ext-consulting",   "vendor": "Siemens Mobility", "co": "capex", "base": 10000},
+        {"desc": "Safety Certification",              "cat": "ext-other",        "vendor": "TUV Rheinland",    "co": "capex", "base": 4000},
+        {"desc": "Test Equipment Maintenance",        "cat": "ext-hw-maint",     "vendor": "Keysight",         "co": "capex", "base": 3000},
+        {"desc": "Cross-Location Travel",             "cat": "ext-travel",       "vendor": None,               "co": "opex",  "base": 1500},
+    ],
+    "proj-raildiag": [
+        {"desc": "Diagnostics Platform License",      "cat": "ext-sw-licenses",  "vendor": "PTC",              "co": "capex", "base": 3000},
+        {"desc": "Cloud Hosting",                     "cat": "ext-cloud",        "vendor": "Azure",            "co": "capex", "base": 4000},
+        {"desc": "Domain Consulting",                 "cat": "ext-consulting",   "vendor": "Ricardo Rail",     "co": "capex", "base": 3000},
+    ],
+    "proj-predmaint": [
+        {"desc": "ML Platform License",               "cat": "ext-sw-licenses",  "vendor": "Databricks",       "co": "capex", "base": 4000},
+        {"desc": "Predictive Analytics Consulting",   "cat": "ext-consulting",   "vendor": "McKinsey Digital", "co": "capex", "base": 6000},
+        {"desc": "Sensor Data Cloud Storage",         "cat": "ext-cloud",        "vendor": "AWS",              "co": "capex", "base": 3000},
+    ],
+    "proj-workshop": [
+        {"desc": "UX Design Consulting",              "cat": "ext-consulting",   "vendor": "Ergosign",         "co": "capex", "base": 3000},
+        {"desc": "Cloud Hosting",                     "cat": "ext-cloud",        "vendor": "Azure",            "co": "capex", "base": 2000},
+    ],
+    "proj-railsafety": [
+        {"desc": "Safety Standards Consulting",       "cat": "ext-consulting",   "vendor": "Ricardo Rail",     "co": "capex", "base": 6000},
+        {"desc": "Compliance Software License",       "cat": "ext-sw-licenses",  "vendor": "Siemens",          "co": "capex", "base": 4000},
+        {"desc": "Hardware Certification Equipment",  "cat": "ext-hw-maint",     "vendor": "Keysight",         "co": "capex", "base": 2000},
+    ],
+    "svc-rail-desk": [
+        {"desc": "ITSM Platform License",             "cat": "ext-sw-licenses",  "vendor": "ServiceNow",       "co": "opex",  "base": 3000},
+        {"desc": "Remote Support Tools",              "cat": "ext-sw-maint",     "vendor": "TeamViewer",       "co": "opex",  "base": 1500},
+    ],
+    "svc-rail-maint": [
+        {"desc": "Application Monitoring",            "cat": "ext-sw-licenses",  "vendor": "Dynatrace",        "co": "opex",  "base": 3000},
+        {"desc": "Vendor Support Agreements",         "cat": "ext-sw-maint",     "vendor": "Various",          "co": "opex",  "base": 2500},
+    ],
+    "svc-signal-sup": [
+        {"desc": "Signaling Equipment Support",       "cat": "ext-hw-maint",     "vendor": "Siemens Mobility", "co": "opex",  "base": 3000},
+        {"desc": "Remote Monitoring License",         "cat": "ext-sw-licenses",  "vendor": "Siemens",          "co": "opex",  "base": 2000},
+    ],
+
+    # --- Corporate IT ---
+    "proj-cloud3": [
+        {"desc": "AWS EC2 Reserved Instances",        "cat": "ext-cloud",        "vendor": "AWS",              "co": "opex",  "base": 10000},
+        {"desc": "AWS S3 Storage",                    "cat": "ext-cloud",        "vendor": "AWS",              "co": "opex",  "base": 4000},
+        {"desc": "Cloud Architecture Advisory",       "cat": "ext-consulting",   "vendor": "Accenture",        "co": "opex",  "base": 5000},
+        {"desc": "AWS Training",                      "cat": "ext-training",     "vendor": "AWS Training",     "co": "opex",  "base": 2000},
+    ],
+    "proj-iam": [
+        {"desc": "ServiceNow ITSM Licenses",         "cat": "ext-sw-licenses",  "vendor": "ServiceNow",       "co": "capex", "base": 4000},
+        {"desc": "Security Assessment",               "cat": "ext-consulting",   "vendor": "PwC",              "co": "capex", "base": 5000},
+        {"desc": "Security Consultant (1 FTE)",       "cat": "ext-leased-staff", "vendor": "Hays",             "co": "capex", "base": 6000},
+        {"desc": "Cisco Network Equipment Support",   "cat": "ext-hw-maint",     "vendor": "Cisco",            "co": "opex",  "base": 2000},
+        {"desc": "Cybersecurity Awareness Training",  "cat": "ext-training",     "vendor": "Internal",         "co": "opex",  "base": 1500},
+    ],
+    "proj-workplace": [
+        {"desc": "Workplace Design Consulting",       "cat": "ext-consulting",   "vendor": "Accenture",        "co": "opex",  "base": 4000},
+        {"desc": "Microsoft 365 Licenses",            "cat": "ext-sw-licenses",  "vendor": "Microsoft",        "co": "opex",  "base": 5000},
+        {"desc": "Device Management Platform",        "cat": "ext-sw-maint",     "vendor": "VMware",           "co": "opex",  "base": 2000},
+    ],
+    "proj-datacenter": [
+        {"desc": "Migration Consulting",              "cat": "ext-consulting",   "vendor": "IBM",              "co": "opex",  "base": 8000},
+        {"desc": "Server Decommission Services",      "cat": "ext-infra-onprem", "vendor": "HP Enterprise",    "co": "opex",  "base": 5000},
+        {"desc": "Network Infrastructure",            "cat": "ext-hw-maint",     "vendor": "Cisco",            "co": "opex",  "base": 4000},
+    ],
+    "proj-wan": [
+        {"desc": "WAN Equipment",                     "cat": "ext-infra-onprem", "vendor": "Cisco",            "co": "capex", "base": 8000},
+        {"desc": "Network Consulting",                "cat": "ext-consulting",   "vendor": "NTT Communications","co":"capex", "base": 5000},
+        {"desc": "Installation Services",             "cat": "ext-other",        "vendor": "Local contractors", "co": "capex", "base": 3000},
+    ],
+    "svc-netsec": [
+        {"desc": "Firewall Licenses",                 "cat": "ext-sw-licenses",  "vendor": "Palo Alto",        "co": "opex",  "base": 4000},
+        {"desc": "SIEM Platform",                     "cat": "ext-sw-licenses",  "vendor": "Splunk",           "co": "opex",  "base": 5000},
+        {"desc": "Managed SOC Service",               "cat": "ext-consulting",   "vendor": "SecureWorks",      "co": "opex",  "base": 3000},
+    ],
+    "svc-middleware": [
+        {"desc": "Middleware Licenses",               "cat": "ext-sw-licenses",  "vendor": "IBM",              "co": "opex",  "base": 4000},
+        {"desc": "Vendor Support",                    "cat": "ext-sw-maint",     "vendor": "IBM",              "co": "opex",  "base": 2000},
+    ],
+    "svc-dba": [
+        {"desc": "Database Licenses",                 "cat": "ext-sw-licenses",  "vendor": "Oracle",           "co": "opex",  "base": 3000},
+        {"desc": "Database Support Contract",         "cat": "ext-sw-maint",     "vendor": "Oracle",           "co": "opex",  "base": 2000},
+    ],
+
+    # --- Digital & Data ---
+    "proj-sensor": [
+        {"desc": "Data Engineering Consulting",       "cat": "ext-consulting",   "vendor": "Thoughtworks",     "co": "capex", "base": 10000},
+        {"desc": "AWS Kinesis + S3 Pipeline",         "cat": "ext-cloud",        "vendor": "AWS",              "co": "capex", "base": 6000},
+        {"desc": "Kafka License",                     "cat": "ext-sw-licenses",  "vendor": "Confluent",        "co": "capex", "base": 3000},
+        {"desc": "IoT Sensor Calibration",            "cat": "ext-other",        "vendor": "Bosch Sensortec",  "co": "capex", "base": 2000},
+    ],
+    "proj-fleet": [
+        {"desc": "UX/UI Design Agency",               "cat": "ext-consulting",   "vendor": "Frog Design",      "co": "capex", "base": 5000},
+        {"desc": "Cloud Hosting",                     "cat": "ext-cloud",        "vendor": "Azure",            "co": "capex", "base": 4000},
+        {"desc": "Mapping API License",               "cat": "ext-sw-licenses",  "vendor": "HERE Technologies","co": "capex", "base": 2000},
+    ],
+    "proj-telematics": [
+        {"desc": "Telematics Platform License",       "cat": "ext-sw-licenses",  "vendor": "Geotab",           "co": "capex", "base": 4000},
+        {"desc": "Cloud Infrastructure",              "cat": "ext-cloud",        "vendor": "AWS",              "co": "capex", "base": 5000},
+        {"desc": "Domain Consulting",                 "cat": "ext-consulting",   "vendor": "Bosch Connected",  "co": "capex", "base": 3000},
+    ],
+    "proj-dwh": [
+        {"desc": "Snowflake Enterprise",              "cat": "ext-cloud",        "vendor": "Snowflake",        "co": "capex", "base": 8000},
+        {"desc": "ETL Consulting",                    "cat": "ext-consulting",   "vendor": "Informatica",      "co": "capex", "base": 5000},
+        {"desc": "Data Quality Tools",                "cat": "ext-sw-licenses",  "vendor": "Talend",           "co": "capex", "base": 3000},
+    ],
+    "proj-aiml": [
+        {"desc": "GPU Cloud Compute",                 "cat": "ext-cloud",        "vendor": "AWS",              "co": "opex",  "base": 5000},
+        {"desc": "ML Platform License",               "cat": "ext-sw-licenses",  "vendor": "Weights & Biases", "co": "opex",  "base": 2000},
+        {"desc": "AI Consulting",                     "cat": "ext-consulting",   "vendor": "DataRobot",        "co": "opex",  "base": 3000},
+    ],
+    "svc-dataplatform": [
+        {"desc": "Data Platform Hosting",             "cat": "ext-cloud",        "vendor": "AWS",              "co": "opex",  "base": 4000},
+        {"desc": "Monitoring & Observability",        "cat": "ext-sw-licenses",  "vendor": "Datadog",          "co": "opex",  "base": 2000},
+    ],
+    "svc-iot": [
+        {"desc": "IoT Hub Hosting",                   "cat": "ext-cloud",        "vendor": "Azure",            "co": "opex",  "base": 3000},
+        {"desc": "Device Management License",         "cat": "ext-sw-licenses",  "vendor": "AWS IoT",          "co": "opex",  "base": 2000},
+    ],
+}
+
+# ---------------------------------------------------------------------------
+# Forecast Adjustments for troubled/scope-change projects
+# Key = project_id.  internal/external overrides with from_month.
+# ---------------------------------------------------------------------------
+
+FORECAST_ADJUSTMENTS = {
+    "proj-erp2": {
+        "internal": [
+            # SR Dev MUC hours increased from 80 to 100 from 2025-07 (CR impact)
+            {"role": "role-sr-dev", "loc": "loc-muc", "from": "2025-07", "hours": 100},
+        ],
+        "external": [
+            # Deloitte consulting increased from 15K to 22K from 2025-07
+            {"desc": "SAP Implementation Support", "from": "2025-07", "amount": 22000},
+            # TCS leased staff increased from 12K to 15K from 2025-10
+            {"desc": "Application Developers (3 FTE)", "from": "2025-10", "amount": 15000},
+        ],
+    },
+    "proj-sensor": {
+        "internal": [
+            # Dev PUN increased from 40 to 50 from 2026-03
+            {"role": "role-dev", "loc": "loc-pun", "from": "2026-03", "hours": 50},
+        ],
+        "external": [
+            # Consulting increased from 10K to 14K from 2026-01
+            {"desc": "Data Engineering Consulting", "from": "2026-01", "amount": 14000},
+            # Cloud costs increased from 6K to 9K from 2026-01
+            {"desc": "AWS Kinesis + S3 Pipeline", "from": "2026-01", "amount": 9000},
+        ],
+    },
+    "proj-iam": {
+        "external": [
+            # ServiceNow licensing surprise: 4K to 5600 from 2025-09 (40% increase)
+            {"desc": "ServiceNow ITSM Licenses", "from": "2025-09", "amount": 5600},
+            # Additional security consultant added from 2025-07
+            {"desc": "Security Consultant (1 FTE)", "from": "2025-07", "amount": 8000},
+        ],
+    },
+    "proj-telematics": {
+        "external": [
+            # Cloud costs up due to scope (5K to 6500)
+            {"desc": "Cloud Infrastructure", "from": "2026-01", "amount": 6500},
+        ],
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Person-Project Assignments for allocations
+# (person_id, project_id, hours_per_month, start, end, {month_overrides})
+# ---------------------------------------------------------------------------
+
+ASSIGNMENTS = [
+    # --- MUC / APD ---
+    ("p-brenner", "proj-erp2",      40,  "2024-07", "2026-09", {}),  # Sr Arch oversight
+    ("p-brenner", "svc-tbs-maint",  60,  "2024-01", "2026-12", {}),
+
+    # p-fischer (Sr Dev): ERP + SAP — OVER-ALLOCATION candidate in MUC
+    ("p-fischer", "proj-erp2",      80,  "2024-07", "2026-09",
+     {"2026-03": 100, "2026-04": 100, "2026-05": 100}),
+    ("p-fischer", "proj-sap",       60,  "2024-01", "2026-06", {}),
+
+    # p-wolf (Sr Dev): brake until 2026-03, then under-utilized
+    ("p-wolf",    "proj-brake",     80,  "2025-03", "2026-03", {}),
+    ("p-wolf",    "svc-euc",        30,  "2024-01", "2026-12", {}),
+
+    # p-keller (Sr Dev): sensor + predmaint
+    ("p-keller",  "proj-sensor",    60,  "2025-03", "2026-12", {}),
+    ("p-keller",  "proj-predmaint", 40,  "2025-06", "2027-03", {}),
+
+    # p-schmidt (Dev): ERP + sensor
+    ("p-schmidt", "proj-erp2",      60,  "2024-07", "2026-09", {}),
+    ("p-schmidt", "proj-sensor",    40,  "2025-03", "2026-12", {}),
+
+    # p-bauer (Dev): ERP + middleware svc
+    ("p-bauer",   "proj-erp2",      80,  "2024-07", "2026-09", {}),
+    ("p-bauer",   "svc-middleware",  40,  "2024-01", "2026-12", {}),
+
+    # p-neumann (Dev): workplace + tbs-maint
+    ("p-neumann", "proj-workplace", 60,  "2025-06", "2026-06", {}),
+    ("p-neumann", "svc-tbs-maint",  60,  "2024-01", "2026-12", {}),
+
+    # p-hoffmann (Jr Dev): ERP testing + euc
+    ("p-hoffmann","proj-erp2",      40,  "2024-07", "2026-09", {}),
+    ("p-hoffmann","svc-euc",        40,  "2024-01", "2026-12", {}),
+
+    # --- MUC / INF ---
+    # p-wagner (Cloud): cloud3 + netsec
+    ("p-wagner",  "proj-cloud3",    60,  "2025-01", "2026-06", {}),
+    ("p-wagner",  "svc-netsec",     60,  "2024-01", "2026-12", {}),
+
+    # p-braun (Cloud): cloud3 + iam
+    ("p-braun",   "proj-cloud3",    60,  "2025-01", "2026-06", {}),
+    ("p-braun",   "proj-iam",       30,  "2025-01", "2026-09", {}),
+
+    # p-richter (SysAdmin): netsec + euc
+    ("p-richter", "svc-netsec",     60,  "2024-01", "2026-12", {}),
+    ("p-richter", "svc-euc",        40,  "2024-01", "2026-12", {}),
+
+    # p-frank (Network): iam + netsec
+    ("p-frank",   "proj-iam",       40,  "2025-01", "2026-09", {}),
+    ("p-frank",   "svc-netsec",     40,  "2024-01", "2026-12", {}),
+
+    # --- MUC / BSO ---
+    # p-mueller (SAP): sap + sap-ops
+    ("p-mueller", "proj-sap",       80,  "2022-01", "2026-06", {}),
+    ("p-mueller", "svc-sap-ops",    40,  "2024-01", "2026-12", {}),
+
+    # p-hartmann (SAP): erp2 + sap-ops
+    ("p-hartmann","proj-erp2",      40,  "2024-07", "2026-09", {}),
+    ("p-hartmann","svc-sap-ops",    40,  "2024-01", "2026-12", {}),
+
+    # p-krause (BA): erp2 + workplace
+    ("p-krause",  "proj-erp2",      30,  "2024-07", "2026-09", {}),
+    ("p-krause",  "proj-workplace", 40,  "2025-06", "2026-06", {}),
+
+    # --- MUC / QA (housed in APD) ---
+    # p-jung (QA): erp2 + sensor
+    ("p-jung",    "proj-erp2",      40,  "2024-07", "2026-09", {}),
+    ("p-jung",    "proj-sensor",    30,  "2025-03", "2026-12", {}),
+
+    # p-berger (QA): brake + tbs-maint
+    ("p-berger",  "proj-brake",     30,  "2025-03", "2026-03", {}),
+    ("p-berger",  "svc-tbs-maint",  40,  "2024-01", "2026-12", {}),
+
+    # --- MUC / DDA ---
+    # p-schubert (Data Eng): sensor + dataplatform
+    ("p-schubert","proj-sensor",    40,  "2025-03", "2026-12", {}),
+    ("p-schubert","svc-dataplatform",40, "2024-01", "2026-12", {}),
+
+    # p-winter (Data Eng): predmaint + dataplatform
+    ("p-winter",  "proj-predmaint", 30,  "2025-06", "2027-03", {}),
+    ("p-winter",  "svc-dataplatform",40, "2024-01", "2026-12", {}),
+
+    # p-lorenz (Data Sci): aiml + telematics
+    ("p-lorenz",  "proj-aiml",      40,  "2025-09", "2026-06", {}),
+    ("p-lorenz",  "proj-telematics",30,  "2025-06", "2026-09", {}),
+
+    # --- BUD / APD ---
+    # p-nagy (Sr Arch): signal + raildiag
+    ("p-nagy",    "proj-signal",    30,  "2023-01", "2026-06", {}),
+    ("p-nagy",    "proj-raildiag",  40,  "2024-06", "2027-06", {}),
+
+    # p-szabo (Sr Dev): OVER-ALLOCATED — signal + raildiag + fleet
+    ("p-szabo",   "proj-signal",    60,  "2023-01", "2026-06", {}),
+    ("p-szabo",   "proj-raildiag",  40,  "2024-06", "2027-06", {}),
+    ("p-szabo",   "proj-fleet",     40,  "2025-01", "2026-06",
+     {"2026-03": 80, "2026-04": 80, "2026-05": 80}),  # overallocation months
+
+    # p-toth (Sr Dev): sap + rail-maint
+    ("p-toth",    "proj-sap",       60,  "2022-01", "2026-06", {}),
+    ("p-toth",    "svc-rail-maint", 40,  "2024-01", "2026-12", {}),
+
+    # p-horvath (Sr Dev): fleet + telematics
+    ("p-horvath", "proj-fleet",     60,  "2025-01", "2026-06", {}),
+    ("p-horvath", "proj-telematics",40,  "2025-06", "2026-09", {}),
+
+    # p-kovacs (Dev): brake + signal
+    ("p-kovacs",  "proj-brake",     60,  "2025-03", "2026-03", {}),
+    ("p-kovacs",  "proj-signal",    60,  "2023-01", "2026-06", {}),
+
+    # p-molnar (Dev): sap + middleware
+    ("p-molnar",  "proj-sap",       80,  "2022-01", "2026-06", {}),
+    ("p-molnar",  "svc-middleware",  40,  "2024-01", "2026-12", {}),
+
+    # p-varga (Dev): raildiag + rail-maint
+    ("p-varga",   "proj-raildiag",  60,  "2024-06", "2027-06", {}),
+    ("p-varga",   "svc-rail-maint", 40,  "2024-01", "2026-12", {}),
+
+    # p-kiss (Dev): fleet + iot svc
+    ("p-kiss",    "proj-fleet",     60,  "2025-01", "2026-06", {}),
+    ("p-kiss",    "svc-iot",        30,  "2024-01", "2026-12", {}),
+
+    # --- BUD / INF ---
+    # p-farkas (Cloud): cloud3 + workplace + iot
+    ("p-farkas",  "proj-workplace", 40,  "2025-06", "2026-06", {}),
+    ("p-farkas",  "svc-iot",        30,  "2024-01", "2026-12", {}),
+
+    # p-balogh (SysAdmin): rail-desk + iam
+    ("p-balogh",  "svc-rail-desk",  60,  "2024-01", "2026-12", {}),
+    ("p-balogh",  "proj-iam",       30,  "2025-01", "2026-09", {}),
+
+    # p-takacs (Network): signal-sup + netsec assist
+    ("p-takacs",  "svc-signal-sup", 40,  "2024-01", "2026-12", {}),
+    ("p-takacs",  "svc-netsec",     30,  "2024-01", "2026-12", {}),
+
+    # p-fekete (Jr Dev): raildiag + rail-desk
+    ("p-fekete",  "proj-raildiag",  40,  "2024-06", "2027-06", {}),
+    ("p-fekete",  "svc-rail-desk",  40,  "2024-01", "2026-12", {}),
+
+    # --- BUD / DDA ---
+    # p-simon (Data Eng): telematics + aiml
+    ("p-simon",   "proj-telematics",40,  "2025-06", "2026-09", {}),
+    ("p-simon",   "proj-aiml",      40,  "2025-09", "2026-06", {}),
+
+    # p-nemeth (Data Sci): sensor consulting + dataplatform
+    ("p-nemeth",  "proj-sensor",    30,  "2025-03", "2026-12", {}),
+    ("p-nemeth",  "svc-dataplatform",30, "2024-01", "2026-12", {}),
+
+    # --- BUD / QA (housed in APD) ---
+    # p-papp (QA): sap + rail-maint
+    ("p-papp",    "proj-sap",       40,  "2022-01", "2026-06", {}),
+    ("p-papp",    "svc-rail-maint", 30,  "2024-01", "2026-12", {}),
+
+    # p-lukacs (QA): fleet + raildiag
+    ("p-lukacs",  "proj-fleet",     20,  "2025-01", "2026-06", {}),
+    ("p-lukacs",  "proj-raildiag",  20,  "2024-06", "2027-06", {}),
+    ("p-lukacs",  "proj-telematics",20,  "2025-06", "2026-09", {}),
+
+    # --- PUN / APD ---
+    # p-patel (Sr Dev): erp2 + predmaint
+    ("p-patel",   "proj-erp2",      40,  "2024-07", "2026-09", {}),
+    ("p-patel",   "proj-predmaint", 40,  "2025-06", "2027-03", {}),
+
+    # p-kumar (Sr Dev): predmaint + sensor
+    ("p-kumar",   "proj-predmaint", 60,  "2025-06", "2027-03", {}),
+    ("p-kumar",   "proj-sensor",    40,  "2025-03", "2026-12", {}),
+
+    # p-gupta (Dev): erp2 + workplace
+    ("p-gupta",   "proj-erp2",      40,  "2024-07", "2026-09", {}),
+    ("p-gupta",   "proj-workplace", 40,  "2025-06", "2026-06", {}),
+
+    # p-singh (Dev): fleet + tbs-maint
+    ("p-singh",   "proj-fleet",     40,  "2025-01", "2026-06", {}),
+    ("p-singh",   "svc-tbs-maint",  40,  "2024-01", "2026-12", {}),
+
+    # p-das (Dev): sensor + dba
+    ("p-das",     "proj-sensor",    40,  "2025-03", "2026-12", {}),
+    ("p-das",     "svc-dba",        30,  "2024-01", "2026-12", {}),
+
+    # p-joshi (Jr Dev): predmaint + sap-ops
+    ("p-joshi",   "proj-predmaint", 40,  "2025-06", "2027-03", {}),
+    ("p-joshi",   "svc-sap-ops",    40,  "2024-01", "2026-12", {}),
+
+    # p-iyer (Jr Dev): workplace + euc
+    ("p-iyer",    "proj-workplace", 40,  "2025-06", "2026-06", {}),
+    ("p-iyer",    "svc-euc",        40,  "2024-01", "2026-12", {}),
+
+    # p-reddy (QA): predmaint + erp2
+    ("p-reddy",   "proj-predmaint", 20,  "2025-06", "2027-03", {}),
+    ("p-reddy",   "proj-erp2",      30,  "2024-07", "2026-09", {}),
+
+    # --- PUN / INF ---
+    # p-nair (Cloud): cloud3 + iot
+    ("p-nair",    "proj-cloud3",    40,  "2025-01", "2026-06", {}),
+    ("p-nair",    "svc-iot",        30,  "2024-01", "2026-12", {}),
+
+    # p-menon (SysAdmin): sap-ops + dba
+    ("p-menon",   "svc-sap-ops",    40,  "2024-01", "2026-12", {}),
+    ("p-menon",   "svc-dba",        50,  "2024-01", "2026-12", {}),
+
+    # p-pillai (Network): netsec + signal-sup
+    ("p-pillai",  "svc-netsec",     40,  "2024-01", "2026-12", {}),
+    ("p-pillai",  "svc-signal-sup", 30,  "2024-01", "2026-12", {}),
+
+    # --- PUN / BSO ---
+    # p-rao (SAP): sap + sap-ops
+    ("p-rao",     "proj-sap",       40,  "2022-01", "2026-06", {}),
+    ("p-rao",     "svc-sap-ops",    30,  "2024-01", "2026-12", {}),
+
+    # p-desai (BA): raildiag + predmaint
+    ("p-desai",   "proj-raildiag",  20,  "2024-06", "2027-06", {}),
+    ("p-desai",   "proj-predmaint", 20,  "2025-06", "2027-03", {}),
+]
+
+# ---------------------------------------------------------------------------
+# Change Request definitions
+# ---------------------------------------------------------------------------
+
+CHANGE_REQUESTS = [
+    # ---- ERP Integration Phase 2: 8 historical + 1 active (CR-A) ----
+    {"id": 1,  "proj": "proj-erp2", "by": "p-sharma", "ts": "2024-10-15 09:30:00", "status": "approved", "cat": "resource",      "summary": "Increase Sr Developer hours to address integration backlog",
+     "justification": "Integration testing revealed more complex data mappings than anticipated.", "cc_owner": "p-brenner", "cc_ts": "2024-10-16 11:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2024-10-17 14:00:00", "ctrl_status": "approved",
+     "details": [{"field": "role-sr-dev (MUC) hours", "old": "80", "new": "100", "delta": "+20 hrs/mo", "type": "role-sr-dev", "month": "2025-07"}]},
+    {"id": 2,  "proj": "proj-erp2", "by": "p-sharma", "ts": "2024-11-20 10:00:00", "status": "approved", "cat": "external_cost", "summary": "Increase Deloitte consulting budget for extended SAP support",
+     "justification": "Deloitte advisory scope expanded to cover additional module integrations.", "cc_owner": "p-brenner", "cc_ts": "2024-11-21 09:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2024-11-22 16:00:00", "ctrl_status": "approved",
+     "details": [{"field": "SAP Implementation Support", "old": "15000", "new": "22000", "delta": "+7000 EUR/mo", "type": "ext-consulting", "month": "2025-07"}]},
+    {"id": 3,  "proj": "proj-erp2", "by": "p-sharma", "ts": "2025-01-10 11:00:00", "status": "approved", "cat": "resource",      "summary": "Add TCS developers for data migration sprint",
+     "justification": "Data migration requires additional hands-on development capacity.", "cc_owner": "p-brenner", "cc_ts": "2025-01-11 10:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-01-13 09:00:00", "ctrl_status": "approved",
+     "details": [{"field": "Leased Staff (TCS) amount", "old": "12000", "new": "15000", "delta": "+3000 EUR/mo", "type": "ext-leased-staff", "month": "2025-10"}]},
+    {"id": 4,  "proj": "proj-erp2", "by": "p-sharma", "ts": "2025-03-18 14:00:00", "status": "approved", "cat": "scope",         "summary": "Extend scope to include warehouse management module",
+     "justification": "Business stakeholders requested WMS integration as part of Phase 2.", "cc_owner": "p-brenner", "cc_ts": "2025-03-19 10:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-03-20 11:00:00", "ctrl_status": "approved",
+     "details": [{"field": "Project scope", "old": "Core ERP modules", "new": "Core + WMS", "delta": "Added WMS module", "type": None, "month": None}]},
+    {"id": 5,  "proj": "proj-erp2", "by": "p-sharma", "ts": "2025-06-05 09:00:00", "status": "approved", "cat": "timeline",      "summary": "Extend project end date by 3 months",
+     "justification": "WMS integration and testing require additional time.", "cc_owner": "p-brenner", "cc_ts": "2025-06-06 15:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-06-09 10:00:00", "ctrl_status": "approved",
+     "details": [{"field": "End date", "old": "2026-06", "new": "2026-09", "delta": "+3 months", "type": None, "month": None}]},
+    {"id": 6,  "proj": "proj-erp2", "by": "p-sharma", "ts": "2025-08-12 10:30:00", "status": "approved", "cat": "resource",      "summary": "Increase QA hours for regression testing",
+     "justification": "Extended scope requires more thorough regression testing cycles.", "cc_owner": "p-brenner", "cc_ts": "2025-08-13 11:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-08-14 14:00:00", "ctrl_status": "approved",
+     "details": [{"field": "role-qa (MUC) hours", "old": "40", "new": "50", "delta": "+10 hrs/mo", "type": "role-qa", "month": "2025-09"}]},
+    {"id": 7,  "proj": "proj-erp2", "by": "p-sharma", "ts": "2025-11-03 09:00:00", "status": "approved", "cat": "external_cost", "summary": "Additional penetration testing round for WMS",
+     "justification": "Security team mandated pen-test for new WMS module before go-live.", "cc_owner": "p-brenner", "cc_ts": "2025-11-04 10:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-11-05 11:00:00", "ctrl_status": "approved",
+     "details": [{"field": "Penetration Testing", "old": "2000", "new": "3500", "delta": "+1500 EUR/mo", "type": "ext-other", "month": "2026-01"}]},
+    {"id": 8,  "proj": "proj-erp2", "by": "p-sharma", "ts": "2026-01-20 10:00:00", "status": "approved", "cat": "resource",      "summary": "Extend Sr Dev PUN allocation through project end",
+     "justification": "Pune team essential for final integration and go-live support.", "cc_owner": "p-brenner", "cc_ts": "2026-01-21 09:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2026-01-22 14:00:00", "ctrl_status": "approved",
+     "details": [{"field": "role-sr-dev (PUN) hours", "old": "40", "new": "50", "delta": "+10 hrs/mo", "type": "role-sr-dev", "month": "2026-02"}]},
+
+    # CR-A: Active — pending CC confirmation
+    {"id": 9,  "proj": "proj-erp2", "by": "p-sharma", "ts": "2026-03-05 09:00:00", "status": "pending_cc_confirmation", "cat": "resource",
+     "summary": "Increase Sr Developer MUC hours Apr-Jun 2026 + extend Deloitte consulting through Q3",
+     "justification": "Final sprint for go-live requires additional senior capacity and continued advisory support.",
+     "cc_owner": "p-brenner", "cc_ts": None, "cc_status": "pending", "ctrl": None, "ctrl_ts": None, "ctrl_status": None,
+     "details": [
+         {"field": "role-sr-dev (MUC) hours Apr-Jun", "old": "100", "new": "120", "delta": "+20 hrs/mo", "type": "role-sr-dev", "month": "2026-04"},
+         {"field": "SAP Implementation Support extension", "old": "Ends 2026-06", "new": "Extends to 2026-09", "delta": "+3 months", "type": "ext-consulting", "month": "2026-07"},
+     ]},
+
+    # ---- SAP S/4HANA: 3 CRs ----
+    {"id": 10, "proj": "proj-sap",  "by": "p-mueller","ts": "2024-06-10 10:00:00", "status": "approved", "cat": "resource",      "summary": "Rebalance developer hours between MUC and BUD",
+     "justification": "Budapest team has capacity to take on more migration tasks.", "cc_owner": "p-brenner", "cc_ts": "2024-06-11 11:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2024-06-12 09:00:00", "ctrl_status": "approved",
+     "details": [{"field": "role-dev (BUD) hours", "old": "60", "new": "80", "delta": "+20 hrs/mo", "type": "role-dev", "month": "2024-07"}]},
+    {"id": 11, "proj": "proj-sap",  "by": "p-mueller","ts": "2025-04-15 09:00:00", "status": "approved", "cat": "external_cost", "summary": "Switch SAP consulting vendor for cutover phase",
+     "justification": "Accenture cutover team better suited than original vendor.", "cc_owner": "p-brenner", "cc_ts": "2025-04-16 10:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-04-17 14:00:00", "ctrl_status": "approved",
+     "details": [{"field": "SAP Consulting vendor", "old": "Deloitte", "new": "Accenture", "delta": "Vendor change", "type": "ext-consulting", "month": None}]},
+
+    # CR-C: Active — pending controller approval (reduction)
+    {"id": 12, "proj": "proj-sap",  "by": "p-mueller","ts": "2026-03-01 10:00:00", "status": "pending_controller_approval", "cat": "resource",
+     "summary": "Cut 2 roles for final 3 months as project winds down",
+     "justification": "Migration complete, only monitoring and handover remaining. Proactive cost reduction.",
+     "cc_owner": "p-brenner", "cc_ts": "2026-03-02 11:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": None, "ctrl_status": "pending",
+     "details": [
+         {"field": "role-dev (BUD) hours", "old": "80", "new": "0", "delta": "-80 hrs/mo", "type": "role-dev", "month": "2026-04"},
+         {"field": "role-qa (BUD) hours", "old": "40", "new": "0", "delta": "-40 hrs/mo", "type": "role-qa", "month": "2026-04"},
+     ]},
+
+    # ---- Sensor Data Pipeline: 2 historical + CR-B active ----
+    {"id": 13, "proj": "proj-sensor","by": "p-sharma", "ts": "2025-10-01 09:00:00", "status": "approved", "cat": "external_cost", "summary": "Increase consulting budget for data quality issues",
+     "justification": "Sensor data quality worse than expected, requiring additional Thoughtworks support.", "cc_owner": "p-brenner", "cc_ts": "2025-10-02 11:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-10-03 14:00:00", "ctrl_status": "approved",
+     "details": [{"field": "Data Engineering Consulting", "old": "10000", "new": "14000", "delta": "+4000 EUR/mo", "type": "ext-consulting", "month": "2026-01"}]},
+    {"id": 14, "proj": "proj-sensor","by": "p-sharma", "ts": "2025-12-15 10:00:00", "status": "approved", "cat": "external_cost", "summary": "Scale up AWS pipeline infrastructure",
+     "justification": "Production data volumes require larger Kinesis streams and S3 capacity.", "cc_owner": "p-brenner", "cc_ts": "2025-12-16 09:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-12-17 11:00:00", "ctrl_status": "approved",
+     "details": [{"field": "AWS Kinesis + S3 Pipeline", "old": "6000", "new": "9000", "delta": "+3000 EUR/mo", "type": "ext-cloud", "month": "2026-01"}]},
+
+    # CR-B: Active — pending CC confirmation
+    {"id": 15, "proj": "proj-sensor","by": "p-sharma", "ts": "2026-03-08 09:30:00", "status": "pending_cc_confirmation", "cat": "external_cost",
+     "summary": "Add AWS infrastructure scaling costs for production rollout",
+     "justification": "Production deployment requires additional infrastructure capacity beyond development estimates.",
+     "cc_owner": "p-brenner", "cc_ts": None, "cc_status": "pending", "ctrl": None, "ctrl_ts": None, "ctrl_status": None,
+     "details": [{"field": "New: AWS Production Infrastructure", "old": "0", "new": "5000", "delta": "+5000 EUR/mo", "type": "ext-cloud", "month": "2026-04"}]},
+
+    # ---- IAM Overhaul: 2 approved + 1 rejected ----
+    {"id": 16, "proj": "proj-iam",  "by": "p-frank",  "ts": "2025-05-20 10:00:00", "status": "approved", "cat": "external_cost", "summary": "Extend PwC security assessment for additional scope",
+     "justification": "Initial assessment revealed need for extended evaluation of legacy IAM components.", "cc_owner": "p-brenner", "cc_ts": "2025-05-21 11:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-05-22 14:00:00", "ctrl_status": "approved",
+     "details": [{"field": "Security Assessment", "old": "5000", "new": "7000", "delta": "+2000 EUR/mo", "type": "ext-consulting", "month": "2025-06"}]},
+    {"id": 17, "proj": "proj-iam",  "by": "p-frank",  "ts": "2025-09-10 09:00:00", "status": "approved", "cat": "external_cost", "summary": "ServiceNow licensing cost increase due to vendor pricing change",
+     "justification": "ServiceNow changed licensing model. 40% price increase effective immediately. No alternative vendor available in timeline.",
+     "cc_owner": "p-brenner", "cc_ts": "2025-09-11 10:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-09-12 16:00:00", "ctrl_status": "approved", "ctrl_comments": "Approved with concern. Please explore alternative vendors for next renewal cycle.",
+     "details": [{"field": "ServiceNow ITSM Licenses", "old": "4000", "new": "5600", "delta": "+1600 EUR/mo (+40%)", "type": "ext-sw-licenses", "month": "2025-09"}]},
+    {"id": 18, "proj": "proj-iam",  "by": "p-frank",  "ts": "2026-01-15 10:00:00", "status": "rejected", "cat": "scope",         "summary": "Request additional budget for extended timeline",
+     "justification": "Project needs 3 more months and additional security consultant to complete migration.",
+     "cc_owner": "p-brenner", "cc_ts": "2026-01-16 11:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2026-01-18 14:00:00", "ctrl_status": "rejected", "ctrl_comments": "Budget increase not justified. Please reduce scope to fit within existing timeline and budget. Consider phasing the migration.",
+     "details": [
+         {"field": "End date", "old": "2026-09", "new": "2026-12", "delta": "+3 months", "type": None, "month": None},
+         {"field": "Security Consultant hours", "old": "6000", "new": "8000", "delta": "+2000 EUR/mo", "type": "ext-leased-staff", "month": "2026-04"},
+     ]},
+
+    # CR-D: Active — pending controller approval
+    {"id": 19, "proj": "proj-iam",  "by": "p-frank",  "ts": "2026-03-03 10:00:00", "status": "pending_controller_approval", "cat": "external_cost",
+     "summary": "Licensing cost increase + additional security consultant for migration complexity",
+     "justification": "Vendor licensing model change and additional complexity discovered during implementation require budget adjustment.",
+     "cc_owner": "p-brenner", "cc_ts": "2026-03-04 11:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": None, "ctrl_status": "pending",
+     "details": [
+         {"field": "ServiceNow ITSM Licenses", "old": "5600", "new": "6200", "delta": "+600 EUR/mo", "type": "ext-sw-licenses", "month": "2026-04"},
+         {"field": "Security Consultant (1 FTE)", "old": "8000", "new": "9500", "delta": "+1500 EUR/mo", "type": "ext-leased-staff", "month": "2026-04"},
+     ]},
+
+    # ---- Well-managed projects: 1-2 CRs each ----
+    {"id": 20, "proj": "proj-brake", "by": "p-kovacs","ts": "2025-08-15 10:00:00", "status": "approved", "cat": "resource",      "summary": "Adjust QA hours for final testing phase",
+     "justification": "Testing phase requires focused QA allocation.", "cc_owner": "p-brenner", "cc_ts": "2025-08-16 09:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-08-17 11:00:00", "ctrl_status": "approved",
+     "details": [{"field": "role-qa (BUD) hours", "old": "30", "new": "40", "delta": "+10 hrs/mo", "type": "role-qa", "month": "2025-09"}]},
+
+    {"id": 21, "proj": "proj-raildiag","by": "p-nagy","ts": "2025-11-10 10:00:00", "status": "approved", "cat": "external_cost", "summary": "Upgrade cloud hosting tier for diagnostics platform",
+     "justification": "Data volume growth requires higher hosting tier.", "cc_owner": "p-brenner", "cc_ts": "2025-11-11 11:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-11-12 14:00:00", "ctrl_status": "approved",
+     "details": [{"field": "Cloud Hosting", "old": "4000", "new": "5000", "delta": "+1000 EUR/mo", "type": "ext-cloud", "month": "2026-01"}]},
+
+    {"id": 22, "proj": "proj-cloud3","by": "p-wagner","ts": "2025-09-20 09:00:00", "status": "approved", "cat": "resource",      "summary": "Reduce consulting hours as migration nears completion",
+     "justification": "Internal team now fully ramped, less advisory needed.", "cc_owner": "p-brenner", "cc_ts": "2025-09-21 10:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-09-22 11:00:00", "ctrl_status": "approved",
+     "details": [{"field": "Cloud Architecture Advisory", "old": "5000", "new": "3000", "delta": "-2000 EUR/mo", "type": "ext-consulting", "month": "2025-10"}]},
+
+    {"id": 23, "proj": "proj-workplace","by":"p-neumann","ts": "2025-10-05 10:00:00", "status": "approved", "cat": "external_cost","summary": "Add VMware license for expanded device management",
+     "justification": "Rollout to additional offices requires expanded device management.", "cc_owner": "p-brenner", "cc_ts": "2025-10-06 09:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-10-07 11:00:00", "ctrl_status": "approved",
+     "details": [{"field": "Device Management Platform", "old": "2000", "new": "2500", "delta": "+500 EUR/mo", "type": "ext-sw-maint", "month": "2025-11"}]},
+
+    # Signaling: 2 reduction CRs (winding down)
+    {"id": 24, "proj": "proj-signal","by": "p-nagy",  "ts": "2025-12-01 10:00:00", "status": "approved", "cat": "resource",      "summary": "Release developer capacity as commissioning completes",
+     "justification": "Commissioning phase completed ahead of schedule. Releasing resources early.", "cc_owner": "p-brenner", "cc_ts": "2025-12-02 09:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2025-12-03 11:00:00", "ctrl_status": "approved",
+     "details": [{"field": "role-dev (BUD) hours", "old": "80", "new": "40", "delta": "-40 hrs/mo", "type": "role-dev", "month": "2026-01"}]},
+    {"id": 25, "proj": "proj-signal","by": "p-nagy",  "ts": "2026-02-01 10:00:00", "status": "approved", "cat": "resource",      "summary": "Final resource reduction for project closeout",
+     "justification": "Project entering final documentation and handover phase.", "cc_owner": "p-brenner", "cc_ts": "2026-02-02 09:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2026-02-03 14:00:00", "ctrl_status": "approved",
+     "details": [{"field": "role-sr-dev (BUD) hours", "old": "60", "new": "30", "delta": "-30 hrs/mo", "type": "role-sr-dev", "month": "2026-03"}]},
+
+    # Telematics: 1 reduction CR (descoped feature)
+    {"id": 26, "proj": "proj-telematics","by":"p-horvath","ts": "2026-01-10 10:00:00", "status": "approved", "cat": "scope",      "summary": "Descope real-time alerting feature to recover schedule",
+     "justification": "Behind schedule by 1 month. Removing real-time alerting (moved to v2) to meet delivery date.",
+     "cc_owner": "p-brenner", "cc_ts": "2026-01-11 09:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2026-01-12 11:00:00", "ctrl_status": "approved",
+     "details": [{"field": "Scope reduction", "old": "Full feature set", "new": "Core features (no real-time alerts)", "delta": "Descoped 1 feature", "type": None, "month": None}]},
+
+    # CR-E: Active — returned with controller feedback
+    {"id": 27, "proj": "proj-predmaint","by":"p-sharma","ts": "2026-02-20 10:00:00", "status": "sent_back_by_controller", "cat": "timeline",
+     "summary": "Extend project end date by 3 months for production pilot",
+     "justification": "PoC results justify production pilot but require additional time and resources.",
+     "cc_owner": "p-brenner", "cc_ts": "2026-02-21 11:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2026-02-25 14:00:00", "ctrl_status": "sent_back",
+     "ctrl_comments": "Timeline extension needs more justification. Please provide detailed milestone plan for the production pilot phase and demonstrate how the additional 3 months maps to specific deliverables.",
+     "details": [
+         {"field": "End date", "old": "2027-03", "new": "2027-06", "delta": "+3 months", "type": None, "month": None},
+         {"field": "role-sr-dev (MUC) hours", "old": "40", "new": "60", "delta": "+20 hrs/mo", "type": "role-sr-dev", "month": "2027-04"},
+         {"field": "ML Platform License extension", "old": "Ends 2027-03", "new": "Extends to 2027-06", "delta": "+3 months", "type": "ext-sw-licenses", "month": "2027-04"},
+     ]},
+
+    # Fleet Portal: recently approved CR (action type #7 for PL)
+    {"id": 28, "proj": "proj-fleet","by": "p-sharma", "ts": "2026-03-07 09:00:00", "status": "approved", "cat": "resource",
+     "summary": "Adjust developer allocation for final testing sprint",
+     "justification": "Final sprint before go-live requires dedicated testing focus.",
+     "cc_owner": "p-brenner", "cc_ts": "2026-03-08 10:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2026-03-10 11:00:00", "ctrl_status": "approved",
+     "details": [{"field": "role-dev (BUD) hours", "old": "60", "new": "80", "delta": "+20 hrs/mo", "type": "role-dev", "month": "2026-04"}]},
+]
+
+# ---------------------------------------------------------------------------
+# Project Phases
+# ---------------------------------------------------------------------------
+
+PROJECT_PHASES = {
+    # Full phases (4-5)
+    "proj-erp2": [
+        {"n": 1, "name": "Discovery",  "bs": "2024-07", "be": "2024-10", "fs": "2024-07", "fe": "2024-10", "color": "blue"},
+        {"n": 2, "name": "Design",     "bs": "2024-11", "be": "2025-03", "fs": "2024-11", "fe": "2025-04", "color": "teal"},
+        {"n": 3, "name": "Build",      "bs": "2025-04", "be": "2025-12", "fs": "2025-05", "fe": "2026-02", "color": "amber"},
+        {"n": 4, "name": "Test",       "bs": "2026-01", "be": "2026-04", "fs": "2026-03", "fe": "2026-06", "color": "emerald"},
+        {"n": 5, "name": "Rollout",    "bs": "2026-05", "be": "2026-06", "fs": "2026-07", "fe": "2026-09", "color": "violet"},
+    ],
+    "proj-sap": [
+        {"n": 1, "name": "Assessment", "bs": "2022-01", "be": "2022-06", "fs": "2022-01", "fe": "2022-06", "color": "blue"},
+        {"n": 2, "name": "Design",     "bs": "2022-07", "be": "2023-06", "fs": "2022-07", "fe": "2023-06", "color": "teal"},
+        {"n": 3, "name": "Migration",  "bs": "2023-07", "be": "2025-06", "fs": "2023-07", "fe": "2025-06", "color": "amber"},
+        {"n": 4, "name": "Validation", "bs": "2025-07", "be": "2026-03", "fs": "2025-07", "fe": "2026-03", "color": "emerald"},
+        {"n": 5, "name": "Go-Live",    "bs": "2026-04", "be": "2026-06", "fs": "2026-04", "fe": "2026-06", "color": "violet"},
+    ],
+    "proj-signal": [
+        {"n": 1, "name": "Requirements",    "bs": "2023-01", "be": "2023-06", "fs": "2023-01", "fe": "2023-06", "color": "blue"},
+        {"n": 2, "name": "Engineering",      "bs": "2023-07", "be": "2024-12", "fs": "2023-07", "fe": "2024-12", "color": "teal"},
+        {"n": 3, "name": "Integration",      "bs": "2025-01", "be": "2025-09", "fs": "2025-01", "fe": "2025-10", "color": "amber"},
+        {"n": 4, "name": "Commissioning",    "bs": "2025-10", "be": "2026-06", "fs": "2025-11", "fe": "2026-06", "color": "emerald"},
+    ],
+    "proj-connveh": [
+        {"n": 1, "name": "Concept",       "bs": "2026-10", "be": "2027-03", "fs": "2026-10", "fe": "2027-03", "color": "blue"},
+        {"n": 2, "name": "Architecture",   "bs": "2027-04", "be": "2027-09", "fs": "2027-04", "fe": "2027-09", "color": "teal"},
+        {"n": 3, "name": "Development",    "bs": "2027-10", "be": "2028-06", "fs": "2027-10", "fe": "2028-06", "color": "amber"},
+        {"n": 4, "name": "Integration",    "bs": "2028-07", "be": "2028-09", "fs": "2028-07", "fe": "2028-09", "color": "emerald"},
+        {"n": 5, "name": "Launch",         "bs": "2028-10", "be": "2028-12", "fs": "2028-10", "fe": "2028-12", "color": "violet"},
+    ],
+
+    # Partial phases (2-3)
+    "proj-raildiag": [
+        {"n": 1, "name": "Planning",        "bs": "2024-06", "be": "2024-12", "fs": "2024-06", "fe": "2024-12", "color": "blue"},
+        {"n": 2, "name": "Implementation",   "bs": "2025-01", "be": "2026-09", "fs": "2025-01", "fe": "2026-10", "color": "teal"},
+        {"n": 3, "name": "Go-Live",          "bs": "2026-10", "be": "2027-06", "fs": "2026-11", "fe": "2027-06", "color": "emerald"},
+    ],
+    "proj-fleet": [
+        {"n": 1, "name": "Development",     "bs": "2025-01", "be": "2025-09", "fs": "2025-01", "fe": "2025-09", "color": "blue"},
+        {"n": 2, "name": "Testing",          "bs": "2025-10", "be": "2026-02", "fs": "2025-10", "fe": "2026-03", "color": "teal"},
+        {"n": 3, "name": "Deployment",       "bs": "2026-03", "be": "2026-06", "fs": "2026-04", "fe": "2026-06", "color": "emerald"},
+    ],
+    "proj-iam": [
+        {"n": 1, "name": "Assessment",      "bs": "2025-01", "be": "2025-06", "fs": "2025-01", "fe": "2025-06", "color": "blue"},
+        {"n": 2, "name": "Implementation",   "bs": "2025-07", "be": "2026-06", "fs": "2025-07", "fe": "2026-07", "color": "teal"},
+        {"n": 3, "name": "Rollout",          "bs": "2026-07", "be": "2026-09", "fs": "2026-08", "fe": "2026-09", "color": "emerald"},
+    ],
+}
+
+# ---------------------------------------------------------------------------
+# Scenario Definitions
+# ---------------------------------------------------------------------------
+
+SCENARIO_DEFS = [
+    {
+        "id": 1, "name": "Budget Pressure: 15% Reduction", "status": "published", "author": "p-meier",
+        "description": "Targeted budget cuts to achieve 15% reduction across portfolio. Prioritizes deferral of new initiatives and reduction of external consulting spend.",
+        "created": "2026-03-07 10:00:00",
+        "actions": [
+            {"order": 1, "scope": "project", "type": "delay_project",   "proj": "proj-connveh",  "params": '{"delay_months": 6}',                   "impact": '{"budget_delta": -180000}', "label": "Defer new starts"},
+            {"order": 2, "scope": "project", "type": "cut_consulting",  "proj": "proj-sensor",   "params": '{"cut_pct": 30, "line": "Data Engineering Consulting"}', "impact": '{"budget_delta": -42000}', "label": "Reduce external consulting"},
+            {"order": 3, "scope": "project", "type": "remove_project",  "proj": "proj-aiml",     "params": '{}',                                    "impact": '{"budget_delta": -200000}', "label": "Cancel low-priority"},
+            {"order": 4, "scope": "project", "type": "reduce_budget",   "proj": "proj-cloud3",   "params": '{"cut_roles": 2, "from_month": "2026-07"}', "impact": '{"budget_delta": -80000}', "label": "Reduce project scope"},
+        ],
+    },
+    {
+        "id": 2, "name": "Accelerate Digital & Data", "status": "private", "author": "p-meier",
+        "description": "Invest in data capabilities by accelerating Digital & Data initiatives. Increases headcount in DDA competence centre.",
+        "created": "2026-03-10 14:00:00",
+        "actions": [
+            {"order": 1, "scope": "project", "type": "accelerate_project","proj": "proj-dwh",    "params": '{"advance_months": 3}',                "impact": '{"budget_delta": 120000}', "label": "Pull forward DWH"},
+            {"order": 2, "scope": "project", "type": "add_budget",       "proj": "proj-sensor",   "params": '{"add_roles": 3, "role": "role-data-eng"}', "impact": '{"budget_delta": 210000}', "label": "Add Data Engineers"},
+            {"order": 3, "scope": "project", "type": "add_budget",       "proj": "proj-aiml",     "params": '{"amount": 100000, "extend_to": "2026-12"}', "impact": '{"budget_delta": 100000}', "label": "Extend AI/ML Lab"},
+            {"order": 4, "scope": "project", "type": "add_budget",       "proj": "svc-dataplatform","params": '{"line": "Snowflake Enterprise", "amount": 5000}', "impact": '{"budget_delta": 60000}', "label": "Add Snowflake license"},
+        ],
+    },
+    {
+        "id": 3, "name": "Conservative: Freeze New Starts", "status": "published", "author": "p-biber",
+        "description": "Freeze all planned future projects and reduce intake pipeline. Models 5% rate escalation for 2027 to assess long-term cost pressure.",
+        "created": "2026-03-01 09:00:00",
+        "actions": [
+            {"order": 1, "scope": "project", "type": "remove_project",  "proj": "proj-connveh",  "params": '{}',                                    "impact": '{"budget_delta": -1800000}', "label": "Freeze future projects"},
+            {"order": 2, "scope": "project", "type": "remove_project",  "proj": "proj-railsafety","params": '{}',                                    "impact": '{"budget_delta": -650000}', "label": "Freeze future projects"},
+            {"order": 3, "scope": "project", "type": "remove_project",  "proj": "proj-dwh",      "params": '{}',                                    "impact": '{"budget_delta": -550000}', "label": "Freeze future projects"},
+            {"order": 4, "scope": "project", "type": "reduce_budget",   "proj": "proj-autobrake", "params": '{"cut_pct": 20}',                       "impact": '{"budget_delta": -180000}', "label": "Reduce intake estimation"},
+            {"order": 5, "scope": "portfolio","type": "across_the_board_cut","proj": None,        "params": '{"rate_increase_pct": 5, "from_year": 2027}', "impact": '{"budget_delta": 400000}', "label": "Rate escalation 2027"},
+        ],
+    },
 ]

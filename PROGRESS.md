@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v3 Session 1 (complete)
-Last completed: v3 Session 1 — Global Patterns + Launchpad
-Branch: `v3/session-1-global-patterns-launchpad`
+Phase: v3 Session 5B (complete)
+Last completed: v3 Session 5B — Complete Seed Data Generation
+Branch: `v3/session-5-seed-data`
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md
@@ -43,6 +43,8 @@ Branch: `v3/session-1-global-patterns-launchpad`
 - [x] Phase E: Documentation content + polish + verification
 - [ ] v3 Overhaul (demo date: March 2026)
   - [x] v3 Session 1: Global Patterns + Launchpad
+  - [x] v3 Session 5A: Schema fixes + seed generator infrastructure
+  - [x] v3 Session 5B: Complete seed data generation (19K lines, all 10 modules)
 
 ## v3 Session 1 — Global Patterns + Launchpad
 
@@ -102,6 +104,70 @@ First session of the v3 overhaul. Built foundational global components and compl
 
 ### Next
 - v3 Session 2 (per v3_session_guides/Session_2_Guide.md)
+
+## v3 Session 5A — Schema Fixes + Seed Generator Infrastructure
+
+Branch: `v3/session-5-seed-data`
+Date: 2026-03-14
+
+### Completed
+- Fixed schema issues identified during v3 review
+- Created modular seed generator infrastructure under `backend/seed/generate_seed/`
+- Built 4 foundation modules: s01_organization, s02_roles_rates, s03_people, s04_programs_projects
+- Created runner.py to orchestrate module execution in dependency order
+- Generated initial seed.sql (286 lines of organizational/structural data)
+
+## v3 Session 5B — Complete Seed Data Generation
+
+Branch: `v3/session-5-seed-data`
+Date: 2026-03-14
+
+### Completed
+- **Bug fix:** Changed `proj-workplace` programme from `None` to `"prog-infra"` per spec §9.5
+- **config.py extensions:**
+  - `PROJECT_STAFFING` — Per-project internal staffing profiles for all 32 entities (role, location, hours, capex/opex)
+  - `PROJECT_EXTERNALS` — Per-project external cost line items (3-8 items each) for all 32 entities
+  - `FORECAST_ADJUSTMENTS` — Overrides for troubled projects (erp2, sensor, iam, telematics)
+  - `ASSIGNMENTS` — 100+ person-project allocations covering all 50 people
+  - `CHANGE_REQUESTS` — 28 CR definitions (23 historical + 5 active) with full metadata
+  - `PROJECT_PHASES` — 7 projects with phase data (4 full, 3 partial)
+  - `SCENARIO_DEFS` — 3 pre-built What-If scenarios with actions and impacts
+- **s05_financials.py** — Largest module: baselines, forecasts, actuals with temporal rules (actuals through Feb 2026, March partial), procurement lifecycle statuses, deterministic variance via `random.seed(42)`, batched INSERTs (100 rows/statement), budget reconciliation UPDATEs
+- **s06_allocations.py** — Person×project×month allocations from ASSIGNMENTS, unconfirmed allocations for p-fischer, 3 resource requests (PredMaint pending, ERP/Sensor linked to CRs)
+- **s07_change_requests.py** — 28 CRs with CC/controller workflow states, CR change details
+- **s08_workflow.py** — 15 notifications across 4 personas, 4 system suggestions, 13 audit log entries
+- **s09_phases.py** — Project phases for 7 projects (4 full with 4-5 phases, 3 partial with 2-3 phases)
+- **s10_scenarios.py** — 3 scenarios (Budget Pressure, Accelerate Digital, Conservative) with actions, states per project, capacity impacts
+- **runner.py** — Enabled all 10 modules
+- **seed.sql** — Regenerated: 19,097 lines (~1.9MB)
+
+### Verification Results
+- Backend starts without errors, seed loads successfully
+- All 32 entities loaded in projects table
+- All 50 people loaded
+- Portfolio Overview renders with financial KPIs (Total Budget €16.4M, YTD Spend €14.8M, Forecast €21.6M)
+- 4 LoBs with correct RAG statuses (TBS=Red, others=Amber)
+- All 9 pending action types verified across 4 personas:
+  - Controller (Anna): cr_pending_approval, project_pending_review, scenario_published, forecast_overdue (6 items)
+  - CC Owner (Thomas): cr_pending_confirmation (2 items)
+  - PL (Priya): forecast_due, forecast_overdue, cr_decision, cr_feedback (16 items)
+  - Executive (Attila): scenario_published (2 items)
+
+### Files Created/Modified
+| File | Action |
+|------|--------|
+| `backend/seed/generate_seed/config.py` | Extended with staffing, externals, CRs, phases, scenarios |
+| `backend/seed/generate_seed/s05_financials.py` | New — financials generator |
+| `backend/seed/generate_seed/s06_allocations.py` | New — allocations generator |
+| `backend/seed/generate_seed/s07_change_requests.py` | New — change requests generator |
+| `backend/seed/generate_seed/s08_workflow.py` | New — workflow generator |
+| `backend/seed/generate_seed/s09_phases.py` | New — phases generator |
+| `backend/seed/generate_seed/s10_scenarios.py` | New — scenarios generator |
+| `backend/seed/generate_seed/runner.py` | Enabled all 10 modules |
+| `backend/seed/seed.sql` | Regenerated (19,097 lines) |
+
+### Next
+- v3 Session 6 (per v3_session_guides/Session_6_Guide.md)
 
 ## Phase A Details
 

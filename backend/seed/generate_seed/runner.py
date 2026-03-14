@@ -13,13 +13,12 @@ MODULES = [
     "s02_roles_rates",
     "s03_people",
     "s04_programs_projects",
-    # Future modules (uncomment as they are built):
-    # "s05_financials",
-    # "s06_allocations",
-    # "s07_change_requests",
-    # "s08_workflow",
-    # "s09_phases",
-    # "s10_scenarios",
+    "s05_financials",
+    "s06_allocations",
+    "s07_change_requests",
+    "s08_workflow",
+    "s09_phases",
+    "s10_scenarios",
 ]
 
 
