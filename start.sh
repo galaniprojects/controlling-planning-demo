@@ -6,6 +6,10 @@
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Load nvm if available (needed for npm)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -16,8 +20,7 @@ echo -e "${BLUE}Starting CRETA Demo App...${NC}"
 # Start backend
 echo -e "${GREEN}[1/3] Starting backend (FastAPI on port 8000)...${NC}"
 cd "$DIR/backend"
-source .venv/bin/activate
-python main.py &
+.venv/bin/python main.py &
 BACKEND_PID=$!
 
 # Wait for backend to be ready
@@ -31,7 +34,7 @@ done
 
 # Reset demo data
 echo -e "${GREEN}[2/3] Resetting demo data...${NC}"
-curl -s -X POST http://localhost:8000/api/admin/reset-demo | python -m json.tool
+curl -s -X POST http://localhost:8000/api/admin/reset-demo | "$DIR/backend/.venv/bin/python" -m json.tool
 
 # Start frontend
 echo -e "${GREEN}[3/3] Starting frontend (Vite on port 5173)...${NC}"
