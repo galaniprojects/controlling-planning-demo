@@ -1,162 +1,116 @@
 # CRETA Demo App — Setup Guide
 
-Step-by-step instructions to get the project running from scratch.
-
----
-
 ## Prerequisites
-
-Before you begin, make sure you have the following installed:
 
 | Tool | Required Version | Check Command | Install |
 |------|-----------------|---------------|---------|
-| **Git** | Any recent version | `git --version` | [git-scm.com](https://git-scm.com) |
-| **Python** | 3.12 or higher | `python3.12 --version` | `brew install python@3.12` or [python.org](https://python.org) |
-| **Node.js** | 20 LTS or higher | `node --version` | [nodejs.org](https://nodejs.org) (needed for frontend, Phase C+) |
+| **Python** | 3.12+ | `python3.12 --version` | `brew install python@3.12` or [python.org](https://python.org) |
+| **Node.js** | 20 LTS+ | `node --version` | [nodejs.org](https://nodejs.org) |
 
 ---
 
-## 1. Clone the Repository
+## Quick Start
 
 ```bash
 git clone https://github.com/bill-pap/vision-demo-prototype.git
 cd vision-demo-prototype
 ```
 
----
-
-## 2. Backend Setup
-
-### 2.1 Create a Python virtual environment
+### One-time setup
 
 ```bash
+# Backend
 cd backend
 python3.12 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
+# Frontend
+cd ../frontend
+npm install
 ```
 
-### 2.2 Activate the virtual environment
+### Run the app
 
-**macOS / Linux:**
+From the project root:
+
 ```bash
+./start.sh
+```
+
+This single script:
+1. Starts the backend (FastAPI on port 8000)
+2. Resets demo data to a clean state
+3. Starts the frontend (Vite on port 5173)
+
+Once running, open **http://localhost:5173** in your browser. Press `Ctrl+C` to stop both servers.
+
+---
+
+## Manual Start (alternative)
+
+If you prefer to run each server in a separate terminal:
+
+**Terminal 1 — Backend:**
+```bash
+cd backend
 source .venv/bin/activate
-```
-
-**Windows (PowerShell):**
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-You should see `(.venv)` at the beginning of your terminal prompt.
-
-### 2.3 Install Python dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2.4 Start the backend server
-
-```bash
 python main.py
+# Runs on http://localhost:8000
 ```
 
-The server will start on **http://localhost:8000**.
+**Terminal 2 — Frontend:**
+```bash
+cd frontend
+npm run dev
+# Runs on http://localhost:5173 (proxies /api/* to port 8000)
+```
 
-### 2.5 Verify it's working
+---
 
-Open your browser and go to:
-- **http://localhost:8000/health** — should show `{"status": "ok"}`
-- **http://localhost:8000/docs** — interactive API documentation (Swagger UI) — 90 endpoints across 8 groups
-- **http://localhost:8000/redoc** — alternative API documentation (ReDoc)
+## Demo Personas
 
-The database file (`creta_demo.db`) is created automatically on first startup with all demo data pre-loaded.
+The app includes 4 demo personas, selectable via the role switcher in the top right:
 
-> **Upgrading from v1:** If you have an existing `cpc_demo.db`, delete it and restart. The new `creta_demo.db` will be created automatically.
-
-### 2.6 Test with different personas
-
-All API requests require an `X-Current-User` header. Available personas:
-
-| Header Value | Name | Role | Access |
-|-------------|------|------|--------|
+| Persona | Name | Role | Access |
+|---------|------|------|--------|
 | `persona-controller` | Anna Meier | Controller | Full access (admin, approvals, scenarios) |
 | `persona-cc-owner` | Thomas Brenner | Cost Center Owner | Capacity management (cc-muc-appdev) |
 | `persona-pl` | Priya Sharma | Project Lead | Project workbench, forecast cycles |
 | `persona-exec` | Dr. Klaus Weber | Executive | Dashboard, scenarios (read-only) |
 
-Example with curl:
+For direct API access, pass the persona as a header:
 ```bash
 curl -H "X-Current-User: persona-controller" http://localhost:8000/api/portfolio/kpis
 ```
 
 ---
 
-## 3. Frontend Setup
+## Reset Demo Data
 
-### 3.1 Install Node.js dependencies
-
-```bash
-cd frontend
-npm install
-```
-
-### 3.2 Start the frontend dev server
-
-```bash
-npm run dev
-```
-
-The frontend will run on **http://localhost:5173**.
-
-It proxies all `/api/*` requests to the backend on port 8000, so **make sure the backend is running first**.
-
-### 3.3 Verify it's working
-
-Open **http://localhost:5173** in your browser. You should see:
-- The CRETA Launchpad with notifications and module tiles
-- A role switcher dropdown (top right) with 4 demo personas
-- Switching roles changes notifications and visible modules, and returns to the Launchpad
-
----
-
-## 4. Reset Demo Data
-
-If you've made changes through the app and want to restore the original demo state:
+Restore the original demo state at any time:
 
 ```bash
 curl -X POST http://localhost:8000/api/admin/reset-demo
 ```
 
-Or use the Swagger UI at http://localhost:8000/docs and find the `POST /api/admin/reset-demo` endpoint.
-
----
-
-## 5. Stopping the Server
-
-Press `Ctrl+C` in the terminal where the server is running.
-
-To deactivate the virtual environment:
-```bash
-deactivate
-```
+Or use the Swagger UI at http://localhost:8000/docs.
 
 ---
 
 ## Troubleshooting
 
 ### "python3.12: command not found"
-- Make sure Python 3.12 is installed: `brew install python@3.12`
-- Try the full path: `/usr/local/bin/python3.12`
+- Install via Homebrew: `brew install python@3.12`
+- Or check the full path: `/usr/local/bin/python3.12`
 
 ### "No module named 'fastapi'"
-- Make sure you activated the virtual environment: `source .venv/bin/activate`
-- Reinstall dependencies: `pip install -r requirements.txt`
+- Make sure you ran `.venv/bin/pip install -r requirements.txt`
+- If using `activate`, verify the venv is active (prompt shows `(.venv)`)
 
-### "Address already in use" when starting the server
-- Another process is using port 8000
-- Find it: `lsof -i :8000`
-- Kill it: `kill -9 <PID>` (replace `<PID>` with the process ID from the previous command)
+### "Address already in use"
+- Find the process: `lsof -i :8000` (or `:5173`)
+- Kill it: `kill <PID>`
 
 ### Database issues
-- Delete the database file and restart: `rm backend/creta_demo.db && python main.py`
-- Or use the reset endpoint: `curl -X POST http://localhost:8000/api/admin/reset-demo`
+- Delete and restart: `rm backend/creta_demo.db` then start the backend again
+- Or use the reset endpoint above
