@@ -17,7 +17,7 @@ import type { ForecastGridRow, ForecastChange, ForecastMonthCell, SuggestionItem
 import { useCollapsibleYears } from '@/hooks/useCollapsibleYears';
 import { ChevronRight } from 'lucide-react';
 
-const DEMO_DATE = '2026-02';
+const DEMO_DATE = '2026-03';
 
 interface Props {
   projectId: string;
@@ -86,7 +86,11 @@ export function Phase3EditForecast({
     years.add(currentYear);
     // Also expand the previous year if it has months within 4 months before demo date
     const prevYear = currentYear - 1;
-    const fourMonthsAgo = `${prevYear}-${String(parseInt(DEMO_DATE.slice(5, 7), 10) + 12 - 4).padStart(2, '0')}`;
+    const demoMonth = parseInt(DEMO_DATE.slice(5, 7), 10);
+    const backMonth = demoMonth - 4;
+    const fourMonthsAgo = backMonth > 0
+      ? `${prevYear}-${String(backMonth).padStart(2, '0')}`
+      : `${prevYear - 1}-${String(backMonth + 12).padStart(2, '0')}`;
     if (allMonths.some((m) => m.startsWith(String(prevYear)) && m >= fourMonthsAgo)) {
       years.add(prevYear);
     }
@@ -145,7 +149,7 @@ export function Phase3EditForecast({
     row: ForecastGridRow,
     month: string,
   ) => {
-    const cell = row.months.find((c) => c.month === month);
+    const cell = row.months?.find((c) => c.month === month);
     if (!cell) return <span className="text-slate-300">—</span>;
 
     const isInternal = category === 'internal';

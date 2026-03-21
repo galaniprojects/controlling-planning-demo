@@ -1,28 +1,56 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { DetailViewGrid } from '@/components/shared/DetailViewGrid';
+import { DetailViewKPIStrip } from '@/components/shared/DetailViewKPIStrip';
+import { Skeleton } from '@/components/shared/Skeleton';
 import { cn } from '@/lib/utils';
 import type { CRHistoryItem } from '@/types/api';
+import type { DetailViewGridData } from '@/lib/detailViewTypes';
 import { ChevronDown, Sparkles } from 'lucide-react';
 import { CRDetailModal } from './CRDetailModal';
+import { workbenchApi } from '@/api/endpoints';
 
 interface Props {
   items: CRHistoryItem[];
   projectId: string;
 }
 
+interface CRGridCache {
+  [crId: number]: { loading: boolean; data: DetailViewGridData | null };
+}
+
 export function CRHistoryList({ items, projectId }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [detailCrId, setDetailCrId] = useState<number | null>(null);
+  const [gridCache, setGridCache] = useState<CRGridCache>({});
+
+  // Fetch grid_data when a CR is expanded
+  useEffect(() => {
+    if (expandedId === null) return;
+    if (gridCache[expandedId]) return; // already fetched
+
+    setGridCache((prev) => ({
+      ...prev,
+      [expandedId]: { loading: true, data: null },
+    }));
+
+    workbenchApi
+      .getCRDetailView(projectId, expandedId)
+      .then((res) => {
+        setGridCache((prev) => ({
+          ...prev,
+          [expandedId]: { loading: false, data: (res as { grid_data: DetailViewGridData | null }).grid_data },
+        }));
+      })
+      .catch(() => {
+        setGridCache((prev) => ({
+          ...prev,
+          [expandedId]: { loading: false, data: null },
+        }));
+      });
+  }, [expandedId, projectId, gridCache]);
 
   if (items.length === 0) {
     return (
@@ -36,6 +64,7 @@ export function CRHistoryList({ items, projectId }: Props) {
     <div className="space-y-2">
       {items.map((cr) => {
         const isExpanded = expandedId === cr.id;
+        const cached = gridCache[cr.id];
         return (
           <div
             key={cr.id}
@@ -77,47 +106,27 @@ export function CRHistoryList({ items, projectId }: Props) {
             {/* Expanded detail */}
             {isExpanded && (
               <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 space-y-3">
-                {/* Changes table */}
-                {cr.changes.length > 0 && (
-                  <div>
-                    <h5 className="text-xs font-medium text-slate-500 mb-1">
-                      Changes
-                    </h5>
-                    <div className="border border-slate-200 rounded overflow-hidden bg-white">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Field</TableHead>
-                            <TableHead>Month</TableHead>
-                            <TableHead className="text-right">Old</TableHead>
-                            <TableHead className="text-right">New</TableHead>
-                            <TableHead className="text-right">Delta</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {cr.changes.map((ch, i) => (
-                            <TableRow key={i}>
-                              <TableCell className="text-sm">
-                                {ch.field}
-                              </TableCell>
-                              <TableCell className="text-sm">
-                                {ch.month || '—'}
-                              </TableCell>
-                              <TableCell className="text-right text-sm">
-                                {ch.old || '—'}
-                              </TableCell>
-                              <TableCell className="text-right text-sm font-medium">
-                                {ch.new || '—'}
-                              </TableCell>
-                              <TableCell className="text-right text-sm">
-                                {ch.delta || '—'}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                {/* Grid data or loading */}
+                {cached?.loading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-32 w-full" />
                   </div>
+                ) : cached?.data ? (
+                  <div className="space-y-2">
+                    <DetailViewGrid
+                      lineItems={cached.data.line_items}
+                      months={cached.data.months}
+                      cellPattern="comparison"
+                    />
+                    {cached.data.kpis && (
+                      <DetailViewKPIStrip kpis={cached.data.kpis} />
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-400">
+                    No detailed grid data available for this change request.
+                  </p>
                 )}
 
                 {/* Justification */}

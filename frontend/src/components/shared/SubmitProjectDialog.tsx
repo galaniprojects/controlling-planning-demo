@@ -30,7 +30,6 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
   const [lobId, setLobId] = useState('');
   const [startMonth, setStartMonth] = useState('2026-04');
   const [endMonth, setEndMonth] = useState('2027-03');
-  const [capexOpex, setCapexOpex] = useState('capex');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ id: string; name: string } | null>(null);
 
@@ -46,7 +45,6 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
     setLobId('');
     setStartMonth('2026-04');
     setEndMonth('2027-03');
-    setCapexOpex('capex');
     setResult(null);
   }
 
@@ -60,7 +58,6 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
         lob_id: lobId,
         start_month: startMonth,
         end_month: endMonth || undefined,
-        capex_opex: capexOpex,
       });
       await launchpadApi.submitProject(created.id);
       setResult({ id: created.id, name: created.name });
@@ -160,19 +157,6 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
                 onChange={(e) => setEndMonth(e.target.value)}
               />
             </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700">Cost Classification</label>
-            <Select value={capexOpex} onValueChange={setCapexOpex}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="capex">CapEx</SelectItem>
-                <SelectItem value="opex">OpEx</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="flex gap-2 pt-2">

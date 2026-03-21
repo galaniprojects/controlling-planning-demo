@@ -76,7 +76,7 @@ export function ForecastGrid({ projectId }: Props) {
   function renderYearHeaders() {
     return (
       <TableRow className="bg-slate-50">
-        <TableHead className="sticky left-0 bg-slate-50 min-w-[180px]" rowSpan={2}>
+        <TableHead className="sticky left-0 bg-slate-50 min-w-[180px] z-10" rowSpan={2}>
           Line Item
         </TableHead>
         {yearGroups.map((g) => (
@@ -122,14 +122,17 @@ export function ForecastGrid({ projectId }: Props) {
 
   function renderInternalCell(row: ForecastGridRow, col: VisibleColumn) {
     if (col.type === 'yearSummary') {
-      const total = sumCells(row, col.months, 'forecast_hours');
-      const blTotal = sumCells(row, col.months, 'baseline_hours');
+      const totalHours = sumCells(row, col.months, 'forecast_hours');
+      const blTotalHours = sumCells(row, col.months, 'baseline_hours');
+      const totalEur = sumCells(row, col.months, 'forecast_amount');
       return (
         <TableCell key={`sum-${col.year}`} className="text-right border-l-2 border-slate-300">
           <div>
-            <span className="font-tabular font-medium">{formatNumber(total)}</span>
+            <span className="font-tabular font-medium">
+              {formatNumber(totalHours)}h / {formatCurrency(totalEur)}
+            </span>
             <span className="block text-[10px] text-slate-400 font-tabular">
-              BL: {formatNumber(blTotal)}
+              BL: {formatNumber(blTotalHours)}h
             </span>
           </div>
         </TableCell>
@@ -145,14 +148,14 @@ export function ForecastGrid({ projectId }: Props) {
         {cell ? (
           <div>
             <span className="font-tabular font-medium">
-              {formatNumber(cell.forecast_hours)}
+              {formatNumber(cell.forecast_hours)}h / {formatCurrency(cell.forecast_amount)}
             </span>
             <span className="block text-[10px] text-slate-400 font-tabular">
-              BL: {formatNumber(cell.baseline_hours)}
+              BL: {formatNumber(cell.baseline_hours)}h
             </span>
             {cell.actuals_hours > 0 && (
               <span className="block text-[10px] text-slate-400 font-tabular">
-                Act: {formatNumber(cell.actuals_hours)}
+                Act: {formatNumber(cell.actuals_hours)}h / {formatCurrency(cell.actuals_amount)}
               </span>
             )}
           </div>
@@ -222,12 +225,12 @@ export function ForecastGrid({ projectId }: Props) {
                   colSpan={visibleColumns.length + 1}
                   className="font-medium text-xs text-slate-500 uppercase tracking-wide"
                 >
-                  Internal Resources (Hours)
+                  Internal Resources (Hours / EUR)
                 </TableCell>
               </TableRow>
               {internalRows.map((row) => (
                 <TableRow key={row.sub_category}>
-                  <TableCell className="sticky left-0 bg-white font-medium text-sm">
+                  <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
                     <div className="flex items-center gap-1.5">
                       {row.sub_category_name}
                       {row.capex_opex && (
@@ -256,7 +259,7 @@ export function ForecastGrid({ projectId }: Props) {
               </TableRow>
               {externalRows.map((row) => (
                 <TableRow key={row.sub_category}>
-                  <TableCell className="sticky left-0 bg-white font-medium text-sm">
+                  <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
                     <div className="flex items-center gap-1.5">
                       {row.sub_category_name}
                       {row.capex_opex && (
