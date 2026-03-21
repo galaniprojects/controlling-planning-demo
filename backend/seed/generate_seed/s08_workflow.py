@@ -14,7 +14,7 @@ def generate() -> str:
     # Priya (PL) — p-sharma
     # Thomas (CC Owner) — p-brenner
     # Anna (Controller) — p-meier
-    # Attila (Executive) — p-biber
+    # Thomas (Executive) — p-richter
     parts.append("""
 -- Notifications
 INSERT INTO notifications (user_person_id, message, severity, deep_link_module, deep_link_entity_id, is_read, created_at) VALUES
@@ -34,9 +34,9 @@ INSERT INTO notifications (user_person_id, message, severity, deep_link_module, 
 ('p-meier', 'CR pending approval: CR #19 for IAM Overhaul is ready for your review', 'action', 'portfolio', 'proj-iam', 0, '2026-03-04 11:00:00'),
 ('p-meier', 'New project pending review: Autonomous Braking Prototype submitted for approval', 'action', 'portfolio', 'proj-autobrake', 0, '2026-02-28 10:00:00'),
 ('p-meier', 'Forecast overdue: ERP Integration Phase 2 — February 2026 forecast has not been submitted by Project Lead', 'info', 'workbench', 'proj-erp2', 0, '2026-03-01 08:00:00'),
--- Attila (Executive) notifications
-('p-biber', 'Scenario published: Budget Pressure: 15% Reduction has been published by Anna Meier', 'info', 'whatif', NULL, 0, '2026-03-07 10:00:00'),
-('p-biber', 'Scenario published: Conservative: Freeze New Starts has been published by you', 'info', 'whatif', NULL, 1, '2026-03-01 09:00:00');""")
+-- Thomas (Executive) notifications
+('p-richter', 'Scenario published: Budget Pressure: 15% Reduction has been published by Anna Meier', 'info', 'whatif', NULL, 0, '2026-03-07 10:00:00'),
+('p-richter', 'Scenario published: Conservative: Freeze New Starts has been published by you', 'info', 'whatif', NULL, 1, '2026-03-01 09:00:00');""")
 
     # --- System Suggestions ---
     parts.append("""
@@ -55,7 +55,7 @@ INSERT INTO audit_log (timestamp, user_person_id, entity_type, entity_id, entity
 ('2026-02-20 10:00:00', 'p-sharma', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'create', NULL, NULL, NULL),
 ('2026-02-25 14:00:00', 'p-meier', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'update', 'status', 'pending_controller_approval', 'sent_back_by_controller'),
 ('2026-02-28 10:00:00', 'p-sharma', 'project', 'proj-autobrake', 'Autonomous Braking Prototype', 'create', NULL, NULL, NULL),
-('2026-03-01 09:00:00', 'p-biber', 'scenario', '3', 'Conservative: Freeze New Starts', 'update', 'status', 'private', 'published'),
+('2026-03-01 09:00:00', 'p-richter', 'scenario', '3', 'Conservative: Freeze New Starts', 'update', 'status', 'private', 'published'),
 ('2026-03-02 11:00:00', 'p-brenner', 'change_request', '12', 'CR #12 - SAP S/4HANA Migration', 'update', 'cc_status', 'pending', 'confirmed'),
 ('2026-03-04 11:00:00', 'p-brenner', 'change_request', '19', 'CR #19 - IAM Overhaul', 'update', 'cc_status', 'pending', 'confirmed'),
 ('2026-03-05 09:00:00', 'p-sharma', 'change_request', '9', 'CR #9 - ERP Integration Phase 2', 'create', NULL, NULL, NULL),
