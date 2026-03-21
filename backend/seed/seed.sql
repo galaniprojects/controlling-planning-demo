@@ -168,7 +168,7 @@ INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_a
 INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
 ('p-sharma', 'Priya Sharma', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('p-meier', 'Anna Meier', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-richter', 'Thomas Richter', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('p-becker', 'Thomas Becker', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-pun-apd
 INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
@@ -200,7 +200,7 @@ INSERT INTO demo_personas (id, person_id, role, display_name, title, default_mod
 ('persona-controller', 'p-meier', 'controller', 'Anna Meier', 'IT Controller', 'portfolio', NULL, NULL),
 ('persona-cc-owner', 'p-brenner', 'cost_center_owner', 'Thomas Brenner', 'Head of Application Development', 'capacity', 'cc-muc-apd', NULL),
 ('persona-pl', 'p-sharma', 'project_lead', 'Priya Sharma', 'Senior Project Lead', 'workbench', NULL, '["proj-erp2","proj-sensor","proj-predmaint","proj-fleet","proj-autobrake"]'),
-('persona-exec', 'p-richter', 'executive', 'Thomas Richter', 'VP IT Strategy & Governance', 'portfolio', NULL, NULL);
+('persona-exec', 'p-becker', 'executive', 'Thomas Becker', 'VP IT Strategy & Governance', 'portfolio', NULL, NULL);
 
 -- =============================================================================
 -- 10. Programmes
@@ -18911,9 +18911,9 @@ INSERT INTO notifications (user_person_id, message, severity, deep_link_module, 
 ('p-meier', 'CR pending approval: CR #19 for IAM Overhaul is ready for your review', 'action', 'portfolio', 'proj-iam', 0, '2026-03-04 11:00:00'),
 ('p-meier', 'New project pending review: Autonomous Braking Prototype submitted for approval', 'action', 'portfolio', 'proj-autobrake', 0, '2026-02-28 10:00:00'),
 ('p-meier', 'Forecast overdue: ERP Integration Phase 2 — February 2026 forecast has not been submitted by Project Lead', 'info', 'workbench', 'proj-erp2', 0, '2026-03-01 08:00:00'),
--- Thomas (Executive) notifications
-('p-richter', 'Scenario published: Budget Pressure: 15% Reduction has been published by Anna Meier', 'info', 'whatif', NULL, 0, '2026-03-07 10:00:00'),
-('p-richter', 'Scenario published: Conservative: Freeze New Starts has been published by you', 'info', 'whatif', NULL, 1, '2026-03-01 09:00:00');
+-- Thomas Becker (Executive) notifications
+('p-becker', 'Scenario published: Budget Pressure: 15% Reduction has been published by Anna Meier', 'info', 'whatif', NULL, 0, '2026-03-07 10:00:00'),
+('p-becker', 'Scenario published: Conservative: Freeze New Starts has been published by you', 'info', 'whatif', NULL, 1, '2026-03-01 09:00:00');
 
 -- System Suggestions
 INSERT INTO system_suggestions (project_id, suggestion_type, observation, recommendation, impact_description, pre_filled_changes_json, created_at) VALUES
@@ -18928,7 +18928,7 @@ INSERT INTO audit_log (timestamp, user_person_id, entity_type, entity_id, entity
 ('2026-02-20 10:00:00', 'p-sharma', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'create', NULL, NULL, NULL),
 ('2026-02-25 14:00:00', 'p-meier', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'update', 'status', 'pending_controller_approval', 'sent_back_by_controller'),
 ('2026-02-28 10:00:00', 'p-sharma', 'project', 'proj-autobrake', 'Autonomous Braking Prototype', 'create', NULL, NULL, NULL),
-('2026-03-01 09:00:00', 'p-richter', 'scenario', '3', 'Conservative: Freeze New Starts', 'update', 'status', 'private', 'published'),
+('2026-03-01 09:00:00', 'p-becker', 'scenario', '3', 'Conservative: Freeze New Starts', 'update', 'status', 'private', 'published'),
 ('2026-03-02 11:00:00', 'p-brenner', 'change_request', '12', 'CR #12 - SAP S/4HANA Migration', 'update', 'cc_status', 'pending', 'confirmed'),
 ('2026-03-04 11:00:00', 'p-brenner', 'change_request', '19', 'CR #19 - IAM Overhaul', 'update', 'cc_status', 'pending', 'confirmed'),
 ('2026-03-05 09:00:00', 'p-sharma', 'change_request', '9', 'CR #9 - ERP Integration Phase 2', 'create', NULL, NULL, NULL),
@@ -18979,7 +18979,7 @@ INSERT INTO project_phases (project_id, phase_number, name, baseline_start, base
 INSERT INTO scenarios (id, name, description, author_id, status, headline_impact, created_at, modified_at) VALUES
 (1, 'Budget Pressure: 15% Reduction', 'Targeted budget cuts to achieve 15% reduction across portfolio. Prioritizes deferral of new initiatives and reduction of external consulting spend.', 'p-meier', 'published', '{"total_budget_delta": -502000, "action_count": 4}', '2026-03-07 10:00:00', '2026-03-07 10:00:00'),
 (2, 'Accelerate Digital & Data', 'Invest in data capabilities by accelerating Digital & Data initiatives. Increases headcount in DDA competence centre.', 'p-meier', 'private', '{"total_budget_delta": 490000, "action_count": 4}', '2026-03-10 14:00:00', '2026-03-10 14:00:00'),
-(3, 'Conservative: Freeze New Starts', 'Freeze all planned future projects and reduce intake pipeline. Models 5% rate escalation for 2027 to assess long-term cost pressure.', 'p-richter', 'published', '{"total_budget_delta": -2780000, "action_count": 5}', '2026-03-01 09:00:00', '2026-03-01 09:00:00');
+(3, 'Conservative: Freeze New Starts', 'Freeze all planned future projects and reduce intake pipeline. Models 5% rate escalation for 2027 to assess long-term cost pressure.', 'p-becker', 'published', '{"total_budget_delta": -2780000, "action_count": 5}', '2026-03-01 09:00:00', '2026-03-01 09:00:00');
 
 INSERT INTO scenario_actions (id, scenario_id, action_order, scope, action_type, project_id, parameters_json, impact_delta_json, group_label, created_at) VALUES
 (1, 1, 1, 'project', 'delay_project', 'proj-connveh', '{"delay_months": 6}', '{"budget_delta": -180000}', 'Defer new starts', '2026-03-07 10:00:00'),
