@@ -385,7 +385,7 @@ function renderIntakeCell(mv: DetailViewMonthValue | undefined, unit: 'hours' | 
   if (!mv || mv.proposed === 0) {
     return <span className="text-slate-300">—</span>;
   }
-  return <span className="text-slate-700">{fmtPrimary(mv.proposed, unit)}</span>;
+  return <span className="text-slate-700">{fmtWithEur(mv.proposed, mv.proposed_eur, unit)}</span>;
 }
 
 function renderComparisonYearSummary(
@@ -425,10 +425,14 @@ function renderIntakeYearSummary(
   unit: 'hours' | 'eur',
 ) {
   let total = 0;
+  let totalEur = 0;
   for (const m of yearMonths) {
     const mv = monthMap.get(m);
-    if (mv) total += mv.proposed;
+    if (mv) {
+      total += mv.proposed;
+      totalEur += mv.proposed_eur;
+    }
   }
   if (total === 0) return <span className="text-slate-300">—</span>;
-  return <span className="text-slate-700">{fmtPrimary(total, unit)}</span>;
+  return <span className="text-slate-700">{fmtWithEur(total, totalEur, unit)}</span>;
 }

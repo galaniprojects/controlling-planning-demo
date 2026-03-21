@@ -1,9 +1,47 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v3 Session 6 (complete)
-Last completed: v3 Session 6 — End-to-End Verification & Polish
-Branch: `v3/session-6-verification`
+Phase: v4 Session 1 (complete)
+Last completed: v4 Session 1 — Critical Bug Fixes (17 items)
+Branch: `v4/session-1-critical-bug-fixes`
+Next: v4 Session 2 — UX Refinements
+
+## v4 Session 1 — Critical Bug Fixes (2026-03-21)
+
+### Completed Items
+- [x] GEN-01: Anonymized "Attila Biber" → "Thomas Becker" (p-becker) across all seed data
+- [x] WB-01: TODAY label now visible — increased chart margin-top to 24px, chart height to 280px
+- [x] WB-02: Timeline chart contained within component — overflow-hidden, removed minWidth:'100%'
+- [x] WB-06: Internal resources show hours + euros (format: "120h / €14.400") in FC&Planning grid
+- [x] WB-07: Line item column stays fixed during horizontal scroll (added z-10 to sticky cells)
+- [x] WB-10: Phase 3 crash fixed — DEMO_DATE corrected to '2026-03', null guard on row.months, safe month arithmetic
+- [x] WB-11: Change history now shows tabular DetailViewGrid (fetched on expand) instead of flat table
+- [x] WB-12: Removed CapEx/OpEx toggle from project submission form
+- [x] WB-13: Submit for approval now works — create_project generates Forecast rows from resource plan (or defaults)
+- [x] PO-06: Intake detail shows euros alongside hours for internal resources (uses fmtWithEur)
+- [x] PO-08: Approval generates correct baseline from actual forecast data (not hardcoded)
+- [x] PO-10: CR Approvals detail panel uses DetailViewGrid when grid_data available (with fallback)
+- [x] SIM-01: All 12 scenario action types verified working (7 project + 5 portfolio) — already implemented
+- [x] SIM-02: Rate escalation action verified working with scope/percentage/effective-date — already implemented
+- [x] RPT-01: Year selector expanded to FY 2021–2029 with "All Years (Lifetime)" option in all 5 reports
+- [x] RPT-02: Clearing year filter now shows lifetime totals (fixed all 4 report service functions)
+- [x] RPT-06: Forecast accuracy report populated with 117 snapshot rows across 13 projects (2025-06 to 2026-02)
+
+### Verification Results
+- [x] Database search for "Attila Biber" / "p-biber" returns zero results
+- [x] Timeline chart: TODAY badge visible, chart scrolls independently, app viewport unchanged
+- [x] FC&Planning grid: internal resource cells show "Xh / €Y" format. Line item column stays fixed on scroll
+- [x] Forecast data loads for Phase 3 (11 line items, months arrays non-null)
+- [x] No CapEx/OpEx toggle on project submission form
+- [x] Submit for approval works: project created with forecasts, submitted (pending_approval), approved (active) with correct baseline
+- [x] What-If Simulator: all 12 action types execute successfully via API
+- [x] Programme Rollup: lifetime totals (€21.6M) vs FY2026 (€5.7M) — year filter working correctly
+- [x] Forecast Accuracy report: 13 rows populated with historical snapshot data
+
+### Issues / Notes
+- SIM-01 and SIM-02 were already fully implemented in v3 — no code changes needed, just verified
+- GEN-01: Had to use "Thomas Becker" (p-becker) instead of "Thomas Richter" (p-richter) due to existing person with that ID
+- WB-11 display side fixed; seed data consistency for CRs deferred to Session 6 per implementation guide
 
 ## Completed
 - [x] Repository initialized with spec documents, .gitignore, CLAUDE.md, SETUP.md

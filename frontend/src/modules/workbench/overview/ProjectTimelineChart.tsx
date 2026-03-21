@@ -87,11 +87,11 @@ export function ProjectTimelineChart({ data }: Props) {
         </div>
 
         <div className="border border-slate-200 rounded-lg bg-white overflow-hidden">
-          <div className="flex">
+          <div className="flex overflow-hidden">
             {/* Fixed Y-axis */}
             <div className="shrink-0 w-16 border-r border-slate-100">
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={data.monthly_data} margin={{ top: 8, right: 0, left: 0, bottom: 24 }}>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={data.monthly_data} margin={{ top: 24, right: 0, left: 0, bottom: 24 }}>
                   <YAxis
                     tick={{ fontSize: 10, fill: '#64748b' }}
                     axisLine={false}
@@ -104,12 +104,12 @@ export function ProjectTimelineChart({ data }: Props) {
             </div>
 
             {/* Scrollable chart area */}
-            <div ref={scrollRef} className="overflow-x-auto flex-1">
-              <div style={{ width: chartWidth, minWidth: '100%' }}>
-                <ResponsiveContainer width="100%" height={260}>
+            <div ref={scrollRef} className="overflow-x-auto flex-1 min-w-0">
+              <div style={{ width: chartWidth }}>
+                <ResponsiveContainer width="100%" height={280}>
                   <BarChart
                     data={data.monthly_data}
-                    margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
+                    margin={{ top: 24, right: 16, left: 0, bottom: 0 }}
                     barGap={1}
                     barSize={14}
                   >
@@ -238,7 +238,7 @@ export function ProjectTimelineChart({ data }: Props) {
         <ResponsiveContainer width="100%" height={280}>
           <LineChart
             data={data.cumulative_data}
-            margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
+            margin={{ top: 24, right: 16, left: 0, bottom: 0 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis

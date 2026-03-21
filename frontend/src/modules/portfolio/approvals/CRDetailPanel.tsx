@@ -11,6 +11,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { DetailViewGrid } from '@/components/shared/DetailViewGrid';
+import { DetailViewKPIStrip } from '@/components/shared/DetailViewKPIStrip';
 import { Separator } from '@/components/ui/separator';
 import { portfolioApi } from '@/api/endpoints';
 import type { CRDetail } from '@/types/api';
@@ -145,8 +147,20 @@ export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
 
       <Separator />
 
-      {/* Changes Table */}
-      {data.changes.length > 0 && (
+      {/* Changes — tabular detail view grid */}
+      {data.grid_data ? (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-slate-500">Changes</p>
+          <DetailViewGrid
+            lineItems={data.grid_data.line_items}
+            months={data.grid_data.months}
+            cellPattern="comparison"
+          />
+          {data.grid_data.kpis && (
+            <DetailViewKPIStrip kpis={data.grid_data.kpis} />
+          )}
+        </div>
+      ) : data.changes.length > 0 && (
         <div>
           <p className="text-xs font-medium text-slate-500 mb-2">Changes</p>
           <div className="rounded-md border border-slate-200 overflow-auto">

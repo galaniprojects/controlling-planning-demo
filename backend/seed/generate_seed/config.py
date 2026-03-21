@@ -241,7 +241,7 @@ PEOPLE = [
     # --- MUC / INF (5) ---
     {"id": "p-wagner",    "name": "Michael Wagner",     "role": "role-cloud",    "cc": "cc-muc-inf"},
     {"id": "p-braun",     "name": "Stefan Braun",       "role": "role-cloud",    "cc": "cc-muc-inf"},
-    {"id": "p-richter",   "name": "Katharina Richter",  "role": "role-sysadmin", "cc": "cc-muc-inf"},
+    {"id": "p-becker",   "name": "Katharina Richter",  "role": "role-sysadmin", "cc": "cc-muc-inf"},
     {"id": "p-frank",     "name": "Andreas Frank",      "role": "role-network",  "cc": "cc-muc-inf"},
     {"id": "p-jung",      "name": "Sabine Jung",        "role": "role-qa",       "cc": "cc-muc-apd"},  # QA #1 MUC
 
@@ -301,7 +301,7 @@ PEOPLE = [
 
     # --- Portfolio-level personas (no CC) ---
     {"id": "p-meier",     "name": "Anna Meier",         "role": "role-sr-arch",  "cc": None},          # Controller
-    {"id": "p-biber",     "name": "Attila Biber",       "role": "role-sr-arch",  "cc": None},          # Executive
+    {"id": "p-becker",     "name": "Thomas Becker",       "role": "role-sr-arch",  "cc": None},          # Executive
 ]
 
 # Demo personas mapping
@@ -309,7 +309,7 @@ DEMO_PERSONAS = [
     {"id": "persona-controller", "person_id": "p-meier",   "role": "controller",        "display_name": "Anna Meier",     "title": "IT Controller",                     "default_module": "portfolio", "managed_cc": None,        "owned_projects": None},
     {"id": "persona-cc-owner",   "person_id": "p-brenner", "role": "cost_center_owner",  "display_name": "Thomas Brenner", "title": "Head of Application Development",   "default_module": "capacity",  "managed_cc": "cc-muc-apd","owned_projects": None},
     {"id": "persona-pl",         "person_id": "p-sharma",  "role": "project_lead",       "display_name": "Priya Sharma",   "title": "Senior Project Lead",               "default_module": "workbench", "managed_cc": None,        "owned_projects": '["proj-erp2","proj-sensor","proj-predmaint","proj-fleet","proj-autobrake"]'},
-    {"id": "persona-exec",       "person_id": "p-biber",   "role": "executive",          "display_name": "Attila Biber",   "title": "VP IT Strategy & Governance",       "default_module": "portfolio", "managed_cc": None,        "owned_projects": None},
+    {"id": "persona-exec",       "person_id": "p-becker",   "role": "executive",          "display_name": "Thomas Becker",   "title": "VP IT Strategy & Governance",       "default_module": "portfolio", "managed_cc": None,        "owned_projects": None},
 ]
 
 # ---------------------------------------------------------------------------
@@ -770,9 +770,9 @@ ASSIGNMENTS = [
     ("p-braun",   "proj-cloud3",    60,  "2025-01", "2026-06", {}),
     ("p-braun",   "proj-iam",       30,  "2025-01", "2026-09", {}),
 
-    # p-richter (SysAdmin): netsec + euc
-    ("p-richter", "svc-netsec",     60,  "2024-01", "2026-12", {}),
-    ("p-richter", "svc-euc",        40,  "2024-01", "2026-12", {}),
+    # p-becker (SysAdmin): netsec + euc
+    ("p-becker", "svc-netsec",     60,  "2024-01", "2026-12", {}),
+    ("p-becker", "svc-euc",        40,  "2024-01", "2026-12", {}),
 
     # p-frank (Network): iam + netsec
     ("p-frank",   "proj-iam",       40,  "2025-01", "2026-09", {}),
@@ -1171,7 +1171,7 @@ SCENARIO_DEFS = [
         ],
     },
     {
-        "id": 3, "name": "Conservative: Freeze New Starts", "status": "published", "author": "p-biber",
+        "id": 3, "name": "Conservative: Freeze New Starts", "status": "published", "author": "p-becker",
         "description": "Freeze all planned future projects and reduce intake pipeline. Models 5% rate escalation for 2027 to assess long-term cost pressure.",
         "created": "2026-03-01 09:00:00",
         "actions": [

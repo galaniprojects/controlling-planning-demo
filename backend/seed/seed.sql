@@ -168,7 +168,7 @@ INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_a
 INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
 ('p-sharma', 'Priya Sharma', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('p-meier', 'Anna Meier', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-biber', 'Attila Biber', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('p-becker', 'Thomas Becker', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-pun-apd
 INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
@@ -200,7 +200,7 @@ INSERT INTO demo_personas (id, person_id, role, display_name, title, default_mod
 ('persona-controller', 'p-meier', 'controller', 'Anna Meier', 'IT Controller', 'portfolio', NULL, NULL),
 ('persona-cc-owner', 'p-brenner', 'cost_center_owner', 'Thomas Brenner', 'Head of Application Development', 'capacity', 'cc-muc-apd', NULL),
 ('persona-pl', 'p-sharma', 'project_lead', 'Priya Sharma', 'Senior Project Lead', 'workbench', NULL, '["proj-erp2","proj-sensor","proj-predmaint","proj-fleet","proj-autobrake"]'),
-('persona-exec', 'p-biber', 'executive', 'Attila Biber', 'VP IT Strategy & Governance', 'portfolio', NULL, NULL);
+('persona-exec', 'p-becker', 'executive', 'Thomas Becker', 'VP IT Strategy & Governance', 'portfolio', NULL, NULL);
 
 -- =============================================================================
 -- 10. Programmes
@@ -18911,9 +18911,9 @@ INSERT INTO notifications (user_person_id, message, severity, deep_link_module, 
 ('p-meier', 'CR pending approval: CR #19 for IAM Overhaul is ready for your review', 'action', 'portfolio', 'proj-iam', 0, '2026-03-04 11:00:00'),
 ('p-meier', 'New project pending review: Autonomous Braking Prototype submitted for approval', 'action', 'portfolio', 'proj-autobrake', 0, '2026-02-28 10:00:00'),
 ('p-meier', 'Forecast overdue: ERP Integration Phase 2 — February 2026 forecast has not been submitted by Project Lead', 'info', 'workbench', 'proj-erp2', 0, '2026-03-01 08:00:00'),
--- Attila (Executive) notifications
-('p-biber', 'Scenario published: Budget Pressure: 15% Reduction has been published by Anna Meier', 'info', 'whatif', NULL, 0, '2026-03-07 10:00:00'),
-('p-biber', 'Scenario published: Conservative: Freeze New Starts has been published by you', 'info', 'whatif', NULL, 1, '2026-03-01 09:00:00');
+-- Thomas Becker (Executive) notifications
+('p-becker', 'Scenario published: Budget Pressure: 15% Reduction has been published by Anna Meier', 'info', 'whatif', NULL, 0, '2026-03-07 10:00:00'),
+('p-becker', 'Scenario published: Conservative: Freeze New Starts has been published by you', 'info', 'whatif', NULL, 1, '2026-03-01 09:00:00');
 
 -- System Suggestions
 INSERT INTO system_suggestions (project_id, suggestion_type, observation, recommendation, impact_description, pre_filled_changes_json, created_at) VALUES
@@ -18928,7 +18928,7 @@ INSERT INTO audit_log (timestamp, user_person_id, entity_type, entity_id, entity
 ('2026-02-20 10:00:00', 'p-sharma', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'create', NULL, NULL, NULL),
 ('2026-02-25 14:00:00', 'p-meier', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'update', 'status', 'pending_controller_approval', 'sent_back_by_controller'),
 ('2026-02-28 10:00:00', 'p-sharma', 'project', 'proj-autobrake', 'Autonomous Braking Prototype', 'create', NULL, NULL, NULL),
-('2026-03-01 09:00:00', 'p-biber', 'scenario', '3', 'Conservative: Freeze New Starts', 'update', 'status', 'private', 'published'),
+('2026-03-01 09:00:00', 'p-becker', 'scenario', '3', 'Conservative: Freeze New Starts', 'update', 'status', 'private', 'published'),
 ('2026-03-02 11:00:00', 'p-brenner', 'change_request', '12', 'CR #12 - SAP S/4HANA Migration', 'update', 'cc_status', 'pending', 'confirmed'),
 ('2026-03-04 11:00:00', 'p-brenner', 'change_request', '19', 'CR #19 - IAM Overhaul', 'update', 'cc_status', 'pending', 'confirmed'),
 ('2026-03-05 09:00:00', 'p-sharma', 'change_request', '9', 'CR #9 - ERP Integration Phase 2', 'create', NULL, NULL, NULL),
@@ -18979,7 +18979,7 @@ INSERT INTO project_phases (project_id, phase_number, name, baseline_start, base
 INSERT INTO scenarios (id, name, description, author_id, status, headline_impact, created_at, modified_at) VALUES
 (1, 'Budget Pressure: 15% Reduction', 'Targeted budget cuts to achieve 15% reduction across portfolio. Prioritizes deferral of new initiatives and reduction of external consulting spend.', 'p-meier', 'published', '{"total_budget_delta": -502000, "action_count": 4}', '2026-03-07 10:00:00', '2026-03-07 10:00:00'),
 (2, 'Accelerate Digital & Data', 'Invest in data capabilities by accelerating Digital & Data initiatives. Increases headcount in DDA competence centre.', 'p-meier', 'private', '{"total_budget_delta": 490000, "action_count": 4}', '2026-03-10 14:00:00', '2026-03-10 14:00:00'),
-(3, 'Conservative: Freeze New Starts', 'Freeze all planned future projects and reduce intake pipeline. Models 5% rate escalation for 2027 to assess long-term cost pressure.', 'p-biber', 'published', '{"total_budget_delta": -2780000, "action_count": 5}', '2026-03-01 09:00:00', '2026-03-01 09:00:00');
+(3, 'Conservative: Freeze New Starts', 'Freeze all planned future projects and reduce intake pipeline. Models 5% rate escalation for 2027 to assess long-term cost pressure.', 'p-becker', 'published', '{"total_budget_delta": -2780000, "action_count": 5}', '2026-03-01 09:00:00', '2026-03-01 09:00:00');
 
 INSERT INTO scenario_actions (id, scenario_id, action_order, scope, action_type, project_id, parameters_json, impact_delta_json, group_label, created_at) VALUES
 (1, 1, 1, 'project', 'delay_project', 'proj-connveh', '{"delay_months": 6}', '{"budget_delta": -180000}', 'Defer new starts', '2026-03-07 10:00:00'),
@@ -19094,3 +19094,139 @@ INSERT INTO scenario_capacity_impacts (scenario_id, cost_center_id, month, origi
 (3, 'cc-pun-apd', '2026-07', 82.0, 72.0, -0.40),
 (3, 'cc-pun-apd', '2026-08', 82.0, 72.0, -0.40),
 (3, 'cc-pun-apd', '2026-09', 82.0, 72.0, -0.40);
+
+-- =============================================
+-- Forecast Snapshots (RPT-06)
+-- Historical point-in-time forecast captures for Forecast Accuracy report
+-- =============================================
+INSERT INTO forecast_snapshots (project_id, snapshot_month, forecast_total) VALUES
+-- proj-erp2: ERP Integration Phase 2 (budget: 1,200,000)
+('proj-erp2', '2025-06', 1150000.00),
+('proj-erp2', '2025-07', 1160000.00),
+('proj-erp2', '2025-08', 1175000.00),
+('proj-erp2', '2025-09', 1180000.00),
+('proj-erp2', '2025-10', 1195000.00),
+('proj-erp2', '2025-11', 1200000.00),
+('proj-erp2', '2025-12', 1210000.00),
+('proj-erp2', '2026-01', 1220000.00),
+('proj-erp2', '2026-02', 1230000.00),
+-- proj-sap: SAP S/4HANA Migration (budget: 4,500,000)
+('proj-sap', '2025-06', 4350000.00),
+('proj-sap', '2025-07', 4380000.00),
+('proj-sap', '2025-08', 4400000.00),
+('proj-sap', '2025-09', 4420000.00),
+('proj-sap', '2025-10', 4450000.00),
+('proj-sap', '2025-11', 4470000.00),
+('proj-sap', '2025-12', 4480000.00),
+('proj-sap', '2026-01', 4490000.00),
+('proj-sap', '2026-02', 4500000.00),
+-- proj-brake: Brake Control Unit Refresh (budget: 250,000)
+('proj-brake', '2025-06', 240000.00),
+('proj-brake', '2025-07', 242000.00),
+('proj-brake', '2025-08', 243000.00),
+('proj-brake', '2025-09', 245000.00),
+('proj-brake', '2025-10', 247000.00),
+('proj-brake', '2025-11', 248000.00),
+('proj-brake', '2025-12', 249000.00),
+('proj-brake', '2026-01', 250000.00),
+('proj-brake', '2026-02', 250000.00),
+-- proj-signal: Signaling System Upgrade (budget: 1,500,000)
+('proj-signal', '2025-06', 1420000.00),
+('proj-signal', '2025-07', 1435000.00),
+('proj-signal', '2025-08', 1450000.00),
+('proj-signal', '2025-09', 1460000.00),
+('proj-signal', '2025-10', 1475000.00),
+('proj-signal', '2025-11', 1480000.00),
+('proj-signal', '2025-12', 1490000.00),
+('proj-signal', '2026-01', 1495000.00),
+('proj-signal', '2026-02', 1500000.00),
+-- proj-raildiag: Rail Diagnostics Platform (budget: 700,000)
+('proj-raildiag', '2025-06', 670000.00),
+('proj-raildiag', '2025-07', 675000.00),
+('proj-raildiag', '2025-08', 680000.00),
+('proj-raildiag', '2025-09', 685000.00),
+('proj-raildiag', '2025-10', 690000.00),
+('proj-raildiag', '2025-11', 692000.00),
+('proj-raildiag', '2025-12', 695000.00),
+('proj-raildiag', '2026-01', 698000.00),
+('proj-raildiag', '2026-02', 700000.00),
+-- proj-predmaint: Predictive Maintenance PoC (budget: 500,000)
+('proj-predmaint', '2025-06', 480000.00),
+('proj-predmaint', '2025-07', 483000.00),
+('proj-predmaint', '2025-08', 487000.00),
+('proj-predmaint', '2025-09', 490000.00),
+('proj-predmaint', '2025-10', 493000.00),
+('proj-predmaint', '2025-11', 495000.00),
+('proj-predmaint', '2025-12', 497000.00),
+('proj-predmaint', '2026-01', 499000.00),
+('proj-predmaint', '2026-02', 500000.00),
+-- proj-cloud3: Cloud Migration Wave 3 (budget: 400,000)
+('proj-cloud3', '2025-06', 380000.00),
+('proj-cloud3', '2025-07', 384000.00),
+('proj-cloud3', '2025-08', 387000.00),
+('proj-cloud3', '2025-09', 390000.00),
+('proj-cloud3', '2025-10', 393000.00),
+('proj-cloud3', '2025-11', 395000.00),
+('proj-cloud3', '2025-12', 397000.00),
+('proj-cloud3', '2026-01', 399000.00),
+('proj-cloud3', '2026-02', 400000.00),
+-- proj-iam: Identity & Access Management Overhaul (budget: 350,000)
+('proj-iam', '2025-06', 335000.00),
+('proj-iam', '2025-07', 337000.00),
+('proj-iam', '2025-08', 340000.00),
+('proj-iam', '2025-09', 342000.00),
+('proj-iam', '2025-10', 344000.00),
+('proj-iam', '2025-11', 346000.00),
+('proj-iam', '2025-12', 348000.00),
+('proj-iam', '2026-01', 349000.00),
+('proj-iam', '2026-02', 350000.00),
+-- proj-sensor: Sensor Data Pipeline (budget: 600,000)
+('proj-sensor', '2025-06', 570000.00),
+('proj-sensor', '2025-07', 575000.00),
+('proj-sensor', '2025-08', 580000.00),
+('proj-sensor', '2025-09', 584000.00),
+('proj-sensor', '2025-10', 588000.00),
+('proj-sensor', '2025-11', 592000.00),
+('proj-sensor', '2025-12', 595000.00),
+('proj-sensor', '2026-01', 598000.00),
+('proj-sensor', '2026-02', 600000.00),
+-- proj-fleet: Fleet Portal v2 (budget: 450,000)
+('proj-fleet', '2025-06', 430000.00),
+('proj-fleet', '2025-07', 433000.00),
+('proj-fleet', '2025-08', 436000.00),
+('proj-fleet', '2025-09', 439000.00),
+('proj-fleet', '2025-10', 442000.00),
+('proj-fleet', '2025-11', 444000.00),
+('proj-fleet', '2025-12', 446000.00),
+('proj-fleet', '2026-01', 448000.00),
+('proj-fleet', '2026-02', 450000.00),
+-- proj-telematics: Telematics Dashboard (budget: 300,000)
+('proj-telematics', '2025-06', 285000.00),
+('proj-telematics', '2025-07', 288000.00),
+('proj-telematics', '2025-08', 290000.00),
+('proj-telematics', '2025-09', 292000.00),
+('proj-telematics', '2025-10', 294000.00),
+('proj-telematics', '2025-11', 296000.00),
+('proj-telematics', '2025-12', 297000.00),
+('proj-telematics', '2026-01', 299000.00),
+('proj-telematics', '2026-02', 300000.00),
+-- proj-aiml: AI/ML Experimentation Lab (budget: 200,000)
+('proj-aiml', '2025-06', 190000.00),
+('proj-aiml', '2025-07', 192000.00),
+('proj-aiml', '2025-08', 193000.00),
+('proj-aiml', '2025-09', 195000.00),
+('proj-aiml', '2025-10', 196000.00),
+('proj-aiml', '2025-11', 197000.00),
+('proj-aiml', '2025-12', 198000.00),
+('proj-aiml', '2026-01', 199000.00),
+('proj-aiml', '2026-02', 200000.00),
+-- proj-workplace: Workplace Modernization (budget: 300,000)
+('proj-workplace', '2025-06', 285000.00),
+('proj-workplace', '2025-07', 287000.00),
+('proj-workplace', '2025-08', 289000.00),
+('proj-workplace', '2025-09', 291000.00),
+('proj-workplace', '2025-10', 293000.00),
+('proj-workplace', '2025-11', 295000.00),
+('proj-workplace', '2025-12', 297000.00),
+('proj-workplace', '2026-01', 298000.00),
+('proj-workplace', '2026-02', 300000.00);
