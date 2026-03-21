@@ -505,6 +505,56 @@ def create_project(
         total_budget=round(estimated_cost, 2) if estimated_cost > 0 else None,
     )
     db.add(project)
+
+    # Generate Forecast rows from resource plan and external costs
+    from models.financial import Forecast
+    from services.calculations import month_diff as _month_diff
+
+    end = body.end_month or add_months(body.start_month, 11)
+    num_months = _month_diff(body.start_month, end) + 1
+
+    if body.resource_plan:
+        for item in body.resource_plan:
+            rates = db.query(RateTable).filter(RateTable.role_type_id == item.role_type_id).all()
+            avg_rate = (sum(float(r.hourly_rate) for r in rates) / len(rates)) if rates else 80.0
+            item_months = _month_diff(item.period_start, item.period_end) + 1
+            for i in range(item_months):
+                m = add_months(item.period_start, i)
+                db.add(Forecast(
+                    project_id=project.id, month=m, category="internal",
+                    sub_category=item.role_type_id,
+                    hours=item.hours_per_month,
+                    amount_eur=round(item.hours_per_month * avg_rate, 2),
+                    capex_opex=body.capex_opex,
+                ))
+    else:
+        # No resource plan provided — generate placeholder forecast using a default role
+        default_rate = 80.0
+        default_hours = 40.0
+        for i in range(num_months):
+            m = add_months(body.start_month, i)
+            db.add(Forecast(
+                project_id=project.id, month=m, category="internal",
+                sub_category="role-sw-eng",
+                hours=default_hours,
+                amount_eur=round(default_hours * default_rate, 2),
+                capex_opex=body.capex_opex,
+            ))
+        estimated_cost = default_hours * default_rate * num_months
+        project.total_budget = round(estimated_cost, 2)
+
+    for item in body.external_costs:
+        item_months = _month_diff(item.period_start, item.period_end) + 1
+        for i in range(item_months):
+            m = add_months(item.period_start, i)
+            db.add(Forecast(
+                project_id=project.id, month=m, category="external",
+                sub_category=item.cost_type_id,
+                hours=None,
+                amount_eur=round(item.amount_per_month, 2),
+                capex_opex=body.capex_opex,
+            ))
+
     db.commit()
     db.refresh(project)
 

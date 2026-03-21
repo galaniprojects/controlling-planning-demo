@@ -33,10 +33,11 @@ const HORIZON_OPTIONS = [
 ];
 
 const FISCAL_YEAR_OPTIONS = [
-  { value: '2024', label: 'FY 2024' },
-  { value: '2025', label: 'FY 2025' },
-  { value: '2026', label: 'FY 2026' },
-  { value: '2027', label: 'FY 2027' },
+  { value: '', label: 'All Years (Lifetime)' },
+  ...Array.from({ length: 9 }, (_, i) => ({
+    value: String(2021 + i),
+    label: `FY ${2021 + i}`,
+  })),
 ];
 
 function ratingBadge(rating: string) {

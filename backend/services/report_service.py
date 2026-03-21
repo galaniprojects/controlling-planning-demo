@@ -98,9 +98,8 @@ def compute_programme_rollup(
     projects = db.query(Project).filter(Project.id.in_(project_ids)).all()
     lobs = {l.id: l.name for l in db.query(LineOfBusiness).all()}
 
-    # Build year filter for month columns (e.g. "2026-01" to "2026-12")
-    fy = fiscal_year or int(DEMO_DATE.split("-")[0])
-    year_prefix = str(fy)
+    # Build optional year filter (None = lifetime totals)
+    year_prefix = str(fiscal_year) if fiscal_year else None
 
     rows = []
     total_baseline = 0.0
@@ -108,21 +107,16 @@ def compute_programme_rollup(
     total_actuals = 0.0
 
     for p in projects:
-        baseline = float(
-            db.query(func.coalesce(func.sum(Baseline.amount_eur), 0))
-            .filter(Baseline.project_id == p.id, func.substr(Baseline.month, 1, 4) == year_prefix)
-            .scalar()
-        )
-        forecast = float(
-            db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
-            .filter(Forecast.project_id == p.id, func.substr(Forecast.month, 1, 4) == year_prefix)
-            .scalar()
-        )
-        actuals = float(
-            db.query(func.coalesce(func.sum(Actuals.amount_eur), 0))
-            .filter(Actuals.project_id == p.id, Actuals.month <= DEMO_DATE, func.substr(Actuals.month, 1, 4) == year_prefix)
-            .scalar()
-        )
+        bl_q = db.query(func.coalesce(func.sum(Baseline.amount_eur), 0)).filter(Baseline.project_id == p.id)
+        fc_q = db.query(func.coalesce(func.sum(Forecast.amount_eur), 0)).filter(Forecast.project_id == p.id)
+        ac_q = db.query(func.coalesce(func.sum(Actuals.amount_eur), 0)).filter(Actuals.project_id == p.id, Actuals.month <= DEMO_DATE)
+        if year_prefix:
+            bl_q = bl_q.filter(func.substr(Baseline.month, 1, 4) == year_prefix)
+            fc_q = fc_q.filter(func.substr(Forecast.month, 1, 4) == year_prefix)
+            ac_q = ac_q.filter(func.substr(Actuals.month, 1, 4) == year_prefix)
+        baseline = float(bl_q.scalar())
+        forecast = float(fc_q.scalar())
+        actuals = float(ac_q.scalar())
         remaining = forecast - actuals
         variance = forecast - baseline
         variance_pct = compute_plan_drift(forecast, baseline)
@@ -193,8 +187,7 @@ def compute_cc_financial_summary(
     """Financial picture for a cost center across all contributing projects."""
     filters = filters or {}
     project_ids = _get_scoped_project_ids(db, user, filters)
-    fy = fiscal_year or int(DEMO_DATE.split("-")[0])
-    year_prefix = str(fy)
+    year_prefix = str(fiscal_year) if fiscal_year else None
 
     # Determine cost center(s)
     target_cc = filters.get("cost_center")
@@ -236,15 +229,17 @@ def compute_cc_financial_summary(
         int_q = db.query(
             func.coalesce(func.sum(Forecast.hours), 0),
             func.coalesce(func.sum(Forecast.amount_eur), 0),
-        ).filter(Forecast.project_id == p.id, Forecast.category == "internal", func.substr(Forecast.month, 1, 4) == year_prefix)
+        ).filter(Forecast.project_id == p.id, Forecast.category == "internal")
+        if year_prefix:
+            int_q = int_q.filter(func.substr(Forecast.month, 1, 4) == year_prefix)
         int_hours, int_cost = int_q.one()
 
         # External: forecast rows where category=external
-        ext_cost = float(
-            db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
-            .filter(Forecast.project_id == p.id, Forecast.category == "external", func.substr(Forecast.month, 1, 4) == year_prefix)
-            .scalar()
-        )
+        ext_q = db.query(func.coalesce(func.sum(Forecast.amount_eur), 0)).filter(
+            Forecast.project_id == p.id, Forecast.category == "external")
+        if year_prefix:
+            ext_q = ext_q.filter(func.substr(Forecast.month, 1, 4) == year_prefix)
+        ext_cost = float(ext_q.scalar())
 
         int_hours = float(int_hours)
         int_cost = float(int_cost)
@@ -323,8 +318,7 @@ def compute_vendor_spend(
     """External spending analysis by vendor across the portfolio."""
     filters = filters or {}
     project_ids = _get_scoped_project_ids(db, user, filters)
-    fy = fiscal_year or int(DEMO_DATE.split("-")[0])
-    year_prefix = str(fy)
+    year_prefix = str(fiscal_year) if fiscal_year else None
 
     if not project_ids:
         return {"kpis": {}, "rows": [], "chart_data": {}, "total": 0}
@@ -333,8 +327,9 @@ def compute_vendor_spend(
         Forecast.project_id.in_(project_ids),
         Forecast.vendor.isnot(None),
         Forecast.vendor != "",
-        func.substr(Forecast.month, 1, 4) == year_prefix,
     )
+    if year_prefix:
+        base_q = base_q.filter(func.substr(Forecast.month, 1, 4) == year_prefix)
     if filters.get("vendor"):
         base_q = base_q.filter(Forecast.vendor == filters["vendor"])
 
@@ -478,8 +473,7 @@ def compute_forecast_accuracy(
     """Compare historical forecast snapshots against actuals."""
     filters = filters or {}
     project_ids = _get_scoped_project_ids(db, user, filters)
-    fy = fiscal_year or int(DEMO_DATE.split("-")[0])
-    year_prefix = str(fy)
+    year_prefix = str(fiscal_year) if fiscal_year else None
 
     if not project_ids:
         return {"kpis": {}, "rows": [], "chart_data": [], "total": 0}
@@ -517,11 +511,11 @@ def compute_forecast_accuracy(
         if forecast_val is None:
             continue
 
-        actual_val = float(
-            db.query(func.coalesce(func.sum(Actuals.amount_eur), 0))
-            .filter(Actuals.project_id == p.id, Actuals.month <= DEMO_DATE, func.substr(Actuals.month, 1, 4) == year_prefix)
-            .scalar()
-        )
+        ac_q = db.query(func.coalesce(func.sum(Actuals.amount_eur), 0)).filter(
+            Actuals.project_id == p.id, Actuals.month <= DEMO_DATE)
+        if year_prefix:
+            ac_q = ac_q.filter(func.substr(Actuals.month, 1, 4) == year_prefix)
+        actual_val = float(ac_q.scalar())
 
         if actual_val == 0:
             continue
