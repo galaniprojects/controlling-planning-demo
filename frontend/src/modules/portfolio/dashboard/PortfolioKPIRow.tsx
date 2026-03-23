@@ -17,7 +17,7 @@ function driftColor(pct: number): string {
 export function PortfolioKPIRow({ data }: Props) {
   if (!data) {
     return (
-      <div className="grid grid-cols-6 gap-3">
+      <div className="flex flex-wrap gap-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <Card key={i}>
             <CardContent className="px-3 py-2.5 space-y-2">
@@ -31,7 +31,7 @@ export function PortfolioKPIRow({ data }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-6 gap-3">
+    <div className="flex flex-wrap gap-3">
       <Card>
         <CardContent className="px-3 py-2.5">
           <p className="text-[10px] text-slate-500 mb-1">Baseline</p>
