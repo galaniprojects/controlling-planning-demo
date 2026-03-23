@@ -461,7 +461,9 @@ def get_org_heatmap(
 ):
     """Get organization heatmap pivoted by lob, role, or cost_center."""
     if not from_month:
-        from_month = DEMO_DATE
+        # Find earliest allocation month, or default to 2025-01
+        earliest = db.query(func.min(Allocation.month)).scalar()
+        from_month = earliest if earliest and earliest < DEMO_DATE else add_months(DEMO_DATE, -12)
     if not to_month:
         to_month = add_months(DEMO_DATE, 11)
     months = generate_month_range(from_month, to_month)
@@ -582,11 +584,32 @@ def get_heatmap_detail(
     else:
         allocs = []
 
-    # Group by project
-    proj_map = {}
+    # Group by project, and collect per-person detail
+    proj_map: dict[str, float] = {}
+    proj_people: dict[str, dict[str, float]] = {}  # project_id -> {person_id -> hours}
     for a in allocs:
         proj_map.setdefault(a.project_id, 0)
         proj_map[a.project_id] += float(a.hours)
+        proj_people.setdefault(a.project_id, {}).setdefault(a.person_id, 0)
+        proj_people[a.project_id][a.person_id] += float(a.hours)
+
+    # Compute summary: allocated vs available
+    total_allocated = sum(proj_map.values())
+    if pivot == "cost_center":
+        cc = db.query(CostCenter).filter(CostCenter.id == dimension_id).first()
+        std_h = get_standard_hours(db, cc.location_id) if cc else get_standard_hours(db)
+        headcount = len(people) if people else 0
+    elif pivot == "role":
+        std_h = get_standard_hours(db)  # Use global for role view
+        headcount = len(people) if people else 0
+    else:
+        std_h = get_standard_hours(db)
+        headcount = db.query(func.count(func.distinct(Allocation.person_id))).filter(
+            Allocation.project_id.in_([p.id for p in db.query(Project).filter(Project.lob_id == dimension_id).all()]),
+            Allocation.month == month,
+        ).scalar() or 0
+    total_available = std_h * headcount
+    delta = total_available - total_allocated
 
     items = []
     for pid, hours in proj_map.items():
@@ -595,9 +618,26 @@ def get_heatmap_detail(
             ChangeRequest.project_id == pid,
             ChangeRequest.status.in_(["pending_cc_confirmation", "pending_controller_approval"])
         ).first() is not None
+
+        # Build employee list for this project
+        employees = []
+        for person_id, person_hours in proj_people.get(pid, {}).items():
+            person = db.query(Person).filter(Person.id == person_id).first()
+            employees.append({
+                "person_id": person_id,
+                "person_name": person.name if person else person_id,
+                "hours": round(person_hours, 1),
+            })
+
         items.append({
             "project_id": pid, "project_name": proj.name if proj else pid,
             "hours_allocated": round(hours, 1), "has_pending_crs": has_pending,
+            "employees": employees,
         })
 
-    return {"items": items, "total": len(items)}
+    return {
+        "items": items, "total": len(items),
+        "allocated_hours": round(total_allocated, 1),
+        "available_hours": round(total_available, 1),
+        "delta": round(delta, 1),
+    }

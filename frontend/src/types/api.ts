@@ -620,11 +620,26 @@ export interface OrgHeatmapRow {
   children: OrgHeatmapRow[];
 }
 
+export interface OrgDetailEmployee {
+  person_id: string;
+  person_name: string;
+  hours: number;
+}
+
 export interface OrgDetailItem {
   project_id: string;
   project_name: string;
   hours_allocated: number;
   has_pending_crs: boolean;
+  employees?: OrgDetailEmployee[];
+}
+
+export interface OrgDetailResponse {
+  items: OrgDetailItem[];
+  total: number;
+  allocated_hours: number;
+  available_hours: number;
+  delta: number;
 }
 
 // --- What-If Simulator ---

@@ -36,6 +36,7 @@ import type {
   OrgSummary,
   OrgHeatmapRow,
   OrgDetailItem,
+  OrgDetailResponse,
   ScenarioListResponse,
   ScenarioCreateResponse,
   ScenarioDetail,
@@ -370,7 +371,7 @@ export const capacityApi = {
   getOrgHeatmapDetail: (dimId: string, pivot: string, month?: string) => {
     const q = new URLSearchParams({ pivot });
     if (month) q.set('month', month);
-    return api.get<ListResponse<OrgDetailItem>>(
+    return api.get<OrgDetailResponse>(
       `/api/capacity/org/heatmap/${dimId}/detail?${q}`,
     );
   },

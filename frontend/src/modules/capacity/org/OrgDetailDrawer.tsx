@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { capacityApi } from '@/api/endpoints';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { Badge } from '@/components/ui/badge';
-import type { OrgDetailItem } from '@/types/api';
+import { ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { OrgDetailItem, OrgDetailResponse } from '@/types/api';
 
 interface OrgDetailDrawerProps {
   dimensionId: string;
@@ -13,15 +14,17 @@ interface OrgDetailDrawerProps {
 
 export function OrgDetailDrawer({ dimensionId, pivot, month }: OrgDetailDrawerProps) {
   const navigate = useNavigate();
-  const [items, setItems] = useState<OrgDetailItem[]>([]);
+  const [data, setData] = useState<OrgDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setLoading(true);
+    setExpandedProjects(new Set());
     capacityApi
       .getOrgHeatmapDetail(dimensionId, pivot, month)
-      .then((res) => setItems(res.items))
-      .catch(() => setItems([]))
+      .then((res) => setData(res))
+      .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [dimensionId, pivot, month]);
 
@@ -34,47 +37,109 @@ export function OrgDetailDrawer({ dimensionId, pivot, month }: OrgDetailDrawerPr
     );
   }
 
-  if (items.length === 0) {
+  if (!data || data.items.length === 0) {
     return <p className="text-sm text-slate-400">No project allocations for this period.</p>;
   }
 
+  const deltaPositive = data.delta >= 0;
+
+  function toggleProject(projectId: string) {
+    setExpandedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  }
+
   return (
-    <div className="space-y-3">
-      <h4 className="text-sm font-medium text-slate-600">Project Allocations</h4>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200">
-            <th className="px-3 py-2 text-left text-xs font-medium text-slate-500">Project</th>
-            <th className="px-3 py-2 text-right text-xs font-medium text-slate-500">Hours</th>
-            <th className="px-3 py-2 text-center text-xs font-medium text-slate-500">Pending CRs</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.project_id} className="border-b border-slate-50">
-              <td className="px-3 py-2">
-                <button
-                  type="button"
-                  onClick={() => navigate(`/workbench?project=${item.project_id}`)}
-                  className="text-blue-700 hover:underline"
-                >
-                  {item.project_name}
-                </button>
-              </td>
-              <td className="px-3 py-2 text-right text-slate-600">
-                {item.hours_allocated.toFixed(0)}h
-              </td>
-              <td className="px-3 py-2 text-center">
-                {item.has_pending_crs && (
-                  <Badge variant="outline" className="text-amber-600 border-amber-300">
-                    Pending
-                  </Badge>
-                )}
-              </td>
-            </tr>
+    <div className="space-y-4">
+      {/* CM-03: Summary section */}
+      <div className="flex items-center gap-4 px-3 py-2.5 bg-slate-50 rounded-lg border border-slate-200">
+        <div className="text-center">
+          <p className="text-[10px] text-slate-400 uppercase">Allocated</p>
+          <p className="text-sm font-semibold text-slate-700">{Math.round(data.allocated_hours)}h</p>
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] text-slate-400 uppercase">Available</p>
+          <p className="text-sm font-semibold text-slate-700">{Math.round(data.available_hours)}h</p>
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] text-slate-400 uppercase">Delta</p>
+          <p className={cn(
+            'text-sm font-semibold',
+            deltaPositive ? 'text-green-600' : 'text-red-600',
+          )}>
+            {deltaPositive ? '+' : ''}{Math.round(data.delta)}h
+          </p>
+        </div>
+      </div>
+
+      {/* CM-04: Project list with expandable employee details */}
+      <div className="space-y-1">
+        <h4 className="text-xs font-medium text-slate-500 uppercase">Project Allocations</h4>
+        {data.items.map((item) => (
+          <ProjectRow
+            key={item.project_id}
+            item={item}
+            isExpanded={expandedProjects.has(item.project_id)}
+            onToggle={() => toggleProject(item.project_id)}
+            onNavigate={() => navigate(`/workbench?project=${item.project_id}`)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface ProjectRowProps {
+  item: OrgDetailItem;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onNavigate: () => void;
+}
+
+function ProjectRow({ item, isExpanded, onToggle, onNavigate }: ProjectRowProps) {
+  const hasEmployees = item.employees && item.employees.length > 0;
+
+  return (
+    <div className="border-b border-slate-100">
+      <div className="flex items-center gap-2 py-2 px-1">
+        {hasEmployees ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="p-0.5 rounded hover:bg-slate-200 shrink-0"
+          >
+            <ChevronRight className={cn(
+              'h-3.5 w-3.5 text-slate-400 transition-transform',
+              isExpanded && 'rotate-90',
+            )} />
+          </button>
+        ) : (
+          <span className="w-5 shrink-0" />
+        )}
+        <button
+          type="button"
+          onClick={onNavigate}
+          className="text-sm text-blue-700 hover:underline truncate flex-1 text-left"
+        >
+          {item.project_name}
+        </button>
+        <span className="text-sm text-slate-600 shrink-0">{item.hours_allocated.toFixed(0)}h</span>
+      </div>
+
+      {/* Expanded employee list */}
+      {isExpanded && hasEmployees && (
+        <div className="pl-9 pb-2 space-y-0.5">
+          {item.employees!.map((emp) => (
+            <div key={emp.person_id} className="flex items-center justify-between text-xs text-slate-500 py-0.5">
+              <span>{emp.person_name}</span>
+              <span>{emp.hours.toFixed(0)}h</span>
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      )}
     </div>
   );
 }
