@@ -268,6 +268,7 @@ def create_person(
         name=body.name,
         role_type_id=body.role_type_id,
         cost_center_id=body.cost_center_id,
+        competence_center_id=body.competence_center_id,
     )
     db.add(person)
     _log_audit(db, user, "person", person.id, person.name, "create")
@@ -295,6 +296,9 @@ def update_person(
         person.role_type_id = body.role_type_id
     if body.cost_center_id is not None:
         person.cost_center_id = body.cost_center_id
+    if body.competence_center_id is not None:
+        _log_audit(db, user, "person", person.id, person.name, "update", "competence_center_id", person.competence_center_id, body.competence_center_id)
+        person.competence_center_id = body.competence_center_id
     db.commit()
     db.refresh(person)
     return {"id": person.id, "name": person.name, "is_active": person.is_active}

@@ -47,6 +47,7 @@ class CompetenceCenter(Base):
     # Relationships
     cost_centers: Mapped[list["CostCenter"]] = relationship(back_populates="competence_center")
     rate_entries: Mapped[list["RateTable"]] = relationship(back_populates="competence_center")
+    people: Mapped[list["Person"]] = relationship(back_populates="competence_center")
 
 
 class CostCenter(Base):

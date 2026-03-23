@@ -23,10 +23,13 @@ interface FieldDef {
   type: 'text' | 'textarea' | 'select';
   required?: boolean;
   optionsKey?: string;
+  disabled?: boolean;
+  editOnly?: boolean;
 }
 
 const ENTITY_FIELDS: Record<string, FieldDef[]> = {
   cost_center: [
+    { key: 'id', label: 'Cost Center Code', type: 'text', editOnly: true, disabled: true },
     { key: 'name', label: 'Name', type: 'text', required: true },
     { key: 'location_id', label: 'Location', type: 'select', required: true, optionsKey: 'locationOptions' },
     { key: 'competence_center_id', label: 'Competence Center', type: 'select', required: true, optionsKey: 'competenceCenterOptions' },
@@ -46,6 +49,7 @@ const ENTITY_FIELDS: Record<string, FieldDef[]> = {
     { key: 'name', label: 'Name', type: 'text', required: true },
     { key: 'role_type_id', label: 'Role', type: 'select', required: true, optionsKey: 'roleOptions' },
     { key: 'cost_center_id', label: 'Cost Center', type: 'select', optionsKey: 'costCenterOptions' },
+    { key: 'competence_center_id', label: 'Competence Center', type: 'select', optionsKey: 'competenceCenterOptions' },
   ],
 };
 
@@ -70,7 +74,8 @@ export function EntityFormDialog({
   onSubmit,
   dropdownOptions = {},
 }: EntityFormDialogProps) {
-  const fields = ENTITY_FIELDS[entityType] ?? [];
+  const allFields = ENTITY_FIELDS[entityType] ?? [];
+  const fields = allFields.filter((f) => !f.editOnly || mode === 'edit');
   const [values, setValues] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +94,7 @@ export function EntityFormDialog({
   const handleSubmit = async () => {
     // Validate required fields
     for (const f of fields) {
-      if (f.required && !values[f.key]?.trim()) {
+      if (f.required && !f.disabled && !values[f.key]?.trim()) {
         setError(`${f.label} is required.`);
         return;
       }
@@ -97,10 +102,10 @@ export function EntityFormDialog({
     setSubmitting(true);
     setError(null);
     try {
-      // Only send non-empty values for edit mode
+      // Only send non-empty, editable values
       const payload: Record<string, string> = {};
       for (const f of fields) {
-        if (values[f.key]?.trim()) {
+        if (!f.disabled && values[f.key]?.trim()) {
           payload[f.key] = values[f.key].trim();
         }
       }
@@ -161,6 +166,8 @@ export function EntityFormDialog({
         <Input
           value={values[field.key] || ''}
           onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+          disabled={field.disabled}
+          className={field.disabled ? 'bg-slate-50 text-slate-500' : ''}
         />
       </div>
     );

@@ -26,6 +26,7 @@ class Person(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     role_type_id: Mapped[str] = mapped_column(ForeignKey("role_types.id"), nullable=False)
     cost_center_id: Mapped[Optional[str]] = mapped_column(ForeignKey("cost_centers.id"), nullable=True)
+    competence_center_id: Mapped[Optional[str]] = mapped_column(ForeignKey("competence_centers.id"), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     modified_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -33,6 +34,7 @@ class Person(Base):
     # Relationships
     role_type: Mapped["RoleType"] = relationship(back_populates="people")
     cost_center: Mapped[Optional["CostCenter"]] = relationship(back_populates="people")
+    competence_center: Mapped[Optional["CompetenceCenter"]] = relationship(back_populates="people")
     allocations: Mapped[list["Allocation"]] = relationship(back_populates="person")
 
 

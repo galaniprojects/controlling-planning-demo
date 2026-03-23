@@ -494,9 +494,9 @@ export const adminApi = {
     api.put<{ id: string; city: string; country: string; is_active: boolean }>(`/api/admin/locations/${id}`, data),
 
   // People
-  createPerson: (data: { name: string; role_type_id: string; cost_center_id?: string }) =>
+  createPerson: (data: { name: string; role_type_id: string; cost_center_id?: string; competence_center_id?: string }) =>
     api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/people', data),
-  updatePerson: (id: string, data: { name?: string; role_type_id?: string; cost_center_id?: string }) =>
+  updatePerson: (id: string, data: { name?: string; role_type_id?: string; cost_center_id?: string; competence_center_id?: string }) =>
     api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/people/${id}`, data),
   deactivatePerson: (id: string) =>
     api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/people/${id}/deactivate`),

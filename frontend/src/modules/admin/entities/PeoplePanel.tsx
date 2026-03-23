@@ -36,6 +36,7 @@ export function PeoplePanel({ onDataChanged }: PeoplePanelProps) {
   // Dropdown options
   const [roleOpts, setRoleOpts] = useState<{ value: string; label: string }[]>([]);
   const [ccOpts, setCcOpts] = useState<{ value: string; label: string }[]>([]);
+  const [compCenterOpts, setCompCenterOpts] = useState<{ value: string; label: string }[]>([]);
 
   const fetchData = () => {
     setLoading(true);
@@ -43,11 +44,13 @@ export function PeoplePanel({ onDataChanged }: PeoplePanelProps) {
       referenceApi.getPeople(),
       referenceApi.getRoles(),
       referenceApi.getCostCenters(),
+      referenceApi.getCompetenceCenters(),
     ])
-      .then(([people, roles, ccs]) => {
+      .then(([people, roles, ccs, compCenters]) => {
         setItems(people.items);
         setRoleOpts(roles.items.map((r) => ({ value: r.id, label: r.name })));
         setCcOpts(ccs.items.map((c) => ({ value: c.id, label: c.name })));
+        setCompCenterOpts(compCenters.items.map((c) => ({ value: c.id, label: c.name })));
       })
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
@@ -73,6 +76,7 @@ export function PeoplePanel({ onDataChanged }: PeoplePanelProps) {
         name: values.name,
         role_type_id: values.role_type_id,
         cost_center_id: values.cost_center_id || undefined,
+        competence_center_id: values.competence_center_id || undefined,
       });
     } else if (editItem) {
       await adminApi.updatePerson(editItem.id, values);
@@ -124,6 +128,7 @@ export function PeoplePanel({ onDataChanged }: PeoplePanelProps) {
               <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Name</TableHead>
               <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[150px]">Role</TableHead>
               <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[160px]">Cost Center</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[160px]">Competence Center</TableHead>
               <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[100px] text-right">Utilization</TableHead>
               <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[80px]">Status</TableHead>
               <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[100px]">Actions</TableHead>
@@ -135,6 +140,7 @@ export function PeoplePanel({ onDataChanged }: PeoplePanelProps) {
                 <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">{item.name}</TableCell>
                 <TableCell className="px-3 py-2 text-sm text-slate-600">{item.role_name}</TableCell>
                 <TableCell className="px-3 py-2 text-sm text-slate-600">{item.cost_center_name || '—'}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-slate-600">{item.competence_center_name || '—'}</TableCell>
                 <TableCell className="px-3 py-2 text-right">
                   {item.is_active ? (
                     <span
@@ -178,7 +184,7 @@ export function PeoplePanel({ onDataChanged }: PeoplePanelProps) {
             ))}
             {items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="px-3 py-8 text-center text-sm text-slate-400">
+                <TableCell colSpan={7} className="px-3 py-8 text-center text-sm text-slate-400">
                   No people found
                 </TableCell>
               </TableRow>
@@ -199,6 +205,7 @@ export function PeoplePanel({ onDataChanged }: PeoplePanelProps) {
                 name: editItem.name,
                 role_type_id: editItem.role_type_id,
                 cost_center_id: editItem.cost_center_id ?? '',
+                competence_center_id: editItem.competence_center_id ?? '',
               }
             : undefined
         }
@@ -206,6 +213,7 @@ export function PeoplePanel({ onDataChanged }: PeoplePanelProps) {
         dropdownOptions={{
           roleOptions: roleOpts,
           costCenterOptions: ccOpts,
+          competenceCenterOptions: compCenterOpts,
         }}
       />
 

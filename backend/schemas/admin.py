@@ -54,12 +54,14 @@ class PersonCreate(BaseModel):
     name: str
     role_type_id: str
     cost_center_id: str | None = None
+    competence_center_id: str | None = None
 
 
 class PersonUpdate(BaseModel):
     name: str | None = None
     role_type_id: str | None = None
     cost_center_id: str | None = None
+    competence_center_id: str | None = None
 
 
 # --- Rates ---
