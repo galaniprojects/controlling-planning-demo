@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Truck, Hash, FileText, DollarSign } from 'lucide-react';
 import { useRole } from '@/contexts/RoleContext';
 import { reportsApi, referenceApi } from '@/api/endpoints';
+import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { SummaryCard } from '@/modules/capacity/shared/SummaryCard';
 import { ReportViewer } from '../viewer/ReportViewer';
@@ -28,6 +29,7 @@ const FISCAL_YEAR_OPTIONS = [
 
 export function VendorSpendReport() {
   const { currentRoleId } = useRole();
+  const { topLevelLabel } = useActiveHierarchy();
   const [searchParams] = useSearchParams();
   const [data, setData] = useState<VendorSpendResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,7 +108,7 @@ export function VendorSpendReport() {
     { key: 'vendor', label: 'Vendor', options: vendorOptions },
     {
       key: 'lob',
-      label: 'Line of Business',
+      label: topLevelLabel,
       options: lobs.map((l) => ({ value: l.id, label: l.name })),
     },
     { key: 'status', label: 'Project Status', options: STATUS_OPTIONS },

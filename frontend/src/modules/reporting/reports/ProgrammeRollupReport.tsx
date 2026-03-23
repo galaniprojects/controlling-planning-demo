@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
 import { reportsApi, referenceApi, workbenchApi } from '@/api/endpoints';
+import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SummaryCard } from '@/modules/capacity/shared/SummaryCard';
@@ -74,6 +75,7 @@ interface CustomGroup {
 
 export function ProgrammeRollupReport() {
   const { currentRoleId } = useRole();
+  const { topLevelLabel, entityOptions } = useActiveHierarchy();
   const [searchParams] = useSearchParams();
   const [data, setData] = useState<ProgrammeRollupResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -148,8 +150,8 @@ export function ProgrammeRollupReport() {
   const filterConfigs: FilterConfig[] = [
     {
       key: 'lob',
-      label: 'Line of Business',
-      options: lobs.map((l) => ({ value: l.id, label: l.name })),
+      label: topLevelLabel,
+      options: entityOptions.length > 0 ? entityOptions : lobs.map((l) => ({ value: l.id, label: l.name })),
     },
     { key: 'status', label: 'Status', options: STATUS_OPTIONS },
     { key: 'rag', label: 'RAG', options: RAG_OPTIONS },

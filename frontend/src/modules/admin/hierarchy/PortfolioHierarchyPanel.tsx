@@ -15,6 +15,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { adminApi, workbenchApi } from '@/api/endpoints';
+import { invalidateHierarchyCache } from '@/hooks/useActiveHierarchy';
 
 interface EntityType {
   id: string;
@@ -168,6 +169,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
     setActivating(h.id);
     try {
       await adminApi.activateHierarchy(h.id);
+      invalidateHierarchyCache();
       fetchHierarchies();
       fetchActiveHierarchy();
       onDataChanged();

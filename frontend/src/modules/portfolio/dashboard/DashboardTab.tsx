@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
 import { useSidePanel } from '@/contexts/SidePanelContext';
 import { portfolioApi, referenceApi } from '@/api/endpoints';
+import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
 import { FilterBar, type FilterConfig } from '@/components/shared/FilterBar';
 import { PortfolioKPIRow } from './PortfolioKPIRow';
 import { PortfolioTree } from './PortfolioTree';
@@ -31,6 +32,7 @@ export function DashboardTab() {
   const { currentRoleId } = useRole();
   const { openPanel, closePanel } = useSidePanel();
   const location = useLocation();
+  const { topLevelLabel, entityOptions } = useActiveHierarchy();
 
   const [kpis, setKpis] = useState<PortfolioKPIs | null>(null);
   const [tree, setTree] = useState<ProjectTreeNode[]>([]);
@@ -120,8 +122,8 @@ export function DashboardTab() {
   const filterConfigs: FilterConfig[] = [
     {
       key: 'lob',
-      label: 'Line of Business',
-      options: lobs.map((l) => ({ value: l.id, label: l.name })),
+      label: topLevelLabel,
+      options: entityOptions.length > 0 ? entityOptions : lobs.map((l) => ({ value: l.id, label: l.name })),
     },
     { key: 'status', label: 'Status', options: STATUS_OPTIONS },
     { key: 'rag', label: 'RAG', options: RAG_OPTIONS },

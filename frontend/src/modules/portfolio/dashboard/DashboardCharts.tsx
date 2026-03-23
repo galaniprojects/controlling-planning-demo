@@ -3,6 +3,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { BudgetByLobChart } from '@/components/charts/BudgetByLobChart';
 import { ForecastTrajectoryChart } from '@/components/charts/ForecastTrajectoryChart';
 import { RAGDonutChart } from '@/components/charts/RAGDonutChart';
+import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
 import type { ChartData } from '@/types/api';
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function DashboardCharts({ data, activeRag, onRagClick }: Props) {
+  const { topLevelLabel } = useActiveHierarchy();
   if (!data) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -31,7 +33,7 @@ export function DashboardCharts({ data, activeRag, onRagClick }: Props) {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-slate-600">Forecast by Line of Business</CardTitle>
+          <CardTitle className="text-sm font-medium text-slate-600">Forecast by {topLevelLabel}</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <BudgetByLobChart data={data.forecast_by_lob} />
