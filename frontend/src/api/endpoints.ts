@@ -108,18 +108,20 @@ export const launchpadApi = {
 
 export const portfolioApi = {
   // Dashboard
-  getKPIs: (params?: { lob?: string; status?: string; rag?: string; type?: string }) => {
+  getKPIs: (params?: { lob?: string; grouping_entity?: string; status?: string; rag?: string; type?: string }) => {
     const query = new URLSearchParams();
-    if (params?.lob) query.set('lob', params.lob);
+    if (params?.grouping_entity) query.set('grouping_entity', params.grouping_entity);
+    else if (params?.lob) query.set('lob', params.lob);
     if (params?.status) query.set('status', params.status);
     if (params?.rag) query.set('rag', params.rag);
     if (params?.type) query.set('type', params.type);
     const qs = query.toString();
     return api.get<PortfolioKPIs>(`/api/portfolio/kpis${qs ? '?' + qs : ''}`);
   },
-  getProjects: (params?: { lob?: string; status?: string; rag?: string; type?: string }) => {
+  getProjects: (params?: { lob?: string; grouping_entity?: string; status?: string; rag?: string; type?: string }) => {
     const query = new URLSearchParams();
-    if (params?.lob) query.set('lob', params.lob);
+    if (params?.grouping_entity) query.set('grouping_entity', params.grouping_entity);
+    else if (params?.lob) query.set('lob', params.lob);
     if (params?.status) query.set('status', params.status);
     if (params?.rag) query.set('rag', params.rag);
     if (params?.type) query.set('type', params.type);
@@ -480,12 +482,22 @@ export const adminApi = {
     api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/competence-centers', data),
   updateCompetenceCenter: (id: string, data: { name?: string }) =>
     api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/competence-centers/${id}`, data),
+  getCompetenceCenterPeople: (ccId: string) =>
+    api.get<ListResponse<{ id: string; name: string; role_name: string; cost_center_name: string }>>(`/api/admin/competence-centers/${ccId}/people`),
+  assignPersonToCC: (ccId: string, personId: string) =>
+    api.put<{ status: string }>(`/api/admin/competence-centers/${ccId}/people/${personId}/assign`),
+  unassignPersonFromCC: (ccId: string, personId: string) =>
+    api.put<{ status: string }>(`/api/admin/competence-centers/${ccId}/people/${personId}/unassign`),
 
   // Lines of Business
   createLoB: (data: { name: string; description?: string }) =>
     api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/lobs', data),
   updateLoB: (id: string, data: { name?: string; description?: string }) =>
     api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/lobs/${id}`, data),
+  getLoBProjects: (lobId: string) =>
+    api.get<ListResponse<{ id: string; name: string; status: string; total_budget: number }>>(`/api/admin/lobs/${lobId}/projects`),
+  assignProjectToLoB: (lobId: string, projectId: string) =>
+    api.put<{ status: string; old_lob_name: string }>(`/api/admin/lobs/${lobId}/projects/${projectId}/assign`),
 
   // Locations
   createLocation: (data: { city: string; country: string }) =>
@@ -494,9 +506,9 @@ export const adminApi = {
     api.put<{ id: string; city: string; country: string; is_active: boolean }>(`/api/admin/locations/${id}`, data),
 
   // People
-  createPerson: (data: { name: string; role_type_id: string; cost_center_id?: string }) =>
+  createPerson: (data: { name: string; role_type_id: string; cost_center_id?: string; competence_center_id?: string }) =>
     api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/people', data),
-  updatePerson: (id: string, data: { name?: string; role_type_id?: string; cost_center_id?: string }) =>
+  updatePerson: (id: string, data: { name?: string; role_type_id?: string; cost_center_id?: string; competence_center_id?: string }) =>
     api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/people/${id}`, data),
   deactivatePerson: (id: string) =>
     api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/people/${id}/deactivate`),
@@ -514,6 +526,38 @@ export const adminApi = {
     api.put<ListResponse<{ key: string; name: string; current_value: string }>>('/api/admin/parameters', { changes }),
   resetParameters: (keys?: string[]) =>
     api.post<ListResponse<{ key: string; name: string; current_value: string }>>('/api/admin/parameters/reset', { keys: keys ?? null }),
+
+  // Grouping Hierarchy (ADM-01)
+  getEntityTypes: () =>
+    api.get<ListResponse<{ id: string; name: string; is_active: boolean; entity_count: number }>>('/api/admin/grouping/entity-types'),
+  createEntityType: (data: { name: string }) =>
+    api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/grouping/entity-types', data),
+  updateEntityType: (id: string, data: { name: string }) =>
+    api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/grouping/entity-types/${id}`, data),
+  getGroupingEntities: (typeId?: string) =>
+    api.get<ListResponse<{ id: string; entity_type_id: string; entity_type_name: string; name: string; parent_entity_id: string | null; is_active: boolean; project_count: number }>>(`/api/admin/grouping/entities${typeId ? `?type_id=${typeId}` : ''}`),
+  createGroupingEntity: (data: { entity_type_id: string; name: string; parent_entity_id?: string }) =>
+    api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/grouping/entities', data),
+  updateGroupingEntity: (id: string, data: { name?: string; parent_entity_id?: string | null }) =>
+    api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/grouping/entities/${id}`, data),
+  getHierarchies: () =>
+    api.get<ListResponse<{ id: string; name: string; is_active_hierarchy: boolean; levels: { level_order: number; entity_type_id: string; entity_type_name: string }[] }>>('/api/admin/grouping/hierarchies'),
+  createHierarchy: (data: { name: string; levels: string[] }) =>
+    api.post<{ id: string; name: string; is_active_hierarchy: boolean }>('/api/admin/grouping/hierarchies', data),
+  updateHierarchy: (id: string, data: { name?: string; levels?: string[] }) =>
+    api.put<{ id: string; name: string; is_active_hierarchy: boolean }>(`/api/admin/grouping/hierarchies/${id}`, data),
+  activateHierarchy: (id: string) =>
+    api.put<{ id: string; name: string; is_active_hierarchy: boolean }>(`/api/admin/grouping/hierarchies/${id}/activate`),
+  getActiveHierarchy: () =>
+    api.get<{ hierarchy: { id: string; name: string } | null; levels: { level_order: number; entity_type_id: string; entity_type_name: string }[]; top_level_label: string; entities: { id: string; name: string; entity_type_id: string; project_count: number; children: unknown[]; projects: { id: string; name: string; status: string }[] }[] }>('/api/admin/grouping/active-hierarchy'),
+  assignProjectToEntity: (data: { project_id: string; grouping_entity_id: string }) =>
+    api.post<{ status: string }>('/api/admin/grouping/project-assignments', data),
+  unassignProjectFromEntity: (projectId: string) =>
+    api.delete<{ status: string }>(`/api/admin/grouping/project-assignments/${projectId}`),
+  getEntityProjects: (entityId: string) =>
+    api.get<ListResponse<{ id: string; name: string; status: string; total_budget: number }>>(`/api/admin/grouping/entities/${entityId}/projects`),
+  assignEntityParent: (entityId: string, parentEntityId: string | null) =>
+    api.put<{ id: string; name: string; parent_entity_id: string | null }>(`/api/admin/grouping/entities/${entityId}/parent`, { parent_entity_id: parentEntityId }),
 
   // Audit Log
   getAuditLog: (entityType?: string, limit?: number) => {

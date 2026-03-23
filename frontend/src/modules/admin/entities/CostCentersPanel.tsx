@@ -184,7 +184,7 @@ export function CostCentersPanel({ onDataChanged }: CostCentersPanelProps) {
         entityLabel="Cost Center"
         initialValues={
           editItem
-            ? { name: editItem.name, location_id: editItem.location_id, competence_center_id: editItem.competence_center_id }
+            ? { id: editItem.id, name: editItem.name, location_id: editItem.location_id, competence_center_id: editItem.competence_center_id }
             : undefined
         }
         onSubmit={handleFormSubmit}

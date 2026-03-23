@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
 import { useSidePanel } from '@/contexts/SidePanelContext';
 import { portfolioApi, referenceApi } from '@/api/endpoints';
+import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
 import { FilterBar, type FilterConfig } from '@/components/shared/FilterBar';
 import { PortfolioKPIRow } from './PortfolioKPIRow';
 import { PortfolioTree } from './PortfolioTree';
@@ -31,6 +32,7 @@ export function DashboardTab() {
   const { currentRoleId } = useRole();
   const { openPanel, closePanel } = useSidePanel();
   const location = useLocation();
+  const { topLevelLabel, entityOptions, filterKey } = useActiveHierarchy();
 
   const [kpis, setKpis] = useState<PortfolioKPIs | null>(null);
   const [tree, setTree] = useState<ProjectTreeNode[]>([]);
@@ -40,7 +42,7 @@ export function DashboardTab() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>();
 
   const [filters, setFilters] = useState<Record<string, string>>({
-    lob: '',
+    grouping_entity: '',
     status: '',
     rag: '',
     type: '',
@@ -54,7 +56,7 @@ export function DashboardTab() {
   // Load data when role or filters change
   useEffect(() => {
     const params: Record<string, string> = {};
-    if (filters.lob) params.lob = filters.lob;
+    if (filters.grouping_entity) params.grouping_entity = filters.grouping_entity;
     if (filters.status) params.status = filters.status;
     if (filters.rag) params.rag = filters.rag;
     if (filters.type) params.type = filters.type;
@@ -119,9 +121,9 @@ export function DashboardTab() {
 
   const filterConfigs: FilterConfig[] = [
     {
-      key: 'lob',
-      label: 'Line of Business',
-      options: lobs.map((l) => ({ value: l.id, label: l.name })),
+      key: filterKey,
+      label: topLevelLabel,
+      options: entityOptions.length > 0 ? entityOptions : lobs.map((l) => ({ value: l.id, label: l.name })),
     },
     { key: 'status', label: 'Status', options: STATUS_OPTIONS },
     { key: 'rag', label: 'RAG', options: RAG_OPTIONS },

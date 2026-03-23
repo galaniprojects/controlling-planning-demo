@@ -66,6 +66,8 @@ class PersonResponse(BaseModel):
     role_name: str
     cost_center_id: str | None
     cost_center_name: str
+    competence_center_id: str | None
+    competence_center_name: str
     utilization_pct: float
     is_active: bool
 

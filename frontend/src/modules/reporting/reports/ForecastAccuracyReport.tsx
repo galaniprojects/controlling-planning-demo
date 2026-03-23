@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
 import { reportsApi, referenceApi } from '@/api/endpoints';
+import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { SummaryCard } from '@/modules/capacity/shared/SummaryCard';
 import { ReportViewer, type ColumnDef } from '../viewer/ReportViewer';
@@ -62,6 +63,7 @@ function ratingBadge(rating: string) {
 
 export function ForecastAccuracyReport() {
   const { currentRoleId } = useRole();
+  const { topLevelLabel } = useActiveHierarchy();
   const [searchParams] = useSearchParams();
   const [data, setData] = useState<ForecastAccuracyResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,7 +120,7 @@ export function ForecastAccuracyReport() {
   const filterConfigs: FilterConfig[] = [
     {
       key: 'lob',
-      label: 'Line of Business',
+      label: topLevelLabel,
       options: lobs.map((l) => ({ value: l.id, label: l.name })),
     },
     { key: 'type', label: 'Type', options: TYPE_OPTIONS },

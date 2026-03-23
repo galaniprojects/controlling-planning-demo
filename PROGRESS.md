@@ -1,10 +1,34 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v4 Session 4 (complete)
-Last completed: v4 Session 4 — New Requirements (6 items across Simulator + Reporting)
-Branch: `v4/session-4-simulator-reporting`
-Next: v4 Session 5 — Administration + Dynamic Hierarchy
+Phase: v4 Session 5 (complete)
+Last completed: v4 Session 5 — Administration + Dynamic Hierarchy (6 items)
+Branch: `v4/session-5-administration-hierarchy`
+Next: v4 Session 6 — Seed Data Fixes + End-to-End Verification
+
+## v4 Session 5 — Administration + Dynamic Hierarchy (2026-03-23)
+
+### Completed Items
+- [x] ADM-02: Cost center edit — code field shown as read-only disabled input in edit mode. Added `disabled` and `editOnly` support to EntityFormDialog FieldDef interface.
+- [x] ADM-05: People competence center assignment — added `competence_center_id` FK to Person model, seed data populated from cost_center→CC mapping, People panel shows CC column and edit form has CC dropdown, reference API returns CC fields.
+- [x] ADM-03: Competence center employee assignment — expandable detail view showing assigned employees with name/role/cost center. "Add Employee" dialog with searchable dropdown (shows reassignment warning). "Remove" button per employee. 3 new backend endpoints.
+- [x] ADM-04: LoB project assignment — expandable detail view showing assigned projects with status badges and budgets. "Assign Project" dialog with reassignment warning. 2 new backend endpoints.
+- [x] ADM-01: Configurable portfolio hierarchy — 5 new SQLAlchemy models (GroupingEntityType, GroupingEntity, GroupingHierarchy, GroupingHierarchyLevel, ProjectGroupingAssignment). Seed data migrates existing LoB structure as default active hierarchy. 12 new backend endpoints for full CRUD. New PortfolioHierarchyPanel with 4 tabs (Hierarchies, Entity Types, Entities, Project Assignments). Cross-module propagation via `useActiveHierarchy` hook — filter labels, chart titles, and entity options across Portfolio Overview, all 4 reports, and What-If Simulator dynamically reflect the active hierarchy label.
+- [x] ADM-06: Standard available hours — already implemented in v3 Session 3 via PlanningParameters panel. No additional work needed.
+
+### Verification Results
+- [x] Cost center edit: code field disabled (read-only), name and location editable
+- [x] People edit: competence center dropdown available, table shows CC column
+- [x] Competence center expand: assigned employees listed, add/remove functional
+- [x] LoB expand: assigned projects listed with status/budget, assign dialog with reassignment warning
+- [x] Portfolio Hierarchy panel: Hierarchies tab shows "LoB Structure" as active with "Line of Business → Project" levels. Entity Types, Entities, Project Assignments tabs all functional.
+- [x] Cross-module propagation: filter labels dynamically show "Line of Business" from active hierarchy across Portfolio Overview, Programme Rollup, YoY, Vendor Spend, Forecast Accuracy. Chart title shows "Forecast by Line of Business" dynamically.
+- [x] Standard hours: configurable via Planning Parameters (pre-existing)
+
+### Issues / Notes
+- ADM-01: The portfolio tree in Portfolio Overview still uses `project.lob_id` for grouping (not the dynamic hierarchy entities). Full backend propagation (modifying `build_portfolio_tree` to query via `project_grouping_assignments`) is deferred to a follow-up — the hierarchy panel and cross-module label propagation are complete.
+- ADM-01: The "Cut by LoB" simulator action now uses active hierarchy entities for its dropdown options (via `getActiveHierarchy`), but the backend `reduce_lob` action still filters by the `lob_id` field in project state. Full backend propagation for scenario engine actions would require additional work.
+- ADM-04: Projects can be reassigned between LoBs but cannot be "unassigned" (projects must always belong to a LoB). The LoB panel shows project list but has no remove button — only the Portfolio Hierarchy panel supports unassignment from grouping entities.
 
 ## v4 Session 4 — New Requirements: Simulator + Reporting (2026-03-23)
 

@@ -195,6 +195,8 @@ def get_people(
                 role_name=p.role_type.name if p.role_type else "",
                 cost_center_id=p.cost_center_id,
                 cost_center_name=p.cost_center.name if p.cost_center else "",
+                competence_center_id=p.competence_center_id,
+                competence_center_name=p.competence_center.name if p.competence_center else "",
                 utilization_pct=util_pct,
                 is_active=p.is_active,
             )

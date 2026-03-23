@@ -853,6 +853,8 @@ export interface RefPerson {
   role_name: string;
   cost_center_id: string | null;
   cost_center_name: string;
+  competence_center_id: string | null;
+  competence_center_name: string;
   utilization_pct: number;
   is_active: boolean;
 }

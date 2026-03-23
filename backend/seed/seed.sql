@@ -108,89 +108,89 @@ INSERT INTO rate_table (role_type_id, competence_center_id, hourly_rate, effecti
 -- =============================================================================
 
 -- cc-muc-apd
-INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
-('p-brenner', 'Thomas Brenner', 'role-sr-arch', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-fischer', 'Lena Fischer', 'role-sr-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-wolf', 'Markus Wolf', 'role-sr-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-keller', 'Felix Keller', 'role-sr-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-schmidt', 'Jan Schmidt', 'role-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-bauer', 'Sophie Bauer', 'role-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-neumann', 'Niklas Neumann', 'role-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-hoffmann', 'Laura Hoffmann', 'role-jr-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-jung', 'Sabine Jung', 'role-qa', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-berger', 'Martin Berger', 'role-qa', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
+('p-brenner', 'Thomas Brenner', 'role-sr-arch', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-fischer', 'Lena Fischer', 'role-sr-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-wolf', 'Markus Wolf', 'role-sr-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-keller', 'Felix Keller', 'role-sr-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-schmidt', 'Jan Schmidt', 'role-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-bauer', 'Sophie Bauer', 'role-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-neumann', 'Niklas Neumann', 'role-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-hoffmann', 'Laura Hoffmann', 'role-jr-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-jung', 'Sabine Jung', 'role-qa', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-berger', 'Martin Berger', 'role-qa', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-muc-inf
-INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
-('p-wagner', 'Michael Wagner', 'role-cloud', 'cc-muc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-braun', 'Stefan Braun', 'role-cloud', 'cc-muc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-richter', 'Katharina Richter', 'role-sysadmin', 'cc-muc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-frank', 'Andreas Frank', 'role-network', 'cc-muc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
+('p-wagner', 'Michael Wagner', 'role-cloud', 'cc-muc-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-braun', 'Stefan Braun', 'role-cloud', 'cc-muc-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-richter', 'Katharina Richter', 'role-sysadmin', 'cc-muc-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-frank', 'Andreas Frank', 'role-network', 'cc-muc-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-muc-bso
-INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
-('p-mueller', 'Eva Mueller', 'role-sap', 'cc-muc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-hartmann', 'Klaus Hartmann', 'role-sap', 'cc-muc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-krause', 'Petra Krause', 'role-ba', 'cc-muc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
+('p-mueller', 'Eva Mueller', 'role-sap', 'cc-muc-bso', 'cc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-hartmann', 'Klaus Hartmann', 'role-sap', 'cc-muc-bso', 'cc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-krause', 'Petra Krause', 'role-ba', 'cc-muc-bso', 'cc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-muc-dda
-INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
-('p-schubert', 'Daniel Schubert', 'role-data-eng', 'cc-muc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-winter', 'Christina Winter', 'role-data-eng', 'cc-muc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-lorenz', 'Florian Lorenz', 'role-data-sci', 'cc-muc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
+('p-schubert', 'Daniel Schubert', 'role-data-eng', 'cc-muc-dda', 'cc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-winter', 'Christina Winter', 'role-data-eng', 'cc-muc-dda', 'cc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-lorenz', 'Florian Lorenz', 'role-data-sci', 'cc-muc-dda', 'cc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-bud-apd
-INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
-('p-nagy', 'Zoltan Nagy', 'role-sr-arch', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-szabo', 'Istvan Szabo', 'role-sr-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-toth', 'Gabor Toth', 'role-sr-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-horvath', 'Anna Horvath', 'role-sr-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-kovacs', 'Peter Kovacs', 'role-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-molnar', 'Katalin Molnar', 'role-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-varga', 'Laszlo Varga', 'role-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-kiss', 'Eszter Kiss', 'role-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-fekete', 'Daniel Fekete', 'role-jr-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-papp', 'Janos Papp', 'role-qa', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-lukacs', 'Marta Lukacs', 'role-qa', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
+('p-nagy', 'Zoltan Nagy', 'role-sr-arch', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-szabo', 'Istvan Szabo', 'role-sr-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-toth', 'Gabor Toth', 'role-sr-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-horvath', 'Anna Horvath', 'role-sr-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-kovacs', 'Peter Kovacs', 'role-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-molnar', 'Katalin Molnar', 'role-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-varga', 'Laszlo Varga', 'role-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-kiss', 'Eszter Kiss', 'role-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-fekete', 'Daniel Fekete', 'role-jr-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-papp', 'Janos Papp', 'role-qa', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-lukacs', 'Marta Lukacs', 'role-qa', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-bud-inf
-INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
-('p-farkas', 'Tamas Farkas', 'role-cloud', 'cc-bud-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-balogh', 'Andras Balogh', 'role-sysadmin', 'cc-bud-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-takacs', 'Krisztina Takacs', 'role-network', 'cc-bud-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
+('p-farkas', 'Tamas Farkas', 'role-cloud', 'cc-bud-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-balogh', 'Andras Balogh', 'role-sysadmin', 'cc-bud-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-takacs', 'Krisztina Takacs', 'role-network', 'cc-bud-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-bud-dda
-INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
-('p-simon', 'Balazs Simon', 'role-data-eng', 'cc-bud-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-nemeth', 'Eva Nemeth', 'role-data-sci', 'cc-bud-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
+('p-simon', 'Balazs Simon', 'role-data-eng', 'cc-bud-dda', 'cc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-nemeth', 'Eva Nemeth', 'role-data-sci', 'cc-bud-dda', 'cc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- portfolio
-INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
-('p-sharma', 'Priya Sharma', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-meier', 'Anna Meier', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-becker', 'Thomas Becker', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
+('p-sharma', 'Priya Sharma', 'role-sr-arch', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-meier', 'Anna Meier', 'role-sr-arch', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-becker', 'Thomas Becker', 'role-sr-arch', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-pun-apd
-INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
-('p-patel', 'Rajesh Patel', 'role-sr-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-kumar', 'Amit Kumar', 'role-sr-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-gupta', 'Sneha Gupta', 'role-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-singh', 'Vikram Singh', 'role-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-das', 'Ananya Das', 'role-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-joshi', 'Deepak Joshi', 'role-jr-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-iyer', 'Kavitha Iyer', 'role-jr-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-reddy', 'Sanjay Reddy', 'role-qa', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
+('p-patel', 'Rajesh Patel', 'role-sr-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-kumar', 'Amit Kumar', 'role-sr-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-gupta', 'Sneha Gupta', 'role-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-singh', 'Vikram Singh', 'role-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-das', 'Ananya Das', 'role-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-joshi', 'Deepak Joshi', 'role-jr-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-iyer', 'Kavitha Iyer', 'role-jr-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-reddy', 'Sanjay Reddy', 'role-qa', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-pun-inf
-INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
-('p-nair', 'Arun Nair', 'role-cloud', 'cc-pun-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-menon', 'Lakshmi Menon', 'role-sysadmin', 'cc-pun-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-pillai', 'Suresh Pillai', 'role-network', 'cc-pun-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
+('p-nair', 'Arun Nair', 'role-cloud', 'cc-pun-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-menon', 'Lakshmi Menon', 'role-sysadmin', 'cc-pun-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-pillai', 'Suresh Pillai', 'role-network', 'cc-pun-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-pun-bso
-INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
-('p-rao', 'Meera Rao', 'role-sap', 'cc-pun-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-desai', 'Nikhil Desai', 'role-ba', 'cc-pun-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
+('p-rao', 'Meera Rao', 'role-sap', 'cc-pun-bso', 'cc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-desai', 'Nikhil Desai', 'role-ba', 'cc-pun-bso', 'cc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- 9. Demo Personas
@@ -19234,3 +19234,65 @@ INSERT INTO forecast_snapshots (project_id, snapshot_month, forecast_total) VALU
 ('proj-workplace', '2025-12', 297000.00),
 ('proj-workplace', '2026-01', 298000.00),
 ('proj-workplace', '2026-02', 300000.00);
+
+-- =============================================================================
+-- Dynamic Portfolio Hierarchy (ADM-01)
+-- =============================================================================
+
+-- Entity Type: Line of Business (mirrors existing LoB structure)
+INSERT INTO grouping_entity_types (id, name, is_active, created_at) VALUES
+('get-lob', 'Line of Business', 1, '2026-01-15 10:00:00');
+
+-- Grouping Entities: one per existing LoB
+INSERT INTO grouping_entities (id, entity_type_id, name, parent_entity_id, is_active, created_at) VALUES
+('ge-lob-tbs', 'get-lob', 'Truck & Bus Systems (TBS)', NULL, 1, '2026-01-15 10:00:00'),
+('ge-lob-rvs', 'get-lob', 'Rail Vehicle Systems (RVS)', NULL, 1, '2026-01-15 10:00:00'),
+('ge-lob-cit', 'get-lob', 'Corporate IT', NULL, 1, '2026-01-15 10:00:00'),
+('ge-lob-dnd', 'get-lob', 'Digital & Data', NULL, 1, '2026-01-15 10:00:00');
+
+-- Default Hierarchy: LoB Structure (active)
+INSERT INTO grouping_hierarchies (id, name, is_active_hierarchy, created_at) VALUES
+('hier-lob', 'LoB Structure', 1, '2026-01-15 10:00:00');
+
+-- Hierarchy Level: LoB → Project (single level)
+INSERT INTO grouping_hierarchy_levels (hierarchy_id, level_order, entity_type_id) VALUES
+('hier-lob', 0, 'get-lob');
+
+-- Project Assignments: mirror project.lob_id
+INSERT INTO project_grouping_assignments (project_id, grouping_entity_id) VALUES
+-- lob-tbs → ge-lob-tbs
+('proj-erp2', 'ge-lob-tbs'),
+('proj-sap', 'ge-lob-tbs'),
+('proj-brake', 'ge-lob-tbs'),
+('proj-autobrake', 'ge-lob-tbs'),
+('proj-legacy', 'ge-lob-tbs'),
+('proj-connveh', 'ge-lob-tbs'),
+('svc-sap-ops', 'ge-lob-tbs'),
+('svc-euc', 'ge-lob-tbs'),
+('svc-tbs-maint', 'ge-lob-tbs'),
+-- lob-rvs → ge-lob-rvs
+('proj-signal', 'ge-lob-rvs'),
+('proj-raildiag', 'ge-lob-rvs'),
+('proj-predmaint', 'ge-lob-rvs'),
+('proj-workshop', 'ge-lob-rvs'),
+('proj-railsafety', 'ge-lob-rvs'),
+('svc-rail-desk', 'ge-lob-rvs'),
+('svc-rail-maint', 'ge-lob-rvs'),
+('svc-signal-sup', 'ge-lob-rvs'),
+-- lob-cit → ge-lob-cit
+('proj-cloud3', 'ge-lob-cit'),
+('proj-iam', 'ge-lob-cit'),
+('proj-workplace', 'ge-lob-cit'),
+('proj-datacenter', 'ge-lob-cit'),
+('proj-wan', 'ge-lob-cit'),
+('svc-netsec', 'ge-lob-cit'),
+('svc-middleware', 'ge-lob-cit'),
+('svc-dba', 'ge-lob-cit'),
+-- lob-dnd → ge-lob-dnd
+('proj-sensor', 'ge-lob-dnd'),
+('proj-fleet', 'ge-lob-dnd'),
+('proj-telematics', 'ge-lob-dnd'),
+('proj-dwh', 'ge-lob-dnd'),
+('proj-aiml', 'ge-lob-dnd'),
+('svc-dataplatform', 'ge-lob-dnd'),
+('svc-iot', 'ge-lob-dnd');

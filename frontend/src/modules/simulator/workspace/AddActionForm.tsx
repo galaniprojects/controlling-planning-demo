@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { referenceApi } from '@/api/endpoints';
+import { referenceApi, adminApi } from '@/api/endpoints';
 import type { ScenarioProjectState } from '@/types/api';
 
 // --- Action Type Configs ---
@@ -224,8 +224,12 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
 
   // Fetch reference data once
   useEffect(() => {
-    referenceApi.getLobs().then((res) => {
-      setLobOptions(res.items.map((l) => ({ value: l.id, label: l.name })));
+    adminApi.getActiveHierarchy().then((res) => {
+      setLobOptions(res.entities.map((e) => ({ value: e.id, label: e.name })));
+    }).catch(() => {
+      referenceApi.getLobs().then((res) => {
+        setLobOptions(res.items.map((l) => ({ value: l.id, label: l.name })));
+      });
     });
     referenceApi.getRoles().then((res) => {
       setRoleOptions(res.items.map((r) => ({ value: r.id, label: r.name })));
