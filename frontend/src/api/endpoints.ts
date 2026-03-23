@@ -158,6 +158,11 @@ export const portfolioApi = {
       `/api/portfolio/intake/${projectId}/send-back`,
       { comments }
     ),
+  resubmitIntake: (projectId: string) =>
+    api.put<{ id: string; name: string; status: string }>(
+      `/api/portfolio/intake/${projectId}/resubmit`,
+      {}
+    ),
 
   // Approvals
   getApprovals: () => api.get<ListResponse<ApprovalItem>>('/api/portfolio/approvals'),
