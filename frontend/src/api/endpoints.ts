@@ -492,6 +492,10 @@ export const adminApi = {
     api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/lobs', data),
   updateLoB: (id: string, data: { name?: string; description?: string }) =>
     api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/lobs/${id}`, data),
+  getLoBProjects: (lobId: string) =>
+    api.get<ListResponse<{ id: string; name: string; status: string; total_budget: number }>>(`/api/admin/lobs/${lobId}/projects`),
+  assignProjectToLoB: (lobId: string, projectId: string) =>
+    api.put<{ status: string; old_lob_name: string }>(`/api/admin/lobs/${lobId}/projects/${projectId}/assign`),
 
   // Locations
   createLocation: (data: { city: string; country: string }) =>

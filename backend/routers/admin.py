@@ -13,6 +13,7 @@ from database import get_db
 from dependencies import get_current_user, require_role
 from models.organization import CompetenceCenter, CostCenter, LineOfBusiness, Location
 from models.people import Person, RateTable, RoleType
+from models.projects import Project
 from models.system import AuditLog, PlanningParameter
 from schemas.admin import (
     AdminContextResponse,
@@ -279,6 +280,60 @@ def update_lob(
     db.commit()
     db.refresh(lob)
     return {"id": lob.id, "name": lob.name, "is_active": lob.is_active}
+
+
+# ---------------------------------------------------------------------------
+# Lines of Business — Project Assignment (2 endpoints)
+# ---------------------------------------------------------------------------
+
+@router.get("/lobs/{lob_id}/projects")
+def get_lob_projects(
+    lob_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """List projects assigned to a Line of Business."""
+    projects = (
+        db.query(Project)
+        .filter(Project.lob_id == lob_id, Project.is_active.is_(True))
+        .order_by(Project.name)
+        .all()
+    )
+    items = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "status": p.status,
+            "total_budget": float(p.total_budget or p.annual_budget or 0),
+        }
+        for p in projects
+    ]
+    return {"items": items, "total": len(items)}
+
+
+@router.put("/lobs/{lob_id}/projects/{project_id}/assign")
+def assign_project_to_lob(
+    lob_id: str,
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Reassign a project to a different Line of Business."""
+    lob = db.query(LineOfBusiness).filter(LineOfBusiness.id == lob_id).first()
+    if not lob:
+        raise HTTPException(404, "Line of Business not found")
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    old_lob_id = project.lob_id
+    old_lob_name = ""
+    if old_lob_id:
+        old_lob = db.query(LineOfBusiness).filter(LineOfBusiness.id == old_lob_id).first()
+        old_lob_name = old_lob.name if old_lob else old_lob_id
+    project.lob_id = lob_id
+    _log_audit(db, user, "project", project.id, project.name, "update", "lob_id", old_lob_id, lob_id)
+    db.commit()
+    return {"status": "ok", "project_id": project.id, "lob_id": lob_id, "old_lob_name": old_lob_name}
 
 
 # ---------------------------------------------------------------------------
