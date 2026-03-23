@@ -1,7 +1,11 @@
 # Import all models so Base.metadata.create_all() discovers all tables.
 # Import order matters — base tables first, then tables with foreign keys.
 
-from models.organization import LineOfBusiness, Location, CompetenceCenter, CostCenter
+from models.organization import (
+    LineOfBusiness, Location, CompetenceCenter, CostCenter,
+    GroupingEntityType, GroupingEntity, GroupingHierarchy,
+    GroupingHierarchyLevel, ProjectGroupingAssignment,
+)
 from models.people import RoleType, Person, RateTable
 from models.projects import Program, Project, ProjectPhase
 from models.financial import ExternalCostType, Baseline, Forecast, Actuals
@@ -14,6 +18,8 @@ from models.reporting import ForecastSnapshot, SavedView
 
 __all__ = [
     "LineOfBusiness", "Location", "CompetenceCenter", "CostCenter",
+    "GroupingEntityType", "GroupingEntity", "GroupingHierarchy",
+    "GroupingHierarchyLevel", "ProjectGroupingAssignment",
     "RoleType", "Person", "RateTable",
     "Program", "Project", "ProjectPhase",
     "ExternalCostType", "Baseline", "Forecast", "Actuals",

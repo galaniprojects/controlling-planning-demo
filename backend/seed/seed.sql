@@ -19234,3 +19234,65 @@ INSERT INTO forecast_snapshots (project_id, snapshot_month, forecast_total) VALU
 ('proj-workplace', '2025-12', 297000.00),
 ('proj-workplace', '2026-01', 298000.00),
 ('proj-workplace', '2026-02', 300000.00);
+
+-- =============================================================================
+-- Dynamic Portfolio Hierarchy (ADM-01)
+-- =============================================================================
+
+-- Entity Type: Line of Business (mirrors existing LoB structure)
+INSERT INTO grouping_entity_types (id, name, is_active, created_at) VALUES
+('get-lob', 'Line of Business', 1, '2026-01-15 10:00:00');
+
+-- Grouping Entities: one per existing LoB
+INSERT INTO grouping_entities (id, entity_type_id, name, parent_entity_id, is_active, created_at) VALUES
+('ge-lob-tbs', 'get-lob', 'Truck & Bus Systems (TBS)', NULL, 1, '2026-01-15 10:00:00'),
+('ge-lob-rvs', 'get-lob', 'Rail Vehicle Systems (RVS)', NULL, 1, '2026-01-15 10:00:00'),
+('ge-lob-cit', 'get-lob', 'Corporate IT', NULL, 1, '2026-01-15 10:00:00'),
+('ge-lob-dnd', 'get-lob', 'Digital & Data', NULL, 1, '2026-01-15 10:00:00');
+
+-- Default Hierarchy: LoB Structure (active)
+INSERT INTO grouping_hierarchies (id, name, is_active_hierarchy, created_at) VALUES
+('hier-lob', 'LoB Structure', 1, '2026-01-15 10:00:00');
+
+-- Hierarchy Level: LoB → Project (single level)
+INSERT INTO grouping_hierarchy_levels (hierarchy_id, level_order, entity_type_id) VALUES
+('hier-lob', 0, 'get-lob');
+
+-- Project Assignments: mirror project.lob_id
+INSERT INTO project_grouping_assignments (project_id, grouping_entity_id) VALUES
+-- lob-tbs → ge-lob-tbs
+('proj-erp2', 'ge-lob-tbs'),
+('proj-sap', 'ge-lob-tbs'),
+('proj-brake', 'ge-lob-tbs'),
+('proj-autobrake', 'ge-lob-tbs'),
+('proj-legacy', 'ge-lob-tbs'),
+('proj-connveh', 'ge-lob-tbs'),
+('svc-sap-ops', 'ge-lob-tbs'),
+('svc-euc', 'ge-lob-tbs'),
+('svc-tbs-maint', 'ge-lob-tbs'),
+-- lob-rvs → ge-lob-rvs
+('proj-signal', 'ge-lob-rvs'),
+('proj-raildiag', 'ge-lob-rvs'),
+('proj-predmaint', 'ge-lob-rvs'),
+('proj-workshop', 'ge-lob-rvs'),
+('proj-railsafety', 'ge-lob-rvs'),
+('svc-rail-desk', 'ge-lob-rvs'),
+('svc-rail-maint', 'ge-lob-rvs'),
+('svc-signal-sup', 'ge-lob-rvs'),
+-- lob-cit → ge-lob-cit
+('proj-cloud3', 'ge-lob-cit'),
+('proj-iam', 'ge-lob-cit'),
+('proj-workplace', 'ge-lob-cit'),
+('proj-datacenter', 'ge-lob-cit'),
+('proj-wan', 'ge-lob-cit'),
+('svc-netsec', 'ge-lob-cit'),
+('svc-middleware', 'ge-lob-cit'),
+('svc-dba', 'ge-lob-cit'),
+-- lob-dnd → ge-lob-dnd
+('proj-sensor', 'ge-lob-dnd'),
+('proj-fleet', 'ge-lob-dnd'),
+('proj-telematics', 'ge-lob-dnd'),
+('proj-dwh', 'ge-lob-dnd'),
+('proj-aiml', 'ge-lob-dnd'),
+('svc-dataplatform', 'ge-lob-dnd'),
+('svc-iot', 'ge-lob-dnd');

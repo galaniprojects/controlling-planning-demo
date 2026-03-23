@@ -11,7 +11,11 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from dependencies import get_current_user, require_role
-from models.organization import CompetenceCenter, CostCenter, LineOfBusiness, Location
+from models.organization import (
+    CompetenceCenter, CostCenter, LineOfBusiness, Location,
+    GroupingEntityType, GroupingEntity, GroupingHierarchy,
+    GroupingHierarchyLevel, ProjectGroupingAssignment,
+)
 from models.people import Person, RateTable, RoleType
 from models.projects import Project
 from models.system import AuditLog, PlanningParameter
@@ -576,6 +580,317 @@ def reset_parameters(
         updated.append({"key": param.key, "name": param.name, "current_value": param.current_value})
     db.commit()
     return {"items": updated, "total": len(updated)}
+
+
+# ---------------------------------------------------------------------------
+# Grouping Hierarchy (ADM-01) — 10 endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/grouping/entity-types")
+def get_entity_types(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """List all grouping entity types."""
+    types = db.query(GroupingEntityType).all()
+    items = []
+    for t in types:
+        entity_count = db.query(func.count(GroupingEntity.id)).filter(GroupingEntity.entity_type_id == t.id).scalar()
+        items.append({"id": t.id, "name": t.name, "is_active": t.is_active, "entity_count": entity_count})
+    return {"items": items, "total": len(items)}
+
+
+@router.post("/grouping/entity-types")
+def create_entity_type(
+    body: dict,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Create a new grouping entity type."""
+    et = GroupingEntityType(id=_gen_id("get"), name=body["name"])
+    db.add(et)
+    _log_audit(db, user, "grouping_entity_type", et.id, et.name, "create")
+    db.commit()
+    db.refresh(et)
+    return {"id": et.id, "name": et.name, "is_active": et.is_active}
+
+
+@router.put("/grouping/entity-types/{type_id}")
+def update_entity_type(
+    type_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Update a grouping entity type."""
+    et = db.query(GroupingEntityType).filter(GroupingEntityType.id == type_id).first()
+    if not et:
+        raise HTTPException(404, "Entity type not found")
+    if "name" in body:
+        _log_audit(db, user, "grouping_entity_type", et.id, et.name, "update", "name", et.name, body["name"])
+        et.name = body["name"]
+    db.commit()
+    db.refresh(et)
+    return {"id": et.id, "name": et.name, "is_active": et.is_active}
+
+
+@router.get("/grouping/entities")
+def get_grouping_entities(
+    type_id: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """List grouping entities, optionally filtered by type."""
+    query = db.query(GroupingEntity)
+    if type_id:
+        query = query.filter(GroupingEntity.entity_type_id == type_id)
+    entities = query.order_by(GroupingEntity.name).all()
+    items = []
+    for e in entities:
+        project_count = db.query(func.count(ProjectGroupingAssignment.id)).filter(
+            ProjectGroupingAssignment.grouping_entity_id == e.id
+        ).scalar()
+        items.append({
+            "id": e.id,
+            "entity_type_id": e.entity_type_id,
+            "entity_type_name": e.entity_type.name if e.entity_type else "",
+            "name": e.name,
+            "parent_entity_id": e.parent_entity_id,
+            "is_active": e.is_active,
+            "project_count": project_count,
+        })
+    return {"items": items, "total": len(items)}
+
+
+@router.post("/grouping/entities")
+def create_grouping_entity(
+    body: dict,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Create a new grouping entity."""
+    ge = GroupingEntity(
+        id=_gen_id("ge"),
+        entity_type_id=body["entity_type_id"],
+        name=body["name"],
+        parent_entity_id=body.get("parent_entity_id"),
+    )
+    db.add(ge)
+    _log_audit(db, user, "grouping_entity", ge.id, ge.name, "create")
+    db.commit()
+    db.refresh(ge)
+    return {"id": ge.id, "name": ge.name, "entity_type_id": ge.entity_type_id, "is_active": ge.is_active}
+
+
+@router.put("/grouping/entities/{entity_id}")
+def update_grouping_entity(
+    entity_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Update a grouping entity."""
+    ge = db.query(GroupingEntity).filter(GroupingEntity.id == entity_id).first()
+    if not ge:
+        raise HTTPException(404, "Entity not found")
+    if "name" in body:
+        _log_audit(db, user, "grouping_entity", ge.id, ge.name, "update", "name", ge.name, body["name"])
+        ge.name = body["name"]
+    if "parent_entity_id" in body:
+        ge.parent_entity_id = body["parent_entity_id"]
+    db.commit()
+    db.refresh(ge)
+    return {"id": ge.id, "name": ge.name, "is_active": ge.is_active}
+
+
+@router.get("/grouping/hierarchies")
+def get_hierarchies(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """List all grouping hierarchies with their levels."""
+    hierarchies = db.query(GroupingHierarchy).all()
+    items = []
+    for h in hierarchies:
+        levels = [
+            {"level_order": lvl.level_order, "entity_type_id": lvl.entity_type_id, "entity_type_name": lvl.entity_type.name if lvl.entity_type else ""}
+            for lvl in h.levels
+        ]
+        items.append({
+            "id": h.id,
+            "name": h.name,
+            "is_active_hierarchy": h.is_active_hierarchy,
+            "levels": levels,
+        })
+    return {"items": items, "total": len(items)}
+
+
+@router.post("/grouping/hierarchies")
+def create_hierarchy(
+    body: dict,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Create a new grouping hierarchy with levels."""
+    h = GroupingHierarchy(id=_gen_id("hier"), name=body["name"])
+    db.add(h)
+    db.flush()
+    for i, et_id in enumerate(body.get("levels", [])):
+        lvl = GroupingHierarchyLevel(hierarchy_id=h.id, level_order=i, entity_type_id=et_id)
+        db.add(lvl)
+    _log_audit(db, user, "grouping_hierarchy", h.id, h.name, "create")
+    db.commit()
+    db.refresh(h)
+    return {"id": h.id, "name": h.name, "is_active_hierarchy": h.is_active_hierarchy}
+
+
+@router.put("/grouping/hierarchies/{hierarchy_id}")
+def update_hierarchy(
+    hierarchy_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Update a hierarchy name and/or levels."""
+    h = db.query(GroupingHierarchy).filter(GroupingHierarchy.id == hierarchy_id).first()
+    if not h:
+        raise HTTPException(404, "Hierarchy not found")
+    if "name" in body:
+        h.name = body["name"]
+    if "levels" in body:
+        db.query(GroupingHierarchyLevel).filter(GroupingHierarchyLevel.hierarchy_id == h.id).delete()
+        for i, et_id in enumerate(body["levels"]):
+            lvl = GroupingHierarchyLevel(hierarchy_id=h.id, level_order=i, entity_type_id=et_id)
+            db.add(lvl)
+    _log_audit(db, user, "grouping_hierarchy", h.id, h.name, "update")
+    db.commit()
+    db.refresh(h)
+    return {"id": h.id, "name": h.name, "is_active_hierarchy": h.is_active_hierarchy}
+
+
+@router.put("/grouping/hierarchies/{hierarchy_id}/activate")
+def activate_hierarchy(
+    hierarchy_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Set this hierarchy as the active one (deactivate all others)."""
+    h = db.query(GroupingHierarchy).filter(GroupingHierarchy.id == hierarchy_id).first()
+    if not h:
+        raise HTTPException(404, "Hierarchy not found")
+    # Deactivate all
+    db.query(GroupingHierarchy).update({GroupingHierarchy.is_active_hierarchy: False})
+    h.is_active_hierarchy = True
+    _log_audit(db, user, "grouping_hierarchy", h.id, h.name, "activate")
+    db.commit()
+    return {"id": h.id, "name": h.name, "is_active_hierarchy": True}
+
+
+@router.get("/grouping/active-hierarchy")
+def get_active_hierarchy(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Get the currently active hierarchy with full entity tree and project assignments."""
+    h = db.query(GroupingHierarchy).filter(GroupingHierarchy.is_active_hierarchy.is_(True)).first()
+    if not h:
+        return {"hierarchy": None, "top_level_label": "Line of Business", "entities": []}
+
+    # Get the top-level entity type
+    top_level = h.levels[0] if h.levels else None
+    if not top_level:
+        return {"hierarchy": {"id": h.id, "name": h.name}, "top_level_label": "Group", "entities": []}
+
+    top_type = top_level.entity_type
+    entities = (
+        db.query(GroupingEntity)
+        .filter(GroupingEntity.entity_type_id == top_type.id, GroupingEntity.is_active.is_(True))
+        .order_by(GroupingEntity.name)
+        .all()
+    )
+
+    entity_list = []
+    for e in entities:
+        assignments = db.query(ProjectGroupingAssignment).filter(
+            ProjectGroupingAssignment.grouping_entity_id == e.id
+        ).all()
+        projects = []
+        for a in assignments:
+            p = db.query(Project).filter(Project.id == a.project_id).first()
+            if p:
+                projects.append({"id": p.id, "name": p.name, "status": p.status})
+        entity_list.append({
+            "id": e.id,
+            "name": e.name,
+            "project_count": len(projects),
+            "projects": projects,
+        })
+
+    return {
+        "hierarchy": {"id": h.id, "name": h.name},
+        "top_level_label": top_type.name,
+        "entities": entity_list,
+    }
+
+
+@router.post("/grouping/project-assignments")
+def assign_project_to_entity(
+    body: dict,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Assign a project to a grouping entity. Removes any existing assignment for this project."""
+    project_id = body["project_id"]
+    entity_id = body["grouping_entity_id"]
+    # Remove existing assignment for this project
+    db.query(ProjectGroupingAssignment).filter(
+        ProjectGroupingAssignment.project_id == project_id
+    ).delete()
+    assignment = ProjectGroupingAssignment(project_id=project_id, grouping_entity_id=entity_id)
+    db.add(assignment)
+    _log_audit(db, user, "project_grouping", project_id, None, "assign", "grouping_entity_id", None, entity_id)
+    db.commit()
+    return {"status": "ok", "project_id": project_id, "grouping_entity_id": entity_id}
+
+
+@router.delete("/grouping/project-assignments/{project_id}")
+def unassign_project_from_entity(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Remove a project's grouping entity assignment."""
+    deleted = db.query(ProjectGroupingAssignment).filter(
+        ProjectGroupingAssignment.project_id == project_id
+    ).delete()
+    if not deleted:
+        raise HTTPException(404, "Assignment not found")
+    _log_audit(db, user, "project_grouping", project_id, None, "unassign")
+    db.commit()
+    return {"status": "ok", "project_id": project_id}
+
+
+@router.get("/grouping/entities/{entity_id}/projects")
+def get_entity_projects(
+    entity_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """List projects assigned to a grouping entity."""
+    assignments = db.query(ProjectGroupingAssignment).filter(
+        ProjectGroupingAssignment.grouping_entity_id == entity_id
+    ).all()
+    items = []
+    for a in assignments:
+        p = db.query(Project).filter(Project.id == a.project_id).first()
+        if p:
+            items.append({
+                "id": p.id,
+                "name": p.name,
+                "status": p.status,
+                "total_budget": float(p.total_budget or p.annual_budget or 0),
+            })
+    return {"items": items, "total": len(items)}
 
 
 # ---------------------------------------------------------------------------
