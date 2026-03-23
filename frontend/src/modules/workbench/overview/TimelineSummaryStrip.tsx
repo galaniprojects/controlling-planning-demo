@@ -16,6 +16,10 @@ const ITEMS: { key: keyof TimelineSummary; label: string; format: 'currency' | '
 export function TimelineSummaryStrip({ summary }: Props) {
   return (
     <div className="flex items-center gap-6 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+      <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider whitespace-nowrap">
+        FY 2026
+      </div>
+      <div className="w-px h-6 bg-slate-200" />
       {ITEMS.map((item) => {
         const value = summary[item.key];
         return (

@@ -201,30 +201,60 @@ def get_project_summary(
 @router.get("/charts")
 def get_dashboard_charts(
     lob: str | None = None,
+    status: str | None = None,
+    rag: str | None = None,
+    cost_center: str | None = None,
+    project_type: str | None = None,
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(get_current_user),
 ):
     """Get chart data for portfolio dashboard."""
     from models.organization import LineOfBusiness
+    from models.people import Person
+    from models.capacity import Allocation
 
-    # Budget by LoB
+    # Build set of project IDs matching all filters
+    pq = db.query(Project.id).filter(Project.is_active.is_(True))
+    if lob:
+        pq = pq.filter(Project.lob_id == lob)
+    if status:
+        pq = pq.filter(Project.status == status)
+    if rag:
+        pq = pq.filter(Project.rag_status == rag)
+    if project_type:
+        pq = pq.filter(Project.project_type == project_type)
+    if cost_center:
+        person_ids = [r[0] for r in db.query(Person.id).filter(Person.cost_center_id == cost_center).all()]
+        if person_ids:
+            alloc_pids = [r[0] for r in db.query(Allocation.project_id).filter(Allocation.person_id.in_(person_ids)).distinct().all()]
+            pq = pq.filter(Project.id.in_(alloc_pids))
+        else:
+            pq = pq.filter(False)  # no matches
+    filtered_pids = [r[0] for r in pq.all()]
+
+    # Forecast by LoB (current fiscal year)
+    cy_prefix = "2026"
     lobs = db.query(LineOfBusiness).all()
-    budget_by_lob = []
+    forecast_by_lob = []
     for l in lobs:
-        query = db.query(func.coalesce(func.sum(Project.total_budget), 0)).filter(
-            Project.lob_id == l.id, Project.is_active.is_(True)
-        )
-        budget = float(query.scalar())
-        budget_by_lob.append({"lob_id": l.id, "lob_name": l.name, "budget": round(budget, 2)})
+        lob_pids = [r[0] for r in db.query(Project.id).filter(Project.lob_id == l.id, Project.id.in_(filtered_pids)).all()]
+        if not lob_pids:
+            forecast_by_lob.append({"lob_id": l.id, "lob_name": l.name, "forecast": 0, "baseline": 0})
+            continue
+        fc_total = float(db.query(func.coalesce(func.sum(Forecast.amount_eur), 0)).filter(
+            Forecast.project_id.in_(lob_pids),
+            func.substr(Forecast.month, 1, 4) == cy_prefix,
+        ).scalar())
+        bl_total = float(db.query(func.coalesce(func.sum(Baseline.amount_eur), 0)).filter(
+            Baseline.project_id.in_(lob_pids),
+            func.substr(Baseline.month, 1, 4) == cy_prefix,
+        ).scalar())
+        forecast_by_lob.append({"lob_id": l.id, "lob_name": l.name, "forecast": round(fc_total, 2), "baseline": round(bl_total, 2)})
 
     # Forecast trajectory (cumulative baseline + forecast + actuals)
-    fc_q = db.query(Forecast.month, func.sum(Forecast.amount_eur).label("total")).group_by(Forecast.month).order_by(Forecast.month)
-    bl_q = db.query(Baseline.month, func.sum(Baseline.amount_eur).label("total")).group_by(Baseline.month).order_by(Baseline.month)
-    ac_q = db.query(Actuals.month, func.sum(Actuals.amount_eur).label("total")).filter(Actuals.month <= DEMO_DATE).group_by(Actuals.month).order_by(Actuals.month)
-    if lob:
-        fc_q = fc_q.join(Project, Forecast.project_id == Project.id).filter(Project.lob_id == lob)
-        bl_q = bl_q.join(Project, Baseline.project_id == Project.id).filter(Project.lob_id == lob)
-        ac_q = ac_q.join(Project, Actuals.project_id == Project.id).filter(Project.lob_id == lob)
+    fc_q = db.query(Forecast.month, func.sum(Forecast.amount_eur).label("total")).filter(Forecast.project_id.in_(filtered_pids)).group_by(Forecast.month).order_by(Forecast.month)
+    bl_q = db.query(Baseline.month, func.sum(Baseline.amount_eur).label("total")).filter(Baseline.project_id.in_(filtered_pids)).group_by(Baseline.month).order_by(Baseline.month)
+    ac_q = db.query(Actuals.month, func.sum(Actuals.amount_eur).label("total")).filter(Actuals.month <= DEMO_DATE, Actuals.project_id.in_(filtered_pids)).group_by(Actuals.month).order_by(Actuals.month)
     fc_map = {r.month: float(r.total) for r in fc_q.all()}
     bl_map = {r.month: float(r.total) for r in bl_q.all()}
     ac_map = {r.month: float(r.total) for r in ac_q.all()}
@@ -245,14 +275,14 @@ def get_dashboard_charts(
     # RAG distribution
     rag_dist = (
         db.query(Project.rag_status, func.count(Project.id))
-        .filter(Project.is_active.is_(True), Project.rag_status.isnot(None))
+        .filter(Project.id.in_(filtered_pids), Project.rag_status.isnot(None))
         .group_by(Project.rag_status)
         .all()
     )
     rag_distribution = {status: count for status, count in rag_dist}
 
     return {
-        "budget_by_lob": budget_by_lob,
+        "forecast_by_lob": forecast_by_lob,
         "forecast_trajectory": forecast_trajectory,
         "rag_distribution": rag_distribution,
     }

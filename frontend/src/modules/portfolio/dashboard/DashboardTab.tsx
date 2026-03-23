@@ -69,7 +69,7 @@ export function DashboardTab() {
       .finally(() => setTreeLoading(false));
 
     portfolioApi
-      .getCharts(filters.lob || undefined)
+      .getCharts(filters)
       .then(setCharts)
       .catch(() => {});
   }, [currentRoleId, filters]);

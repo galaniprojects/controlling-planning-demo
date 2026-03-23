@@ -127,8 +127,16 @@ export const portfolioApi = {
   },
   getProjectSummary: (projectId: string) =>
     api.get<ProjectSummary>(`/api/portfolio/projects/${projectId}/summary`),
-  getCharts: (lob?: string) =>
-    api.get<ChartData>(`/api/portfolio/charts${lob ? '?lob=' + lob : ''}`),
+  getCharts: (filters?: Record<string, string>) => {
+    const query = new URLSearchParams();
+    if (filters) {
+      for (const [k, v] of Object.entries(filters)) {
+        if (v) query.set(k, v);
+      }
+    }
+    const qs = query.toString();
+    return api.get<ChartData>(`/api/portfolio/charts${qs ? '?' + qs : ''}`);
+  },
 
   // Intake
   getIntake: () => api.get<ListResponse<IntakeItem>>('/api/portfolio/intake'),

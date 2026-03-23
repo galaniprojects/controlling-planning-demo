@@ -54,7 +54,7 @@ export function PortfolioOverview() {
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           {showIntake && <TabsTrigger value="intake">Intake Queue</TabsTrigger>}
-          {showApprovals && <TabsTrigger value="approvals">Approvals</TabsTrigger>}
+          {showApprovals && <TabsTrigger value="approvals">CR Approvals</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="dashboard" className="mt-4">

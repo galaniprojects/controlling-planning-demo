@@ -18,6 +18,7 @@ import type { ForecastGridRow, ForecastMonthCell } from '@/types/api';
 
 interface Props {
   projectId: string;
+  defaultExpandedYear?: number;
 }
 
 function findCell(row: ForecastGridRow, month: string): ForecastMonthCell | undefined {
@@ -37,7 +38,7 @@ function sumCells(
   return total;
 }
 
-export function ForecastGrid({ projectId }: Props) {
+export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
   const [rows, setRows] = useState<ForecastGridRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -55,7 +56,7 @@ export function ForecastGrid({ projectId }: Props) {
     new Set(rows.flatMap((r) => r.months.map((m) => m.month))),
   ).sort();
 
-  const { yearGroups, toggleYear, visibleColumns } = useCollapsibleYears(allMonths);
+  const { yearGroups, toggleYear, visibleColumns } = useCollapsibleYears(allMonths, defaultExpandedYear);
 
   if (loading) {
     return (
@@ -76,7 +77,7 @@ export function ForecastGrid({ projectId }: Props) {
   function renderYearHeaders() {
     return (
       <TableRow className="bg-slate-50">
-        <TableHead className="sticky left-0 bg-slate-50 min-w-[180px] z-10 border-r border-slate-200" rowSpan={2}>
+        <TableHead className="sticky left-0 bg-slate-50 z-10 border-r border-slate-200 whitespace-nowrap" rowSpan={2}>
           Line Item
         </TableHead>
         {yearGroups.map((g) => (
@@ -230,7 +231,7 @@ export function ForecastGrid({ projectId }: Props) {
               </TableRow>
               {internalRows.map((row) => (
                 <TableRow key={`${row.category}-${row.sub_category}`}>
-                  <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200">
+                  <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200 whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
                       {row.sub_category_name}
                       {row.capex_opex && (
@@ -259,7 +260,7 @@ export function ForecastGrid({ projectId }: Props) {
               </TableRow>
               {externalRows.map((row) => (
                 <TableRow key={`${row.category}-${row.sub_category}`}>
-                  <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200">
+                  <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200 whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
                       {row.sub_category_name}
                       {row.capex_opex && (

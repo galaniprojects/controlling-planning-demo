@@ -47,3 +47,26 @@ export function formatMonthShort(month: string): string {
 export function isJanuary(month: string): boolean {
   return month.slice(5, 7) === '01';
 }
+
+/**
+ * Determine which year to expand by default based on project status.
+ * - Running/active projects: current year (2026)
+ * - Future projects (not yet started): starting year
+ * - Completed projects: final year
+ */
+const CURRENT_YEAR = 2026;
+
+export function getDefaultExpandedYear(
+  status: string | undefined,
+  startMonth: string | null | undefined,
+  endMonth: string | null | undefined,
+): number {
+  if (status === 'completed' && endMonth) {
+    return parseInt(endMonth.slice(0, 4), 10);
+  }
+  if ((status === 'planned' || status === 'pending_approval') && startMonth) {
+    const startYear = parseInt(startMonth.slice(0, 4), 10);
+    if (startYear > CURRENT_YEAR) return startYear;
+  }
+  return CURRENT_YEAR;
+}

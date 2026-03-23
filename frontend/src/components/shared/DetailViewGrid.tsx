@@ -22,6 +22,7 @@ interface DetailViewGridProps {
   months: string[];
   cellPattern: CellPattern;
   loading?: boolean;
+  defaultExpandedYear?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -87,8 +88,9 @@ export function DetailViewGrid({
   months,
   cellPattern,
   loading,
+  defaultExpandedYear,
 }: DetailViewGridProps) {
-  const { yearGroups, toggleYear, visibleColumns } = useCollapsibleYears(months);
+  const { yearGroups, toggleYear, visibleColumns } = useCollapsibleYears(months, defaultExpandedYear);
 
   // Group line items by category
   const { internal, external } = useMemo(() => {
@@ -128,7 +130,7 @@ export function DetailViewGrid({
           {/* Year header row */}
           <thead>
             <tr className="bg-slate-50">
-              <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left font-medium text-slate-600 min-w-[160px] border-b border-slate-200" />
+              <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left font-medium text-slate-600 whitespace-nowrap border-b border-slate-200" />
               {yearGroups.map((yg) => {
                 const colSpan = yg.isExpanded ? yg.months.length : 1;
                 return (

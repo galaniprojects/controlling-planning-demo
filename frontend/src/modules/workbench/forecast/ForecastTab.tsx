@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { ForecastGrid } from './ForecastGrid';
 import { ForecastWizard } from './ForecastWizard';
 import { workbenchApi } from '@/api/endpoints';
+import { getDefaultExpandedYear } from '@/lib/yearColumns';
 
 interface Props {
   projectId: string;
@@ -12,6 +13,7 @@ interface Props {
 export function ForecastTab({ projectId, role }: Props) {
   const [mode, setMode] = useState<'read' | 'cycle'>('read');
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
+  const [defaultExpandedYear, setDefaultExpandedYear] = useState<number | undefined>();
 
   // Build sub_category → display name lookup from forecast grid
   useEffect(() => {
@@ -21,6 +23,18 @@ export function ForecastTab({ projectId, role }: Props) {
         map[row.sub_category] = row.sub_category_name;
       }
       setNameMap(map);
+    }).catch(() => {});
+  }, [projectId]);
+
+  // Fetch project overview for context-sensitive year expansion
+  useEffect(() => {
+    workbenchApi.getOverview(projectId).then((res) => {
+      const year = getDefaultExpandedYear(
+        res.metadata?.status,
+        res.metadata?.timeline?.start,
+        res.metadata?.timeline?.end,
+      );
+      setDefaultExpandedYear(year);
     }).catch(() => {});
   }, [projectId]);
 
@@ -40,11 +54,11 @@ export function ForecastTab({ projectId, role }: Props) {
       {role === 'project_lead' && (
         <div className="flex justify-end">
           <Button onClick={() => setMode('cycle')}>
-            Start Monthly Review
+            Rolling Forecast Review
           </Button>
         </div>
       )}
-      <ForecastGrid projectId={projectId} />
+      <ForecastGrid projectId={projectId} defaultExpandedYear={defaultExpandedYear} />
     </div>
   );
 }

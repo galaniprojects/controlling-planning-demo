@@ -162,7 +162,8 @@ export interface ProjectSummary {
 export interface BudgetByLob {
   lob_id: string;
   lob_name: string;
-  budget: number;
+  forecast: number;
+  baseline: number;
 }
 
 export interface ForecastTrajectoryPoint {
@@ -173,7 +174,7 @@ export interface ForecastTrajectoryPoint {
 }
 
 export interface ChartData {
-  budget_by_lob: BudgetByLob[];
+  forecast_by_lob: BudgetByLob[];
   forecast_trajectory: ForecastTrajectoryPoint[];
   rag_distribution: Record<string, number>;
 }

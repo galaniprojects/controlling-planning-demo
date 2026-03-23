@@ -143,6 +143,7 @@ export function CCFinancialReport() {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
+            <th className="px-3 py-2 text-left font-medium text-slate-600">Cost Center</th>
             <th className="px-3 py-2 text-left font-medium text-slate-600">Project</th>
             <th className="px-3 py-2 text-right font-medium text-slate-600">Internal Hours</th>
             <th className="px-3 py-2 text-right font-medium text-slate-600">Internal Cost</th>
@@ -155,6 +156,7 @@ export function CCFinancialReport() {
         <tbody>
           {rows.map((r) => (
             <tr key={r.project_id} className="border-t border-slate-100 hover:bg-slate-50">
+              <td className="px-3 py-2 text-slate-700">{r.cost_center_name ?? '—'}</td>
               <td className="px-3 py-2 text-slate-700">{r.project_name}</td>
               <td className="px-3 py-2 text-right font-mono text-xs">
                 {r.internal_hours.toLocaleString('de-DE')}
@@ -178,6 +180,7 @@ export function CCFinancialReport() {
           ))}
           {/* Summary row */}
           <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
+            <td />
             <td className="px-3 py-2 text-slate-700">
               Total ({rows.length} projects)
             </td>
