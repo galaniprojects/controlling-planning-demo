@@ -417,6 +417,7 @@ export interface RetrospectiveItem {
   variance: number;
   variance_pct: number;
   significant: boolean;
+  person_name?: string | null;
 }
 
 export interface ForecastCycleStartResponse {

@@ -375,8 +375,26 @@ def start_forecast_cycle(
     )
     ac_map = {(a.category, a.sub_category): float(a.amount_eur) for a in actuals_rows}
 
+    # Build role_type_id → person name map from allocations
+    from models.capacity import Allocation as AllocModel
+    from models.people import Person as PersonModel
+    allocs_for_project = (
+        db.query(AllocModel.person_id, PersonModel.name, PersonModel.role_type_id)
+        .join(PersonModel, AllocModel.person_id == PersonModel.id)
+        .filter(AllocModel.project_id == project_id, AllocModel.month == prev_month)
+        .all()
+    )
+    # Map role_type_id → list of person names (for internal line items)
+    role_to_people: dict[str, list[str]] = {}
+    for _pid, pname, rtid in allocs_for_project:
+        role_to_people.setdefault(rtid, [])
+        if pname not in role_to_people[rtid]:
+            role_to_people[rtid].append(pname)
+
     retro = []
     skippable = True
+    # Track how many times each (category, sub_category) has appeared for unique indexing
+    seen_counts: dict[tuple[str, str], int] = {}
     for f in forecast_rows:
         key = (f.category, f.sub_category)
         actual_amt = ac_map.get(key, 0)
@@ -386,11 +404,25 @@ def start_forecast_cycle(
         significant = abs(variance_pct) > 10
         if significant:
             skippable = False
+
+        # Determine person name for internal line items
+        person_name = None
+        if f.category == "internal":
+            people_names = role_to_people.get(f.sub_category, [])
+            occurrence = seen_counts.get(key, 0)
+            if occurrence < len(people_names):
+                person_name = people_names[occurrence]
+            elif people_names:
+                person_name = people_names[0]
+
+        seen_counts[key] = seen_counts.get(key, 0) + 1
+
         retro.append({
             "category": f.category, "sub_category": f.sub_category,
             "forecast": forecast_amt, "actual": actual_amt,
             "variance": round(variance, 2), "variance_pct": round(variance_pct, 1),
             "significant": significant,
+            "person_name": person_name,
         })
 
     cycle.retrospective_data = retro
