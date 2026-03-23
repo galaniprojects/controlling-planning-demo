@@ -1,10 +1,38 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v4 Session 1 (complete)
-Last completed: v4 Session 1 — Critical Bug Fixes (17 items)
-Branch: `v4/session-1-critical-bug-fixes`
-Next: v4 Session 2 — UX Refinements
+Phase: v4 Session 2 (complete)
+Last completed: v4 Session 2 — UX Refinements (11 items)
+Branch: `v4/session-2-ux-refinements`
+Next: v4 Session 3 — New Requirements (Workbench + Portfolio + Capacity)
+
+## v4 Session 2 — UX Refinements (2026-03-23)
+
+### Completed Items
+- [x] GLB-01: Context-sensitive year expansion — running projects expand current year, future→starting year, completed→final year. Added `getDefaultExpandedYear()` utility and `defaultExpandedYear` param to `useCollapsibleYears` hook.
+- [x] WB-03: Timeline summary strip labeled "FY 2026" with separator line
+- [x] WB-05: ForecastGrid line item column auto-sizes (`whitespace-nowrap`, removed `min-w-[180px]`)
+- [x] WB-08: Renamed "Start Monthly Review" → "Rolling Forecast Review"
+- [x] CM-01: HeatmapGrid first column auto-sizes (`max-content` grid template, removed `truncate`)
+- [x] CM-05: Capacity Management defaults to My Team tab for all roles (was "org" for non-CC-owners)
+- [x] PO-02: "Budget by LoB" → "Forecast by Line of Business" — grouped bar chart with Forecast + Baseline bars, CY-scoped from Forecast/Baseline tables, reacts to all dashboard filters
+- [x] PO-03: Project summary pane auto-closes on "Open in Workbench" click via `useSidePanel().closePanel()`
+- [x] PO-05: KPI tiles reshaped to 6 square cards in single horizontal row (`grid-cols-6 gap-3 aspect-square`)
+- [x] PO-09: Renamed "Approvals" tab → "CR Approvals"
+- [x] RPT-04: Cost center name added as first column in CC Financial Summary (backend resolves primary CC via allocation count)
+
+### Verification Results
+- [x] Portfolio dashboard: 6 square KPI tiles in one row, "CR Approvals" tab, "Forecast by Line of Business" chart with forecast+baseline legend
+- [x] FC&Planning grid: line item labels not truncated, 2026 expanded for active project
+- [x] Timeline summary strip shows "FY 2026" label
+- [x] Capacity Management opens to My Team tab for controller
+- [x] CC Financial Summary: "Cost Center" is first column header, rows show CC names
+- [x] Zero console errors, zero failed network requests across all verified pages
+
+### Issues / Notes
+- "Autonomous Braking Prototype" shows "—" for cost center in CC Financial because it has no allocations (pending approval). This is expected.
+- GLB-01 future/completed project expansion not fully testable in current seed data (all active projects → default to 2026). The utility function is correct; will be exercised if future-dated projects are added.
+- PO-02 backend now filters all charts (trajectory, RAG, forecast-by-lob) using the same filtered project IDs based on all dashboard filters, not just LoB.
 
 ## v4 Session 1 — Critical Bug Fixes (2026-03-21)
 
