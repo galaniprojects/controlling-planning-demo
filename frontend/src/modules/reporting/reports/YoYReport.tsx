@@ -29,7 +29,7 @@ const COST_TYPE_OPTIONS = [
 ];
 
 const FISCAL_YEAR_OPTIONS = [
-  { value: '', label: 'All Years (Lifetime)' },
+  { value: '__all__', label: 'All Years (Lifetime)' },
   ...Array.from({ length: 9 }, (_, i) => ({
     value: String(2021 + i),
     label: `FY ${2021 + i}`,
