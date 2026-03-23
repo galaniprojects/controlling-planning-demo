@@ -155,7 +155,7 @@ export function Phase1Retrospective({
       <div className="flex gap-2">
         <Button
           onClick={onAcknowledge}
-          disabled={loading || (!allExplained && flaggedItems.length > 0)}
+          disabled={loading || (!allExplained && flaggedWithIdx.length > 0)}
         >
           {loading ? 'Processing...' : 'Acknowledge & Continue'}
         </Button>
