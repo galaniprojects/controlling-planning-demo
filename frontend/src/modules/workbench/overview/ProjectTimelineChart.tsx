@@ -78,7 +78,7 @@ export function ProjectTimelineChart({ data }: Props) {
 
   if (viewMode === 'monthly') {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2 min-w-0 overflow-hidden">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-slate-500">
             Project Timeline

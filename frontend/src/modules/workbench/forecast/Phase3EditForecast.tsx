@@ -79,29 +79,7 @@ export function Phase3EditForecast({
     [rows],
   );
 
-  // For Phase3, expand the current year and the year with recent past months
-  const currentYear = parseInt(DEMO_DATE.slice(0, 4), 10);
-  const yearsWithRecentPast = useMemo(() => {
-    const years = new Set<number>();
-    years.add(currentYear);
-    // Also expand the previous year if it has months within 4 months before demo date
-    const prevYear = currentYear - 1;
-    const demoMonth = parseInt(DEMO_DATE.slice(5, 7), 10);
-    const backMonth = demoMonth - 4;
-    const fourMonthsAgo = backMonth > 0
-      ? `${prevYear}-${String(backMonth).padStart(2, '0')}`
-      : `${prevYear - 1}-${String(backMonth + 12).padStart(2, '0')}`;
-    if (allMonths.some((m) => m.startsWith(String(prevYear)) && m >= fourMonthsAgo)) {
-      years.add(prevYear);
-    }
-    return Array.from(years);
-  }, [allMonths, currentYear]);
-
-  const { columns, toggleYear } = useCollapsibleYears({
-    allMonths,
-    currentMonth: DEMO_DATE,
-    defaultExpandedYears: yearsWithRecentPast,
-  });
+  const { visibleColumns: columns, toggleYear } = useCollapsibleYears(allMonths);
 
   const internalRows = useMemo(
     () => rows.filter((r) => r.category === 'internal'),
@@ -308,18 +286,18 @@ export function Phase3EditForecast({
               </TableHead>
               {columns.map((col) => (
                 <TableHead
-                  key={col.key}
+                  key={col.type === 'month' ? col.key : `sum-${col.year}`}
                   className={cn(
                     'text-right min-w-[90px]',
-                    col.type === 'year' && 'cursor-pointer select-none hover:bg-slate-100',
-                    col.type === 'month' && !isEditable(col.month) && 'bg-slate-100/50',
+                    col.type === 'yearSummary' && 'cursor-pointer select-none hover:bg-slate-100',
+                    col.type === 'month' && !isEditable(col.key) && 'bg-slate-100/50',
                   )}
-                  onClick={col.type === 'year' ? () => toggleYear(col.year) : undefined}
+                  onClick={col.type === 'yearSummary' ? () => toggleYear(col.year) : undefined}
                 >
                   {col.type === 'month' ? (
                     <span>
-                      {formatMonth(col.month)}
-                      {!isEditable(col.month) && (
+                      {formatMonth(col.key)}
+                      {!isEditable(col.key) && (
                         <span className="block text-[9px] text-slate-400">read-only</span>
                       )}
                     </span>
@@ -345,14 +323,14 @@ export function Phase3EditForecast({
                   </TableCell>
                 </TableRow>
                 {internalRows.map((row) => (
-                  <TableRow key={row.sub_category}>
+                  <TableRow key={`${row.category}-${row.sub_category}`}>
                     <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
                       {row.sub_category_name}
                     </TableCell>
                     {columns.map((col) => (
-                      <TableCell key={col.key} className="p-1">
+                      <TableCell key={col.type === 'month' ? col.key : `sum-${col.year}`} className="p-1">
                         {col.type === 'month'
-                          ? renderEditableCell('internal', row, col.month)
+                          ? renderEditableCell('internal', row, col.key)
                           : renderYearSummary('internal', row, col.months)}
                       </TableCell>
                     ))}
@@ -372,14 +350,14 @@ export function Phase3EditForecast({
                   </TableCell>
                 </TableRow>
                 {externalRows.map((row) => (
-                  <TableRow key={row.sub_category}>
+                  <TableRow key={`${row.category}-${row.sub_category}`}>
                     <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
                       {row.sub_category_name}
                     </TableCell>
                     {columns.map((col) => (
-                      <TableCell key={col.key} className="p-1">
+                      <TableCell key={col.type === 'month' ? col.key : `sum-${col.year}`} className="p-1">
                         {col.type === 'month'
-                          ? renderEditableCell('external', row, col.month)
+                          ? renderEditableCell('external', row, col.key)
                           : renderYearSummary('external', row, col.months)}
                       </TableCell>
                     ))}

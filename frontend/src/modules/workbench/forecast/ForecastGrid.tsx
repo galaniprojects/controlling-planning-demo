@@ -229,7 +229,7 @@ export function ForecastGrid({ projectId }: Props) {
                 </TableCell>
               </TableRow>
               {internalRows.map((row) => (
-                <TableRow key={row.sub_category}>
+                <TableRow key={`${row.category}-${row.sub_category}`}>
                   <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
                     <div className="flex items-center gap-1.5">
                       {row.sub_category_name}
@@ -258,7 +258,7 @@ export function ForecastGrid({ projectId }: Props) {
                 </TableCell>
               </TableRow>
               {externalRows.map((row) => (
-                <TableRow key={row.sub_category}>
+                <TableRow key={`${row.category}-${row.sub_category}`}>
                   <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
                     <div className="flex items-center gap-1.5">
                       {row.sub_category_name}

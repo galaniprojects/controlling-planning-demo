@@ -50,7 +50,7 @@ export function OverviewTab({ projectId }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0">
       <MetadataBar metadata={data.metadata} />
 
       {/* Project Timeline Visualization */}
