@@ -25,6 +25,7 @@ import { PeoplePanel } from './entities/PeoplePanel';
 import { RateTablePanel } from './entities/RateTablePanel';
 import { PlanningParameters } from './parameters/PlanningParameters';
 import { AuditLogPanel } from './audit/AuditLogPanel';
+import { PortfolioHierarchyPanel } from './hierarchy/PortfolioHierarchyPanel';
 
 export function Administration() {
   const { context, currentRoleId } = useRole();
@@ -119,6 +120,8 @@ export function Administration() {
         return <PlanningParameters />;
       case 'audit_log':
         return <AuditLogPanel />;
+      case 'portfolio_hierarchy':
+        return <PortfolioHierarchyPanel onDataChanged={fetchContext} />;
       default:
         return null;
     }

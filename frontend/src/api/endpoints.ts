@@ -525,6 +525,36 @@ export const adminApi = {
   resetParameters: (keys?: string[]) =>
     api.post<ListResponse<{ key: string; name: string; current_value: string }>>('/api/admin/parameters/reset', { keys: keys ?? null }),
 
+  // Grouping Hierarchy (ADM-01)
+  getEntityTypes: () =>
+    api.get<ListResponse<{ id: string; name: string; is_active: boolean; entity_count: number }>>('/api/admin/grouping/entity-types'),
+  createEntityType: (data: { name: string }) =>
+    api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/grouping/entity-types', data),
+  updateEntityType: (id: string, data: { name: string }) =>
+    api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/grouping/entity-types/${id}`, data),
+  getGroupingEntities: (typeId?: string) =>
+    api.get<ListResponse<{ id: string; entity_type_id: string; entity_type_name: string; name: string; parent_entity_id: string | null; is_active: boolean; project_count: number }>>(`/api/admin/grouping/entities${typeId ? `?type_id=${typeId}` : ''}`),
+  createGroupingEntity: (data: { entity_type_id: string; name: string; parent_entity_id?: string }) =>
+    api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/grouping/entities', data),
+  updateGroupingEntity: (id: string, data: { name?: string; parent_entity_id?: string | null }) =>
+    api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/grouping/entities/${id}`, data),
+  getHierarchies: () =>
+    api.get<ListResponse<{ id: string; name: string; is_active_hierarchy: boolean; levels: { level_order: number; entity_type_id: string; entity_type_name: string }[] }>>('/api/admin/grouping/hierarchies'),
+  createHierarchy: (data: { name: string; levels: string[] }) =>
+    api.post<{ id: string; name: string; is_active_hierarchy: boolean }>('/api/admin/grouping/hierarchies', data),
+  updateHierarchy: (id: string, data: { name?: string; levels?: string[] }) =>
+    api.put<{ id: string; name: string; is_active_hierarchy: boolean }>(`/api/admin/grouping/hierarchies/${id}`, data),
+  activateHierarchy: (id: string) =>
+    api.put<{ id: string; name: string; is_active_hierarchy: boolean }>(`/api/admin/grouping/hierarchies/${id}/activate`),
+  getActiveHierarchy: () =>
+    api.get<{ hierarchy: { id: string; name: string } | null; top_level_label: string; entities: { id: string; name: string; project_count: number; projects: { id: string; name: string; status: string }[] }[] }>('/api/admin/grouping/active-hierarchy'),
+  assignProjectToEntity: (data: { project_id: string; grouping_entity_id: string }) =>
+    api.post<{ status: string }>('/api/admin/grouping/project-assignments', data),
+  unassignProjectFromEntity: (projectId: string) =>
+    api.delete<{ status: string }>(`/api/admin/grouping/project-assignments/${projectId}`),
+  getEntityProjects: (entityId: string) =>
+    api.get<ListResponse<{ id: string; name: string; status: string; total_budget: number }>>(`/api/admin/grouping/entities/${entityId}/projects`),
+
   // Audit Log
   getAuditLog: (entityType?: string, limit?: number) => {
     const q = new URLSearchParams();

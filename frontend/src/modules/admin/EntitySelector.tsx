@@ -7,6 +7,7 @@ import {
   DollarSign,
   Settings,
   FileText,
+  Layers,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,10 @@ const ENTITY_SECTIONS = [
   { key: 'locations', label: 'Locations', icon: MapPin },
   { key: 'people', label: 'People', icon: Users },
   { key: 'rate_tables', label: 'Rate Tables', icon: DollarSign },
+] as const;
+
+const PORTFOLIO_SECTIONS = [
+  { key: 'portfolio_hierarchy', label: 'Portfolio Hierarchy', icon: Layers },
 ] as const;
 
 const SYSTEM_SECTIONS = [
@@ -58,6 +63,11 @@ export function EntitySelector({ selected, onSelect }: EntitySelectorProps) {
         Entities
       </p>
       {ENTITY_SECTIONS.map(renderItem)}
+      <Separator className="my-2" />
+      <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+        Portfolio Structure
+      </p>
+      {PORTFOLIO_SECTIONS.map(renderItem)}
       <Separator className="my-2" />
       <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
         System
