@@ -281,7 +281,7 @@ export function Phase3EditForecast({
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50">
-              <TableHead className="sticky left-0 bg-slate-50 min-w-[180px] z-10">
+              <TableHead className="sticky left-0 bg-slate-50 min-w-[180px] z-10 border-r border-slate-200">
                 Line Item
               </TableHead>
               {columns.map((col) => (
@@ -324,7 +324,7 @@ export function Phase3EditForecast({
                 </TableRow>
                 {internalRows.map((row) => (
                   <TableRow key={`${row.category}-${row.sub_category}`}>
-                    <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
+                    <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200">
                       {row.sub_category_name}
                     </TableCell>
                     {columns.map((col) => (
@@ -351,7 +351,7 @@ export function Phase3EditForecast({
                 </TableRow>
                 {externalRows.map((row) => (
                   <TableRow key={`${row.category}-${row.sub_category}`}>
-                    <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
+                    <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200">
                       {row.sub_category_name}
                     </TableCell>
                     {columns.map((col) => (

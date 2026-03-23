@@ -20,7 +20,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <TopBar />
       <div className="flex">
         <main
-          className={`flex-1 transition-all duration-300 ${sidePanelOpen ? 'mr-[380px]' : ''}`}
+          className={`flex-1 min-w-0 overflow-hidden transition-all duration-300 ${sidePanelOpen ? 'mr-[380px]' : ''}`}
         >
           {children}
         </main>

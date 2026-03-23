@@ -76,7 +76,7 @@ export function ForecastGrid({ projectId }: Props) {
   function renderYearHeaders() {
     return (
       <TableRow className="bg-slate-50">
-        <TableHead className="sticky left-0 bg-slate-50 min-w-[180px] z-10" rowSpan={2}>
+        <TableHead className="sticky left-0 bg-slate-50 min-w-[180px] z-10 border-r border-slate-200" rowSpan={2}>
           Line Item
         </TableHead>
         {yearGroups.map((g) => (
@@ -230,7 +230,7 @@ export function ForecastGrid({ projectId }: Props) {
               </TableRow>
               {internalRows.map((row) => (
                 <TableRow key={`${row.category}-${row.sub_category}`}>
-                  <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
+                  <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200">
                     <div className="flex items-center gap-1.5">
                       {row.sub_category_name}
                       {row.capex_opex && (
@@ -259,7 +259,7 @@ export function ForecastGrid({ projectId }: Props) {
               </TableRow>
               {externalRows.map((row) => (
                 <TableRow key={`${row.category}-${row.sub_category}`}>
-                  <TableCell className="sticky left-0 bg-white font-medium text-sm z-10">
+                  <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200">
                     <div className="flex items-center gap-1.5">
                       {row.sub_category_name}
                       {row.capex_opex && (
