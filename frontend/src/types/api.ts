@@ -115,6 +115,11 @@ export interface PortfolioKPIs {
   change_total: number;
   run_pct: number;
   change_pct: number;
+  // Lifetime summary
+  lifetime_baseline?: number;
+  lifetime_forecast?: number;
+  lifetime_actuals?: number;
+  active_project_count?: number;
 }
 
 export interface TimelineInfo {

@@ -81,18 +81,20 @@ def get_portfolio_kpis(
         elif type == "project":
             proj_filter.append(Project.is_service.is_(False))
 
+    # CY-scoped CapEx/OpEx split
+    cy_start, cy_end = "2026-01", "2026-12"
     total_forecast = (
         db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
         .join(Project, Forecast.project_id == Project.id)
-        .filter(*proj_filter)
+        .filter(*proj_filter, Forecast.month >= cy_start, Forecast.month <= cy_end)
         .scalar()
     )
 
-    # CapEx/OpEx split
     capex_forecast = (
         db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
         .join(Project, Forecast.project_id == Project.id)
-        .filter(*proj_filter, Project.capex_opex == "capex")
+        .filter(*proj_filter, Project.capex_opex == "capex",
+                Forecast.month >= cy_start, Forecast.month <= cy_end)
         .scalar()
     )
     opex_forecast = float(total_forecast) - float(capex_forecast)
@@ -117,6 +119,10 @@ def get_portfolio_kpis(
         "change_total": kpis["change_total"],
         "run_pct": kpis["run_pct"],
         "change_pct": kpis["change_pct"],
+        "lifetime_baseline": kpis["lifetime_baseline"],
+        "lifetime_forecast": kpis["lifetime_forecast"],
+        "lifetime_actuals": kpis["lifetime_actuals"],
+        "active_project_count": kpis["active_project_count"],
     }
 
 

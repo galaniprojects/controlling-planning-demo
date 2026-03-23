@@ -47,6 +47,10 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
             "run_total": 0, "change_total": 0, "run_pct": 50, "change_pct": 50,
         }
 
+    # CY boundaries (fiscal year 2026: Jan–Dec)
+    cy_start = "2026-01"
+    cy_end = "2026-12"
+
     # Total budget
     total_budget = (
         db.query(func.coalesce(func.sum(Project.total_budget), 0))
@@ -54,24 +58,43 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
         .scalar()
     )
 
-    # YTD spend (actuals through demo date)
-    ytd_spend = (
-        db.query(func.coalesce(func.sum(Actuals.amount_eur), 0))
-        .filter(Actuals.project_id.in_(project_ids), Actuals.month <= DEMO_DATE)
-        .scalar()
-    )
-
-    # Total forecast at completion
-    total_forecast = (
+    # --- Lifetime totals ---
+    lifetime_forecast = float(
         db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
         .filter(Forecast.project_id.in_(project_ids))
         .scalar()
     )
-
-    # Total baseline
-    total_baseline = (
+    lifetime_baseline = float(
         db.query(func.coalesce(func.sum(Baseline.amount_eur), 0))
         .filter(Baseline.project_id.in_(project_ids))
+        .scalar()
+    )
+    lifetime_actuals = float(
+        db.query(func.coalesce(func.sum(Actuals.amount_eur), 0))
+        .filter(Actuals.project_id.in_(project_ids))
+        .scalar()
+    )
+    active_project_count = len(project_ids)
+
+    # --- CY-scoped totals ---
+    total_forecast = float(
+        db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
+        .filter(Forecast.project_id.in_(project_ids),
+                Forecast.month >= cy_start, Forecast.month <= cy_end)
+        .scalar()
+    )
+    total_baseline = float(
+        db.query(func.coalesce(func.sum(Baseline.amount_eur), 0))
+        .filter(Baseline.project_id.in_(project_ids),
+                Baseline.month >= cy_start, Baseline.month <= cy_end)
+        .scalar()
+    )
+
+    # YTD spend (actuals through demo date, CY only)
+    ytd_spend = (
+        db.query(func.coalesce(func.sum(Actuals.amount_eur), 0))
+        .filter(Actuals.project_id.in_(project_ids),
+                Actuals.month >= cy_start, Actuals.month <= DEMO_DATE)
         .scalar()
     )
 
@@ -112,8 +135,8 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
     else:
         run_pct = change_pct = 50
 
-    baseline_val = round(float(total_baseline), 2)
-    forecast_val = round(float(total_forecast), 2)
+    baseline_val = round(total_baseline, 2)
+    forecast_val = round(total_forecast, 2)
     plan_drift_amount = round(forecast_val - baseline_val, 2)
 
     return {
@@ -126,6 +149,11 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
         "change_total": round(float(change_budget or 0), 2),
         "run_pct": run_pct,
         "change_pct": change_pct,
+        # Lifetime summary fields
+        "lifetime_baseline": round(lifetime_baseline, 2),
+        "lifetime_forecast": round(lifetime_forecast, 2),
+        "lifetime_actuals": round(lifetime_actuals, 2),
+        "active_project_count": active_project_count,
     }
 
 
