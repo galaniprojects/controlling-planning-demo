@@ -203,9 +203,9 @@ interface Props {
 type RefOptions = { value: string; label: string }[];
 
 // SIM-04: Year options for scoping actions
-const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => ({
-  value: String(2025 + i),
-  label: String(2025 + i),
+const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => ({
+  value: String(2026 + i),
+  label: String(2026 + i),
 }));
 
 export function AddActionForm({ onApplyAction, projectStates, loading }: Props) {

@@ -51,7 +51,7 @@ def _build_time_frame_breakdown(
     yearly_adjusted: dict[int, float],
 ) -> list[dict]:
     """Build the CY / NY / subsequent / Overall breakdown."""
-    all_years = sorted(set(yearly_original.keys()) | set(yearly_adjusted.keys()))
+    all_years = sorted(y for y in (set(yearly_original.keys()) | set(yearly_adjusted.keys())) if y >= _CY)
     segments = []
     for y in all_years:
         orig = yearly_original.get(y, 0.0)
