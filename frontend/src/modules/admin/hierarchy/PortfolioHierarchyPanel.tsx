@@ -86,6 +86,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
   const [newEntityName, setNewEntityName] = useState('');
   const [newEntityTypeId, setNewEntityTypeId] = useState('');
   const [creatingEntity, setCreatingEntity] = useState(false);
+  const [createdEntities, setCreatedEntities] = useState<string[]>([]);
 
   // Hierarchy Assignment
   const [activeEntities, setActiveEntities] = useState<ActiveEntity[]>([]);
@@ -224,13 +225,19 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
     setCreatingEntity(true);
     try {
       await adminApi.createGroupingEntity({ entity_type_id: newEntityTypeId, name: newEntityName.trim() });
-      setCreateEntityOpen(false);
+      setCreatedEntities((prev) => [...prev, newEntityName.trim()]);
       setNewEntityName('');
       fetchEntities();
       fetchActiveHierarchy();
       onDataChanged();
     } catch { /* ignore */ }
     setCreatingEntity(false);
+  };
+
+  const handleCloseCreateEntity = () => {
+    setCreateEntityOpen(false);
+    setCreatedEntities([]);
+    setNewEntityName('');
   };
 
   // --- Assignment ---
@@ -509,7 +516,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
                 </SelectContent>
               </Select>
             </div>
-            <Button size="sm" onClick={() => { setNewEntityName(''); setNewEntityTypeId(entityTypes[0]?.id || ''); setCreateEntityOpen(true); }}>
+            <Button size="sm" onClick={() => { setNewEntityName(''); setNewEntityTypeId(entityTypeFilter && entityTypeFilter !== 'all' ? entityTypeFilter : entityTypes[0]?.id || ''); setCreatedEntities([]); setCreateEntityOpen(true); }}>
               <Plus className="h-4 w-4 mr-1" />
               Create Entity
             </Button>
@@ -631,10 +638,17 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
         </DialogContent>
       </Dialog>
 
-      {/* Create Entity Dialog */}
-      <Dialog open={createEntityOpen} onOpenChange={setCreateEntityOpen}>
+      {/* Create Entity Dialog (supports creating multiple) */}
+      <Dialog open={createEntityOpen} onOpenChange={handleCloseCreateEntity}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Create Entity</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>
+              Create {entityTypes.find((t) => t.id === newEntityTypeId)?.name || 'Entity'}
+            </DialogTitle>
+            <DialogDescription>
+              Add one or more entities. Press "Add" to create each one.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-slate-700">Entity Type</label>
@@ -647,15 +661,36 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
                 </SelectContent>
               </Select>
             </div>
+            {createdEntities.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-500">Created</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {createdEntities.map((name, i) => (
+                    <Badge key={i} className="bg-green-100 text-green-700 hover:bg-green-100">{name}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-slate-700">Name</label>
-              <Input value={newEntityName} onChange={(e) => setNewEntityName(e.target.value)} placeholder="e.g., Sales IT" />
+              <div className="flex gap-2">
+                <Input
+                  value={newEntityName}
+                  onChange={(e) => setNewEntityName(e.target.value)}
+                  placeholder="e.g., Brakes"
+                  onKeyDown={(e) => e.key === 'Enter' && newEntityName.trim() && handleCreateEntity()}
+                  className="flex-1"
+                />
+                <Button onClick={handleCreateEntity} disabled={!newEntityName.trim() || !newEntityTypeId || creatingEntity} size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  {creatingEntity ? 'Adding...' : 'Add'}
+                </Button>
+              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateEntityOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateEntity} disabled={!newEntityName.trim() || !newEntityTypeId || creatingEntity}>
-              {creatingEntity ? 'Creating...' : 'Create'}
+            <Button variant="outline" onClick={handleCloseCreateEntity}>
+              {createdEntities.length > 0 ? 'Done' : 'Cancel'}
             </Button>
           </DialogFooter>
         </DialogContent>
