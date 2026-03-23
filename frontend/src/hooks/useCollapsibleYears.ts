@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { groupMonthsByYear, isJanuary } from '@/lib/yearColumns';
 
 const CURRENT_YEAR = 2026;
@@ -30,13 +30,22 @@ export interface UseCollapsibleYearsResult {
 export function useCollapsibleYears(months: string[]): UseCollapsibleYearsResult {
   const grouped = useMemo(() => groupMonthsByYear(months), [months]);
 
-  const [expandedState, setExpandedState] = useState<Record<number, boolean>>(() => {
-    const initial: Record<number, boolean> = {};
-    for (const year of grouped.keys()) {
-      initial[year] = year === CURRENT_YEAR;
-    }
-    return initial;
-  });
+  const [expandedState, setExpandedState] = useState<Record<number, boolean>>({});
+
+  // Seed newly-appeared years into expanded state (current year expanded by default)
+  useEffect(() => {
+    setExpandedState((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const year of grouped.keys()) {
+        if (!(year in next)) {
+          next[year] = year === CURRENT_YEAR;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [grouped]);
 
   const yearGroups: YearGroup[] = useMemo(() => {
     return Array.from(grouped.entries()).map(([year, yearMonths]) => ({

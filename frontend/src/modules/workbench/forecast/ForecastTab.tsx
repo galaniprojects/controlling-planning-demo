@@ -36,7 +36,7 @@ export function ForecastTab({ projectId, role }: Props) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0">
       {role === 'project_lead' && (
         <div className="flex justify-end">
           <Button onClick={() => setMode('cycle')}>

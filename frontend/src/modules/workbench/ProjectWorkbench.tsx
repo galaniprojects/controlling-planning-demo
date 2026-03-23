@@ -77,7 +77,7 @@ export function ProjectWorkbench() {
         />
 
         {/* Right panel — workspace */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow-hidden">
           {selectedId ? (
             <ProjectWorkspace projectId={selectedId} role={role} />
           ) : (

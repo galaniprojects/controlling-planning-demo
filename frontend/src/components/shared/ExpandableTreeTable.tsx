@@ -65,7 +65,12 @@ export function ExpandableTreeTable<T extends { id: string; children?: T[] }>({
           {columns.map((col, i) => (
             <TableCell
               key={i}
-              className={cn('px-3 py-2 text-sm', col.className)}
+              className={cn(
+                'px-3 py-2 text-sm',
+                i === 0 && 'sticky left-0 z-10',
+                i === 0 && (isSelected ? 'bg-blue-50' : 'bg-white'),
+                col.className,
+              )}
             >
               {i === 0 ? (
                 <div
@@ -116,7 +121,11 @@ export function ExpandableTreeTable<T extends { id: string; children?: T[] }>({
             {columns.map((col, i) => (
               <TableHead
                 key={i}
-                className={cn('px-3 py-2 text-xs font-medium text-slate-500', col.className)}
+                className={cn(
+                  'px-3 py-2 text-xs font-medium text-slate-500',
+                  i === 0 && 'sticky left-0 z-10 bg-slate-50',
+                  col.className,
+                )}
               >
                 {col.header}
               </TableHead>

@@ -66,8 +66,8 @@ export function Phase1Retrospective({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {retrospective.map((item) => {
-              const key = `${item.category}:${item.sub_category}`;
+            {retrospective.map((item, idx) => {
+              const key = `${item.category}:${item.sub_category}:${idx}`;
               return (
                 <TableRow
                   key={key}

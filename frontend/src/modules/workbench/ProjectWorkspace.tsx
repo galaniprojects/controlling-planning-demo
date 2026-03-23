@@ -24,7 +24,7 @@ export function ProjectWorkspace({ projectId, role }: Props) {
         <OverviewTab projectId={projectId} />
       </TabsContent>
 
-      <TabsContent value="forecast" className="mt-4">
+      <TabsContent value="forecast" className="mt-4 min-w-0">
         <ForecastTab projectId={projectId} role={role} />
       </TabsContent>
 
