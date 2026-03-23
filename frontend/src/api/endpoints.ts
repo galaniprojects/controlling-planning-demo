@@ -36,6 +36,7 @@ import type {
   OrgSummary,
   OrgHeatmapRow,
   OrgDetailItem,
+  OrgDetailResponse,
   ScenarioListResponse,
   ScenarioCreateResponse,
   ScenarioDetail,
@@ -156,6 +157,11 @@ export const portfolioApi = {
     api.put<{ id: string; name: string; status: string }>(
       `/api/portfolio/intake/${projectId}/send-back`,
       { comments }
+    ),
+  resubmitIntake: (projectId: string) =>
+    api.put<{ id: string; name: string; status: string }>(
+      `/api/portfolio/intake/${projectId}/resubmit`,
+      {}
     ),
 
   // Approvals
@@ -370,7 +376,7 @@ export const capacityApi = {
   getOrgHeatmapDetail: (dimId: string, pivot: string, month?: string) => {
     const q = new URLSearchParams({ pivot });
     if (month) q.set('month', month);
-    return api.get<ListResponse<OrgDetailItem>>(
+    return api.get<OrgDetailResponse>(
       `/api/capacity/org/heatmap/${dimId}/detail?${q}`,
     );
   },

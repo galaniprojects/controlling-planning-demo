@@ -270,7 +270,11 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('forecast_deadline', 'Forecast Deadline', 'Day of month when forecast is due', '15', '15', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_amber_threshold', 'RAG Amber Threshold', 'Budget variance % for amber status', '5', '5', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_red_threshold', 'RAG Red Threshold', 'Budget variance % for red status', '10', '10', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('standard_hours_global', 'Standard Hours (Global)', 'Default available hours per person per month', '160', '160', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('standard_hours_loc_muc', 'Standard Hours (Munich)', 'Available hours per person per month — Munich', '160', '160', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('standard_hours_loc_bud', 'Standard Hours (Budapest)', 'Available hours per person per month — Budapest', '168', '168', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('standard_hours_loc_pun', 'Standard Hours (Pune)', 'Available hours per person per month — Pune', '176', '176', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- 13. KPI Definitions

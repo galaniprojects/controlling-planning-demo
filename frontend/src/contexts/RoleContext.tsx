@@ -22,7 +22,9 @@ const RoleCtx = createContext<RoleState | null>(null);
 
 export function RoleProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<RoleInfo[]>([]);
-  const [currentRoleId, setCurrentRoleId] = useState('persona-controller');
+  const [currentRoleId, setCurrentRoleId] = useState(
+    () => localStorage.getItem('creta-persona') || 'persona-controller',
+  );
   const [context, setContext] = useState<RoleContextType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -40,7 +42,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     rolesApi.getAll().then((res) => setRoles(res.items));
-    switchRole('persona-controller');
+    switchRole(localStorage.getItem('creta-persona') || 'persona-controller');
   }, [switchRole]);
 
   return (

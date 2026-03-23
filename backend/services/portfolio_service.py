@@ -47,6 +47,10 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
             "run_total": 0, "change_total": 0, "run_pct": 50, "change_pct": 50,
         }
 
+    # CY boundaries (fiscal year 2026: Jan–Dec)
+    cy_start = "2026-01"
+    cy_end = "2026-12"
+
     # Total budget
     total_budget = (
         db.query(func.coalesce(func.sum(Project.total_budget), 0))
@@ -54,24 +58,43 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
         .scalar()
     )
 
-    # YTD spend (actuals through demo date)
-    ytd_spend = (
-        db.query(func.coalesce(func.sum(Actuals.amount_eur), 0))
-        .filter(Actuals.project_id.in_(project_ids), Actuals.month <= DEMO_DATE)
-        .scalar()
-    )
-
-    # Total forecast at completion
-    total_forecast = (
+    # --- Lifetime totals ---
+    lifetime_forecast = float(
         db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
         .filter(Forecast.project_id.in_(project_ids))
         .scalar()
     )
-
-    # Total baseline
-    total_baseline = (
+    lifetime_baseline = float(
         db.query(func.coalesce(func.sum(Baseline.amount_eur), 0))
         .filter(Baseline.project_id.in_(project_ids))
+        .scalar()
+    )
+    lifetime_actuals = float(
+        db.query(func.coalesce(func.sum(Actuals.amount_eur), 0))
+        .filter(Actuals.project_id.in_(project_ids))
+        .scalar()
+    )
+    active_project_count = len(project_ids)
+
+    # --- CY-scoped totals ---
+    total_forecast = float(
+        db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
+        .filter(Forecast.project_id.in_(project_ids),
+                Forecast.month >= cy_start, Forecast.month <= cy_end)
+        .scalar()
+    )
+    total_baseline = float(
+        db.query(func.coalesce(func.sum(Baseline.amount_eur), 0))
+        .filter(Baseline.project_id.in_(project_ids),
+                Baseline.month >= cy_start, Baseline.month <= cy_end)
+        .scalar()
+    )
+
+    # YTD spend (actuals through demo date, CY only)
+    ytd_spend = (
+        db.query(func.coalesce(func.sum(Actuals.amount_eur), 0))
+        .filter(Actuals.project_id.in_(project_ids),
+                Actuals.month >= cy_start, Actuals.month <= DEMO_DATE)
         .scalar()
     )
 
@@ -112,8 +135,8 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
     else:
         run_pct = change_pct = 50
 
-    baseline_val = round(float(total_baseline), 2)
-    forecast_val = round(float(total_forecast), 2)
+    baseline_val = round(total_baseline, 2)
+    forecast_val = round(total_forecast, 2)
     plan_drift_amount = round(forecast_val - baseline_val, 2)
 
     return {
@@ -126,40 +149,74 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
         "change_total": round(float(change_budget or 0), 2),
         "run_pct": run_pct,
         "change_pct": change_pct,
+        # Lifetime summary fields
+        "lifetime_baseline": round(lifetime_baseline, 2),
+        "lifetime_forecast": round(lifetime_forecast, 2),
+        "lifetime_actuals": round(lifetime_actuals, 2),
+        "active_project_count": active_project_count,
     }
 
 
 def compute_project_financials(db: Session, project_id: str) -> dict:
-    """Compute financial summary for a single project."""
-    baseline_total = (
+    """Compute financial summary for a single project, including CY/PY splits."""
+    cy_start, cy_end = "2026-01", "2026-12"
+
+    baseline_total = float(
         db.query(func.coalesce(func.sum(Baseline.amount_eur), 0))
-        .filter(Baseline.project_id == project_id)
-        .scalar()
+        .filter(Baseline.project_id == project_id).scalar()
     )
-    forecast_total = (
+    forecast_total = float(
         db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
-        .filter(Forecast.project_id == project_id)
-        .scalar()
+        .filter(Forecast.project_id == project_id).scalar()
     )
-    actuals_ytd = (
+    actuals_ytd = float(
         db.query(func.coalesce(func.sum(Actuals.amount_eur), 0))
-        .filter(Actuals.project_id == project_id, Actuals.month <= DEMO_DATE)
-        .scalar()
+        .filter(Actuals.project_id == project_id, Actuals.month <= DEMO_DATE).scalar()
     )
-    forecast_ytd = (
+    forecast_ytd = float(
         db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
-        .filter(Forecast.project_id == project_id, Forecast.month <= DEMO_DATE)
-        .scalar()
+        .filter(Forecast.project_id == project_id, Forecast.month <= DEMO_DATE).scalar()
     )
 
-    plan_drift = compute_plan_drift(float(forecast_total), float(baseline_total))
+    # CY splits
+    baseline_cy = float(
+        db.query(func.coalesce(func.sum(Baseline.amount_eur), 0))
+        .filter(Baseline.project_id == project_id,
+                Baseline.month >= cy_start, Baseline.month <= cy_end).scalar()
+    )
+    forecast_cy = float(
+        db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
+        .filter(Forecast.project_id == project_id,
+                Forecast.month >= cy_start, Forecast.month <= cy_end).scalar()
+    )
+    actuals_cy = float(
+        db.query(func.coalesce(func.sum(Actuals.amount_eur), 0))
+        .filter(Actuals.project_id == project_id,
+                Actuals.month >= cy_start, Actuals.month <= DEMO_DATE).scalar()
+    )
+
+    # PY splits (everything before CY)
+    baseline_py = round(baseline_total - baseline_cy, 2)
+    forecast_py = round(forecast_total - forecast_cy, 2)
+    actuals_py = float(
+        db.query(func.coalesce(func.sum(Actuals.amount_eur), 0))
+        .filter(Actuals.project_id == project_id, Actuals.month < cy_start).scalar()
+    )
+
+    plan_drift = compute_plan_drift(forecast_total, baseline_total)
 
     return {
-        "baseline_total": round(float(baseline_total), 2),
-        "forecast_total": round(float(forecast_total), 2),
-        "actuals_ytd": round(float(actuals_ytd), 2),
-        "forecast_ytd": round(float(forecast_ytd), 2),
+        "baseline_total": round(baseline_total, 2),
+        "forecast_total": round(forecast_total, 2),
+        "actuals_ytd": round(actuals_ytd, 2),
+        "forecast_ytd": round(forecast_ytd, 2),
         "plan_drift_pct": round(plan_drift, 1),
+        "baseline_cy": round(baseline_cy, 2),
+        "forecast_cy": round(forecast_cy, 2),
+        "actuals_cy": round(actuals_cy, 2),
+        "baseline_py": round(baseline_py, 2),
+        "forecast_py": round(forecast_py, 2),
+        "actuals_py": round(actuals_py, 2),
     }
 
 
@@ -204,6 +261,12 @@ def build_portfolio_tree(db: Session, filters: dict | None = None) -> list[dict]
             "current_forecast": fins["forecast_total"],
             "actuals_ytd": fins["actuals_ytd"],
             "variance_pct": fins["plan_drift_pct"],
+            "baseline_cy": fins["baseline_cy"],
+            "forecast_cy": fins["forecast_cy"],
+            "actuals_cy": fins["actuals_cy"],
+            "baseline_py": fins["baseline_py"],
+            "forecast_py": fins["forecast_py"],
+            "actuals_py": fins["actuals_py"],
             "timeline": {
                 "start": p.start_month,
                 "end": p.end_month,
@@ -257,10 +320,20 @@ def build_portfolio_tree(db: Session, filters: dict | None = None) -> list[dict]
 
     for lob_id, lob_data in lob_map.items():
         lob_children = []
-        lob_baseline = 0.0
-        lob_forecast = 0.0
-        lob_actuals = 0.0
+        lob_baseline = lob_forecast = lob_actuals = 0.0
+        lob_bcy = lob_fcy = lob_acy = lob_bpy = lob_fpy = lob_apy = 0.0
         worst_rag = None
+
+        def _agg_cy_py(src_list):
+            """Sum CY/PY fields from a list of nodes."""
+            return {
+                "baseline_cy": sum(c.get("baseline_cy", 0) for c in src_list),
+                "forecast_cy": sum(c.get("forecast_cy", 0) for c in src_list),
+                "actuals_cy": sum(c.get("actuals_cy", 0) for c in src_list),
+                "baseline_py": sum(c.get("baseline_py", 0) for c in src_list),
+                "forecast_py": sum(c.get("forecast_py", 0) for c in src_list),
+                "actuals_py": sum(c.get("actuals_py", 0) for c in src_list),
+            }
 
         # Process programs
         for prog_id, prog_data in lob_data["_programs"].items():
@@ -273,6 +346,7 @@ def build_portfolio_tree(db: Session, filters: dict | None = None) -> list[dict]
                 key=lambda r: rag_priority.get(r, -1),
                 default=None,
             )
+            cp = _agg_cy_py(prog_data["_children"])
 
             if prog_data["_children"]:
                 prog_node = {
@@ -285,6 +359,7 @@ def build_portfolio_tree(db: Session, filters: dict | None = None) -> list[dict]
                     "current_forecast": round(prog_forecast, 2),
                     "actuals_ytd": round(prog_actuals, 2),
                     "variance_pct": round(prog_variance, 1),
+                    **{k: round(v, 2) for k, v in cp.items()},
                     "timeline": None,
                     "children": prog_data["_children"],
                 }
@@ -292,6 +367,8 @@ def build_portfolio_tree(db: Session, filters: dict | None = None) -> list[dict]
                 lob_baseline += prog_baseline
                 lob_forecast += prog_forecast
                 lob_actuals += prog_actuals
+                lob_bcy += cp["baseline_cy"]; lob_fcy += cp["forecast_cy"]; lob_acy += cp["actuals_cy"]
+                lob_bpy += cp["baseline_py"]; lob_fpy += cp["forecast_py"]; lob_apy += cp["actuals_py"]
                 if prog_rag and rag_priority.get(prog_rag, -1) > rag_priority.get(worst_rag, -1):
                     worst_rag = prog_rag
 
@@ -301,6 +378,8 @@ def build_portfolio_tree(db: Session, filters: dict | None = None) -> list[dict]
             lob_baseline += pn["baseline_budget"]
             lob_forecast += pn["current_forecast"]
             lob_actuals += pn["actuals_ytd"]
+            lob_bcy += pn.get("baseline_cy", 0); lob_fcy += pn.get("forecast_cy", 0); lob_acy += pn.get("actuals_cy", 0)
+            lob_bpy += pn.get("baseline_py", 0); lob_fpy += pn.get("forecast_py", 0); lob_apy += pn.get("actuals_py", 0)
             if pn["rag"] and rag_priority.get(pn["rag"], -1) > rag_priority.get(worst_rag, -1):
                 worst_rag = pn["rag"]
 
@@ -316,6 +395,12 @@ def build_portfolio_tree(db: Session, filters: dict | None = None) -> list[dict]
                 "current_forecast": round(lob_forecast, 2),
                 "actuals_ytd": round(lob_actuals, 2),
                 "variance_pct": round(lob_variance, 1),
+                "baseline_cy": round(lob_bcy, 2),
+                "forecast_cy": round(lob_fcy, 2),
+                "actuals_cy": round(lob_acy, 2),
+                "baseline_py": round(lob_bpy, 2),
+                "forecast_py": round(lob_fpy, 2),
+                "actuals_py": round(lob_apy, 2),
                 "timeline": None,
                 "children": lob_children,
             })

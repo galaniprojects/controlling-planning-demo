@@ -18,7 +18,7 @@ interface Props {
   onActionComplete: () => void;
 }
 
-type ActionMode = 'idle' | 'approve' | 'reject' | 'send-back';
+type ActionMode = 'idle' | 'approve' | 'reject' | 'send-back' | 'resubmit';
 
 export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: Props) {
   const { context } = useRole();
@@ -55,6 +55,9 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
       } else if (actionMode === 'send-back') {
         await portfolioApi.sendBackIntake(projectId, actionText);
         setActionResult('Project sent back for revision.');
+      } else if (actionMode === 'resubmit') {
+        await portfolioApi.resubmitIntake(projectId);
+        setActionResult('Project resubmitted for approval.');
       }
       onActionComplete();
     } catch {
@@ -149,6 +152,38 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
         </div>
       )}
 
+      {/* Changes Requested banner (visible to PL) */}
+      {data.status === 'changes_requested' && !actionResult && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 space-y-3">
+          <p className="text-sm font-medium text-amber-800">
+            Changes Requested
+          </p>
+          <p className="text-sm text-amber-700">
+            The controller has reviewed your submission and requested changes. Please review the feedback above and resubmit when ready.
+          </p>
+          {!isController && (
+            <Button
+              size="sm"
+              onClick={async () => {
+                setSubmitting(true);
+                try {
+                  await portfolioApi.resubmitIntake(projectId);
+                  setActionResult('Project resubmitted for approval.');
+                  onActionComplete();
+                } catch {
+                  setActionResult('Resubmission failed. Please try again.');
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+              disabled={submitting}
+            >
+              {submitting ? 'Resubmitting...' : 'Resubmit for Approval'}
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Action Result */}
       {actionResult && (
         <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
@@ -157,7 +192,7 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
       )}
 
       {/* Action Buttons (controller only) */}
-      {isController && !actionResult && (
+      {isController && !actionResult && data.status === 'pending_approval' && (
         <Card>
           <CardContent className="pt-6">
             {actionMode === 'idle' ? (

@@ -115,6 +115,11 @@ export interface PortfolioKPIs {
   change_total: number;
   run_pct: number;
   change_pct: number;
+  // Lifetime summary
+  lifetime_baseline?: number;
+  lifetime_forecast?: number;
+  lifetime_actuals?: number;
+  active_project_count?: number;
 }
 
 export interface TimelineInfo {
@@ -135,6 +140,13 @@ export interface ProjectTreeNode {
   variance_pct: number;
   timeline: TimelineInfo | null;
   children: ProjectTreeNode[];
+  // CY/PY splits
+  baseline_cy?: number;
+  forecast_cy?: number;
+  actuals_cy?: number;
+  baseline_py?: number;
+  forecast_py?: number;
+  actuals_py?: number;
 }
 
 export interface BudgetSnapshot {
@@ -417,6 +429,7 @@ export interface RetrospectiveItem {
   variance: number;
   variance_pct: number;
   significant: boolean;
+  person_name?: string | null;
 }
 
 export interface ForecastCycleStartResponse {
@@ -530,6 +543,8 @@ export interface UtilizationCell {
   month: string;
   value: number;
   color: 'blue' | 'green' | 'amber' | 'red';
+  allocated_hours?: number;
+  standard_hours?: number;
 }
 
 export interface PersonHeatmapRow {
@@ -605,11 +620,26 @@ export interface OrgHeatmapRow {
   children: OrgHeatmapRow[];
 }
 
+export interface OrgDetailEmployee {
+  person_id: string;
+  person_name: string;
+  hours: number;
+}
+
 export interface OrgDetailItem {
   project_id: string;
   project_name: string;
   hours_allocated: number;
   has_pending_crs: boolean;
+  employees?: OrgDetailEmployee[];
+}
+
+export interface OrgDetailResponse {
+  items: OrgDetailItem[];
+  total: number;
+  allocated_hours: number;
+  available_hours: number;
+  delta: number;
 }
 
 // --- What-If Simulator ---

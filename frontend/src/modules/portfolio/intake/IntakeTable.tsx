@@ -79,7 +79,13 @@ export function IntakeTable({ items, loading, selectedId, onSelect, onOpenDetail
                 {item.submission_date ? new Date(item.submission_date).toLocaleDateString() : '—'}
               </TableCell>
               <TableCell className="px-3 py-2">
-                <Badge variant="outline" className="text-xs capitalize">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    'text-xs capitalize',
+                    item.status === 'changes_requested' && 'border-amber-400 text-amber-700 bg-amber-50',
+                  )}
+                >
                   {item.status.replace(/_/g, ' ')}
                 </Badge>
               </TableCell>

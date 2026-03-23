@@ -1,7 +1,9 @@
-let currentUserId = 'persona-controller';
+const STORAGE_KEY = 'creta-persona';
+let currentUserId = localStorage.getItem(STORAGE_KEY) || 'persona-controller';
 
 export function setCurrentUser(userId: string) {
   currentUserId = userId;
+  localStorage.setItem(STORAGE_KEY, userId);
 }
 
 export function getCurrentUserId(): string {

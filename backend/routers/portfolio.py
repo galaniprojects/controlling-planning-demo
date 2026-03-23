@@ -14,6 +14,7 @@ from dependencies import get_current_user, require_role
 from models.change_requests import ChangeRequest, CRChangeDetail
 from models.financial import Actuals, Baseline, Forecast
 from models.projects import Project
+from models.users import DemoPersona
 from schemas.common import CurrentUser
 from schemas.portfolio import (
     ApprovalAction,
@@ -81,18 +82,20 @@ def get_portfolio_kpis(
         elif type == "project":
             proj_filter.append(Project.is_service.is_(False))
 
+    # CY-scoped CapEx/OpEx split
+    cy_start, cy_end = "2026-01", "2026-12"
     total_forecast = (
         db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
         .join(Project, Forecast.project_id == Project.id)
-        .filter(*proj_filter)
+        .filter(*proj_filter, Forecast.month >= cy_start, Forecast.month <= cy_end)
         .scalar()
     )
 
-    # CapEx/OpEx split
     capex_forecast = (
         db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
         .join(Project, Forecast.project_id == Project.id)
-        .filter(*proj_filter, Project.capex_opex == "capex")
+        .filter(*proj_filter, Project.capex_opex == "capex",
+                Forecast.month >= cy_start, Forecast.month <= cy_end)
         .scalar()
     )
     opex_forecast = float(total_forecast) - float(capex_forecast)
@@ -117,6 +120,10 @@ def get_portfolio_kpis(
         "change_total": kpis["change_total"],
         "run_pct": kpis["run_pct"],
         "change_pct": kpis["change_pct"],
+        "lifetime_baseline": kpis["lifetime_baseline"],
+        "lifetime_forecast": kpis["lifetime_forecast"],
+        "lifetime_actuals": kpis["lifetime_actuals"],
+        "active_project_count": kpis["active_project_count"],
     }
 
 
@@ -297,8 +304,10 @@ def get_intake_queue(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Get pending project submissions."""
-    query = db.query(Project).filter(Project.status == "pending_approval")
+    """Get pending project submissions (includes changes_requested)."""
+    query = db.query(Project).filter(
+        Project.status.in_(["pending_approval", "changes_requested"])
+    )
 
     # PL sees only own submissions
     if user.role == "project_lead":
@@ -551,14 +560,65 @@ def send_back_project(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("controller")),
 ):
-    """Send a pending project submission back for revision."""
+    """Send a pending project submission back for revision with feedback."""
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
-    if project.status != "pending_approval":
+    if project.status not in ("pending_approval",):
         raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_approval'")
 
-    project.status = "draft"
+    project.status = "changes_requested"
+    # Store controller feedback as description suffix (simple approach for demo)
+    if body.comments:
+        project.description = (project.description or "") + f"\n\n--- Controller Feedback ---\n{body.comments}"
+
+    # Create notification for the PL
+    if project.pl_person_id:
+        from models.system import Notification
+        notification = Notification(
+            user_person_id=project.pl_person_id,
+            message=f"Your submission '{project.name}' has been sent back for revision.",
+            severity="action",
+            deep_link_module="portfolio",
+            deep_link_entity_id=project.id,
+        )
+        db.add(notification)
+
+    db.commit()
+    db.refresh(project)
+
+    return {"id": project.id, "name": project.name, "status": project.status}
+
+
+@router.put("/intake/{project_id}/resubmit")
+def resubmit_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("project_lead")),
+):
+    """PL resubmits a project after addressing controller feedback."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if project.status != "changes_requested":
+        raise HTTPException(409, f"Project status is '{project.status}', expected 'changes_requested'")
+
+    project.status = "pending_approval"
+
+    # Notify controller
+    from models.system import Notification
+    # Find any controller persona's person_id
+    controller = db.query(DemoPersona).filter(DemoPersona.role == "controller").first()
+    if controller:
+        notification = Notification(
+            user_person_id=controller.person_id,
+            message=f"Project '{project.name}' has been resubmitted for approval.",
+            severity="action",
+            deep_link_module="portfolio",
+            deep_link_entity_id=project.id,
+        )
+        db.add(notification)
+
     db.commit()
     db.refresh(project)
 

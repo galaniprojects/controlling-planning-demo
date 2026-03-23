@@ -35,9 +35,11 @@ export function Phase1Retrospective({
   onSkip,
   loading,
 }: Props) {
-  const flaggedItems = retrospective.filter((r) => r.significant);
-  const allExplained = flaggedItems.every((r) => {
-    const key = `${r.category}:${r.sub_category}`;
+  const flaggedWithIdx = retrospective
+    .map((r, idx) => ({ item: r, idx }))
+    .filter(({ item }) => item.significant);
+  const allExplained = flaggedWithIdx.every(({ item, idx }) => {
+    const key = `${item.category}:${item.sub_category}:${idx}`;
     return explanations[key]?.trim();
   });
 
@@ -77,6 +79,11 @@ export function Phase1Retrospective({
                 >
                   <TableCell className="font-medium text-sm">
                     {nameMap[item.sub_category] || item.sub_category}
+                    {item.person_name && (
+                      <span className="text-xs text-slate-400 ml-1">
+                        &mdash; {item.person_name}
+                      </span>
+                    )}
                     <span className="ml-1.5 text-xs text-slate-400 capitalize">
                       ({item.category === 'internal' ? 'Internal' : 'External'})
                     </span>
@@ -118,17 +125,19 @@ export function Phase1Retrospective({
       </div>
 
       {/* Explanation inputs for flagged items */}
-      {flaggedItems.length > 0 && (
+      {flaggedWithIdx.length > 0 && (
         <div className="space-y-3">
           <p className="text-sm font-medium text-slate-600">
             Please explain the flagged variances:
           </p>
-          {flaggedItems.map((item) => {
-            const key = `${item.category}:${item.sub_category}`;
+          {flaggedWithIdx.map(({ item, idx }) => {
+            const key = `${item.category}:${item.sub_category}:${idx}`;
+            const label = nameMap[item.sub_category] || item.sub_category;
+            const personSuffix = item.person_name ? ` \u2014 ${item.person_name}` : '';
             return (
               <div key={key} className="space-y-1">
                 <label className="text-xs font-medium text-slate-500">
-                  {nameMap[item.sub_category] || item.sub_category} ({formatPercent(item.variance_pct)}
+                  {label}{personSuffix} ({formatPercent(item.variance_pct)}
                   {' '}variance)
                 </label>
                 <Textarea
@@ -146,7 +155,7 @@ export function Phase1Retrospective({
       <div className="flex gap-2">
         <Button
           onClick={onAcknowledge}
-          disabled={loading || (!allExplained && flaggedItems.length > 0)}
+          disabled={loading || (!allExplained && flaggedWithIdx.length > 0)}
         >
           {loading ? 'Processing...' : 'Acknowledge & Continue'}
         </Button>

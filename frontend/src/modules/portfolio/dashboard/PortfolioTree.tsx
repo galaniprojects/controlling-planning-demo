@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   ExpandableTreeTable,
   type TreeTableColumn,
+  type HeaderGroup,
 } from '@/components/shared/ExpandableTreeTable';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { ragBgColor } from '@/lib/rag';
@@ -26,7 +27,7 @@ const TYPE_LABELS: Record<string, string> = {
 const columns: TreeTableColumn<ProjectTreeNode>[] = [
   {
     header: 'Name',
-    className: 'min-w-[240px]',
+    className: 'min-w-[220px]',
     accessor: (node) => (
       <div className="flex items-center gap-2">
         {node.rag && (
@@ -48,74 +49,82 @@ const columns: TreeTableColumn<ProjectTreeNode>[] = [
   },
   {
     header: 'Status',
-    className: 'w-[100px]',
+    className: 'w-[90px]',
     accessor: (node) =>
       node.status ? (
         <span className="capitalize text-slate-600">{node.status.replace(/_/g, ' ')}</span>
       ) : (
-        <span className="text-slate-300">—</span>
+        <span className="text-slate-300">&mdash;</span>
       ),
   },
   {
     header: 'RAG',
-    className: 'w-[80px]',
+    className: 'w-[70px]',
     accessor: (node) =>
       node.rag ? (
         <Badge className={cn('text-xs capitalize', ragBgColor(node.rag))}>
           {node.rag}
         </Badge>
       ) : (
-        <span className="text-slate-300">—</span>
+        <span className="text-slate-300">&mdash;</span>
       ),
   },
+  // --- CY Cluster ---
   {
-    header: 'Baseline',
-    className: 'w-[100px] text-right',
+    header: 'Baseline CY',
+    className: 'w-[90px] text-right',
     accessor: (node) => (
-      <span className="text-slate-700">{formatCurrency(node.baseline_budget)}</span>
+      <span className="text-slate-700">{formatCurrency(node.baseline_cy ?? 0)}</span>
     ),
   },
   {
-    header: 'Forecast',
-    className: 'w-[100px] text-right',
+    header: 'Forecast CY',
+    className: 'w-[90px] text-right',
     accessor: (node) => (
-      <span className="text-slate-700">{formatCurrency(node.current_forecast)}</span>
+      <span className="text-slate-700">{formatCurrency(node.forecast_cy ?? 0)}</span>
     ),
   },
   {
     header: 'Actuals YTD',
-    className: 'w-[100px] text-right',
-    accessor: (node) => (
-      <span className="text-slate-700">{formatCurrency(node.actuals_ytd)}</span>
-    ),
-  },
-  {
-    header: 'Variance',
     className: 'w-[90px] text-right',
     accessor: (node) => (
-      <span
-        className={cn(
-          'font-medium',
-          node.variance_pct > 10 && 'text-red-600',
-          node.variance_pct > 5 && node.variance_pct <= 10 && 'text-amber-600',
-          node.variance_pct <= 5 && 'text-green-600',
-        )}
-      >
-        {formatPercent(node.variance_pct)}
-      </span>
+      <span className="text-slate-700">{formatCurrency(node.actuals_cy ?? 0)}</span>
     ),
   },
+  // --- Timeline (separator) ---
   {
     header: 'Timeline',
-    className: 'w-[140px]',
+    className: 'w-[130px]',
     accessor: (node) =>
       node.timeline?.start ? (
         <span className="text-slate-500 text-xs">
-          {node.timeline.start} — {node.timeline.end || '?'}
+          {node.timeline.start} &mdash; {node.timeline.end || '?'}
         </span>
       ) : (
-        <span className="text-slate-300">—</span>
+        <span className="text-slate-300">&mdash;</span>
       ),
+  },
+  // --- PY Cluster ---
+  {
+    header: 'Baseline PY',
+    className: 'w-[90px] text-right',
+    accessor: (node) => (
+      <span className="text-slate-500">{formatCurrency(node.baseline_py ?? 0)}</span>
+    ),
+  },
+  {
+    header: 'Forecast PY',
+    className: 'w-[90px] text-right',
+    accessor: (node) => (
+      <span className="text-slate-500">{formatCurrency(node.forecast_py ?? 0)}</span>
+    ),
+  },
+  {
+    header: 'Actuals PY',
+    className: 'w-[90px] text-right',
+    accessor: (node) => (
+      <span className="text-slate-500">{formatCurrency(node.actuals_py ?? 0)}</span>
+    ),
   },
 ];
 
@@ -130,10 +139,18 @@ export function PortfolioTree({ data, loading, selectedId, onProjectSelect }: Pr
     );
   }
 
+  const headerGroups: HeaderGroup[] = [
+    { label: '', colSpan: 3 },                    // Name, Status, RAG
+    { label: 'CY 2026', colSpan: 3, className: 'border-b border-slate-200' },  // Baseline CY, Forecast CY, Actuals YTD
+    { label: '', colSpan: 1 },                    // Timeline
+    { label: 'Prior Years', colSpan: 3, className: 'border-b border-slate-200' }, // Baseline PY, Forecast PY, Actuals PY
+  ];
+
   return (
     <ExpandableTreeTable
       data={data}
       columns={columns}
+      headerGroups={headerGroups}
       onRowClick={(node) => {
         if (node.type === 'project' || node.type === 'service') {
           onProjectSelect(node);

@@ -20,6 +20,8 @@ class UtilizationCell(BaseModel):
     month: str
     value: float
     color: str
+    allocated_hours: float | None = None
+    standard_hours: float | None = None
 
 
 class PersonHeatmapRow(BaseModel):
