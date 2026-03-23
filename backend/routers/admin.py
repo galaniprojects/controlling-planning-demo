@@ -794,43 +794,95 @@ def get_active_hierarchy(
     """Get the currently active hierarchy with full entity tree and project assignments."""
     h = db.query(GroupingHierarchy).filter(GroupingHierarchy.is_active_hierarchy.is_(True)).first()
     if not h:
-        return {"hierarchy": None, "top_level_label": "Line of Business", "entities": []}
+        return {"hierarchy": None, "levels": [], "top_level_label": "Line of Business", "entities": []}
 
-    # Get the top-level entity type
-    top_level = h.levels[0] if h.levels else None
-    if not top_level:
-        return {"hierarchy": {"id": h.id, "name": h.name}, "top_level_label": "Group", "entities": []}
+    if not h.levels:
+        return {"hierarchy": {"id": h.id, "name": h.name}, "levels": [], "top_level_label": "Group", "entities": []}
 
-    top_type = top_level.entity_type
-    entities = (
+    levels_data = [
+        {"level_order": lvl.level_order, "entity_type_id": lvl.entity_type_id, "entity_type_name": lvl.entity_type.name if lvl.entity_type else ""}
+        for lvl in h.levels
+    ]
+    leaf_type_id = h.levels[-1].entity_type_id
+    top_type = h.levels[0].entity_type
+
+    def _build_entity_node(entity, is_leaf: bool) -> dict:
+        """Build a tree node for an entity, recursively including children."""
+        projects = []
+        if is_leaf:
+            assignments = db.query(ProjectGroupingAssignment).filter(
+                ProjectGroupingAssignment.grouping_entity_id == entity.id
+            ).all()
+            for a in assignments:
+                p = db.query(Project).filter(Project.id == a.project_id).first()
+                if p:
+                    projects.append({"id": p.id, "name": p.name, "status": p.status})
+
+        # Get child entities (entities whose parent_entity_id == this entity)
+        child_entities = (
+            db.query(GroupingEntity)
+            .filter(GroupingEntity.parent_entity_id == entity.id, GroupingEntity.is_active.is_(True))
+            .order_by(GroupingEntity.name)
+            .all()
+        )
+        children = []
+        child_project_count = 0
+        for child in child_entities:
+            child_is_leaf = child.entity_type_id == leaf_type_id
+            child_node = _build_entity_node(child, child_is_leaf)
+            children.append(child_node)
+            child_project_count += child_node["project_count"]
+
+        return {
+            "id": entity.id,
+            "name": entity.name,
+            "entity_type_id": entity.entity_type_id,
+            "project_count": len(projects) + child_project_count,
+            "children": children,
+            "projects": projects,
+        }
+
+    # Query top-level entities (matching the first level's type, no parent)
+    top_entities = (
         db.query(GroupingEntity)
-        .filter(GroupingEntity.entity_type_id == top_type.id, GroupingEntity.is_active.is_(True))
+        .filter(
+            GroupingEntity.entity_type_id == top_type.id,
+            GroupingEntity.is_active.is_(True),
+            GroupingEntity.parent_entity_id.is_(None),
+        )
         .order_by(GroupingEntity.name)
         .all()
     )
 
-    entity_list = []
-    for e in entities:
-        assignments = db.query(ProjectGroupingAssignment).filter(
-            ProjectGroupingAssignment.grouping_entity_id == e.id
-        ).all()
-        projects = []
-        for a in assignments:
-            p = db.query(Project).filter(Project.id == a.project_id).first()
-            if p:
-                projects.append({"id": p.id, "name": p.name, "status": p.status})
-        entity_list.append({
-            "id": e.id,
-            "name": e.name,
-            "project_count": len(projects),
-            "projects": projects,
-        })
+    is_single_level = len(h.levels) == 1
+    entity_list = [_build_entity_node(e, is_single_level) for e in top_entities]
 
     return {
         "hierarchy": {"id": h.id, "name": h.name},
+        "levels": levels_data,
         "top_level_label": top_type.name,
         "entities": entity_list,
     }
+
+
+@router.put("/grouping/entities/{entity_id}/parent")
+def set_entity_parent(
+    entity_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Set or clear an entity's parent (assign child entity to parent)."""
+    entity = db.query(GroupingEntity).filter(GroupingEntity.id == entity_id).first()
+    if not entity:
+        raise HTTPException(404, "Entity not found")
+    old_parent = entity.parent_entity_id
+    new_parent = body.get("parent_entity_id")
+    entity.parent_entity_id = new_parent
+    _log_audit(db, user, "grouping_entity", entity.id, entity.name, "update", "parent_entity_id", old_parent, new_parent)
+    db.commit()
+    db.refresh(entity)
+    return {"id": entity.id, "name": entity.name, "parent_entity_id": entity.parent_entity_id}
 
 
 @router.post("/grouping/project-assignments")

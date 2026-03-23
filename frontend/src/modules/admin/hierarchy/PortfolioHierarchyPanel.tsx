@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, Pencil, Check, ChevronDown, ChevronRight, FolderPlus, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Check, ChevronDown, ChevronRight, FolderPlus, Trash2, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -38,13 +38,21 @@ interface Hierarchy {
   id: string;
   name: string;
   is_active_hierarchy: boolean;
-  levels: { level_order: number; entity_type_id: string; entity_type_name: string }[];
+  levels: HierarchyLevel[];
+}
+
+interface HierarchyLevel {
+  level_order: number;
+  entity_type_id: string;
+  entity_type_name: string;
 }
 
 interface ActiveEntity {
   id: string;
   name: string;
+  entity_type_id: string;
   project_count: number;
+  children: ActiveEntity[];
   projects: { id: string; name: string; status: string }[];
 }
 
@@ -79,18 +87,24 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
   const [newEntityTypeId, setNewEntityTypeId] = useState('');
   const [creatingEntity, setCreatingEntity] = useState(false);
 
-  // Project Assignments
+  // Hierarchy Assignment
   const [activeEntities, setActiveEntities] = useState<ActiveEntity[]>([]);
+  const [activeLevels, setActiveLevels] = useState<HierarchyLevel[]>([]);
   const [loadingActive, setLoadingActive] = useState(true);
-  const [expandedEntityId, setExpandedEntityId] = useState<string | null>(null);
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [assignTargetEntityId, setAssignTargetEntityId] = useState('');
-  const [allProjects, setAllProjects] = useState<{ id: string; name: string }[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState('');
-  const [assigning, setAssigning] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [activeLabel, setActiveLabel] = useState('Line of Business');
 
-  // Activate confirmation dialog
+  // Assign dialogs
+  const [assignProjectOpen, setAssignProjectOpen] = useState(false);
+  const [assignEntityOpen, setAssignEntityOpen] = useState(false);
+  const [assignTargetEntityId, setAssignTargetEntityId] = useState('');
+  const [assignTargetChildTypeId, setAssignTargetChildTypeId] = useState('');
+  const [allProjects, setAllProjects] = useState<{ id: string; name: string }[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedChildEntityId, setSelectedChildEntityId] = useState('');
+  const [assigning, setAssigning] = useState(false);
+
+  // Activate confirmation
   const [activateConfirm, setActivateConfirm] = useState<Hierarchy | null>(null);
 
   const fetchEntityTypes = () => {
@@ -121,8 +135,9 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
     setLoadingActive(true);
     adminApi.getActiveHierarchy()
       .then((r) => {
-        setActiveEntities(r.entities);
+        setActiveEntities(r.entities as ActiveEntity[]);
         setActiveLabel(r.top_level_label);
+        setActiveLevels((r as { levels?: HierarchyLevel[] }).levels || []);
       })
       .catch(() => setActiveEntities([]))
       .finally(() => setLoadingActive(false));
@@ -136,6 +151,31 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
   }, []);
 
   useEffect(() => { fetchEntities(); }, [entityTypeFilter]);
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Determine if an entity type is the leaf level in the active hierarchy
+  const leafTypeId = activeLevels.length > 0 ? activeLevels[activeLevels.length - 1].entity_type_id : null;
+
+  const isLeafEntity = (entity: ActiveEntity) => {
+    return entity.entity_type_id === leafTypeId || activeLevels.length <= 1;
+  };
+
+  // Find what child entity type should be assigned to a given entity type
+  const getChildTypeForEntity = (entityTypeId: string): HierarchyLevel | null => {
+    const idx = activeLevels.findIndex((l) => l.entity_type_id === entityTypeId);
+    if (idx >= 0 && idx < activeLevels.length - 1) {
+      return activeLevels[idx + 1];
+    }
+    return null;
+  };
 
   // --- Entity Types ---
   const handleCreateType = async () => {
@@ -193,14 +233,21 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
     setCreatingEntity(false);
   };
 
-  // --- Project Assignments ---
-  const openAssignDialog = (entityId: string) => {
+  // --- Assignment ---
+  const openProjectAssignDialog = (entityId: string) => {
     setAssignTargetEntityId(entityId);
     setSelectedProjectId('');
     workbenchApi.getProjects().then((r) => {
       setAllProjects(r.items.map((p) => ({ id: p.id, name: p.name })));
-      setAssignDialogOpen(true);
+      setAssignProjectOpen(true);
     });
+  };
+
+  const openEntityAssignDialog = (parentEntityId: string, childTypeId: string) => {
+    setAssignTargetEntityId(parentEntityId);
+    setAssignTargetChildTypeId(childTypeId);
+    setSelectedChildEntityId('');
+    setAssignEntityOpen(true);
   };
 
   const handleAssignProject = async () => {
@@ -208,10 +255,25 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
     setAssigning(true);
     try {
       await adminApi.assignProjectToEntity({ project_id: selectedProjectId, grouping_entity_id: assignTargetEntityId });
+      invalidateHierarchyCache();
       fetchActiveHierarchy();
       fetchEntities();
       onDataChanged();
-      setAssignDialogOpen(false);
+      setAssignProjectOpen(false);
+    } catch { /* ignore */ }
+    setAssigning(false);
+  };
+
+  const handleAssignChildEntity = async () => {
+    if (!selectedChildEntityId || !assignTargetEntityId) return;
+    setAssigning(true);
+    try {
+      await adminApi.assignEntityParent(selectedChildEntityId, assignTargetEntityId);
+      invalidateHierarchyCache();
+      fetchActiveHierarchy();
+      fetchEntities();
+      onDataChanged();
+      setAssignEntityOpen(false);
     } catch { /* ignore */ }
     setAssigning(false);
   };
@@ -219,15 +281,103 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
   const handleUnassignProject = async (projectId: string) => {
     try {
       await adminApi.unassignProjectFromEntity(projectId);
+      invalidateHierarchyCache();
       fetchActiveHierarchy();
       fetchEntities();
       onDataChanged();
     } catch { /* ignore */ }
   };
 
-  // Get assigned project IDs from active hierarchy
-  const assignedProjectIds = new Set(activeEntities.flatMap((e) => e.projects.map((p) => p.id)));
+  const handleUnassignChildEntity = async (entityId: string) => {
+    try {
+      await adminApi.assignEntityParent(entityId, null);
+      invalidateHierarchyCache();
+      fetchActiveHierarchy();
+      fetchEntities();
+      onDataChanged();
+    } catch { /* ignore */ }
+  };
+
+  // Get unassigned entities of the child type for the assign dialog
+  const unassignedChildEntities = entities.filter(
+    (e) => e.entity_type_id === assignTargetChildTypeId && !e.parent_entity_id
+  );
+
+  // Collect all assigned project IDs recursively
+  const collectProjectIds = (ents: ActiveEntity[]): Set<string> => {
+    const ids = new Set<string>();
+    for (const e of ents) {
+      for (const p of e.projects) ids.add(p.id);
+      for (const id of collectProjectIds(e.children)) ids.add(id);
+    }
+    return ids;
+  };
+  const assignedProjectIds = collectProjectIds(activeEntities);
   const availableProjects = allProjects.filter((p) => !assignedProjectIds.has(p.id));
+
+  // --- Recursive tree renderer ---
+  const renderEntityRow = (entity: ActiveEntity, depth: number) => {
+    const isLeaf = isLeafEntity(entity);
+    const childType = getChildTypeForEntity(entity.entity_type_id);
+    const isExpanded = expandedIds.has(entity.id);
+    const hasContent = isLeaf ? entity.projects.length > 0 : entity.children.length > 0;
+
+    return (
+      <React.Fragment key={entity.id}>
+        <TableRow className="hover:bg-slate-50 cursor-pointer" onClick={() => toggleExpand(entity.id)}>
+          <TableCell className="px-3 py-2" style={{ paddingLeft: `${12 + depth * 20}px` }}>
+            {hasContent
+              ? isExpanded
+                ? <ChevronDown className="h-4 w-4 text-slate-400 inline" />
+                : <ChevronRight className="h-4 w-4 text-slate-400 inline" />
+              : <span className="inline-block w-4" />}
+          </TableCell>
+          <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">{entity.name}</TableCell>
+          <TableCell className="px-3 py-2 text-sm text-slate-600 text-right">{entity.project_count}</TableCell>
+          <TableCell className="px-3 py-2" onClick={(ev) => ev.stopPropagation()}>
+            {isLeaf ? (
+              <Button size="sm" variant="outline" className="h-7" onClick={() => openProjectAssignDialog(entity.id)}>
+                <FolderPlus className="h-3.5 w-3.5 mr-1" />
+                Project
+              </Button>
+            ) : childType ? (
+              <Button size="sm" variant="outline" className="h-7" onClick={() => openEntityAssignDialog(entity.id, childType.entity_type_id)}>
+                <Link className="h-3.5 w-3.5 mr-1" />
+                {childType.entity_type_name}
+              </Button>
+            ) : null}
+          </TableCell>
+        </TableRow>
+        {isExpanded && isLeaf && entity.projects.length > 0 && (
+          <TableRow>
+            <TableCell colSpan={4} className="py-1 bg-slate-50" style={{ paddingLeft: `${32 + depth * 20}px` }}>
+              <div className="space-y-0.5">
+                {entity.projects.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between py-0.5">
+                    <span className="text-sm text-slate-600">{p.name}</span>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100 text-xs">{p.status.replace(/_/g, ' ')}</Badge>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => handleUnassignProject(p.id)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </TableCell>
+          </TableRow>
+        )}
+        {isExpanded && !isLeaf && entity.children.map((child) => renderEntityRow(child, depth + 1))}
+        {isExpanded && !isLeaf && entity.children.length === 0 && (
+          <TableRow>
+            <TableCell colSpan={4} className="py-1 text-sm text-slate-400 bg-slate-50" style={{ paddingLeft: `${32 + depth * 20}px` }}>
+              No {getChildTypeForEntity(entity.entity_type_id)?.entity_type_name || 'children'} assigned
+            </TableCell>
+          </TableRow>
+        )}
+      </React.Fragment>
+    );
+  };
 
   return (
     <div className="space-y-3">
@@ -242,7 +392,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
           <TabsTrigger value="hierarchies">Hierarchies</TabsTrigger>
           <TabsTrigger value="entity_types">Entity Types</TabsTrigger>
           <TabsTrigger value="entities">Entities</TabsTrigger>
-          <TabsTrigger value="assignments">Project Assignments</TabsTrigger>
+          <TabsTrigger value="assignments">Hierarchy Assignment</TabsTrigger>
         </TabsList>
 
         {/* --- Hierarchies Tab --- */}
@@ -281,12 +431,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
                       </TableCell>
                       <TableCell className="px-3 py-2">
                         {!h.is_active_hierarchy && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setActivateConfirm(h)}
-                            disabled={activating === h.id}
-                          >
+                          <Button size="sm" variant="outline" onClick={() => setActivateConfirm(h)} disabled={activating === h.id}>
                             <Check className="h-3.5 w-3.5 mr-1" />
                             Set Active
                           </Button>
@@ -296,9 +441,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
                   ))}
                   {hierarchies.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="px-3 py-8 text-center text-sm text-slate-400">
-                        No hierarchies defined
-                      </TableCell>
+                      <TableCell colSpan={4} className="px-3 py-8 text-center text-sm text-slate-400">No hierarchies defined</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -309,9 +452,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
 
         {/* --- Entity Types Tab --- */}
         <TabsContent value="entity_types" className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-slate-700">Entity Types</h3>
-          </div>
+          <h3 className="text-sm font-medium text-slate-700">Entity Types</h3>
           {loadingTypes ? <Skeleton className="h-10 w-full" /> : (
             <div className="rounded-md border border-slate-200">
               <Table>
@@ -393,9 +534,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
                   ))}
                   {entities.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="px-3 py-8 text-center text-sm text-slate-400">
-                        No entities found
-                      </TableCell>
+                      <TableCell colSpan={3} className="px-3 py-8 text-center text-sm text-slate-400">No entities found</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -404,10 +543,10 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
           )}
         </TabsContent>
 
-        {/* --- Project Assignments Tab --- */}
+        {/* --- Hierarchy Assignment Tab --- */}
         <TabsContent value="assignments" className="space-y-3">
           <h3 className="text-sm font-medium text-slate-700">
-            Active Hierarchy: {activeLabel}
+            Active Hierarchy: {activeLevels.map((l) => l.entity_type_name).join(' → ')} → Project
           </h3>
           {loadingActive ? <Skeleton className="h-10 w-full" /> : (
             <div className="rounded-md border border-slate-200">
@@ -415,59 +554,13 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
                 <TableHeader>
                   <TableRow>
                     <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[30px]" />
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">{activeLabel}</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Name</TableHead>
                     <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[100px] text-right">Projects</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[120px]">Actions</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[140px]">Assign</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {activeEntities.map((e) => (
-                    <>
-                      <TableRow key={e.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setExpandedEntityId(expandedEntityId === e.id ? null : e.id)}>
-                        <TableCell className="px-3 py-2">
-                          {expandedEntityId === e.id
-                            ? <ChevronDown className="h-4 w-4 text-slate-400" />
-                            : <ChevronRight className="h-4 w-4 text-slate-400" />}
-                        </TableCell>
-                        <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">{e.name}</TableCell>
-                        <TableCell className="px-3 py-2 text-sm text-slate-600 text-right">{e.project_count}</TableCell>
-                        <TableCell className="px-3 py-2" onClick={(ev) => ev.stopPropagation()}>
-                          <Button size="sm" variant="outline" className="h-7" onClick={() => openAssignDialog(e.id)}>
-                            <FolderPlus className="h-3.5 w-3.5 mr-1" />
-                            Assign
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                      {expandedEntityId === e.id && (
-                        <TableRow key={`${e.id}-projects`}>
-                          <TableCell colSpan={4} className="px-6 py-2 bg-slate-50">
-                            {e.projects.length === 0 ? (
-                              <p className="text-sm text-slate-400 py-1">No projects assigned</p>
-                            ) : (
-                              <div className="space-y-1">
-                                {e.projects.map((p) => (
-                                  <div key={p.id} className="flex items-center justify-between py-0.5">
-                                    <span className="text-sm text-slate-700">{p.name}</span>
-                                    <div className="flex items-center gap-2">
-                                      <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100 text-xs">{p.status.replace(/_/g, ' ')}</Badge>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 p-0 text-red-400 hover:text-red-600"
-                                        onClick={() => handleUnassignProject(p.id)}
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  ))}
+                  {activeEntities.map((e) => renderEntityRow(e, 0))}
                   {activeEntities.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={4} className="px-3 py-8 text-center text-sm text-slate-400">
@@ -503,9 +596,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
                 <div key={i} className="flex items-center gap-2">
                   <span className="text-xs text-slate-400 w-6">L{i + 1}</span>
                   <Select value={levelId} onValueChange={(v) => { const n = [...newHierLevels]; n[i] = v; setNewHierLevels(n); }}>
-                    <SelectTrigger className="flex-1">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {entityTypes.map((t) => (
                         <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -543,16 +634,12 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
       {/* Create Entity Dialog */}
       <Dialog open={createEntityOpen} onOpenChange={setCreateEntityOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Entity</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Create Entity</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-slate-700">Entity Type</label>
               <Select value={newEntityTypeId} onValueChange={setNewEntityTypeId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>
                   {entityTypes.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -574,21 +661,16 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
         </DialogContent>
       </Dialog>
 
-      {/* Assign Project Dialog */}
-      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+      {/* Assign Project Dialog (for leaf entities) */}
+      <Dialog open={assignProjectOpen} onOpenChange={setAssignProjectOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Assign Project</DialogTitle>
-            <DialogDescription>
-              Select a project to assign to this entity. If the project is already assigned
-              elsewhere, it will be reassigned.
-            </DialogDescription>
+            <DialogDescription>Select a project to assign. If already assigned elsewhere, it will be reassigned.</DialogDescription>
           </DialogHeader>
           <div className="py-2">
             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a project" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select a project" /></SelectTrigger>
               <SelectContent>
                 {availableProjects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
@@ -597,8 +679,39 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
             </Select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setAssignProjectOpen(false)}>Cancel</Button>
             <Button onClick={handleAssignProject} disabled={!selectedProjectId || assigning}>
+              {assigning ? 'Assigning...' : 'Assign'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Child Entity Dialog (for non-leaf entities) */}
+      <Dialog open={assignEntityOpen} onOpenChange={setAssignEntityOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign {entityTypes.find((t) => t.id === assignTargetChildTypeId)?.name || 'Entity'}</DialogTitle>
+            <DialogDescription>
+              Select an unassigned {entityTypes.find((t) => t.id === assignTargetChildTypeId)?.name?.toLowerCase() || 'entity'} to assign as a child.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Select value={selectedChildEntityId} onValueChange={setSelectedChildEntityId}>
+              <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+              <SelectContent>
+                {unassignedChildEntities.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {unassignedChildEntities.length === 0 && (
+              <p className="text-sm text-slate-400 mt-2">No unassigned entities of this type available. Create new entities in the Entities tab first.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignEntityOpen(false)}>Cancel</Button>
+            <Button onClick={handleAssignChildEntity} disabled={!selectedChildEntityId || assigning}>
               {assigning ? 'Assigning...' : 'Assign'}
             </Button>
           </DialogFooter>
@@ -612,8 +725,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
             <DialogTitle>Activate Hierarchy</DialogTitle>
             <DialogDescription>
               Activating "{activateConfirm?.name}" will change the grouping structure across
-              all modules (Portfolio Overview, Reporting, What-If Simulator, etc.).
-              The current active hierarchy will be deactivated. Continue?
+              all modules. The current active hierarchy will be deactivated. Continue?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

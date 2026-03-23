@@ -108,18 +108,20 @@ export const launchpadApi = {
 
 export const portfolioApi = {
   // Dashboard
-  getKPIs: (params?: { lob?: string; status?: string; rag?: string; type?: string }) => {
+  getKPIs: (params?: { lob?: string; grouping_entity?: string; status?: string; rag?: string; type?: string }) => {
     const query = new URLSearchParams();
-    if (params?.lob) query.set('lob', params.lob);
+    if (params?.grouping_entity) query.set('grouping_entity', params.grouping_entity);
+    else if (params?.lob) query.set('lob', params.lob);
     if (params?.status) query.set('status', params.status);
     if (params?.rag) query.set('rag', params.rag);
     if (params?.type) query.set('type', params.type);
     const qs = query.toString();
     return api.get<PortfolioKPIs>(`/api/portfolio/kpis${qs ? '?' + qs : ''}`);
   },
-  getProjects: (params?: { lob?: string; status?: string; rag?: string; type?: string }) => {
+  getProjects: (params?: { lob?: string; grouping_entity?: string; status?: string; rag?: string; type?: string }) => {
     const query = new URLSearchParams();
-    if (params?.lob) query.set('lob', params.lob);
+    if (params?.grouping_entity) query.set('grouping_entity', params.grouping_entity);
+    else if (params?.lob) query.set('lob', params.lob);
     if (params?.status) query.set('status', params.status);
     if (params?.rag) query.set('rag', params.rag);
     if (params?.type) query.set('type', params.type);
@@ -547,13 +549,15 @@ export const adminApi = {
   activateHierarchy: (id: string) =>
     api.put<{ id: string; name: string; is_active_hierarchy: boolean }>(`/api/admin/grouping/hierarchies/${id}/activate`),
   getActiveHierarchy: () =>
-    api.get<{ hierarchy: { id: string; name: string } | null; top_level_label: string; entities: { id: string; name: string; project_count: number; projects: { id: string; name: string; status: string }[] }[] }>('/api/admin/grouping/active-hierarchy'),
+    api.get<{ hierarchy: { id: string; name: string } | null; levels: { level_order: number; entity_type_id: string; entity_type_name: string }[]; top_level_label: string; entities: { id: string; name: string; entity_type_id: string; project_count: number; children: unknown[]; projects: { id: string; name: string; status: string }[] }[] }>('/api/admin/grouping/active-hierarchy'),
   assignProjectToEntity: (data: { project_id: string; grouping_entity_id: string }) =>
     api.post<{ status: string }>('/api/admin/grouping/project-assignments', data),
   unassignProjectFromEntity: (projectId: string) =>
     api.delete<{ status: string }>(`/api/admin/grouping/project-assignments/${projectId}`),
   getEntityProjects: (entityId: string) =>
     api.get<ListResponse<{ id: string; name: string; status: string; total_budget: number }>>(`/api/admin/grouping/entities/${entityId}/projects`),
+  assignEntityParent: (entityId: string, parentEntityId: string | null) =>
+    api.put<{ id: string; name: string; parent_entity_id: string | null }>(`/api/admin/grouping/entities/${entityId}/parent`, { parent_entity_id: parentEntityId }),
 
   // Audit Log
   getAuditLog: (entityType?: string, limit?: number) => {

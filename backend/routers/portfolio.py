@@ -49,6 +49,7 @@ router = APIRouter(prefix="/api/portfolio", tags=["Portfolio Overview"])
 @router.get("/kpis")
 def get_portfolio_kpis(
     lob: str | None = None,
+    grouping_entity: str | None = None,
     status: str | None = None,
     rag: str | None = None,
     type: str | None = None,
@@ -57,7 +58,9 @@ def get_portfolio_kpis(
 ):
     """Get portfolio-level KPI summary (optionally filtered)."""
     filters = {}
-    if lob:
+    if grouping_entity:
+        filters["grouping_entity"] = grouping_entity
+    elif lob:
         filters["lob"] = lob
     if status:
         filters["status"] = status
@@ -70,7 +73,12 @@ def get_portfolio_kpis(
 
     # Build project filter for CapEx/OpEx split
     proj_filter = [Project.is_active.is_(True)]
-    if lob:
+    if grouping_entity:
+        from services.portfolio_service import _get_projects_for_entity_recursive
+        ge_pids = _get_projects_for_entity_recursive(db, grouping_entity)
+        if ge_pids:
+            proj_filter.append(Project.id.in_(ge_pids))
+    elif lob:
         proj_filter.append(Project.lob_id == lob)
     if status:
         proj_filter.append(Project.status == status)
@@ -130,6 +138,7 @@ def get_portfolio_kpis(
 @router.get("/projects")
 def get_portfolio_tree(
     lob: str | None = None,
+    grouping_entity: str | None = None,
     status: str | None = None,
     rag: str | None = None,
     type: str | None = None,
@@ -138,7 +147,9 @@ def get_portfolio_tree(
 ):
     """Get hierarchical portfolio tree (LoB -> Program -> Project)."""
     filters = {}
-    if lob:
+    if grouping_entity:
+        filters["grouping_entity"] = grouping_entity
+    elif lob:
         filters["lob"] = lob
     if status:
         filters["status"] = status
@@ -208,6 +219,7 @@ def get_project_summary(
 @router.get("/charts")
 def get_dashboard_charts(
     lob: str | None = None,
+    grouping_entity: str | None = None,
     status: str | None = None,
     rag: str | None = None,
     cost_center: str | None = None,
@@ -222,7 +234,14 @@ def get_dashboard_charts(
 
     # Build set of project IDs matching all filters
     pq = db.query(Project.id).filter(Project.is_active.is_(True))
-    if lob:
+    if grouping_entity:
+        from services.portfolio_service import _get_projects_for_entity_recursive
+        ge_pids = _get_projects_for_entity_recursive(db, grouping_entity)
+        if ge_pids:
+            pq = pq.filter(Project.id.in_(ge_pids))
+        else:
+            pq = pq.filter(False)
+    elif lob:
         pq = pq.filter(Project.lob_id == lob)
     if status:
         pq = pq.filter(Project.status == status)

@@ -1,17 +1,5 @@
 import { useState, useEffect } from 'react';
-import { adminApi, referenceApi } from '@/api/endpoints';
-
-interface HierarchyEntity {
-  id: string;
-  name: string;
-  project_count: number;
-}
-
-interface ActiveHierarchyInfo {
-  topLevelLabel: string;
-  entities: HierarchyEntity[];
-  isLoading: boolean;
-}
+import { adminApi } from '@/api/endpoints';
 
 let cachedLabel: string | null = null;
 let cachedEntities: { value: string; label: string }[] | null = null;
@@ -23,24 +11,18 @@ async function fetchAndCache() {
     cachedLabel = data.top_level_label;
     cachedEntities = data.entities.map((e) => ({ value: e.id, label: e.name }));
   } catch {
-    // Fallback to LoB data
     cachedLabel = 'Line of Business';
-    try {
-      const lobs = await referenceApi.getLobs();
-      cachedEntities = lobs.items.map((l) => ({ value: l.id, label: l.name }));
-    } catch {
-      cachedEntities = [];
-    }
+    cachedEntities = [];
   }
 }
 
 /**
  * Hook that returns the active hierarchy's top-level label and entity options.
- * Caches the result to avoid re-fetching on every mount.
+ * Filter key is always 'grouping_entity' — the backend resolves entity IDs
+ * via project_grouping_assignments.
  */
-export function useActiveHierarchy(): ActiveHierarchyInfo & { entityOptions: { value: string; label: string }[] } {
+export function useActiveHierarchy() {
   const [label, setLabel] = useState(cachedLabel || 'Line of Business');
-  const [entities, setEntities] = useState<HierarchyEntity[]>([]);
   const [entityOpts, setEntityOpts] = useState<{ value: string; label: string }[]>(cachedEntities || []);
   const [isLoading, setIsLoading] = useState(!cachedLabel);
 
@@ -63,7 +45,12 @@ export function useActiveHierarchy(): ActiveHierarchyInfo & { entityOptions: { v
     });
   }, []);
 
-  return { topLevelLabel: label, entities, entityOptions: entityOpts, isLoading };
+  return {
+    topLevelLabel: label,
+    entityOptions: entityOpts,
+    filterKey: 'grouping_entity' as const,
+    isLoading,
+  };
 }
 
 /**

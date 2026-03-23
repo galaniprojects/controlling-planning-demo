@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from models.capacity import Allocation
 from models.financial import Actuals, Baseline, Forecast
-from models.organization import LineOfBusiness
+from models.organization import GroupingEntity, LineOfBusiness, ProjectGroupingAssignment
 from models.people import Person
 from models.projects import Program, Project
 from services.calculations import (
@@ -21,12 +21,44 @@ from services.calculations import (
 )
 
 
+def _get_projects_for_entity_recursive(db: Session, entity_id: str) -> list[str]:
+    """Get all project IDs assigned to an entity or any of its descendants."""
+    # Direct project assignments
+    direct = [
+        a.project_id
+        for a in db.query(ProjectGroupingAssignment)
+        .filter(ProjectGroupingAssignment.grouping_entity_id == entity_id)
+        .all()
+    ]
+    # Recurse into child entities
+    children = (
+        db.query(GroupingEntity.id)
+        .filter(GroupingEntity.parent_entity_id == entity_id)
+        .all()
+    )
+    for (child_id,) in children:
+        direct.extend(_get_projects_for_entity_recursive(db, child_id))
+    return direct
+
+
 def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
     """Compute portfolio-level KPI summary, optionally filtered."""
     filters = filters or {}
 
     # Build filtered project ID list
     proj_q = db.query(Project.id).filter(Project.is_active.is_(True))
+    if filters.get("grouping_entity"):
+        ge_project_ids = _get_projects_for_entity_recursive(db, filters["grouping_entity"])
+        if ge_project_ids:
+            proj_q = proj_q.filter(Project.id.in_(ge_project_ids))
+        else:
+            return {
+                "baseline": 0, "current_forecast": 0, "ytd_actuals": 0,
+                "plan_drift_amount": 0, "plan_drift_pct": 0,
+                "run_total": 0, "change_total": 0, "run_pct": 50, "change_pct": 50,
+                "lifetime_baseline": 0, "lifetime_forecast": 0, "lifetime_actuals": 0,
+                "active_project_count": 0,
+            }
     if filters.get("lob"):
         proj_q = proj_q.filter(Project.lob_id == filters["lob"])
     if filters.get("status"):
@@ -233,6 +265,12 @@ def build_portfolio_tree(db: Session, filters: dict | None = None) -> list[dict]
     # Pass 1: Load projects
     query = db.query(Project).filter(Project.is_active.is_(True))
 
+    if filters.get("grouping_entity"):
+        ge_project_ids = _get_projects_for_entity_recursive(db, filters["grouping_entity"])
+        if ge_project_ids:
+            query = query.filter(Project.id.in_(ge_project_ids))
+        else:
+            return []
     if filters.get("lob"):
         query = query.filter(Project.lob_id == filters["lob"])
     if filters.get("status"):
