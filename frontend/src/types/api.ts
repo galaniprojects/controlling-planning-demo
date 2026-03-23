@@ -140,6 +140,13 @@ export interface ProjectTreeNode {
   variance_pct: number;
   timeline: TimelineInfo | null;
   children: ProjectTreeNode[];
+  // CY/PY splits
+  baseline_cy?: number;
+  forecast_cy?: number;
+  actuals_cy?: number;
+  baseline_py?: number;
+  forecast_py?: number;
+  actuals_py?: number;
 }
 
 export interface BudgetSnapshot {
