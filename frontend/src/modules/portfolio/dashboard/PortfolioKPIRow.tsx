@@ -20,7 +20,7 @@ export function PortfolioKPIRow({ data }: Props) {
       <div className="grid grid-cols-6 gap-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <Card key={i}>
-            <CardContent className="p-3 aspect-square flex flex-col justify-center space-y-2">
+            <CardContent className="px-3 py-2.5 space-y-2">
               <Skeleton className="h-3 w-16" />
               <Skeleton className="h-5 w-20" />
             </CardContent>
@@ -33,25 +33,25 @@ export function PortfolioKPIRow({ data }: Props) {
   return (
     <div className="grid grid-cols-6 gap-3">
       <Card>
-        <CardContent className="p-3 aspect-square flex flex-col justify-center">
+        <CardContent className="px-3 py-2.5">
           <p className="text-[10px] text-slate-500 mb-1">Baseline</p>
           <p className="text-base font-semibold text-slate-800">{formatCurrency(data.baseline)}</p>
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="p-3 aspect-square flex flex-col justify-center">
+        <CardContent className="px-3 py-2.5">
           <p className="text-[10px] text-slate-500 mb-1">Current Forecast</p>
           <p className="text-base font-semibold text-slate-800">{formatCurrency(data.current_forecast)}</p>
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="p-3 aspect-square flex flex-col justify-center">
+        <CardContent className="px-3 py-2.5">
           <p className="text-[10px] text-slate-500 mb-1">YTD Actuals</p>
           <p className="text-base font-semibold text-slate-800">{formatCurrency(data.ytd_actuals)}</p>
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="p-3 aspect-square flex flex-col justify-center">
+        <CardContent className="px-3 py-2.5">
           <p className="text-[10px] text-slate-500 mb-1">Plan Drift</p>
           <p className={`text-base font-semibold ${driftColor(data.plan_drift_pct)}`}>
             {formatCurrency(data.plan_drift_amount)}
@@ -62,7 +62,7 @@ export function PortfolioKPIRow({ data }: Props) {
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="p-3 aspect-square flex flex-col justify-center">
+        <CardContent className="px-3 py-2.5">
           <p className="text-[10px] text-slate-500 mb-1">Run / Change</p>
           <div className="space-y-0.5">
             <p className="text-xs font-semibold text-slate-800">
@@ -75,7 +75,7 @@ export function PortfolioKPIRow({ data }: Props) {
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="p-3 aspect-square flex flex-col justify-center">
+        <CardContent className="px-3 py-2.5">
           <p className="text-[10px] text-slate-500 mb-1">CapEx / OpEx</p>
           <div className="space-y-0.5">
             <p className="text-xs font-semibold text-slate-800">
