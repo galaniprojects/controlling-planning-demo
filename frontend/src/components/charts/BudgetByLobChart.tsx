@@ -4,6 +4,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
@@ -21,21 +22,26 @@ export function BudgetByLobChart({ data }: Props) {
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
         <XAxis
           dataKey="lob_name"
-          tick={{ fontSize: 12, fill: '#64748b' }}
+          tick={{ fontSize: 11, fill: '#64748b' }}
           axisLine={{ stroke: '#e2e8f0' }}
           tickLine={false}
         />
         <YAxis
-          tick={{ fontSize: 12, fill: '#64748b' }}
+          tick={{ fontSize: 11, fill: '#64748b' }}
           axisLine={false}
           tickLine={false}
           tickFormatter={(v: number) => formatCurrency(v)}
         />
         <Tooltip
-          formatter={(value: number) => [formatCurrency(value), 'Budget']}
+          formatter={(value: number, name: string) => [formatCurrency(value), name === 'forecast' ? 'Forecast' : 'Baseline']}
           contentStyle={{ fontSize: 13, borderRadius: 8 }}
         />
-        <Bar dataKey="budget" fill="#2563eb" radius={[4, 4, 0, 0]} />
+        <Legend
+          wrapperStyle={{ fontSize: 11 }}
+          formatter={(value: string) => value === 'forecast' ? 'Forecast' : 'Baseline'}
+        />
+        <Bar dataKey="forecast" fill="#2563eb" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="baseline" fill="#93c5fd" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

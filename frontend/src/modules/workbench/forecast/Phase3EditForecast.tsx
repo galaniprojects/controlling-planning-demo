@@ -281,7 +281,7 @@ export function Phase3EditForecast({
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50">
-              <TableHead className="sticky left-0 bg-slate-50 min-w-[180px] z-10 border-r border-slate-200">
+              <TableHead className="sticky left-0 bg-slate-50 z-10 border-r border-slate-200 whitespace-nowrap">
                 Line Item
               </TableHead>
               {columns.map((col) => (

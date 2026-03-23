@@ -1,8 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { groupMonthsByYear, isJanuary } from '@/lib/yearColumns';
 
-const CURRENT_YEAR = 2026;
-
 export type VisibleColumn =
   | { type: 'month'; key: string; year: number; isJanuary: boolean }
   | { type: 'yearSummary'; year: number; months: string[] };
@@ -27,25 +25,26 @@ export interface UseCollapsibleYearsResult {
  * The hook does NOT compute sums — callers handle that since sum logic
  * differs by data type (hours vs EUR).
  */
-export function useCollapsibleYears(months: string[]): UseCollapsibleYearsResult {
+export function useCollapsibleYears(months: string[], defaultExpandedYear?: number): UseCollapsibleYearsResult {
+  const EXPAND_YEAR = defaultExpandedYear ?? 2026;
   const grouped = useMemo(() => groupMonthsByYear(months), [months]);
 
   const [expandedState, setExpandedState] = useState<Record<number, boolean>>({});
 
-  // Seed newly-appeared years into expanded state (current year expanded by default)
+  // Seed newly-appeared years into expanded state (context-sensitive year expanded by default)
   useEffect(() => {
     setExpandedState((prev) => {
       let changed = false;
       const next = { ...prev };
       for (const year of grouped.keys()) {
         if (!(year in next)) {
-          next[year] = year === CURRENT_YEAR;
+          next[year] = year === EXPAND_YEAR;
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [grouped]);
+  }, [grouped, EXPAND_YEAR]);
 
   const yearGroups: YearGroup[] = useMemo(() => {
     return Array.from(grouped.entries()).map(([year, yearMonths]) => ({

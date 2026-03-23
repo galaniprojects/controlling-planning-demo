@@ -46,7 +46,7 @@ export function HeatmapGrid({
     });
   };
 
-  const gridCols = `180px repeat(${months.length}, minmax(56px, 1fr))`;
+  const gridCols = `max-content repeat(${months.length}, minmax(56px, 1fr))`;
 
   function renderRow(row: HeatmapRow, depth: number) {
     const hasChildren = expandable && row.children && row.children.length > 0;
@@ -90,7 +90,7 @@ export function HeatmapGrid({
           ) : (
             expandable && <span className="w-4.5 shrink-0" />
           )}
-          <span className="truncate">{row.label}</span>
+          <span className="whitespace-nowrap">{row.label}</span>
         </div>
 
         {/* Utilization cells */}

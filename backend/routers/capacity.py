@@ -45,7 +45,7 @@ def get_capacity_context(
             .filter(ResourceRequest.cost_center_id == user.cost_center_id, ResourceRequest.status == "pending")
             .scalar()
         )
-    default_tab = "my-team" if user.role == "cost_center_owner" else "org"
+    default_tab = "my-team"
     return CapacityContext(
         default_tab=default_tab,
         managed_cost_center_id=user.cost_center_id,

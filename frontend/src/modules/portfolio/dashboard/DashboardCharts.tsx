@@ -31,10 +31,10 @@ export function DashboardCharts({ data, activeRag, onRagClick }: Props) {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-slate-600">Budget by LoB</CardTitle>
+          <CardTitle className="text-sm font-medium text-slate-600">Forecast by Line of Business</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <BudgetByLobChart data={data.budget_by_lob} />
+          <BudgetByLobChart data={data.forecast_by_lob} />
         </CardContent>
       </Card>
 

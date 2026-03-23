@@ -219,6 +219,26 @@ def compute_cc_financial_summary(
 
     projects = db.query(Project).filter(Project.id.in_(project_ids)).all()
 
+    # Build project → cost center name lookup (primary CC = CC with most allocations)
+    cc_name_map: dict[str, str] = {}
+    if target_cc:
+        cc_obj = db.query(CostCenter).filter(CostCenter.id == target_cc).first()
+        cc_label = cc_obj.name if cc_obj else target_cc
+        for pid in project_ids:
+            cc_name_map[pid] = cc_label
+    else:
+        for pid in project_ids:
+            top_cc = (
+                db.query(CostCenter.name, func.count(Allocation.id).label("cnt"))
+                .join(Person, Person.id == Allocation.person_id)
+                .join(CostCenter, CostCenter.id == Person.cost_center_id)
+                .filter(Allocation.project_id == pid)
+                .group_by(CostCenter.name)
+                .order_by(func.count(Allocation.id).desc())
+                .first()
+            )
+            cc_name_map[pid] = top_cc[0] if top_cc else "—"
+
     rows = []
     total_internal_hours = 0.0
     total_internal_cost = 0.0
@@ -250,6 +270,7 @@ def compute_cc_financial_summary(
 
         rows.append({
             "project_id": p.id,
+            "cost_center_name": cc_name_map.get(p.id, "—"),
             "project_name": p.name,
             "internal_hours": round(int_hours, 1),
             "internal_cost": round(int_cost, 2),

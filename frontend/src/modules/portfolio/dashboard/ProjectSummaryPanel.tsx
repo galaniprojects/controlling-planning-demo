@@ -8,6 +8,7 @@ import { ragBgColor } from '@/lib/rag';
 import { formatCurrency, formatPercent } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { portfolioApi } from '@/api/endpoints';
+import { useSidePanel } from '@/contexts/SidePanelContext';
 import type { ProjectSummary } from '@/types/api';
 import {
   AreaChart,
@@ -23,6 +24,7 @@ interface Props {
 
 export function ProjectSummaryPanel({ projectId }: Props) {
   const navigate = useNavigate();
+  const { closePanel } = useSidePanel();
   const [data, setData] = useState<ProjectSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -172,7 +174,7 @@ export function ProjectSummaryPanel({ projectId }: Props) {
         variant="outline"
         size="sm"
         className="w-full"
-        onClick={() => navigate(`/workbench?project=${data.id}`)}
+        onClick={() => { closePanel(); navigate(`/workbench?project=${data.id}`); }}
       >
         Open in Workbench
         <ArrowRight className="h-4 w-4 ml-1.5" />
