@@ -2,11 +2,36 @@
 
 All functions take plain numeric/string inputs and return computed values.
 No database access — these are called by routers and services.
+The get_standard_hours helper is the one exception (needs DB access).
 """
 
 from __future__ import annotations
 
 FTE_HOURS = 160.0
+
+
+def get_standard_hours(db, location_id: str | None = None) -> float:
+    """Look up configurable standard hours from planning_parameters.
+
+    Checks for a location-specific override first, then falls back to
+    the global default, then to the hardcoded FTE_HOURS constant.
+    """
+    from models.system import PlanningParameter
+
+    if location_id:
+        loc_param = db.query(PlanningParameter).filter(
+            PlanningParameter.key == f"standard_hours_{location_id}"
+        ).first()
+        if loc_param:
+            return float(loc_param.current_value)
+
+    global_param = db.query(PlanningParameter).filter(
+        PlanningParameter.key == "standard_hours_global"
+    ).first()
+    if global_param:
+        return float(global_param.current_value)
+
+    return FTE_HOURS
 
 
 # ---------------------------------------------------------------------------
@@ -128,8 +153,8 @@ def compute_utilization_pct(allocated_hours: float) -> float:
 def utilization_color_bucket(pct: float) -> str:
     """Returns color bucket for heatmap cell styling.
 
-    Thresholds per spec Section 9:
-    - < 70%: blue (under-utilized)
+    Thresholds per v4 spec CM-06:
+    - < 70%: amber (under-utilized)
     - 70-90%: green (healthy)
     - 90-100%: amber (near capacity)
     - > 100%: red (over-allocated)
@@ -140,7 +165,7 @@ def utilization_color_bucket(pct: float) -> str:
         return "amber"
     if pct >= 70:
         return "green"
-    return "blue"
+    return "amber"
 
 
 # ---------------------------------------------------------------------------

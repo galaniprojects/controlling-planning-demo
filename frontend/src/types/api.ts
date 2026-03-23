@@ -530,6 +530,8 @@ export interface UtilizationCell {
   month: string;
   value: number;
   color: 'blue' | 'green' | 'amber' | 'red';
+  allocated_hours?: number;
+  standard_hours?: number;
 }
 
 export interface PersonHeatmapRow {

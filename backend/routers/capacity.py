@@ -20,7 +20,7 @@ from schemas.capacity import (
 from schemas.common import CurrentUser
 from services.calculations import (
     FTE_HOURS, add_months, compute_utilization_pct, generate_month_range,
-    utilization_color_bucket,
+    get_standard_hours, utilization_color_bucket,
 )
 
 router = APIRouter(prefix="/api/capacity", tags=["Capacity Management"])
@@ -108,6 +108,11 @@ def get_team_heatmap(
         to_month = add_months(DEMO_DATE, 11)
 
     months = generate_month_range(from_month, to_month)
+
+    # Look up standard hours for this cost center's location
+    cc = db.query(CostCenter).filter(CostCenter.id == cost_center_id).first()
+    std_hours = get_standard_hours(db, cc.location_id) if cc else FTE_HOURS
+
     people = (
         db.query(Person).filter(Person.cost_center_id == cost_center_id, Person.is_active.is_(True))
         .order_by(Person.role_type_id, Person.name).all()
@@ -138,8 +143,11 @@ def get_team_heatmap(
             cells = []
             for m in months:
                 hours = alloc_map.get(person.id, {}).get(m, 0)
-                pct = compute_utilization_pct(hours)
-                cells.append(UtilizationCell(month=m, value=pct, color=utilization_color_bucket(pct)))
+                pct = round((hours / std_hours) * 100, 1) if std_hours else 0
+                cells.append(UtilizationCell(
+                    month=m, value=pct, color=utilization_color_bucket(pct),
+                    allocated_hours=round(hours, 1), standard_hours=std_hours,
+                ))
             people_rows.append(PersonHeatmapRow(person_id=person.id, name=person.name, utilization=cells))
 
         # Aggregate
@@ -147,7 +155,12 @@ def get_team_heatmap(
         for i, m in enumerate(months):
             vals = [pr.utilization[i].value for pr in people_rows]
             avg = round(sum(vals) / len(vals), 1) if vals else 0
-            agg.append(UtilizationCell(month=m, value=avg, color=utilization_color_bucket(avg)))
+            total_alloc = sum(pr.utilization[i].allocated_hours or 0 for pr in people_rows)
+            total_std = std_hours * len(people_rows)
+            agg.append(UtilizationCell(
+                month=m, value=avg, color=utilization_color_bucket(avg),
+                allocated_hours=round(total_alloc, 1), standard_hours=round(total_std, 1),
+            ))
 
         role_rows.append(RoleHeatmapRow(
             role_id=role_id, role_name=role.name if role else role_id,
@@ -453,6 +466,15 @@ def get_org_heatmap(
         to_month = add_months(DEMO_DATE, 11)
     months = generate_month_range(from_month, to_month)
 
+    # Pre-build a location → standard_hours cache
+    _std_hours_cache: dict[str, float] = {}
+    def _get_std_hours_for_location(loc_id: str | None) -> float:
+        if not loc_id:
+            return get_standard_hours(db)
+        if loc_id not in _std_hours_cache:
+            _std_hours_cache[loc_id] = get_standard_hours(db, loc_id)
+        return _std_hours_cache[loc_id]
+
     rows = []
     if pivot == "cost_center":
         for cc in db.query(CostCenter).all():
@@ -460,14 +482,19 @@ def get_org_heatmap(
             if not people:
                 continue
             pids = [p.id for p in people]
+            std_h = _get_std_hours_for_location(cc.location_id)
             cells = []
             for m in months:
                 total = float(
                     db.query(func.coalesce(func.sum(Allocation.hours), 0))
                     .filter(Allocation.person_id.in_(pids), Allocation.month == m).scalar()
                 )
-                avg = compute_utilization_pct(total / len(people)) if people else 0
-                cells.append(UtilizationCell(month=m, value=avg, color=utilization_color_bucket(avg)))
+                per_person = total / len(people) if people else 0
+                pct = round((per_person / std_h) * 100, 1) if std_h else 0
+                cells.append(UtilizationCell(
+                    month=m, value=pct, color=utilization_color_bucket(pct),
+                    allocated_hours=round(total, 1), standard_hours=round(std_h * len(people), 1),
+                ))
             rows.append(OrgHeatmapRow(id=cc.id, name=cc.name, utilization=cells))
 
     elif pivot == "role":
@@ -476,14 +503,23 @@ def get_org_heatmap(
             if not people:
                 continue
             pids = [p.id for p in people]
+            # Aggregate standard hours across people's locations
+            total_std = sum(_get_std_hours_for_location(
+                (db.query(CostCenter.location_id).filter(CostCenter.id == p.cost_center_id).scalar() if p.cost_center_id else None)
+            ) for p in people)
+            avg_std = total_std / len(people) if people else FTE_HOURS
             cells = []
             for m in months:
                 total = float(
                     db.query(func.coalesce(func.sum(Allocation.hours), 0))
                     .filter(Allocation.person_id.in_(pids), Allocation.month == m).scalar()
                 )
-                avg = compute_utilization_pct(total / len(people)) if people else 0
-                cells.append(UtilizationCell(month=m, value=avg, color=utilization_color_bucket(avg)))
+                per_person = total / len(people) if people else 0
+                pct = round((per_person / avg_std) * 100, 1) if avg_std else 0
+                cells.append(UtilizationCell(
+                    month=m, value=pct, color=utilization_color_bucket(pct),
+                    allocated_hours=round(total, 1), standard_hours=round(total_std, 1),
+                ))
             rows.append(OrgHeatmapRow(id=role.id, name=role.name, utilization=cells))
 
     elif pivot == "lob":
@@ -497,13 +533,18 @@ def get_org_heatmap(
                     db.query(func.coalesce(func.sum(Allocation.hours), 0))
                     .filter(Allocation.project_id.in_(proj_ids), Allocation.month == m).scalar()
                 )
-                # Estimate headcount from allocations
                 people_count = (
                     db.query(func.count(func.distinct(Allocation.person_id)))
                     .filter(Allocation.project_id.in_(proj_ids), Allocation.month == m).scalar()
                 )
-                avg = compute_utilization_pct(total / people_count) if people_count else 0
-                cells.append(UtilizationCell(month=m, value=avg, color=utilization_color_bucket(avg)))
+                avg_std = get_standard_hours(db)  # Use global default for LoB view
+                per_person = total / people_count if people_count else 0
+                pct = round((per_person / avg_std) * 100, 1) if avg_std else 0
+                cells.append(UtilizationCell(
+                    month=m, value=pct, color=utilization_color_bucket(pct),
+                    allocated_hours=round(total, 1),
+                    standard_hours=round(avg_std * people_count, 1) if people_count else 0,
+                ))
             rows.append(OrgHeatmapRow(id=lob.id, name=lob.name, utilization=cells))
 
     return {"items": rows, "total": len(rows)}
