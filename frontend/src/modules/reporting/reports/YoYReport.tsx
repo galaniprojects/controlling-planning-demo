@@ -8,19 +8,26 @@ import { ReportViewer, type ColumnDef } from '../viewer/ReportViewer';
 import { YoYChart } from './YoYChart';
 import { formatCurrency, formatCurrencyDelta, formatPercent, formatCurrencyDetailed } from '@/lib/formatters';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import type { FilterConfig } from '@/components/shared/FilterBar';
 import type { YoYResponse, LoBRef } from '@/types/api';
 import { CalendarRange, Calendar, TrendingUp, Activity } from 'lucide-react';
 
 const ALL_COLUMNS: ColumnDef[] = [
+  { key: 'lob_name', label: 'LoB' },
+  { key: 'project_name', label: 'Project' },
   { key: 'month', label: 'Month' },
   { key: 'fy_current', label: 'FY Current' },
   { key: 'fy_previous', label: 'FY Previous' },
-  { key: 'delta', label: 'Delta (€)' },
+  { key: 'delta', label: 'Delta (\u20ac)' },
   { key: 'delta_pct', label: 'Delta (%)' },
   { key: 'cumulative_current', label: 'Cum. Current' },
   { key: 'cumulative_previous', label: 'Cum. Previous' },
 ];
+
+const ANNUAL_COLS = ['lob_name', 'project_name', 'fy_current', 'fy_previous', 'delta', 'delta_pct'];
+const MONTHLY_COLS = ['lob_name', 'project_name', 'month', 'fy_current', 'fy_previous', 'delta', 'delta_pct', 'cumulative_current', 'cumulative_previous'];
 
 const COST_TYPE_OPTIONS = [
   { value: 'internal', label: 'Internal' },
@@ -36,6 +43,15 @@ const FISCAL_YEAR_OPTIONS = [
   })),
 ];
 
+const MONTH_OPTIONS = [
+  { value: '1', label: 'Jan' }, { value: '2', label: 'Feb' },
+  { value: '3', label: 'Mar' }, { value: '4', label: 'Apr' },
+  { value: '5', label: 'May' }, { value: '6', label: 'Jun' },
+  { value: '7', label: 'Jul' }, { value: '8', label: 'Aug' },
+  { value: '9', label: 'Sep' }, { value: '10', label: 'Oct' },
+  { value: '11', label: 'Nov' }, { value: '12', label: 'Dec' },
+];
+
 export function YoYReport() {
   const { currentRoleId } = useRole();
   const [searchParams] = useSearchParams();
@@ -44,13 +60,15 @@ export function YoYReport() {
   const [lobs, setLobs] = useState<LoBRef[]>([]);
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const [cumulative, setCumulative] = useState(true);
+  const [showMonthly, setShowMonthly] = useState(false);
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [filters, setFilters] = useState<Record<string, string>>({
     lob: '',
     cost_type: '',
     fy_current: '2026',
     fy_previous: '2025',
   });
-  const [visibleCols, setVisibleCols] = useState(ALL_COLUMNS.map((c) => c.key));
+  const [visibleCols, setVisibleCols] = useState(ANNUAL_COLS);
   const [sortColumn, setSortColumn] = useState('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
@@ -73,6 +91,11 @@ export function YoYReport() {
     referenceApi.getLobs().then((r) => setLobs(r.items)).catch(() => {});
   }, []);
 
+  // RPT-08: sync visible columns when toggle changes
+  useEffect(() => {
+    setVisibleCols(showMonthly ? MONTHLY_COLS : ANNUAL_COLS);
+  }, [showMonthly]);
+
   const fetchData = useCallback(() => {
     setLoading(true);
     const params: Record<string, string> = {};
@@ -80,13 +103,15 @@ export function YoYReport() {
     if (filters.cost_type) params.cost_type = filters.cost_type;
     if (filters.fy_current) params.fy_current = filters.fy_current;
     if (filters.fy_previous) params.fy_previous = filters.fy_previous;
+    if (showMonthly) params.show_monthly = 'true';
+    if (showMonthly && selectedMonths.length > 0) params.months = selectedMonths.join(',');
 
     reportsApi
       .getYearOverYear(params)
       .then(setData)
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [filters, currentRoleId]);
+  }, [filters, showMonthly, selectedMonths, currentRoleId]);
 
   useEffect(() => {
     fetchData();
@@ -103,7 +128,7 @@ export function YoYReport() {
     { key: 'fy_previous', label: 'Previous Year', options: FISCAL_YEAR_OPTIONS },
   ];
 
-  // Sort rows — must be before early returns to satisfy Rules of Hooks
+  // Sort rows
   const rows = useMemo(() => {
     if (!data) return [];
     const sorted = [...data.rows];
@@ -191,50 +216,95 @@ export function YoYReport() {
   );
 
   const tableContent = (
-    <div className="rounded-lg border border-slate-200 bg-white overflow-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
-            {show('month') && <th className="px-3 py-2 text-left font-medium text-slate-600">Month</th>}
-            {show('fy_current') && <th className="px-3 py-2 text-right font-medium text-slate-600">FY {kpis.fy_current_label}</th>}
-            {show('fy_previous') && <th className="px-3 py-2 text-right font-medium text-slate-600">FY {kpis.fy_previous_label}</th>}
-            {show('delta') && <th className="px-3 py-2 text-right font-medium text-slate-600">Delta (€)</th>}
-            {show('delta_pct') && <th className="px-3 py-2 text-right font-medium text-slate-600">Delta (%)</th>}
-            {show('cumulative_current') && <th className="px-3 py-2 text-right font-medium text-slate-600">Cum. FY {kpis.fy_current_label}</th>}
-            {show('cumulative_previous') && <th className="px-3 py-2 text-right font-medium text-slate-600">Cum. FY {kpis.fy_previous_label}</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.month} className="border-t border-slate-100 hover:bg-slate-50">
-              {show('month') && <td className="px-3 py-2 text-slate-700 font-medium">{r.month}</td>}
-              {show('fy_current') && <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.fy_current)}</td>}
-              {show('fy_previous') && <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.fy_previous)}</td>}
-              {show('delta') && (
-                <td className={`px-3 py-2 text-right font-mono text-xs ${r.delta > 0 ? 'text-red-600' : r.delta < 0 ? 'text-green-600' : ''}`}>
-                  {formatCurrencyDetailed(r.delta)}
-                </td>
-              )}
-              {show('delta_pct') && (
-                <td className={`px-3 py-2 text-right font-mono text-xs ${r.delta_pct > 0 ? 'text-red-600' : r.delta_pct < 0 ? 'text-green-600' : ''}`}>
-                  {formatPercent(r.delta_pct)}
-                </td>
-              )}
-              {show('cumulative_current') && <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.cumulative_current)}</td>}
-              {show('cumulative_previous') && <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.cumulative_previous)}</td>}
+    <div className="space-y-3">
+      {/* RPT-08: Monthly detail toggle + month filter */}
+      <div className="flex items-center gap-4">
+        <Button
+          variant={showMonthly ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => {
+            setShowMonthly((v) => !v);
+            setSelectedMonths([]);
+          }}
+        >
+          {showMonthly ? 'Hide Monthly Detail' : 'Show Monthly Detail'}
+        </Button>
+        {showMonthly && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-slate-500">Months:</span>
+            {MONTH_OPTIONS.map((m) => {
+              const checked = selectedMonths.includes(m.value);
+              return (
+                <label key={m.value} className="flex items-center gap-1 cursor-pointer">
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={() =>
+                      setSelectedMonths((prev) =>
+                        prev.includes(m.value)
+                          ? prev.filter((v) => v !== m.value)
+                          : [...prev, m.value]
+                      )
+                    }
+                  />
+                  <span className="text-xs text-slate-600">{m.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white overflow-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50">
+              {show('lob_name') && <th className="px-3 py-2 text-left font-medium text-slate-600">LoB</th>}
+              {show('project_name') && <th className="px-3 py-2 text-left font-medium text-slate-600">Project</th>}
+              {show('month') && <th className="px-3 py-2 text-left font-medium text-slate-600">Month</th>}
+              {show('fy_current') && <th className="px-3 py-2 text-right font-medium text-slate-600">FY {kpis.fy_current_label}</th>}
+              {show('fy_previous') && <th className="px-3 py-2 text-right font-medium text-slate-600">FY {kpis.fy_previous_label}</th>}
+              {show('delta') && <th className="px-3 py-2 text-right font-medium text-slate-600">Delta (\u20ac)</th>}
+              {show('delta_pct') && <th className="px-3 py-2 text-right font-medium text-slate-600">Delta (%)</th>}
+              {show('cumulative_current') && <th className="px-3 py-2 text-right font-medium text-slate-600">Cum. FY {kpis.fy_current_label}</th>}
+              {show('cumulative_previous') && <th className="px-3 py-2 text-right font-medium text-slate-600">Cum. FY {kpis.fy_previous_label}</th>}
             </tr>
-          ))}
-          <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
-            {show('month') && <td className="px-3 py-2 text-slate-700">Total</td>}
-            {show('fy_current') && <td className="px-3 py-2 text-right text-slate-700">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.fy_current, 0))}</td>}
-            {show('fy_previous') && <td className="px-3 py-2 text-right text-slate-700">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.fy_previous, 0))}</td>}
-            {show('delta') && <td className="px-3 py-2 text-right text-slate-700">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.delta, 0))}</td>}
-            {show('delta_pct') && <td />}
-            {show('cumulative_current') && <td />}
-            {show('cumulative_previous') && <td />}
-          </tr>
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={`${r.project_id ?? ''}-${r.month ?? ''}-${i}`} className="border-t border-slate-100 hover:bg-slate-50">
+                {show('lob_name') && <td className="px-3 py-2 text-slate-600 text-xs">{r.lob_name || '\u2014'}</td>}
+                {show('project_name') && <td className="px-3 py-2 text-slate-700 font-medium">{r.project_name || '\u2014'}</td>}
+                {show('month') && <td className="px-3 py-2 text-slate-700 font-medium">{r.month || '\u2014'}</td>}
+                {show('fy_current') && <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.fy_current)}</td>}
+                {show('fy_previous') && <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.fy_previous)}</td>}
+                {show('delta') && (
+                  <td className={`px-3 py-2 text-right font-mono text-xs ${r.delta > 0 ? 'text-red-600' : r.delta < 0 ? 'text-green-600' : ''}`}>
+                    {formatCurrencyDetailed(r.delta)}
+                  </td>
+                )}
+                {show('delta_pct') && (
+                  <td className={`px-3 py-2 text-right font-mono text-xs ${r.delta_pct > 0 ? 'text-red-600' : r.delta_pct < 0 ? 'text-green-600' : ''}`}>
+                    {formatPercent(r.delta_pct)}
+                  </td>
+                )}
+                {show('cumulative_current') && <td className="px-3 py-2 text-right font-mono text-xs">{r.cumulative_current != null ? formatCurrencyDetailed(r.cumulative_current) : '\u2014'}</td>}
+                {show('cumulative_previous') && <td className="px-3 py-2 text-right font-mono text-xs">{r.cumulative_previous != null ? formatCurrencyDetailed(r.cumulative_previous) : '\u2014'}</td>}
+              </tr>
+            ))}
+            <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
+              {show('lob_name') && <td className="px-3 py-2 text-slate-700">Total</td>}
+              {show('project_name') && <td className="px-3 py-2 text-slate-700">{!show('lob_name') ? 'Total' : ''}</td>}
+              {show('month') && <td />}
+              {show('fy_current') && <td className="px-3 py-2 text-right text-slate-700">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.fy_current, 0))}</td>}
+              {show('fy_previous') && <td className="px-3 py-2 text-right text-slate-700">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.fy_previous, 0))}</td>}
+              {show('delta') && <td className="px-3 py-2 text-right text-slate-700">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.delta, 0))}</td>}
+              {show('delta_pct') && <td />}
+              {show('cumulative_current') && <td />}
+              {show('cumulative_previous') && <td />}
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 
@@ -260,7 +330,11 @@ export function YoYReport() {
       filters={filterConfigs}
       filterValues={filters}
       onFilterChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
-      onFilterClear={() => setFilters({ lob: '', cost_type: '', fy_current: '2026', fy_previous: '2025' })}
+      onFilterClear={() => {
+        setFilters({ lob: '', cost_type: '', fy_current: '2026', fy_previous: '2025' });
+        setShowMonthly(false);
+        setSelectedMonths([]);
+      }}
       kpis={kpiRow}
       view={view}
       onViewChange={setView}

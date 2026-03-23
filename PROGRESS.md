@@ -1,10 +1,34 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v4 Session 3 (complete)
-Last completed: v4 Session 3 — New Requirements (9 items across Workbench, Portfolio, Capacity)
-Branch: `v4/session-3-new-requirements`
-Next: v4 Session 4 — New Requirements (Simulator + Reporting)
+Phase: v4 Session 4 (complete)
+Last completed: v4 Session 4 — New Requirements (6 items across Simulator + Reporting)
+Branch: `v4/session-4-simulator-reporting`
+Next: v4 Session 5 — Administration + Dynamic Hierarchy
+
+## v4 Session 4 — New Requirements: Simulator + Reporting (2026-03-23)
+
+### Completed Items
+- [x] SIM-03: Portfolio Impact Time Frame Breakdown — impact dashboard now shows per-year segments (CY, 2027, 2028…, Overall) with current FC, scenario FC, and delta per segment. CY uses abbreviation, future years use 4-digit labels. Added `_get_yearly_forecasts()`, `_build_time_frame_breakdown()` helpers in scenario_engine.py, `TimeFrameCard` component in KPIComparisonStrip.tsx.
+- [x] SIM-04: Year Selector for Scenario Actions — multi-select year checkboxes (2025–2030) in AddActionForm. When target years selected, percentage-based actions (adjust_budget, cut_consulting, across_the_board_cut, reduce_lob, cut_by_type, cap_cost_category) scope their effect to forecast in those years only. Added `_get_year_scoped_forecast()` helper.
+- [x] RPT-03: Custom Project Groupings in Programme Rollup — "Custom Group" toggle shows project multi-select panel with search, checkbox list, saved groups management (create/load/delete). Backend accepts `project_ids` query param to override normal scoping. Custom groups stored via SavedView model with `report_id='custom-group'`.
+- [x] RPT-05: Expense Cost Type Filter and Column in Vendor Spend — added "Expense Cost Type" column (showing dominant cost type per vendor: ext-cloud, ext-consulting, etc.) and filter dropdown populated from reference data. Backend filters by `Forecast.sub_category`.
+- [x] RPT-07: LoB and Project Columns in YoY Comparison — rewrote `compute_year_over_year()` to query per-project actuals with Project/LoB joins. Annual mode returns one row per project with lob_name, project_name, fy_current, fy_previous, delta, delta_pct.
+- [x] RPT-08: Month Column Optional with Toggle — month hidden by default (annual view). "Show Monthly Detail" button toggles to per-project-per-month rows with month filter checkboxes (Jan–Dec). Cumulative columns only shown in monthly mode.
+
+### Verification Results
+- [x] Simulator impact view: CY, 2027, 2028, Overall segments with FC/Scenario/delta per segment. Only "CY" uses abbreviation.
+- [x] Scenario action panel: year selector (2025–2030) appears for all action types with "(all years if none selected)" hint
+- [x] Programme Rollup: Custom Group mode with project search, checkbox list, saved groups section, save/load/delete
+- [x] Vendor Spend: "Expense Cost Type" column visible (ext-cloud, ext-consulting, etc.), filter dropdown in filter bar
+- [x] YoY Comparison: LoB and Project columns present in table. Month hidden by default.
+- [x] YoY monthly toggle: "Show Monthly Detail" button enables month column + month filter checkboxes
+- [x] Zero console errors, zero failed network requests
+
+### Issues / Notes
+- SIM-03: Time frame breakdown distributes adjusted budget proportionally across years based on original forecast ratios (since actions operate on total budget, not per-year). This means year-level deltas are approximate when actions don't use target_years.
+- RPT-03: Custom groups are stored using the SavedView model with `report_id='custom-group'` for simplicity. A dedicated model would be cleaner for production.
+- RPT-07/08: YoY annual mode shows one row per project (not per-month). Monthly mode expands to per-project-per-month. The chart always shows aggregate (all projects combined).
 
 ## v4 Session 3 — New Requirements (2026-03-23)
 

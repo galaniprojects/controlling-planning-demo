@@ -32,12 +32,14 @@ export function VendorSpendReport() {
   const [data, setData] = useState<VendorSpendResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [lobs, setLobs] = useState<LoBRef[]>([]);
+  const [costTypes, setCostTypes] = useState<{ id: string; name: string }[]>([]);
   const [view, setView] = useState<'chart' | 'table'>('table');
   const [filters, setFilters] = useState<Record<string, string>>({
     vendor: '',
     lob: '',
     status: '',
     fiscal_year: '2026',
+    expense_cost_type: '',
   });
   const [expandedVendor, setExpandedVendor] = useState<string | null>(null);
   const [drillDown, setDrillDown] = useState<VendorDrillDownRow[]>([]);
@@ -45,6 +47,7 @@ export function VendorSpendReport() {
 
   useEffect(() => {
     referenceApi.getLobs().then((r) => setLobs(r.items)).catch(() => {});
+    referenceApi.getCostTypes().then((r) => setCostTypes(r.items)).catch(() => {});
   }, []);
 
   // Load saved view config if ?view=ID
@@ -66,6 +69,7 @@ export function VendorSpendReport() {
     if (filters.lob) params.lob = filters.lob;
     if (filters.status) params.status = filters.status;
     if (filters.fiscal_year) params.fiscal_year = filters.fiscal_year;
+    if (filters.expense_cost_type) params.expense_cost_type = filters.expense_cost_type;
 
     reportsApi
       .getVendorSpend(params)
@@ -107,6 +111,7 @@ export function VendorSpendReport() {
     },
     { key: 'status', label: 'Project Status', options: STATUS_OPTIONS },
     { key: 'fiscal_year', label: 'Fiscal Year', options: FISCAL_YEAR_OPTIONS },
+    { key: 'expense_cost_type', label: 'Expense Cost Type', options: costTypes.map((t) => ({ value: t.id, label: t.name })) },
   ];
 
   if (loading) {
@@ -157,6 +162,7 @@ export function VendorSpendReport() {
           <tr className="border-b border-slate-200 bg-slate-50">
             <th className="px-3 py-2 text-left font-medium text-slate-600 w-8" />
             <th className="px-3 py-2 text-left font-medium text-slate-600">Vendor</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-600">Expense Cost Type</th>
             <th className="px-3 py-2 text-right font-medium text-slate-600">Ordered</th>
             <th className="px-3 py-2 text-right font-medium text-slate-600">Invoiced</th>
             <th className="px-3 py-2 text-right font-medium text-slate-600">Open</th>
@@ -182,6 +188,7 @@ export function VendorSpendReport() {
             <td className="px-3 py-2 text-slate-700">
               Total ({rows.length} vendors)
             </td>
+            <td />
             <td className="px-3 py-2 text-right font-mono text-xs">
               {formatCurrencyDetailed(rows.reduce((s, r) => s + r.total_ordered, 0))}
             </td>
@@ -226,7 +233,7 @@ export function VendorSpendReport() {
       filters={filterConfigs}
       filterValues={filters}
       onFilterChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
-      onFilterClear={() => setFilters({ vendor: '', lob: '', status: '', fiscal_year: '2026' })}
+      onFilterClear={() => setFilters({ vendor: '', lob: '', status: '', fiscal_year: '2026', expense_cost_type: '' })}
       kpis={kpiRow}
       view={view}
       onViewChange={setView}
@@ -264,6 +271,7 @@ function VendorRow({
           )}
         </td>
         <td className="px-3 py-2 text-slate-700 font-medium">{row.vendor_name}</td>
+        <td className="px-3 py-2 text-slate-600 text-xs">{(row as Record<string, unknown>).expense_cost_type as string || '\u2014'}</td>
         <td className="px-3 py-2 text-right font-mono text-xs">
           {formatCurrencyDetailed(row.total_ordered)}
         </td>
@@ -281,7 +289,7 @@ function VendorRow({
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={8} className="bg-blue-50/30 px-6 py-3">
+          <td colSpan={9} className="bg-blue-50/30 px-6 py-3">
             {drillLoading ? (
               <Skeleton className="h-16 w-full" />
             ) : drillDown.length === 0 ? (

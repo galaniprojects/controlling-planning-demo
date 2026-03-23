@@ -1,6 +1,7 @@
 """What-If scenario recalculation engine."""
 from __future__ import annotations
 import json
+from collections import defaultdict
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from config import DEMO_DATE
@@ -12,6 +13,9 @@ from models.projects import Project
 from models.scenarios import Scenario, ScenarioAction, ScenarioCapacityImpact, ScenarioState
 from services.calculations import compute_plan_drift, compute_budget_rag, add_months, month_diff
 
+# Current year derived from demo date
+_CY = int(DEMO_DATE.split("-")[0])
+
 
 # Action type aliases — normalise advisor fixture names to engine names
 _ACTION_ALIASES = {
@@ -22,6 +26,67 @@ _ACTION_ALIASES = {
     "pause": "pause_project",
     "change_resources": "change_allocation",
 }
+
+
+def _get_yearly_forecasts(db: Session, project_ids: list[str]) -> dict[str, dict[int, float]]:
+    """Return {project_id: {year: total_forecast}} for given projects."""
+    rows = (
+        db.query(
+            Forecast.project_id,
+            func.substr(Forecast.month, 1, 4),
+            func.sum(Forecast.amount_eur),
+        )
+        .filter(Forecast.project_id.in_(project_ids))
+        .group_by(Forecast.project_id, func.substr(Forecast.month, 1, 4))
+        .all()
+    )
+    result: dict[str, dict[int, float]] = defaultdict(dict)
+    for pid, year_str, amt in rows:
+        result[pid][int(year_str)] = float(amt)
+    return dict(result)
+
+
+def _build_time_frame_breakdown(
+    yearly_original: dict[int, float],
+    yearly_adjusted: dict[int, float],
+) -> list[dict]:
+    """Build the CY / NY / subsequent / Overall breakdown."""
+    all_years = sorted(set(yearly_original.keys()) | set(yearly_adjusted.keys()))
+    segments = []
+    for y in all_years:
+        orig = yearly_original.get(y, 0.0)
+        adj = yearly_adjusted.get(y, 0.0)
+        label = "CY" if y == _CY else str(y)
+        segments.append({
+            "label": label,
+            "year": y,
+            "original": round(orig, 2),
+            "adjusted": round(adj, 2),
+            "delta": round(adj - orig, 2),
+        })
+    # Overall
+    total_orig = sum(yearly_original.values())
+    total_adj = sum(yearly_adjusted.values())
+    segments.append({
+        "label": "Overall",
+        "year": None,
+        "original": round(total_orig, 2),
+        "adjusted": round(total_adj, 2),
+        "delta": round(total_adj - total_orig, 2),
+    })
+    return segments
+
+
+def _get_year_scoped_forecast(db: Session, project_id: str, target_years: list[str]) -> float:
+    """Sum of Forecast.amount_eur for a project filtered to specific years."""
+    return float(
+        db.query(func.coalesce(func.sum(Forecast.amount_eur), 0))
+        .filter(
+            Forecast.project_id == project_id,
+            func.substr(Forecast.month, 1, 4).in_(target_years),
+        )
+        .scalar()
+    )
 
 
 def get_scenario_state(db: Session, scenario_id: int) -> dict:
@@ -83,6 +148,23 @@ def get_scenario_state(db: Session, scenario_id: int) -> dict:
         # the workspace generates a proper narrative, so leave headline empty here.
         headline = ""
 
+        # SIM-03: compute time-frame breakdown from snapshots
+        pid_list = [s.project_id for s in states]
+        yearly_fc = _get_yearly_forecasts(db, pid_list)
+        yearly_orig_totals: dict[int, float] = defaultdict(float)
+        yearly_adj_totals: dict[int, float] = defaultdict(float)
+        for s in states:
+            proj_yearly = yearly_fc.get(s.project_id, {})
+            proj_total = sum(proj_yearly.values()) or 1.0
+            for yr, amt in proj_yearly.items():
+                yearly_orig_totals[yr] += amt
+                # Distribute adjusted proportionally
+                ratio = amt / proj_total if proj_total else 0
+                yearly_adj_totals[yr] += float(s.adjusted_budget) * ratio
+        breakdown = _build_time_frame_breakdown(
+            dict(yearly_orig_totals), dict(yearly_adj_totals)
+        )
+
         return {
             "metadata": {
                 "id": scenario.id, "name": scenario.name,
@@ -96,6 +178,7 @@ def get_scenario_state(db: Session, scenario_id: int) -> dict:
                 "total_budget_delta": round(total_adjusted - total_original, 2),
                 "rag_distribution": rag_dist,
                 "headline": headline,
+                "time_frame_breakdown": breakdown,
             },
             "project_states": project_states,
             "capacity_impacts": capacity_impacts,
@@ -107,6 +190,10 @@ def get_scenario_state(db: Session, scenario_id: int) -> dict:
 def recalculate_scenario(db: Session, scenario: Scenario, actions: list[ScenarioAction]) -> dict:
     """Recalculate scenario from scratch by applying actions to current portfolio state."""
     projects = db.query(Project).filter(Project.is_active.is_(True)).all()
+    project_ids = [p.id for p in projects]
+
+    # SIM-03: pre-fetch per-year forecast totals for time-frame breakdown
+    yearly_fc = _get_yearly_forecasts(db, project_ids)
 
     # Build working state: project_id -> {budget, rag, ...}
     working = {}
@@ -180,6 +267,20 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
         if adj_rag:
             rag_dist[adj_rag] = rag_dist.get(adj_rag, 0) + 1
 
+    # SIM-03: compute time-frame breakdown
+    yearly_orig_totals: dict[int, float] = defaultdict(float)
+    yearly_adj_totals: dict[int, float] = defaultdict(float)
+    for pid, state in working.items():
+        proj_yearly = yearly_fc.get(pid, {})
+        proj_total = sum(proj_yearly.values()) or 1.0
+        for yr, amt in proj_yearly.items():
+            yearly_orig_totals[yr] += amt
+            ratio = amt / proj_total if proj_total else 0
+            yearly_adj_totals[yr] += state["adjusted_budget"] * ratio
+    breakdown = _build_time_frame_breakdown(
+        dict(yearly_orig_totals), dict(yearly_adj_totals)
+    )
+
     return {
         "metadata": {
             "id": scenario.id, "name": scenario.name,
@@ -192,6 +293,7 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
             "total_budget_adjusted": round(total_adjusted, 2),
             "total_budget_delta": round(total_adjusted - total_original, 2),
             "rag_distribution": rag_dist,
+            "time_frame_breakdown": breakdown,
         },
         "project_states": project_states,
         "capacity_impacts": [],
@@ -219,13 +321,25 @@ def _apply_project_action(db: Session, working: dict, action_type: str,
     state = working[project_id]
     state["is_affected"] = True
 
+    # SIM-04: year-scoped actions
+    target_years = params.get("target_years")
+
     if action_type == "remove_project":
-        state["adjusted_budget"] = 0
+        if target_years:
+            # Remove only forecast for target years
+            scoped = _get_year_scoped_forecast(db, project_id, target_years)
+            state["adjusted_budget"] -= scoped
+        else:
+            state["adjusted_budget"] = 0
 
     elif action_type in ("reduce_budget", "adjust_budget"):
         pct = params.get("percentage", params.get("pct", 0))
         if pct:
-            state["adjusted_budget"] *= (1 - float(pct) / 100)
+            if target_years:
+                scoped = _get_year_scoped_forecast(db, project_id, target_years)
+                state["adjusted_budget"] -= scoped * (float(pct) / 100)
+            else:
+                state["adjusted_budget"] *= (1 - float(pct) / 100)
         amount = params.get("amount", 0)
         if amount:
             state["adjusted_budget"] += float(amount)
@@ -304,7 +418,11 @@ def _apply_project_action(db: Session, working: dict, action_type: str,
 
     elif action_type == "cut_consulting":
         pct = params.get("percentage", params.get("pct", 15))
-        state["adjusted_budget"] -= state["adjusted_budget"] * 0.3 * (float(pct) / 100)
+        if target_years:
+            scoped = _get_year_scoped_forecast(db, project_id, target_years)
+            state["adjusted_budget"] -= scoped * 0.3 * (float(pct) / 100)
+        else:
+            state["adjusted_budget"] -= state["adjusted_budget"] * 0.3 * (float(pct) / 100)
 
     elif action_type == "adjust_external_cost":
         # Similar to cut_consulting but uses explicit percentage
@@ -317,32 +435,46 @@ def _apply_project_action(db: Session, working: dict, action_type: str,
 # ---------------------------------------------------------------------------
 
 def _apply_portfolio_action(db: Session, working: dict, action_type: str, params: dict):
+    # SIM-04: year-scoped actions
+    target_years = params.get("target_years")
 
     if action_type in ("across_the_board_cut", "apply_pct_cut"):
         pct = float(params.get("percentage", params.get("adjustment_pct", params.get("pct", 0))))
-        for state in working.values():
-            state["adjusted_budget"] *= (1 - abs(pct) / 100)
+        for pid, state in working.items():
+            if target_years:
+                scoped = _get_year_scoped_forecast(db, pid, target_years)
+                state["adjusted_budget"] -= scoped * (abs(pct) / 100)
+            else:
+                state["adjusted_budget"] *= (1 - abs(pct) / 100)
             state["is_affected"] = True
 
     elif action_type in ("reduce_lob", "cut_by_lob"):
         lob_id = params.get("lob_id")
         pct = float(params.get("percentage", params.get("pct", 0)))
-        for state in working.values():
+        for pid, state in working.items():
             if state["lob_id"] == lob_id:
-                state["adjusted_budget"] *= (1 - abs(pct) / 100)
+                if target_years:
+                    scoped = _get_year_scoped_forecast(db, pid, target_years)
+                    state["adjusted_budget"] -= scoped * (abs(pct) / 100)
+                else:
+                    state["adjusted_budget"] *= (1 - abs(pct) / 100)
                 state["is_affected"] = True
 
     elif action_type == "cut_by_type":
         target_type = params.get("target_type", "all")
         pct = float(params.get("reduction_pct", params.get("percentage", 10)))
-        for state in working.values():
+        for pid, state in working.items():
             match = (
                 target_type == "all"
                 or (target_type == "service" and state["is_service"])
                 or (target_type == "project" and not state["is_service"])
             )
             if match:
-                state["adjusted_budget"] *= (1 - abs(pct) / 100)
+                if target_years:
+                    scoped = _get_year_scoped_forecast(db, pid, target_years)
+                    state["adjusted_budget"] -= scoped * (abs(pct) / 100)
+                else:
+                    state["adjusted_budget"] *= (1 - abs(pct) / 100)
                 state["is_affected"] = True
 
     elif action_type == "freeze_new_starts":
@@ -365,17 +497,18 @@ def _apply_cap_cost_category(db: Session, working: dict, params: dict):
     if not cost_type_id:
         return
 
+    # SIM-04: year-scoped support
+    target_years = params.get("target_years")
+
     # Gather total external cost by project for this cost type
-    results = (
-        db.query(Forecast.project_id, func.sum(Forecast.amount_eur))
-        .filter(
-            Forecast.category == "external",
-            Forecast.sub_category == cost_type_id,
-            Forecast.month > DEMO_DATE,
-        )
-        .group_by(Forecast.project_id)
-        .all()
+    cap_q = db.query(Forecast.project_id, func.sum(Forecast.amount_eur)).filter(
+        Forecast.category == "external",
+        Forecast.sub_category == cost_type_id,
+        Forecast.month > DEMO_DATE,
     )
+    if target_years:
+        cap_q = cap_q.filter(func.substr(Forecast.month, 1, 4).in_(target_years))
+    results = cap_q.group_by(Forecast.project_id).all()
     total_by_project = {pid: float(amt) for pid, amt in results}
     grand_total = sum(total_by_project.values())
 

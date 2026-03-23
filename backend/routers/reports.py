@@ -89,6 +89,7 @@ def get_programme_rollup(
     type: str | None = None,
     grouping: str = "lob",
     fiscal_year: int | None = None,
+    project_ids: str | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -102,6 +103,9 @@ def get_programme_rollup(
         filters["rag"] = rag
     if type:
         filters["type"] = type
+    # RPT-03: custom project group
+    if project_ids:
+        filters["project_ids"] = [pid.strip() for pid in project_ids.split(",") if pid.strip()]
 
     return compute_programme_rollup(db, user, filters, grouping, fiscal_year=fiscal_year)
 
@@ -138,6 +142,7 @@ def get_vendor_spend(
     lob: str | None = None,
     status: str | None = None,
     fiscal_year: int | None = None,
+    expense_cost_type: str | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -149,6 +154,8 @@ def get_vendor_spend(
         filters["lob"] = lob
     if status:
         filters["status"] = status
+    if expense_cost_type:
+        filters["expense_cost_type"] = expense_cost_type
 
     return compute_vendor_spend(db, user, filters, fiscal_year=fiscal_year)
 
@@ -197,6 +204,8 @@ def get_year_over_year(
     fy_previous: int = 2025,
     lob: str | None = None,
     cost_type: str | None = None,
+    show_monthly: bool = False,
+    months: str | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -207,7 +216,14 @@ def get_year_over_year(
     if cost_type:
         filters["cost_type"] = cost_type
 
-    return compute_year_over_year(db, user, filters, fy_current, fy_previous)
+    months_filter = None
+    if months:
+        months_filter = [int(m) for m in months.split(",") if m.strip().isdigit()]
+
+    return compute_year_over_year(
+        db, user, filters, fy_current, fy_previous,
+        show_monthly=show_monthly, months_filter=months_filter,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -312,6 +328,65 @@ def delete_saved_view(
 
 
 # ---------------------------------------------------------------------------
+# RPT-03: Custom Project Groups
+# ---------------------------------------------------------------------------
+
+@router.get("/custom-groups")
+def list_custom_groups(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """List user's saved custom project groups (stored as saved views with report_id='custom-group')."""
+    groups = (
+        db.query(SavedView)
+        .filter(SavedView.user_id == user.user_id, SavedView.report_id == "custom-group")
+        .order_by(SavedView.modified_at.desc())
+        .all()
+    )
+    return {
+        "items": [
+            {"id": g.id, "name": g.name, "project_ids": json.loads(g.config_json).get("project_ids", [])}
+            for g in groups
+        ],
+        "total": len(groups),
+    }
+
+
+@router.post("/custom-groups")
+def create_custom_group(
+    body: SavedViewCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Save a custom project group."""
+    view = SavedView(
+        user_id=user.user_id,
+        report_id="custom-group",
+        name=body.name,
+        config_json=json.dumps(body.config),
+    )
+    db.add(view)
+    db.commit()
+    db.refresh(view)
+    return {"id": view.id, "name": view.name, "project_ids": body.config.get("project_ids", [])}
+
+
+@router.delete("/custom-groups/{group_id}")
+def delete_custom_group(
+    group_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Delete a custom project group."""
+    view = db.query(SavedView).filter(SavedView.id == group_id, SavedView.user_id == user.user_id).first()
+    if not view:
+        raise HTTPException(404, "Group not found")
+    db.delete(view)
+    db.commit()
+    return {"status": "deleted"}
+
+
+# ---------------------------------------------------------------------------
 # Export
 # ---------------------------------------------------------------------------
 
@@ -328,8 +403,8 @@ REPORT_EXPORT_CONFIG = {
     },
     "vendor-spend": {
         "name": "Vendor Spend",
-        "headers": ["Vendor", "Ordered", "Invoiced", "Open", "Accruals", "Projects", "POs"],
-        "row_keys": ["vendor_name", "total_ordered", "total_invoiced", "total_open", "total_accruals", "project_count", "po_count"],
+        "headers": ["Vendor", "Expense Cost Type", "Ordered", "Invoiced", "Open", "Accruals", "Projects", "POs"],
+        "row_keys": ["vendor_name", "expense_cost_type", "total_ordered", "total_invoiced", "total_open", "total_accruals", "project_count", "po_count"],
     },
     "forecast-accuracy": {
         "name": "Forecast Accuracy",

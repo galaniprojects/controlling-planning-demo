@@ -202,11 +202,18 @@ interface Props {
 
 type RefOptions = { value: string; label: string }[];
 
+// SIM-04: Year options for scoping actions
+const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => ({
+  value: String(2025 + i),
+  label: String(2025 + i),
+}));
+
 export function AddActionForm({ onApplyAction, projectStates, loading }: Props) {
   const [section, setSection] = useState<'project' | 'portfolio'>('project');
   const [selectedAction, setSelectedAction] = useState('');
   const [selectedProject, setSelectedProject] = useState('');
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  const [targetYears, setTargetYears] = useState<string[]>([]);
 
   // Reference data options
   const [lobOptions, setLobOptions] = useState<RefOptions>([]);
@@ -271,6 +278,7 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
     setSelectedAction('');
     setSelectedProject('');
     setParamValues({});
+    setTargetYears([]);
   };
 
   const handleSectionChange = (s: 'project' | 'portfolio') => {
@@ -330,6 +338,10 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
           params[p.key] = val;
         }
       }
+    }
+    // SIM-04: include target years if selected
+    if (targetYears.length > 0) {
+      params.target_years = targetYears;
     }
     await onApplyAction({
       scope: config.scope,
@@ -396,6 +408,35 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
             ))}
           </SelectContent>
         </Select>
+      )}
+
+      {/* SIM-04: Year selector */}
+      {config && (
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">
+            Apply to Year(s) <span className="text-slate-400">(all years if none selected)</span>
+          </label>
+          <div className="border rounded-md max-h-28 overflow-y-auto p-2 space-y-1.5">
+            {YEAR_OPTIONS.map((opt) => {
+              const selected = targetYears.includes(opt.value);
+              return (
+                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={selected}
+                    onCheckedChange={() =>
+                      setTargetYears((prev) =>
+                        prev.includes(opt.value)
+                          ? prev.filter((v) => v !== opt.value)
+                          : [...prev, opt.value]
+                      )
+                    }
+                  />
+                  <span className="text-sm text-slate-700">{opt.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* Dynamic parameter fields */}

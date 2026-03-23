@@ -685,12 +685,21 @@ export interface ScenarioMetadata {
   author_name: string;
 }
 
+export interface TimeFrameSegment {
+  label: string;
+  year: number | null;
+  original: number;
+  adjusted: number;
+  delta: number;
+}
+
 export interface ScenarioImpactDashboard {
   total_budget_original: number;
   total_budget_adjusted: number;
   total_budget_delta: number;
   rag_distribution: Record<string, number>;
   headline?: string;
+  time_frame_breakdown?: TimeFrameSegment[];
 }
 
 export interface ScenarioProjectState {
@@ -1054,14 +1063,18 @@ export interface ForecastAccuracyResponse {
 }
 
 export interface YoYMonthRow {
-  month: string;
-  month_num: number;
+  month?: string;
+  month_num?: number;
+  project_id?: string;
+  project_name?: string;
+  lob_id?: string;
+  lob_name?: string;
   fy_current: number;
   fy_previous: number;
   delta: number;
   delta_pct: number;
-  cumulative_current: number;
-  cumulative_previous: number;
+  cumulative_current?: number;
+  cumulative_previous?: number;
 }
 
 export interface YoYKPIs {

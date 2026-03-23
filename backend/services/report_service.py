@@ -89,7 +89,12 @@ def compute_programme_rollup(
     fiscal_year: int | None = None,
 ) -> dict:
     """Consolidated financials across multiple projects."""
-    project_ids = _get_scoped_project_ids(db, user, filters)
+    filters = filters or {}
+    # RPT-03: custom project group overrides normal scoping
+    if filters.get("project_ids"):
+        project_ids = filters["project_ids"]
+    else:
+        project_ids = _get_scoped_project_ids(db, user, filters)
 
     if not project_ids:
         return {"kpis": {}, "rows": [], "chart_data": [], "total": 0}
@@ -353,6 +358,9 @@ def compute_vendor_spend(
         base_q = base_q.filter(func.substr(Forecast.month, 1, 4) == year_prefix)
     if filters.get("vendor"):
         base_q = base_q.filter(Forecast.vendor == filters["vendor"])
+    # RPT-05: expense cost type filter
+    if filters.get("expense_cost_type"):
+        base_q = base_q.filter(Forecast.sub_category == filters["expense_cost_type"])
 
     forecast_rows = base_q.all()
 
@@ -369,6 +377,7 @@ def compute_vendor_spend(
                 "total_accruals": 0.0,
                 "projects": set(),
                 "po_numbers": set(),
+                "cost_types": {},  # RPT-05: track cost types
             }
         amt = float(f.amount_eur or 0)
         status = f.ext_status or "planned"
@@ -385,6 +394,10 @@ def compute_vendor_spend(
         vendor_map[v]["projects"].add(f.project_id)
         if f.po_number:
             vendor_map[v]["po_numbers"].add(f.po_number)
+        # RPT-05: track cost type frequency
+        ct = f.sub_category or ""
+        if ct:
+            vendor_map[v]["cost_types"][ct] = vendor_map[v]["cost_types"].get(ct, 0) + 1
 
     rows = []
     total_spend = 0.0
@@ -396,8 +409,12 @@ def compute_vendor_spend(
         )
         total_spend += vendor_total
         total_open += v_data["total_open"] + v_data["total_ordered"]
+        # RPT-05: dominant cost type for vendor
+        ct_map = v_data["cost_types"]
+        dominant_ct = max(ct_map, key=ct_map.get) if ct_map else ""
         rows.append({
             "vendor_name": v_data["vendor_name"],
+            "expense_cost_type": dominant_ct,
             "total_ordered": round(v_data["total_ordered"], 2),
             "total_invoiced": round(v_data["total_invoiced"], 2),
             "total_open": round(v_data["total_open"], 2),
@@ -605,15 +622,19 @@ def compute_year_over_year(
     filters: dict | None = None,
     fy_current: int = 2026,
     fy_previous: int = 2025,
+    show_monthly: bool = False,
+    months_filter: list[int] | None = None,
 ) -> dict:
-    """Compare portfolio spending between fiscal years."""
+    """Compare portfolio spending between fiscal years.
+
+    RPT-07/08: supports annual (default) and monthly modes with LoB/Project columns.
+    """
     filters = filters or {}
     project_ids = _get_scoped_project_ids(db, user, filters)
 
     if not project_ids:
         return {"kpis": {}, "rows": [], "chart_data": [], "total": 0}
 
-    # Apply cost_type filter
     cost_type = filters.get("cost_type")
 
     month_names = [
@@ -621,59 +642,53 @@ def compute_year_over_year(
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ]
 
-    def _get_monthly_spend(year: int) -> dict[int, float]:
+    # Build project info lookup (RPT-07: LoB + Project columns)
+    project_info: dict[str, dict] = {}
+    for p in db.query(Project).filter(Project.id.in_(project_ids)).all():
+        lob = db.query(LineOfBusiness).filter(LineOfBusiness.id == p.lob_id).first()
+        project_info[p.id] = {
+            "project_name": p.name,
+            "lob_id": p.lob_id or "",
+            "lob_name": lob.name if lob else "",
+        }
+
+    def _base_query(year: int):
         q = db.query(
-            func.substr(Actuals.month, 6, 2),  # extract MM
+            Actuals.project_id,
+            func.substr(Actuals.month, 6, 2),  # MM
             func.sum(Actuals.amount_eur),
         ).filter(
             Actuals.project_id.in_(project_ids),
             func.substr(Actuals.month, 1, 4) == str(year),
         )
         if cost_type and cost_type != "all":
-            q = q.join(Forecast, (Forecast.project_id == Actuals.project_id) & (Forecast.month == Actuals.month) & (Forecast.category == Actuals.category))
             if cost_type == "internal":
                 q = q.filter(Actuals.category == "internal")
             elif cost_type == "external":
                 q = q.filter(Actuals.category == "external")
-        elif cost_type and cost_type != "all":
-            if cost_type == "internal":
-                q = q.filter(Actuals.category == "internal")
-            elif cost_type == "external":
-                q = q.filter(Actuals.category == "external")
+        return q
 
-        q = q.group_by(func.substr(Actuals.month, 6, 2))
-        return {int(m): round(float(s), 2) for m, s in q.all()}
+    # Fetch per-project, per-month actuals for both years
+    def _get_spend_by_project_month(year: int) -> dict[str, dict[int, float]]:
+        q = _base_query(year).group_by(Actuals.project_id, func.substr(Actuals.month, 6, 2))
+        result: dict[str, dict[int, float]] = {}
+        for pid, mm, amt in q.all():
+            result.setdefault(pid, {})[int(mm)] = round(float(amt), 2)
+        return result
 
-    current_spend = _get_monthly_spend(fy_current)
-    previous_spend = _get_monthly_spend(fy_previous)
+    current_by_pm = _get_spend_by_project_month(fy_current)
+    previous_by_pm = _get_spend_by_project_month(fy_previous)
 
-    rows = []
-    cum_current = 0.0
-    cum_previous = 0.0
+    all_pids = sorted(set(current_by_pm.keys()) | set(previous_by_pm.keys()))
 
-    for month_num in range(1, 13):
-        c = current_spend.get(month_num, 0.0)
-        p = previous_spend.get(month_num, 0.0)
-        cum_current += c
-        cum_previous += p
-        delta = c - p
-        delta_pct = round((delta / p * 100), 1) if p > 0 else 0.0
-
-        rows.append({
-            "month": month_names[month_num - 1],
-            "month_num": month_num,
-            "fy_current": round(c, 2),
-            "fy_previous": round(p, 2),
-            "delta": round(delta, 2),
-            "delta_pct": delta_pct,
-            "cumulative_current": round(cum_current, 2),
-            "cumulative_previous": round(cum_previous, 2),
-        })
-
-    # Find the last month with data for current demo period
+    # KPI computation (always uses all months for YTD)
     demo_month = int(DEMO_DATE.split("-")[1])
-    ytd_current = sum(r["fy_current"] for r in rows[:demo_month])
-    ytd_previous = sum(r["fy_previous"] for r in rows[:demo_month])
+    ytd_current = 0.0
+    ytd_previous = 0.0
+    for pid in all_pids:
+        for m in range(1, demo_month + 1):
+            ytd_current += current_by_pm.get(pid, {}).get(m, 0.0)
+            ytd_previous += previous_by_pm.get(pid, {}).get(m, 0.0)
     ytd_delta = ytd_current - ytd_previous
 
     kpis = {
@@ -685,19 +700,81 @@ def compute_year_over_year(
         "fy_previous_label": str(fy_previous),
     }
 
-    # Chart: line data per FY
-    chart_data = [
-        {
-            "month": r["month"],
-            "fy_current": r["cumulative_current"],
-            "fy_previous": r["cumulative_previous"],
-            "fy_current_monthly": r["fy_current"],
-            "fy_previous_monthly": r["fy_previous"],
-        }
-        for r in rows
-    ]
+    rows = []
 
-    return {"kpis": kpis, "rows": rows, "chart_data": chart_data, "total": 12}
+    if show_monthly:
+        # RPT-08: Monthly detail mode — one row per project per month
+        active_months = months_filter if months_filter else list(range(1, 13))
+        # Cumulative tracking per project
+        cum_current: dict[str, float] = {pid: 0.0 for pid in all_pids}
+        cum_previous: dict[str, float] = {pid: 0.0 for pid in all_pids}
+
+        for month_num in range(1, 13):
+            for pid in all_pids:
+                c = current_by_pm.get(pid, {}).get(month_num, 0.0)
+                p = previous_by_pm.get(pid, {}).get(month_num, 0.0)
+                cum_current[pid] += c
+                cum_previous[pid] += p
+
+                if month_num not in active_months:
+                    continue
+
+                delta = c - p
+                delta_pct = round((delta / p * 100), 1) if p > 0 else 0.0
+                info = project_info.get(pid, {})
+
+                rows.append({
+                    "month": month_names[month_num - 1],
+                    "month_num": month_num,
+                    "project_id": pid,
+                    "project_name": info.get("project_name", pid),
+                    "lob_id": info.get("lob_id", ""),
+                    "lob_name": info.get("lob_name", ""),
+                    "fy_current": round(c, 2),
+                    "fy_previous": round(p, 2),
+                    "delta": round(delta, 2),
+                    "delta_pct": delta_pct,
+                    "cumulative_current": round(cum_current[pid], 2),
+                    "cumulative_previous": round(cum_previous[pid], 2),
+                })
+    else:
+        # RPT-07/08: Annual mode — one row per project
+        for pid in all_pids:
+            c = sum(current_by_pm.get(pid, {}).values())
+            p = sum(previous_by_pm.get(pid, {}).values())
+            delta = c - p
+            delta_pct = round((delta / p * 100), 1) if p > 0 else 0.0
+            info = project_info.get(pid, {})
+
+            rows.append({
+                "project_id": pid,
+                "project_name": info.get("project_name", pid),
+                "lob_id": info.get("lob_id", ""),
+                "lob_name": info.get("lob_name", ""),
+                "fy_current": round(c, 2),
+                "fy_previous": round(p, 2),
+                "delta": round(delta, 2),
+                "delta_pct": delta_pct,
+            })
+
+    # Chart data: aggregate across all projects by month (backward compat)
+    chart_data = []
+    agg_cum_c = 0.0
+    agg_cum_p = 0.0
+    for month_num in range(1, 13):
+        mc = sum(current_by_pm.get(pid, {}).get(month_num, 0.0) for pid in all_pids)
+        mp = sum(previous_by_pm.get(pid, {}).get(month_num, 0.0) for pid in all_pids)
+        agg_cum_c += mc
+        agg_cum_p += mp
+        chart_data.append({
+            "month": month_names[month_num - 1],
+            "fy_current": round(agg_cum_c, 2),
+            "fy_previous": round(agg_cum_p, 2),
+            "fy_current_monthly": round(mc, 2),
+            "fy_previous_monthly": round(mp, 2),
+        })
+
+    return {"kpis": kpis, "rows": rows, "chart_data": chart_data, "total": len(rows)}
 
 
 # ---------------------------------------------------------------------------
