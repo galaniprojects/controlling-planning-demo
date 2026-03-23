@@ -173,6 +173,75 @@ def update_competence_center(
 
 
 # ---------------------------------------------------------------------------
+# Competence Centers — Employee Assignment (3 endpoints)
+# ---------------------------------------------------------------------------
+
+@router.get("/competence-centers/{competence_center_id}/people")
+def get_competence_center_people(
+    competence_center_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """List people assigned to a competence center."""
+    people = (
+        db.query(Person)
+        .filter(Person.competence_center_id == competence_center_id, Person.is_active.is_(True))
+        .order_by(Person.name)
+        .all()
+    )
+    items = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "role_name": p.role_type.name if p.role_type else "",
+            "cost_center_name": p.cost_center.name if p.cost_center else "",
+        }
+        for p in people
+    ]
+    return {"items": items, "total": len(items)}
+
+
+@router.put("/competence-centers/{competence_center_id}/people/{person_id}/assign")
+def assign_person_to_competence_center(
+    competence_center_id: str,
+    person_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Assign a person to a competence center."""
+    cc = db.query(CompetenceCenter).filter(CompetenceCenter.id == competence_center_id).first()
+    if not cc:
+        raise HTTPException(404, "Competence center not found")
+    person = db.query(Person).filter(Person.id == person_id).first()
+    if not person:
+        raise HTTPException(404, "Person not found")
+    old_cc_id = person.competence_center_id
+    person.competence_center_id = competence_center_id
+    _log_audit(db, user, "person", person.id, person.name, "update", "competence_center_id", old_cc_id, competence_center_id)
+    db.commit()
+    return {"status": "ok", "person_id": person.id, "competence_center_id": competence_center_id}
+
+
+@router.put("/competence-centers/{competence_center_id}/people/{person_id}/unassign")
+def unassign_person_from_competence_center(
+    competence_center_id: str,
+    person_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Remove a person from a competence center."""
+    person = db.query(Person).filter(Person.id == person_id).first()
+    if not person:
+        raise HTTPException(404, "Person not found")
+    if person.competence_center_id != competence_center_id:
+        raise HTTPException(400, "Person is not assigned to this competence center")
+    _log_audit(db, user, "person", person.id, person.name, "update", "competence_center_id", competence_center_id, None)
+    person.competence_center_id = None
+    db.commit()
+    return {"status": "ok", "person_id": person.id}
+
+
+# ---------------------------------------------------------------------------
 # Lines of Business (2 endpoints)
 # ---------------------------------------------------------------------------
 

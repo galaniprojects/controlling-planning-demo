@@ -480,6 +480,12 @@ export const adminApi = {
     api.post<{ id: string; name: string; is_active: boolean }>('/api/admin/competence-centers', data),
   updateCompetenceCenter: (id: string, data: { name?: string }) =>
     api.put<{ id: string; name: string; is_active: boolean }>(`/api/admin/competence-centers/${id}`, data),
+  getCompetenceCenterPeople: (ccId: string) =>
+    api.get<ListResponse<{ id: string; name: string; role_name: string; cost_center_name: string }>>(`/api/admin/competence-centers/${ccId}/people`),
+  assignPersonToCC: (ccId: string, personId: string) =>
+    api.put<{ status: string }>(`/api/admin/competence-centers/${ccId}/people/${personId}/assign`),
+  unassignPersonFromCC: (ccId: string, personId: string) =>
+    api.put<{ status: string }>(`/api/admin/competence-centers/${ccId}/people/${personId}/unassign`),
 
   // Lines of Business
   createLoB: (data: { name: string; description?: string }) =>
