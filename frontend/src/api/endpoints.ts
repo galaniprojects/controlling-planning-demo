@@ -535,7 +535,7 @@ export const reportsApi = {
   getReportList: () =>
     api.get<ListResponse<ReportListItem>>('/api/reports'),
 
-  getProgrammeRollup: (params?: { lob?: string; status?: string; rag?: string; type?: string; grouping?: string; fiscal_year?: string }) => {
+  getProgrammeRollup: (params?: { lob?: string; status?: string; rag?: string; type?: string; grouping?: string; fiscal_year?: string; project_ids?: string }) => {
     const q = new URLSearchParams();
     if (params?.lob) q.set('lob', params.lob);
     if (params?.status) q.set('status', params.status);
@@ -543,9 +543,23 @@ export const reportsApi = {
     if (params?.type) q.set('type', params.type);
     if (params?.grouping) q.set('grouping', params.grouping);
     if (params?.fiscal_year) q.set('fiscal_year', params.fiscal_year);
+    if (params?.project_ids) q.set('project_ids', params.project_ids);
     const qs = q.toString();
     return api.get<ProgrammeRollupResponse>(`/api/reports/programme-rollup${qs ? '?' + qs : ''}`);
   },
+
+  // RPT-03: Custom project groups
+  getCustomGroups: () =>
+    api.get<{ items: { id: number; name: string; project_ids: string[] }[]; total: number }>('/api/reports/custom-groups'),
+
+  createCustomGroup: (body: { name: string; config: Record<string, unknown> }) =>
+    api.post<{ id: number; name: string; project_ids: string[] }>('/api/reports/custom-groups', {
+      report_id: 'custom-group',
+      ...body,
+    }),
+
+  deleteCustomGroup: (id: number) =>
+    api.delete(`/api/reports/custom-groups/${id}`),
 
   getCCFinancialSummary: (params?: { cost_center?: string; type?: string; fiscal_year?: string }) => {
     const q = new URLSearchParams();
@@ -556,12 +570,13 @@ export const reportsApi = {
     return api.get<CCFinancialResponse>(`/api/reports/cc-financial-summary${qs ? '?' + qs : ''}`);
   },
 
-  getVendorSpend: (params?: { vendor?: string; lob?: string; status?: string; fiscal_year?: string }) => {
+  getVendorSpend: (params?: { vendor?: string; lob?: string; status?: string; fiscal_year?: string; expense_cost_type?: string }) => {
     const q = new URLSearchParams();
     if (params?.vendor) q.set('vendor', params.vendor);
     if (params?.lob) q.set('lob', params.lob);
     if (params?.status) q.set('status', params.status);
     if (params?.fiscal_year) q.set('fiscal_year', params.fiscal_year);
+    if (params?.expense_cost_type) q.set('expense_cost_type', params.expense_cost_type);
     const qs = q.toString();
     return api.get<VendorSpendResponse>(`/api/reports/vendor-spend${qs ? '?' + qs : ''}`);
   },
@@ -579,12 +594,14 @@ export const reportsApi = {
     return api.get<ForecastAccuracyResponse>(`/api/reports/forecast-accuracy${qs ? '?' + qs : ''}`);
   },
 
-  getYearOverYear: (params?: { fy_current?: string; fy_previous?: string; lob?: string; cost_type?: string }) => {
+  getYearOverYear: (params?: { fy_current?: string; fy_previous?: string; lob?: string; cost_type?: string; show_monthly?: string; months?: string }) => {
     const q = new URLSearchParams();
     if (params?.fy_current) q.set('fy_current', params.fy_current);
     if (params?.fy_previous) q.set('fy_previous', params.fy_previous);
     if (params?.lob) q.set('lob', params.lob);
     if (params?.cost_type) q.set('cost_type', params.cost_type);
+    if (params?.show_monthly) q.set('show_monthly', params.show_monthly);
+    if (params?.months) q.set('months', params.months);
     const qs = q.toString();
     return api.get<YoYResponse>(`/api/reports/year-over-year${qs ? '?' + qs : ''}`);
   },
