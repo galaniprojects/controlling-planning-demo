@@ -8,6 +8,7 @@ import { CapexOpexDisplay } from './CapexOpexDisplay';
 import { ResourceSummaryTable } from './ResourceSummaryTable';
 import { ProjectTimelineChart } from './ProjectTimelineChart';
 import { ProjectTrajectoryChart } from '@/components/charts/ProjectTrajectoryChart';
+import { MonthlyTimelineTable } from './MonthlyTimelineTable';
 
 interface Props {
   projectId: string;
@@ -55,7 +56,15 @@ export function OverviewTab({ projectId }: Props) {
 
       {/* Project Timeline Visualization */}
       {timeline && timeline.monthly_data.length > 0 && (
-        <ProjectTimelineChart data={timeline} />
+        <>
+          <ProjectTimelineChart data={timeline} />
+          <MonthlyTimelineTable
+            data={timeline}
+            status={data.metadata?.status}
+            startMonth={data.metadata?.timeline?.start}
+            endMonth={data.metadata?.timeline?.end}
+          />
+        </>
       )}
 
       <ThreePointTable data={data.three_point_comparison} />
