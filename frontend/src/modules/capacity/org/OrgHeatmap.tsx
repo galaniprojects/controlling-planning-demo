@@ -162,7 +162,6 @@ export function OrgHeatmap({ pivot, onRowClick, onCellClick }: OrgHeatmapProps) 
                 >
                   <UtilizationCellView
                     cell={cell}
-                    compact={col.type === 'yearSummary'}
                     onClick={col.type === 'month' ? () => onCellClick({ id: row.id, label: row.name }, col.key) : undefined}
                   />
                 </div>

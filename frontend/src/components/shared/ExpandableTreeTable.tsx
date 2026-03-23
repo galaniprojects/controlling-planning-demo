@@ -16,12 +16,19 @@ export interface TreeTableColumn<T> {
   className?: string;
 }
 
+export interface HeaderGroup {
+  label: string;
+  colSpan: number;
+  className?: string;
+}
+
 interface ExpandableTreeTableProps<T extends { id: string; children?: T[] }> {
   data: T[];
   columns: TreeTableColumn<T>[];
   onRowClick?: (node: T) => void;
   selectedId?: string;
   defaultExpanded?: Set<string>;
+  headerGroups?: HeaderGroup[];
 }
 
 export function ExpandableTreeTable<T extends { id: string; children?: T[] }>({
@@ -30,6 +37,7 @@ export function ExpandableTreeTable<T extends { id: string; children?: T[] }>({
   onRowClick,
   selectedId,
   defaultExpanded,
+  headerGroups,
 }: ExpandableTreeTableProps<T>) {
   const [expanded, setExpanded] = useState<Set<string>>(defaultExpanded ?? new Set());
 
@@ -117,6 +125,22 @@ export function ExpandableTreeTable<T extends { id: string; children?: T[] }>({
     <div className="rounded-md border border-slate-200 overflow-auto">
       <Table>
         <TableHeader>
+          {headerGroups && (
+            <TableRow className="border-b-0">
+              {headerGroups.map((group, i) => (
+                <TableHead
+                  key={i}
+                  colSpan={group.colSpan}
+                  className={cn(
+                    'px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-center',
+                    group.className,
+                  )}
+                >
+                  {group.label}
+                </TableHead>
+              ))}
+            </TableRow>
+          )}
           <TableRow>
             {columns.map((col, i) => (
               <TableHead

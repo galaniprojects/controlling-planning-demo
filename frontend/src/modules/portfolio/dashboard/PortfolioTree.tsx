@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   ExpandableTreeTable,
   type TreeTableColumn,
+  type HeaderGroup,
 } from '@/components/shared/ExpandableTreeTable';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { ragBgColor } from '@/lib/rag';
@@ -138,27 +139,24 @@ export function PortfolioTree({ data, loading, selectedId, onProjectSelect }: Pr
     );
   }
 
+  const headerGroups: HeaderGroup[] = [
+    { label: '', colSpan: 3 },                    // Name, Status, RAG
+    { label: 'CY 2026', colSpan: 3, className: 'border-b border-slate-200' },  // Baseline CY, Forecast CY, Actuals YTD
+    { label: '', colSpan: 1 },                    // Timeline
+    { label: 'Prior Years', colSpan: 3, className: 'border-b border-slate-200' }, // Baseline PY, Forecast PY, Actuals PY
+  ];
+
   return (
-    <div className="space-y-1">
-      {/* Cluster header labels */}
-      <div className="flex text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2">
-        <span className="min-w-[220px]" />
-        <span className="w-[90px]" />
-        <span className="w-[70px]" />
-        <span className="w-[270px] text-center border-b border-slate-200 pb-1">CY 2026</span>
-        <span className="w-[130px]" />
-        <span className="w-[270px] text-center border-b border-slate-200 pb-1">Prior Years</span>
-      </div>
-      <ExpandableTreeTable
-        data={data}
-        columns={columns}
-        onRowClick={(node) => {
-          if (node.type === 'project' || node.type === 'service') {
-            onProjectSelect(node);
-          }
-        }}
-        selectedId={selectedId}
-      />
-    </div>
+    <ExpandableTreeTable
+      data={data}
+      columns={columns}
+      headerGroups={headerGroups}
+      onRowClick={(node) => {
+        if (node.type === 'project' || node.type === 'service') {
+          onProjectSelect(node);
+        }
+      }}
+      selectedId={selectedId}
+    />
   );
 }

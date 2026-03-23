@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, Gauge, Lock } from 'lucide-react';
+import { Calendar, Clock, Gauge, Lock, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -24,6 +24,7 @@ const GROUP_CONFIG = [
   { key: 'planning', label: 'Planning Horizon', icon: Clock },
   { key: 'thresholds', label: 'Thresholds', icon: Gauge },
   { key: 'limits', label: 'Limits', icon: Lock },
+  { key: 'capacity', label: 'Capacity Settings', icon: Users },
 ];
 
 export function PlanningParameters() {
