@@ -734,6 +734,63 @@ def submit_forecast_cycle(
 # Change History (2 endpoints)
 # ---------------------------------------------------------------------------
 
+
+def _compute_cr_impact_eur(cr: ChangeRequest, db: Session) -> float | None:
+    """Lightweight EUR impact calculation for a CR without full grid build."""
+    value_changes = [
+        d for d in cr.change_details
+        if d.line_item_type and d.month and _is_numeric(d.old_value, d.new_value)
+    ]
+    if not value_changes:
+        return None
+
+    # Cache rate lookups across line items
+    rate_cache: dict[str, float] = {}
+    total_delta = 0.0
+
+    for d in value_changes:
+        old_v = _parse_numeric(d.old_value)
+        new_v = _parse_numeric(d.new_value)
+        delta = new_v - old_v
+
+        if d.line_item_type.startswith("role-"):
+            # Resource: convert hours delta to EUR using hourly rate
+            if d.line_item_type not in rate_cache:
+                rate_row = (
+                    db.query(RateTable)
+                    .filter(RateTable.role_type_id == d.line_item_type)
+                    .order_by(RateTable.effective_date.desc())
+                    .first()
+                )
+                rate_cache[d.line_item_type] = float(rate_row.hourly_rate) if rate_row else 120.0
+            total_delta += delta * rate_cache[d.line_item_type]
+        else:
+            # External cost: already in EUR
+            total_delta += delta
+
+    return round(total_delta, 2)
+
+
+def _is_numeric(old_val: str | None, new_val: str | None) -> bool:
+    for v in (old_val, new_val):
+        if v and v != "NULL":
+            try:
+                float(v.replace("€", "").replace(",", "").replace(" ", "").strip())
+                return True
+            except (ValueError, AttributeError):
+                continue
+    return False
+
+
+def _parse_numeric(val: str | None) -> float:
+    if not val or val == "NULL":
+        return 0.0
+    try:
+        return float(val.replace("€", "").replace(",", "").replace(" ", "").strip())
+    except (ValueError, AttributeError):
+        return 0.0
+
+
 @router.get("/{project_id}/change-requests")
 def get_project_crs(
     project_id: str,
@@ -765,6 +822,7 @@ def get_project_crs(
                 {"field": d.field_changed, "old": d.old_value, "new": d.new_value, "delta": d.delta, "month": d.month}
                 for d in cr.change_details
             ],
+            impact_eur=_compute_cr_impact_eur(cr, db),
         )
         for cr in crs
     ]

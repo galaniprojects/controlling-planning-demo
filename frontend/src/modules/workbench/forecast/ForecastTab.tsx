@@ -16,6 +16,11 @@ export function ForecastTab({ projectId, role }: Props) {
   const [defaultExpandedYear, setDefaultExpandedYear] = useState<number | undefined>();
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
 
+  // Reset wizard mode when switching projects
+  useEffect(() => {
+    setMode('read');
+  }, [projectId]);
+
   // Build sub_category → display name lookup from forecast grid
   useEffect(() => {
     workbenchApi.getForecast(projectId).then((res) => {

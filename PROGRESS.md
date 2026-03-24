@@ -2,8 +2,21 @@
 
 ## Current Status
 Phase: v4 Session 6 (complete) — **v4 Implementation Complete**
-Last completed: v4 Session 6 — Seed Data Fixes + End-to-End Verification
+Last completed: v4 Session 6 — UX polish: CR impact display, modal sizing, forecast wizard guards
 Branch: `v4/session-6-seed-data-e2e`
+
+## v4 Session 6 — UX Polish (2026-03-24, continued)
+
+### Completed Items (UX polish pass)
+- [x] CR Detail Modal sizing — moved `overflow-y-auto` from DialogContent to body div with `flex flex-col` + `flex-1 min-h-0` so header stays pinned and body scrolls properly
+- [x] CR impact on collapsed rows — added `impact_eur` field to backend `CRHistoryItem` schema and `_compute_cr_impact_eur()` helper in `workbench.py` that computes lightweight EUR delta per CR (resource hours × rate, external costs directly). Collapsed CR rows now show impact in order: Impact → Type badge → Status badge. Formatted with `formatCurrencyCompact` (e.g. `+2K €`), colored green for savings, red for increases.
+- [x] Forecast wizard project switch guard — added `useEffect` in `ForecastTab.tsx` that resets mode to `'read'` when `projectId` changes, preventing stale wizard state when switching projects mid-review
+
+### Verification Results (UX polish)
+- [x] CR list: 9 CRs for proj-erp2, 7 show impact values (e.g. +2K €, +1,5K €, +750 €), 2 without numeric changes show no impact
+- [x] CR detail modal: content fits without clipping, body area scrolls independently of header
+- [x] Forecast wizard resets to read mode when switching projects during active review
+- [x] Zero console errors (only pre-existing Radix accessibility warnings)
 
 ## v4 Session 6 — Seed Data Fixes + End-to-End Verification (2026-03-24)
 
