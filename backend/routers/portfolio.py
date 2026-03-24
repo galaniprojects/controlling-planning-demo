@@ -864,17 +864,10 @@ def get_pending_approvals(
         .all()
     )
 
-    # Compute EUR impact from change details
+    from routers.workbench import _compute_cr_impact_eur
+
     items = []
     for cr in crs:
-        delta_sum = 0.0
-        for d in cr.change_details:
-            if d.delta:
-                try:
-                    delta_sum += float(d.delta.replace("€", "").replace(",", "").strip())
-                except (ValueError, AttributeError):
-                    pass
-
         items.append(
             ApprovalItem(
                 cr_id=cr.id,
@@ -883,7 +876,7 @@ def get_pending_approvals(
                 summary=cr.summary,
                 submitted_by=cr.submitted_by.name if cr.submitted_by else "",
                 confirmed_by_cc_owner=cr.cc_owner.name if cr.cc_owner else None,
-                impact_eur_delta=round(delta_sum, 2) if delta_sum != 0 else None,
+                impact_eur_delta=_compute_cr_impact_eur(cr, db),
                 submission_date=str(cr.submission_timestamp),
                 system_suggested=cr.is_system_suggested,
             )

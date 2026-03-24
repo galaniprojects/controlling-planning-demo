@@ -1,9 +1,34 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v4 Session 6 (complete) — **v4 Implementation Complete**
-Last completed: v4 Session 6 — UX polish: CR impact display, modal sizing, forecast wizard guards
-Branch: `v4/session-6-seed-data-e2e`
+Phase: QA E2E Testing — **Session A complete**
+Last completed: QA Session A — Suites 1-3 (Global Shell, Portfolio Dashboard, Portfolio Workflows)
+Branch: `qa/e2e-session-a-fixes`
+
+## QA E2E Session A — Global Shell + Portfolio Overview (2026-03-24)
+
+### Test Results
+- **Suite 1 — Global Shell & Launchpad (GLB-01 to GLB-07):** 7/7 pass
+- **Suite 2 — Portfolio Overview Dashboard (PO-01 to PO-13):** 13/13 pass
+- **Suite 3 — Portfolio Intake & CR Approvals (INT-01 to INT-13):** 12/13 pass, 1 fixed
+- **Total: 33 scenarios, 32 pass, 0 fail, 1 partial (fixed)**
+
+### Bug Fixes
+- [x] UI-001: CR Approvals table Impact column showed "—" for all CRs — replaced naive delta string parsing in `portfolio.py` `get_pending_approvals()` with `_compute_cr_impact_eur()` imported from `workbench.py`. Now shows +€2K (red) / -€10K (green).
+
+### Test Plan Updates
+- [x] GLB-03: Updated Controller tile count from 6 to 7 (Documentation module added)
+
+### Issues / Notes
+- All workflows verified end-to-end: role switching, filtering, tree expand/collapse, side panels, approve/reject/send-back/resubmit
+- Zero console errors, zero failed network requests throughout all 33 scenarios
+- Tab switching via programmatic click doesn't work (Radix controlled tabs) — confirmed non-issue for real users, URL navigation works
+- Bug report: `qa/bug-report.md`
+
+### Next Steps
+- QA Session B: Suites 4-6 (Workbench + Forecast + Capacity)
+- QA Session C: Suites 7-8 (Simulator + Reporting)
+- QA Session D: Suites 9-10 (Administration + Cross-Module)
 
 ## v4 Session 6 — UX Polish (2026-03-24, continued)
 
