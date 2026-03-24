@@ -261,13 +261,13 @@ Create at the start of Session A with this header:
 
 1. `preview_snapshot` — verify Launchpad is displayed
 2. Verify module tiles are in a 2-column grid layout
-3. Count visible module tiles — Controller should see 6 modules: Portfolio Overview, Project Workbench, Capacity Management, What-If Simulator, Reporting, Administration
+3. Count visible module tiles — Controller should see 7 modules: Portfolio Overview, Project Workbench, Capacity Management, What-If Simulator, Reporting, Administration, Documentation
 4. Verify the primary module tile (Portfolio Overview) has a distinctive border/styling
 5. Verify each tile shows a module name, description, and contextual metric
 6. Verify no "Submit New Project" tile visible for Controller
 
 **Verify:**
-- [ ] 6 module tiles visible
+- [ ] 7 module tiles visible
 - [ ] 2-column grid layout
 - [ ] Primary module has special styling
 - [ ] No "Submit New Project" tile
