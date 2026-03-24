@@ -1,8 +1,8 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: QA E2E Testing — **Session A complete**
-Last completed: QA Session A — Suites 1-3 (Global Shell, Portfolio Dashboard, Portfolio Workflows)
+Phase: QA E2E Testing — **Session B complete**
+Last completed: QA Session B — Suites 4-6 (Workbench, Forecast Wizard, Capacity Management)
 Branch: `qa/e2e-session-a-fixes`
 
 ## QA E2E Session A — Global Shell + Portfolio Overview (2026-03-24)
@@ -26,7 +26,47 @@ Branch: `qa/e2e-session-a-fixes`
 - Bug report: `qa/bug-report.md`
 
 ### Next Steps
-- QA Session B: Suites 4-6 (Workbench + Forecast + Capacity)
+- QA Session B: Suites 4-6 (Workbench + Forecast + Capacity) — DONE
+- QA Session C: Suites 7-8 (Simulator + Reporting)
+- QA Session D: Suites 9-10 (Administration + Cross-Module)
+
+## QA E2E Session B — Workbench + Forecast + Capacity (2026-03-24)
+
+### Test Results
+- **Suite 4 — Project Workbench (WB-01 to WB-17):** 16/17 pass, 1 partial
+  - WB-12 partial: Completed projects don't auto-expand final year in Forecast Grid
+- **Suite 5 — Forecast Wizard (FW-01 to FW-10):** 7/10 pass, 1 fail, 2 blocked
+  - FW-05 FAIL: Phase 3 (Edit Forecast) crashes with blank screen — React error in `<Phase3EditForecast>`
+  - FW-06, FW-07 BLOCKED: Cannot reach Phase 4/5 due to Phase 3 crash
+- **Suite 6 — Capacity Management (CAP-01 to CAP-14):** 14/14 pass
+- **Total: 41 scenarios, 37 pass, 1 fail, 3 partial/blocked**
+- **Cumulative (Sessions A+B): 74 scenarios, 69 pass, 1 fail, 4 partial/blocked**
+
+### Bugs Found
+- **UI-002 (P3):** Completed projects don't auto-expand final year in Forecast Grid collapsible years. Active (2026) and future (start year) work correctly. Only completed projects affected. File: `useCollapsibleYears.ts` or `ForecastGrid.tsx`
+- **UI-003 (P1):** Forecast Wizard Phase 3 crashes on load — blank white screen. React error in `<Phase3EditForecast>` component. No error boundary catches it. No API errors — purely frontend rendering issue. Blocks all remaining wizard phases (4 and 5). File: `Phase3EditForecast.tsx`
+- **SPEC-002 (P3):** Test plan persona IDs (`persona-project-lead`, `persona-executive`) don't match actual IDs (`persona-pl`, `persona-exec`)
+
+### Observations
+- Workbench module is solid: master-detail layout, role scoping, collapsible years, ForecastGrid with sticky columns, CapEx/OpEx tags, Change History with expandable CR detail cards all working well
+- Capacity Management is fully functional: heatmap color coding, cell drill-down to project-level detail, cross-module links to Workbench, 3 pivot views on Org Overview, resource request workflow
+- Forecast Wizard Phases 1-2 work correctly (variance review with employee names, AI suggestions with Apply/Dismiss)
+- EUR formatting consistent throughout (European convention: dot thousands, comma decimals)
+
+## QA Session B — Fix Session (2026-03-24)
+
+### Bug Fixes
+- [x] UI-003 (P1): Forecast Wizard Phase 3 crash — renamed `totalDeltaEurEur` to `totalDeltaEur` in `Phase3EditForecast.tsx` (variable name typo). Phase 3 now loads with editable grid.
+- [x] UI-002 (P3): Completed projects auto-expand — updated `useCollapsibleYears.ts` useEffect to re-apply expansion when `EXPAND_YEAR` changes after initial seeding (race condition with async overview API).
+
+### Verification
+- [x] Phase 3 loads successfully for ERP Integration Phase 2 (Priya Sharma), stepper shows phases 1-2 complete
+- [x] Completed project (Data Center Consolidation): 2023 auto-expanded
+- [x] Active project (ERP Integration Phase 2): 2026 auto-expanded
+- [x] Future project (Connected Vehicle Platform): 2026 auto-expanded
+- [x] Zero console errors across all verification steps
+
+### Next Steps
 - QA Session C: Suites 7-8 (Simulator + Reporting)
 - QA Session D: Suites 9-10 (Administration + Cross-Module)
 

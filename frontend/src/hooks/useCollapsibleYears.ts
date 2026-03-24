@@ -32,15 +32,27 @@ export function useCollapsibleYears(months: string[], defaultExpandedYear?: numb
   const [expandedState, setExpandedState] = useState<Record<number, boolean>>({});
 
   // Seed newly-appeared years into expanded state (context-sensitive year expanded by default)
+  // Also re-apply when EXPAND_YEAR changes (e.g. async project metadata arrives late)
   useEffect(() => {
     setExpandedState((prev) => {
-      let changed = false;
       const next = { ...prev };
+      let changed = false;
       for (const year of grouped.keys()) {
         if (!(year in next)) {
           next[year] = year === EXPAND_YEAR;
           changed = true;
         }
+      }
+      // If EXPAND_YEAR changed and the target year exists but isn't expanded, fix it
+      if (EXPAND_YEAR in next && !next[EXPAND_YEAR]) {
+        for (const y of Object.keys(next)) {
+          if (next[Number(y)] && Number(y) !== EXPAND_YEAR) {
+            next[Number(y)] = false;
+            changed = true;
+          }
+        }
+        next[EXPAND_YEAR] = true;
+        changed = true;
       }
       return changed ? next : prev;
     });
