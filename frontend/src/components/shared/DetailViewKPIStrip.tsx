@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrencyDetailed } from '@/lib/formatters';
 import type { DetailViewKPI } from '@/lib/detailViewTypes';
 
 interface Props {
@@ -17,7 +17,7 @@ export function DetailViewKPIStrip({ kpis }: Props) {
               className="text-base font-semibold"
               style={{ color: kpi.color || '#334155' }}
             >
-              {formatCurrency(kpi.value)}
+              {formatCurrencyDetailed(kpi.value)}
             </p>
             {kpi.secondaryLabel && (
               <p
