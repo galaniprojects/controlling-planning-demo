@@ -40,6 +40,19 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
       .finally(() => setLoading(false));
   }, [projectId]);
 
+  const handleResubmit = async () => {
+    setSubmitting(true);
+    try {
+      await portfolioApi.resubmitIntake(projectId);
+      setActionResult('Project resubmitted for approval.');
+      onActionComplete();
+    } catch {
+      setActionResult('Resubmit failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleAction = async () => {
     setSubmitting(true);
     try {
@@ -130,6 +143,18 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
       {actionResult && (
         <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
           {actionResult}
+        </div>
+      )}
+
+      {/* Resubmit (PL only, when changes_requested) */}
+      {!isController && data.status === 'changes_requested' && !actionResult && (
+        <div className="space-y-3 pt-2 border-t border-slate-200">
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Changes requested by Controller. Review feedback above and resubmit when ready.
+          </div>
+          <Button size="sm" onClick={handleResubmit} disabled={submitting}>
+            {submitting ? 'Submitting...' : 'Resubmit for Approval'}
+          </Button>
         </div>
       )}
 

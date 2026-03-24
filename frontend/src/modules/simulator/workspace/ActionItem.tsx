@@ -22,6 +22,7 @@ interface Props {
   action: ScenarioAction;
   onRemove: (actionId: number) => void;
   projectNames: Map<string, string>;
+  readOnly?: boolean;
 }
 
 const ACTION_ICONS: Record<string, React.ElementType> = {
@@ -116,7 +117,7 @@ function formatDelta(impact: Record<string, unknown>): string | null {
   return `${sign}€${abs}`;
 }
 
-export function ActionItem({ action, onRemove, projectNames }: Props) {
+export function ActionItem({ action, onRemove, projectNames, readOnly }: Props) {
   const Icon = ACTION_ICONS[action.action_type] ?? Layers;
   const description = describeAction(action, projectNames);
   const delta = formatDelta(action.impact_delta);
@@ -144,14 +145,16 @@ export function ActionItem({ action, onRemove, projectNames }: Props) {
           {delta}
         </span>
       )}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-        onClick={() => onRemove(action.id)}
-      >
-        <X className="h-3.5 w-3.5 text-slate-400" />
-      </Button>
+      {!readOnly && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => onRemove(action.id)}
+        >
+          <X className="h-3.5 w-3.5 text-slate-400" />
+        </Button>
+      )}
     </div>
   );
 }

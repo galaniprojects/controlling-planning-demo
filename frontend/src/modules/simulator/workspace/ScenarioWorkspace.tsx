@@ -3,6 +3,7 @@ import { ArrowLeft, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useBottomDrawer } from '@/contexts/BottomDrawerContext';
+import { useRole } from '@/contexts/RoleContext';
 import { useScenarioState } from '../useScenarioState';
 import { ActionPanel } from './ActionPanel';
 import { ImpactNarrative } from './ImpactNarrative';
@@ -17,6 +18,8 @@ interface Props {
 }
 
 export function ScenarioWorkspace({ scenarioId, onBack }: Props) {
+  const { context } = useRole();
+  const readOnly = context?.role === 'executive';
   const {
     state,
     updateMetadata,
@@ -111,6 +114,7 @@ export function ScenarioWorkspace({ scenarioId, onBack }: Props) {
             onApplyAction={applyAction}
             projectStates={scenario.project_states}
             loading={loading}
+            readOnly={readOnly}
           />
         </div>
 

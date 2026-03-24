@@ -14,7 +14,9 @@
 | Suite 6 — Capacity Management | 14 (CAP-01 to CAP-14) | 14 | 0 | 0 | All pass. All role gates, heatmap, drill-down, requests, and pivot views working. |
 | Suite 7 — What-If Simulator | 16 (SIM-01 to SIM-16) | 14 | 0 | 2 | SIM-14 partial: AI Advisor opens but no pre-loaded suggestions. SIM-16 partial: Executive read-only not enforced. |
 | Suite 8 — Reporting | 13 (RPT-01 to RPT-13) | 13 | 0 | 0 | All pass. All 5 reports, saved views, custom groups, drill-down, monthly toggle, column config working. |
-| **TOTAL** | **103** | **96** | **1** | **6** | |
+| Suite 9 — Administration | 18 (ADM-01 to ADM-18) | 18 | 0 | 0 | All pass. Role gate, CRUD, hierarchy, deactivation, reset all working. |
+| Suite 10 — Cross-Module Integration | 12 (XM-01 to XM-12) | 10 | 0 | 2 | XM-01 partial: overdue forecast action links to /portfolio not /workbench. XM-11 partial: PL has no Resubmit button after send-back. |
+| **TOTAL** | **133** | **124** | **1** | **8** | |
 
 ## Issues
 
@@ -60,7 +62,7 @@
 
 ## Session C Issues (Suites 7-8)
 
-### UI-004: Simulator Executive read-only not enforced (P2)
+### UI-004: Simulator Executive read-only not enforced (P2) — FIXED
 - **Category:** Functional Bug
 - **Suite/Scenario:** Suite 7 / SIM-16
 - **Persona:** Thomas Becker (Executive)
@@ -70,7 +72,8 @@
   - Remove (X) buttons visible on applied actions
 - **Expected:** Executive should have view-only access — "Create New Scenario" button hidden/disabled, ADD ACTION section hidden, remove buttons hidden.
 - **Impact:** Executive can modify scenarios that should be read-only for them.
-- **Files to check:** `frontend/src/modules/simulator/` — need role-based conditional rendering
+- **Fix:** Added `readOnly` prop chain: `ScenarioManager` hides Create button for executive, `ScenarioWorkspace` passes `readOnly` to `ActionPanel`, which hides AddActionForm/metadata editing and passes to `ActionItem` to hide remove buttons.
+- **Files Changed:** `ScenarioManager.tsx`, `ScenarioWorkspace.tsx`, `ActionPanel.tsx`, `ActionItem.tsx`
 
 ### UI-005: AI Advisor panel has no pre-loaded suggestions (P3)
 - **Category:** UX Gap
@@ -80,3 +83,43 @@
 - **Expected:** Panel should show pre-loaded AI-generated optimization paths/recommendations with Apply buttons.
 - **Impact:** Low — the panel works functionally (input + analyze), just no pre-loaded suggestions. May be by design for the demo.
 - **Files to check:** `frontend/src/modules/simulator/AIAdvisorPanel.tsx`, `backend/seed/fixtures/advisor_goals.json`
+
+---
+
+## Session D Issues (Suites 9-10)
+
+### UI-006: Overdue forecast pending action links to Portfolio instead of Workbench (P3) — FIXED
+- **Category:** Navigation Bug
+- **Suite/Scenario:** Suite 10 / XM-01
+- **Persona:** Anna Meier (Controller)
+- **Details:** On the Launchpad, clicking the "Projects with overdue forecasts — ERP Integration Phase 2" pending action navigates to `/portfolio` (Dashboard tab) instead of `/workbench?project=proj-erp2`. CR-related pending actions correctly navigate to `/portfolio/approvals?cr=19`.
+- **Expected:** Overdue forecast actions should navigate to the Workbench with the relevant project pre-selected.
+- **Impact:** Low — user must manually navigate to Workbench after clicking. CR deep links work correctly.
+- **Fix:** Changed Controller's overdue forecast pending action to use `deep_link_module="workbench"` with first overdue project ID and `deep_link_tab="forecast"`.
+- **Files Changed:** `backend/routers/global_launchpad.py`
+
+### UI-007: PL cannot resubmit after Controller send-back (P2) — FIXED
+- **Category:** Functional Bug
+- **Suite/Scenario:** Suite 10 / XM-11
+- **Persona:** Priya Sharma (Project Lead)
+- **Details:** After Controller sends back a submission with feedback, the PL can see the "Changes Requested" status and the controller's feedback text in the Intake Queue side panel. However, there is no "Resubmit for Approval" button available for the PL to resubmit the project. The side panel shows only "Open Full Detail" with no action buttons.
+- **Expected:** PL should see a "Resubmit for Approval" button in the side panel (or on the full detail page) to resubmit the project after addressing feedback.
+- **Impact:** Medium — the send-back workflow is incomplete without the resubmit action. Controller can send back, PL sees feedback, but cannot complete the cycle.
+- **Fix:** Added `handleResubmit` function and "Resubmit for Approval" button block to `IntakeDetailPanel.tsx` for non-Controller users when status is `changes_requested`. Shows amber feedback banner and button that calls `portfolioApi.resubmitIntake()`.
+- **Files Changed:** `frontend/src/modules/portfolio/intake/IntakeDetailPanel.tsx`
+
+### UI-008: React key warning in CompetenceCentersPanel (P3) — FIXED
+- **Category:** Code Quality
+- **Suite/Scenario:** Suite 9 / ADM-05
+- **Persona:** Anna Meier (Controller)
+- **Details:** When expanding a Competence Center to view assigned employees, React logs "Each child in a list should have a unique key prop" warnings from `CompetenceCentersPanel` `tbody`. This occurs 4 times (once per expanded CC).
+- **Expected:** No console warnings.
+- **Impact:** Cosmetic — functionality works correctly, but React dev warnings indicate missing key props on list items.
+- **Fix:** Changed bare `<>` fragment to `<Fragment key={item.id}>` in the `.map()` loop.
+- **Files Changed:** `frontend/src/modules/admin/entities/CompetenceCentersPanel.tsx`
+
+### SPEC-003: Test plan persona storage key mismatch (P3) — FIXED
+- **Category:** Spec Gap
+- **Details:** Test plan Section 4 lists persona storage key as `selected-persona` but actual localStorage key used by the app is `creta-persona`.
+- **Impact:** Informational — testers switching roles via localStorage need to use the correct key.
+- **Fix needed:** Update `qa/test-plan.md` Section 4 to reference `creta-persona` as the storage key.

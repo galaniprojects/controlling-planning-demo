@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Plus, Pencil, ChevronDown, ChevronRight, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -182,7 +182,7 @@ export function CompetenceCentersPanel({ onDataChanged }: CompetenceCentersPanel
           </TableHeader>
           <TableBody>
             {items.map((item) => (
-              <>
+              <Fragment key={item.id}>
                 <TableRow key={item.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => toggleExpand(item.id)}>
                   <TableCell className="px-3 py-2">
                     {expandedId === item.id
@@ -265,7 +265,7 @@ export function CompetenceCentersPanel({ onDataChanged }: CompetenceCentersPanel
                     </TableCell>
                   </TableRow>
                 )}
-              </>
+              </Fragment>
             ))}
             {items.length === 0 && (
               <TableRow>

@@ -348,7 +348,9 @@ def get_pending_actions(
                 title="Projects with overdue forecasts",
                 description=f"{names}{suffix}",
                 urgency="info",
-                deep_link_module="portfolio",
+                deep_link_module="workbench",
+                deep_link_entity_id=overdue_projects[0].id,
+                deep_link_tab="forecast",
             ))
 
         # Action #4: CR Pending Approval (Stage 2)

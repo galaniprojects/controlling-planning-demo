@@ -1,9 +1,62 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: QA E2E Testing — **Session C complete**
-Last completed: QA Session C — Suites 7-8 (What-If Simulator, Reporting)
+Phase: QA E2E Testing — **All sessions complete, all fixes applied**
+Last completed: QA Session D Fix — All outstanding issues resolved
 Branch: `qa/e2e-session-b-fixes`
+
+## QA Session D — Fix Session (2026-03-24)
+
+### Bug Fixes
+- [x] UI-004 (P2): Executive read-only in Simulator — added `readOnly` prop chain through `ScenarioManager` (hide Create button), `ScenarioWorkspace` → `ActionPanel` (hide AddActionForm, make metadata read-only) → `ActionItem` (hide remove button)
+- [x] UI-006 (P3): Controller overdue forecast deep link — changed `deep_link_module` from `"portfolio"` to `"workbench"` with first overdue project ID and `deep_link_tab="forecast"` in `global_launchpad.py`
+- [x] UI-007 (P2): PL resubmit button — added `handleResubmit` function and "Resubmit for Approval" button to `IntakeDetailPanel.tsx` for non-Controller users when status is `changes_requested`
+- [x] UI-008 (P3): React key warning — changed bare `<>` fragment to `<Fragment key={item.id}>` in `CompetenceCentersPanel.tsx`
+- [x] SPEC-002 (P3): Updated test plan persona IDs (`persona-pl`, `persona-exec`)
+- [x] SPEC-003 (P3): Documented correct localStorage key (`creta-persona`)
+
+### Verification
+- [x] Executive on Simulator: "Create New Scenario" hidden, AddActionForm hidden, remove buttons hidden, metadata read-only
+- [x] Controller Launchpad: "Projects with overdue forecasts" navigates to `/workbench?project=proj-erp2&tab=forecast`
+- [x] PL resubmit: Send-back → "Resubmit for Approval" button visible → click → status returns to "Pending Approval"
+- [x] CC expand: Zero React key warnings in console
+- [x] Full module audit: Zero console errors, zero failed network requests across all 7 modules
+
+### Final Cumulative Results
+- **133 scenarios tested across 10 suites**
+- **All issues resolved: 8 partial → 0 partial (after fixes from Sessions B and D)**
+- **UI-005 (AI Advisor pre-loaded suggestions) remains as by-design — not a bug**
+
+## QA E2E Session D — Administration + Cross-Module (2026-03-24)
+
+### Test Results
+- **Suite 9 — Administration (ADM-01 to ADM-18):** 18/18 pass
+- **Suite 10 — Cross-Module Integration (XM-01 to XM-12):** 10/12 pass, 2 partial
+  - XM-01 partial: Overdue forecast pending action links to /portfolio instead of /workbench
+  - XM-11 partial: PL has no "Resubmit" button after Controller send-back
+- **Total: 30 scenarios, 28 pass, 0 fail, 2 partial**
+- **Cumulative (Sessions A+B+C+D): 133 scenarios, 124 pass, 0 fail, 8 partial (4 fixed in Session B)**
+
+### Bugs Found
+- **UI-006 (P3):** Overdue forecast pending action links to /portfolio instead of /workbench with project selected
+- **UI-007 (P2):** PL cannot resubmit after Controller send-back — no "Resubmit for Approval" button in Intake Queue side panel
+- **UI-008 (P3):** React key warning in CompetenceCentersPanel when expanding CC employee list
+- **SPEC-003 (P3):** Test plan references `selected-persona` localStorage key; actual key is `creta-persona`
+
+### Observations
+- Administration module is fully functional: all 9 entity panels load correctly, CRUD operations work, deactivation pattern works (entities go Inactive, not deleted), reset demo restores all data
+- Summary cards: Cost Centers 10, Active People 52 (KNOWN-15), LoB 4, Locations 3, CCs 4
+- Portfolio Hierarchy: all 4 tabs functional (Hierarchies, Entity Types, Entities, Hierarchy Assignment), LoB Structure active with correct levels
+- Cross-module navigation works: Portfolio→Workbench (via side panel), Capacity→Workbench (via drill-down project links), Launchpad→Portfolio CR Approvals (via pending actions)
+- Hierarchy label propagation confirmed: "Line of Business" label dynamically shown in Portfolio filters, Reporting filters
+- EUR formatting consistent across all modules (dot thousands, comma decimals)
+- Context-sensitive year expansion verified: active→2026, completed→final year (2023), future→start year (2026)
+- Zero failed network requests across all 7 modules
+- Console errors: only React key warnings from CompetenceCentersPanel (cosmetic)
+
+### Next Steps
+- Fix session: Address UI-007 (P2, PL resubmit button) and UI-004 (P2, Executive read-only in Simulator)
+- Optionally fix: UI-006 (P3, overdue forecast deep link), UI-008 (P3, React key warnings)
 
 ## QA E2E Session A — Global Shell + Portfolio Overview (2026-03-24)
 
