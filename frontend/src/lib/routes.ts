@@ -5,6 +5,7 @@ export const MODULE_ROUTES: Record<string, string> = {
   simulator: '/simulator',
   reporting: '/reporting',
   admin: '/admin',
+  documentation: '/docs',
 };
 
 export const ROUTE_LABELS: Record<string, string> = {
@@ -18,4 +19,5 @@ export const ROUTE_LABELS: Record<string, string> = {
   '/simulator': 'What-If Simulator',
   '/reporting': 'Reporting',
   '/admin': 'Administration',
+  '/docs': 'Documentation',
 };
