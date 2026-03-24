@@ -97,7 +97,7 @@ export function Phase3EditForecast({
   };
 
   // Convert all deltas to EUR: internal deltas are hours × hourly_rate, external are already EUR
-  const totalDeltaEurEur = workingChanges.reduce((sum, c) => {
+  const totalDeltaEur = workingChanges.reduce((sum, c) => {
     if (c.category === 'internal') {
       const row = rows.find((r) => r.sub_category === c.sub_category && r.category === 'internal');
       const rate = row?.hourly_rate ?? 0;
