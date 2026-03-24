@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { formatCurrency, formatNumber } from '@/lib/formatters';
+import { formatCurrencyCompact, formatNumber } from '@/lib/formatters';
 import { formatMonthShort, isElapsedMonth } from '@/lib/yearColumns';
 import { useCollapsibleYears } from '@/hooks/useCollapsibleYears';
 import type { VisibleColumn } from '@/hooks/useCollapsibleYears';
@@ -130,7 +130,7 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
         <TableCell key={`sum-${col.year}`} className="text-right border-l-2 border-slate-300">
           <div>
             <span className="font-tabular font-medium">
-              {formatNumber(totalHours)}h / {formatCurrency(totalEur)}
+              {formatNumber(totalHours)}h / {formatCurrencyCompact(totalEur)}
             </span>
             <span className="block text-[10px] text-slate-400 font-tabular">
               BL: {formatNumber(blTotalHours)}h
@@ -149,14 +149,14 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
         {cell ? (
           <div>
             <span className="font-tabular font-medium">
-              {formatNumber(cell.forecast_hours)}h / {formatCurrency(cell.forecast_amount)}
+              {formatNumber(cell.forecast_hours)}h / {formatCurrencyCompact(cell.forecast_amount)}
             </span>
             <span className="block text-[10px] text-slate-400 font-tabular">
               BL: {formatNumber(cell.baseline_hours)}h
             </span>
             {cell.actuals_hours > 0 && (
               <span className="block text-[10px] text-slate-400 font-tabular">
-                Act: {formatNumber(cell.actuals_hours)}h / {formatCurrency(cell.actuals_amount)}
+                Act: {formatNumber(cell.actuals_hours)}h / {formatCurrencyCompact(cell.actuals_amount)}
               </span>
             )}
           </div>
@@ -174,9 +174,9 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
       return (
         <TableCell key={`sum-${col.year}`} className="text-right border-l-2 border-slate-300">
           <div>
-            <span className="font-tabular font-medium">{formatCurrency(total)}</span>
+            <span className="font-tabular font-medium">{formatCurrencyCompact(total)}</span>
             <span className="block text-[10px] text-slate-400 font-tabular">
-              BL: {formatCurrency(blTotal)}
+              BL: {formatCurrencyCompact(blTotal)}
             </span>
           </div>
         </TableCell>
@@ -192,14 +192,14 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
         {cell ? (
           <div>
             <span className="font-tabular font-medium">
-              {formatCurrency(cell.forecast_amount)}
+              {formatCurrencyCompact(cell.forecast_amount)}
             </span>
             <span className="block text-[10px] text-slate-400 font-tabular">
-              BL: {formatCurrency(cell.baseline_amount)}
+              BL: {formatCurrencyCompact(cell.baseline_amount)}
             </span>
             {cell.actuals_amount > 0 && (
               <span className="block text-[10px] text-slate-400 font-tabular">
-                Act: {formatCurrency(cell.actuals_amount)}
+                Act: {formatCurrencyCompact(cell.actuals_amount)}
               </span>
             )}
           </div>
