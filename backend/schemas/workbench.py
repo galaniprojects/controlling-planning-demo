@@ -68,3 +68,4 @@ class CRHistoryItem(BaseModel):
     submitted_by: str
     submission_date: str
     changes: list[dict]
+    impact_eur: float | None = None

@@ -522,6 +522,7 @@ export interface CRHistoryItem {
   submitted_by: string;
   submission_date: string;
   changes: CRHistoryChange[];
+  impact_eur: number | null;
 }
 
 // --- Capacity Management ---

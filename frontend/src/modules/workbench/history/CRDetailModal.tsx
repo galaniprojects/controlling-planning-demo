@@ -52,7 +52,7 @@ export function CRDetailModal({ projectId, crId, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <div className="space-y-2">
             {loading ? (
@@ -95,7 +95,7 @@ export function CRDetailModal({ projectId, crId, open, onOpenChange }: Props) {
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 mt-4">
+        <div className="space-y-4 mt-4 overflow-y-auto flex-1 min-h-0">
           {loading ? (
             <div className="space-y-3">
               <Skeleton className="h-8 w-full" />

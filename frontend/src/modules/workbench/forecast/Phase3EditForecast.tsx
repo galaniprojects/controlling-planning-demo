@@ -10,7 +10,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { formatCurrency, formatCurrencyDetailed } from '@/lib/formatters';
+import { formatCurrency, formatCurrencyCompact, formatCurrencyDetailed } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { workbenchApi } from '@/api/endpoints';
 import type { ForecastGridRow, ForecastChange, ForecastMonthCell, SuggestionItem } from '@/types/api';
@@ -96,7 +96,15 @@ export function Phase3EditForecast({
     );
   };
 
-  const totalDelta = workingChanges.reduce((sum, c) => sum + c.delta, 0);
+  // Convert all deltas to EUR: internal deltas are hours × hourly_rate, external are already EUR
+  const totalDeltaEurEur = workingChanges.reduce((sum, c) => {
+    if (c.category === 'internal') {
+      const row = rows.find((r) => r.sub_category === c.sub_category && r.category === 'internal');
+      const rate = row?.hourly_rate ?? 0;
+      return sum + c.delta * rate;
+    }
+    return sum + c.delta;
+  }, 0);
 
   const isEditable = (month: string) => month >= DEMO_DATE;
 
@@ -373,15 +381,15 @@ export function Phase3EditForecast({
       <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
         <span className="text-sm text-slate-600">
           {workingChanges.length} change{workingChanges.length !== 1 ? 's' : ''}
-          {totalDelta !== 0 && (
+          {totalDeltaEur !== 0 && (
             <span
               className={cn(
                 'ml-2 font-medium',
-                totalDelta > 0 ? 'text-red-600' : 'text-green-600',
+                totalDeltaEur > 0 ? 'text-red-600' : 'text-green-600',
               )}
             >
-              (total impact: {totalDelta > 0 ? '+' : ''}
-              {formatCurrency(totalDelta)})
+              (total impact: {totalDeltaEur > 0 ? '+' : ''}
+              {formatCurrencyCompact(totalDeltaEur)})
             </span>
           )}
         </span>

@@ -6,6 +6,7 @@ import { DetailViewGrid } from '@/components/shared/DetailViewGrid';
 import { DetailViewKPIStrip } from '@/components/shared/DetailViewKPIStrip';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { cn } from '@/lib/utils';
+import { formatCurrencyCompact } from '@/lib/formatters';
 import type { CRHistoryItem } from '@/types/api';
 import type { DetailViewGridData } from '@/lib/detailViewTypes';
 import { ChevronDown, Sparkles } from 'lucide-react';
@@ -96,6 +97,16 @@ export function CRHistoryList({ items, projectId }: Props) {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {cr.impact_eur != null && (
+                  <span
+                    className={cn(
+                      'text-xs font-medium whitespace-nowrap',
+                      cr.impact_eur < 0 ? 'text-emerald-600' : cr.impact_eur > 0 ? 'text-red-600' : 'text-slate-500',
+                    )}
+                  >
+                    {cr.impact_eur > 0 ? '+' : ''}{formatCurrencyCompact(cr.impact_eur)}
+                  </span>
+                )}
                 <Badge variant="outline" className="text-[10px] capitalize">
                   {cr.change_category.replace('_', ' ')}
                 </Badge>

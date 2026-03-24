@@ -11,7 +11,7 @@ import { useMemo } from 'react';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { useCollapsibleYears, type VisibleColumn } from '@/hooks/useCollapsibleYears';
 import { isElapsedMonth, formatMonthShort } from '@/lib/yearColumns';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrencyDetailed } from '@/lib/formatters';
 import { Skeleton } from '@/components/shared/Skeleton';
 import type { DetailViewLineItem, DetailViewMonthValue } from '@/lib/detailViewTypes';
 
@@ -36,7 +36,7 @@ function fmtHours(v: number): string {
 
 function fmtEur(v: number): string {
   if (v === 0) return '—';
-  return formatCurrency(v);
+  return formatCurrencyDetailed(v);
 }
 
 function fmtPrimary(v: number, unit: 'hours' | 'eur'): string {
@@ -46,7 +46,7 @@ function fmtPrimary(v: number, unit: 'hours' | 'eur'): string {
 function fmtDeltaPrimary(delta: number, unit: 'hours' | 'eur'): string {
   const sign = delta > 0 ? '+' : '';
   if (unit === 'hours') return `${sign}${Math.round(delta)}h`;
-  return `${sign}${formatCurrency(delta)}`;
+  return `${sign}${formatCurrencyDetailed(delta)}`;
 }
 
 /** Inline compact: "160h (€19.2K)" or just "€30K" */

@@ -29,16 +29,35 @@ export function formatCurrencyDelta(value: number): string {
 }
 
 /**
- * Detailed European currency for table cells.
- * Examples: €14.400,00  €1.200.000,00  €850,00
+ * Detailed European currency for table cells (no decimals).
+ * Examples: 8.340 €  1.200.000 €  850 €
  */
 export function formatCurrencyDetailed(value: number): string {
   return new Intl.NumberFormat('de-DE', {
     style: 'currency',
     currency: 'EUR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(value);
+}
+
+/**
+ * Compact European currency for grid cells — K with up to 2 decimals.
+ * Examples: 6,35K €  14,4K €  850 €  1,2M €
+ */
+export function formatCurrencyCompact(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
+  if (abs >= 1_000_000) {
+    const m = (abs / 1_000_000).toFixed(2).replace('.', ',').replace(/,?0+$/, '');
+    return `${sign}${m}M €`;
+  }
+  if (abs >= 1_000) {
+    const k = (abs / 1_000).toFixed(2).replace('.', ',').replace(/,?0+$/, '');
+    return `${sign}${k}K €`;
+  }
+  if (abs === 0) return '—';
+  return `${sign}${Math.round(abs)} €`;
 }
 
 /**
