@@ -28,3 +28,6 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Local guide/spec documents (not synced to GitHub)
+guides/
