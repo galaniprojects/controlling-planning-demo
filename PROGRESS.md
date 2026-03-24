@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: QA E2E Testing — **Session B complete**
-Last completed: QA Session B — Suites 4-6 (Workbench, Forecast Wizard, Capacity Management)
-Branch: `qa/e2e-session-a-fixes`
+Phase: QA E2E Testing — **Session C complete**
+Last completed: QA Session C — Suites 7-8 (What-If Simulator, Reporting)
+Branch: `qa/e2e-session-b-fixes`
 
 ## QA E2E Session A — Global Shell + Portfolio Overview (2026-03-24)
 
@@ -67,7 +67,32 @@ Branch: `qa/e2e-session-a-fixes`
 - [x] Zero console errors across all verification steps
 
 ### Next Steps
-- QA Session C: Suites 7-8 (Simulator + Reporting)
+- QA Session C: Suites 7-8 (Simulator + Reporting) — DONE
+- QA Session D: Suites 9-10 (Administration + Cross-Module)
+
+## QA E2E Session C — Simulator + Reporting (2026-03-24)
+
+### Test Results
+- **Suite 7 — What-If Simulator (SIM-01 to SIM-16):** 14/16 pass, 2 partial
+  - SIM-14 partial: AI Advisor panel opens but shows no pre-loaded suggestions (only text input + Analyze button)
+  - SIM-16 partial: Executive can access Simulator but read-only not enforced (Create, Add Action, Remove buttons all visible/enabled)
+- **Suite 8 — Reporting (RPT-01 to RPT-13):** 13/13 pass
+- **Total: 29 scenarios, 27 pass, 0 fail, 2 partial**
+- **Cumulative (Sessions A+B+C): 103 scenarios, 96 pass, 0 fail, 6 partial (4 fixed in Session B)**
+
+### Bugs Found
+- **UI-004 (P2):** Simulator Executive read-only not enforced — "Create New Scenario" button enabled, ADD ACTION form visible, remove buttons visible for Executive persona. All modification controls should be hidden/disabled for read-only access.
+- **UI-005 (P3):** AI Advisor panel has no pre-loaded suggestions — opens with text input and "Analyze Portfolio" button only. No pre-built optimization paths with Apply buttons. May be by design.
+
+### Observations
+- What-If Simulator core functionality is solid: scenario CRUD, 7 project-level + 6 portfolio-level action types, full recalculation pipeline, KPI comparison strip, time frame breakdown, portfolio impact tree with drill-down drawer, scenario comparison view, publish/unpublish workflow
+- All 3 pre-built scenarios have correct headline impacts (-€502K, +€490K, -€2,8M)
+- Reporting module is fully functional: all 5 reports load with data, saved views CRUD works, custom project groupings with search/save/load, vendor drill-down to line items, YoY monthly toggle with month filters, column configurator, dynamic hierarchy labels
+- EUR formatting consistent across all modules (European convention)
+- Zero console errors, zero failed network requests throughout all 29 scenarios
+
+### Next Steps
+- QA Session C Fix: Address UI-004 (Executive read-only) — priority P2
 - QA Session D: Suites 9-10 (Administration + Cross-Module)
 
 ## v4 Session 6 — UX Polish (2026-03-24, continued)

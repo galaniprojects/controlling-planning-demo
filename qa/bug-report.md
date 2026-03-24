@@ -12,7 +12,9 @@
 | Suite 4 — Project Workbench | 17 (WB-01 to WB-17) | 16 | 0 | 1 | WB-12 partial: completed projects don't auto-expand final year in Forecast Grid. |
 | Suite 5 — Forecast Wizard | 10 (FW-01 to FW-10) | 7 | 1 | 2 | FW-05 FAIL: Phase 3 crashes (blank screen). FW-06/FW-07 blocked by Phase 3 crash. |
 | Suite 6 — Capacity Management | 14 (CAP-01 to CAP-14) | 14 | 0 | 0 | All pass. All role gates, heatmap, drill-down, requests, and pivot views working. |
-| **TOTAL** | **74** | **69** | **1** | **4** | |
+| Suite 7 — What-If Simulator | 16 (SIM-01 to SIM-16) | 14 | 0 | 2 | SIM-14 partial: AI Advisor opens but no pre-loaded suggestions. SIM-16 partial: Executive read-only not enforced. |
+| Suite 8 — Reporting | 13 (RPT-01 to RPT-13) | 13 | 0 | 0 | All pass. All 5 reports, saved views, custom groups, drill-down, monthly toggle, column config working. |
+| **TOTAL** | **103** | **96** | **1** | **6** | |
 
 ## Issues
 
@@ -53,3 +55,28 @@
 - **Details:** Test plan Section 4 lists persona storage IDs as `persona-project-lead` and `persona-executive`, but actual IDs are `persona-pl` and `persona-exec`.
 - **Impact:** Informational only — testers using localStorage directly would get 404s.
 - **Fix needed:** Update `qa/test-plan.md` persona table to use correct IDs.
+
+---
+
+## Session C Issues (Suites 7-8)
+
+### UI-004: Simulator Executive read-only not enforced (P2)
+- **Category:** Functional Bug
+- **Suite/Scenario:** Suite 7 / SIM-16
+- **Persona:** Thomas Becker (Executive)
+- **Details:** Executive role can access the Simulator (correct) but all modification controls are visible and enabled:
+  - "Create New Scenario" button is enabled on the Scenario Manager page
+  - "ADD ACTION" form with action type dropdown, project selector, and "Apply Action" button visible in workspace
+  - Remove (X) buttons visible on applied actions
+- **Expected:** Executive should have view-only access — "Create New Scenario" button hidden/disabled, ADD ACTION section hidden, remove buttons hidden.
+- **Impact:** Executive can modify scenarios that should be read-only for them.
+- **Files to check:** `frontend/src/modules/simulator/` — need role-based conditional rendering
+
+### UI-005: AI Advisor panel has no pre-loaded suggestions (P3)
+- **Category:** UX Gap
+- **Suite/Scenario:** Suite 7 / SIM-14
+- **Persona:** Anna Meier (Controller)
+- **Details:** AI Advisor panel opens with a text input field and "Analyze Portfolio" button, but does not show pre-loaded optimization suggestions with "Apply" buttons as described in the test plan. The user must type a goal and click Analyze to get recommendations.
+- **Expected:** Panel should show pre-loaded AI-generated optimization paths/recommendations with Apply buttons.
+- **Impact:** Low — the panel works functionally (input + analyze), just no pre-loaded suggestions. May be by design for the demo.
+- **Files to check:** `frontend/src/modules/simulator/AIAdvisorPanel.tsx`, `backend/seed/fixtures/advisor_goals.json`
