@@ -136,7 +136,7 @@ def get_project_overview(
 
     return {
         "metadata": {
-            "id": project.id, "name": project.name, "lob": project.lob_id,
+            "id": project.id, "name": project.name, "lob": project.lob.name if project.lob else project.lob_id,
             "status": project.status, "rag": project.rag_status,
             "timeline": {"start": project.start_month, "end": project.end_month, "projected_end": project.projected_end_month},
             "pl_name": project.pl.name if project.pl else None,
