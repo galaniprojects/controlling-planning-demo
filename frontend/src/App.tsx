@@ -10,6 +10,7 @@ import { CapacityManagement } from '@/modules/capacity/CapacityManagement';
 import { WhatIfSimulator } from '@/modules/simulator/WhatIfSimulator';
 import { Reporting } from '@/modules/reporting/Reporting';
 import { Administration } from '@/modules/admin/Administration';
+import { DocumentationHub } from '@/modules/docs/DocumentationHub';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
                 <Route path="/simulator/*" element={<WhatIfSimulator />} />
                 <Route path="/reporting/*" element={<Reporting />} />
                 <Route path="/admin/*" element={<Administration />} />
+                <Route path="/docs/*" element={<DocumentationHub />} />
               </Routes>
             </AppLayout>
           </BottomDrawerProvider>

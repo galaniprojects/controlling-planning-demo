@@ -37,16 +37,15 @@ From the project root:
 ./start.sh
 ```
 
-This single script:
+This script:
 1. Starts the backend (FastAPI on port 8000)
-2. Resets demo data to a clean state
-3. Starts the frontend (Vite on port 5173)
+2. Waits for the backend health check to pass
+3. Resets demo data to a clean state
+4. Starts the frontend dev server (Vite on port 5173)
 
 Once running, open **http://localhost:5173** in your browser. Press `Ctrl+C` to stop both servers.
 
----
-
-## Manual Start (alternative)
+### Manual Start (alternative)
 
 If you prefer to run each server in a separate terminal:
 
@@ -62,26 +61,82 @@ python main.py
 ```bash
 cd frontend
 npm run dev
-# Runs on http://localhost:5173 (proxies /api/* to port 8000)
+# Runs on http://localhost:5173
 ```
+
+---
+
+## Project Structure
+
+```
+vision-demo-prototype/
+├── backend/                # FastAPI + SQLAlchemy + SQLite
+│   ├── main.py             # App entry point (port 8000)
+│   ├── models/             # SQLAlchemy ORM models
+│   ├── routers/            # API route handlers (9 routers, 90+ endpoints)
+│   ├── seed/               # seed.sql + JSON fixtures
+│   └── requirements.txt
+├── frontend/               # React + Vite + shadcn/ui + Recharts
+│   ├── src/
+│   │   ├── modules/        # 7 module UIs (launchpad, portfolio, workbench, capacity, simulator, reporting, admin)
+│   │   ├── components/     # Shared components (layout, ui, charts)
+│   │   ├── contexts/       # React contexts (Role, SidePanel, BottomDrawer)
+│   │   ├── hooks/          # Custom hooks
+│   │   ├── api/            # API client + endpoint definitions
+│   │   └── App.tsx         # Router (7 module routes)
+│   └── vite.config.ts      # Dev server config (proxy /api/* to port 8000)
+├── qa/                     # Quality assurance
+│   ├── test-plan.md        # E2E regression test plan (138 scenarios, 10 suites)
+│   └── bug-report.md       # Created during testing sessions
+├── .claude/
+│   └── launch.json         # Claude Code preview server configs
+├── start.sh                # One-command app launcher
+├── CLAUDE.md               # Claude Code project instructions
+├── PROGRESS.md             # Build progress tracker
+└── SETUP.md                # This file
+```
+
+---
+
+## Key URLs
+
+| URL | Description |
+|-----|-------------|
+| http://localhost:5173 | Frontend app |
+| http://localhost:8000 | Backend API |
+| http://localhost:8000/docs | Swagger UI (interactive API docs) |
+| http://localhost:8000/health | Health check endpoint |
+
+The Vite dev server proxies all `/api/*` requests to the backend, so the frontend only talks to `localhost:5173` in development.
 
 ---
 
 ## Demo Personas
 
-The app includes 4 demo personas, selectable via the role switcher in the top right:
+The app includes 4 demo personas, selectable via the role switcher dropdown in the top-right corner:
 
-| Persona | Name | Role | Access |
-|---------|------|------|--------|
-| `persona-controller` | Anna Meier | Controller | Full access (admin, approvals, scenarios) |
-| `persona-cc-owner` | Thomas Brenner | Cost Center Owner | Capacity management (cc-muc-appdev) |
-| `persona-pl` | Priya Sharma | Project Lead | Project workbench, forecast cycles |
-| `persona-exec` | Dr. Klaus Weber | Executive | Dashboard, scenarios (read-only) |
+| ID | Name | Role | Title | Default Module | Key Access |
+|----|------|------|-------|----------------|------------|
+| `persona-controller` | Anna Meier | Controller | IT Controller | Portfolio | Full access — all modules, admin, approvals, scenarios |
+| `persona-cc-owner` | Thomas Brenner | CC Owner | Head of Application Dev | Capacity | Capacity management (cc-muc-apd), portfolio dashboard |
+| `persona-pl` | Priya Sharma | Project Lead | Senior Project Lead | Workbench | Project workbench, forecast cycles, intake submission |
+| `persona-exec` | Thomas Becker | Executive | VP IT Strategy | Portfolio | Portfolio dashboard, simulator (read-only) |
 
 For direct API access, pass the persona as a header:
 ```bash
 curl -H "X-Current-User: persona-controller" http://localhost:8000/api/portfolio/kpis
 ```
+
+---
+
+## Demo Context
+
+- **Demo date:** March 2026 — all time-dependent logic (actuals cutoffs, forecast boundaries, elapsed month tinting) uses this date
+- **Currency:** EUR with European formatting — dot for thousands, comma for decimals (e.g., EUR 14.400,00)
+- **Language:** English
+- **Data range:** FY 2021 through FY 2029 (9 fiscal years)
+- **Projects:** 32 across 4 Lines of Business
+- **People:** ~52 active across 10 cost centres in 3 locations (Munich, Budapest, Pune)
 
 ---
 
@@ -93,7 +148,22 @@ Restore the original demo state at any time:
 curl -X POST http://localhost:8000/api/admin/reset-demo
 ```
 
-Or use the Swagger UI at http://localhost:8000/docs.
+This drops and recreates all tables, re-runs `seed.sql`, and reloads JSON fixtures. It takes a few seconds. You can also trigger it from:
+- The Swagger UI at http://localhost:8000/docs
+- The Administration module in the app (Controller role only) via the "Reset Demo" button
+
+Note: `start.sh` automatically resets demo data on every launch.
+
+---
+
+## Quality Assurance
+
+QA artifacts live in the `qa/` directory:
+
+- **`qa/test-plan.md`** — E2E regression test plan (138 scenarios across 10 suites, organized into 4 testing sessions)
+- **`qa/bug-report.md`** — Created during each testing round to track issues found
+
+Testing is done via Claude Code using preview tools. See `qa/test-plan.md` for full instructions, execution protocol, and bug report template.
 
 ---
 
@@ -107,10 +177,16 @@ Or use the Swagger UI at http://localhost:8000/docs.
 - Make sure you ran `.venv/bin/pip install -r requirements.txt`
 - If using `activate`, verify the venv is active (prompt shows `(.venv)`)
 
-### "Address already in use"
+### "Address already in use" (port 8000 or 5173)
 - Find the process: `lsof -i :8000` (or `:5173`)
 - Kill it: `kill <PID>`
+- Or kill all Node/Python dev servers: `pkill -f "python main.py"; pkill -f "vite"`
 
 ### Database issues
 - Delete and restart: `rm backend/creta_demo.db` then start the backend again
-- Or use the reset endpoint above
+- The database is auto-created on startup from `seed.sql`
+- Or use the reset endpoint: `curl -X POST http://localhost:8000/api/admin/reset-demo`
+
+### Frontend proxy errors (ECONNREFUSED on /api/*)
+- Make sure the backend is running on port 8000 before starting the frontend
+- `start.sh` handles this automatically (waits for backend health check)

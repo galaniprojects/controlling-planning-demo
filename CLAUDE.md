@@ -58,11 +58,19 @@
 4. **Work:** Continue from where the last session left off
 5. **End:** Update `PROGRESS.md` with completed work, next steps, any deviations or issues
 
+## Quality Assurance
+- `qa/test-plan.md` — Living E2E regression test plan (138 scenarios across 10 suites)
+- `qa/bug-report.md` — Created during testing sessions to track issues found
+- When asked to "start testing" or "run E2E tests", read `qa/test-plan.md` for full instructions
+- **Testing sessions are read-only:** do not fix code during testing, only document issues in `qa/bug-report.md`
+- After testing, a separate fix session addresses issues from the bug report
+
 ## Critical File Paths
 - `CPC_Demo_App_Specification.md` — Single source of truth (read-only, do not modify)
 - `Claude_Code_Handoff.md` — Build guide with phase details and architecture rules
 - `PROGRESS.md` — Build progress tracker (update every session)
 - `SETUP.md` — Setup guide for running the project (update when components change)
+- `qa/test-plan.md` — E2E regression test plan (update after every version)
 - `backend/seed/seed.sql` — All relational seed data
 - `backend/seed/fixtures/` — JSON fixtures (manuals, FAQ, AI Advisor goals)
 - `backend/models/` — SQLAlchemy ORM models

@@ -206,8 +206,11 @@ export interface ModuleManual {
 export const docsApi = {
   getModuleManual: (moduleId: string) =>
     api.get<ModuleManual>(`/api/docs/modules/${moduleId}`),
+  getAllModuleManuals: () =>
+    api.get<ListResponse<ModuleManual>>('/api/docs/modules/all'),
   getFAQs: () => api.get<ListResponse<FAQSummary>>('/api/docs/faq'),
   getFAQDetail: (faqId: string) => api.get<FAQDetail>(`/api/docs/faq/${faqId}`),
+  getAllFAQs: () => api.get<ListResponse<FAQDetail>>('/api/docs/faq/all'),
 };
 
 // --- Project Workbench ---
