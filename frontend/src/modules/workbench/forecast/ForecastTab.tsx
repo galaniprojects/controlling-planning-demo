@@ -14,6 +14,7 @@ export function ForecastTab({ projectId, role }: Props) {
   const [mode, setMode] = useState<'read' | 'cycle'>('read');
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
   const [defaultExpandedYear, setDefaultExpandedYear] = useState<number | undefined>();
+  const [projectStatus, setProjectStatus] = useState<string | null>(null);
 
   // Build sub_category → display name lookup from forecast grid
   useEffect(() => {
@@ -35,6 +36,7 @@ export function ForecastTab({ projectId, role }: Props) {
         res.metadata?.timeline?.end,
       );
       setDefaultExpandedYear(year);
+      setProjectStatus(res.metadata?.status ?? null);
     }).catch(() => {});
   }, [projectId]);
 
@@ -51,7 +53,7 @@ export function ForecastTab({ projectId, role }: Props) {
 
   return (
     <div className="space-y-4 min-w-0">
-      {role === 'project_lead' && (
+      {role === 'project_lead' && projectStatus === 'active' && (
         <div className="flex justify-end">
           <Button onClick={() => setMode('cycle')}>
             Rolling Forecast Review

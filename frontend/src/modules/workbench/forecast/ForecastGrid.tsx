@@ -74,6 +74,87 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
   const internalRows = rows.filter((r) => r.category === 'internal');
   const externalRows = rows.filter((r) => r.category === 'external');
 
+  // Column totals helper: sum a field across a set of rows for a given month
+  function sumColumnMonth(
+    targetRows: ForecastGridRow[],
+    month: string,
+    field: 'forecast_amount' | 'baseline_amount' | 'actuals_amount',
+  ): number {
+    let total = 0;
+    for (const row of targetRows) {
+      const cell = findCell(row, month);
+      if (cell) total += cell[field];
+    }
+    return total;
+  }
+
+  function sumColumnMonths(
+    targetRows: ForecastGridRow[],
+    months: string[],
+    field: 'forecast_amount' | 'baseline_amount' | 'actuals_amount',
+  ): number {
+    let total = 0;
+    for (const m of months) total += sumColumnMonth(targetRows, m, field);
+    return total;
+  }
+
+  function renderTotalRow(
+    label: string,
+    targetRows: ForecastGridRow[],
+    style: 'subtotal' | 'grand',
+  ) {
+    const bgClass = style === 'grand'
+      ? 'bg-slate-100 border-t-2 border-slate-300'
+      : 'bg-slate-50 border-t border-slate-200';
+    const labelClass = style === 'grand'
+      ? 'font-bold text-sm text-slate-800'
+      : 'font-semibold text-xs text-slate-600';
+    const valueClass = style === 'grand'
+      ? 'font-bold text-sm'
+      : 'font-semibold text-xs';
+
+    return (
+      <TableRow className={bgClass}>
+        <TableCell className={`sticky left-0 z-10 ${style === 'grand' ? 'bg-slate-100' : 'bg-slate-50'} border-r border-slate-200 whitespace-nowrap ${labelClass}`}>
+          {label}
+        </TableCell>
+        {visibleColumns.map((col) => {
+          if (col.type === 'yearSummary') {
+            const fc = sumColumnMonths(targetRows, col.months, 'forecast_amount');
+            const bl = sumColumnMonths(targetRows, col.months, 'baseline_amount');
+            return (
+              <TableCell key={`tot-ys-${col.year}`} className="text-right border-l-2 border-slate-300">
+                <div>
+                  <span className={`font-tabular ${valueClass}`}>{formatCurrencyCompact(fc)}</span>
+                  <span className="block text-[10px] text-slate-400 font-tabular">BL: {formatCurrencyCompact(bl)}</span>
+                </div>
+              </TableCell>
+            );
+          }
+          const month = col.key;
+          const elapsed = isElapsedMonth(month);
+          const fc = sumColumnMonth(targetRows, month, 'forecast_amount');
+          const bl = sumColumnMonth(targetRows, month, 'baseline_amount');
+          const act = sumColumnMonth(targetRows, month, 'actuals_amount');
+          return (
+            <TableCell
+              key={`tot-${month}`}
+              className={`text-right ${col.isJanuary ? 'border-l-2 border-slate-300' : ''} ${elapsed ? 'bg-[#fafafa]' : ''}`}
+            >
+              <div>
+                <span className={`font-tabular ${valueClass}`}>{formatCurrencyCompact(fc)}</span>
+                <span className="block text-[10px] text-slate-400 font-tabular">BL: {formatCurrencyCompact(bl)}</span>
+                {act > 0 && (
+                  <span className="block text-[10px] text-slate-400 font-tabular">Act: {formatCurrencyCompact(act)}</span>
+                )}
+              </div>
+            </TableCell>
+          );
+        })}
+      </TableRow>
+    );
+  }
+
   function renderYearHeaders() {
     return (
       <TableRow className="bg-slate-50">
@@ -218,6 +299,9 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
           {renderMonthHeaders()}
         </TableHeader>
         <TableBody>
+          {/* Grand Total at top */}
+          {renderTotalRow('Grand Total', rows, 'grand')}
+
           {/* Internal Resources group */}
           {internalRows.length > 0 && (
             <>
@@ -244,6 +328,7 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
                   {visibleColumns.map((col) => renderInternalCell(row, col))}
                 </TableRow>
               ))}
+              {renderTotalRow('Subtotal Internal', internalRows, 'subtotal')}
             </>
           )}
 
@@ -273,6 +358,7 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
                   {visibleColumns.map((col) => renderExternalCell(row, col))}
                 </TableRow>
               ))}
+              {renderTotalRow('Subtotal External', externalRows, 'subtotal')}
             </>
           )}
         </TableBody>
