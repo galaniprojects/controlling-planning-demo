@@ -18812,10 +18812,10 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-desai', 'proj-predmaint', '2027-03', 20, 1);
 
 -- Resource Requests
-INSERT INTO resource_requests (project_id, cost_center_id, request_type, role_type_id, cost_type_id, hours_or_amount_per_month, period_start, period_end, priority, status, assigned_person_id, adjusted_value, explanation, created_at, modified_at) VALUES
-('proj-predmaint', 'cc-bud-apd', 'resource', 'role-sr-dev', NULL, 60, '2026-04', '2027-03', 'high', 'pending', NULL, NULL, 'Production pilot phase requires dedicated Senior Developer from BUD/APD. Current team lacks capacity for the extended scope.', '2026-02-20 10:00:00', '2026-02-20 10:00:00'),
-('proj-erp2', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 20, '2026-04', '2026-06', 'high', 'pending', NULL, NULL, 'Additional Sr Dev hours needed for final go-live sprint (linked to CR-A).', '2026-03-05 09:00:00', '2026-03-05 09:00:00'),
-('proj-sensor', 'cc-muc-dda', 'external_cost', NULL, 'ext-cloud', 5000, '2026-04', '2026-12', 'medium', 'pending', NULL, NULL, 'AWS production infrastructure scaling (linked to CR-B).', '2026-03-08 09:30:00', '2026-03-08 09:30:00');
+INSERT INTO resource_requests (project_id, cost_center_id, request_type, role_type_id, cost_type_id, hours_or_amount_per_month, period_start, period_end, priority, status, assigned_person_id, adjusted_value, explanation, change_request_id, created_at, modified_at) VALUES
+('proj-predmaint', 'cc-bud-apd', 'resource', 'role-sr-dev', NULL, 60, '2026-04', '2027-03', 'high', 'pending', NULL, NULL, 'Production pilot phase requires dedicated Senior Developer from BUD/APD. Current team lacks capacity for the extended scope.', NULL, '2026-02-20 10:00:00', '2026-02-20 10:00:00'),
+('proj-erp2', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 20, '2026-04', '2026-06', 'high', 'pending', NULL, NULL, 'Additional Sr Dev hours needed for final go-live sprint.', 9, '2026-03-05 09:00:00', '2026-03-05 09:00:00'),
+('proj-sensor', 'cc-muc-dda', 'external_cost', NULL, 'ext-cloud', 5000, '2026-04', '2026-12', 'medium', 'pending', NULL, NULL, 'AWS production infrastructure scaling.', 15, '2026-03-08 09:30:00', '2026-03-08 09:30:00');
 
 -- =============================================================================
 -- Change Requests & CR Change Details & CR Submission Snapshots
