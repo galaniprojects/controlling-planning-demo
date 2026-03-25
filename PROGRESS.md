@@ -1,9 +1,47 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: QA E2E Testing — **All sessions complete, all fixes applied**
-Last completed: QA Session D Fix — All outstanding issues resolved
-Branch: `qa/e2e-session-b-fixes`
+Phase: Post-QA Feature Development — **Submission workflow complete, all fixes applied**
+Last completed: Submission workflow Sessions 1-4 + diff view fix + Forecast & Planning crash fix
+Branch: `main`
+
+## Submission Workflow Implementation (2026-03-25)
+
+### Sessions 1-3: Backend + Frontend Multi-Step Submission
+- [x] `ProjectSubmissionSnapshot` model for storing original and controller-proposed forecast snapshots
+- [x] `submission_feedback` field on Project model for controller feedback
+- [x] `deep_link_tab` field on Notification model for tab-level deep linking
+- [x] `POST /api/projects` — create draft project with optional resource plan and external costs
+- [x] `PUT /api/projects/{id}/submit` — submit draft for CC confirmation
+- [x] `GET /api/projects/{id}/resource-plan` — get forecast data for resource plan grid
+- [x] `PUT /api/portfolio/intake/{id}/send-back` — controller requests changes with editable grid and feedback
+- [x] `GET /api/portfolio/intake/{id}/diff` — original vs proposed comparison grid with delta coloring
+- [x] `PUT /api/portfolio/intake/{id}/accept-changes` — PL accepts controller's proposed changes
+- [x] `GET /api/portfolio/intake/{id}/editable-grid` — forecast in editable format for controller
+- [x] `ResourcePlanPage.tsx` — full resource plan editor with add/remove roles, monthly hour inputs, EUR auto-calculation
+- [x] `SubmissionDiffView.tsx` — PL diff view in Project Workbench with controller feedback and action buttons
+- [x] `EditableIntakeGrid.tsx` — click-to-edit grid for controller's change request flow
+- [x] `IntakeDiffSection.tsx` — reusable diff grid component for Portfolio Overview PL review
+- [x] `SubmitProjectDialog` refactored to Step 1 only (metadata → navigate to resource plan)
+- [x] Pending actions updated for all roles (PL, CC Owner, Controller) with deep-link support
+
+### Session 4: PL Diff View and Deep-Linking
+- [x] Project Workbench amber banner for `changes_requested` status with controller feedback
+- [x] "Review Proposed Changes" button navigates to diff view with comparison grid
+- [x] "Edit and Resubmit" button navigates to resource plan editor pre-populated with current data
+- [x] IntakeDetailWorkspace (Portfolio Overview) shows feedback card, diff grid with KPI strip, accept/edit buttons
+- [x] IntakeDetailPanel "Request Changes" button opens full detail view instead of textarea
+
+### Bug Fixes (Post-Session 4)
+- [x] **Diff view showing everything as deleted:** Root cause — `send_back_project` saved only the controller's delta (5-10 changed cells) as the `controller_proposed` snapshot. The diff endpoint compared the full original (~190 rows) against this partial snapshot, making all unchanged cells appear as `proposed = 0`. Fix: merge delta with full Forecast table before saving snapshot.
+- [x] **Forecast & Planning tab crash:** Route conflict — launchpad router (`/api/projects/{id}/forecast`) shadowed the workbench router's identical path. Launchpad returned `{months, rows}` with `value/value_eur` fields; workbench expected `{items}` with `forecast_hours/forecast_amount`. Fix: renamed launchpad endpoint to `/api/projects/{id}/resource-plan`.
+- [x] **Missing original snapshot for seed projects:** Auto-create original snapshot from current forecast data in `send_back_project` if one doesn't exist.
+
+### Verification
+- [x] Full end-to-end flow: Anna (Controller) → Request Changes → edit cells → confirm → Priya (PL) → Review Proposed Changes → only changed cells highlighted (green for reduction)
+- [x] Both paths verified: Project Workbench diff view and Portfolio Overview IntakeDetailWorkspace diff view
+- [x] KPI strip shows correct Original Plan / Proposed Changes / Impact values
+- [x] Forecast & Planning tab loads correctly after route conflict fix
 
 ## QA Session D — Fix Session (2026-03-24)
 
