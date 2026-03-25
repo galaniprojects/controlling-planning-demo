@@ -597,6 +597,20 @@ def send_back_project(
     project.status = "changes_requested"
     project.submission_feedback = body.comments
 
+    # Ensure an "original" snapshot exists (captures current forecast before controller edits)
+    existing_original = (
+        db.query(ProjectSubmissionSnapshot)
+        .filter(
+            ProjectSubmissionSnapshot.project_id == project_id,
+            ProjectSubmissionSnapshot.snapshot_type == "original",
+            ProjectSubmissionSnapshot.is_active.is_(True),
+        )
+        .first()
+    )
+    if not existing_original:
+        from routers.global_launchpad import _save_forecast_snapshot
+        _save_forecast_snapshot(db, project, "original", user.person_id)
+
     # If controller provided edited forecast data, save as controller_proposed snapshot
     if body.changes:
         # Deactivate previous controller_proposed snapshots
