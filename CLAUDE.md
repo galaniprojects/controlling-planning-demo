@@ -58,6 +58,12 @@
 4. **Work:** Continue from where the last session left off
 5. **End:** Update `PROGRESS.md` with completed work, next steps, any deviations or issues
 
+## Documentation Updates (Non-Negotiable)
+- **Any time API endpoints are added, changed, or removed**, update `README.md` (API tables) and `PROGRESS.md`
+- **Any time software features change significantly**, update `README.md` (Features section) and `PROGRESS.md`
+- **Any time new models or schema changes are made**, update `PROGRESS.md` and `docs/submission-workflow-plan.md` if relevant
+- Documentation updates are part of the definition of done — do not consider a task complete until docs are updated
+
 ## Quality Assurance
 - `qa/test-plan.md` — Living E2E regression test plan (138 scenarios across 10 suites)
 - `qa/bug-report.md` — Created during testing sessions to track issues found

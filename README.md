@@ -30,10 +30,10 @@ A full-featured IT financial planning and portfolio management demo application 
 ## Features
 
 ### Portfolio Overview
-IT portfolio dashboard with KPI tiles (CY-scoped to current fiscal year), hierarchical project tree grouped by Line of Business, budget/forecast/actuals tracking, RAG status indicators, intake queue for new project submissions, and change request approvals.
+IT portfolio dashboard with KPI tiles (CY-scoped to current fiscal year), hierarchical project tree grouped by Line of Business, budget/forecast/actuals tracking, RAG status indicators, intake queue for new project submissions, change request approvals, and controller review with editable grids and diff comparison views.
 
 ### Project Workbench
-Master-detail project workspace with three tabs: Overview (timeline chart, three-point estimates, resource summary), Forecast & Planning (monthly grid with collapsible year columns, CapEx/OpEx per line item), and Change History. Includes a 5-phase rolling forecast wizard with AI-generated suggestions.
+Master-detail project workspace with three tabs: Overview (timeline chart, three-point estimates, resource summary), Forecast & Planning (monthly grid with collapsible year columns, CapEx/OpEx per line item), and Change History. Includes a 5-phase rolling forecast wizard with AI-generated suggestions and a full project submission workflow with resource planning, CC Owner confirmation, and controller change request review.
 
 ### Capacity Management
 Team utilization heatmaps (CSS grid, person x month), cell-level drill-down showing allocated/available hours with person-level detail, organization-wide overview with 3 pivot views (Cost Center, Role, LoB), and resource request management with assignment preview.
@@ -140,6 +140,37 @@ vision-demo-prototype/
 The backend serves interactive API documentation via Swagger UI at **http://localhost:8000/docs** when the server is running.
 
 The app also includes a built-in Documentation Hub accessible from the Launchpad, with module guides, API reference, data model overview, and FAQ.
+
+### Key API Groups
+
+| Router | Prefix | Endpoints | Description |
+|--------|--------|-----------|-------------|
+| **Launchpad** | `/api` | 8 | Roles, modules, KPIs, pending actions, project create/submit |
+| **Portfolio** | `/api/portfolio` | 15 | Dashboard KPIs, project tree, intake queue (approve/reject/send-back/diff/accept-changes), CR approvals |
+| **Workbench** | `/api/projects` | 10 | Project list, overview, timeline, forecast grid, 5-phase forecast cycle (start/acknowledge/suggestions/edit/review/submit) |
+| **Capacity** | `/api/capacity` | 10 | Team heatmap, drill-down, resource requests, org overview, project confirmation |
+| **Scenarios** | `/api/scenarios` | 8 | CRUD, actions, comparison, AI advisor |
+| **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
+| **Admin** | `/api/admin` | 18 | Entity CRUD (cost centers, CCs, LoBs, locations, people), rates, parameters, hierarchy, audit log, demo reset |
+| **Docs** | `/api/docs` | 3 | Module manuals, FAQ |
+| **Reference** | `/api/reference` | 4 | Roles, cost types, LoBs, cost centers |
+
+### Submission Workflow Endpoints
+
+The project submission lifecycle (`draft` -> `pending_cc_confirmation` -> `pending_approval` -> `active` / `changes_requested`) is powered by:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/projects` | Create draft project with optional resource plan |
+| `PUT` | `/api/projects/{id}/submit` | Submit draft for CC confirmation |
+| `GET` | `/api/projects/{id}/resource-plan` | Get forecast data for resource plan editor |
+| `PUT` | `/api/portfolio/intake/{id}/approve` | Controller approves project |
+| `PUT` | `/api/portfolio/intake/{id}/reject` | Controller rejects project |
+| `PUT` | `/api/portfolio/intake/{id}/send-back` | Controller requests changes with editable grid |
+| `GET` | `/api/portfolio/intake/{id}/diff` | Get original vs proposed comparison grid |
+| `PUT` | `/api/portfolio/intake/{id}/accept-changes` | PL accepts controller's proposed changes |
+| `GET` | `/api/portfolio/intake/{id}/editable-grid` | Get forecast in editable format (controller) |
+| `PUT` | `/api/portfolio/intake/{id}/resubmit` | PL resubmits after editing |
 
 ---
 
