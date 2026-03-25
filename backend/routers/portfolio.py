@@ -620,16 +620,30 @@ def send_back_project(
             ProjectSubmissionSnapshot.is_active.is_(True),
         ).update({"is_active": False})
 
-        snapshot_data = [
-            {
+        # Build FULL proposed snapshot by merging delta with current forecast
+        from models.financial import Forecast as ForecastModel
+        forecasts = db.query(ForecastModel).filter(ForecastModel.project_id == project_id).all()
+        full_snapshot = {}
+        for f in forecasts:
+            key = (f.category, f.sub_category, f.month)
+            full_snapshot[key] = {
+                "category": f.category,
+                "sub_category": f.sub_category,
+                "month": f.month,
+                "hours": float(f.hours) if f.hours is not None else None,
+                "amount_eur": float(f.amount_eur) if f.amount_eur is not None else 0,
+            }
+        # Apply controller's delta on top
+        for c in body.changes:
+            key = (c.category, c.sub_category, c.month)
+            full_snapshot[key] = {
                 "category": c.category,
                 "sub_category": c.sub_category,
                 "month": c.month,
                 "hours": c.hours,
                 "amount_eur": c.amount_eur,
             }
-            for c in body.changes
-        ]
+        snapshot_data = list(full_snapshot.values())
         snapshot = ProjectSubmissionSnapshot(
             project_id=project_id,
             snapshot_type="controller_proposed",
