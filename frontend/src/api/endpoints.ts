@@ -95,13 +95,31 @@ export const launchpadApi = {
     capex_opex?: string;
   }) =>
     api.post<{ id: string; name: string; status: string; estimated_cost: number }>(
-      '/api/launchpad/projects',
+      '/api/projects',
       data,
     ),
   submitProject: (projectId: string) =>
     api.put<{ id: string; name: string; status: string }>(
-      `/api/launchpad/projects/${projectId}/submit`,
+      `/api/projects/${projectId}/submit`,
     ),
+  getProjectDraft: (projectId: string) =>
+    api.get<{
+      id: string; name: string; description: string | null;
+      lob_id: string; lob_name: string;
+      start_month: string; end_month: string | null;
+      status: string; capex_opex: string;
+      submission_feedback: string | null;
+    }>(`/api/projects/${projectId}`),
+  getProjectForecast: (projectId: string) =>
+    api.get<{
+      months: string[];
+      rows: Array<{
+        id: string; name: string; category: string; sub_category: string;
+        unit: string; rate: number;
+        months: Array<{ month: string; value: number; value_eur: number }>;
+        total: number; total_eur: number;
+      }>;
+    }>(`/api/projects/${projectId}/forecast`),
 };
 
 // --- Portfolio Overview ---
@@ -155,16 +173,39 @@ export const portfolioApi = {
       `/api/portfolio/intake/${projectId}/reject`,
       { reason }
     ),
-  sendBackIntake: (projectId: string, comments: string) =>
+  sendBackIntake: (projectId: string, comments: string, changes?: Array<{
+    category: string; sub_category: string; month: string;
+    hours: number | null; amount_eur: number;
+  }>) =>
     api.put<{ id: string; name: string; status: string }>(
       `/api/portfolio/intake/${projectId}/send-back`,
-      { comments }
+      { comments, changes: changes || [] }
     ),
   resubmitIntake: (projectId: string) =>
     api.put<{ id: string; name: string; status: string }>(
       `/api/portfolio/intake/${projectId}/resubmit`,
       {}
     ),
+  getIntakeDiff: (projectId: string) =>
+    api.get<{
+      project_name: string;
+      submission_feedback: string | null;
+      grid_data: import('@/types/api').DetailViewGridDataResponse;
+    }>(`/api/portfolio/intake/${projectId}/diff`),
+  acceptChanges: (projectId: string) =>
+    api.put<{ id: string; name: string; status: string }>(
+      `/api/portfolio/intake/${projectId}/accept-changes`
+    ),
+  getEditableGrid: (projectId: string) =>
+    api.get<{
+      months: string[];
+      rows: Array<{
+        id: string; name: string; category: string; sub_category: string;
+        unit: string;
+        months: Array<{ month: string; value: number; value_eur: number }>;
+        total: number; total_eur: number;
+      }>;
+    }>(`/api/portfolio/intake/${projectId}/editable-grid`),
 
   // Approvals
   getApprovals: () => api.get<ListResponse<ApprovalItem>>('/api/portfolio/approvals'),
@@ -365,6 +406,23 @@ export const capacityApi = {
   declineRequest: (ccId: string, reqId: number, reason: string) =>
     api.put<CapacityRequestItem>(
       `/api/capacity/requests/${ccId}/${reqId}/decline`,
+      { reason },
+    ),
+
+  // Project-Level Confirmation
+  getPendingProjectConfirmations: () =>
+    api.get<ListResponse<{
+      id: string; name: string; lob_name: string; pl_name: string | null;
+      start_month: string; end_month: string | null;
+      resource_request_count: number; submitted_at: string | null;
+    }>>('/api/capacity/project-confirmation/pending'),
+  confirmProject: (projectId: string) =>
+    api.put<{ id: string; name: string; status: string }>(
+      `/api/capacity/project-confirmation/${projectId}/confirm`,
+    ),
+  declineProject: (projectId: string, reason: string) =>
+    api.put<{ id: string; name: string; status: string }>(
+      `/api/capacity/project-confirmation/${projectId}/decline`,
       { reason },
     ),
 

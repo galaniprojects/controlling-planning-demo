@@ -15,6 +15,7 @@ from models.scenarios import Scenario, ScenarioAction, ScenarioState, ScenarioCa
 from models.system import PlanningParameter, KPIDefinition, Notification, AuditLog, SystemSuggestion
 from models.users import DemoPersona
 from models.reporting import ForecastSnapshot, SavedView
+from models.submissions import ProjectSubmissionSnapshot
 
 __all__ = [
     "LineOfBusiness", "Location", "CompetenceCenter", "CostCenter",
@@ -29,4 +30,5 @@ __all__ = [
     "PlanningParameter", "KPIDefinition", "Notification", "AuditLog", "SystemSuggestion",
     "DemoPersona",
     "ForecastSnapshot", "SavedView",
+    "ProjectSubmissionSnapshot",
 ]

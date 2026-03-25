@@ -182,7 +182,7 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
                 onClick={() => setActionMode('send-back')}
               >
                 <Undo2 className="h-3.5 w-3.5 mr-1" />
-                Send Back
+                Request Changes
               </Button>
             </div>
           ) : (

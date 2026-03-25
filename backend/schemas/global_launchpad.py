@@ -28,6 +28,7 @@ class NotificationResponse(BaseModel):
     severity: str
     deep_link_module: str | None = None
     deep_link_entity_id: str | None = None
+    deep_link_tab: str | None = None
     is_read: bool
 
 

@@ -20,7 +20,9 @@ interface Props {
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
+  pending_cc_confirmation: 'CC Review',
   pending_approval: 'Pending',
+  changes_requested: 'Changes Req.',
 };
 
 export function ProjectListPanel({

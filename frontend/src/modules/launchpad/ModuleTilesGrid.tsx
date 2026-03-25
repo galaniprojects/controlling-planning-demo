@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
 import {
   Card,
   CardHeader,
@@ -13,11 +12,9 @@ import type { ModuleTile } from '@/types/api';
 
 interface Props {
   modules: ModuleTile[];
-  isProjectLead: boolean;
-  onSubmitProject: () => void;
 }
 
-export function ModuleTilesGrid({ modules, isProjectLead, onSubmitProject }: Props) {
+export function ModuleTilesGrid({ modules }: Props) {
   const navigate = useNavigate();
 
   const visibleModules = modules
@@ -55,19 +52,6 @@ export function ModuleTilesGrid({ modules, isProjectLead, onSubmitProject }: Pro
           </Card>
         );
       })}
-
-      {/* Submit New Project tile — PL only */}
-      {isProjectLead && (
-        <Card
-          className="cursor-pointer border-2 border-dashed border-slate-300 hover:border-slate-400 transition-colors flex items-center justify-center min-h-[120px]"
-          onClick={onSubmitProject}
-        >
-          <div className="text-center py-4">
-            <Plus className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-            <p className="text-sm font-medium text-slate-500">Submit New Project</p>
-          </div>
-        </Card>
-      )}
     </div>
   );
 }

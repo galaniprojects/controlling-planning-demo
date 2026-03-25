@@ -10,7 +10,8 @@ import { DetailViewKPIStrip } from '@/components/shared/DetailViewKPIStrip';
 import { useRole } from '@/contexts/RoleContext';
 import { portfolioApi } from '@/api/endpoints';
 import type { IntakeDetail } from '@/types/api';
-import { ArrowLeft, Check, X, Undo2 } from 'lucide-react';
+import { ArrowLeft, Check, X, Undo2, Edit2 } from 'lucide-react';
+import { EditableIntakeGrid } from './EditableIntakeGrid';
 
 interface Props {
   projectId: string;
@@ -18,7 +19,7 @@ interface Props {
   onActionComplete: () => void;
 }
 
-type ActionMode = 'idle' | 'approve' | 'reject' | 'send-back' | 'resubmit';
+type ActionMode = 'idle' | 'approve' | 'reject' | 'send-back' | 'resubmit' | 'edit-grid';
 
 export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: Props) {
   const { context } = useRole();
@@ -191,8 +192,22 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
         </div>
       )}
 
+      {/* Editable Grid (controller requesting changes) */}
+      {actionMode === 'edit-grid' && (
+        <EditableIntakeGrid
+          projectId={projectId}
+          onConfirm={async (comments, changes) => {
+            await portfolioApi.sendBackIntake(projectId, comments, changes);
+            setActionResult('Changes sent to Project Lead.');
+            setActionMode('idle');
+            onActionComplete();
+          }}
+          onCancel={() => setActionMode('idle')}
+        />
+      )}
+
       {/* Action Buttons (controller only) */}
-      {isController && !actionResult && data.status === 'pending_approval' && (
+      {isController && !actionResult && data.status === 'pending_approval' && actionMode !== 'edit-grid' && (
         <Card>
           <CardContent className="pt-6">
             {actionMode === 'idle' ? (
@@ -210,15 +225,15 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
                   <X className="h-3.5 w-3.5 mr-1" />
                   Reject
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setActionMode('send-back')}>
-                  <Undo2 className="h-3.5 w-3.5 mr-1" />
+                <Button size="sm" variant="outline" onClick={() => setActionMode('edit-grid')}>
+                  <Edit2 className="h-3.5 w-3.5 mr-1" />
                   Request Changes
                 </Button>
               </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-xs font-medium text-slate-600">
-                  {actionMode === 'approve' ? 'Comments (optional)' : actionMode === 'reject' ? 'Reason (required)' : 'Comments (required)'}
+                  {actionMode === 'approve' ? 'Comments (optional)' : 'Reason (required)'}
                 </p>
                 <Textarea
                   value={actionText}

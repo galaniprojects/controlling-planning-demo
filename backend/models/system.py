@@ -49,6 +49,7 @@ class Notification(Base):
     # severity: info, warning, action
     deep_link_module: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     deep_link_entity_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    deep_link_tab: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

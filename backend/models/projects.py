@@ -30,7 +30,9 @@ class Project(Base):
     lob_id: Mapped[str] = mapped_column(ForeignKey("lines_of_business.id"), nullable=False)
     program_id: Mapped[Optional[str]] = mapped_column(ForeignKey("programs.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False)
-    # Status: draft, pending_approval, active, planned, completed, rejected
+    # Status: draft, pending_cc_confirmation, pending_approval, active, planned, completed, rejected, changes_requested
+    submission_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Controller/CC Owner feedback text for changes_requested status
     rag_status: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     # RAG: green, amber, red, or null for pending/draft
     capex_opex: Mapped[str] = mapped_column(String(10), nullable=False)
