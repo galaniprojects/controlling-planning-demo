@@ -11,11 +11,15 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from dependencies import get_current_user
+from collections import defaultdict
+
 from models.change_requests import ChangeRequest
 from models.capacity import ResourceRequest
-from models.people import RateTable
+from models.financial import Forecast
+from models.people import RateTable, RoleType
 from models.projects import Project
 from models.scenarios import Scenario
+from models.submissions import ProjectSubmissionSnapshot
 from models.system import Notification
 from models.users import DemoPersona
 from schemas.common import CurrentUser
@@ -126,6 +130,7 @@ def get_notifications(
             severity=n.severity,
             deep_link_module=n.deep_link_module,
             deep_link_entity_id=n.deep_link_entity_id,
+            deep_link_tab=n.deep_link_tab,
             is_read=n.is_read,
         )
         for n in notifs
@@ -307,6 +312,71 @@ def get_pending_actions(
                 timestamp=ts.isoformat() if ts else None,
             ))
 
+        # Action: Project changes requested by controller/CC Owner
+        changes_requested_projects = (
+            db.query(Project)
+            .filter(
+                Project.id.in_(user.project_ids),
+                Project.status == "changes_requested",
+            )
+            .all()
+        )
+        for proj in changes_requested_projects:
+            actions.append(PendingAction(
+                id=f"project-changes-{proj.id}",
+                type="project_changes_requested",
+                title=f"Changes requested on '{proj.name}'",
+                description=proj.submission_feedback[:80] if proj.submission_feedback else "Review requested changes",
+                urgency="urgent",
+                deep_link_module="workbench",
+                deep_link_entity_id=proj.id,
+                deep_link_tab="diff",
+                timestamp=proj.modified_at.isoformat() if proj.modified_at else None,
+            ))
+
+        # Action: Project awaiting CC confirmation (info)
+        cc_pending_projects = (
+            db.query(Project)
+            .filter(
+                Project.id.in_(user.project_ids),
+                Project.status == "pending_cc_confirmation",
+            )
+            .all()
+        )
+        for proj in cc_pending_projects:
+            actions.append(PendingAction(
+                id=f"project-in-cc-{proj.id}",
+                type="project_in_cc_review",
+                title=f"'{proj.name}' awaiting resource confirmation",
+                description="CC Owner is reviewing resource requests",
+                urgency="info",
+                deep_link_module="workbench",
+                deep_link_entity_id=proj.id,
+                timestamp=proj.modified_at.isoformat() if proj.modified_at else None,
+            ))
+
+        # Action: Project in intake queue (info)
+        intake_projects = (
+            db.query(Project)
+            .filter(
+                Project.id.in_(user.project_ids),
+                Project.status == "pending_approval",
+            )
+            .all()
+        )
+        for proj in intake_projects:
+            actions.append(PendingAction(
+                id=f"project-in-intake-{proj.id}",
+                type="project_in_intake",
+                title=f"'{proj.name}' is in the intake queue",
+                description="Controller will review the project",
+                urgency="info",
+                deep_link_module="portfolio",
+                deep_link_entity_id=proj.id,
+                deep_link_tab="intake",
+                timestamp=proj.modified_at.isoformat() if proj.modified_at else None,
+            ))
+
         # Action #8: Project Submission Decision
         for proj in owned_projects:
             if proj.status in ("active", "rejected"):
@@ -348,7 +418,9 @@ def get_pending_actions(
                 title="Projects with overdue forecasts",
                 description=f"{names}{suffix}",
                 urgency="info",
-                deep_link_module="portfolio",
+                deep_link_module="workbench",
+                deep_link_entity_id=overdue_projects[0].id,
+                deep_link_tab="forecast",
             ))
 
         # Action #4: CR Pending Approval (Stage 2)
@@ -409,6 +481,25 @@ def get_pending_actions(
             ))
 
     elif user.role == "cost_center_owner":
+        # Action: Projects pending CC confirmation (new submission workflow)
+        pending_cc_projects = (
+            db.query(Project)
+            .filter(Project.status == "pending_cc_confirmation")
+            .all()
+        )
+        for proj in pending_cc_projects:
+            actions.append(PendingAction(
+                id=f"project-cc-confirm-{proj.id}",
+                type="project_cc_confirmation",
+                title="Resource confirmation needed",
+                description=proj.name,
+                urgency="urgent",
+                deep_link_module="capacity",
+                deep_link_entity_id=proj.id,
+                deep_link_tab="requests",
+                timestamp=proj.modified_at.isoformat() if proj.modified_at else None,
+            ))
+
         # Action #3: CR Pending Confirmation (Stage 1)
         # Show CRs where cc_owner_id matches OR is NULL (not yet assigned, routed to the CC owner)
         pending_crs = (
@@ -468,6 +559,98 @@ def get_pending_actions(
     actions = urgent + info
 
     return {"items": [a.model_dump() for a in actions], "total": len(actions)}
+
+
+# ---------------------------------------------------------------------------
+# Helpers for submission workflow
+# ---------------------------------------------------------------------------
+
+def _create_resource_requests_from_forecast(db: Session, project: Project):
+    """Create ResourceRequest rows from the project's Forecast data.
+
+    Groups forecast by (category, sub_category) to create one request per
+    internal role + one per external cost type. All directed to cc-rail-systems.
+    """
+    # Delete any existing pending requests for this project
+    db.query(ResourceRequest).filter(
+        ResourceRequest.project_id == project.id,
+        ResourceRequest.status == "pending",
+    ).delete()
+
+    forecasts = db.query(Forecast).filter(Forecast.project_id == project.id).all()
+
+    groups: dict[tuple[str, str], list] = defaultdict(list)
+    for f in forecasts:
+        groups[(f.category, f.sub_category)].append(f)
+
+    CC_ID = "cc-rail-systems"
+
+    for (category, sub_cat), items in groups.items():
+        sorted_items = sorted(items, key=lambda x: x.month)
+        if category == "internal":
+            avg_value = sum(float(i.hours or 0) for i in items) / len(items)
+        else:
+            avg_value = sum(float(i.amount_eur or 0) for i in items) / len(items)
+
+        req = ResourceRequest(
+            project_id=project.id,
+            cost_center_id=CC_ID,
+            request_type="resource" if category == "internal" else "external_cost",
+            role_type_id=sub_cat if category == "internal" else None,
+            cost_type_id=sub_cat if category == "external" else None,
+            hours_or_amount_per_month=round(avg_value, 2),
+            period_start=sorted_items[0].month,
+            period_end=sorted_items[-1].month,
+            priority="medium",
+            status="pending",
+        )
+        db.add(req)
+
+
+def _save_forecast_snapshot(db: Session, project: Project, snapshot_type: str, person_id: str, comments: str | None = None):
+    """Save a snapshot of the project's current forecast data."""
+    forecasts = db.query(Forecast).filter(Forecast.project_id == project.id).all()
+    data = [
+        {
+            "category": f.category,
+            "sub_category": f.sub_category,
+            "month": f.month,
+            "hours": float(f.hours) if f.hours is not None else None,
+            "amount_eur": float(f.amount_eur) if f.amount_eur is not None else 0,
+        }
+        for f in forecasts
+    ]
+    # Deactivate previous snapshots of same type for this project
+    db.query(ProjectSubmissionSnapshot).filter(
+        ProjectSubmissionSnapshot.project_id == project.id,
+        ProjectSubmissionSnapshot.snapshot_type == snapshot_type,
+        ProjectSubmissionSnapshot.is_active.is_(True),
+    ).update({"is_active": False})
+
+    snapshot = ProjectSubmissionSnapshot(
+        project_id=project.id,
+        snapshot_type=snapshot_type,
+        created_by_id=person_id,
+        forecast_data_json=json.dumps(data),
+        comments=comments,
+    )
+    db.add(snapshot)
+    return snapshot
+
+
+def _create_notification(db: Session, person_id: str, message: str, severity: str = "action",
+                         module: str | None = None, entity_id: str | None = None, tab: str | None = None):
+    """Create a notification for a user."""
+    notif = Notification(
+        user_person_id=person_id,
+        message=message,
+        severity=severity,
+        deep_link_module=module,
+        deep_link_entity_id=entity_id,
+        deep_link_tab=tab,
+    )
+    db.add(notif)
+    return notif
 
 
 @router.post("/projects")
@@ -539,7 +722,7 @@ def create_project(
             m = add_months(body.start_month, i)
             db.add(Forecast(
                 project_id=project.id, month=m, category="internal",
-                sub_category="role-sw-eng",
+                sub_category="role-dev",
                 hours=default_hours,
                 amount_eur=round(default_hours * default_rate, 2),
                 capex_opex=body.capex_opex,
@@ -576,16 +759,35 @@ def submit_project(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Submit a draft project for approval (draft -> pending_approval)."""
+    """Submit a project for CC confirmation (draft -> pending_cc_confirmation)."""
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
-    if project.status != "draft":
+    if project.status not in ("draft",):
         raise HTTPException(409, f"Project is in '{project.status}' state, expected 'draft'")
     if project.pl_person_id != user.person_id and user.role != "controller":
         raise HTTPException(403, "Only the project lead or controller can submit")
 
-    project.status = "pending_approval"
+    # Save original snapshot
+    _save_forecast_snapshot(db, project, "original", user.person_id)
+
+    # Create resource requests from forecast data
+    _create_resource_requests_from_forecast(db, project)
+
+    # Update status
+    project.status = "pending_cc_confirmation"
+    project.submission_feedback = None
+
+    # Notify CC Owner (Thomas Becker = p-becker)
+    _create_notification(
+        db, "p-becker",
+        f"Project '{project.name}' needs resource confirmation",
+        severity="action",
+        module="capacity",
+        entity_id=project.id,
+        tab="requests",
+    )
+
     db.commit()
     db.refresh(project)
 
@@ -594,3 +796,101 @@ def submit_project(
         "name": project.name,
         "status": project.status,
     }
+
+
+@router.get("/projects/{project_id}")
+def get_project_draft(
+    project_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Fetch a project's metadata for the resource plan page."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    return {
+        "id": project.id,
+        "name": project.name,
+        "description": project.description,
+        "lob_id": project.lob_id,
+        "lob_name": project.lob.name if project.lob else project.lob_id,
+        "start_month": project.start_month,
+        "end_month": project.end_month,
+        "status": project.status,
+        "capex_opex": project.capex_opex,
+        "submission_feedback": project.submission_feedback,
+    }
+
+
+@router.get("/projects/{project_id}/resource-plan")
+def get_project_forecast_for_edit(
+    project_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Return forecast rows grouped by line item for the resource plan grid."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    forecasts = db.query(Forecast).filter(Forecast.project_id == project_id).all()
+
+    # Collect all months
+    all_months = sorted(set(f.month for f in forecasts))
+
+    # Group by (category, sub_category)
+    groups: dict[tuple[str, str], list] = defaultdict(list)
+    for f in forecasts:
+        groups[(f.category, f.sub_category)].append(f)
+
+    # Resolve names
+    from models.financial import ExternalCostType
+    role_names = {r.id: r.name for r in db.query(RoleType).all()}
+    cost_type_names = {c.id: c.name for c in db.query(ExternalCostType).all()}
+
+    # Get rates for EUR calculation
+    rate_map: dict[str, float] = {}
+    for role_id in set(k[1] for k in groups if k[0] == "internal"):
+        rates = db.query(RateTable).filter(RateTable.role_type_id == role_id).all()
+        rate_map[role_id] = (sum(float(r.hourly_rate) for r in rates) / len(rates)) if rates else 80.0
+
+    rows = []
+    for (category, sub_cat), items in groups.items():
+        if category == "internal":
+            name = role_names.get(sub_cat, sub_cat)
+            unit = "hours"
+            rate = rate_map.get(sub_cat, 80.0)
+        else:
+            name = cost_type_names.get(sub_cat, sub_cat)
+            unit = "eur"
+            rate = 1.0
+
+        month_map = {f.month: f for f in items}
+        months_data = []
+        total = 0.0
+        total_eur = 0.0
+        for m in all_months:
+            f = month_map.get(m)
+            if f:
+                val = float(f.hours or 0) if category == "internal" else float(f.amount_eur or 0)
+                val_eur = float(f.amount_eur or 0)
+            else:
+                val = 0.0
+                val_eur = 0.0
+            months_data.append({"month": m, "value": val, "value_eur": val_eur})
+            total += val
+            total_eur += val_eur
+
+        rows.append({
+            "id": f"{category}:{sub_cat}",
+            "name": name,
+            "category": category,
+            "sub_category": sub_cat,
+            "unit": unit,
+            "rate": rate,
+            "months": months_data,
+            "total": round(total, 2),
+            "total_eur": round(total_eur, 2),
+        })
+
+    return {"months": all_months, "rows": rows}

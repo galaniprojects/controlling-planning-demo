@@ -407,6 +407,144 @@ def decline_request(
 
 
 # ---------------------------------------------------------------------------
+# Project-Level Confirmation (3 endpoints)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/project-confirmation/pending")
+def get_pending_project_confirmations(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("cost_center_owner", "controller")),
+):
+    """List projects awaiting CC resource confirmation."""
+    projects = (
+        db.query(Project)
+        .filter(Project.status == "pending_cc_confirmation")
+        .all()
+    )
+    items = []
+    for p in projects:
+        lob = db.query(LineOfBusiness).filter(LineOfBusiness.id == p.lob_id).first()
+        pl = db.query(Person).filter(Person.id == p.pl_person_id).first() if p.pl_person_id else None
+        # Count resource requests for this project
+        req_count = (
+            db.query(func.count(ResourceRequest.id))
+            .filter(ResourceRequest.project_id == p.id, ResourceRequest.status == "pending")
+            .scalar()
+        )
+        items.append({
+            "id": p.id,
+            "name": p.name,
+            "lob_name": lob.name if lob else "Unknown",
+            "pl_name": pl.name if pl else None,
+            "start_month": p.start_month,
+            "end_month": p.end_month,
+            "resource_request_count": req_count,
+            "submitted_at": p.modified_at.isoformat() if p.modified_at else None,
+        })
+    return {"items": items, "total": len(items)}
+
+
+@router.put("/project-confirmation/{project_id}/confirm")
+def confirm_project_resources(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("cost_center_owner", "controller")),
+):
+    """CC Owner confirms resources for a project. Status -> pending_approval."""
+    from models.system import Notification
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if project.status != "pending_cc_confirmation":
+        raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_cc_confirmation'")
+
+    # Confirm all pending resource requests for this project
+    pending_requests = (
+        db.query(ResourceRequest)
+        .filter(ResourceRequest.project_id == project_id, ResourceRequest.status == "pending")
+        .all()
+    )
+    for req in pending_requests:
+        req.status = "confirmed"
+
+    project.status = "pending_approval"
+
+    # Notify controller (Anna Schneider = p-schneider)
+    db.add(Notification(
+        user_person_id="p-schneider",
+        message=f"Project '{project.name}' ready for review — resources confirmed",
+        severity="action",
+        deep_link_module="portfolio",
+        deep_link_entity_id=project.id,
+        deep_link_tab="intake",
+    ))
+
+    # Notify PL
+    if project.pl_person_id:
+        db.add(Notification(
+            user_person_id=project.pl_person_id,
+            message=f"Your project '{project.name}' is in the intake queue",
+            severity="info",
+            deep_link_module="portfolio",
+            deep_link_entity_id=project.id,
+            deep_link_tab="intake",
+        ))
+
+    db.commit()
+    db.refresh(project)
+
+    return {"id": project.id, "name": project.name, "status": project.status}
+
+
+@router.put("/project-confirmation/{project_id}/decline")
+def decline_project_resources(
+    project_id: str,
+    body: DeclineRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("cost_center_owner", "controller")),
+):
+    """CC Owner declines resources for a project. Status -> changes_requested."""
+    from models.system import Notification
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if project.status != "pending_cc_confirmation":
+        raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_cc_confirmation'")
+
+    # Decline all pending resource requests
+    pending_requests = (
+        db.query(ResourceRequest)
+        .filter(ResourceRequest.project_id == project_id, ResourceRequest.status == "pending")
+        .all()
+    )
+    for req in pending_requests:
+        req.status = "declined"
+        req.explanation = body.reason
+
+    project.status = "changes_requested"
+    project.submission_feedback = body.reason
+
+    # Notify PL
+    if project.pl_person_id:
+        db.add(Notification(
+            user_person_id=project.pl_person_id,
+            message=f"CC Owner declined resources for '{project.name}'",
+            severity="action",
+            deep_link_module="workbench",
+            deep_link_entity_id=project.id,
+            deep_link_tab="diff",
+        ))
+
+    db.commit()
+    db.refresh(project)
+
+    return {"id": project.id, "name": project.name, "status": project.status}
+
+
+# ---------------------------------------------------------------------------
 # Organization Overview (3 endpoints)
 # ---------------------------------------------------------------------------
 

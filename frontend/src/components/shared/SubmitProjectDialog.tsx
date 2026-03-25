@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
+  const navigate = useNavigate();
   const [lobs, setLobs] = useState<{ id: string; name: string }[]>([]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -31,7 +33,6 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
   const [startMonth, setStartMonth] = useState('2026-04');
   const [endMonth, setEndMonth] = useState('2027-03');
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -45,7 +46,6 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
     setLobId('');
     setStartMonth('2026-04');
     setEndMonth('2027-03');
-    setResult(null);
   }
 
   async function handleSubmit() {
@@ -59,9 +59,10 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
         start_month: startMonth,
         end_month: endMonth || undefined,
       });
-      await launchpadApi.submitProject(created.id);
-      setResult({ id: created.id, name: created.name });
       onSuccess?.();
+      resetForm();
+      onOpenChange(false);
+      navigate(`/workbench/new-project/${created.id}`);
     } catch {
       // Error handling — keep dialog open
     } finally {
@@ -78,31 +79,11 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
 
   const isValid = name.trim().length > 0 && lobId.length > 0 && startMonth.length > 0;
 
-  if (result) {
-    return (
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Project Submitted</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-slate-600">
-              <strong>{result.name}</strong> has been submitted for approval.
-            </p>
-            <Button onClick={() => handleClose(false)} className="w-full">
-              Close
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Submit New Project</DialogTitle>
+          <DialogTitle>New Project</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
@@ -165,7 +146,7 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
               disabled={!isValid || submitting}
               className="flex-1"
             >
-              {submitting ? 'Submitting...' : 'Submit for Approval'}
+              {submitting ? 'Saving...' : 'Next: Resource Plan'}
             </Button>
             <Button
               variant="outline"

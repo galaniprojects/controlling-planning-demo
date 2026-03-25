@@ -25,6 +25,7 @@ interface Props {
   }) => Promise<void>;
   projectStates: ScenarioProjectState[];
   loading: boolean;
+  readOnly?: boolean;
 }
 
 export function ActionPanel({
@@ -35,6 +36,7 @@ export function ActionPanel({
   onApplyAction,
   projectStates,
   loading,
+  readOnly,
 }: Props) {
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(metadata.name);
@@ -73,7 +75,7 @@ export function ActionPanel({
       {/* Metadata section */}
       <Card className="p-4 space-y-3">
         <div className="flex items-center gap-2">
-          {editingName ? (
+          {!readOnly && editingName ? (
             <Input
               value={nameValue}
               onChange={(e) => setNameValue(e.target.value)}
@@ -84,9 +86,9 @@ export function ActionPanel({
             />
           ) : (
             <h3
-              className="text-sm font-semibold text-slate-900 cursor-pointer hover:text-blue-800 flex-1 truncate"
-              onClick={() => setEditingName(true)}
-              title="Click to edit"
+              className={`text-sm font-semibold text-slate-900 flex-1 truncate ${!readOnly ? 'cursor-pointer hover:text-blue-800' : ''}`}
+              onClick={readOnly ? undefined : () => setEditingName(true)}
+              title={readOnly ? undefined : 'Click to edit'}
             >
               {metadata.name}
             </h3>
@@ -101,14 +103,18 @@ export function ActionPanel({
             {metadata.status === 'published' ? 'Published' : 'Private'}
           </Badge>
         </div>
-        <Textarea
-          value={descValue}
-          onChange={(e) => setDescValue(e.target.value)}
-          onBlur={handleDescBlur}
-          placeholder="Add a description..."
-          className="text-xs min-h-[60px] resize-none"
-          rows={2}
-        />
+        {readOnly ? (
+          <p className="text-xs text-slate-600">{metadata.description || 'No description.'}</p>
+        ) : (
+          <Textarea
+            value={descValue}
+            onChange={(e) => setDescValue(e.target.value)}
+            onBlur={handleDescBlur}
+            placeholder="Add a description..."
+            className="text-xs min-h-[60px] resize-none"
+            rows={2}
+          />
+        )}
       </Card>
 
       {/* Applied actions list */}
@@ -130,25 +136,29 @@ export function ActionPanel({
                   action={action}
                   onRemove={onRemoveAction}
                   projectNames={projectNames}
+                  readOnly={readOnly}
                 />
               ))}
           </div>
         )}
       </div>
 
-      <Separator />
-
-      {/* Add action form */}
-      <div>
-        <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
-          Add Action
-        </h4>
-        <AddActionForm
-          onApplyAction={onApplyAction}
-          projectStates={projectStates}
-          loading={loading}
-        />
-      </div>
+      {!readOnly && (
+        <>
+          <Separator />
+          {/* Add action form */}
+          <div>
+            <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+              Add Action
+            </h4>
+            <AddActionForm
+              onApplyAction={onApplyAction}
+              projectStates={projectStates}
+              loading={loading}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

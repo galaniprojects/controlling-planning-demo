@@ -88,6 +88,38 @@ class SendBackAction(BaseModel):
     comments: str
 
 
+class ForecastEditEntry(BaseModel):
+    category: str  # internal | external
+    sub_category: str  # role_type_id or cost_type_id
+    month: str  # YYYY-MM
+    hours: float | None = None
+    amount_eur: float
+
+
+class RequestChangesAction(BaseModel):
+    comments: str
+    changes: list[ForecastEditEntry] = []
+
+
+class ResubmitResourcePlanItem(BaseModel):
+    role_type_id: str
+    hours_per_month: float
+    period_start: str
+    period_end: str
+
+
+class ResubmitExternalCostItem(BaseModel):
+    cost_type_id: str
+    amount_per_month: float
+    period_start: str
+    period_end: str
+
+
+class ResubmitAction(BaseModel):
+    resource_plan: list[ResubmitResourcePlanItem] = []
+    external_costs: list[ResubmitExternalCostItem] = []
+
+
 # --- Approvals ---
 class ApprovalItem(BaseModel):
     cr_id: int

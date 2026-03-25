@@ -10,7 +10,9 @@ import { DetailViewKPIStrip } from '@/components/shared/DetailViewKPIStrip';
 import { useRole } from '@/contexts/RoleContext';
 import { portfolioApi } from '@/api/endpoints';
 import type { IntakeDetail } from '@/types/api';
-import { ArrowLeft, Check, X, Undo2 } from 'lucide-react';
+import { ArrowLeft, Check, X, Undo2, Edit2 } from 'lucide-react';
+import { EditableIntakeGrid } from './EditableIntakeGrid';
+import { IntakeDiffSection } from './IntakeDiffSection';
 
 interface Props {
   projectId: string;
@@ -18,7 +20,7 @@ interface Props {
   onActionComplete: () => void;
 }
 
-type ActionMode = 'idle' | 'approve' | 'reject' | 'send-back' | 'resubmit';
+type ActionMode = 'idle' | 'approve' | 'reject' | 'send-back' | 'resubmit' | 'edit-grid';
 
 export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: Props) {
   const { context } = useRole();
@@ -152,35 +154,26 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
         </div>
       )}
 
-      {/* Changes Requested banner (visible to PL) */}
-      {data.status === 'changes_requested' && !actionResult && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 space-y-3">
-          <p className="text-sm font-medium text-amber-800">
-            Changes Requested
-          </p>
-          <p className="text-sm text-amber-700">
-            The controller has reviewed your submission and requested changes. Please review the feedback above and resubmit when ready.
-          </p>
-          {!isController && (
-            <Button
-              size="sm"
-              onClick={async () => {
-                setSubmitting(true);
-                try {
-                  await portfolioApi.resubmitIntake(projectId);
-                  setActionResult('Project resubmitted for approval.');
-                  onActionComplete();
-                } catch {
-                  setActionResult('Resubmission failed. Please try again.');
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-              disabled={submitting}
-            >
-              {submitting ? 'Resubmitting...' : 'Resubmit for Approval'}
-            </Button>
-          )}
+      {/* Changes Requested — PL review with diff */}
+      {data.status === 'changes_requested' && !isController && !actionResult && (
+        <div className="space-y-4">
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-4 space-y-2">
+            <p className="text-sm font-semibold text-amber-800">Changes Requested</p>
+            {data.submission_feedback ? (
+              <p className="text-sm text-amber-700">{data.submission_feedback}</p>
+            ) : (
+              <p className="text-sm text-amber-700">
+                The controller has reviewed your submission and requested changes. Review the comparison below.
+              </p>
+            )}
+          </div>
+
+          <Separator />
+
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Proposed Changes</h3>
+            <IntakeDiffSection projectId={projectId} onActionComplete={onActionComplete} />
+          </div>
         </div>
       )}
 
@@ -191,8 +184,22 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
         </div>
       )}
 
+      {/* Editable Grid (controller requesting changes) */}
+      {actionMode === 'edit-grid' && (
+        <EditableIntakeGrid
+          projectId={projectId}
+          onConfirm={async (comments, changes) => {
+            await portfolioApi.sendBackIntake(projectId, comments, changes);
+            setActionResult('Changes sent to Project Lead.');
+            setActionMode('idle');
+            onActionComplete();
+          }}
+          onCancel={() => setActionMode('idle')}
+        />
+      )}
+
       {/* Action Buttons (controller only) */}
-      {isController && !actionResult && data.status === 'pending_approval' && (
+      {isController && !actionResult && data.status === 'pending_approval' && actionMode !== 'edit-grid' && (
         <Card>
           <CardContent className="pt-6">
             {actionMode === 'idle' ? (
@@ -210,15 +217,15 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
                   <X className="h-3.5 w-3.5 mr-1" />
                   Reject
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setActionMode('send-back')}>
-                  <Undo2 className="h-3.5 w-3.5 mr-1" />
+                <Button size="sm" variant="outline" onClick={() => setActionMode('edit-grid')}>
+                  <Edit2 className="h-3.5 w-3.5 mr-1" />
                   Request Changes
                 </Button>
               </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-xs font-medium text-slate-600">
-                  {actionMode === 'approve' ? 'Comments (optional)' : actionMode === 'reject' ? 'Reason (required)' : 'Comments (required)'}
+                  {actionMode === 'approve' ? 'Comments (optional)' : 'Reason (required)'}
                 </p>
                 <Textarea
                   value={actionText}

@@ -15,6 +15,7 @@ interface Props {
 
 export function ScenarioManager({ onOpenScenario, onCompare }: Props) {
   const { context } = useRole();
+  const isExecutive = context?.role === 'executive';
   const [myScenarios, setMyScenarios] = useState<ScenarioListItem[]>([]);
   const [publishedScenarios, setPublishedScenarios] = useState<
     ScenarioListItem[]
@@ -104,10 +105,12 @@ export function ScenarioManager({ onOpenScenario, onCompare }: Props) {
           <GitCompare className="h-4 w-4 mr-1.5" />
           Compare Scenarios
         </Button>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1.5" />
-          Create New Scenario
-        </Button>
+        {!isExecutive && (
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            Create New Scenario
+          </Button>
+        )}
       </div>
 
       {/* My Scenarios */}

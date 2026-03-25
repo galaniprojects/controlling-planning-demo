@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
 import { modulesApi, launchpadApi } from '@/api/endpoints';
 import type { ModuleTile, PendingAction } from '@/types/api';
@@ -9,7 +8,6 @@ import { PendingActionsPanel } from './PendingActionsPanel';
 
 export function Launchpad() {
   const { currentRoleId, context } = useRole();
-  const navigate = useNavigate();
   const [modules, setModules] = useState<ModuleTile[]>([]);
   const [actions, setActions] = useState<PendingAction[]>([]);
   const [actionsLoading, setActionsLoading] = useState(true);
@@ -25,8 +23,6 @@ export function Launchpad() {
       .finally(() => setActionsLoading(false));
   }, [currentRoleId]);
 
-  const isProjectLead = context?.role === 'project_lead';
-
   return (
     <div className="px-6 py-6 space-y-6">
       {/* Zone 1: CRETA Branding + Greeting */}
@@ -39,11 +35,7 @@ export function Launchpad() {
       <div className="flex gap-6">
         {/* Zone 2: Module Tiles */}
         <div className="flex-1">
-          <ModuleTilesGrid
-            modules={modules}
-            isProjectLead={isProjectLead}
-            onSubmitProject={() => navigate('/workbench')}
-          />
+          <ModuleTilesGrid modules={modules} />
         </div>
 
         {/* Zone 3: Pending Actions */}

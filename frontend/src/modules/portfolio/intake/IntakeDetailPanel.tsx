@@ -40,6 +40,19 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
       .finally(() => setLoading(false));
   }, [projectId]);
 
+  const handleResubmit = async () => {
+    setSubmitting(true);
+    try {
+      await portfolioApi.resubmitIntake(projectId);
+      setActionResult('Project resubmitted for approval.');
+      onActionComplete();
+    } catch {
+      setActionResult('Resubmit failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleAction = async () => {
     setSubmitting(true);
     try {
@@ -133,6 +146,18 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
         </div>
       )}
 
+      {/* Resubmit (PL only, when changes_requested) */}
+      {!isController && data.status === 'changes_requested' && !actionResult && (
+        <div className="space-y-3 pt-2 border-t border-slate-200">
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Changes requested by Controller. Review feedback above and resubmit when ready.
+          </div>
+          <Button size="sm" onClick={handleResubmit} disabled={submitting}>
+            {submitting ? 'Submitting...' : 'Resubmit for Approval'}
+          </Button>
+        </div>
+      )}
+
       {/* Actions (controller only) */}
       {isController && !actionResult && (
         <div className="space-y-3 pt-2 border-t border-slate-200">
@@ -151,14 +176,16 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
                 <X className="h-3.5 w-3.5 mr-1" />
                 Reject
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setActionMode('send-back')}
-              >
-                <Undo2 className="h-3.5 w-3.5 mr-1" />
-                Send Back
-              </Button>
+              {onOpenDetail && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onOpenDetail(projectId)}
+                >
+                  <Undo2 className="h-3.5 w-3.5 mr-1" />
+                  Request Changes
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-2">

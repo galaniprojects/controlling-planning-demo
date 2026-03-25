@@ -8,6 +8,7 @@ import { RequestListPanel } from './RequestListPanel';
 import { RequestDetail } from './RequestDetail';
 import { AvailabilityContext } from './AvailabilityContext';
 import { RequestActionBar } from './RequestActionBar';
+import { ProjectConfirmationBanner } from './ProjectConfirmationBanner';
 
 interface RequestManagementProps {
   ccId: string;
@@ -72,6 +73,8 @@ export function RequestManagement({ ccId }: RequestManagementProps) {
         <ArrowLeft className="h-4 w-4" />
         Back to Capacity Management
       </button>
+
+      <ProjectConfirmationBanner onConfirmComplete={fetchRequests} />
 
       <div className="flex rounded-md border border-slate-200 bg-white" style={{ height: 'calc(100vh - 240px)' }}>
         {loading ? (

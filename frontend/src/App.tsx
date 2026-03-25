@@ -11,6 +11,7 @@ import { WhatIfSimulator } from '@/modules/simulator/WhatIfSimulator';
 import { Reporting } from '@/modules/reporting/Reporting';
 import { Administration } from '@/modules/admin/Administration';
 import { DocumentationHub } from '@/modules/docs/DocumentationHub';
+import { ResourcePlanPage } from '@/modules/workbench/submission/ResourcePlanPage';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Launchpad />} />
                 <Route path="/portfolio/*" element={<PortfolioOverview />} />
+                <Route path="/workbench/new-project/:projectId" element={<ResourcePlanPage />} />
                 <Route path="/workbench/*" element={<ProjectWorkbench />} />
                 <Route path="/capacity/*" element={<CapacityManagement />} />
                 <Route path="/simulator/*" element={<WhatIfSimulator />} />

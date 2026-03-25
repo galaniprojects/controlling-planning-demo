@@ -89,8 +89,8 @@ Run this before each testing session to ensure clean state.
 |---------|-----------|------|----------|
 | Anna Meier | `persona-controller` | Controller | "Hello, Anna" |
 | Thomas Brenner | `persona-cc-owner` | CC Owner | "Hello, Thomas" |
-| Priya Sharma | `persona-project-lead` | Project Lead | "Hello, Priya" |
-| Thomas Becker | `persona-executive` | Executive | "Hello, Thomas" |
+| Priya Sharma | `persona-pl` | Project Lead | "Hello, Priya" |
+| Thomas Becker | `persona-exec` | Executive | "Hello, Thomas" |
 
 ### Module Access by Role
 
