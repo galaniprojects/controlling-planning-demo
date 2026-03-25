@@ -284,6 +284,7 @@ export interface CRDetail {
   controller: string | null;
   controller_status: string | null;
   controller_comments: string | null;
+  controller_feedback: string | null;
   changes: CRChangeDetail[];
   grid_data?: DetailViewGridDataResponse;
 }
