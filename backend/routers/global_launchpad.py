@@ -14,7 +14,7 @@ from dependencies import get_current_user
 from collections import defaultdict
 
 from models.change_requests import ChangeRequest
-from models.capacity import ResourceRequest
+from models.capacity import Allocation, ResourceRequest
 from models.financial import Forecast
 from models.people import RateTable, RoleType
 from models.projects import Project
@@ -565,17 +565,31 @@ def get_pending_actions(
 # Helpers for submission workflow
 # ---------------------------------------------------------------------------
 
+def _cleanup_previous_resource_data(db: Session, project: Project):
+    """Delete all ResourceRequest (with cascaded assignments) and Allocation rows for a project.
+
+    Uses ORM-level deletes so that the cascade="all, delete-orphan" on
+    ResourceRequest.assignments fires correctly, removing ResourceRequestAssignment rows.
+    """
+    old_requests = db.query(ResourceRequest).filter(
+        ResourceRequest.project_id == project.id,
+    ).all()
+    for req in old_requests:
+        db.delete(req)
+    # Also clean up Allocation records from any previous CC confirmation
+    db.query(Allocation).filter(Allocation.project_id == project.id).delete()
+    # Flush to ensure deletions are visible to subsequent queries (autoflush=False)
+    db.flush()
+
+
 def _create_resource_requests_from_forecast(db: Session, project: Project):
     """Create ResourceRequest rows from the project's Forecast data.
 
     Groups forecast by (category, sub_category) to create one request per
-    internal role + one per external cost type. All directed to cc-rail-systems.
+    internal role + one per external cost type. All directed to cc-muc-apd.
     """
-    # Delete any existing pending requests for this project
-    db.query(ResourceRequest).filter(
-        ResourceRequest.project_id == project.id,
-        ResourceRequest.status == "pending",
-    ).delete()
+    # Delete all previous requests (any status) and allocations for a clean slate
+    _cleanup_previous_resource_data(db, project)
 
     forecasts = db.query(Forecast).filter(Forecast.project_id == project.id).all()
 
@@ -583,7 +597,9 @@ def _create_resource_requests_from_forecast(db: Session, project: Project):
     for f in forecasts:
         groups[(f.category, f.sub_category)].append(f)
 
-    CC_ID = "cc-rail-systems"
+    # Route to the CC that owns the internal resources — for demo, use cc-muc-apd
+    # which is where the CC Owner (Thomas Brenner) and all dev team members reside
+    CC_ID = "cc-muc-apd"
 
     for (category, sub_cat), items in groups.items():
         sorted_items = sorted(items, key=lambda x: x.month)

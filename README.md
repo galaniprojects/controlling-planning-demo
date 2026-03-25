@@ -148,7 +148,7 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Launchpad** | `/api` | 8 | Roles, modules, KPIs, pending actions, project create/submit |
 | **Portfolio** | `/api/portfolio` | 18 | Dashboard KPIs, project tree, intake queue (approve/reject/send-back/diff/accept-changes), CR approvals (approve/reject/send-back/editable-grid) |
 | **Workbench** | `/api/projects` | 13 | Project list, overview, timeline, forecast grid, 5-phase forecast cycle, CR diff/accept-changes/resubmit |
-| **Capacity** | `/api/capacity` | 10 | Team heatmap, drill-down, resource requests, org overview, project confirmation |
+| **Capacity** | `/api/capacity` | 14 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation |
 | **Scenarios** | `/api/scenarios` | 8 | CRUD, actions, comparison, AI advisor |
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
 | **Admin** | `/api/admin` | 18 | Entity CRUD (cost centers, CCs, LoBs, locations, people), rates, parameters, hierarchy, audit log, demo reset |
@@ -185,6 +185,17 @@ The CR lifecycle (`pending_controller_approval` -> `sent_back_by_controller` -> 
 | `GET` | `/api/projects/{pid}/change-requests/{cr_id}/diff` | PL views original vs controller-proposed comparison |
 | `PUT` | `/api/projects/{pid}/change-requests/{cr_id}/accept-changes` | PL accepts controller's proposed changes |
 | `PUT` | `/api/projects/{pid}/change-requests/{cr_id}/resubmit` | PL resubmits CR to controller |
+
+### Resource Assignment Endpoints (CC Owner)
+
+The CC Owner assigns specific employees to resource requests before confirming to the controller:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/capacity/requests/{cc_id}/{req_id}/monthly-hours` | Per-month forecast hours for a resource request |
+| `GET` | `/api/capacity/requests/{cc_id}/{req_id}/assignments` | Current per-month person assignments |
+| `PUT` | `/api/capacity/requests/{cc_id}/{req_id}/assignments` | Save per-month person assignments |
+| `GET` | `/api/capacity/project-assignment/{project_id}` | Project details with all requests and assignment status |
 
 ---
 

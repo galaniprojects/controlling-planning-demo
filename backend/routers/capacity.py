@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from database import get_db
 from dependencies import get_current_user, require_role
-from models.capacity import Allocation, ResourceRequest
+from models.capacity import Allocation, ResourceRequest, ResourceRequestAssignment
 from models.change_requests import ChangeRequest
 from models.financial import Forecast
 from models.people import RateTable
@@ -17,7 +17,8 @@ from models.projects import Project
 from schemas.capacity import (
     CapacityContext, ConfirmRequest, CounterProposeRequest, DeclineRequest,
     OrgHeatmapRow, OrgSummary, PartialFulfillRequest, PersonHeatmapRow,
-    RequestItem, RoleHeatmapRow, TeamSummary, UtilizationCell,
+    RequestItem, RoleHeatmapRow, SaveAssignmentsRequest, TeamSummary,
+    UtilizationCell,
 )
 from schemas.common import CurrentUser
 from services.calculations import (
@@ -251,6 +252,61 @@ def _request_to_dict(r: ResourceRequest, db: Session) -> dict:
     }
 
 
+def _create_allocations_from_assignments(db: Session, req: ResourceRequest):
+    """Create Allocation records from a ResourceRequest's assignments.
+
+    Called when a request is confirmed. If per-month assignments exist, create
+    one Allocation per assignment. Otherwise, fall back to assigned_person_id
+    with the average hours across all months.
+    """
+    if req.request_type != "resource":
+        return  # External cost requests don't create allocations
+
+    assignments = (
+        db.query(ResourceRequestAssignment)
+        .filter(ResourceRequestAssignment.resource_request_id == req.id)
+        .all()
+    )
+
+    if assignments:
+        for a in assignments:
+            # Check if allocation already exists for this person/project/month
+            existing = db.query(Allocation).filter(
+                Allocation.person_id == a.person_id,
+                Allocation.project_id == req.project_id,
+                Allocation.month == a.month,
+            ).first()
+            if existing:
+                existing.hours = float(existing.hours) + float(a.hours)
+            else:
+                db.add(Allocation(
+                    person_id=a.person_id,
+                    project_id=req.project_id,
+                    month=a.month,
+                    hours=float(a.hours),
+                    is_confirmed=True,
+                ))
+    elif req.assigned_person_id:
+        # Fallback: use assigned_person_id with average hours across all months
+        months = generate_month_range(req.period_start, req.period_end)
+        for m in months:
+            existing = db.query(Allocation).filter(
+                Allocation.person_id == req.assigned_person_id,
+                Allocation.project_id == req.project_id,
+                Allocation.month == m,
+            ).first()
+            if existing:
+                existing.hours = float(existing.hours) + float(req.hours_or_amount_per_month)
+            else:
+                db.add(Allocation(
+                    person_id=req.assigned_person_id,
+                    project_id=req.project_id,
+                    month=m,
+                    hours=float(req.hours_or_amount_per_month),
+                    is_confirmed=True,
+                ))
+
+
 @router.get("/requests/{cost_center_id}")
 def get_request_queue(
     cost_center_id: str,
@@ -278,6 +334,173 @@ def get_request_detail(
     _verify_cc_access(_user, cost_center_id)
     req = _get_request(db, cost_center_id, request_id)
     return _request_to_dict(req, db)
+
+
+@router.get("/requests/{cost_center_id}/{request_id}/monthly-hours")
+def get_request_monthly_hours(
+    cost_center_id: str, request_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Get actual per-month forecast hours for a resource request."""
+    _verify_cc_access(_user, cost_center_id)
+    req = _get_request(db, cost_center_id, request_id)
+
+    category = "internal" if req.request_type == "resource" else "external"
+    sub_cat = req.role_type_id if category == "internal" else req.cost_type_id
+    months = generate_month_range(req.period_start, req.period_end)
+
+    # Aggregate forecast by month (may have multiple rows per month)
+    forecasts = (
+        db.query(
+            Forecast.month,
+            func.sum(Forecast.hours).label("total_hours"),
+            func.sum(Forecast.amount_eur).label("total_amount"),
+        )
+        .filter(
+            Forecast.project_id == req.project_id,
+            Forecast.category == category,
+            Forecast.sub_category == sub_cat,
+            Forecast.month.in_(months),
+        )
+        .group_by(Forecast.month)
+        .order_by(Forecast.month)
+        .all()
+    )
+
+    forecast_map: dict[str, dict] = {}
+    for f in forecasts:
+        forecast_map[f.month] = {
+            "month": f.month,
+            "hours": float(f.total_hours) if f.total_hours is not None else 0,
+            "amount_eur": float(f.total_amount) if f.total_amount is not None else 0,
+        }
+
+    # Build items, filling missing months with the average from the request
+    items = []
+    for m in months:
+        if m in forecast_map:
+            items.append(forecast_map[m])
+        else:
+            items.append({
+                "month": m,
+                "hours": float(req.hours_or_amount_per_month) if category == "internal" else 0,
+                "amount_eur": float(req.hours_or_amount_per_month) if category == "external" else 0,
+            })
+
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/requests/{cost_center_id}/{request_id}/assignments")
+def get_request_assignments(
+    cost_center_id: str, request_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Get current per-month assignments for a resource request."""
+    _verify_cc_access(_user, cost_center_id)
+    req = _get_request(db, cost_center_id, request_id)
+
+    assignments = (
+        db.query(ResourceRequestAssignment)
+        .filter(ResourceRequestAssignment.resource_request_id == req.id)
+        .order_by(ResourceRequestAssignment.month)
+        .all()
+    )
+
+    items = []
+    for a in assignments:
+        person = db.query(Person).filter(Person.id == a.person_id).first()
+        items.append({
+            "month": a.month,
+            "person_id": a.person_id,
+            "person_name": person.name if person else a.person_id,
+            "hours": float(a.hours),
+        })
+
+    return {"items": items, "total": len(items)}
+
+
+@router.put("/requests/{cost_center_id}/{request_id}/assignments")
+def save_request_assignments(
+    cost_center_id: str, request_id: int,
+    body: SaveAssignmentsRequest,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("cost_center_owner", "controller")),
+):
+    """Save per-month person assignments for a resource request."""
+    _verify_cc_access(_user, cost_center_id)
+    req = _get_request(db, cost_center_id, request_id)
+
+    if req.status not in ("pending", "confirmed"):
+        raise HTTPException(409, f"Request status is '{req.status}', cannot assign")
+
+    valid_months = set(generate_month_range(req.period_start, req.period_end))
+
+    # Validate assignments
+    seen_months: set[str] = set()
+    for entry in body.assignments:
+        if entry.month not in valid_months:
+            raise HTTPException(400, f"Month '{entry.month}' is outside request period")
+        if entry.month in seen_months:
+            raise HTTPException(400, f"Duplicate month '{entry.month}'")
+        seen_months.add(entry.month)
+
+        person = db.query(Person).filter(
+            Person.id == entry.person_id, Person.is_active == True
+        ).first()
+        if not person:
+            raise HTTPException(400, f"Person '{entry.person_id}' not found or inactive")
+
+    # Build forecast hours lookup (aggregated by month)
+    category = "internal" if req.request_type == "resource" else "external"
+    sub_cat = req.role_type_id if category == "internal" else req.cost_type_id
+    forecast_rows = (
+        db.query(
+            Forecast.month,
+            func.sum(Forecast.hours).label("total_hours"),
+            func.sum(Forecast.amount_eur).label("total_amount"),
+        )
+        .filter(
+            Forecast.project_id == req.project_id,
+            Forecast.category == category,
+            Forecast.sub_category == sub_cat,
+        )
+        .group_by(Forecast.month)
+        .all()
+    )
+    forecast_hours: dict[str, float] = {}
+    for f in forecast_rows:
+        if category == "internal":
+            forecast_hours[f.month] = float(f.total_hours) if f.total_hours is not None else 0
+        else:
+            forecast_hours[f.month] = float(f.total_amount) if f.total_amount is not None else 0
+
+    # Delete existing assignments
+    db.query(ResourceRequestAssignment).filter(
+        ResourceRequestAssignment.resource_request_id == req.id
+    ).delete()
+
+    # Insert new assignments
+    for entry in body.assignments:
+        hours = forecast_hours.get(entry.month, float(req.hours_or_amount_per_month))
+        db.add(ResourceRequestAssignment(
+            resource_request_id=req.id,
+            month=entry.month,
+            person_id=entry.person_id,
+            hours=hours,
+        ))
+
+    # Update assigned_person_id to most-frequently-assigned person (backward compat)
+    if body.assignments:
+        from collections import Counter
+        person_counts = Counter(e.person_id for e in body.assignments)
+        req.assigned_person_id = person_counts.most_common(1)[0][0]
+
+    db.commit()
+
+    # Return saved assignments
+    return get_request_assignments(cost_center_id, request_id, db, _user)
 
 
 @router.get("/requests/{cost_center_id}/{request_id}/assignment-preview")
@@ -328,7 +551,10 @@ def confirm_request(
     if req.status != "pending":
         raise HTTPException(409, f"Request status is '{req.status}', expected 'pending'")
     req.status = "confirmed"
-    req.assigned_person_id = body.assigned_person_id
+    if body.assigned_person_id:
+        req.assigned_person_id = body.assigned_person_id
+    # Create Allocations from assignments
+    _create_allocations_from_assignments(db, req)
     # Advance linked CR — CC Owner is the final stage
     if req.change_request_id:
         cr = db.query(ChangeRequest).filter(ChangeRequest.id == req.change_request_id).first()
@@ -450,6 +676,68 @@ def get_pending_project_confirmations(
     return {"items": items, "total": len(items)}
 
 
+@router.get("/project-assignment/{project_id}")
+def get_project_assignment_detail(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("cost_center_owner", "controller")),
+):
+    """Get project detail with all resource requests and their assignments for the assignment page."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    lob = db.query(LineOfBusiness).filter(LineOfBusiness.id == project.lob_id).first()
+    pl = db.query(Person).filter(Person.id == project.pl_person_id).first() if project.pl_person_id else None
+
+    # Get all resource requests for this project
+    requests = (
+        db.query(ResourceRequest)
+        .filter(ResourceRequest.project_id == project_id)
+        .order_by(ResourceRequest.request_type, ResourceRequest.created_at)
+        .all()
+    )
+
+    request_items = []
+    for r in requests:
+        rd = _request_to_dict(r, db)
+        # Include assignment count
+        assignment_count = (
+            db.query(func.count(ResourceRequestAssignment.id))
+            .filter(ResourceRequestAssignment.resource_request_id == r.id)
+            .scalar()
+        )
+        months = generate_month_range(r.period_start, r.period_end)
+        rd["assignment_count"] = assignment_count
+        rd["total_months"] = len(months)
+        rd["fully_assigned"] = assignment_count >= len(months)
+        request_items.append(rd)
+
+    all_fully_assigned = all(
+        r["fully_assigned"] for r in request_items
+        if r["request_type"] == "resource" and r.get("status") == "pending"
+    )
+
+    # Determine cost center ID from the requests
+    cc_id = requests[0].cost_center_id if requests else None
+
+    return {
+        "project": {
+            "id": project.id,
+            "name": project.name,
+            "description": project.description,
+            "lob_name": lob.name if lob else "Unknown",
+            "pl_name": pl.name if pl else None,
+            "start_month": project.start_month,
+            "end_month": project.end_month,
+            "status": project.status,
+        },
+        "cost_center_id": cc_id,
+        "requests": request_items,
+        "all_resource_requests_assigned": all_fully_assigned,
+    }
+
+
 @router.put("/project-confirmation/{project_id}/confirm")
 def confirm_project_resources(
     project_id: str,
@@ -465,7 +753,7 @@ def confirm_project_resources(
     if project.status != "pending_cc_confirmation":
         raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_cc_confirmation'")
 
-    # Confirm all pending resource requests for this project
+    # Confirm all pending resource requests and create Allocations from assignments
     pending_requests = (
         db.query(ResourceRequest)
         .filter(ResourceRequest.project_id == project_id, ResourceRequest.status == "pending")
@@ -473,6 +761,7 @@ def confirm_project_resources(
     )
     for req in pending_requests:
         req.status = "confirmed"
+        _create_allocations_from_assignments(db, req)
 
     project.status = "pending_approval"
 

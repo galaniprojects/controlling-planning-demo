@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { capacityApi } from '@/api/endpoints';
-import { CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface PendingProject {
   id: string;
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function ProjectConfirmationBanner({ onConfirmComplete }: Props) {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<PendingProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(true);
@@ -43,22 +45,8 @@ export function ProjectConfirmationBanner({ onConfirmComplete }: Props) {
     fetchProjects();
   }, []);
 
-  const handleConfirm = async (projectId: string) => {
-    setSubmitting(projectId);
-    try {
-      const res = await capacityApi.confirmProject(projectId);
-      setResults((prev) => ({ ...prev, [projectId]: `"${res.name}" confirmed — sent to intake queue.` }));
-      onConfirmComplete();
-      // Remove from list after short delay
-      setTimeout(() => {
-        setProjects((prev) => prev.filter((p) => p.id !== projectId));
-        setResults((prev) => { const n = { ...prev }; delete n[projectId]; return n; });
-      }, 2000);
-    } catch {
-      setResults((prev) => ({ ...prev, [projectId]: 'Confirmation failed. Please try again.' }));
-    } finally {
-      setSubmitting(null);
-    }
+  const handleReviewAssign = (projectId: string) => {
+    navigate(`/capacity/project-assignment/${projectId}`);
   };
 
   const handleDecline = async (projectId: string) => {
@@ -66,7 +54,7 @@ export function ProjectConfirmationBanner({ onConfirmComplete }: Props) {
     setSubmitting(projectId);
     try {
       const res = await capacityApi.declineProject(projectId, declineReason.trim());
-      setResults((prev) => ({ ...prev, [projectId]: `"${res.name}" declined — sent back to PL.` }));
+      setResults((prev) => ({ ...prev, [projectId]: `"${res.name}" declined -- sent back to PL.` }));
       setDecliningId(null);
       setDeclineReason('');
       onConfirmComplete();
@@ -121,7 +109,7 @@ export function ProjectConfirmationBanner({ onConfirmComplete }: Props) {
                       <span>{p.lob_name}</span>
                       {p.pl_name && <span>PL: {p.pl_name}</span>}
                       <span>
-                        {p.start_month} — {p.end_month || 'Ongoing'}
+                        {p.start_month} -- {p.end_month || 'Ongoing'}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 mt-1">
@@ -177,12 +165,11 @@ export function ProjectConfirmationBanner({ onConfirmComplete }: Props) {
                       <>
                         <Button
                           size="sm"
-                          onClick={() => handleConfirm(p.id)}
-                          disabled={submitting === p.id}
+                          onClick={() => handleReviewAssign(p.id)}
                           className="text-xs"
                         >
-                          <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                          {submitting === p.id ? 'Confirming...' : 'Confirm Resources'}
+                          <Users className="h-3.5 w-3.5 mr-1" />
+                          Review & Assign Resources
                         </Button>
                         <Button
                           size="sm"

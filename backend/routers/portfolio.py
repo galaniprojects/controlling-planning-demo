@@ -391,6 +391,39 @@ def get_intake_detail(
         rp["total_hours"] = round(rp["total_hours"], 1)
         rp["total_amount"] = round(rp["total_amount"], 2)
 
+    # Enrich resource plan with assignment data from ResourceRequestAssignment
+    from models.capacity import ResourceRequest, ResourceRequestAssignment
+    from models.people import Person
+    for role_id, rp in resource_plan.items():
+        req = (
+            db.query(ResourceRequest)
+            .filter(
+                ResourceRequest.project_id == project_id,
+                ResourceRequest.role_type_id == role_id,
+                ResourceRequest.request_type == "resource",
+            )
+            .first()
+        )
+        if req:
+            assignments = (
+                db.query(ResourceRequestAssignment)
+                .filter(ResourceRequestAssignment.resource_request_id == req.id)
+                .order_by(ResourceRequestAssignment.month)
+                .all()
+            )
+            assignment_list = []
+            for a in assignments:
+                person = db.query(Person).filter(Person.id == a.person_id).first()
+                assignment_list.append({
+                    "month": a.month,
+                    "person_id": a.person_id,
+                    "person_name": person.name if person else a.person_id,
+                    "hours": float(a.hours),
+                })
+            rp["assignments"] = assignment_list
+        else:
+            rp["assignments"] = []
+
     # External cost plan
     external_rows = (
         db.query(Forecast.sub_category, Forecast.month, Forecast.amount_eur)
@@ -723,6 +756,8 @@ def resubmit_project(
                     amount_eur=round(item.amount_per_month, 2),
                     capex_opex=project.capex_opex,
                 ))
+        # Flush so rebuilt forecasts are visible to subsequent queries (autoflush=False)
+        db.flush()
 
     # Save new original snapshot
     _save_forecast_snapshot(db, project, "original", user.person_id)
@@ -941,6 +976,8 @@ def accept_changes(
                 amount_eur=entry["amount_eur"],
                 capex_opex=project.capex_opex,
             ))
+        # Flush so rebuilt forecasts are visible to subsequent queries (autoflush=False)
+        db.flush()
 
     # Save accepted state as new original snapshot
     _save_forecast_snapshot(db, project, "original", user.person_id)

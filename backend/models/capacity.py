@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -52,3 +52,32 @@ class ResourceRequest(Base):
     cost_center: Mapped["CostCenter"] = relationship()
     role_type: Mapped[Optional["RoleType"]] = relationship()
     assigned_person: Mapped[Optional["Person"]] = relationship()
+    assignments: Mapped[list["ResourceRequestAssignment"]] = relationship(
+        back_populates="resource_request", cascade="all, delete-orphan"
+    )
+
+
+class ResourceRequestAssignment(Base):
+    """Per-month person assignment for a resource request.
+
+    Each row represents one employee assigned to one month of a resource request.
+    The unique constraint on (resource_request_id, month) enforces one person per
+    month per request.
+    """
+    __tablename__ = "resource_request_assignments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    resource_request_id: Mapped[int] = mapped_column(ForeignKey("resource_requests.id"), nullable=False)
+    month: Mapped[str] = mapped_column(String(7), nullable=False)  # YYYY-MM
+    person_id: Mapped[str] = mapped_column(ForeignKey("people.id"), nullable=False)
+    hours: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    modified_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("resource_request_id", "month", name="uq_rra_request_month"),
+    )
+
+    # Relationships
+    resource_request: Mapped["ResourceRequest"] = relationship(back_populates="assignments")
+    person: Mapped["Person"] = relationship()

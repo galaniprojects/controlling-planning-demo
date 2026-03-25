@@ -154,6 +154,49 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
         </div>
       )}
 
+      {/* Resource Assignments (from CC Owner) */}
+      {data.resource_plan && data.resource_plan.some((rp) => rp.assignments && rp.assignments.length > 0) && (
+        <>
+          <Separator />
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Resource Assignments (CC Owner)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {data.resource_plan.filter((rp) => rp.assignments && rp.assignments.length > 0).map((rp) => {
+                  // Group assignments by person
+                  const personMap = new Map<string, { name: string; months: string[] }>();
+                  for (const a of rp.assignments!) {
+                    const existing = personMap.get(a.person_id);
+                    if (existing) {
+                      existing.months.push(a.month);
+                    } else {
+                      personMap.set(a.person_id, { name: a.person_name, months: [a.month] });
+                    }
+                  }
+                  return (
+                    <div key={rp.role_id} className="text-sm">
+                      <p className="font-medium text-slate-700">{rp.role_name}</p>
+                      <div className="ml-3 mt-1 space-y-0.5">
+                        {Array.from(personMap.entries()).map(([pid, info]) => (
+                          <p key={pid} className="text-slate-600">
+                            {info.name}
+                            <span className="text-slate-400 ml-1">
+                              ({formatMonthRange(info.months)})
+                            </span>
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
       {/* Changes Requested — PL review with diff */}
       {data.status === 'changes_requested' && !isController && !actionResult && (
         <div className="space-y-4">
@@ -257,4 +300,21 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
       )}
     </div>
   );
+}
+
+function formatMonthRange(months: string[]): string {
+  if (months.length === 0) return '';
+  const sorted = [...months].sort();
+  if (sorted.length === 1) return formatMonth(sorted[0]);
+
+  // Check if contiguous
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  return `${formatMonth(first)} -- ${formatMonth(last)}`;
+}
+
+function formatMonth(m: string): string {
+  const [y, mo] = m.split('-');
+  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${names[parseInt(mo, 10) - 1]} ${y}`;
 }

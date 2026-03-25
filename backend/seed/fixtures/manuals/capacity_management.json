@@ -19,6 +19,26 @@
       "body": "Click any person row or cell to open a bottom drawer showing their full allocation breakdown: which projects they're assigned to, hours per month, confirmed vs pending allocations, and utilization trend over time."
     },
     {
+      "title": "Project Confirmation Banner",
+      "body": "When projects are submitted and awaiting resource confirmation, a banner appears at the top of the My Team tab showing pending projects. Each project card shows the name, LoB, project lead, timeline, and number of resource requests. Click **Review & Assign Resources** to open the dedicated assignment page, or **Decline** to send the project back to the Project Lead with a reason."
+    },
+    {
+      "title": "Resource Assignment Grid",
+      "body": "The dedicated assignment page shows a tabular grid for all internal resource requests. Rows represent requested roles (e.g., Senior Developer, QA / Test Engineer), columns represent months with collapsible year headers. Click any cell to open a person dropdown and assign an employee for that specific month. Assigned cells turn green with the person's abbreviated name; unassigned cells appear in amber. A Status column on the right shows how many months are assigned per role (e.g., 12/19)."
+    },
+    {
+      "title": "Assign All Column",
+      "body": "The **All** column (between the role name and the month columns) lets you assign one person to every month of a role in a single click. Click the All cell, select an employee from the dropdown, and all months fill instantly. When all months have the same person, the All cell shows their name in blue. You can still override individual months by clicking specific cells. External cost requests are not shown on this page since they do not require employee assignment."
+    },
+    {
+      "title": "Person Dropdown",
+      "body": "When selecting an employee, the dropdown groups people by relevance: **Matching Role** employees appear first (those whose role matches the requested role), followed by **Other Roles**. For individual month cells, each person shows their utilization percentage for that specific month, color-coded: green (below 70%), amber (70-90%), or red (above 90%). Only one employee per month per request is allowed."
+    },
+    {
+      "title": "Confirming Resources",
+      "body": "Once all resource requests for a project have complete assignments (all months covered), the **Confirm All & Send to Controller** button becomes active. Clicking it confirms all requests, creates allocation records for each assigned employee, and moves the project to the controller's intake queue for final approval. The assigned employee names will be visible to the controller in the intake detail view."
+    },
+    {
       "title": "Request Management",
       "body": "The Request Management sub-view shows incoming resource and external cost requests directed at your cost center. Requests are grouped by forecast cycle. Each request shows the project, requested role/cost type, hours or amount, period, and priority."
     },
