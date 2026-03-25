@@ -33,6 +33,9 @@ import type {
   PersonDetail,
   CapacityRequestItem,
   AssignmentPreview,
+  MonthlyHoursItem,
+  RequestAssignment,
+  ProjectAssignmentDetail,
   OrgSummary,
   OrgHeatmapRow,
   OrgDetailItem,
@@ -407,6 +410,31 @@ export const capacityApi = {
     api.put<CapacityRequestItem>(
       `/api/capacity/requests/${ccId}/${reqId}/decline`,
       { reason },
+    ),
+
+  // Monthly Hours & Assignments
+  getRequestMonthlyHours: (ccId: string, reqId: number) =>
+    api.get<ListResponse<MonthlyHoursItem>>(
+      `/api/capacity/requests/${ccId}/${reqId}/monthly-hours`,
+    ),
+  getRequestAssignments: (ccId: string, reqId: number) =>
+    api.get<ListResponse<RequestAssignment>>(
+      `/api/capacity/requests/${ccId}/${reqId}/assignments`,
+    ),
+  saveRequestAssignments: (
+    ccId: string,
+    reqId: number,
+    assignments: { month: string; person_id: string }[],
+  ) =>
+    api.put<ListResponse<RequestAssignment>>(
+      `/api/capacity/requests/${ccId}/${reqId}/assignments`,
+      { assignments },
+    ),
+
+  // Project Assignment Detail
+  getProjectAssignmentDetail: (projectId: string) =>
+    api.get<ProjectAssignmentDetail>(
+      `/api/capacity/project-assignment/${projectId}`,
     ),
 
   // Project-Level Confirmation

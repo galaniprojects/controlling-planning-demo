@@ -1,9 +1,100 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: Post-QA Feature Development — **Submission workflow complete, all fixes applied**
-Last completed: Submission workflow Sessions 1-4 + diff view fix + Forecast & Planning crash fix
-Branch: `main`
+Phase: Post-QA Feature Development — **Submission workflow + CC Owner resource assignment complete + grid redesign**
+Last completed: Redesigned CC Owner assignment page as tabular grid with "Assign All" column
+Branch: `docs/submission-workflow-update`
+
+## CC Owner Assignment Grid Redesign (2026-03-25)
+
+### Problem
+The previous card-per-request layout was visually inconsistent with the rest of the app (ResourcePlanPage, Forecast & Planning, DetailViewGrid). External cost requests were shown but CC Owner can't assign employees to them.
+
+### Changes
+- **`AssignmentGrid.tsx`** (NEW) — Unified tabular grid matching ResourcePlanPage pattern
+  - Rows = resource request roles, columns = months with `useCollapsibleYears`
+  - Click any cell to open a person dropdown (matching role + others, with utilization %)
+  - "Assign All" column: one click assigns a person to every month for that role
+  - Year summary column: shows person name (uniform), "Mixed" (varied), or "--" (empty)
+  - Status badge per row (X/Y months assigned, green/amber)
+  - Sticky left column with role name, hours, priority
+- **`ProjectAssignmentPage.tsx`** — Major rewrite
+  - Fetches monthly hours + assignments for ALL resource requests in parallel on load
+  - Integrates AssignmentGrid instead of individual cards
+  - External cost requests hidden entirely from CC Owner view
+  - Kept: project header, Team Availability, Confirm/Decline actions
+- **`MonthlyAssignmentGrid.tsx`** — No longer imported (kept in codebase)
+
+### Verification
+- [x] Tabular grid renders with roles as rows, months as columns (collapsible years)
+- [x] No external cost requests visible
+- [x] Click cell → dropdown opens with employee list, utilization % shown
+- [x] Select employee → cell updates green, auto-saves, badge updates
+- [x] "Assign All" column → one click fills all months for a role
+- [x] Collapsed year → shows person name or "Mixed" in summary
+- [x] Confirm button enabled when all roles fully assigned
+- [x] No console or server errors
+
+## Bug Fix: CC Owner Assignment After Resubmission (2026-03-25)
+
+### Problem
+After the controller sent a project back with change requests and the PL accepted changes, the CC Owner could not assign resources on the resubmitted project. Root causes:
+1. `autoflush=False` in SQLAlchemy session meant new Forecast rows weren't visible to subsequent queries after `accept_changes` or `resubmit_project` rebuilt them
+2. `_create_resource_requests_from_forecast` only deleted `status="pending"` requests, leaving stale `confirmed` requests from previous rounds
+3. Bulk `.delete()` bypassed ORM cascade, orphaning `ResourceRequestAssignment` rows
+4. Frontend `MonthlyAssignmentGrid` was guarded by `request.status === 'pending'`, hiding grids for non-pending requests
+5. `all_resource_requests_assigned` check included stale confirmed requests
+
+### Fixes Applied
+- **`backend/routers/global_launchpad.py`**: New `_cleanup_previous_resource_data` helper — deletes ALL ResourceRequest objects via ORM (triggering cascade for assignments) and clears Allocation records. Added `db.flush()` after cleanup. Imported `Allocation` model.
+- **`backend/routers/portfolio.py`**: Added `db.flush()` after forecast rebuilds in `accept_changes` and `resubmit_project` so new Forecast rows are visible to snapshot/request-creation queries
+- **`backend/routers/capacity.py`**: Defensive status filter on `all_resource_requests_assigned` — only checks `status="pending"` resource requests
+- **`frontend/src/modules/capacity/requests/ProjectAssignmentPage.tsx`**: Removed `request.status === 'pending'` guard so `MonthlyAssignmentGrid` always renders
+
+### Verification
+- [x] Round 1: Controller sends back → PL accepts → CC sees 5 fresh pending requests with assignment grids → assigns employees → confirms → 95 allocations created
+- [x] Round 2: Controller sends back again → PL accepts → CC sees 5 fresh pending requests (0 stale), 0 orphaned assignments, 0 duplicate allocations
+- [x] UI verified: ProjectAssignmentPage renders all resource request cards with dropdowns, team availability, confirm/decline buttons
+
+## CC Owner Resource Assignment (2026-03-25)
+
+### Data Model
+- [x] `ResourceRequestAssignment` model — per-month person assignment for resource requests
+  - Fields: `resource_request_id`, `month`, `person_id`, `hours`, `created_at`, `modified_at`
+  - Unique constraint on `(resource_request_id, month)` — one person per month per request
+  - Cascade delete via `ResourceRequest.assignments` relationship
+
+### Backend API
+- [x] `GET /api/capacity/requests/{cc_id}/{request_id}/monthly-hours` — aggregated per-month forecast hours
+- [x] `GET /api/capacity/requests/{cc_id}/{request_id}/assignments` — current per-month assignments with person names
+- [x] `PUT /api/capacity/requests/{cc_id}/{request_id}/assignments` — save per-month person assignments (validates months, people, creates assignments with forecast hours)
+- [x] `GET /api/capacity/project-assignment/{project_id}` — project details with all resource requests and assignment status
+- [x] Modified `confirm_project_resources` and `confirm_request` — now create `Allocation` records from `ResourceRequestAssignment` data
+- [x] Enriched `get_intake_detail` — resource_plan includes per-role assignment data (person names, months, hours)
+- [x] Fixed `_create_resource_requests_from_forecast` — changed CC ID from `cc-rail-systems` to `cc-muc-apd` (matching CC owner persona)
+
+### Frontend
+- [x] `MonthlyAssignmentGrid.tsx` — two modes: Unified (one person for all months) and Split (per-month dropdowns)
+  - Person dropdown groups: "Matching Role" first, then "Other Roles" with role labels
+  - Utilization hints per person per month from heatmap data
+  - Auto-saves on change, shows "X/Y months assigned" badge
+- [x] `ProjectAssignmentPage.tsx` — dedicated full-page view for CC Owner assignment
+  - Project header, resource request cards with MonthlyAssignmentGrid each
+  - Collapsible team availability reference panel
+  - "Confirm All & Send to Controller" (enabled only when all assigned) and "Decline" buttons
+- [x] `ProjectConfirmationBanner.tsx` — "Review & Assign Resources" navigates to assignment page
+- [x] Route: `/capacity/project-assignment/:projectId` registered in CapacityManagement
+- [x] `IntakeDetailWorkspace.tsx` — "Resource Assignments (CC Owner)" section shows assigned employees per role with month ranges
+- [x] API client: `getRequestMonthlyHours`, `getRequestAssignments`, `saveRequestAssignments`, `getProjectAssignmentDetail`
+- [x] Types: `MonthlyHoursItem`, `RequestAssignment`, `ProjectAssignmentRequestItem`, `ProjectAssignmentDetail`
+
+### Verification
+- [x] API E2E test: project creation → submission → split assignment (2 people) → confirmation → 10 Allocation records created
+- [x] UI E2E test: CC Owner assigns Felix Keller (Sr. Dev, 6 months) + Jan Schmidt (Dev, 4 months) → confirms → Controller sees assignments in intake detail
+- [x] Split mode: per-month dropdowns with utilization hints, matching role grouping
+- [x] Unified mode: single dropdown assigns all months at once
+- [x] Allocation records created with correct hours (120h/160h) and `is_confirmed=True`
+- [x] TypeScript compilation passes with no errors
 
 ## Submission Workflow Implementation (2026-03-25)
 
