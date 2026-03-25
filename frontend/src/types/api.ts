@@ -236,6 +236,7 @@ export interface IntakeDetail {
   estimated_budget: number | null;
   capex_opex: string;
   status: string;
+  submission_feedback?: string | null;
   pl_name?: string | null;
   resource_plan?: IntakeResourcePlanItem[];
   external_cost_plan?: IntakeExternalCostItem[];

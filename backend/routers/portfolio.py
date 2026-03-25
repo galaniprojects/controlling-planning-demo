@@ -485,6 +485,7 @@ def get_intake_detail(
         "estimated_budget": float(project.total_budget) if project.total_budget else None,
         "capex_opex": project.capex_opex,
         "status": project.status,
+        "submission_feedback": project.submission_feedback,
         "pl_name": project.pl.name if project.pl else None,
         "resource_plan": list(resource_plan.values()),
         "external_cost_plan": list(external_plan.values()),

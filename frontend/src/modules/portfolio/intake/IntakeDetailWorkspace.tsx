@@ -12,6 +12,7 @@ import { portfolioApi } from '@/api/endpoints';
 import type { IntakeDetail } from '@/types/api';
 import { ArrowLeft, Check, X, Undo2, Edit2 } from 'lucide-react';
 import { EditableIntakeGrid } from './EditableIntakeGrid';
+import { IntakeDiffSection } from './IntakeDiffSection';
 
 interface Props {
   projectId: string;
@@ -153,35 +154,26 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
         </div>
       )}
 
-      {/* Changes Requested banner (visible to PL) */}
-      {data.status === 'changes_requested' && !actionResult && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 space-y-3">
-          <p className="text-sm font-medium text-amber-800">
-            Changes Requested
-          </p>
-          <p className="text-sm text-amber-700">
-            The controller has reviewed your submission and requested changes. Please review the feedback above and resubmit when ready.
-          </p>
-          {!isController && (
-            <Button
-              size="sm"
-              onClick={async () => {
-                setSubmitting(true);
-                try {
-                  await portfolioApi.resubmitIntake(projectId);
-                  setActionResult('Project resubmitted for approval.');
-                  onActionComplete();
-                } catch {
-                  setActionResult('Resubmission failed. Please try again.');
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-              disabled={submitting}
-            >
-              {submitting ? 'Resubmitting...' : 'Resubmit for Approval'}
-            </Button>
-          )}
+      {/* Changes Requested — PL review with diff */}
+      {data.status === 'changes_requested' && !isController && !actionResult && (
+        <div className="space-y-4">
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-4 space-y-2">
+            <p className="text-sm font-semibold text-amber-800">Changes Requested</p>
+            {data.submission_feedback ? (
+              <p className="text-sm text-amber-700">{data.submission_feedback}</p>
+            ) : (
+              <p className="text-sm text-amber-700">
+                The controller has reviewed your submission and requested changes. Review the comparison below.
+              </p>
+            )}
+          </div>
+
+          <Separator />
+
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Proposed Changes</h3>
+            <IntakeDiffSection projectId={projectId} onActionComplete={onActionComplete} />
+          </div>
         </div>
       )}
 

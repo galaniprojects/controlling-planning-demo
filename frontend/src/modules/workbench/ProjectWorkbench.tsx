@@ -87,7 +87,11 @@ export function ProjectWorkbench() {
               }}
             />
           ) : selectedId ? (
-            <ProjectWorkspace projectId={selectedId} role={role} />
+            <ProjectWorkspace
+              projectId={selectedId}
+              role={role}
+              status={projects.find((p) => p.id === selectedId)?.status}
+            />
           ) : (
             <div className="flex items-center justify-center h-64 text-slate-400 text-sm">
               {loading ? (

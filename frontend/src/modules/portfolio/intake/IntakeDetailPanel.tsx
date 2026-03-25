@@ -176,14 +176,16 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
                 <X className="h-3.5 w-3.5 mr-1" />
                 Reject
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setActionMode('send-back')}
-              >
-                <Undo2 className="h-3.5 w-3.5 mr-1" />
-                Request Changes
-              </Button>
+              {onOpenDetail && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onOpenDetail(projectId)}
+                >
+                  <Undo2 className="h-3.5 w-3.5 mr-1" />
+                  Request Changes
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
