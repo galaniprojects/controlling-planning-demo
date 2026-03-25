@@ -37,6 +37,7 @@ class ChangeRequest(Base):
     controller_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     # controller_status: pending, approved, rejected, sent_back
     controller_comments: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    controller_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -63,3 +64,23 @@ class CRChangeDetail(Base):
 
     # Relationships
     change_request: Mapped["ChangeRequest"] = relationship(back_populates="change_details")
+
+
+class CRSubmissionSnapshot(Base):
+    """Stores original forecast and controller-proposed edits for CR diff computation."""
+    __tablename__ = "cr_submission_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    change_request_id: Mapped[int] = mapped_column(ForeignKey("change_requests.id"), nullable=False)
+    snapshot_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    # snapshot_type: "original" | "controller_proposed"
+    created_by_id: Mapped[str] = mapped_column(ForeignKey("people.id"), nullable=False)
+    forecast_data_json: Mapped[str] = mapped_column(Text, nullable=False)
+    # JSON array of {category, sub_category, month, hours, amount_eur}
+    comments: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Relationships
+    change_request: Mapped["ChangeRequest"] = relationship()
+    created_by: Mapped["Person"] = relationship()

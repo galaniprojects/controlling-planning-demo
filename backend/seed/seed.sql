@@ -108,89 +108,89 @@ INSERT INTO rate_table (role_type_id, competence_center_id, hourly_rate, effecti
 -- =============================================================================
 
 -- cc-muc-apd
-INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
-('p-brenner', 'Thomas Brenner', 'role-sr-arch', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-fischer', 'Lena Fischer', 'role-sr-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-wolf', 'Markus Wolf', 'role-sr-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-keller', 'Felix Keller', 'role-sr-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-schmidt', 'Jan Schmidt', 'role-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-bauer', 'Sophie Bauer', 'role-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-neumann', 'Niklas Neumann', 'role-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-hoffmann', 'Laura Hoffmann', 'role-jr-dev', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-jung', 'Sabine Jung', 'role-qa', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-berger', 'Martin Berger', 'role-qa', 'cc-muc-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
+('p-brenner', 'Thomas Brenner', 'role-sr-arch', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-fischer', 'Lena Fischer', 'role-sr-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-wolf', 'Markus Wolf', 'role-sr-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-keller', 'Felix Keller', 'role-sr-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-schmidt', 'Jan Schmidt', 'role-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-bauer', 'Sophie Bauer', 'role-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-neumann', 'Niklas Neumann', 'role-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-hoffmann', 'Laura Hoffmann', 'role-jr-dev', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-jung', 'Sabine Jung', 'role-qa', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-berger', 'Martin Berger', 'role-qa', 'cc-muc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-muc-inf
-INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
-('p-wagner', 'Michael Wagner', 'role-cloud', 'cc-muc-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-braun', 'Stefan Braun', 'role-cloud', 'cc-muc-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-richter', 'Katharina Richter', 'role-sysadmin', 'cc-muc-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-frank', 'Andreas Frank', 'role-network', 'cc-muc-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
+('p-wagner', 'Michael Wagner', 'role-cloud', 'cc-muc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-braun', 'Stefan Braun', 'role-cloud', 'cc-muc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-becker', 'Katharina Richter', 'role-sysadmin', 'cc-muc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-frank', 'Andreas Frank', 'role-network', 'cc-muc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-muc-bso
-INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
-('p-mueller', 'Eva Mueller', 'role-sap', 'cc-muc-bso', 'cc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-hartmann', 'Klaus Hartmann', 'role-sap', 'cc-muc-bso', 'cc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-krause', 'Petra Krause', 'role-ba', 'cc-muc-bso', 'cc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
+('p-mueller', 'Eva Mueller', 'role-sap', 'cc-muc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-hartmann', 'Klaus Hartmann', 'role-sap', 'cc-muc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-krause', 'Petra Krause', 'role-ba', 'cc-muc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-muc-dda
-INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
-('p-schubert', 'Daniel Schubert', 'role-data-eng', 'cc-muc-dda', 'cc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-winter', 'Christina Winter', 'role-data-eng', 'cc-muc-dda', 'cc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-lorenz', 'Florian Lorenz', 'role-data-sci', 'cc-muc-dda', 'cc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
+('p-schubert', 'Daniel Schubert', 'role-data-eng', 'cc-muc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-winter', 'Christina Winter', 'role-data-eng', 'cc-muc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-lorenz', 'Florian Lorenz', 'role-data-sci', 'cc-muc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-bud-apd
-INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
-('p-nagy', 'Zoltan Nagy', 'role-sr-arch', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-szabo', 'Istvan Szabo', 'role-sr-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-toth', 'Gabor Toth', 'role-sr-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-horvath', 'Anna Horvath', 'role-sr-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-kovacs', 'Peter Kovacs', 'role-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-molnar', 'Katalin Molnar', 'role-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-varga', 'Laszlo Varga', 'role-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-kiss', 'Eszter Kiss', 'role-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-fekete', 'Daniel Fekete', 'role-jr-dev', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-papp', 'Janos Papp', 'role-qa', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-lukacs', 'Marta Lukacs', 'role-qa', 'cc-bud-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
+('p-nagy', 'Zoltan Nagy', 'role-sr-arch', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-szabo', 'Istvan Szabo', 'role-sr-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-toth', 'Gabor Toth', 'role-sr-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-horvath', 'Anna Horvath', 'role-sr-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-kovacs', 'Peter Kovacs', 'role-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-molnar', 'Katalin Molnar', 'role-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-varga', 'Laszlo Varga', 'role-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-kiss', 'Eszter Kiss', 'role-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-fekete', 'Daniel Fekete', 'role-jr-dev', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-papp', 'Janos Papp', 'role-qa', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-lukacs', 'Marta Lukacs', 'role-qa', 'cc-bud-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-bud-inf
-INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
-('p-farkas', 'Tamas Farkas', 'role-cloud', 'cc-bud-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-balogh', 'Andras Balogh', 'role-sysadmin', 'cc-bud-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-takacs', 'Krisztina Takacs', 'role-network', 'cc-bud-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
+('p-farkas', 'Tamas Farkas', 'role-cloud', 'cc-bud-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-balogh', 'Andras Balogh', 'role-sysadmin', 'cc-bud-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-takacs', 'Krisztina Takacs', 'role-network', 'cc-bud-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-bud-dda
-INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
-('p-simon', 'Balazs Simon', 'role-data-eng', 'cc-bud-dda', 'cc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-nemeth', 'Eva Nemeth', 'role-data-sci', 'cc-bud-dda', 'cc-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
+('p-simon', 'Balazs Simon', 'role-data-eng', 'cc-bud-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-nemeth', 'Eva Nemeth', 'role-data-sci', 'cc-bud-dda', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- portfolio
-INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
-('p-sharma', 'Priya Sharma', 'role-sr-arch', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-meier', 'Anna Meier', 'role-sr-arch', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-becker', 'Thomas Becker', 'role-sr-arch', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
+('p-sharma', 'Priya Sharma', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-meier', 'Anna Meier', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-becker-exec', 'Thomas Becker', 'role-sr-arch', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-pun-apd
-INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
-('p-patel', 'Rajesh Patel', 'role-sr-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-kumar', 'Amit Kumar', 'role-sr-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-gupta', 'Sneha Gupta', 'role-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-singh', 'Vikram Singh', 'role-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-das', 'Ananya Das', 'role-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-joshi', 'Deepak Joshi', 'role-jr-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-iyer', 'Kavitha Iyer', 'role-jr-dev', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-reddy', 'Sanjay Reddy', 'role-qa', 'cc-pun-apd', 'cc-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
+('p-patel', 'Rajesh Patel', 'role-sr-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-kumar', 'Amit Kumar', 'role-sr-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-gupta', 'Sneha Gupta', 'role-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-singh', 'Vikram Singh', 'role-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-das', 'Ananya Das', 'role-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-joshi', 'Deepak Joshi', 'role-jr-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-iyer', 'Kavitha Iyer', 'role-jr-dev', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-reddy', 'Sanjay Reddy', 'role-qa', 'cc-pun-apd', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-pun-inf
-INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
-('p-nair', 'Arun Nair', 'role-cloud', 'cc-pun-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-menon', 'Lakshmi Menon', 'role-sysadmin', 'cc-pun-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-pillai', 'Suresh Pillai', 'role-network', 'cc-pun-inf', 'cc-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
+('p-nair', 'Arun Nair', 'role-cloud', 'cc-pun-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-menon', 'Lakshmi Menon', 'role-sysadmin', 'cc-pun-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-pillai', 'Suresh Pillai', 'role-network', 'cc-pun-inf', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- cc-pun-bso
-INSERT INTO people (id, name, role_type_id, cost_center_id, competence_center_id, is_active, created_at, modified_at) VALUES
-('p-rao', 'Meera Rao', 'role-sap', 'cc-pun-bso', 'cc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('p-desai', 'Nikhil Desai', 'role-ba', 'cc-pun-bso', 'cc-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_at, modified_at) VALUES
+('p-rao', 'Meera Rao', 'role-sap', 'cc-pun-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('p-desai', 'Nikhil Desai', 'role-ba', 'cc-pun-bso', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- 9. Demo Personas
@@ -200,7 +200,7 @@ INSERT INTO demo_personas (id, person_id, role, display_name, title, default_mod
 ('persona-controller', 'p-meier', 'controller', 'Anna Meier', 'IT Controller', 'portfolio', NULL, NULL),
 ('persona-cc-owner', 'p-brenner', 'cost_center_owner', 'Thomas Brenner', 'Head of Application Development', 'capacity', 'cc-muc-apd', NULL),
 ('persona-pl', 'p-sharma', 'project_lead', 'Priya Sharma', 'Senior Project Lead', 'workbench', NULL, '["proj-erp2","proj-sensor","proj-predmaint","proj-fleet","proj-autobrake"]'),
-('persona-exec', 'p-becker', 'executive', 'Thomas Becker', 'VP IT Strategy & Governance', 'portfolio', NULL, NULL);
+('persona-exec', 'p-becker-exec', 'executive', 'Thomas Becker', 'VP IT Strategy & Governance', 'portfolio', NULL, NULL);
 
 -- =============================================================================
 -- 10. Programmes
@@ -270,11 +270,7 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('forecast_deadline', 'Forecast Deadline', 'Day of month when forecast is due', '15', '15', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_amber_threshold', 'RAG Amber Threshold', 'Budget variance % for amber status', '5', '5', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_red_threshold', 'RAG Red Threshold', 'Budget variance % for red status', '10', '10', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('standard_hours_global', 'Standard Hours (Global)', 'Default available hours per person per month', '160', '160', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('standard_hours_loc_muc', 'Standard Hours (Munich)', 'Available hours per person per month — Munich', '160', '160', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('standard_hours_loc_bud', 'Standard Hours (Budapest)', 'Available hours per person per month — Budapest', '168', '168', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('standard_hours_loc_pun', 'Standard Hours (Pune)', 'Available hours per person per month — Pune', '176', '176', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- 13. KPI Definitions
@@ -6258,7 +6254,7 @@ INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_
 ('proj-erp2', '2025-09', 'internal', 'role-dev', 60, 4920.00, NULL, 'capex', NULL, NULL),
 ('proj-erp2', '2025-09', 'internal', 'role-dev', 40, 1520.00, NULL, 'capex', NULL, NULL);
 INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_eur, description, capex_opex, vendor, ext_status) VALUES
-('proj-erp2', '2025-09', 'internal', 'role-qa', 50, 3750.00, NULL, 'capex', NULL, NULL),
+('proj-erp2', '2025-09', 'internal', 'role-qa', 40, 3000.00, NULL, 'capex', NULL, NULL),
 ('proj-erp2', '2025-09', 'internal', 'role-sap', 40, 4400.00, NULL, 'capex', NULL, NULL),
 ('proj-erp2', '2025-09', 'internal', 'role-ba', 30, 2700.00, NULL, 'capex', NULL, NULL),
 ('proj-erp2', '2025-09', 'external', 'ext-consulting', NULL, 22000.00, 'SAP Implementation Support', 'capex', 'Deloitte', 'accrued'),
@@ -6323,9 +6319,9 @@ INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_
 ('proj-erp2', '2026-01', 'external', 'ext-sw-licenses', NULL, 2000.00, 'Azure DevOps Licenses', 'opex', 'Microsoft', 'invoiced'),
 ('proj-erp2', '2026-01', 'external', 'ext-training', NULL, 3000.00, 'SAP S/4HANA Certification', 'opex', 'SAP Education', 'invoiced'),
 ('proj-erp2', '2026-01', 'external', 'ext-travel', NULL, 1500.00, 'Munich-Budapest Team Visits', 'opex', NULL, 'invoiced'),
-('proj-erp2', '2026-01', 'external', 'ext-other', NULL, 3500.00, 'Penetration Testing', 'opex', 'SecureWorks', 'invoiced'),
+('proj-erp2', '2026-01', 'external', 'ext-other', NULL, 2000.00, 'Penetration Testing', 'opex', 'SecureWorks', 'invoiced'),
 ('proj-erp2', '2026-02', 'internal', 'role-sr-dev', 100, 10000.00, NULL, 'capex', NULL, NULL),
-('proj-erp2', '2026-02', 'internal', 'role-sr-dev', 50, 2300.00, NULL, 'capex', NULL, NULL),
+('proj-erp2', '2026-02', 'internal', 'role-sr-dev', 40, 1840.00, NULL, 'capex', NULL, NULL),
 ('proj-erp2', '2026-02', 'internal', 'role-dev', 60, 4920.00, NULL, 'capex', NULL, NULL),
 ('proj-erp2', '2026-02', 'internal', 'role-dev', 40, 1520.00, NULL, 'capex', NULL, NULL),
 ('proj-erp2', '2026-02', 'internal', 'role-qa', 40, 3000.00, NULL, 'capex', NULL, NULL),
@@ -6774,7 +6770,7 @@ INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_
 ('proj-sap', '2024-07', 'internal', 'role-sap', 80, 8800.00, NULL, 'capex', NULL, NULL),
 ('proj-sap', '2024-07', 'internal', 'role-sap', 40, 2000.00, NULL, 'capex', NULL, NULL),
 ('proj-sap', '2024-07', 'internal', 'role-sr-dev', 60, 4080.00, NULL, 'capex', NULL, NULL),
-('proj-sap', '2024-07', 'internal', 'role-dev', 100, 5600.00, NULL, 'capex', NULL, NULL),
+('proj-sap', '2024-07', 'internal', 'role-dev', 80, 4480.00, NULL, 'capex', NULL, NULL),
 ('proj-sap', '2024-07', 'internal', 'role-ba', 30, 1260.00, NULL, 'capex', NULL, NULL),
 ('proj-sap', '2024-07', 'internal', 'role-qa', 40, 2080.00, NULL, 'capex', NULL, NULL),
 ('proj-sap', '2024-07', 'external', 'ext-consulting', NULL, 20000.00, 'SAP Consulting Services', 'capex', 'Accenture', 'accrued'),
@@ -7076,7 +7072,7 @@ INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_
 ('proj-brake', '2025-08', 'external', 'ext-travel', NULL, 1000.00, 'Munich-Budapest Travel', 'opex', NULL, 'accrued'),
 ('proj-brake', '2025-09', 'internal', 'role-sr-dev', 40, 2720.00, NULL, 'capex', NULL, NULL),
 ('proj-brake', '2025-09', 'internal', 'role-dev', 60, 3360.00, NULL, 'capex', NULL, NULL),
-('proj-brake', '2025-09', 'internal', 'role-qa', 40, 2080.00, NULL, 'capex', NULL, NULL),
+('proj-brake', '2025-09', 'internal', 'role-qa', 30, 1560.00, NULL, 'capex', NULL, NULL),
 ('proj-brake', '2025-09', 'external', 'ext-consulting', NULL, 4000.00, 'Embedded Systems Consulting', 'capex', 'Vector Informatik', 'accrued'),
 ('proj-brake', '2025-09', 'external', 'ext-hw-maint', NULL, 2000.00, 'Test Equipment Maintenance', 'capex', 'National Instruments', 'accrued'),
 ('proj-brake', '2025-09', 'external', 'ext-travel', NULL, 1000.00, 'Munich-Budapest Travel', 'opex', NULL, 'accrued'),
@@ -8434,7 +8430,7 @@ INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_
 ('proj-signal', '2025-12', 'external', 'ext-hw-maint', NULL, 3000.00, 'Test Equipment Maintenance', 'capex', 'Keysight', 'invoiced'),
 ('proj-signal', '2025-12', 'external', 'ext-travel', NULL, 1500.00, 'Cross-Location Travel', 'opex', NULL, 'invoiced'),
 ('proj-signal', '2026-01', 'internal', 'role-sr-dev', 60, 4080.00, NULL, 'capex', NULL, NULL),
-('proj-signal', '2026-01', 'internal', 'role-dev', 40, 2240.00, NULL, 'capex', NULL, NULL),
+('proj-signal', '2026-01', 'internal', 'role-dev', 80, 4480.00, NULL, 'capex', NULL, NULL),
 ('proj-signal', '2026-01', 'internal', 'role-sr-arch', 30, 2340.00, NULL, 'capex', NULL, NULL),
 ('proj-signal', '2026-01', 'internal', 'role-qa', 30, 1560.00, NULL, 'capex', NULL, NULL),
 ('proj-signal', '2026-01', 'external', 'ext-consulting', NULL, 10000.00, 'Signaling Consulting', 'capex', 'Siemens Mobility', 'invoiced'),
@@ -8449,7 +8445,7 @@ INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_
 ('proj-signal', '2026-02', 'external', 'ext-other', NULL, 4000.00, 'Safety Certification', 'capex', 'TUV Rheinland', 'invoiced'),
 ('proj-signal', '2026-02', 'external', 'ext-hw-maint', NULL, 3000.00, 'Test Equipment Maintenance', 'capex', 'Keysight', 'invoiced'),
 ('proj-signal', '2026-02', 'external', 'ext-travel', NULL, 1500.00, 'Cross-Location Travel', 'opex', NULL, 'invoiced'),
-('proj-signal', '2026-03', 'internal', 'role-sr-dev', 30, 2040.00, NULL, 'capex', NULL, NULL),
+('proj-signal', '2026-03', 'internal', 'role-sr-dev', 60, 4080.00, NULL, 'capex', NULL, NULL),
 ('proj-signal', '2026-03', 'internal', 'role-dev', 80, 4480.00, NULL, 'capex', NULL, NULL),
 ('proj-signal', '2026-03', 'internal', 'role-sr-arch', 30, 2340.00, NULL, 'capex', NULL, NULL),
 ('proj-signal', '2026-03', 'internal', 'role-qa', 30, 1560.00, NULL, 'capex', NULL, NULL),
@@ -8621,7 +8617,7 @@ INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_
 ('proj-raildiag', '2026-01', 'internal', 'role-qa', 20, 1040.00, NULL, 'capex', NULL, NULL),
 ('proj-raildiag', '2026-01', 'internal', 'role-ba', 20, 840.00, NULL, 'capex', NULL, NULL),
 ('proj-raildiag', '2026-01', 'external', 'ext-sw-licenses', NULL, 3000.00, 'Diagnostics Platform License', 'capex', 'PTC', 'invoiced'),
-('proj-raildiag', '2026-01', 'external', 'ext-cloud', NULL, 5000.00, 'Cloud Hosting', 'capex', 'Azure', 'invoiced'),
+('proj-raildiag', '2026-01', 'external', 'ext-cloud', NULL, 4000.00, 'Cloud Hosting', 'capex', 'Azure', 'invoiced'),
 ('proj-raildiag', '2026-01', 'external', 'ext-consulting', NULL, 3000.00, 'Domain Consulting', 'capex', 'Ricardo Rail', 'invoiced'),
 ('proj-raildiag', '2026-02', 'internal', 'role-sr-dev', 40, 2720.00, NULL, 'capex', NULL, NULL),
 ('proj-raildiag', '2026-02', 'internal', 'role-dev', 60, 3360.00, NULL, 'capex', NULL, NULL),
@@ -9711,7 +9707,7 @@ INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_
 ('proj-cloud3', '2025-10', 'internal', 'role-sysadmin', 30, 2400.00, NULL, 'opex', NULL, NULL),
 ('proj-cloud3', '2025-10', 'external', 'ext-cloud', NULL, 10000.00, 'AWS EC2 Reserved Instances', 'opex', 'AWS', 'accrued'),
 ('proj-cloud3', '2025-10', 'external', 'ext-cloud', NULL, 4000.00, 'AWS S3 Storage', 'opex', 'AWS', 'accrued'),
-('proj-cloud3', '2025-10', 'external', 'ext-consulting', NULL, 3000.00, 'Cloud Architecture Advisory', 'opex', 'Accenture', 'accrued'),
+('proj-cloud3', '2025-10', 'external', 'ext-consulting', NULL, 5000.00, 'Cloud Architecture Advisory', 'opex', 'Accenture', 'accrued'),
 ('proj-cloud3', '2025-10', 'external', 'ext-training', NULL, 2000.00, 'AWS Training', 'opex', 'AWS Training', 'accrued'),
 ('proj-cloud3', '2025-11', 'internal', 'role-cloud', 60, 6300.00, NULL, 'opex', NULL, NULL),
 ('proj-cloud3', '2025-11', 'internal', 'role-cloud', 40, 1920.00, NULL, 'opex', NULL, NULL),
@@ -9820,7 +9816,7 @@ INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_
 ('proj-iam', '2025-06', 'internal', 'role-sysadmin', 30, 1650.00, NULL, 'capex', NULL, NULL),
 ('proj-iam', '2025-06', 'internal', 'role-dev', 40, 3280.00, NULL, 'capex', NULL, NULL),
 ('proj-iam', '2025-06', 'external', 'ext-sw-licenses', NULL, 4000.00, 'ServiceNow ITSM Licenses', 'capex', 'ServiceNow', 'accrued'),
-('proj-iam', '2025-06', 'external', 'ext-consulting', NULL, 7000.00, 'Security Assessment', 'capex', 'PwC', 'accrued'),
+('proj-iam', '2025-06', 'external', 'ext-consulting', NULL, 5000.00, 'Security Assessment', 'capex', 'PwC', 'accrued'),
 ('proj-iam', '2025-06', 'external', 'ext-leased-staff', NULL, 6000.00, 'Security Consultant (1 FTE)', 'capex', 'Hays', 'accrued'),
 ('proj-iam', '2025-06', 'external', 'ext-hw-maint', NULL, 2000.00, 'Cisco Network Equipment Support', 'opex', 'Cisco', 'accrued'),
 ('proj-iam', '2025-06', 'external', 'ext-training', NULL, 1500.00, 'Cybersecurity Awareness Training', 'opex', 'Internal', 'accrued'),
@@ -9996,7 +9992,7 @@ INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_
 ('proj-workplace', '2025-11', 'external', 'ext-consulting', NULL, 4000.00, 'Workplace Design Consulting', 'opex', 'Accenture', 'accrued');
 INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_eur, description, capex_opex, vendor, ext_status) VALUES
 ('proj-workplace', '2025-11', 'external', 'ext-sw-licenses', NULL, 5000.00, 'Microsoft 365 Licenses', 'opex', 'Microsoft', 'accrued'),
-('proj-workplace', '2025-11', 'external', 'ext-sw-maint', NULL, 2500.00, 'Device Management Platform', 'opex', 'VMware', 'accrued'),
+('proj-workplace', '2025-11', 'external', 'ext-sw-maint', NULL, 2000.00, 'Device Management Platform', 'opex', 'VMware', 'accrued'),
 ('proj-workplace', '2025-12', 'internal', 'role-sysadmin', 40, 3200.00, NULL, 'opex', NULL, NULL),
 ('proj-workplace', '2025-12', 'internal', 'role-cloud', 40, 2880.00, NULL, 'opex', NULL, NULL),
 ('proj-workplace', '2025-12', 'internal', 'role-dev', 60, 2280.00, NULL, 'opex', NULL, NULL),
@@ -11239,7 +11235,7 @@ INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_
 ('proj-fleet', '2026-03', 'external', 'ext-cloud', NULL, 4000.00, 'Cloud Hosting', 'capex', 'Azure', 'delivered'),
 ('proj-fleet', '2026-03', 'external', 'ext-sw-licenses', NULL, 2000.00, 'Mapping API License', 'capex', 'HERE Technologies', 'delivered'),
 ('proj-fleet', '2026-04', 'internal', 'role-sr-dev', 40, 2720.00, NULL, 'capex', NULL, NULL),
-('proj-fleet', '2026-04', 'internal', 'role-dev', 80, 4480.00, NULL, 'capex', NULL, NULL),
+('proj-fleet', '2026-04', 'internal', 'role-dev', 60, 3360.00, NULL, 'capex', NULL, NULL),
 ('proj-fleet', '2026-04', 'internal', 'role-dev', 40, 1520.00, NULL, 'capex', NULL, NULL),
 ('proj-fleet', '2026-04', 'internal', 'role-qa', 20, 1040.00, NULL, 'capex', NULL, NULL),
 ('proj-fleet', '2026-04', 'external', 'ext-consulting', NULL, 5000.00, 'UX/UI Design Agency', 'capex', 'Frog Design', 'committed'),
@@ -16412,79 +16408,79 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-braun', 'proj-iam', '2026-07', 30, 1),
 ('p-braun', 'proj-iam', '2026-08', 30, 1),
 ('p-braun', 'proj-iam', '2026-09', 30, 1),
-('p-richter', 'svc-netsec', '2024-01', 60, 1),
-('p-richter', 'svc-netsec', '2024-02', 60, 1),
-('p-richter', 'svc-netsec', '2024-03', 60, 1),
-('p-richter', 'svc-netsec', '2024-04', 60, 1),
-('p-richter', 'svc-netsec', '2024-05', 60, 1),
-('p-richter', 'svc-netsec', '2024-06', 60, 1),
-('p-richter', 'svc-netsec', '2024-07', 60, 1),
-('p-richter', 'svc-netsec', '2024-08', 60, 1),
-('p-richter', 'svc-netsec', '2024-09', 60, 1),
-('p-richter', 'svc-netsec', '2024-10', 60, 1),
-('p-richter', 'svc-netsec', '2024-11', 60, 1),
-('p-richter', 'svc-netsec', '2024-12', 60, 1),
-('p-richter', 'svc-netsec', '2025-01', 60, 1),
-('p-richter', 'svc-netsec', '2025-02', 60, 1),
-('p-richter', 'svc-netsec', '2025-03', 60, 1),
-('p-richter', 'svc-netsec', '2025-04', 60, 1),
-('p-richter', 'svc-netsec', '2025-05', 60, 1),
-('p-richter', 'svc-netsec', '2025-06', 60, 1),
-('p-richter', 'svc-netsec', '2025-07', 60, 1),
-('p-richter', 'svc-netsec', '2025-08', 60, 1),
-('p-richter', 'svc-netsec', '2025-09', 60, 1),
-('p-richter', 'svc-netsec', '2025-10', 60, 1),
-('p-richter', 'svc-netsec', '2025-11', 60, 1),
-('p-richter', 'svc-netsec', '2025-12', 60, 1),
-('p-richter', 'svc-netsec', '2026-01', 60, 1),
-('p-richter', 'svc-netsec', '2026-02', 60, 1),
-('p-richter', 'svc-netsec', '2026-03', 60, 1),
-('p-richter', 'svc-netsec', '2026-04', 60, 1),
-('p-richter', 'svc-netsec', '2026-05', 60, 1),
-('p-richter', 'svc-netsec', '2026-06', 60, 1),
-('p-richter', 'svc-netsec', '2026-07', 60, 1),
-('p-richter', 'svc-netsec', '2026-08', 60, 1),
-('p-richter', 'svc-netsec', '2026-09', 60, 1),
-('p-richter', 'svc-netsec', '2026-10', 60, 1),
-('p-richter', 'svc-netsec', '2026-11', 60, 1),
-('p-richter', 'svc-netsec', '2026-12', 60, 1),
-('p-richter', 'svc-euc', '2024-01', 40, 1),
-('p-richter', 'svc-euc', '2024-02', 40, 1),
-('p-richter', 'svc-euc', '2024-03', 40, 1),
-('p-richter', 'svc-euc', '2024-04', 40, 1),
-('p-richter', 'svc-euc', '2024-05', 40, 1),
-('p-richter', 'svc-euc', '2024-06', 40, 1),
-('p-richter', 'svc-euc', '2024-07', 40, 1),
-('p-richter', 'svc-euc', '2024-08', 40, 1),
-('p-richter', 'svc-euc', '2024-09', 40, 1),
-('p-richter', 'svc-euc', '2024-10', 40, 1),
-('p-richter', 'svc-euc', '2024-11', 40, 1),
-('p-richter', 'svc-euc', '2024-12', 40, 1),
-('p-richter', 'svc-euc', '2025-01', 40, 1),
-('p-richter', 'svc-euc', '2025-02', 40, 1),
-('p-richter', 'svc-euc', '2025-03', 40, 1),
-('p-richter', 'svc-euc', '2025-04', 40, 1),
-('p-richter', 'svc-euc', '2025-05', 40, 1),
-('p-richter', 'svc-euc', '2025-06', 40, 1),
-('p-richter', 'svc-euc', '2025-07', 40, 1),
-('p-richter', 'svc-euc', '2025-08', 40, 1),
-('p-richter', 'svc-euc', '2025-09', 40, 1),
-('p-richter', 'svc-euc', '2025-10', 40, 1),
-('p-richter', 'svc-euc', '2025-11', 40, 1),
-('p-richter', 'svc-euc', '2025-12', 40, 1),
-('p-richter', 'svc-euc', '2026-01', 40, 1),
-('p-richter', 'svc-euc', '2026-02', 40, 1),
-('p-richter', 'svc-euc', '2026-03', 40, 1),
-('p-richter', 'svc-euc', '2026-04', 40, 1),
-('p-richter', 'svc-euc', '2026-05', 40, 1),
-('p-richter', 'svc-euc', '2026-06', 40, 1),
-('p-richter', 'svc-euc', '2026-07', 40, 1),
-('p-richter', 'svc-euc', '2026-08', 40, 1),
-('p-richter', 'svc-euc', '2026-09', 40, 1),
-('p-richter', 'svc-euc', '2026-10', 40, 1);
+('p-becker', 'svc-netsec', '2024-01', 60, 1),
+('p-becker', 'svc-netsec', '2024-02', 60, 1),
+('p-becker', 'svc-netsec', '2024-03', 60, 1),
+('p-becker', 'svc-netsec', '2024-04', 60, 1),
+('p-becker', 'svc-netsec', '2024-05', 60, 1),
+('p-becker', 'svc-netsec', '2024-06', 60, 1),
+('p-becker', 'svc-netsec', '2024-07', 60, 1),
+('p-becker', 'svc-netsec', '2024-08', 60, 1),
+('p-becker', 'svc-netsec', '2024-09', 60, 1),
+('p-becker', 'svc-netsec', '2024-10', 60, 1),
+('p-becker', 'svc-netsec', '2024-11', 60, 1),
+('p-becker', 'svc-netsec', '2024-12', 60, 1),
+('p-becker', 'svc-netsec', '2025-01', 60, 1),
+('p-becker', 'svc-netsec', '2025-02', 60, 1),
+('p-becker', 'svc-netsec', '2025-03', 60, 1),
+('p-becker', 'svc-netsec', '2025-04', 60, 1),
+('p-becker', 'svc-netsec', '2025-05', 60, 1),
+('p-becker', 'svc-netsec', '2025-06', 60, 1),
+('p-becker', 'svc-netsec', '2025-07', 60, 1),
+('p-becker', 'svc-netsec', '2025-08', 60, 1),
+('p-becker', 'svc-netsec', '2025-09', 60, 1),
+('p-becker', 'svc-netsec', '2025-10', 60, 1),
+('p-becker', 'svc-netsec', '2025-11', 60, 1),
+('p-becker', 'svc-netsec', '2025-12', 60, 1),
+('p-becker', 'svc-netsec', '2026-01', 60, 1),
+('p-becker', 'svc-netsec', '2026-02', 60, 1),
+('p-becker', 'svc-netsec', '2026-03', 60, 1),
+('p-becker', 'svc-netsec', '2026-04', 60, 1),
+('p-becker', 'svc-netsec', '2026-05', 60, 1),
+('p-becker', 'svc-netsec', '2026-06', 60, 1),
+('p-becker', 'svc-netsec', '2026-07', 60, 1),
+('p-becker', 'svc-netsec', '2026-08', 60, 1),
+('p-becker', 'svc-netsec', '2026-09', 60, 1),
+('p-becker', 'svc-netsec', '2026-10', 60, 1),
+('p-becker', 'svc-netsec', '2026-11', 60, 1),
+('p-becker', 'svc-netsec', '2026-12', 60, 1),
+('p-becker', 'svc-euc', '2024-01', 40, 1),
+('p-becker', 'svc-euc', '2024-02', 40, 1),
+('p-becker', 'svc-euc', '2024-03', 40, 1),
+('p-becker', 'svc-euc', '2024-04', 40, 1),
+('p-becker', 'svc-euc', '2024-05', 40, 1),
+('p-becker', 'svc-euc', '2024-06', 40, 1),
+('p-becker', 'svc-euc', '2024-07', 40, 1),
+('p-becker', 'svc-euc', '2024-08', 40, 1),
+('p-becker', 'svc-euc', '2024-09', 40, 1),
+('p-becker', 'svc-euc', '2024-10', 40, 1),
+('p-becker', 'svc-euc', '2024-11', 40, 1),
+('p-becker', 'svc-euc', '2024-12', 40, 1),
+('p-becker', 'svc-euc', '2025-01', 40, 1),
+('p-becker', 'svc-euc', '2025-02', 40, 1),
+('p-becker', 'svc-euc', '2025-03', 40, 1),
+('p-becker', 'svc-euc', '2025-04', 40, 1),
+('p-becker', 'svc-euc', '2025-05', 40, 1),
+('p-becker', 'svc-euc', '2025-06', 40, 1),
+('p-becker', 'svc-euc', '2025-07', 40, 1),
+('p-becker', 'svc-euc', '2025-08', 40, 1),
+('p-becker', 'svc-euc', '2025-09', 40, 1),
+('p-becker', 'svc-euc', '2025-10', 40, 1),
+('p-becker', 'svc-euc', '2025-11', 40, 1),
+('p-becker', 'svc-euc', '2025-12', 40, 1),
+('p-becker', 'svc-euc', '2026-01', 40, 1),
+('p-becker', 'svc-euc', '2026-02', 40, 1),
+('p-becker', 'svc-euc', '2026-03', 40, 1),
+('p-becker', 'svc-euc', '2026-04', 40, 1),
+('p-becker', 'svc-euc', '2026-05', 40, 1),
+('p-becker', 'svc-euc', '2026-06', 40, 1),
+('p-becker', 'svc-euc', '2026-07', 40, 1),
+('p-becker', 'svc-euc', '2026-08', 40, 1),
+('p-becker', 'svc-euc', '2026-09', 40, 1),
+('p-becker', 'svc-euc', '2026-10', 40, 1);
 INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
-('p-richter', 'svc-euc', '2026-11', 40, 1),
-('p-richter', 'svc-euc', '2026-12', 40, 1),
+('p-becker', 'svc-euc', '2026-11', 40, 1),
+('p-becker', 'svc-euc', '2026-12', 40, 1),
 ('p-frank', 'proj-iam', '2025-01', 40, 1),
 ('p-frank', 'proj-iam', '2025-02', 40, 1),
 ('p-frank', 'proj-iam', '2025-03', 40, 1),
@@ -18822,39 +18818,39 @@ INSERT INTO resource_requests (project_id, cost_center_id, request_type, role_ty
 ('proj-sensor', 'cc-muc-dda', 'external_cost', NULL, 'ext-cloud', 5000, '2026-04', '2026-12', 'medium', 'pending', NULL, NULL, 'AWS production infrastructure scaling (linked to CR-B).', '2026-03-08 09:30:00', '2026-03-08 09:30:00');
 
 -- =============================================================================
--- Change Requests & CR Change Details
+-- Change Requests & CR Change Details & CR Submission Snapshots
 -- =============================================================================
 
 -- Change Requests (28 rows)
-INSERT INTO change_requests (id, project_id, submitted_by_id, submission_timestamp, status, change_category, summary, justification, is_system_suggested, cc_owner_id, cc_confirmation_timestamp, cc_status, cc_comments, controller_id, controller_approval_timestamp, controller_status, controller_comments, created_at) VALUES
-(1, 'proj-erp2', 'p-sharma', '2024-10-15 09:30:00', 'approved', 'resource', 'Increase Sr Developer hours to address integration backlog', 'Integration testing revealed more complex data mappings than anticipated.', 0, 'p-brenner', '2024-10-16 11:00:00', 'confirmed', NULL, 'p-meier', '2024-10-17 14:00:00', 'approved', NULL, '2024-10-15 09:30:00'),
-(2, 'proj-erp2', 'p-sharma', '2024-11-20 10:00:00', 'approved', 'external_cost', 'Increase Deloitte consulting budget for extended SAP support', 'Deloitte advisory scope expanded to cover additional module integrations.', 0, 'p-brenner', '2024-11-21 09:00:00', 'confirmed', NULL, 'p-meier', '2024-11-22 16:00:00', 'approved', NULL, '2024-11-20 10:00:00'),
-(3, 'proj-erp2', 'p-sharma', '2025-01-10 11:00:00', 'approved', 'resource', 'Add TCS developers for data migration sprint', 'Data migration requires additional hands-on development capacity.', 0, 'p-brenner', '2025-01-11 10:00:00', 'confirmed', NULL, 'p-meier', '2025-01-13 09:00:00', 'approved', NULL, '2025-01-10 11:00:00'),
-(4, 'proj-erp2', 'p-sharma', '2025-03-18 14:00:00', 'approved', 'scope', 'Extend scope to include warehouse management module', 'Business stakeholders requested WMS integration as part of Phase 2.', 0, 'p-brenner', '2025-03-19 10:00:00', 'confirmed', NULL, 'p-meier', '2025-03-20 11:00:00', 'approved', NULL, '2025-03-18 14:00:00'),
-(5, 'proj-erp2', 'p-sharma', '2025-06-05 09:00:00', 'approved', 'timeline', 'Extend project end date by 3 months', 'WMS integration and testing require additional time.', 0, 'p-brenner', '2025-06-06 15:00:00', 'confirmed', NULL, 'p-meier', '2025-06-09 10:00:00', 'approved', NULL, '2025-06-05 09:00:00'),
-(6, 'proj-erp2', 'p-sharma', '2025-08-12 10:30:00', 'approved', 'resource', 'Increase QA hours for regression testing', 'Extended scope requires more thorough regression testing cycles.', 0, 'p-brenner', '2025-08-13 11:00:00', 'confirmed', NULL, 'p-meier', '2025-08-14 14:00:00', 'approved', NULL, '2025-08-12 10:30:00'),
-(7, 'proj-erp2', 'p-sharma', '2025-11-03 09:00:00', 'approved', 'external_cost', 'Additional penetration testing round for WMS', 'Security team mandated pen-test for new WMS module before go-live.', 0, 'p-brenner', '2025-11-04 10:00:00', 'confirmed', NULL, 'p-meier', '2025-11-05 11:00:00', 'approved', NULL, '2025-11-03 09:00:00'),
-(8, 'proj-erp2', 'p-sharma', '2026-01-20 10:00:00', 'approved', 'resource', 'Extend Sr Dev PUN allocation through project end', 'Pune team essential for final integration and go-live support.', 0, 'p-brenner', '2026-01-21 09:00:00', 'confirmed', NULL, 'p-meier', '2026-01-22 14:00:00', 'approved', NULL, '2026-01-20 10:00:00'),
-(9, 'proj-erp2', 'p-sharma', '2026-03-05 09:00:00', 'pending_cc_confirmation', 'resource', 'Increase Sr Developer MUC hours Apr-Jun 2026 + extend Deloitte consulting through Q3', 'Final sprint for go-live requires additional senior capacity and continued advisory support.', 0, 'p-brenner', NULL, 'pending', NULL, NULL, NULL, NULL, NULL, '2026-03-05 09:00:00'),
-(10, 'proj-sap', 'p-mueller', '2024-06-10 10:00:00', 'approved', 'resource', 'Rebalance developer hours between MUC and BUD', 'Budapest team has capacity to take on more migration tasks.', 0, 'p-brenner', '2024-06-11 11:00:00', 'confirmed', NULL, 'p-meier', '2024-06-12 09:00:00', 'approved', NULL, '2024-06-10 10:00:00'),
-(11, 'proj-sap', 'p-mueller', '2025-04-15 09:00:00', 'approved', 'external_cost', 'Switch SAP consulting vendor for cutover phase', 'Accenture cutover team better suited than original vendor.', 0, 'p-brenner', '2025-04-16 10:00:00', 'confirmed', NULL, 'p-meier', '2025-04-17 14:00:00', 'approved', NULL, '2025-04-15 09:00:00'),
-(12, 'proj-sap', 'p-mueller', '2026-03-01 10:00:00', 'pending_controller_approval', 'resource', 'Cut 2 roles for final 3 months as project winds down', 'Migration complete, only monitoring and handover remaining. Proactive cost reduction.', 0, 'p-brenner', '2026-03-02 11:00:00', 'confirmed', NULL, 'p-meier', NULL, 'pending', NULL, '2026-03-01 10:00:00'),
-(13, 'proj-sensor', 'p-sharma', '2025-10-01 09:00:00', 'approved', 'external_cost', 'Increase consulting budget for data quality issues', 'Sensor data quality worse than expected, requiring additional Thoughtworks support.', 0, 'p-brenner', '2025-10-02 11:00:00', 'confirmed', NULL, 'p-meier', '2025-10-03 14:00:00', 'approved', NULL, '2025-10-01 09:00:00'),
-(14, 'proj-sensor', 'p-sharma', '2025-12-15 10:00:00', 'approved', 'external_cost', 'Scale up AWS pipeline infrastructure', 'Production data volumes require larger Kinesis streams and S3 capacity.', 0, 'p-brenner', '2025-12-16 09:00:00', 'confirmed', NULL, 'p-meier', '2025-12-17 11:00:00', 'approved', NULL, '2025-12-15 10:00:00'),
-(15, 'proj-sensor', 'p-sharma', '2026-03-08 09:30:00', 'pending_cc_confirmation', 'external_cost', 'Add AWS infrastructure scaling costs for production rollout', 'Production deployment requires additional infrastructure capacity beyond development estimates.', 0, 'p-brenner', NULL, 'pending', NULL, NULL, NULL, NULL, NULL, '2026-03-08 09:30:00'),
-(16, 'proj-iam', 'p-frank', '2025-05-20 10:00:00', 'approved', 'external_cost', 'Extend PwC security assessment for additional scope', 'Initial assessment revealed need for extended evaluation of legacy IAM components.', 0, 'p-brenner', '2025-05-21 11:00:00', 'confirmed', NULL, 'p-meier', '2025-05-22 14:00:00', 'approved', NULL, '2025-05-20 10:00:00'),
-(17, 'proj-iam', 'p-frank', '2025-09-10 09:00:00', 'approved', 'external_cost', 'ServiceNow licensing cost increase due to vendor pricing change', 'ServiceNow changed licensing model. 40% price increase effective immediately. No alternative vendor available in timeline.', 0, 'p-brenner', '2025-09-11 10:00:00', 'confirmed', NULL, 'p-meier', '2025-09-12 16:00:00', 'approved', 'Approved with concern. Please explore alternative vendors for next renewal cycle.', '2025-09-10 09:00:00'),
-(18, 'proj-iam', 'p-frank', '2026-01-15 10:00:00', 'rejected', 'scope', 'Request additional budget for extended timeline', 'Project needs 3 more months and additional security consultant to complete migration.', 0, 'p-brenner', '2026-01-16 11:00:00', 'confirmed', NULL, 'p-meier', '2026-01-18 14:00:00', 'rejected', 'Budget increase not justified. Please reduce scope to fit within existing timeline and budget. Consider phasing the migration.', '2026-01-15 10:00:00'),
-(19, 'proj-iam', 'p-frank', '2026-03-03 10:00:00', 'pending_controller_approval', 'external_cost', 'Licensing cost increase + additional security consultant for migration complexity', 'Vendor licensing model change and additional complexity discovered during implementation require budget adjustment.', 0, 'p-brenner', '2026-03-04 11:00:00', 'confirmed', NULL, 'p-meier', NULL, 'pending', NULL, '2026-03-03 10:00:00'),
-(20, 'proj-brake', 'p-kovacs', '2025-08-15 10:00:00', 'approved', 'resource', 'Adjust QA hours for final testing phase', 'Testing phase requires focused QA allocation.', 0, 'p-brenner', '2025-08-16 09:00:00', 'confirmed', NULL, 'p-meier', '2025-08-17 11:00:00', 'approved', NULL, '2025-08-15 10:00:00'),
-(21, 'proj-raildiag', 'p-nagy', '2025-11-10 10:00:00', 'approved', 'external_cost', 'Upgrade cloud hosting tier for diagnostics platform', 'Data volume growth requires higher hosting tier.', 0, 'p-brenner', '2025-11-11 11:00:00', 'confirmed', NULL, 'p-meier', '2025-11-12 14:00:00', 'approved', NULL, '2025-11-10 10:00:00'),
-(22, 'proj-cloud3', 'p-wagner', '2025-09-20 09:00:00', 'approved', 'resource', 'Reduce consulting hours as migration nears completion', 'Internal team now fully ramped, less advisory needed.', 0, 'p-brenner', '2025-09-21 10:00:00', 'confirmed', NULL, 'p-meier', '2025-09-22 11:00:00', 'approved', NULL, '2025-09-20 09:00:00'),
-(23, 'proj-workplace', 'p-neumann', '2025-10-05 10:00:00', 'approved', 'external_cost', 'Add VMware license for expanded device management', 'Rollout to additional offices requires expanded device management.', 0, 'p-brenner', '2025-10-06 09:00:00', 'confirmed', NULL, 'p-meier', '2025-10-07 11:00:00', 'approved', NULL, '2025-10-05 10:00:00'),
-(24, 'proj-signal', 'p-nagy', '2025-12-01 10:00:00', 'approved', 'resource', 'Release developer capacity as commissioning completes', 'Commissioning phase completed ahead of schedule. Releasing resources early.', 0, 'p-brenner', '2025-12-02 09:00:00', 'confirmed', NULL, 'p-meier', '2025-12-03 11:00:00', 'approved', NULL, '2025-12-01 10:00:00'),
-(25, 'proj-signal', 'p-nagy', '2026-02-01 10:00:00', 'approved', 'resource', 'Final resource reduction for project closeout', 'Project entering final documentation and handover phase.', 0, 'p-brenner', '2026-02-02 09:00:00', 'confirmed', NULL, 'p-meier', '2026-02-03 14:00:00', 'approved', NULL, '2026-02-01 10:00:00'),
-(26, 'proj-telematics', 'p-horvath', '2026-01-10 10:00:00', 'approved', 'scope', 'Descope real-time alerting feature to recover schedule', 'Behind schedule by 1 month. Removing real-time alerting (moved to v2) to meet delivery date.', 0, 'p-brenner', '2026-01-11 09:00:00', 'confirmed', NULL, 'p-meier', '2026-01-12 11:00:00', 'approved', NULL, '2026-01-10 10:00:00'),
-(27, 'proj-predmaint', 'p-sharma', '2026-02-20 10:00:00', 'sent_back_by_controller', 'timeline', 'Extend project end date by 3 months for production pilot', 'PoC results justify production pilot but require additional time and resources.', 0, 'p-brenner', '2026-02-21 11:00:00', 'confirmed', NULL, 'p-meier', '2026-02-25 14:00:00', 'sent_back', 'Timeline extension needs more justification. Please provide detailed milestone plan for the production pilot phase and demonstrate how the additional 3 months maps to specific deliverables.', '2026-02-20 10:00:00'),
-(28, 'proj-fleet', 'p-sharma', '2026-03-07 09:00:00', 'approved', 'resource', 'Adjust developer allocation for final testing sprint', 'Final sprint before go-live requires dedicated testing focus.', 0, 'p-brenner', '2026-03-08 10:00:00', 'confirmed', NULL, 'p-meier', '2026-03-10 11:00:00', 'approved', NULL, '2026-03-07 09:00:00');
+INSERT INTO change_requests (id, project_id, submitted_by_id, submission_timestamp, status, change_category, summary, justification, is_system_suggested, cc_owner_id, cc_confirmation_timestamp, cc_status, cc_comments, controller_id, controller_approval_timestamp, controller_status, controller_comments, controller_feedback, created_at) VALUES
+(1, 'proj-erp2', 'p-sharma', '2024-10-15 09:30:00', 'approved', 'resource', 'Increase Sr Developer hours to address integration backlog', 'Integration testing revealed more complex data mappings than anticipated.', 0, 'p-brenner', '2024-10-16 11:00:00', 'confirmed', NULL, 'p-meier', '2024-10-17 14:00:00', 'approved', NULL, NULL, '2024-10-15 09:30:00'),
+(2, 'proj-erp2', 'p-sharma', '2024-11-20 10:00:00', 'approved', 'external_cost', 'Increase Deloitte consulting budget for extended SAP support', 'Deloitte advisory scope expanded to cover additional module integrations.', 0, 'p-brenner', '2024-11-21 09:00:00', 'confirmed', NULL, 'p-meier', '2024-11-22 16:00:00', 'approved', NULL, NULL, '2024-11-20 10:00:00'),
+(3, 'proj-erp2', 'p-sharma', '2025-01-10 11:00:00', 'approved', 'resource', 'Add TCS developers for data migration sprint', 'Data migration requires additional hands-on development capacity.', 0, 'p-brenner', '2025-01-11 10:00:00', 'confirmed', NULL, 'p-meier', '2025-01-13 09:00:00', 'approved', NULL, NULL, '2025-01-10 11:00:00'),
+(4, 'proj-erp2', 'p-sharma', '2025-03-18 14:00:00', 'approved', 'scope', 'Extend scope to include warehouse management module', 'Business stakeholders requested WMS integration as part of Phase 2.', 0, 'p-brenner', '2025-03-19 10:00:00', 'confirmed', NULL, 'p-meier', '2025-03-20 11:00:00', 'approved', NULL, NULL, '2025-03-18 14:00:00'),
+(5, 'proj-erp2', 'p-sharma', '2025-06-05 09:00:00', 'approved', 'timeline', 'Extend project end date by 3 months', 'WMS integration and testing require additional time.', 0, 'p-brenner', '2025-06-06 15:00:00', 'confirmed', NULL, 'p-meier', '2025-06-09 10:00:00', 'approved', NULL, NULL, '2025-06-05 09:00:00'),
+(6, 'proj-erp2', 'p-sharma', '2025-08-12 10:30:00', 'approved', 'resource', 'Increase QA hours for regression testing', 'Extended scope requires more thorough regression testing cycles.', 0, 'p-brenner', '2025-08-13 11:00:00', 'confirmed', NULL, 'p-meier', '2025-08-14 14:00:00', 'approved', NULL, NULL, '2025-08-12 10:30:00'),
+(7, 'proj-erp2', 'p-sharma', '2025-11-03 09:00:00', 'approved', 'external_cost', 'Additional penetration testing round for WMS', 'Security team mandated pen-test for new WMS module before go-live.', 0, 'p-brenner', '2025-11-04 10:00:00', 'confirmed', NULL, 'p-meier', '2025-11-05 11:00:00', 'approved', NULL, NULL, '2025-11-03 09:00:00'),
+(8, 'proj-erp2', 'p-sharma', '2026-01-20 10:00:00', 'approved', 'resource', 'Extend Sr Dev PUN allocation through project end', 'Pune team essential for final integration and go-live support.', 0, 'p-brenner', '2026-01-21 09:00:00', 'confirmed', NULL, 'p-meier', '2026-01-22 14:00:00', 'approved', NULL, NULL, '2026-01-20 10:00:00'),
+(9, 'proj-erp2', 'p-sharma', '2026-03-05 09:00:00', 'pending_cc_confirmation', 'resource', 'Increase Sr Developer MUC hours Apr-Jun 2026 + extend Deloitte consulting through Q3', 'Final sprint for go-live requires additional senior capacity and continued advisory support.', 0, 'p-brenner', NULL, 'pending', NULL, NULL, NULL, NULL, NULL, NULL, '2026-03-05 09:00:00'),
+(10, 'proj-sap', 'p-mueller', '2024-06-10 10:00:00', 'approved', 'resource', 'Rebalance developer hours between MUC and BUD', 'Budapest team has capacity to take on more migration tasks.', 0, 'p-brenner', '2024-06-11 11:00:00', 'confirmed', NULL, 'p-meier', '2024-06-12 09:00:00', 'approved', NULL, NULL, '2024-06-10 10:00:00'),
+(11, 'proj-sap', 'p-mueller', '2025-04-15 09:00:00', 'approved', 'external_cost', 'Switch SAP consulting vendor for cutover phase', 'Accenture cutover team better suited than original vendor.', 0, 'p-brenner', '2025-04-16 10:00:00', 'confirmed', NULL, 'p-meier', '2025-04-17 14:00:00', 'approved', NULL, NULL, '2025-04-15 09:00:00'),
+(12, 'proj-sap', 'p-mueller', '2026-03-01 10:00:00', 'pending_controller_approval', 'resource', 'Cut 2 roles for final 3 months as project winds down', 'Migration complete, only monitoring and handover remaining. Proactive cost reduction.', 0, 'p-brenner', '2026-03-02 11:00:00', 'confirmed', NULL, 'p-meier', NULL, 'pending', NULL, NULL, '2026-03-01 10:00:00'),
+(13, 'proj-sensor', 'p-sharma', '2025-10-01 09:00:00', 'approved', 'external_cost', 'Increase consulting budget for data quality issues', 'Sensor data quality worse than expected, requiring additional Thoughtworks support.', 0, 'p-brenner', '2025-10-02 11:00:00', 'confirmed', NULL, 'p-meier', '2025-10-03 14:00:00', 'approved', NULL, NULL, '2025-10-01 09:00:00'),
+(14, 'proj-sensor', 'p-sharma', '2025-12-15 10:00:00', 'approved', 'external_cost', 'Scale up AWS pipeline infrastructure', 'Production data volumes require larger Kinesis streams and S3 capacity.', 0, 'p-brenner', '2025-12-16 09:00:00', 'confirmed', NULL, 'p-meier', '2025-12-17 11:00:00', 'approved', NULL, NULL, '2025-12-15 10:00:00'),
+(15, 'proj-sensor', 'p-sharma', '2026-03-08 09:30:00', 'pending_cc_confirmation', 'external_cost', 'Add AWS infrastructure scaling costs for production rollout', 'Production deployment requires additional infrastructure capacity beyond development estimates.', 0, 'p-brenner', NULL, 'pending', NULL, NULL, NULL, NULL, NULL, NULL, '2026-03-08 09:30:00'),
+(16, 'proj-iam', 'p-frank', '2025-05-20 10:00:00', 'approved', 'external_cost', 'Extend PwC security assessment for additional scope', 'Initial assessment revealed need for extended evaluation of legacy IAM components.', 0, 'p-brenner', '2025-05-21 11:00:00', 'confirmed', NULL, 'p-meier', '2025-05-22 14:00:00', 'approved', NULL, NULL, '2025-05-20 10:00:00'),
+(17, 'proj-iam', 'p-frank', '2025-09-10 09:00:00', 'approved', 'external_cost', 'ServiceNow licensing cost increase due to vendor pricing change', 'ServiceNow changed licensing model. 40% price increase effective immediately. No alternative vendor available in timeline.', 0, 'p-brenner', '2025-09-11 10:00:00', 'confirmed', NULL, 'p-meier', '2025-09-12 16:00:00', 'approved', 'Approved with concern. Please explore alternative vendors for next renewal cycle.', NULL, '2025-09-10 09:00:00'),
+(18, 'proj-iam', 'p-frank', '2026-01-15 10:00:00', 'rejected', 'scope', 'Request additional budget for extended timeline', 'Project needs 3 more months and additional security consultant to complete migration.', 0, 'p-brenner', '2026-01-16 11:00:00', 'confirmed', NULL, 'p-meier', '2026-01-18 14:00:00', 'rejected', 'Budget increase not justified. Please reduce scope to fit within existing timeline and budget. Consider phasing the migration.', NULL, '2026-01-15 10:00:00'),
+(19, 'proj-iam', 'p-frank', '2026-03-03 10:00:00', 'pending_controller_approval', 'external_cost', 'Licensing cost increase + additional security consultant for migration complexity', 'Vendor licensing model change and additional complexity discovered during implementation require budget adjustment.', 0, 'p-brenner', '2026-03-04 11:00:00', 'confirmed', NULL, 'p-meier', NULL, 'pending', NULL, NULL, '2026-03-03 10:00:00'),
+(20, 'proj-brake', 'p-kovacs', '2025-08-15 10:00:00', 'approved', 'resource', 'Adjust QA hours for final testing phase', 'Testing phase requires focused QA allocation.', 0, 'p-brenner', '2025-08-16 09:00:00', 'confirmed', NULL, 'p-meier', '2025-08-17 11:00:00', 'approved', NULL, NULL, '2025-08-15 10:00:00'),
+(21, 'proj-raildiag', 'p-nagy', '2025-11-10 10:00:00', 'approved', 'external_cost', 'Upgrade cloud hosting tier for diagnostics platform', 'Data volume growth requires higher hosting tier.', 0, 'p-brenner', '2025-11-11 11:00:00', 'confirmed', NULL, 'p-meier', '2025-11-12 14:00:00', 'approved', NULL, NULL, '2025-11-10 10:00:00'),
+(22, 'proj-cloud3', 'p-wagner', '2025-09-20 09:00:00', 'approved', 'resource', 'Reduce consulting hours as migration nears completion', 'Internal team now fully ramped, less advisory needed.', 0, 'p-brenner', '2025-09-21 10:00:00', 'confirmed', NULL, 'p-meier', '2025-09-22 11:00:00', 'approved', NULL, NULL, '2025-09-20 09:00:00'),
+(23, 'proj-workplace', 'p-neumann', '2025-10-05 10:00:00', 'approved', 'external_cost', 'Add VMware license for expanded device management', 'Rollout to additional offices requires expanded device management.', 0, 'p-brenner', '2025-10-06 09:00:00', 'confirmed', NULL, 'p-meier', '2025-10-07 11:00:00', 'approved', NULL, NULL, '2025-10-05 10:00:00'),
+(24, 'proj-signal', 'p-nagy', '2025-12-01 10:00:00', 'approved', 'resource', 'Release developer capacity as commissioning completes', 'Commissioning phase completed ahead of schedule. Releasing resources early.', 0, 'p-brenner', '2025-12-02 09:00:00', 'confirmed', NULL, 'p-meier', '2025-12-03 11:00:00', 'approved', NULL, NULL, '2025-12-01 10:00:00'),
+(25, 'proj-signal', 'p-nagy', '2026-02-01 10:00:00', 'approved', 'resource', 'Final resource reduction for project closeout', 'Project entering final documentation and handover phase.', 0, 'p-brenner', '2026-02-02 09:00:00', 'confirmed', NULL, 'p-meier', '2026-02-03 14:00:00', 'approved', NULL, NULL, '2026-02-01 10:00:00'),
+(26, 'proj-telematics', 'p-horvath', '2026-01-10 10:00:00', 'approved', 'scope', 'Descope real-time alerting feature to recover schedule', 'Behind schedule by 1 month. Removing real-time alerting (moved to v2) to meet delivery date.', 0, 'p-brenner', '2026-01-11 09:00:00', 'confirmed', NULL, 'p-meier', '2026-01-12 11:00:00', 'approved', NULL, NULL, '2026-01-10 10:00:00'),
+(27, 'proj-predmaint', 'p-sharma', '2026-02-20 10:00:00', 'sent_back_by_controller', 'timeline', 'Extend project end date by 3 months for production pilot', 'PoC results justify production pilot but require additional time and resources.', 0, 'p-brenner', '2026-02-21 11:00:00', 'confirmed', NULL, 'p-meier', '2026-02-25 14:00:00', 'sent_back', 'Timeline extension needs more justification. Please provide detailed milestone plan for the production pilot phase and demonstrate how the additional 3 months maps to specific deliverables.', 'The 3-month extension is reasonable but the resource increase is too high. I have reduced Sr Developer hours from 60 to 50 hrs/mo for the extended period and capped the ML Platform License at 3500 EUR/mo instead of 4000.', '2026-02-20 10:00:00'),
+(28, 'proj-fleet', 'p-sharma', '2026-03-07 09:00:00', 'approved', 'resource', 'Adjust developer allocation for final testing sprint', 'Final sprint before go-live requires dedicated testing focus.', 0, 'p-brenner', '2026-03-08 10:00:00', 'confirmed', NULL, 'p-meier', '2026-03-10 11:00:00', 'approved', NULL, NULL, '2026-03-07 09:00:00');
 
 -- CR Change Details (34 rows)
 INSERT INTO cr_change_details (id, change_request_id, field_changed, old_value, new_value, delta, line_item_type, month) VALUES
@@ -18868,7 +18864,7 @@ INSERT INTO cr_change_details (id, change_request_id, field_changed, old_value, 
 (8, 8, 'role-sr-dev (PUN) hours', '40', '50', '+10 hrs/mo', 'role-sr-dev', '2026-02'),
 (9, 9, 'role-sr-dev (MUC) hours Apr-Jun', '100', '120', '+20 hrs/mo', 'role-sr-dev', '2026-04'),
 (10, 9, 'SAP Implementation Support extension', 'Ends 2026-06', 'Extends to 2026-09', '+3 months', 'ext-consulting', '2026-07'),
-(11, 10, 'role-dev (BUD) hours', '80', '100', '+20 hrs/mo', 'role-dev', '2024-07'),
+(11, 10, 'role-dev (BUD) hours', '60', '80', '+20 hrs/mo', 'role-dev', '2024-07'),
 (12, 11, 'SAP Consulting vendor', 'Deloitte', 'Accenture', 'Vendor change', 'ext-consulting', NULL),
 (13, 12, 'role-dev (BUD) hours', '80', '0', '-80 hrs/mo', 'role-dev', '2026-04'),
 (14, 12, 'role-qa (BUD) hours', '40', '0', '-40 hrs/mo', 'role-qa', '2026-04'),
@@ -18893,6 +18889,11 @@ INSERT INTO cr_change_details (id, change_request_id, field_changed, old_value, 
 (33, 27, 'ML Platform License extension', 'Ends 2027-03', 'Extends to 2027-06', '+3 months', 'ext-sw-licenses', '2027-04'),
 (34, 28, 'role-dev (BUD) hours', '60', '80', '+20 hrs/mo', 'role-dev', '2026-04');
 
+-- CR Submission Snapshots (2 rows)
+INSERT INTO cr_submission_snapshots (id, change_request_id, snapshot_type, created_by_id, forecast_data_json, comments, created_at, is_active) VALUES
+(1, 27, 'original', 'p-sharma', '[{"category": "internal", "sub_category": "role-sr-dev", "month": "2027-04", "hours": 60, "amount_eur": 7200}, {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-05", "hours": 60, "amount_eur": 7200}, {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-06", "hours": 60, "amount_eur": 7200}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-04", "hours": null, "amount_eur": 4000}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-05", "hours": null, "amount_eur": 4000}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-06", "hours": null, "amount_eur": 4000}]', NULL, '2026-02-20 10:00:00', 1),
+(2, 27, 'controller_proposed', 'p-meier', '[{"category": "internal", "sub_category": "role-sr-dev", "month": "2027-04", "hours": 50, "amount_eur": 6000}, {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-05", "hours": 50, "amount_eur": 6000}, {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-06", "hours": 50, "amount_eur": 6000}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-04", "hours": null, "amount_eur": 3500}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-05", "hours": null, "amount_eur": 3500}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-06", "hours": null, "amount_eur": 3500}]', 'Reduced Sr Dev hours to 50/mo and ML license to 3500/mo for extended period.', '2026-02-20 10:00:00', 1);
+
 -- =============================================================================
 -- Notifications, System Suggestions, Audit Log
 -- =============================================================================
@@ -18915,7 +18916,7 @@ INSERT INTO notifications (user_person_id, message, severity, deep_link_module, 
 ('p-meier', 'CR pending approval: CR #19 for IAM Overhaul is ready for your review', 'action', 'portfolio', 'proj-iam', 0, '2026-03-04 11:00:00'),
 ('p-meier', 'New project pending review: Autonomous Braking Prototype submitted for approval', 'action', 'portfolio', 'proj-autobrake', 0, '2026-02-28 10:00:00'),
 ('p-meier', 'Forecast overdue: ERP Integration Phase 2 — February 2026 forecast has not been submitted by Project Lead', 'info', 'workbench', 'proj-erp2', 0, '2026-03-01 08:00:00'),
--- Thomas Becker (Executive) notifications
+-- Thomas (Executive) notifications
 ('p-becker', 'Scenario published: Budget Pressure: 15% Reduction has been published by Anna Meier', 'info', 'whatif', NULL, 0, '2026-03-07 10:00:00'),
 ('p-becker', 'Scenario published: Conservative: Freeze New Starts has been published by you', 'info', 'whatif', NULL, 1, '2026-03-01 09:00:00');
 
@@ -18983,7 +18984,7 @@ INSERT INTO project_phases (project_id, phase_number, name, baseline_start, base
 INSERT INTO scenarios (id, name, description, author_id, status, headline_impact, created_at, modified_at) VALUES
 (1, 'Budget Pressure: 15% Reduction', 'Targeted budget cuts to achieve 15% reduction across portfolio. Prioritizes deferral of new initiatives and reduction of external consulting spend.', 'p-meier', 'published', '{"total_budget_delta": -502000, "action_count": 4}', '2026-03-07 10:00:00', '2026-03-07 10:00:00'),
 (2, 'Accelerate Digital & Data', 'Invest in data capabilities by accelerating Digital & Data initiatives. Increases headcount in DDA competence centre.', 'p-meier', 'private', '{"total_budget_delta": 490000, "action_count": 4}', '2026-03-10 14:00:00', '2026-03-10 14:00:00'),
-(3, 'Conservative: Freeze New Starts', 'Freeze all planned future projects and reduce intake pipeline. Models 5% rate escalation for 2027 to assess long-term cost pressure.', 'p-becker', 'published', '{"total_budget_delta": -2780000, "action_count": 5}', '2026-03-01 09:00:00', '2026-03-01 09:00:00');
+(3, 'Conservative: Freeze New Starts', 'Freeze all planned future projects and reduce intake pipeline. Models 5% rate escalation for 2027 to assess long-term cost pressure.', 'p-becker-exec', 'published', '{"total_budget_delta": -2780000, "action_count": 5}', '2026-03-01 09:00:00', '2026-03-01 09:00:00');
 
 INSERT INTO scenario_actions (id, scenario_id, action_order, scope, action_type, project_id, parameters_json, impact_delta_json, group_label, created_at) VALUES
 (1, 1, 1, 'project', 'delay_project', 'proj-connveh', '{"delay_months": 6}', '{"budget_delta": -180000}', 'Defer new starts', '2026-03-07 10:00:00'),
@@ -19098,201 +19099,3 @@ INSERT INTO scenario_capacity_impacts (scenario_id, cost_center_id, month, origi
 (3, 'cc-pun-apd', '2026-07', 82.0, 72.0, -0.40),
 (3, 'cc-pun-apd', '2026-08', 82.0, 72.0, -0.40),
 (3, 'cc-pun-apd', '2026-09', 82.0, 72.0, -0.40);
-
--- =============================================
--- Forecast Snapshots (RPT-06)
--- Historical point-in-time forecast captures for Forecast Accuracy report
--- =============================================
-INSERT INTO forecast_snapshots (project_id, snapshot_month, forecast_total) VALUES
--- proj-erp2: ERP Integration Phase 2 (budget: 1,200,000)
-('proj-erp2', '2025-06', 1150000.00),
-('proj-erp2', '2025-07', 1160000.00),
-('proj-erp2', '2025-08', 1175000.00),
-('proj-erp2', '2025-09', 1180000.00),
-('proj-erp2', '2025-10', 1195000.00),
-('proj-erp2', '2025-11', 1200000.00),
-('proj-erp2', '2025-12', 1210000.00),
-('proj-erp2', '2026-01', 1220000.00),
-('proj-erp2', '2026-02', 1230000.00),
--- proj-sap: SAP S/4HANA Migration (budget: 4,500,000)
-('proj-sap', '2025-06', 4350000.00),
-('proj-sap', '2025-07', 4380000.00),
-('proj-sap', '2025-08', 4400000.00),
-('proj-sap', '2025-09', 4420000.00),
-('proj-sap', '2025-10', 4450000.00),
-('proj-sap', '2025-11', 4470000.00),
-('proj-sap', '2025-12', 4480000.00),
-('proj-sap', '2026-01', 4490000.00),
-('proj-sap', '2026-02', 4500000.00),
--- proj-brake: Brake Control Unit Refresh (budget: 250,000)
-('proj-brake', '2025-06', 240000.00),
-('proj-brake', '2025-07', 242000.00),
-('proj-brake', '2025-08', 243000.00),
-('proj-brake', '2025-09', 245000.00),
-('proj-brake', '2025-10', 247000.00),
-('proj-brake', '2025-11', 248000.00),
-('proj-brake', '2025-12', 249000.00),
-('proj-brake', '2026-01', 250000.00),
-('proj-brake', '2026-02', 250000.00),
--- proj-signal: Signaling System Upgrade (budget: 1,500,000)
-('proj-signal', '2025-06', 1420000.00),
-('proj-signal', '2025-07', 1435000.00),
-('proj-signal', '2025-08', 1450000.00),
-('proj-signal', '2025-09', 1460000.00),
-('proj-signal', '2025-10', 1475000.00),
-('proj-signal', '2025-11', 1480000.00),
-('proj-signal', '2025-12', 1490000.00),
-('proj-signal', '2026-01', 1495000.00),
-('proj-signal', '2026-02', 1500000.00),
--- proj-raildiag: Rail Diagnostics Platform (budget: 700,000)
-('proj-raildiag', '2025-06', 670000.00),
-('proj-raildiag', '2025-07', 675000.00),
-('proj-raildiag', '2025-08', 680000.00),
-('proj-raildiag', '2025-09', 685000.00),
-('proj-raildiag', '2025-10', 690000.00),
-('proj-raildiag', '2025-11', 692000.00),
-('proj-raildiag', '2025-12', 695000.00),
-('proj-raildiag', '2026-01', 698000.00),
-('proj-raildiag', '2026-02', 700000.00),
--- proj-predmaint: Predictive Maintenance PoC (budget: 500,000)
-('proj-predmaint', '2025-06', 480000.00),
-('proj-predmaint', '2025-07', 483000.00),
-('proj-predmaint', '2025-08', 487000.00),
-('proj-predmaint', '2025-09', 490000.00),
-('proj-predmaint', '2025-10', 493000.00),
-('proj-predmaint', '2025-11', 495000.00),
-('proj-predmaint', '2025-12', 497000.00),
-('proj-predmaint', '2026-01', 499000.00),
-('proj-predmaint', '2026-02', 500000.00),
--- proj-cloud3: Cloud Migration Wave 3 (budget: 400,000)
-('proj-cloud3', '2025-06', 380000.00),
-('proj-cloud3', '2025-07', 384000.00),
-('proj-cloud3', '2025-08', 387000.00),
-('proj-cloud3', '2025-09', 390000.00),
-('proj-cloud3', '2025-10', 393000.00),
-('proj-cloud3', '2025-11', 395000.00),
-('proj-cloud3', '2025-12', 397000.00),
-('proj-cloud3', '2026-01', 399000.00),
-('proj-cloud3', '2026-02', 400000.00),
--- proj-iam: Identity & Access Management Overhaul (budget: 350,000)
-('proj-iam', '2025-06', 335000.00),
-('proj-iam', '2025-07', 337000.00),
-('proj-iam', '2025-08', 340000.00),
-('proj-iam', '2025-09', 342000.00),
-('proj-iam', '2025-10', 344000.00),
-('proj-iam', '2025-11', 346000.00),
-('proj-iam', '2025-12', 348000.00),
-('proj-iam', '2026-01', 349000.00),
-('proj-iam', '2026-02', 350000.00),
--- proj-sensor: Sensor Data Pipeline (budget: 600,000)
-('proj-sensor', '2025-06', 570000.00),
-('proj-sensor', '2025-07', 575000.00),
-('proj-sensor', '2025-08', 580000.00),
-('proj-sensor', '2025-09', 584000.00),
-('proj-sensor', '2025-10', 588000.00),
-('proj-sensor', '2025-11', 592000.00),
-('proj-sensor', '2025-12', 595000.00),
-('proj-sensor', '2026-01', 598000.00),
-('proj-sensor', '2026-02', 600000.00),
--- proj-fleet: Fleet Portal v2 (budget: 450,000)
-('proj-fleet', '2025-06', 430000.00),
-('proj-fleet', '2025-07', 433000.00),
-('proj-fleet', '2025-08', 436000.00),
-('proj-fleet', '2025-09', 439000.00),
-('proj-fleet', '2025-10', 442000.00),
-('proj-fleet', '2025-11', 444000.00),
-('proj-fleet', '2025-12', 446000.00),
-('proj-fleet', '2026-01', 448000.00),
-('proj-fleet', '2026-02', 450000.00),
--- proj-telematics: Telematics Dashboard (budget: 300,000)
-('proj-telematics', '2025-06', 285000.00),
-('proj-telematics', '2025-07', 288000.00),
-('proj-telematics', '2025-08', 290000.00),
-('proj-telematics', '2025-09', 292000.00),
-('proj-telematics', '2025-10', 294000.00),
-('proj-telematics', '2025-11', 296000.00),
-('proj-telematics', '2025-12', 297000.00),
-('proj-telematics', '2026-01', 299000.00),
-('proj-telematics', '2026-02', 300000.00),
--- proj-aiml: AI/ML Experimentation Lab (budget: 200,000)
-('proj-aiml', '2025-06', 190000.00),
-('proj-aiml', '2025-07', 192000.00),
-('proj-aiml', '2025-08', 193000.00),
-('proj-aiml', '2025-09', 195000.00),
-('proj-aiml', '2025-10', 196000.00),
-('proj-aiml', '2025-11', 197000.00),
-('proj-aiml', '2025-12', 198000.00),
-('proj-aiml', '2026-01', 199000.00),
-('proj-aiml', '2026-02', 200000.00),
--- proj-workplace: Workplace Modernization (budget: 300,000)
-('proj-workplace', '2025-06', 285000.00),
-('proj-workplace', '2025-07', 287000.00),
-('proj-workplace', '2025-08', 289000.00),
-('proj-workplace', '2025-09', 291000.00),
-('proj-workplace', '2025-10', 293000.00),
-('proj-workplace', '2025-11', 295000.00),
-('proj-workplace', '2025-12', 297000.00),
-('proj-workplace', '2026-01', 298000.00),
-('proj-workplace', '2026-02', 300000.00);
-
--- =============================================================================
--- Dynamic Portfolio Hierarchy (ADM-01)
--- =============================================================================
-
--- Entity Type: Line of Business (mirrors existing LoB structure)
-INSERT INTO grouping_entity_types (id, name, is_active, created_at) VALUES
-('get-lob', 'Line of Business', 1, '2026-01-15 10:00:00');
-
--- Grouping Entities: one per existing LoB
-INSERT INTO grouping_entities (id, entity_type_id, name, parent_entity_id, is_active, created_at) VALUES
-('ge-lob-tbs', 'get-lob', 'Truck & Bus Systems (TBS)', NULL, 1, '2026-01-15 10:00:00'),
-('ge-lob-rvs', 'get-lob', 'Rail Vehicle Systems (RVS)', NULL, 1, '2026-01-15 10:00:00'),
-('ge-lob-cit', 'get-lob', 'Corporate IT', NULL, 1, '2026-01-15 10:00:00'),
-('ge-lob-dnd', 'get-lob', 'Digital & Data', NULL, 1, '2026-01-15 10:00:00');
-
--- Default Hierarchy: LoB Structure (active)
-INSERT INTO grouping_hierarchies (id, name, is_active_hierarchy, created_at) VALUES
-('hier-lob', 'LoB Structure', 1, '2026-01-15 10:00:00');
-
--- Hierarchy Level: LoB → Project (single level)
-INSERT INTO grouping_hierarchy_levels (hierarchy_id, level_order, entity_type_id) VALUES
-('hier-lob', 0, 'get-lob');
-
--- Project Assignments: mirror project.lob_id
-INSERT INTO project_grouping_assignments (project_id, grouping_entity_id) VALUES
--- lob-tbs → ge-lob-tbs
-('proj-erp2', 'ge-lob-tbs'),
-('proj-sap', 'ge-lob-tbs'),
-('proj-brake', 'ge-lob-tbs'),
-('proj-autobrake', 'ge-lob-tbs'),
-('proj-legacy', 'ge-lob-tbs'),
-('proj-connveh', 'ge-lob-tbs'),
-('svc-sap-ops', 'ge-lob-tbs'),
-('svc-euc', 'ge-lob-tbs'),
-('svc-tbs-maint', 'ge-lob-tbs'),
--- lob-rvs → ge-lob-rvs
-('proj-signal', 'ge-lob-rvs'),
-('proj-raildiag', 'ge-lob-rvs'),
-('proj-predmaint', 'ge-lob-rvs'),
-('proj-workshop', 'ge-lob-rvs'),
-('proj-railsafety', 'ge-lob-rvs'),
-('svc-rail-desk', 'ge-lob-rvs'),
-('svc-rail-maint', 'ge-lob-rvs'),
-('svc-signal-sup', 'ge-lob-rvs'),
--- lob-cit → ge-lob-cit
-('proj-cloud3', 'ge-lob-cit'),
-('proj-iam', 'ge-lob-cit'),
-('proj-workplace', 'ge-lob-cit'),
-('proj-datacenter', 'ge-lob-cit'),
-('proj-wan', 'ge-lob-cit'),
-('svc-netsec', 'ge-lob-cit'),
-('svc-middleware', 'ge-lob-cit'),
-('svc-dba', 'ge-lob-cit'),
--- lob-dnd → ge-lob-dnd
-('proj-sensor', 'ge-lob-dnd'),
-('proj-fleet', 'ge-lob-dnd'),
-('proj-telematics', 'ge-lob-dnd'),
-('proj-dwh', 'ge-lob-dnd'),
-('proj-aiml', 'ge-lob-dnd'),
-('svc-dataplatform', 'ge-lob-dnd'),
-('svc-iot', 'ge-lob-dnd');

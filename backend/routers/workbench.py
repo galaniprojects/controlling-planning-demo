@@ -10,7 +10,7 @@ from database import get_db
 from dependencies import get_current_user
 from models.capacity import Allocation, ResourceRequest
 from models.organization import CostCenter
-from models.change_requests import ChangeRequest, CRChangeDetail
+from models.change_requests import ChangeRequest, CRChangeDetail, CRSubmissionSnapshot
 from models.financial import Actuals, Baseline, Forecast
 from models.people import Person, RateTable, RoleType
 from models.projects import Project, ProjectPhase
@@ -901,3 +901,333 @@ def get_cr_detail_view(
         "decided_date": decided_date,
         "grid_data": grid_data.model_dump() if grid_data else None,
     }
+
+
+@router.get("/{project_id}/change-requests/{cr_id}/diff")
+def get_cr_diff(
+    project_id: str, cr_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Get diff between original and controller-proposed forecast for a CR."""
+    from collections import defaultdict
+    from models.financial import ExternalCostType
+
+    cr = (
+        db.query(ChangeRequest)
+        .filter(ChangeRequest.id == cr_id, ChangeRequest.project_id == project_id)
+        .first()
+    )
+    if not cr:
+        raise HTTPException(404, "Change request not found")
+
+    # Load active snapshots
+    original_snap = (
+        db.query(CRSubmissionSnapshot)
+        .filter(
+            CRSubmissionSnapshot.change_request_id == cr_id,
+            CRSubmissionSnapshot.snapshot_type == "original",
+            CRSubmissionSnapshot.is_active.is_(True),
+        )
+        .first()
+    )
+    proposed_snap = (
+        db.query(CRSubmissionSnapshot)
+        .filter(
+            CRSubmissionSnapshot.change_request_id == cr_id,
+            CRSubmissionSnapshot.snapshot_type == "controller_proposed",
+            CRSubmissionSnapshot.is_active.is_(True),
+        )
+        .first()
+    )
+
+    if not original_snap or not proposed_snap:
+        raise HTTPException(404, "No snapshot data available for diff")
+
+    original_data = json.loads(original_snap.forecast_data_json)
+    proposed_data = json.loads(proposed_snap.forecast_data_json)
+
+    # Index by (category, sub_category, month)
+    orig_map: dict[tuple, dict] = {}
+    for entry in original_data:
+        key = (entry["category"], entry["sub_category"], entry["month"])
+        orig_map[key] = entry
+
+    prop_map: dict[tuple, dict] = {}
+    for entry in proposed_data:
+        key = (entry["category"], entry["sub_category"], entry["month"])
+        prop_map[key] = entry
+
+    # Collect all months and line items
+    all_months: set[str] = set()
+    line_keys: set[tuple[str, str]] = set()  # (category, sub_category)
+    for key in set(orig_map.keys()) | set(prop_map.keys()):
+        cat, sub, month = key
+        all_months.add(month)
+        line_keys.add((cat, sub))
+
+    sorted_months = sorted(all_months)
+
+    # Resolve names
+    role_names = {r.id: r.name for r in db.query(RoleType).all()}
+    cost_type_names = {c.id: c.name for c in db.query(ExternalCostType).all()}
+
+    # Look up hourly rates
+    rate_cache: dict[str, float] = {}
+    for cat, sub in line_keys:
+        if cat == "internal" and sub not in rate_cache:
+            rate_row = (
+                db.query(RateTable)
+                .filter(RateTable.role_type_id == sub)
+                .order_by(RateTable.effective_date.desc())
+                .first()
+            )
+            rate_cache[sub] = float(rate_row.hourly_rate) if rate_row else 120.0
+
+    # Build line items
+    line_items = []
+    total_current_eur = 0.0
+    total_proposed_eur = 0.0
+
+    for cat, sub in sorted(line_keys, key=lambda x: (0 if x[0] == "internal" else 1, x[1])):
+        is_internal = cat == "internal"
+        name = role_names.get(sub, sub) if is_internal else cost_type_names.get(sub, sub)
+        rate = rate_cache.get(sub, 1.0) if is_internal else 1.0
+
+        month_values = []
+        for m in sorted_months:
+            key = (cat, sub, m)
+            orig_entry = orig_map.get(key, {})
+            prop_entry = prop_map.get(key, {})
+
+            if is_internal:
+                current_val = orig_entry.get("hours") or 0
+                proposed_val = prop_entry.get("hours") or 0
+            else:
+                current_val = orig_entry.get("amount_eur") or 0
+                proposed_val = prop_entry.get("amount_eur") or 0
+
+            current_eur = current_val * rate if is_internal else current_val
+            proposed_eur = proposed_val * rate if is_internal else proposed_val
+            is_changed = abs(current_val - proposed_val) > 0.01
+
+            month_values.append({
+                "month": m,
+                "proposed": proposed_val,
+                "proposed_eur": proposed_eur,
+                "current": current_val,
+                "current_eur": current_eur,
+                "is_changed": is_changed,
+            })
+
+        current_total = sum(mv["current"] for mv in month_values)
+        proposed_total = sum(mv["proposed"] for mv in month_values)
+        current_total_eur = sum(mv["current_eur"] for mv in month_values)
+        proposed_total_eur = sum(mv["proposed_eur"] for mv in month_values)
+
+        total_current_eur += current_total_eur
+        total_proposed_eur += proposed_total_eur
+
+        line_items.append({
+            "id": sub,
+            "name": name,
+            "category": cat,
+            "unit": "hours" if is_internal else "eur",
+            "months": month_values,
+            "current_total": round(current_total, 1),
+            "proposed_total": round(proposed_total, 1),
+            "current_total_eur": round(current_total_eur, 2),
+            "proposed_total_eur": round(proposed_total_eur, 2),
+        })
+
+    # KPIs
+    delta_eur = total_proposed_eur - total_current_eur
+    delta_color = "#059669" if delta_eur < 0 else "#dc2626" if delta_eur > 0 else "#334155"
+    delta_pct = round((delta_eur / total_current_eur) * 100, 1) if total_current_eur != 0 else 0.0
+    kpis = [
+        {"label": "Affected Lines (Current)", "value": round(total_current_eur, 2), "format": "currency", "color": "#334155"},
+        {"label": "Affected Lines (Proposed)", "value": round(total_proposed_eur, 2), "format": "currency", "color": "#1e40af"},
+        {"label": "Total Impact", "value": round(delta_eur, 2), "format": "currency_delta", "color": delta_color},
+    ]
+
+    return {
+        "cr_id": cr.id,
+        "project_id": cr.project_id,
+        "project_name": cr.project.name if cr.project else "",
+        "controller_feedback": cr.controller_feedback,
+        "grid_data": {
+            "months": sorted_months,
+            "line_items": line_items,
+            "kpis": kpis,
+        },
+    }
+
+
+@router.put("/{project_id}/change-requests/{cr_id}/accept-changes")
+def accept_cr_changes(
+    project_id: str, cr_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """PL accepts controller's proposed changes for a CR."""
+    cr = (
+        db.query(ChangeRequest)
+        .filter(ChangeRequest.id == cr_id, ChangeRequest.project_id == project_id)
+        .first()
+    )
+    if not cr:
+        raise HTTPException(404, "Change request not found")
+    if cr.status != "sent_back_by_controller":
+        raise HTTPException(409, f"CR status is '{cr.status}', expected 'sent_back_by_controller'")
+
+    # Load controller_proposed snapshot
+    proposed_snap = (
+        db.query(CRSubmissionSnapshot)
+        .filter(
+            CRSubmissionSnapshot.change_request_id == cr_id,
+            CRSubmissionSnapshot.snapshot_type == "controller_proposed",
+            CRSubmissionSnapshot.is_active.is_(True),
+        )
+        .first()
+    )
+
+    if proposed_snap:
+        proposed_data = json.loads(proposed_snap.forecast_data_json)
+        original_snap = (
+            db.query(CRSubmissionSnapshot)
+            .filter(
+                CRSubmissionSnapshot.change_request_id == cr_id,
+                CRSubmissionSnapshot.snapshot_type == "original",
+                CRSubmissionSnapshot.is_active.is_(True),
+            )
+            .first()
+        )
+        original_data = json.loads(original_snap.forecast_data_json) if original_snap else []
+
+        # Index original data
+        orig_map: dict[tuple, dict] = {}
+        for entry in original_data:
+            key = (entry["category"], entry["sub_category"], entry["month"])
+            orig_map[key] = entry
+
+        # Update CRChangeDetail rows to reflect accepted values
+        # Clear existing details and recreate from snapshot diff
+        db.query(CRChangeDetail).filter(CRChangeDetail.change_request_id == cr_id).delete()
+        db.flush()
+
+        role_names = {r.id: r.name for r in db.query(RoleType).all()}
+        from models.financial import ExternalCostType
+        cost_type_names = {c.id: c.name for c in db.query(ExternalCostType).all()}
+
+        for entry in proposed_data:
+            key = (entry["category"], entry["sub_category"], entry["month"])
+            orig_entry = orig_map.get(key, {})
+            is_internal = entry["category"] == "internal"
+
+            old_val = orig_entry.get("hours" if is_internal else "amount_eur") or 0
+            new_val = entry.get("hours" if is_internal else "amount_eur") or 0
+
+            if abs(old_val - new_val) > 0.01:
+                sub = entry["sub_category"]
+                name = role_names.get(sub, sub) if is_internal else cost_type_names.get(sub, sub)
+                delta_val = new_val - old_val
+                delta_str = f"{'+' if delta_val > 0 else ''}{delta_val:.0f} {'hrs/mo' if is_internal else 'EUR/mo'}"
+
+                detail = CRChangeDetail(
+                    change_request_id=cr_id,
+                    field_changed=name,
+                    old_value=str(int(old_val)) if old_val == int(old_val) else str(old_val),
+                    new_value=str(int(new_val)) if new_val == int(new_val) else str(new_val),
+                    delta=delta_str,
+                    line_item_type=entry["sub_category"],
+                    month=entry["month"],
+                )
+                db.add(detail)
+
+    # Determine next status: check if CR has internal resource changes
+    has_resource_changes = any(
+        d.line_item_type and d.line_item_type.startswith("role-")
+        for d in cr.change_details
+    )
+
+    if has_resource_changes:
+        # Needs CC Owner confirmation for resource changes
+        cr.status = "pending_cc_confirmation"
+    else:
+        # No resource impact — approve directly and update forecast
+        cr.status = "approved"
+        cr.controller_status = "approved"
+        cr.controller_approval_timestamp = datetime.utcnow()
+        _apply_cr_to_forecast(cr, db)
+
+    cr.controller_feedback = None
+    db.commit()
+
+    return {"status": cr.status, "message": "Changes accepted successfully."}
+
+
+@router.put("/{project_id}/change-requests/{cr_id}/resubmit")
+def resubmit_cr(
+    project_id: str, cr_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """PL edits and resubmits a CR back to controller."""
+    cr = (
+        db.query(ChangeRequest)
+        .filter(ChangeRequest.id == cr_id, ChangeRequest.project_id == project_id)
+        .first()
+    )
+    if not cr:
+        raise HTTPException(404, "Change request not found")
+    if cr.status != "sent_back_by_controller":
+        raise HTTPException(409, f"CR status is '{cr.status}', expected 'sent_back_by_controller'")
+
+    # Deactivate old snapshots
+    db.query(CRSubmissionSnapshot).filter(
+        CRSubmissionSnapshot.change_request_id == cr_id,
+        CRSubmissionSnapshot.is_active.is_(True),
+    ).update({"is_active": False})
+
+    cr.status = "pending_controller_approval"
+    cr.controller_feedback = None
+    cr.controller_status = None
+    cr.controller_comments = None
+    cr.controller_id = None
+    cr.controller_approval_timestamp = None
+    db.commit()
+
+    return {"status": cr.status, "message": "Change request resubmitted for controller review."}
+
+
+def _apply_cr_to_forecast(cr: ChangeRequest, db: Session) -> None:
+    """Apply CR change details to forecast rows."""
+    for detail in cr.change_details:
+        if detail.month and detail.new_value:
+            row = (
+                db.query(Forecast)
+                .filter(
+                    Forecast.project_id == cr.project_id,
+                    Forecast.month == detail.month,
+                    Forecast.sub_category == detail.line_item_type,
+                )
+                .first()
+            )
+            if row:
+                try:
+                    new_val = float(detail.new_value.replace("€", "").replace(",", "").strip())
+                    is_internal = detail.line_item_type and detail.line_item_type.startswith("role-")
+                    if is_internal:
+                        row.hours = new_val
+                        rate_row = (
+                            db.query(RateTable)
+                            .filter(RateTable.role_type_id == detail.line_item_type)
+                            .order_by(RateTable.effective_date.desc())
+                            .first()
+                        )
+                        rate = float(rate_row.hourly_rate) if rate_row else 120.0
+                        row.amount_eur = new_val * rate
+                    else:
+                        row.amount_eur = new_val
+                except (ValueError, AttributeError):
+                    pass

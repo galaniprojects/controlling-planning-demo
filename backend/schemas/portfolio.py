@@ -86,6 +86,7 @@ class RejectAction(BaseModel):
 
 class SendBackAction(BaseModel):
     comments: str
+    changes: list["ForecastEditEntry"] = []
 
 
 class ForecastEditEntry(BaseModel):
@@ -194,5 +195,6 @@ class CRDetailResponse(BaseModel):
     controller: str | None
     controller_status: str | None
     controller_comments: str | None
+    controller_feedback: str | None = None
     changes: list[CRChangeDetailResponse]
     grid_data: DetailViewGridData | None = None

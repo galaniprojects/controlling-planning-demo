@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from database import get_db
 from dependencies import get_current_user, require_role
-from models.change_requests import ChangeRequest, CRChangeDetail
+from models.change_requests import ChangeRequest, CRChangeDetail, CRSubmissionSnapshot
 from models.financial import Actuals, Baseline, Forecast
 from models.projects import Project
 from models.users import DemoPersona
@@ -1221,6 +1221,7 @@ def _build_cr_detail(cr: ChangeRequest, db: Session | None = None) -> CRDetailRe
         controller=cr.controller.name if cr.controller else None,
         controller_status=cr.controller_status,
         controller_comments=cr.controller_comments,
+        controller_feedback=cr.controller_feedback,
         changes=[
             CRChangeDetailResponse(
                 field_changed=d.field_changed,
@@ -1348,6 +1349,67 @@ def reject_cr(
     return _build_cr_detail(cr, db)
 
 
+@router.get("/approvals/{cr_id}/editable-grid")
+def get_cr_editable_grid(
+    cr_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """Return current forecast data for a CR's affected project in editable format."""
+    from collections import defaultdict
+    from models.people import RoleType, RateTable
+    from models.financial import ExternalCostType
+
+    cr = db.query(ChangeRequest).filter(ChangeRequest.id == cr_id).first()
+    if not cr:
+        raise HTTPException(404, "Change request not found")
+
+    project_id = cr.project_id
+    forecasts = db.query(Forecast).filter(Forecast.project_id == project_id).all()
+    all_months = sorted(set(f.month for f in forecasts))
+
+    groups: dict[tuple[str, str], list] = defaultdict(list)
+    for f in forecasts:
+        groups[(f.category, f.sub_category)].append(f)
+
+    role_names = {r.id: r.name for r in db.query(RoleType).all()}
+    cost_type_names = {c.id: c.name for c in db.query(ExternalCostType).all()}
+
+    rows = []
+    for (category, sub_cat), items in groups.items():
+        is_internal = category == "internal"
+        name = role_names.get(sub_cat, sub_cat) if is_internal else cost_type_names.get(sub_cat, sub_cat)
+
+        month_map = {f.month: f for f in items}
+        months_data = []
+        total = 0.0
+        total_eur = 0.0
+        for m in all_months:
+            f = month_map.get(m)
+            if f:
+                val = float(f.hours or 0) if is_internal else float(f.amount_eur or 0)
+                val_eur = float(f.amount_eur or 0)
+            else:
+                val = 0.0
+                val_eur = 0.0
+            months_data.append({"month": m, "value": val, "value_eur": val_eur})
+            total += val
+            total_eur += val_eur
+
+        rows.append({
+            "id": f"{category}:{sub_cat}",
+            "name": name,
+            "category": category,
+            "sub_category": sub_cat,
+            "unit": "hours" if is_internal else "eur",
+            "months": months_data,
+            "total": round(total, 2),
+            "total_eur": round(total_eur, 2),
+        })
+
+    return {"months": all_months, "rows": rows}
+
+
 @router.put("/approvals/{cr_id}/send-back")
 def send_back_cr(
     cr_id: int,
@@ -1355,7 +1417,9 @@ def send_back_cr(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("controller")),
 ):
-    """Send a change request back for revision."""
+    """Send a change request back for revision, optionally with edited forecast values."""
+    import json
+
     cr = db.query(ChangeRequest).filter(ChangeRequest.id == cr_id).first()
     if not cr:
         raise HTTPException(404, "Change request not found")
@@ -1366,5 +1430,77 @@ def send_back_cr(
     cr.controller_id = user.person_id
     cr.controller_status = "sent_back"
     cr.controller_comments = body.comments
+    cr.controller_feedback = body.comments
+
+    # If controller provided edited forecast data, save snapshots
+    if body.changes:
+        # Ensure "original" snapshot exists (captures current forecast before edits)
+        existing_original = (
+            db.query(CRSubmissionSnapshot)
+            .filter(
+                CRSubmissionSnapshot.change_request_id == cr_id,
+                CRSubmissionSnapshot.snapshot_type == "original",
+                CRSubmissionSnapshot.is_active.is_(True),
+            )
+            .first()
+        )
+        if not existing_original:
+            # Save current forecast as original snapshot
+            forecasts = db.query(Forecast).filter(Forecast.project_id == cr.project_id).all()
+            original_data = []
+            for f in forecasts:
+                original_data.append({
+                    "category": f.category,
+                    "sub_category": f.sub_category,
+                    "month": f.month,
+                    "hours": float(f.hours) if f.hours is not None else None,
+                    "amount_eur": float(f.amount_eur) if f.amount_eur is not None else 0,
+                })
+            snapshot = CRSubmissionSnapshot(
+                change_request_id=cr_id,
+                snapshot_type="original",
+                created_by_id=cr.submitted_by_id,
+                forecast_data_json=json.dumps(original_data),
+            )
+            db.add(snapshot)
+
+        # Deactivate previous controller_proposed snapshots
+        db.query(CRSubmissionSnapshot).filter(
+            CRSubmissionSnapshot.change_request_id == cr_id,
+            CRSubmissionSnapshot.snapshot_type == "controller_proposed",
+            CRSubmissionSnapshot.is_active.is_(True),
+        ).update({"is_active": False})
+
+        # Build FULL proposed snapshot by merging delta with current forecast
+        forecasts = db.query(Forecast).filter(Forecast.project_id == cr.project_id).all()
+        full_snapshot: dict[tuple, dict] = {}
+        for f in forecasts:
+            key = (f.category, f.sub_category, f.month)
+            full_snapshot[key] = {
+                "category": f.category,
+                "sub_category": f.sub_category,
+                "month": f.month,
+                "hours": float(f.hours) if f.hours is not None else None,
+                "amount_eur": float(f.amount_eur) if f.amount_eur is not None else 0,
+            }
+        # Apply controller's delta
+        for c in body.changes:
+            key = (c.category, c.sub_category, c.month)
+            full_snapshot[key] = {
+                "category": c.category,
+                "sub_category": c.sub_category,
+                "month": c.month,
+                "hours": c.hours,
+                "amount_eur": c.amount_eur,
+            }
+        proposed = CRSubmissionSnapshot(
+            change_request_id=cr_id,
+            snapshot_type="controller_proposed",
+            created_by_id=user.person_id,
+            forecast_data_json=json.dumps(list(full_snapshot.values())),
+            comments=body.comments,
+        )
+        db.add(proposed)
+
     db.commit()
     return _build_cr_detail(cr, db)
