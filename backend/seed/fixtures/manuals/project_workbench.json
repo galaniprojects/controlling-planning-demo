@@ -8,7 +8,7 @@
     },
     {
       "title": "Project List",
-      "body": "The left panel shows projects filtered by your role. Project Leads see their assigned projects; Controllers see all. Each entry shows the project name, RAG indicator, type badge, and next action due. Projects in Draft or Pending Approval status also appear for PLs with appropriate status badges."
+      "body": "The left panel shows projects filtered by your role. Project Leads see their assigned projects; Controllers see all. Each entry shows the project name, RAG indicator, type badge, and next action due. Projects in Draft or Pending Approval status also appear for PLs with appropriate status badges.\n\nUse the **New** button at the top to create a new project draft. The creation form collects project name, description, Line of Business, CapEx/OpEx classification, start/end months, and optional resource plan allocation."
     },
     {
       "title": "Overview Tab",
@@ -33,6 +33,14 @@
     {
       "title": "System Suggestions",
       "body": "The system analyzes spending patterns and generates suggestions during the forecast wizard. Types include trend-based adjustments, burn rate projections, actuals-based corrections, and utilization insights. System-suggested changes are flagged in the resulting CR for controller transparency."
+    },
+    {
+      "title": "Project Submission Workflow",
+      "body": "New projects follow a multi-step submission lifecycle:\n\n**1. Create Draft:** Project Lead clicks 'New' in the project list, fills in project details and an optional resource plan with monthly hour allocations. The project is saved as 'draft' status.\n\n**2. Submit for Review:** PL clicks 'Submit' to send the draft for CC Owner confirmation. The forecast snapshot is saved as the 'original' submission. Status becomes 'pending_cc_confirmation'.\n\n**3. CC Owner Confirmation:** The CC Owner reviews and confirms resource availability. Status moves to 'pending_approval'.\n\n**4. Controller Review:** The controller reviews the submission in the Portfolio Overview Intake Queue. They can Approve (project becomes active), Reject (back to draft), or Request Changes (opens editable forecast grid to propose modifications).\n\n**5. Changes Requested:** If the controller requests changes, the PL sees an amber banner in the Workbench with the controller's feedback. The PL can 'Review Proposed Changes' to see a diff view, then 'Accept Changes' or 'Edit and Resubmit'."
+    },
+    {
+      "title": "Changes Requested Banner",
+      "body": "When a controller requests changes to a submitted project, the Project Lead sees an amber notification banner at the top of the project workspace. The banner shows the controller's feedback text and provides two actions:\n\n- **Review Proposed Changes** — opens a diff view comparing the PL's original submission against the controller's proposed changes, with changed cells highlighted\n- **Edit and Resubmit** — opens the forecast grid for the PL to make their own adjustments before resubmitting\n\nThe same diff view is also accessible from the Intake Queue in Portfolio Overview by clicking 'Open Full Detail' on a project with 'changes_requested' status."
     }
   ]
 }

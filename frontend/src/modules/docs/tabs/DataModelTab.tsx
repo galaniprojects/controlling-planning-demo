@@ -5,9 +5,9 @@ const ENTITIES = [
   {
     name: 'Project',
     table: 'projects',
-    description: 'Core entity — IT projects and services with lifecycle, budget, and RAG status.',
-    fields: ['id', 'name', 'description', 'status', 'rag_status', 'is_service', 'is_active', 'lob_id', 'programme_id', 'start_date', 'end_date', 'project_manager_id'],
-    relationships: ['belongs to LoB', 'belongs to Programme', 'has Forecast rows', 'has Change Requests', 'has Resource Allocations'],
+    description: 'Core entity — IT projects and services with lifecycle, budget, RAG status, and submission workflow state.',
+    fields: ['id', 'name', 'description', 'status', 'rag_status', 'is_service', 'is_active', 'lob_id', 'programme_id', 'start_date', 'end_date', 'start_month', 'end_month', 'project_manager_id', 'pl_person_id', 'capex_opex', 'submission_feedback'],
+    relationships: ['belongs to LoB', 'belongs to Programme', 'has Forecast rows', 'has Change Requests', 'has Resource Allocations', 'has Submission Snapshots'],
   },
   {
     name: 'Person',
@@ -73,6 +73,20 @@ const ENTITIES = [
     relationships: ['belongs to Role Type', 'belongs to Competence Center'],
   },
   {
+    name: 'Project Submission Snapshot',
+    table: 'project_submission_snapshots',
+    description: 'Stores forecast snapshots for the submission workflow — captures the original submission and controller-proposed changes for diff comparison.',
+    fields: ['id', 'project_id', 'snapshot_type', 'snapshot_data (JSON)', 'created_at'],
+    relationships: ['belongs to Project'],
+  },
+  {
+    name: 'Notification',
+    table: 'notifications',
+    description: 'In-app notifications for workflow events (submissions, approvals, change requests) with deep links.',
+    fields: ['id', 'recipient_role', 'message', 'type', 'is_read', 'deep_link', 'deep_link_tab', 'created_at'],
+    relationships: ['targets a Role'],
+  },
+  {
     name: 'Grouping Hierarchy',
     table: 'grouping_hierarchies',
     description: 'Configurable portfolio grouping structure (e.g., LoB hierarchy). Labels propagate across all modules.',
@@ -118,8 +132,10 @@ export function DataModelTab() {
    │                              ╰───── Competence Center
    ├── Change Request
    │      ╰── CR Line Items (before/after/delta)
+   ├── Submission Snapshot (original + controller_proposed)
    ╰── Resource Request ──── Cost Center
 
+Notification ──── Role (recipient)
 Scenario ──── Scenario Action[]
 Grouping Hierarchy ──── Entity Types ──── Entities ──── Projects`}</div>
         </CardContent>
@@ -207,6 +223,12 @@ Grouping Hierarchy ──── Entity Types ──── Entities ──── 
           <p>
             <strong>Change Requests</strong> capture proposed budget changes with before/after values per line item.
             They flow through an approval workflow: <code>pending_approval</code> → <code>approved</code> / <code>rejected</code> / <code>changes_requested</code>.
+          </p>
+          <p>
+            <strong>Submission Workflow:</strong> New projects follow a lifecycle (<code>draft</code> → <code>pending_cc_confirmation</code> → <code>pending_approval</code> → <code>active</code>).
+            Controllers can request changes via an editable forecast grid, which creates a <code>controller_proposed</code> snapshot.
+            The Project Lead sees a diff view comparing the original submission against the controller's proposed changes,
+            and can accept or edit and resubmit. Snapshots are stored in the <code>project_submission_snapshots</code> table.
           </p>
         </CardContent>
       </Card>
