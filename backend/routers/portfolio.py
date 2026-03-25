@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from database import get_db
 from dependencies import get_current_user, require_role
-from models.change_requests import ChangeRequest, CRChangeDetail
+from models.change_requests import ChangeRequest, CRChangeDetail, CRSubmissionSnapshot
 from models.financial import Actuals, Baseline, Forecast
 from models.projects import Project
 from models.users import DemoPersona
@@ -1258,6 +1258,7 @@ def _build_cr_detail(cr: ChangeRequest, db: Session | None = None) -> CRDetailRe
         controller=cr.controller.name if cr.controller else None,
         controller_status=cr.controller_status,
         controller_comments=cr.controller_comments,
+        controller_feedback=cr.controller_feedback,
         changes=[
             CRChangeDetailResponse(
                 field_changed=d.field_changed,
@@ -1333,30 +1334,25 @@ def approve_cr(
     if cr.status != "pending_controller_approval":
         raise HTTPException(409, f"CR status is '{cr.status}', expected 'pending_controller_approval'")
 
-    cr.status = "approved"
     cr.controller_id = user.person_id
     cr.controller_status = "approved"
     cr.controller_approval_timestamp = datetime.utcnow()
     if body and body.comments:
         cr.controller_comments = body.comments
 
-    # Update forecast rows from change details
-    for detail in cr.change_details:
-        if detail.month and detail.new_value:
-            row = (
-                db.query(Forecast)
-                .filter(
-                    Forecast.project_id == cr.project_id,
-                    Forecast.month == detail.month,
-                    Forecast.sub_category == detail.field_changed,
-                )
-                .first()
-            )
-            if row:
-                try:
-                    row.amount_eur = float(detail.new_value.replace("€", "").replace(",", "").strip())
-                except (ValueError, AttributeError):
-                    pass
+    # Check if CR has internal resource changes → route to CC Owner
+    has_resource_changes = any(
+        d.line_item_type and d.line_item_type.startswith("role-")
+        for d in cr.change_details
+    )
+
+    if has_resource_changes:
+        cr.status = "pending_cc_confirmation"
+        _create_resource_requests_from_cr(cr, db)
+    else:
+        # No resource impact — approve directly and update forecast
+        cr.status = "approved"
+        _apply_cr_changes_to_forecast(cr, db)
 
     db.commit()
     return _build_cr_detail(cr, db)
@@ -1385,6 +1381,67 @@ def reject_cr(
     return _build_cr_detail(cr, db)
 
 
+@router.get("/approvals/{cr_id}/editable-grid")
+def get_cr_editable_grid(
+    cr_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """Return current forecast data for a CR's affected project in editable format."""
+    from collections import defaultdict
+    from models.people import RoleType, RateTable
+    from models.financial import ExternalCostType
+
+    cr = db.query(ChangeRequest).filter(ChangeRequest.id == cr_id).first()
+    if not cr:
+        raise HTTPException(404, "Change request not found")
+
+    project_id = cr.project_id
+    forecasts = db.query(Forecast).filter(Forecast.project_id == project_id).all()
+    all_months = sorted(set(f.month for f in forecasts))
+
+    groups: dict[tuple[str, str], list] = defaultdict(list)
+    for f in forecasts:
+        groups[(f.category, f.sub_category)].append(f)
+
+    role_names = {r.id: r.name for r in db.query(RoleType).all()}
+    cost_type_names = {c.id: c.name for c in db.query(ExternalCostType).all()}
+
+    rows = []
+    for (category, sub_cat), items in groups.items():
+        is_internal = category == "internal"
+        name = role_names.get(sub_cat, sub_cat) if is_internal else cost_type_names.get(sub_cat, sub_cat)
+
+        month_map = {f.month: f for f in items}
+        months_data = []
+        total = 0.0
+        total_eur = 0.0
+        for m in all_months:
+            f = month_map.get(m)
+            if f:
+                val = float(f.hours or 0) if is_internal else float(f.amount_eur or 0)
+                val_eur = float(f.amount_eur or 0)
+            else:
+                val = 0.0
+                val_eur = 0.0
+            months_data.append({"month": m, "value": val, "value_eur": val_eur})
+            total += val
+            total_eur += val_eur
+
+        rows.append({
+            "id": f"{category}:{sub_cat}",
+            "name": name,
+            "category": category,
+            "sub_category": sub_cat,
+            "unit": "hours" if is_internal else "eur",
+            "months": months_data,
+            "total": round(total, 2),
+            "total_eur": round(total_eur, 2),
+        })
+
+    return {"months": all_months, "rows": rows}
+
+
 @router.put("/approvals/{cr_id}/send-back")
 def send_back_cr(
     cr_id: int,
@@ -1392,7 +1449,9 @@ def send_back_cr(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("controller")),
 ):
-    """Send a change request back for revision."""
+    """Send a change request back for revision, optionally with edited forecast values."""
+    import json
+
     cr = db.query(ChangeRequest).filter(ChangeRequest.id == cr_id).first()
     if not cr:
         raise HTTPException(404, "Change request not found")
@@ -1403,5 +1462,166 @@ def send_back_cr(
     cr.controller_id = user.person_id
     cr.controller_status = "sent_back"
     cr.controller_comments = body.comments
+    cr.controller_feedback = body.comments
+
+    # If controller provided edited forecast data, save snapshots
+    if body.changes:
+        # Ensure "original" snapshot exists (captures current forecast before edits)
+        existing_original = (
+            db.query(CRSubmissionSnapshot)
+            .filter(
+                CRSubmissionSnapshot.change_request_id == cr_id,
+                CRSubmissionSnapshot.snapshot_type == "original",
+                CRSubmissionSnapshot.is_active.is_(True),
+            )
+            .first()
+        )
+        if not existing_original:
+            # Save current forecast as original snapshot
+            forecasts = db.query(Forecast).filter(Forecast.project_id == cr.project_id).all()
+            original_data = []
+            for f in forecasts:
+                original_data.append({
+                    "category": f.category,
+                    "sub_category": f.sub_category,
+                    "month": f.month,
+                    "hours": float(f.hours) if f.hours is not None else None,
+                    "amount_eur": float(f.amount_eur) if f.amount_eur is not None else 0,
+                })
+            snapshot = CRSubmissionSnapshot(
+                change_request_id=cr_id,
+                snapshot_type="original",
+                created_by_id=cr.submitted_by_id,
+                forecast_data_json=json.dumps(original_data),
+            )
+            db.add(snapshot)
+
+        # Deactivate previous controller_proposed snapshots
+        db.query(CRSubmissionSnapshot).filter(
+            CRSubmissionSnapshot.change_request_id == cr_id,
+            CRSubmissionSnapshot.snapshot_type == "controller_proposed",
+            CRSubmissionSnapshot.is_active.is_(True),
+        ).update({"is_active": False})
+
+        # Build FULL proposed snapshot by merging delta with current forecast
+        forecasts = db.query(Forecast).filter(Forecast.project_id == cr.project_id).all()
+        full_snapshot: dict[tuple, dict] = {}
+        for f in forecasts:
+            key = (f.category, f.sub_category, f.month)
+            full_snapshot[key] = {
+                "category": f.category,
+                "sub_category": f.sub_category,
+                "month": f.month,
+                "hours": float(f.hours) if f.hours is not None else None,
+                "amount_eur": float(f.amount_eur) if f.amount_eur is not None else 0,
+            }
+        # Apply controller's delta
+        for c in body.changes:
+            key = (c.category, c.sub_category, c.month)
+            full_snapshot[key] = {
+                "category": c.category,
+                "sub_category": c.sub_category,
+                "month": c.month,
+                "hours": c.hours,
+                "amount_eur": c.amount_eur,
+            }
+        proposed = CRSubmissionSnapshot(
+            change_request_id=cr_id,
+            snapshot_type="controller_proposed",
+            created_by_id=user.person_id,
+            forecast_data_json=json.dumps(list(full_snapshot.values())),
+            comments=body.comments,
+        )
+        db.add(proposed)
+
     db.commit()
     return _build_cr_detail(cr, db)
+
+
+# ---------------------------------------------------------------------------
+# CR Workflow Helpers
+# ---------------------------------------------------------------------------
+
+
+def _apply_cr_changes_to_forecast(cr: ChangeRequest, db: Session) -> None:
+    """Apply CR change details to forecast rows (used on direct approval)."""
+    from models.financial import RateTable
+
+    for detail in cr.change_details:
+        if detail.month and detail.new_value:
+            row = (
+                db.query(Forecast)
+                .filter(
+                    Forecast.project_id == cr.project_id,
+                    Forecast.month == detail.month,
+                    Forecast.sub_category == detail.line_item_type,
+                )
+                .first()
+            )
+            if row:
+                try:
+                    new_val = float(detail.new_value.replace("€", "").replace(",", "").strip())
+                    is_internal = detail.line_item_type and detail.line_item_type.startswith("role-")
+                    if is_internal:
+                        row.hours = new_val
+                        rate_row = (
+                            db.query(RateTable)
+                            .filter(RateTable.role_type_id == detail.line_item_type)
+                            .order_by(RateTable.effective_date.desc())
+                            .first()
+                        )
+                        rate = float(rate_row.hourly_rate) if rate_row else 120.0
+                        row.amount_eur = new_val * rate
+                    else:
+                        row.amount_eur = new_val
+                except (ValueError, AttributeError):
+                    pass
+
+
+def _create_resource_requests_from_cr(cr: ChangeRequest, db: Session) -> None:
+    """Create ResourceRequest rows from a CR's internal resource change details.
+
+    Groups by role type, computes period and average hours, creates one request
+    per role directed to cc-rail-systems.
+    """
+    from collections import defaultdict
+    from models.capacity import ResourceRequest
+
+    # Delete any existing pending CR-linked requests
+    db.query(ResourceRequest).filter(
+        ResourceRequest.change_request_id == cr.id,
+        ResourceRequest.status == "pending",
+    ).delete()
+
+    CC_ID = "cc-rail-systems"
+
+    # Group change details by role type (internal resources only)
+    groups: dict[str, list] = defaultdict(list)
+    for detail in cr.change_details:
+        if detail.line_item_type and detail.line_item_type.startswith("role-") and detail.month:
+            groups[detail.line_item_type].append(detail)
+
+    for role_id, details in groups.items():
+        sorted_details = sorted(details, key=lambda d: d.month)
+        hours_values = []
+        for d in sorted_details:
+            try:
+                hours_values.append(float(d.new_value.replace("€", "").replace(",", "").strip()))
+            except (ValueError, AttributeError):
+                hours_values.append(0)
+
+        avg_hours = sum(hours_values) / len(hours_values) if hours_values else 0
+
+        req = ResourceRequest(
+            project_id=cr.project_id,
+            change_request_id=cr.id,
+            cost_center_id=CC_ID,
+            request_type="resource",
+            role_type_id=role_id,
+            hours_or_amount_per_month=round(avg_hours, 2),
+            period_start=sorted_details[0].month,
+            period_end=sorted_details[-1].month,
+            priority="medium",
+            status="pending",
+        )
+        db.add(req)

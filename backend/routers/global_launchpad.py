@@ -500,7 +500,7 @@ def get_pending_actions(
                 timestamp=proj.modified_at.isoformat() if proj.modified_at else None,
             ))
 
-        # Action #3: CR Pending Confirmation (Stage 1)
+        # Action: CR Pending CC Confirmation (final stage after controller approval)
         # Show CRs where cc_owner_id matches OR is NULL (not yet assigned, routed to the CC owner)
         pending_crs = (
             db.query(ChangeRequest)

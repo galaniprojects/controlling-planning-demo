@@ -146,8 +146,8 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | Router | Prefix | Endpoints | Description |
 |--------|--------|-----------|-------------|
 | **Launchpad** | `/api` | 8 | Roles, modules, KPIs, pending actions, project create/submit |
-| **Portfolio** | `/api/portfolio` | 15 | Dashboard KPIs, project tree, intake queue (approve/reject/send-back/diff/accept-changes), CR approvals |
-| **Workbench** | `/api/projects` | 10 | Project list, overview, timeline, forecast grid, 5-phase forecast cycle (start/acknowledge/suggestions/edit/review/submit) |
+| **Portfolio** | `/api/portfolio` | 18 | Dashboard KPIs, project tree, intake queue (approve/reject/send-back/diff/accept-changes), CR approvals (approve/reject/send-back/editable-grid) |
+| **Workbench** | `/api/projects` | 13 | Project list, overview, timeline, forecast grid, 5-phase forecast cycle, CR diff/accept-changes/resubmit |
 | **Capacity** | `/api/capacity` | 14 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation |
 | **Scenarios** | `/api/scenarios` | 8 | CRUD, actions, comparison, AI advisor |
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
@@ -171,6 +171,20 @@ The project submission lifecycle (`draft` -> `pending_cc_confirmation` -> `pendi
 | `PUT` | `/api/portfolio/intake/{id}/accept-changes` | PL accepts controller's proposed changes |
 | `GET` | `/api/portfolio/intake/{id}/editable-grid` | Get forecast in editable format (controller) |
 | `PUT` | `/api/portfolio/intake/{id}/resubmit` | PL resubmits after editing |
+
+### Change Request Workflow Endpoints
+
+The CR lifecycle (`pending_controller_approval` -> `sent_back_by_controller` -> `pending_cc_confirmation` -> `approved`) is powered by:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `PUT` | `/api/portfolio/approvals/{cr_id}/approve` | Controller approves CR (routes to CC Owner if resource changes) |
+| `PUT` | `/api/portfolio/approvals/{cr_id}/reject` | Controller rejects CR |
+| `PUT` | `/api/portfolio/approvals/{cr_id}/send-back` | Controller requests changes with editable grid + snapshots |
+| `GET` | `/api/portfolio/approvals/{cr_id}/editable-grid` | Get forecast in editable format for controller |
+| `GET` | `/api/projects/{pid}/change-requests/{cr_id}/diff` | PL views original vs controller-proposed comparison |
+| `PUT` | `/api/projects/{pid}/change-requests/{cr_id}/accept-changes` | PL accepts controller's proposed changes |
+| `PUT` | `/api/projects/{pid}/change-requests/{cr_id}/resubmit` | PL resubmits CR to controller |
 
 ### Resource Assignment Endpoints (CC Owner)
 

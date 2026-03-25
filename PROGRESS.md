@@ -461,6 +461,37 @@ After the controller sent a project back with change requests and the PL accepte
 - GEN-01: Had to use "Thomas Becker" (p-becker) instead of "Thomas Richter" (p-richter) due to existing person with that ID
 - WB-11 display side fixed; seed data consistency for CRs deferred to Session 6 per implementation guide
 
+## CR Workflow Overhaul (2026-03-25)
+
+Full change request workflow now functional (previously cosmetic text-only actions).
+
+### New Flow: PL → Controller → PL (if adjusted) → CC Owner (last)
+
+**Backend:**
+- [x] `CRSubmissionSnapshot` model for storing original + controller-proposed forecast data
+- [x] `controller_feedback` field on ChangeRequest model
+- [x] `GET /api/portfolio/approvals/{cr_id}/editable-grid` — controller editable grid
+- [x] `PUT /api/portfolio/approvals/{cr_id}/send-back` — now accepts `changes[]` array + creates snapshots
+- [x] `GET /api/projects/{pid}/change-requests/{cr_id}/diff` — PL diff view endpoint
+- [x] `PUT /api/projects/{pid}/change-requests/{cr_id}/accept-changes` — PL accepts controller changes
+- [x] `PUT /api/projects/{pid}/change-requests/{cr_id}/resubmit` — PL resubmits to controller
+- [x] Controller approve now routes CRs with resource changes to `pending_cc_confirmation` + creates ResourceRequests
+- [x] CC Owner confirm/decline in capacity.py now final stage (approve + apply forecast)
+- [x] Resource requests seeded with `change_request_id` FK for CRs #9, #15
+
+**Frontend:**
+- [x] `EditableCRGrid.tsx` — controller editable grid (adapted from EditableIntakeGrid)
+- [x] `CRDiffSection.tsx` — PL diff view with color-coded comparison grid
+- [x] `CRDetailWorkspace.tsx` — edit-grid action mode for controller
+- [x] `CRDetailPanel.tsx` — "Request Changes" routes to workspace
+- [x] `CRHistoryList.tsx` — sent-back CRs show amber highlighting + inline diff
+- [x] `ChangeHistoryTab.tsx` — refresh mechanism for CR actions
+- [x] API client updated with new endpoints
+
+**Seed Data:**
+- [x] CR #27 (sent_back_by_controller) has snapshots for immediate diff demo
+- [x] CRs #9, #15 (pending_cc_confirmation) have linked resource requests
+
 ## Build History (archived — detail removed to keep file manageable)
 
 All phases below are complete. See git history for full details.

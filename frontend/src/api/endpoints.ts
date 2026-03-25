@@ -218,8 +218,17 @@ export const portfolioApi = {
     api.put<CRDetail>(`/api/portfolio/approvals/${crId}/approve`, comments ? { comments } : {}),
   rejectCR: (crId: number, reason: string) =>
     api.put<CRDetail>(`/api/portfolio/approvals/${crId}/reject`, { reason }),
-  sendBackCR: (crId: number, comments: string) =>
-    api.put<CRDetail>(`/api/portfolio/approvals/${crId}/send-back`, { comments }),
+  sendBackCR: (crId: number, comments: string, changes?: Array<{
+    category: string; sub_category: string; month: string;
+    hours: number | null; amount_eur: number;
+  }>) =>
+    api.put<CRDetail>(`/api/portfolio/approvals/${crId}/send-back`, { comments, changes: changes || [] }),
+  getCREditableGrid: (crId: number) =>
+    api.get<{ months: string[]; rows: Array<{
+      id: string; name: string; category: string; sub_category: string;
+      unit: string; months: Array<{ month: string; value: number; value_eur: number }>;
+      total: number; total_eur: number;
+    }> }>(`/api/portfolio/approvals/${crId}/editable-grid`),
 };
 
 // --- Reference Data ---
@@ -348,6 +357,34 @@ export const workbenchApi = {
       decided_date: string | null;
       grid_data: import('@/lib/detailViewTypes').DetailViewGridData | null;
     }>(`/api/projects/${projectId}/change-requests/${crId}/detail-view`),
+  getCRDiff: (projectId: string, crId: number) =>
+    api.get<{
+      cr_id: number;
+      project_id: string;
+      project_name: string;
+      controller_feedback: string | null;
+      grid_data: {
+        months: string[];
+        line_items: Array<{
+          id: string; name: string; category: string; unit: string;
+          months: Array<{
+            month: string; proposed: number; proposed_eur: number;
+            current: number; current_eur: number; is_changed: boolean;
+          }>;
+          current_total: number; proposed_total: number;
+          current_total_eur: number; proposed_total_eur: number;
+        }>;
+        kpis: Array<{ label: string; value: number; format: string; color?: string }>;
+      };
+    }>(`/api/projects/${projectId}/change-requests/${crId}/diff`),
+  acceptCRChanges: (projectId: string, crId: number) =>
+    api.put<{ status: string; message: string }>(
+      `/api/projects/${projectId}/change-requests/${crId}/accept-changes`,
+    ),
+  resubmitCR: (projectId: string, crId: number) =>
+    api.put<{ status: string; message: string }>(
+      `/api/projects/${projectId}/change-requests/${crId}/resubmit`,
+    ),
 };
 
 // --- Capacity Management ---

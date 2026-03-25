@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { DetailViewGrid } from '@/components/shared/DetailViewGrid';
 import { DetailViewKPIStrip } from '@/components/shared/DetailViewKPIStrip';
@@ -9,20 +10,22 @@ import { cn } from '@/lib/utils';
 import { formatCurrencyCompact } from '@/lib/formatters';
 import type { CRHistoryItem } from '@/types/api';
 import type { DetailViewGridData } from '@/lib/detailViewTypes';
-import { ChevronDown, Sparkles } from 'lucide-react';
+import { ChevronDown, Sparkles, AlertTriangle } from 'lucide-react';
 import { CRDetailModal } from './CRDetailModal';
+import { CRDiffSection } from './CRDiffSection';
 import { workbenchApi } from '@/api/endpoints';
 
 interface Props {
   items: CRHistoryItem[];
   projectId: string;
+  onRefresh?: () => void;
 }
 
 interface CRGridCache {
   [crId: number]: { loading: boolean; data: DetailViewGridData | null };
 }
 
-export function CRHistoryList({ items, projectId }: Props) {
+export function CRHistoryList({ items, projectId, onRefresh }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [detailCrId, setDetailCrId] = useState<number | null>(null);
   const [gridCache, setGridCache] = useState<CRGridCache>({});
@@ -66,14 +69,21 @@ export function CRHistoryList({ items, projectId }: Props) {
       {items.map((cr) => {
         const isExpanded = expandedId === cr.id;
         const cached = gridCache[cr.id];
+        const isSentBack = cr.status === 'sent_back_by_controller';
         return (
           <div
             key={cr.id}
-            className="border border-slate-200 rounded-lg overflow-hidden"
+            className={cn(
+              'border rounded-lg overflow-hidden',
+              isSentBack ? 'border-amber-300' : 'border-slate-200',
+            )}
           >
             {/* Summary row */}
             <button
-              className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors"
+              className={cn(
+                'w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors',
+                isSentBack && 'bg-amber-50/50',
+              )}
               onClick={() => setExpandedId(isExpanded ? null : cr.id)}
             >
               <ChevronDown
@@ -84,6 +94,9 @@ export function CRHistoryList({ items, projectId }: Props) {
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
+                  {isSentBack && (
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                  )}
                   <span className="text-sm font-medium text-slate-700">
                     {cr.summary}
                   </span>
@@ -97,6 +110,11 @@ export function CRHistoryList({ items, projectId }: Props) {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {isSentBack && (
+                  <Badge className="bg-amber-100 text-amber-800 text-[10px]">
+                    Action Required
+                  </Badge>
+                )}
                 {cr.impact_eur != null && (
                   <span
                     className={cn(
@@ -117,27 +135,46 @@ export function CRHistoryList({ items, projectId }: Props) {
             {/* Expanded detail */}
             {isExpanded && (
               <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 space-y-3">
-                {/* Grid data or loading */}
-                {cached?.loading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-6 w-full" />
-                    <Skeleton className="h-32 w-full" />
-                  </div>
-                ) : cached?.data ? (
-                  <div className="space-y-2">
-                    <DetailViewGrid
-                      lineItems={cached.data.line_items}
-                      months={cached.data.months}
-                      cellPattern="comparison"
+                {/* Diff section for sent-back CRs */}
+                {isSentBack && (
+                  <>
+                    <CRDiffSection
+                      projectId={projectId}
+                      crId={cr.id}
+                      onActionComplete={() => {
+                        setExpandedId(null);
+                        onRefresh?.();
+                      }}
                     />
-                    {cached.data.kpis && (
-                      <DetailViewKPIStrip kpis={cached.data.kpis} />
+                    <Separator />
+                  </>
+                )}
+
+                {/* Grid data or loading (for non-sent-back CRs, or as additional context) */}
+                {!isSentBack && (
+                  <>
+                    {cached?.loading ? (
+                      <div className="space-y-2">
+                        <Skeleton className="h-6 w-full" />
+                        <Skeleton className="h-32 w-full" />
+                      </div>
+                    ) : cached?.data ? (
+                      <div className="space-y-2">
+                        <DetailViewGrid
+                          lineItems={cached.data.line_items}
+                          months={cached.data.months}
+                          cellPattern="comparison"
+                        />
+                        {cached.data.kpis && (
+                          <DetailViewKPIStrip kpis={cached.data.kpis} />
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-400">
+                        No detailed grid data available for this change request.
+                      </p>
                     )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-400">
-                    No detailed grid data available for this change request.
-                  </p>
+                  </>
                 )}
 
                 {/* Justification */}
@@ -158,14 +195,16 @@ export function CRHistoryList({ items, projectId }: Props) {
                   </div>
                 )}
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  onClick={() => setDetailCrId(cr.id)}
-                >
-                  View Full Detail
-                </Button>
+                {!isSentBack && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setDetailCrId(cr.id)}
+                  >
+                    View Full Detail
+                  </Button>
+                )}
               </div>
             )}
           </div>

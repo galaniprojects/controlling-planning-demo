@@ -44,7 +44,7 @@
     },
     {
       "title": "Response Actions",
-      "body": "For each request, you can: **Confirm** (accept as-is, assigning a named person for resource requests), **Partially Fulfill** (adjust hours, amount, or period), **Counter-Propose** (offer an alternative such as a different person or role), or **Decline** (with required reason). The Assignment Preview shows candidate people with their current utilization to help you choose."
+      "body": "For each request, you can: **Confirm** (accept as-is, assigning a named person for resource requests), **Partially Fulfill** (adjust hours, amount, or period), **Counter-Propose** (offer an alternative such as a different person or role), or **Decline** (with required reason). The Assignment Preview shows candidate people with their current utilization to help you choose.\n\n**CR-Linked Requests:** Some resource requests are linked to change requests. When you confirm a CR-linked request, the associated CR is automatically approved and the forecast is updated. If you decline, the CR is sent back to the Project Lead. This is the final stage of the CR workflow — the CC Owner confirmation completes the approval process."
     },
     {
       "title": "Organization Overview Tab",

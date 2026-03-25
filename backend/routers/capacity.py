@@ -8,8 +8,9 @@ from config import DEMO_DATE
 from database import get_db
 from dependencies import get_current_user, require_role
 from models.capacity import Allocation, ResourceRequest, ResourceRequestAssignment
-from models.financial import Forecast
 from models.change_requests import ChangeRequest
+from models.financial import Forecast
+from models.people import RateTable
 from models.organization import CostCenter, LineOfBusiness
 from models.people import Person, RoleType
 from models.projects import Project
@@ -554,14 +555,15 @@ def confirm_request(
         req.assigned_person_id = body.assigned_person_id
     # Create Allocations from assignments
     _create_allocations_from_assignments(db, req)
-    # Advance linked CR if exists
+    # Advance linked CR — CC Owner is the final stage
     if req.change_request_id:
         cr = db.query(ChangeRequest).filter(ChangeRequest.id == req.change_request_id).first()
         if cr and cr.status == "pending_cc_confirmation":
-            cr.status = "pending_controller_approval"
             cr.cc_owner_id = user.person_id
             cr.cc_status = "confirmed"
             cr.cc_confirmation_timestamp = datetime.utcnow()
+            cr.status = "approved"
+            _apply_cr_to_forecast_on_cc_confirm(cr, db)
     db.commit()
     return _request_to_dict(req, db)
 
@@ -581,10 +583,11 @@ def partially_fulfill_request(
     if req.change_request_id:
         cr = db.query(ChangeRequest).filter(ChangeRequest.id == req.change_request_id).first()
         if cr and cr.status == "pending_cc_confirmation":
-            cr.status = "pending_controller_approval"
             cr.cc_owner_id = user.person_id
             cr.cc_status = "confirmed"
             cr.cc_confirmation_timestamp = datetime.utcnow()
+            cr.status = "approved"
+            _apply_cr_to_forecast_on_cc_confirm(cr, db)
     db.commit()
     return _request_to_dict(req, db)
 
@@ -603,10 +606,11 @@ def counter_propose_request(
     if req.change_request_id:
         cr = db.query(ChangeRequest).filter(ChangeRequest.id == req.change_request_id).first()
         if cr and cr.status == "pending_cc_confirmation":
-            cr.status = "pending_controller_approval"
             cr.cc_owner_id = user.person_id
             cr.cc_status = "confirmed"
             cr.cc_confirmation_timestamp = datetime.utcnow()
+            cr.status = "approved"
+            _apply_cr_to_forecast_on_cc_confirm(cr, db)
     db.commit()
     return _request_to_dict(req, db)
 
@@ -1069,3 +1073,40 @@ def get_heatmap_detail(
         "available_hours": round(total_available, 1),
         "delta": round(delta, 1),
     }
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _apply_cr_to_forecast_on_cc_confirm(cr: ChangeRequest, db: Session) -> None:
+    """Apply CR change details to forecast rows when CC Owner confirms (final stage)."""
+    for detail in cr.change_details:
+        if detail.month and detail.new_value:
+            row = (
+                db.query(Forecast)
+                .filter(
+                    Forecast.project_id == cr.project_id,
+                    Forecast.month == detail.month,
+                    Forecast.sub_category == detail.line_item_type,
+                )
+                .first()
+            )
+            if row:
+                try:
+                    new_val = float(detail.new_value.replace("€", "").replace(",", "").strip())
+                    is_internal = detail.line_item_type and detail.line_item_type.startswith("role-")
+                    if is_internal:
+                        row.hours = new_val
+                        rate_row = (
+                            db.query(RateTable)
+                            .filter(RateTable.role_type_id == detail.line_item_type)
+                            .order_by(RateTable.effective_date.desc())
+                            .first()
+                        )
+                        rate = float(rate_row.hourly_rate) if rate_row else 120.0
+                        row.amount_eur = new_val * rate
+                    else:
+                        row.amount_eur = new_val
+                except (ValueError, AttributeError):
+                    pass

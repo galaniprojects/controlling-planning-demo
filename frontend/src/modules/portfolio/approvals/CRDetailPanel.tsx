@@ -16,7 +16,7 @@ import { DetailViewKPIStrip } from '@/components/shared/DetailViewKPIStrip';
 import { Separator } from '@/components/ui/separator';
 import { portfolioApi } from '@/api/endpoints';
 import type { CRDetail } from '@/types/api';
-import { Check, X, Undo2, Sparkles, Maximize2 } from 'lucide-react';
+import { Check, X, Edit2, Sparkles, Maximize2 } from 'lucide-react';
 
 interface Props {
   crId: number;
@@ -24,7 +24,7 @@ interface Props {
   onOpenDetail?: (crId: number) => void;
 }
 
-type ActionMode = 'idle' | 'approve' | 'reject' | 'send-back';
+type ActionMode = 'idle' | 'approve' | 'reject';
 
 export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
   const [data, setData] = useState<CRDetail | null>(null);
@@ -55,9 +55,6 @@ export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
       } else if (actionMode === 'reject') {
         await portfolioApi.rejectCR(crId, actionText);
         setActionResult('Change request rejected.');
-      } else if (actionMode === 'send-back') {
-        await portfolioApi.sendBackCR(crId, actionText);
-        setActionResult('Change request sent back for revision.');
       }
       onActionComplete();
     } catch {
@@ -215,19 +212,21 @@ export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
                 <X className="h-3.5 w-3.5 mr-1" />
                 Reject
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setActionMode('send-back')}
-              >
-                <Undo2 className="h-3.5 w-3.5 mr-1" />
-                Send Back
-              </Button>
+              {onOpenDetail && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onOpenDetail(crId)}
+                >
+                  <Edit2 className="h-3.5 w-3.5 mr-1" />
+                  Request Changes
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
               <p className="text-xs font-medium text-slate-600 capitalize">
-                {actionMode === 'approve' ? 'Comments (optional)' : actionMode === 'reject' ? 'Reason (required)' : 'Comments (required)'}
+                {actionMode === 'approve' ? 'Comments (optional)' : 'Reason (required)'}
               </p>
               <Textarea
                 value={actionText}

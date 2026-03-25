@@ -301,7 +301,7 @@ PEOPLE = [
 
     # --- Portfolio-level personas (no CC) ---
     {"id": "p-meier",     "name": "Anna Meier",         "role": "role-sr-arch",  "cc": None},          # Controller
-    {"id": "p-becker",     "name": "Thomas Becker",       "role": "role-sr-arch",  "cc": None},          # Executive
+    {"id": "p-becker-exec","name": "Thomas Becker",       "role": "role-sr-arch",  "cc": None},          # Executive
 ]
 
 # Demo personas mapping
@@ -309,7 +309,7 @@ DEMO_PERSONAS = [
     {"id": "persona-controller", "person_id": "p-meier",   "role": "controller",        "display_name": "Anna Meier",     "title": "IT Controller",                     "default_module": "portfolio", "managed_cc": None,        "owned_projects": None},
     {"id": "persona-cc-owner",   "person_id": "p-brenner", "role": "cost_center_owner",  "display_name": "Thomas Brenner", "title": "Head of Application Development",   "default_module": "capacity",  "managed_cc": "cc-muc-apd","owned_projects": None},
     {"id": "persona-pl",         "person_id": "p-sharma",  "role": "project_lead",       "display_name": "Priya Sharma",   "title": "Senior Project Lead",               "default_module": "workbench", "managed_cc": None,        "owned_projects": '["proj-erp2","proj-sensor","proj-predmaint","proj-fleet","proj-autobrake"]'},
-    {"id": "persona-exec",       "person_id": "p-becker",   "role": "executive",          "display_name": "Thomas Becker",   "title": "VP IT Strategy & Governance",       "default_module": "portfolio", "managed_cc": None,        "owned_projects": None},
+    {"id": "persona-exec",       "person_id": "p-becker-exec","role": "executive",          "display_name": "Thomas Becker",   "title": "VP IT Strategy & Governance",       "default_module": "portfolio", "managed_cc": None,        "owned_projects": None},
 ]
 
 # ---------------------------------------------------------------------------
@@ -1077,10 +1077,29 @@ CHANGE_REQUESTS = [
      "justification": "PoC results justify production pilot but require additional time and resources.",
      "cc_owner": "p-brenner", "cc_ts": "2026-02-21 11:00:00", "cc_status": "confirmed", "ctrl": "p-meier", "ctrl_ts": "2026-02-25 14:00:00", "ctrl_status": "sent_back",
      "ctrl_comments": "Timeline extension needs more justification. Please provide detailed milestone plan for the production pilot phase and demonstrate how the additional 3 months maps to specific deliverables.",
+     "ctrl_feedback": "The 3-month extension is reasonable but the resource increase is too high. I have reduced Sr Developer hours from 60 to 50 hrs/mo for the extended period and capped the ML Platform License at 3500 EUR/mo instead of 4000.",
      "details": [
          {"field": "End date", "old": "2027-03", "new": "2027-06", "delta": "+3 months", "type": None, "month": None},
          {"field": "role-sr-dev (MUC) hours", "old": "40", "new": "60", "delta": "+20 hrs/mo", "type": "role-sr-dev", "month": "2027-04"},
          {"field": "ML Platform License extension", "old": "Ends 2027-03", "new": "Extends to 2027-06", "delta": "+3 months", "type": "ext-sw-licenses", "month": "2027-04"},
+     ],
+     "snapshots": [
+         {"type": "original", "by": "p-sharma", "data": [
+             {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-04", "hours": 60, "amount_eur": 7200},
+             {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-05", "hours": 60, "amount_eur": 7200},
+             {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-06", "hours": 60, "amount_eur": 7200},
+             {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-04", "hours": None, "amount_eur": 4000},
+             {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-05", "hours": None, "amount_eur": 4000},
+             {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-06", "hours": None, "amount_eur": 4000},
+         ]},
+         {"type": "controller_proposed", "by": "p-meier", "comments": "Reduced Sr Dev hours to 50/mo and ML license to 3500/mo for extended period.", "data": [
+             {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-04", "hours": 50, "amount_eur": 6000},
+             {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-05", "hours": 50, "amount_eur": 6000},
+             {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-06", "hours": 50, "amount_eur": 6000},
+             {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-04", "hours": None, "amount_eur": 3500},
+             {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-05", "hours": None, "amount_eur": 3500},
+             {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-06", "hours": None, "amount_eur": 3500},
+         ]},
      ]},
 
     # Fleet Portal: recently approved CR (action type #7 for PL)
@@ -1171,7 +1190,7 @@ SCENARIO_DEFS = [
         ],
     },
     {
-        "id": 3, "name": "Conservative: Freeze New Starts", "status": "published", "author": "p-becker",
+        "id": 3, "name": "Conservative: Freeze New Starts", "status": "published", "author": "p-becker-exec",
         "description": "Freeze all planned future projects and reduce intake pipeline. Models 5% rate escalation for 2027 to assess long-term cost pressure.",
         "created": "2026-03-01 09:00:00",
         "actions": [

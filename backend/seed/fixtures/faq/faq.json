@@ -11,7 +11,8 @@
       {"step_number": 3, "instruction": "Click the **Change Requests** tab in the project detail view."},
       {"step_number": 4, "instruction": "Click **+ New Change Request** and select the change category (scope, timeline, resource, external cost, or other)."},
       {"step_number": 5, "instruction": "Fill in the summary, justification, and detailed change lines. If a system suggestion exists, you can pre-fill from it."},
-      {"step_number": 6, "instruction": "Click **Submit** to send the CR to the relevant Cost Center Owner for confirmation."}
+      {"step_number": 6, "instruction": "Click **Submit** to send the CR to the Controller for review. The Controller can approve it, reject it, or request changes using an editable grid."},
+      {"step_number": 7, "instruction": "If the Controller requests changes, you will see the CR in your Change History tab with an 'Action Required' badge. Expand it to see a diff view comparing your original values with the controller's proposed changes, then Accept or Decline and Resubmit."}
     ]
   },
   {
@@ -26,7 +27,7 @@
       {"step_number": 3, "instruction": "Review the request details: project, role/cost type, hours or amount, period, and priority."},
       {"step_number": 4, "instruction": "Use the **Assignment Preview** to check which team members have availability."},
       {"step_number": 5, "instruction": "Choose your response: **Confirm** (assign a named person), **Partially Fulfill** (adjust hours or period), **Counter-Propose** (offer an alternative), or **Decline** (with reason)."},
-      {"step_number": 6, "instruction": "Submit your response. The CR will advance to Controller approval if you confirmed."}
+      {"step_number": 6, "instruction": "Submit your response. If you confirmed a CR-linked resource request, the CR is automatically approved and the forecast is updated. If you declined, the CR is sent back to the Project Lead."}
     ]
   },
   {
@@ -83,7 +84,7 @@
       {"step_number": 2, "instruction": "Check the **Pending Approvals** section or notification badge showing CRs awaiting your review."},
       {"step_number": 3, "instruction": "Click a CR to see its full details: summary, justification, change details, CC Owner confirmation, and comments."},
       {"step_number": 4, "instruction": "Review the impact on the project's budget, timeline, and RAG status."},
-      {"step_number": 5, "instruction": "Click **Approve** to accept, **Reject** with a reason, or **Send Back** requesting modifications."}
+      {"step_number": 5, "instruction": "Click **Approve** to accept the CR (routes to CC Owner if it has resource changes, otherwise approved directly). Click **Reject** with a required reason. Click **Request Changes** to open an editable forecast grid where you can adjust specific values, add feedback, and send back to the Project Lead with your proposed modifications."}
     ]
   },
   {

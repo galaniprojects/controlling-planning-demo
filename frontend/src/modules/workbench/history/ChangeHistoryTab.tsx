@@ -30,6 +30,7 @@ const STATUS_OPTIONS = [
 export function ChangeHistoryTab({ projectId }: Props) {
   const [items, setItems] = useState<CRHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState<Record<string, string>>({
     category: '',
     status: '',
@@ -46,7 +47,7 @@ export function ChangeHistoryTab({ projectId }: Props) {
       .then((res) => setItems(res.items))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [projectId, filters]);
+  }, [projectId, filters, refreshKey]);
 
   const filterConfigs: FilterConfig[] = [
     { key: 'category', label: 'Category', options: CATEGORY_OPTIONS },
@@ -71,7 +72,11 @@ export function ChangeHistoryTab({ projectId }: Props) {
           ))}
         </div>
       ) : (
-        <CRHistoryList items={items} projectId={projectId} />
+        <CRHistoryList
+          items={items}
+          projectId={projectId}
+          onRefresh={() => setRefreshKey((k) => k + 1)}
+        />
       )}
     </div>
   );

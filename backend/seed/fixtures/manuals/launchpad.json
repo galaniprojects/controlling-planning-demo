@@ -8,7 +8,7 @@
     },
     {
       "title": "Notifications & Alerts",
-      "body": "The top section displays role-aware alerts. **Controllers** see pending change requests and new project submissions. **Cost Center Owners** see incoming resource requests. **Project Leads** see forecast review deadlines and CR status updates. **Executives** see portfolio health summaries. Click any notification to navigate directly to the relevant screen."
+      "body": "The top section displays role-aware alerts. **Controllers** see pending change requests awaiting approval and new project submissions in the intake queue. **Cost Center Owners** see incoming resource requests and CR-linked confirmations (the final stage of the CR workflow). **Project Leads** see forecast review deadlines, CR approval notifications, and sent-back CRs requiring action (with controller feedback). **Executives** see portfolio health summaries and published scenarios. Click any notification to navigate directly to the relevant screen."
     },
     {
       "title": "Module Tiles",
