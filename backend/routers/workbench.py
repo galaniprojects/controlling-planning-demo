@@ -1153,6 +1153,8 @@ def accept_cr_changes(
     if has_resource_changes:
         # Needs CC Owner confirmation for resource changes
         cr.status = "pending_cc_confirmation"
+        from routers.portfolio import _create_resource_requests_from_cr
+        _create_resource_requests_from_cr(cr, db)
     else:
         # No resource impact — approve directly and update forecast
         cr.status = "approved"

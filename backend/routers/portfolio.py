@@ -1297,30 +1297,25 @@ def approve_cr(
     if cr.status != "pending_controller_approval":
         raise HTTPException(409, f"CR status is '{cr.status}', expected 'pending_controller_approval'")
 
-    cr.status = "approved"
     cr.controller_id = user.person_id
     cr.controller_status = "approved"
     cr.controller_approval_timestamp = datetime.utcnow()
     if body and body.comments:
         cr.controller_comments = body.comments
 
-    # Update forecast rows from change details
-    for detail in cr.change_details:
-        if detail.month and detail.new_value:
-            row = (
-                db.query(Forecast)
-                .filter(
-                    Forecast.project_id == cr.project_id,
-                    Forecast.month == detail.month,
-                    Forecast.sub_category == detail.field_changed,
-                )
-                .first()
-            )
-            if row:
-                try:
-                    row.amount_eur = float(detail.new_value.replace("€", "").replace(",", "").strip())
-                except (ValueError, AttributeError):
-                    pass
+    # Check if CR has internal resource changes → route to CC Owner
+    has_resource_changes = any(
+        d.line_item_type and d.line_item_type.startswith("role-")
+        for d in cr.change_details
+    )
+
+    if has_resource_changes:
+        cr.status = "pending_cc_confirmation"
+        _create_resource_requests_from_cr(cr, db)
+    else:
+        # No resource impact — approve directly and update forecast
+        cr.status = "approved"
+        _apply_cr_changes_to_forecast(cr, db)
 
     db.commit()
     return _build_cr_detail(cr, db)
@@ -1504,3 +1499,92 @@ def send_back_cr(
 
     db.commit()
     return _build_cr_detail(cr, db)
+
+
+# ---------------------------------------------------------------------------
+# CR Workflow Helpers
+# ---------------------------------------------------------------------------
+
+
+def _apply_cr_changes_to_forecast(cr: ChangeRequest, db: Session) -> None:
+    """Apply CR change details to forecast rows (used on direct approval)."""
+    from models.financial import RateTable
+
+    for detail in cr.change_details:
+        if detail.month and detail.new_value:
+            row = (
+                db.query(Forecast)
+                .filter(
+                    Forecast.project_id == cr.project_id,
+                    Forecast.month == detail.month,
+                    Forecast.sub_category == detail.line_item_type,
+                )
+                .first()
+            )
+            if row:
+                try:
+                    new_val = float(detail.new_value.replace("€", "").replace(",", "").strip())
+                    is_internal = detail.line_item_type and detail.line_item_type.startswith("role-")
+                    if is_internal:
+                        row.hours = new_val
+                        rate_row = (
+                            db.query(RateTable)
+                            .filter(RateTable.role_type_id == detail.line_item_type)
+                            .order_by(RateTable.effective_date.desc())
+                            .first()
+                        )
+                        rate = float(rate_row.hourly_rate) if rate_row else 120.0
+                        row.amount_eur = new_val * rate
+                    else:
+                        row.amount_eur = new_val
+                except (ValueError, AttributeError):
+                    pass
+
+
+def _create_resource_requests_from_cr(cr: ChangeRequest, db: Session) -> None:
+    """Create ResourceRequest rows from a CR's internal resource change details.
+
+    Groups by role type, computes period and average hours, creates one request
+    per role directed to cc-rail-systems.
+    """
+    from collections import defaultdict
+    from models.capacity import ResourceRequest
+
+    # Delete any existing pending CR-linked requests
+    db.query(ResourceRequest).filter(
+        ResourceRequest.change_request_id == cr.id,
+        ResourceRequest.status == "pending",
+    ).delete()
+
+    CC_ID = "cc-rail-systems"
+
+    # Group change details by role type (internal resources only)
+    groups: dict[str, list] = defaultdict(list)
+    for detail in cr.change_details:
+        if detail.line_item_type and detail.line_item_type.startswith("role-") and detail.month:
+            groups[detail.line_item_type].append(detail)
+
+    for role_id, details in groups.items():
+        sorted_details = sorted(details, key=lambda d: d.month)
+        hours_values = []
+        for d in sorted_details:
+            try:
+                hours_values.append(float(d.new_value.replace("€", "").replace(",", "").strip()))
+            except (ValueError, AttributeError):
+                hours_values.append(0)
+
+        avg_hours = sum(hours_values) / len(hours_values) if hours_values else 0
+
+        req = ResourceRequest(
+            project_id=cr.project_id,
+            change_request_id=cr.id,
+            cost_center_id=CC_ID,
+            request_type="resource",
+            role_type_id=role_id,
+            hours_or_amount_per_month=round(avg_hours, 2),
+            period_start=sorted_details[0].month,
+            period_end=sorted_details[-1].month,
+            priority="medium",
+            status="pending",
+        )
+        db.add(req)
