@@ -119,7 +119,7 @@ export const launchpadApi = {
         months: Array<{ month: string; value: number; value_eur: number }>;
         total: number; total_eur: number;
       }>;
-    }>(`/api/projects/${projectId}/forecast`),
+    }>(`/api/projects/${projectId}/resource-plan`),
 };
 
 // --- Portfolio Overview ---

@@ -822,7 +822,7 @@ def get_project_draft(
     }
 
 
-@router.get("/projects/{project_id}/forecast")
+@router.get("/projects/{project_id}/resource-plan")
 def get_project_forecast_for_edit(
     project_id: str,
     db: Session = Depends(get_db),
