@@ -148,7 +148,7 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Launchpad** | `/api` | 8 | Roles, modules, KPIs, pending actions, project create/submit |
 | **Portfolio** | `/api/portfolio` | 15 | Dashboard KPIs, project tree, intake queue (approve/reject/send-back/diff/accept-changes), CR approvals |
 | **Workbench** | `/api/projects` | 10 | Project list, overview, timeline, forecast grid, 5-phase forecast cycle (start/acknowledge/suggestions/edit/review/submit) |
-| **Capacity** | `/api/capacity` | 10 | Team heatmap, drill-down, resource requests, org overview, project confirmation |
+| **Capacity** | `/api/capacity` | 14 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation |
 | **Scenarios** | `/api/scenarios` | 8 | CRUD, actions, comparison, AI advisor |
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
 | **Admin** | `/api/admin` | 18 | Entity CRUD (cost centers, CCs, LoBs, locations, people), rates, parameters, hierarchy, audit log, demo reset |
@@ -171,6 +171,17 @@ The project submission lifecycle (`draft` -> `pending_cc_confirmation` -> `pendi
 | `PUT` | `/api/portfolio/intake/{id}/accept-changes` | PL accepts controller's proposed changes |
 | `GET` | `/api/portfolio/intake/{id}/editable-grid` | Get forecast in editable format (controller) |
 | `PUT` | `/api/portfolio/intake/{id}/resubmit` | PL resubmits after editing |
+
+### Resource Assignment Endpoints (CC Owner)
+
+The CC Owner assigns specific employees to resource requests before confirming to the controller:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/capacity/requests/{cc_id}/{req_id}/monthly-hours` | Per-month forecast hours for a resource request |
+| `GET` | `/api/capacity/requests/{cc_id}/{req_id}/assignments` | Current per-month person assignments |
+| `PUT` | `/api/capacity/requests/{cc_id}/{req_id}/assignments` | Save per-month person assignments |
+| `GET` | `/api/capacity/project-assignment/{project_id}` | Project details with all requests and assignment status |
 
 ---
 

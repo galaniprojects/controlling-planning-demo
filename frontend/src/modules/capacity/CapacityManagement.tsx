@@ -12,6 +12,7 @@ import type { CapacityContext } from '@/types/api';
 import { MyTeamTab } from './myteam/MyTeamTab';
 import { OrgOverviewTab } from './org/OrgOverviewTab';
 import { RequestManagement } from './requests/RequestManagement';
+import { ProjectAssignmentPage } from './requests/ProjectAssignmentPage';
 
 function CapacityTabs({
   capContext,
@@ -165,6 +166,10 @@ export function CapacityManagement() {
           element={
             <RequestManagement ccId={capContext.managed_cost_center_id ?? ''} />
           }
+        />
+        <Route
+          path="project-assignment/:projectId"
+          element={<ProjectAssignmentPage />}
         />
       </Routes>
     </div>

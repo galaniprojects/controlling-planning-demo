@@ -209,6 +209,7 @@ export interface IntakeResourcePlanItem {
   months: { month: string; hours: number; amount: number }[];
   total_hours: number;
   total_amount: number;
+  assignments?: { month: string; person_id: string; person_name: string; hours: number }[];
 }
 
 export interface IntakeExternalCostItem {
@@ -606,6 +607,41 @@ export interface AssignmentPreview {
   monthly_projections: AssignmentProjection[];
   exceeds_100_pct: boolean;
   recommendation: string;
+}
+
+export interface MonthlyHoursItem {
+  month: string;
+  hours: number;
+  amount_eur: number;
+}
+
+export interface RequestAssignment {
+  month: string;
+  person_id: string;
+  person_name: string;
+  hours: number;
+}
+
+export interface ProjectAssignmentRequestItem extends CapacityRequestItem {
+  assignment_count: number;
+  total_months: number;
+  fully_assigned: boolean;
+}
+
+export interface ProjectAssignmentDetail {
+  project: {
+    id: string;
+    name: string;
+    description: string;
+    lob_name: string;
+    pl_name: string | null;
+    start_month: string;
+    end_month: string | null;
+    status: string;
+  };
+  cost_center_id: string | null;
+  requests: ProjectAssignmentRequestItem[];
+  all_resource_requests_assigned: boolean;
 }
 
 export interface OrgSummary {

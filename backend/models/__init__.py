@@ -9,7 +9,7 @@ from models.organization import (
 from models.people import RoleType, Person, RateTable
 from models.projects import Program, Project, ProjectPhase
 from models.financial import ExternalCostType, Baseline, Forecast, Actuals
-from models.capacity import Allocation, ResourceRequest
+from models.capacity import Allocation, ResourceRequest, ResourceRequestAssignment
 from models.change_requests import ChangeRequest, CRChangeDetail
 from models.scenarios import Scenario, ScenarioAction, ScenarioState, ScenarioCapacityImpact
 from models.system import PlanningParameter, KPIDefinition, Notification, AuditLog, SystemSuggestion
@@ -24,7 +24,7 @@ __all__ = [
     "RoleType", "Person", "RateTable",
     "Program", "Project", "ProjectPhase",
     "ExternalCostType", "Baseline", "Forecast", "Actuals",
-    "Allocation", "ResourceRequest",
+    "Allocation", "ResourceRequest", "ResourceRequestAssignment",
     "ChangeRequest", "CRChangeDetail",
     "Scenario", "ScenarioAction", "ScenarioState", "ScenarioCapacityImpact",
     "PlanningParameter", "KPIDefinition", "Notification", "AuditLog", "SystemSuggestion",

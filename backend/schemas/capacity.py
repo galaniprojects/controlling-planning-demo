@@ -82,6 +82,15 @@ class DeclineRequest(BaseModel):
     reason: str
 
 
+class AssignmentEntry(BaseModel):
+    month: str
+    person_id: str
+
+
+class SaveAssignmentsRequest(BaseModel):
+    assignments: list[AssignmentEntry]
+
+
 class OrgSummary(BaseModel):
     total_headcount: int
     avg_utilization_pct: float
