@@ -42,13 +42,13 @@ def generate() -> str:
             # These will be updated in s08_workflow.py — for now set reasonable defaults
             last_fc = None
             if p["status"] == "active" and not is_svc:
-                last_fc = "2026-02"  # Default: submitted through Feb 2026
+                last_fc = "2026-03"  # Default: submitted through Mar 2026
 
             # Specific overrides for pending action triggers
             if p["id"] == "proj-erp2":
-                last_fc = "2026-01"  # Overdue — Feb not submitted
+                last_fc = "2026-02"  # Overdue — Mar not submitted
             elif p["id"] in ("proj-sensor", "proj-predmaint", "proj-fleet"):
-                last_fc = "2026-02"  # Due — March not yet submitted
+                last_fc = "2026-03"  # Due — April not yet submitted
 
             projected_end = p.get("end")
             if p["id"] == "proj-erp2":

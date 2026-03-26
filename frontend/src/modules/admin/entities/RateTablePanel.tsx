@@ -42,7 +42,7 @@ export function RateTablePanel() {
       ...prev,
       [key]: {
         new_rate: parseFloat(value) || 0,
-        effective_date: existing?.effective_date ?? '2026-03-01',
+        effective_date: existing?.effective_date ?? '2026-04-01',
       },
     }));
   };

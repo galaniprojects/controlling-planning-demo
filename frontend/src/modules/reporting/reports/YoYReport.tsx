@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { FilterConfig } from '@/components/shared/FilterBar';
 import type { YoYResponse, LoBRef } from '@/types/api';
+import { SortableHeader } from '@/components/shared/SortableHeader';
 import { CalendarRange, Calendar, TrendingUp, Activity } from 'lucide-react';
 
 const ALL_COLUMNS: ColumnDef[] = [
@@ -129,6 +130,15 @@ export function YoYReport() {
     { key: 'fy_current', label: 'Current Year', options: FISCAL_YEAR_OPTIONS },
     { key: 'fy_previous', label: 'Previous Year', options: FISCAL_YEAR_OPTIONS },
   ];
+
+  const onSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
 
   // Sort rows
   const rows = useMemo(() => {
@@ -260,15 +270,15 @@ export function YoYReport() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              {show('lob_name') && <th className="px-3 py-2 text-left font-medium text-slate-600">LoB</th>}
-              {show('project_name') && <th className="px-3 py-2 text-left font-medium text-slate-600">Project</th>}
-              {show('month') && <th className="px-3 py-2 text-left font-medium text-slate-600">Month</th>}
-              {show('fy_current') && <th className="px-3 py-2 text-right font-medium text-slate-600">FY {kpis.fy_current_label}</th>}
-              {show('fy_previous') && <th className="px-3 py-2 text-right font-medium text-slate-600">FY {kpis.fy_previous_label}</th>}
-              {show('delta') && <th className="px-3 py-2 text-right font-medium text-slate-600">Delta (\u20ac)</th>}
-              {show('delta_pct') && <th className="px-3 py-2 text-right font-medium text-slate-600">Delta (%)</th>}
-              {show('cumulative_current') && <th className="px-3 py-2 text-right font-medium text-slate-600">Cum. FY {kpis.fy_current_label}</th>}
-              {show('cumulative_previous') && <th className="px-3 py-2 text-right font-medium text-slate-600">Cum. FY {kpis.fy_previous_label}</th>}
+              {show('lob_name') && <SortableHeader column="lob_name" label="LoB" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
+              {show('project_name') && <SortableHeader column="project_name" label="Project" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
+              {show('month') && <SortableHeader column="month" label="Month" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
+              {show('fy_current') && <SortableHeader column="fy_current" label={`FY ${kpis.fy_current_label}`} sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
+              {show('fy_previous') && <SortableHeader column="fy_previous" label={`FY ${kpis.fy_previous_label}`} sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
+              {show('delta') && <SortableHeader column="delta" label="Delta (\u20ac)" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
+              {show('delta_pct') && <SortableHeader column="delta_pct" label="Delta (%)" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
+              {show('cumulative_current') && <SortableHeader column="cumulative_current" label={`Cum. FY ${kpis.fy_current_label}`} sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
+              {show('cumulative_previous') && <SortableHeader column="cumulative_previous" label={`Cum. FY ${kpis.fy_previous_label}`} sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
             </tr>
           </thead>
           <tbody>

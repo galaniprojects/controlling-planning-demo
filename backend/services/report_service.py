@@ -12,8 +12,9 @@ from config import DEMO_DATE
 from models.capacity import Allocation
 from models.financial import Actuals, Baseline, Forecast
 from models.organization import CostCenter, LineOfBusiness
-from models.people import Person, RateTable
+from models.people import Person, RateTable, RoleType
 from models.projects import Project
+from models.financial import ExternalCostType
 from models.reporting import ForecastSnapshot
 from schemas.common import CurrentUser
 from services.calculations import add_months, compute_plan_drift
@@ -307,26 +308,57 @@ def compute_cc_financial_summary(
         "active_project_count": len(rows),
     }
 
-    # Chart data: pie (per-project share) + monthly trend
+    # Chart data: pie (per-project share) + cost type breakdown
     pie_data = [
         {"name": r["project_name"][:20], "value": r["total_cost"]}
         for r in rows if r["total_cost"] > 0
     ]
 
-    # Monthly trend: actuals per month
-    monthly_q = (
-        db.query(Actuals.month, func.sum(Actuals.amount_eur))
-        .filter(Actuals.project_id.in_(project_ids), func.substr(Actuals.month, 1, 4) == year_prefix)
-        .group_by(Actuals.month)
-        .order_by(Actuals.month)
-        .all()
+    # Spend per cost type (internal vs external)
+    cost_type_data = [
+        {"name": "Internal", "value": round(total_internal_cost, 2)},
+        {"name": "External", "value": round(total_external_cost, 2)},
+    ]
+
+    # Internal spend breakdown by role type
+    int_breakdown_q = (
+        db.query(Forecast.sub_category, func.sum(Forecast.amount_eur))
+        .filter(Forecast.project_id.in_(project_ids), Forecast.category == "internal")
     )
-    trend_data = [{"month": m, "spend": round(float(s), 2)} for m, s in monthly_q]
+    if year_prefix:
+        int_breakdown_q = int_breakdown_q.filter(func.substr(Forecast.month, 1, 4) == year_prefix)
+    int_breakdown_q = int_breakdown_q.group_by(Forecast.sub_category)
+    role_names = {r.id: r.name for r in db.query(RoleType).all()}
+    internal_breakdown = [
+        {"name": role_names.get(sc, sc), "value": round(float(amt), 2)}
+        for sc, amt in int_breakdown_q.all() if float(amt) > 0
+    ]
+    internal_breakdown.sort(key=lambda x: x["value"], reverse=True)
+
+    # External spend breakdown by cost type
+    ext_breakdown_q = (
+        db.query(Forecast.sub_category, func.sum(Forecast.amount_eur))
+        .filter(Forecast.project_id.in_(project_ids), Forecast.category == "external")
+    )
+    if year_prefix:
+        ext_breakdown_q = ext_breakdown_q.filter(func.substr(Forecast.month, 1, 4) == year_prefix)
+    ext_breakdown_q = ext_breakdown_q.group_by(Forecast.sub_category)
+    cost_type_names = {c.id: c.name for c in db.query(ExternalCostType).all()}
+    external_breakdown = [
+        {"name": cost_type_names.get(sc, sc), "value": round(float(amt), 2)}
+        for sc, amt in ext_breakdown_q.all() if float(amt) > 0
+    ]
+    external_breakdown.sort(key=lambda x: x["value"], reverse=True)
 
     return {
         "kpis": kpis,
         "rows": rows,
-        "chart_data": {"pie": pie_data, "trend": trend_data},
+        "chart_data": {
+            "pie": pie_data,
+            "cost_type": cost_type_data,
+            "internal_breakdown": internal_breakdown,
+            "external_breakdown": external_breakdown,
+        },
         "total": len(rows),
     }
 

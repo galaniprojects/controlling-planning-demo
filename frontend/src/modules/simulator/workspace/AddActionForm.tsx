@@ -82,7 +82,7 @@ const PROJECT_ACTIONS: ActionTypeConfig[] = [
     label: 'Pause Project',
     requires_project: true,
     parameters: [
-      { key: 'start_month', label: 'Pause From (YYYY-MM)', type: 'text', placeholder: '2026-03' },
+      { key: 'start_month', label: 'Pause From (YYYY-MM)', type: 'text', placeholder: '2026-04' },
     ],
   },
   {
@@ -100,7 +100,7 @@ const PROJECT_ACTIONS: ActionTypeConfig[] = [
         ],
       },
       { key: 'hours_per_month', label: 'Hours per Month', type: 'number', placeholder: '40' },
-      { key: 'start_month', label: 'Start Month (YYYY-MM)', type: 'text', placeholder: '2026-03' },
+      { key: 'start_month', label: 'Start Month (YYYY-MM)', type: 'text', placeholder: '2026-04' },
       { key: 'end_month', label: 'End Month (YYYY-MM)', type: 'text', placeholder: '2026-09' },
     ],
   },
@@ -148,7 +148,7 @@ const PORTFOLIO_ACTIONS: ActionTypeConfig[] = [
     label: 'Freeze New Starts',
     requires_project: false,
     parameters: [
-      { key: 'cutoff_month', label: 'Cutoff Month (YYYY-MM)', type: 'text', placeholder: '2026-03' },
+      { key: 'cutoff_month', label: 'Cutoff Month (YYYY-MM)', type: 'text', placeholder: '2026-04' },
     ],
   },
   {

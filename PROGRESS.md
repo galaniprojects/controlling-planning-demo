@@ -1,9 +1,25 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: Post-QA Feature Development — **CR workflow overhaul complete with delta resources, locking, and formatting fixes**
-Last completed: Delta-based resource requests, forecast locking, Keep as is, EUR formatting, documentation updates
-Branch: `feature/cr-workflow-overhaul`
+Phase: Post-QA Feature Development — **Demo polish for April 2026 presentation**
+Last completed: Demo date update, dynamic month labels, number formatting, chart swap
+Branch: `feature/demo-polish-april`
+
+## Demo Polish — April 2026 (2026-03-26)
+
+### Changes
+- **Demo date shifted to April 2026:** Updated `backend/config.py`, all seed generators (config, s04, s05, s06, s08, s10, validate, runner), frontend constants (yearColumns, Phase3, RateTablePanel, AddActionForm), in-app docs, and CLAUDE.md. March is now a completed month with full actuals; April gets partial actuals. Seed data regenerated and validated (10/10 checks pass).
+- **Phase 1 Retrospective dynamic month:** Backend returns `retro_month` in forecast cycle start response. Phase 1 title shows "Phase 1: Retrospective — March Actuals" and columns show "March Forecast" / "March Actual" dynamically based on DEMO_DATE.
+- **Number formatting standardization:** Compact format updated to lowercase `k` with no space before EUR (e.g., `6,35k€`). Phase 4 Review grid month columns now display formatted "Apr 26" instead of raw "2026-04".
+- **CC Financial Summary chart:** Replaced "Monthly Spend Trend" line chart with "Spend per Cost Type" horizontal bar chart showing Internal vs External cost breakdown (blue/amber).
+
+### Verification
+- [x] Seed data: 10/10 validation checks pass
+- [x] TypeScript: no compilation errors
+- [ ] Visual: Launchpad shows April 2026 context
+- [ ] Visual: Phase 1 shows "March Actuals" with dynamic column headers
+- [ ] Visual: Phase 4 shows formatted month headers and EUR values
+- [ ] Visual: CC Financial Summary chart view shows bar chart
 
 ## CR Workflow Improvements (2026-03-26)
 

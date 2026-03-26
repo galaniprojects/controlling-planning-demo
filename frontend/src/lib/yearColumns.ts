@@ -3,7 +3,7 @@
  * and month formatting. Used by collapsible year columns and monthly grids.
  */
 
-const DEMO_DATE = '2026-03';
+const DEMO_DATE = '2026-04';
 
 const MONTH_SHORT = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -26,7 +26,7 @@ export function groupMonthsByYear(months: string[]): Map<number, string[]> {
 }
 
 /**
- * Returns true if the given "YYYY-MM" is strictly before the demo date (March 2026).
+ * Returns true if the given "YYYY-MM" is strictly before the demo date (April 2026).
  * Elapsed months get subtle background tinting in grids.
  */
 export function isElapsedMonth(month: string): boolean {

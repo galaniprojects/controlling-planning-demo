@@ -19,9 +19,9 @@ def generate() -> str:
 -- Notifications
 INSERT INTO notifications (user_person_id, message, severity, deep_link_module, deep_link_entity_id, is_read, created_at) VALUES
 -- Priya (PL) notifications
-('p-sharma', 'Forecast overdue: ERP Integration Phase 2 — February 2026 forecast has not been submitted', 'action', 'workbench', 'proj-erp2', 0, '2026-03-01 08:00:00'),
-('p-sharma', 'Forecast due: Sensor Data Pipeline — March 2026 forecast is pending submission', 'action', 'workbench', 'proj-sensor', 0, '2026-03-01 08:00:00'),
-('p-sharma', 'Forecast due: Predictive Maintenance PoC — March 2026 forecast is pending submission', 'action', 'workbench', 'proj-predmaint', 0, '2026-03-01 08:00:00'),
+('p-sharma', 'Forecast overdue: ERP Integration Phase 2 — March 2026 forecast has not been submitted', 'action', 'workbench', 'proj-erp2', 0, '2026-04-01 08:00:00'),
+('p-sharma', 'Forecast due: Sensor Data Pipeline — April 2026 forecast is pending submission', 'action', 'workbench', 'proj-sensor', 0, '2026-04-01 08:00:00'),
+('p-sharma', 'Forecast due: Predictive Maintenance PoC — April 2026 forecast is pending submission', 'action', 'workbench', 'proj-predmaint', 0, '2026-04-01 08:00:00'),
 ('p-sharma', 'Change request returned: CR #27 for Predictive Maintenance PoC sent back by Controller with feedback', 'action', 'workbench', 'proj-predmaint', 0, '2026-02-25 14:00:00'),
 ('p-sharma', 'Change request approved: CR #28 for Fleet Portal v2 has been approved by Controller', 'info', 'workbench', 'proj-fleet', 0, '2026-03-10 11:00:00'),
 ('p-sharma', 'Project approved: Fleet Portal v2 has been approved and is now active', 'info', 'workbench', 'proj-fleet', 0, '2026-02-15 10:00:00'),
@@ -33,7 +33,7 @@ INSERT INTO notifications (user_person_id, message, severity, deep_link_module, 
 ('p-meier', 'CR pending approval: CR #12 for SAP S/4HANA Migration is ready for your review', 'action', 'portfolio', 'proj-sap', 0, '2026-03-02 11:00:00'),
 ('p-meier', 'CR pending approval: CR #19 for IAM Overhaul is ready for your review', 'action', 'portfolio', 'proj-iam', 0, '2026-03-04 11:00:00'),
 ('p-meier', 'New project pending review: Autonomous Braking Prototype submitted for approval', 'action', 'portfolio', 'proj-autobrake', 0, '2026-02-28 10:00:00'),
-('p-meier', 'Forecast overdue: ERP Integration Phase 2 — February 2026 forecast has not been submitted by Project Lead', 'info', 'workbench', 'proj-erp2', 0, '2026-03-01 08:00:00'),
+('p-meier', 'Forecast overdue: ERP Integration Phase 2 — March 2026 forecast has not been submitted by Project Lead', 'info', 'workbench', 'proj-erp2', 0, '2026-04-01 08:00:00'),
 -- Thomas (Executive) notifications
 ('p-becker', 'Scenario published: Budget Pressure: 15% Reduction has been published by Anna Meier', 'info', 'whatif', NULL, 0, '2026-03-07 10:00:00'),
 ('p-becker', 'Scenario published: Conservative: Freeze New Starts has been published by you', 'info', 'whatif', NULL, 1, '2026-03-01 09:00:00');""")

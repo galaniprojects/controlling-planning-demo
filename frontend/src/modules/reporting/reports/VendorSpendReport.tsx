@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Truck, Hash, FileText, DollarSign } from 'lucide-react';
 import { useRole } from '@/contexts/RoleContext';
@@ -12,6 +12,7 @@ import { formatCurrency, formatCurrencyDetailed } from '@/lib/formatters';
 import type { FilterConfig } from '@/components/shared/FilterBar';
 import type { VendorSpendResponse, VendorDrillDownRow, LoBRef } from '@/types/api';
 import { ExternalCostStatusBadge } from '@/modules/workbench/forecast/ExternalCostStatusBadge';
+import { SortableHeader } from '@/components/shared/SortableHeader';
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
@@ -46,6 +47,8 @@ export function VendorSpendReport() {
   const [expandedVendor, setExpandedVendor] = useState<string | null>(null);
   const [drillDown, setDrillDown] = useState<VendorDrillDownRow[]>([]);
   const [drillLoading, setDrillLoading] = useState(false);
+  const [sortColumn, setSortColumn] = useState('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     referenceApi.getLobs().then((r) => setLobs(r.items)).catch(() => {});
@@ -116,6 +119,27 @@ export function VendorSpendReport() {
     { key: 'expense_cost_type', label: 'Expense Cost Type', options: costTypes.map((t) => ({ value: t.id, label: t.name })) },
   ];
 
+  const onSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const sortedRows = useMemo(() => {
+    if (!data || !sortColumn) return data?.rows ?? [];
+    const sorted = [...data.rows];
+    sorted.sort((a, b) => {
+      const av = (a as Record<string, unknown>)[sortColumn];
+      const bv = (b as Record<string, unknown>)[sortColumn];
+      if (typeof av === 'number' && typeof bv === 'number') return sortDirection === 'asc' ? av - bv : bv - av;
+      return sortDirection === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+    });
+    return sorted;
+  }, [data, sortColumn, sortDirection]);
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -163,18 +187,18 @@ export function VendorSpendReport() {
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
             <th className="px-3 py-2 text-left font-medium text-slate-600 w-8" />
-            <th className="px-3 py-2 text-left font-medium text-slate-600">Vendor</th>
-            <th className="px-3 py-2 text-left font-medium text-slate-600">Expense Cost Type</th>
-            <th className="px-3 py-2 text-right font-medium text-slate-600">Ordered</th>
-            <th className="px-3 py-2 text-right font-medium text-slate-600">Invoiced</th>
-            <th className="px-3 py-2 text-right font-medium text-slate-600">Open</th>
-            <th className="px-3 py-2 text-right font-medium text-slate-600">Accruals</th>
-            <th className="px-3 py-2 text-right font-medium text-slate-600"># Projects</th>
-            <th className="px-3 py-2 text-right font-medium text-slate-600"># POs</th>
+            <SortableHeader column="vendor_name" label="Vendor" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+            <SortableHeader column="expense_cost_type" label="Expense Cost Type" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+            <SortableHeader column="total_ordered" label="Ordered" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+            <SortableHeader column="total_invoiced" label="Invoiced" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+            <SortableHeader column="total_open" label="Open" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+            <SortableHeader column="total_accruals" label="Accruals" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+            <SortableHeader column="project_count" label="# Projects" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+            <SortableHeader column="po_count" label="# POs" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
+          {sortedRows.map((r) => (
             <VendorRow
               key={r.vendor_name}
               row={r}

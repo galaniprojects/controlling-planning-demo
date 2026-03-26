@@ -42,22 +42,31 @@ export function formatCurrencyDetailed(value: number): string {
 }
 
 /**
- * Compact European currency for grid cells — K with up to 2 decimals.
- * Examples: 6,35K €  14,4K €  850 €  1,2M €
+ * Detailed European currency with explicit +/- sign for deltas.
+ * Examples: +2.050 €  -1.200 €
+ */
+export function formatCurrencyDetailedDelta(value: number): string {
+  const formatted = formatCurrencyDetailed(value);
+  return value > 0 ? `+${formatted}` : formatted;
+}
+
+/**
+ * Compact European currency for grid cells — k with up to 2 decimals.
+ * Examples: 6,35k€  14,4k€  850€  1,2M€
  */
 export function formatCurrencyCompact(value: number): string {
   const abs = Math.abs(value);
   const sign = value < 0 ? '-' : '';
   if (abs >= 1_000_000) {
     const m = (abs / 1_000_000).toFixed(2).replace('.', ',').replace(/,?0+$/, '');
-    return `${sign}${m}M €`;
+    return `${sign}${m}M€`;
   }
   if (abs >= 1_000) {
     const k = (abs / 1_000).toFixed(2).replace('.', ',').replace(/,?0+$/, '');
-    return `${sign}${k}K €`;
+    return `${sign}${k}k€`;
   }
   if (abs === 0) return '—';
-  return `${sign}${Math.round(abs)} €`;
+  return `${sign}${Math.round(abs)}€`;
 }
 
 /**

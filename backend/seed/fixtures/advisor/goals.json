@@ -37,7 +37,7 @@
         "constituent_actions": [
           {"scope": "project", "project_id": "proj-aiml", "action_type": "remove", "parameters": {}},
           {"scope": "project", "project_id": "proj-dwh", "action_type": "delay", "parameters": {"months": 6}},
-          {"scope": "project", "project_id": "proj-telem", "action_type": "pause", "parameters": {"from_month": "2026-03"}},
+          {"scope": "project", "project_id": "proj-telem", "action_type": "pause", "parameters": {"from_month": "2026-04"}},
           {"scope": "portfolio", "action_type": "cap_cost_category", "parameters": {"cost_type": "ext-consulting", "percentage": -10}}
         ]
       },
@@ -76,7 +76,7 @@
         },
         "constituent_actions": [
           {"scope": "project", "project_id": "proj-erp2", "action_type": "delay", "parameters": {"months": 1}},
-          {"scope": "project", "project_id": "proj-erp2", "action_type": "change_resources", "parameters": {"role": "role-sr-dev", "hours_delta": -24, "from_month": "2026-03", "to_month": "2026-06"}}
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "change_resources", "parameters": {"role": "role-sr-dev", "hours_delta": -24, "from_month": "2026-04", "to_month": "2026-06"}}
         ]
       },
       {
@@ -92,7 +92,7 @@
         },
         "constituent_actions": [
           {"scope": "project", "project_id": "proj-dwh", "action_type": "delay", "parameters": {"months": 3}},
-          {"scope": "project", "project_id": "proj-sensor", "action_type": "change_resources", "parameters": {"role": "role-dev", "hours_delta": -16, "from_month": "2026-03", "to_month": "2026-06"}}
+          {"scope": "project", "project_id": "proj-sensor", "action_type": "change_resources", "parameters": {"role": "role-dev", "hours_delta": -16, "from_month": "2026-04", "to_month": "2026-06"}}
         ]
       }
     ]
@@ -174,7 +174,7 @@
         },
         "constituent_actions": [
           {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"percentage": -20, "direction": "decrease", "category": "external"}},
-          {"scope": "project", "project_id": "proj-erp2", "action_type": "change_resources", "parameters": {"role": "role-sr-dev", "hours_delta": -15, "from_month": "2026-03", "to_month": "2026-09"}}
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "change_resources", "parameters": {"role": "role-sr-dev", "hours_delta": -15, "from_month": "2026-04", "to_month": "2026-09"}}
         ]
       }
     ]

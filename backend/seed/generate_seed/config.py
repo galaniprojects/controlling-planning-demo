@@ -3,7 +3,7 @@ Shared configuration for seed data generation.
 Single source of truth for rates, project roster, and utility functions.
 """
 
-DEMO_DATE = "2026-03"
+DEMO_DATE = "2026-04"
 CREATED_AT = "2026-01-15 10:00:00"
 
 # ---------------------------------------------------------------------------

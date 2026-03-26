@@ -10,6 +10,7 @@ import { ForecastAccuracyChart } from './ForecastAccuracyChart';
 import { formatCurrency, formatPercent, formatCurrencyDetailed } from '@/lib/formatters';
 import type { FilterConfig } from '@/components/shared/FilterBar';
 import type { ForecastAccuracyResponse, LoBRef } from '@/types/api';
+import { SortableHeader } from '@/components/shared/SortableHeader';
 import { Target, CheckCircle2, AlertTriangle, TrendingUp } from 'lucide-react';
 
 const ALL_COLUMNS: ColumnDef[] = [
@@ -128,6 +129,15 @@ export function ForecastAccuracyReport() {
     { key: 'fiscal_year', label: 'Fiscal Year', options: FISCAL_YEAR_OPTIONS },
   ];
 
+  const onSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
   // Sort rows — must be before early returns to satisfy Rules of Hooks
   const rows = useMemo(() => {
     if (!data) return [];
@@ -198,13 +208,13 @@ export function ForecastAccuracyReport() {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
-            {show('project_name') && <th className="px-3 py-2 text-left font-medium text-slate-600">Project</th>}
-            {show('lob_name') && <th className="px-3 py-2 text-left font-medium text-slate-600">LoB</th>}
-            {show('forecast_value') && <th className="px-3 py-2 text-right font-medium text-slate-600">Forecast</th>}
-            {show('actual_value') && <th className="px-3 py-2 text-right font-medium text-slate-600">Actual</th>}
-            {show('variance') && <th className="px-3 py-2 text-right font-medium text-slate-600">Variance</th>}
-            {show('variance_pct') && <th className="px-3 py-2 text-right font-medium text-slate-600">Var%</th>}
-            {show('accuracy_rating') && <th className="px-3 py-2 text-center font-medium text-slate-600">Rating</th>}
+            {show('project_name') && <SortableHeader column="project_name" label="Project" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
+            {show('lob_name') && <SortableHeader column="lob_name" label="LoB" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
+            {show('forecast_value') && <SortableHeader column="forecast_value" label="Forecast" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
+            {show('actual_value') && <SortableHeader column="actual_value" label="Actual" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
+            {show('variance') && <SortableHeader column="variance" label="Variance" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
+            {show('variance_pct') && <SortableHeader column="variance_pct" label="Var%" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
+            {show('accuracy_rating') && <SortableHeader column="accuracy_rating" label="Rating" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="center" />}
           </tr>
         </thead>
         <tbody>

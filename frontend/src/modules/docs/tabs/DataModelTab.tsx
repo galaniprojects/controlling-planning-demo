@@ -213,7 +213,7 @@ Grouping Hierarchy ──── Entity Types ──── Entities ──── 
           <ul className="list-disc list-inside space-y-1 text-slate-600">
             <li><strong>Baseline</strong> — original approved budget (set at project approval, updated by approved CRs)</li>
             <li><strong>Forecast</strong> — current expected spend (updated via rolling forecast wizard)</li>
-            <li><strong>Actuals</strong> — recorded spend to date (terminates at demo date boundary: March 2026)</li>
+            <li><strong>Actuals</strong> — recorded spend to date (terminates at demo date boundary: April 2026)</li>
           </ul>
           <p>
             Line items are categorized as <strong>internal resources</strong> (person allocations with hours and derived EUR costs

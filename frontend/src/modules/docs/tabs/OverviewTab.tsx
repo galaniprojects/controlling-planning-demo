@@ -33,7 +33,7 @@ export function OverviewTab() {
             visibility, capacity management, what-if scenario planning, and multi-dimensional reporting.
           </p>
           <p>
-            This is a <strong>demo application</strong> with realistic mock data simulating a March 2026 operational
+            This is a <strong>demo application</strong> with realistic mock data simulating an April 2026 operational
             date. All financial values use EUR with European formatting (dot for thousands, comma for decimals).
           </p>
         </CardContent>

@@ -18,9 +18,9 @@ def generate() -> str:
         months = month_range(start, end)
         for mo in months:
             hours = overrides.get(mo, base_hours)
-            # is_confirmed: 0 for p-fischer's erp2 in 2026-03..2026-06 (pending confirmation)
+            # is_confirmed: 0 for p-fischer's erp2 in 2026-04..2026-07 (pending confirmation)
             is_confirmed = 1
-            if person_id == "p-fischer" and project_id == "proj-erp2" and "2026-03" <= mo <= "2026-06":
+            if person_id == "p-fischer" and project_id == "proj-erp2" and "2026-04" <= mo <= "2026-07":
                 is_confirmed = 0
             rows.append(
                 f"({sql_str(person_id)}, {sql_str(project_id)}, {sql_str(mo)}, {hours}, {is_confirmed})"
