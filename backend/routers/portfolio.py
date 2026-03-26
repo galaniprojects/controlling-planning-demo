@@ -1340,19 +1340,9 @@ def approve_cr(
     if body and body.comments:
         cr.controller_comments = body.comments
 
-    # Check if CR has internal resource changes → route to CC Owner
-    has_resource_changes = any(
-        d.line_item_type and d.line_item_type.startswith("role-")
-        for d in cr.change_details
-    )
-
-    if has_resource_changes:
-        cr.status = "pending_cc_confirmation"
-        _create_resource_requests_from_cr(cr, db)
-    else:
-        # No resource impact — approve directly and update forecast
-        cr.status = "approved"
-        _apply_cr_changes_to_forecast(cr, db)
+    # Controller approval is the final step — apply changes to forecast
+    cr.status = "approved"
+    _apply_cr_changes_to_forecast(cr, db)
 
     db.commit()
     return _build_cr_detail(cr, db)
@@ -1396,9 +1386,23 @@ def get_cr_editable_grid(
     if not cr:
         raise HTTPException(404, "Change request not found")
 
+    # Scope grid to only the line items and months referenced in the CR
+    cr_line_items = set()
+    cr_months = set()
+    for d in cr.change_details:
+        if d.line_item_type:
+            cr_line_items.add(d.line_item_type)
+        if d.month:
+            cr_months.add(d.month)
+
     project_id = cr.project_id
-    forecasts = db.query(Forecast).filter(Forecast.project_id == project_id).all()
-    all_months = sorted(set(f.month for f in forecasts))
+    query = db.query(Forecast).filter(Forecast.project_id == project_id)
+    if cr_line_items:
+        query = query.filter(Forecast.sub_category.in_(cr_line_items))
+    if cr_months:
+        query = query.filter(Forecast.month.in_(cr_months))
+    forecasts = query.all()
+    all_months = sorted(cr_months) if cr_months else sorted(set(f.month for f in forecasts))
 
     groups: dict[tuple[str, str], list] = defaultdict(list)
     for f in forecasts:
@@ -1545,7 +1549,7 @@ def send_back_cr(
 
 def _apply_cr_changes_to_forecast(cr: ChangeRequest, db: Session) -> None:
     """Apply CR change details to forecast rows (used on direct approval)."""
-    from models.financial import RateTable
+    from models.people import RateTable
 
     for detail in cr.change_details:
         if detail.month and detail.new_value:
@@ -1593,7 +1597,7 @@ def _create_resource_requests_from_cr(cr: ChangeRequest, db: Session) -> None:
         ResourceRequest.status == "pending",
     ).delete()
 
-    CC_ID = "cc-rail-systems"
+    CC_ID = "cc-muc-apd"
 
     # Group change details by role type (internal resources only)
     groups: dict[str, list] = defaultdict(list)

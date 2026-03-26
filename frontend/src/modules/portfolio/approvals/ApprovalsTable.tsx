@@ -45,6 +45,7 @@ export function ApprovalsTable({ items, loading, selectedId, onSelect, onOpenDet
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">CR #</TableHead>
             <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Project</TableHead>
             <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">CR Summary</TableHead>
             <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Submitted By</TableHead>
@@ -65,6 +66,9 @@ export function ApprovalsTable({ items, loading, selectedId, onSelect, onOpenDet
               onClick={() => onSelect(item.cr_id)}
               onDoubleClick={() => onOpenDetail?.(item.cr_id)}
             >
+              <TableCell className="px-3 py-2 text-sm text-slate-500">
+                {item.cr_id}
+              </TableCell>
               <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">
                 {item.project_name}
               </TableCell>

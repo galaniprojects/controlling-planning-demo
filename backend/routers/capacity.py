@@ -555,15 +555,14 @@ def confirm_request(
         req.assigned_person_id = body.assigned_person_id
     # Create Allocations from assignments
     _create_allocations_from_assignments(db, req)
-    # Advance linked CR — CC Owner is the final stage
+    # Advance linked CR — route to Controller for final approval
     if req.change_request_id:
         cr = db.query(ChangeRequest).filter(ChangeRequest.id == req.change_request_id).first()
         if cr and cr.status == "pending_cc_confirmation":
             cr.cc_owner_id = user.person_id
             cr.cc_status = "confirmed"
             cr.cc_confirmation_timestamp = datetime.utcnow()
-            cr.status = "approved"
-            _apply_cr_to_forecast_on_cc_confirm(cr, db)
+            cr.status = "pending_controller_approval"
     db.commit()
     return _request_to_dict(req, db)
 
@@ -586,8 +585,7 @@ def partially_fulfill_request(
             cr.cc_owner_id = user.person_id
             cr.cc_status = "confirmed"
             cr.cc_confirmation_timestamp = datetime.utcnow()
-            cr.status = "approved"
-            _apply_cr_to_forecast_on_cc_confirm(cr, db)
+            cr.status = "pending_controller_approval"
     db.commit()
     return _request_to_dict(req, db)
 
@@ -609,8 +607,7 @@ def counter_propose_request(
             cr.cc_owner_id = user.person_id
             cr.cc_status = "confirmed"
             cr.cc_confirmation_timestamp = datetime.utcnow()
-            cr.status = "approved"
-            _apply_cr_to_forecast_on_cc_confirm(cr, db)
+            cr.status = "pending_controller_approval"
     db.commit()
     return _request_to_dict(req, db)
 
