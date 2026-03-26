@@ -112,6 +112,7 @@ export function ForecastWizard({ projectId, nameMap, onComplete, onCancel }: Pro
         <Phase1Retrospective
           retrospective={state.retrospective}
           skippable={state.skippable}
+          retroMonth={state.retroMonth}
           explanations={state.explanations}
           nameMap={nameMap}
           onSetExplanation={(key, text) =>

@@ -11,9 +11,9 @@ from .config import (
 
 random.seed(42)  # Deterministic output
 
-# Actuals exist through Feb 2026; March 2026 gets partial (~50%)
-ACTUALS_FULL_END = "2026-02"
-ACTUALS_PARTIAL = "2026-03"
+# Actuals exist through March 2026; April 2026 gets partial (~50%)
+ACTUALS_FULL_END = "2026-03"
+ACTUALS_PARTIAL = "2026-04"
 
 # Service financial window
 SVC_START = "2024-01"
@@ -24,13 +24,13 @@ BATCH_SIZE = 100  # rows per INSERT statement
 
 def _ext_status(month: str) -> str:
     """Procurement lifecycle status based on temporal position relative to demo date."""
-    if month < "2025-12":
+    if month < "2026-01":
         return "accrued"
-    if month <= "2026-02":
+    if month <= "2026-03":
         return "invoiced"
-    if month == "2026-03":
+    if month == "2026-04":
         return "delivered"
-    if month <= "2026-06":
+    if month <= "2026-07":
         return "committed"
     return "requested"
 

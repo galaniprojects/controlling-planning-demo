@@ -119,7 +119,7 @@ curl -X POST http://localhost:8000/api/admin/reset-demo
 4. Commit `PROGRESS.md` and all changes
 
 ### Key Constraints
-- Demo date: March 2026. All time-dependent logic (elapsed month tinting, actuals cutoffs, forecast boundaries, pending action triggers) uses this date.
+- Demo date: April 2026. All time-dependent logic (elapsed month tinting, actuals cutoffs, forecast boundaries, pending action triggers) uses this date.
 - European number formatting: dot for thousands, comma for decimals (€14.400,00)
 - No emojis anywhere in the UI — text and Lucide icons only
 - Tech stack: FastAPI + SQLAlchemy (backend), React + Vite + shadcn/ui + Recharts (frontend), SQLite for demo

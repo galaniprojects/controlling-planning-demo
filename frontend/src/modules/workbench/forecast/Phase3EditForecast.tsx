@@ -17,7 +17,7 @@ import type { ForecastGridRow, ForecastChange, ForecastMonthCell, SuggestionItem
 import { useCollapsibleYears } from '@/hooks/useCollapsibleYears';
 import { ChevronRight } from 'lucide-react';
 
-const DEMO_DATE = '2026-03';
+const DEMO_DATE = '2026-04';
 
 interface Props {
   projectId: string;

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from config import DEMO_DATE
 from database import get_db
 from dependencies import get_current_user
 from models.capacity import Allocation
@@ -178,7 +179,7 @@ def get_people(
     """Get all people with role, cost center, and current utilization."""
     people = db.query(Person).order_by(Person.name).all()
     # Current month utilization
-    demo_month = "2026-03"
+    demo_month = DEMO_DATE
     items = []
     for p in people:
         alloc_hours = (

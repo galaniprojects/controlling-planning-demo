@@ -14,9 +14,20 @@ import { cn } from '@/lib/utils';
 import type { RetrospectiveItem } from '@/types/api';
 import { AlertTriangle } from 'lucide-react';
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function formatMonthName(ym: string): string {
+  const mo = parseInt(ym.split('-')[1], 10);
+  return MONTH_NAMES[mo - 1] || ym;
+}
+
 interface Props {
   retrospective: RetrospectiveItem[];
   skippable: boolean;
+  retroMonth?: string;
   explanations: Record<string, string>;
   nameMap: Record<string, string>;
   onSetExplanation: (key: string, text: string) => void;
@@ -28,6 +39,7 @@ interface Props {
 export function Phase1Retrospective({
   retrospective,
   skippable,
+  retroMonth,
   explanations,
   nameMap,
   onSetExplanation,
@@ -35,6 +47,7 @@ export function Phase1Retrospective({
   onSkip,
   loading,
 }: Props) {
+  const monthLabel = retroMonth ? formatMonthName(retroMonth) : '';
   const flaggedWithIdx = retrospective
     .map((r, idx) => ({ item: r, idx }))
     .filter(({ item }) => item.significant);
@@ -47,7 +60,7 @@ export function Phase1Retrospective({
     <div className="space-y-4">
       <div>
         <h3 className="text-base font-semibold text-slate-800">
-          Phase 1: Retrospective
+          Phase 1: Retrospective{monthLabel ? ` — ${monthLabel} Actuals` : ''}
         </h3>
         <p className="text-sm text-slate-500 mt-1">
           Review last month's forecast vs actuals. Explain any significant
@@ -60,8 +73,8 @@ export function Phase1Retrospective({
           <TableHeader>
             <TableRow className="bg-slate-50">
               <TableHead>Line Item</TableHead>
-              <TableHead className="text-right">Forecast</TableHead>
-              <TableHead className="text-right">Actual</TableHead>
+              <TableHead className="text-right">{monthLabel ? `${monthLabel} Forecast` : 'Forecast'}</TableHead>
+              <TableHead className="text-right">{monthLabel ? `${monthLabel} Actual` : 'Actual'}</TableHead>
               <TableHead className="text-right">Variance</TableHead>
               <TableHead className="text-right">Var %</TableHead>
               <TableHead className="w-16" />

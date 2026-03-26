@@ -22,6 +22,7 @@ export interface ForecastCycleState {
   // Phase 1
   retrospective: RetrospectiveItem[];
   skippable: boolean;
+  retroMonth: string;
   explanations: Record<string, string>;
 
   // Phase 2
@@ -49,6 +50,7 @@ const initialState: ForecastCycleState = {
   error: null,
   retrospective: [],
   skippable: true,
+  retroMonth: '',
   explanations: {},
   suggestions: [],
   appliedSuggestionIds: [],
@@ -98,6 +100,7 @@ function reducer(state: ForecastCycleState, action: Action): ForecastCycleState 
         cycleId: action.payload.cycle_id,
         retrospective: action.payload.retrospective_data,
         skippable: action.payload.skippable,
+        retroMonth: action.payload.retro_month || '',
         loading: false,
       };
 

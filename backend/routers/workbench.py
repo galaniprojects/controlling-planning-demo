@@ -179,7 +179,7 @@ def get_project_timeline(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    today_month = DEMO_DATE[:7]  # "2026-03"
+    today_month = DEMO_DATE[:7]  # "2026-04"
 
     # Gather monthly data from all three series
     baseline_rows = (
@@ -442,7 +442,7 @@ def start_forecast_cycle(
         })
 
     cycle.retrospective_data = retro
-    return {"cycle_id": cycle.cycle_id, "phase": 1, "retrospective_data": retro, "skippable": skippable}
+    return {"cycle_id": cycle.cycle_id, "phase": 1, "retrospective_data": retro, "skippable": skippable, "retro_month": prev_month}
 
 
 @router.put("/{project_id}/forecast-cycle/{cycle_id}/acknowledge")

@@ -11,6 +11,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { formatCurrencyDelta, formatCurrencyDetailed } from '@/lib/formatters';
+import { formatMonthShort } from '@/lib/yearColumns';
 import { Sparkles } from 'lucide-react';
 import type { ReviewGroup, ReviewGridData, CostCentreGroup } from '@/types/api';
 
@@ -104,7 +105,7 @@ export function Phase4Review({
                     </TableHead>
                     {reviewGridData.months.map((m) => (
                       <TableHead key={m} className="text-center min-w-[120px]">
-                        {m}
+                        {formatMonthShort(m)} {m.slice(2, 4)}
                       </TableHead>
                     ))}
                   </TableRow>

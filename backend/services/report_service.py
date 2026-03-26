@@ -307,26 +307,22 @@ def compute_cc_financial_summary(
         "active_project_count": len(rows),
     }
 
-    # Chart data: pie (per-project share) + monthly trend
+    # Chart data: pie (per-project share) + cost type breakdown
     pie_data = [
         {"name": r["project_name"][:20], "value": r["total_cost"]}
         for r in rows if r["total_cost"] > 0
     ]
 
-    # Monthly trend: actuals per month
-    monthly_q = (
-        db.query(Actuals.month, func.sum(Actuals.amount_eur))
-        .filter(Actuals.project_id.in_(project_ids), func.substr(Actuals.month, 1, 4) == year_prefix)
-        .group_by(Actuals.month)
-        .order_by(Actuals.month)
-        .all()
-    )
-    trend_data = [{"month": m, "spend": round(float(s), 2)} for m, s in monthly_q]
+    # Spend per cost type (internal vs external)
+    cost_type_data = [
+        {"name": "Internal", "value": round(total_internal_cost, 2)},
+        {"name": "External", "value": round(total_external_cost, 2)},
+    ]
 
     return {
         "kpis": kpis,
         "rows": rows,
-        "chart_data": {"pie": pie_data, "trend": trend_data},
+        "chart_data": {"pie": pie_data, "cost_type": cost_type_data},
         "total": len(rows),
     }
 

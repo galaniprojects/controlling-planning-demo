@@ -17,7 +17,7 @@ import sys
 from collections import defaultdict
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "creta_demo.db")
-DEMO_DATE = "2026-03"
+DEMO_DATE = "2026-04"
 FTE_HOURS = 160
 
 # Intentionally over-allocated people (spec §9.4: Senior Dev BUD/APD + MUC/APD for demo)
@@ -75,14 +75,14 @@ def check_summation_integrity(db) -> tuple[bool, list[str]]:
 # Rule 2: Temporal Consistency
 # ---------------------------------------------------------------------------
 def check_temporal_consistency(db) -> tuple[bool, list[str]]:
-    """No actuals after March 2026. No forecast-only in months with actuals."""
+    """No actuals after April 2026. No forecast-only in months with actuals."""
     issues = []
 
-    # Check: no actuals rows with month > 2026-03
-    future_actuals = db.execute("""
+    # Check: no actuals rows with month > 2026-04
+    future_actuals = db.execute(f"""
         SELECT project_id, month, COUNT(*) as cnt
         FROM actuals
-        WHERE month > '2026-03'
+        WHERE month > '{DEMO_DATE}'
         GROUP BY project_id, month
     """).fetchall()
     for r in future_actuals:

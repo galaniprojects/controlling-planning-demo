@@ -230,7 +230,7 @@ export function CCFinancialReport() {
       kpis={kpiRow}
       view={view}
       onViewChange={setView}
-      chartContent={<CCFinancialCharts pie={chart_data.pie} trend={chart_data.trend} />}
+      chartContent={<CCFinancialCharts pie={chart_data.pie} costType={chart_data.cost_type || []} />}
       tableContent={tableContent}
       onSaveView={handleSaveView}
     />

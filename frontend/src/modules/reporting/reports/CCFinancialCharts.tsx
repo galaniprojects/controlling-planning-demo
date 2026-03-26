@@ -5,8 +5,8 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -14,23 +14,22 @@ import {
 import { formatCurrency } from '@/lib/formatters';
 
 const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+const COST_TYPE_COLORS: Record<string, string> = {
+  Internal: '#3b82f6',
+  External: '#f59e0b',
+};
 
 interface PieRow {
   name: string;
   value: number;
 }
 
-interface TrendRow {
-  month: string;
-  spend: number;
-}
-
 interface Props {
   pie: PieRow[];
-  trend: TrendRow[];
+  costType: PieRow[];
 }
 
-export function CCFinancialCharts({ pie, trend }: Props) {
+export function CCFinancialCharts({ pie, costType }: Props) {
   return (
     <div className="grid grid-cols-2 gap-4">
       {/* Budget distribution pie */}
@@ -63,32 +62,46 @@ export function CCFinancialCharts({ pie, trend }: Props) {
         </div>
       </div>
 
-      {/* Monthly spend trend */}
+      {/* Spend per cost type */}
       <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-xs font-medium text-slate-500 mb-2">Monthly Spend Trend</h3>
+        <h3 className="text-xs font-medium text-slate-500 mb-2">Spend per Cost Type</h3>
         <div style={{ height: 280 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trend}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-              <YAxis
+            <BarChart
+              data={costType}
+              layout="vertical"
+              margin={{ left: 10, right: 20, top: 10, bottom: 10 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis
+                type="number"
                 tick={{ fontSize: 11 }}
                 tickFormatter={(v: number) => formatCurrency(v)}
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                tick={{ fontSize: 12 }}
+                width={70}
               />
               <Tooltip
                 formatter={(value: number) => formatCurrency(value)}
                 contentStyle={{ fontSize: 12 }}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line
-                type="monotone"
-                dataKey="spend"
+              <Bar
+                dataKey="value"
                 name="Spend"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-              />
-            </LineChart>
+                radius={[0, 4, 4, 0]}
+              >
+                {costType.map((entry) => (
+                  <Cell
+                    key={entry.name}
+                    fill={COST_TYPE_COLORS[entry.name] || '#94a3b8'}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </div>

@@ -134,7 +134,7 @@ def generate() -> str:
     # --- Scenario Capacity Impacts (simplified — key cost centres) ---
     # Generate for scenarios 1 and 3 (published) for a few key months
     impact_rows = []
-    key_months = ["2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
+    key_months = ["2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"]
     key_ccs = ["cc-muc-apd", "cc-muc-inf", "cc-bud-apd", "cc-bud-dda", "cc-muc-dda", "cc-pun-apd"]
 
     for s in SCENARIO_DEFS:

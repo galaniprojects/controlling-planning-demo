@@ -440,6 +440,7 @@ export interface ForecastCycleStartResponse {
   phase: number;
   retrospective_data: RetrospectiveItem[];
   skippable: boolean;
+  retro_month?: string;
 }
 
 export interface SuggestionPreFilledChange {
