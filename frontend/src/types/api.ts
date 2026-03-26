@@ -469,6 +469,7 @@ export interface ForecastChange {
   old_value: number;
   new_value: number;
   delta: number;
+  delta_eur?: number;
   suggestion_id?: number;
 }
 
@@ -485,7 +486,15 @@ export interface ReviewGridLineItem {
   category: string;
   capex_opex: string | null;
   is_system_suggested: boolean;
-  months: { month: string; before: number | null; after: number | null; delta: number | null }[];
+  months: {
+    month: string;
+    before: number | null;
+    after: number | null;
+    delta: number | null;
+    before_eur: number | null;
+    after_eur: number | null;
+    delta_eur: number | null;
+  }[];
 }
 
 export interface ReviewGridData {

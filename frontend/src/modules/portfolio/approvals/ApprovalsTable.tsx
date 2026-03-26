@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -8,6 +9,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { SortableHeader } from '@/components/shared/SortableHeader';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import type { ApprovalItem } from '@/types/api';
@@ -22,6 +24,30 @@ interface Props {
 }
 
 export function ApprovalsTable({ items, loading, selectedId, onSelect, onOpenDetail }: Props) {
+  const [sortColumn, setSortColumn] = useState('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const onSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const sortedItems = useMemo(() => {
+    if (!sortColumn) return items;
+    const sorted = [...items];
+    sorted.sort((a, b) => {
+      const av = (a as Record<string, unknown>)[sortColumn];
+      const bv = (b as Record<string, unknown>)[sortColumn];
+      if (typeof av === 'number' && typeof bv === 'number') return sortDirection === 'asc' ? av - bv : bv - av;
+      return sortDirection === 'asc' ? String(av ?? '').localeCompare(String(bv ?? '')) : String(bv ?? '').localeCompare(String(av ?? ''));
+    });
+    return sorted;
+  }, [items, sortColumn, sortDirection]);
+
   if (loading) {
     return (
       <div className="space-y-2">
@@ -45,18 +71,18 @@ export function ApprovalsTable({ items, loading, selectedId, onSelect, onOpenDet
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">CR #</TableHead>
-            <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Project</TableHead>
+            <SortableHeader column="cr_id" label="CR #" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} className="text-xs" />
+            <SortableHeader column="project_name" label="Project" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} className="text-xs" />
             <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">CR Summary</TableHead>
             <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Submitted By</TableHead>
             <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Confirmed By</TableHead>
-            <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 text-right">Impact</TableHead>
-            <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Date</TableHead>
+            <SortableHeader column="impact_eur_delta" label="Impact" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" className="text-xs" />
+            <SortableHeader column="submission_date" label="Date" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} className="text-xs" />
             <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[40px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {items.map((item) => (
+          {sortedItems.map((item) => (
             <TableRow
               key={item.cr_id}
               className={cn(

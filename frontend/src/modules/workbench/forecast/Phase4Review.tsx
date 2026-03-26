@@ -46,7 +46,7 @@ export function Phase4Review({
   const allChanges = costCentreGroups.length > 0
     ? costCentreGroups.flatMap((g) => g.items)
     : reviewGroups.flatMap((g) => g.items);
-  const totalImpact = allChanges.reduce((sum, item) => sum + (item.delta ?? 0), 0);
+  const totalImpact = allChanges.reduce((sum, item) => sum + (item.delta_eur ?? item.delta ?? 0), 0);
   const totalChangeCount = allChanges.length;
 
   return (
@@ -137,21 +137,35 @@ export function Phase4Review({
                       </TableCell>
                       {li.months.map((mv) => (
                         <TableCell key={mv.month} className="text-center">
-                          {mv.before !== null && mv.after !== null ? (
+                          {mv.before_eur !== null && mv.after_eur !== null ? (
                             <div className="space-y-0.5">
+                              {/* Hours row — only for internal items */}
+                              {mv.before !== null && mv.after !== null && (
+                                <div className="text-[10px] text-slate-500">
+                                  <span className="line-through">{mv.before}h</span>
+                                  {' \u2192 '}
+                                  <span className="font-medium">{mv.after}h</span>
+                                  {mv.delta !== null && mv.delta !== 0 && (
+                                    <span className={mv.delta > 0 ? ' text-red-500' : ' text-green-600'}>
+                                      {' '}{mv.delta > 0 ? '+' : ''}{mv.delta}h
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              {/* EUR row — always shown */}
                               <div className="text-[10px] text-slate-400 line-through">
-                                {formatCurrencyDetailed(mv.before)}
+                                {formatCurrencyDetailed(mv.before_eur)}
                               </div>
                               <div className="text-xs font-medium text-slate-700">
-                                {formatCurrencyDetailed(mv.after)}
+                                {formatCurrencyDetailed(mv.after_eur)}
                               </div>
-                              {mv.delta !== null && mv.delta !== 0 && (
+                              {mv.delta_eur !== null && mv.delta_eur !== 0 && (
                                 <div
                                   className={`text-[10px] ${
-                                    mv.delta > 0 ? 'text-red-500' : 'text-green-600'
+                                    mv.delta_eur > 0 ? 'text-red-500' : 'text-green-600'
                                   }`}
                                 >
-                                  {formatCurrencyDelta(mv.delta)}
+                                  {formatCurrencyDelta(mv.delta_eur)}
                                 </div>
                               )}
                             </div>

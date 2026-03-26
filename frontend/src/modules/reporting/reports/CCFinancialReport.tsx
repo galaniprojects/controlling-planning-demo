@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
 import { reportsApi, referenceApi } from '@/api/endpoints';
@@ -10,6 +10,7 @@ import { CCFinancialCharts } from './CCFinancialCharts';
 import { formatCurrency, formatPercent, formatCurrencyDetailed } from '@/lib/formatters';
 import type { FilterConfig } from '@/components/shared/FilterBar';
 import type { CCFinancialResponse, RefCostCenter } from '@/types/api';
+import { SortableHeader } from '@/components/shared/SortableHeader';
 import { Building2, DollarSign, Users, Truck, Layers } from 'lucide-react';
 
 const TYPE_OPTIONS = [
@@ -33,6 +34,8 @@ export function CCFinancialReport() {
   const [loading, setLoading] = useState(true);
   const [costCenters, setCostCenters] = useState<RefCostCenter[]>([]);
   const [view, setView] = useState<'chart' | 'table'>('table');
+  const [sortColumn, setSortColumn] = useState('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [filters, setFilters] = useState<Record<string, string>>({
     cost_center: '',
     type: '',
@@ -92,6 +95,27 @@ export function CCFinancialReport() {
     { key: 'fiscal_year', label: 'Fiscal Year', options: FISCAL_YEAR_OPTIONS },
   ];
 
+  const onSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const sortedRows = useMemo(() => {
+    if (!data || !sortColumn) return data?.rows ?? [];
+    const sorted = [...data.rows];
+    sorted.sort((a, b) => {
+      const av = (a as Record<string, unknown>)[sortColumn];
+      const bv = (b as Record<string, unknown>)[sortColumn];
+      if (typeof av === 'number' && typeof bv === 'number') return sortDirection === 'asc' ? av - bv : bv - av;
+      return sortDirection === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+    });
+    return sorted;
+  }, [data, sortColumn, sortDirection]);
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -143,18 +167,18 @@ export function CCFinancialReport() {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
-            <th className="px-3 py-2 text-left font-medium text-slate-600">Cost Center</th>
-            <th className="px-3 py-2 text-left font-medium text-slate-600">Project</th>
-            <th className="px-3 py-2 text-right font-medium text-slate-600">Internal Hours</th>
-            <th className="px-3 py-2 text-right font-medium text-slate-600">Internal Cost</th>
-            <th className="px-3 py-2 text-right font-medium text-slate-600">External Cost</th>
-            <th className="px-3 py-2 text-right font-medium text-slate-600">Total</th>
-            <th className="px-3 py-2 text-right font-medium text-slate-600">% of CC Budget</th>
-            <th className="px-3 py-2 text-center font-medium text-slate-600">Status</th>
+            <SortableHeader column="cost_center_name" label="Cost Center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+            <SortableHeader column="project_name" label="Project" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+            <SortableHeader column="internal_hours" label="Internal Hours" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+            <SortableHeader column="internal_cost" label="Internal Cost" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+            <SortableHeader column="external_cost" label="External Cost" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+            <SortableHeader column="total_cost" label="Total" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+            <SortableHeader column="pct_of_cc_budget" label="% of CC Budget" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+            <SortableHeader column="status" label="Status" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="center" />
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
+          {sortedRows.map((r) => (
             <tr key={r.project_id} className="border-t border-slate-100 hover:bg-slate-50">
               <td className="px-3 py-2 text-slate-700">{r.cost_center_name ?? '—'}</td>
               <td className="px-3 py-2 text-slate-700">{r.project_name}</td>
@@ -182,10 +206,10 @@ export function CCFinancialReport() {
           <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
             <td />
             <td className="px-3 py-2 text-slate-700">
-              Total ({rows.length} projects)
+              Total ({sortedRows.length} projects)
             </td>
             <td className="px-3 py-2 text-right font-mono text-xs">
-              {rows.reduce((s, r) => s + r.internal_hours, 0).toLocaleString('de-DE')}
+              {sortedRows.reduce((s, r) => s + r.internal_hours, 0).toLocaleString('de-DE')}
             </td>
             <td className="px-3 py-2 text-right font-mono text-xs">
               {formatCurrencyDetailed(kpis.total_internal_cost)}
@@ -230,7 +254,7 @@ export function CCFinancialReport() {
       kpis={kpiRow}
       view={view}
       onViewChange={setView}
-      chartContent={<CCFinancialCharts pie={chart_data.pie} costType={chart_data.cost_type || []} />}
+      chartContent={<CCFinancialCharts pie={chart_data.pie} costType={chart_data.cost_type || []} internalBreakdown={chart_data.internal_breakdown || []} externalBreakdown={chart_data.external_breakdown || []} />}
       tableContent={tableContent}
       onSaveView={handleSaveView}
     />

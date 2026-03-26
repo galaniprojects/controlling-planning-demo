@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
 import { reportsApi, referenceApi, workbenchApi } from '@/api/endpoints';
@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import type { FilterConfig } from '@/components/shared/FilterBar';
 import type { ProgrammeRollupResponse, LoBRef } from '@/types/api';
+import { SortableHeader } from '@/components/shared/SortableHeader';
 import { BarChart3, TrendingUp, TrendingDown, Layers, Users, Save, X } from 'lucide-react';
 
 const RAG_OPTIONS = [
@@ -97,6 +98,8 @@ export function ProgrammeRollupReport() {
   const [savedGroups, setSavedGroups] = useState<CustomGroup[]>([]);
   const [saveGroupName, setSaveGroupName] = useState('');
   const [showSaveInput, setShowSaveInput] = useState(false);
+  const [sortColumn, setSortColumn] = useState('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     referenceApi.getLobs().then((r) => setLobs(r.items)).catch(() => {});
@@ -190,6 +193,27 @@ export function ProgrammeRollupReport() {
   const filteredProjects = allProjects.filter((p) =>
     p.name.toLowerCase().includes(projectSearch.toLowerCase())
   );
+
+  const onSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const sortedRows = useMemo(() => {
+    if (!data || !sortColumn) return data?.rows ?? [];
+    const sorted = [...data.rows];
+    sorted.sort((a, b) => {
+      const av = (a as Record<string, unknown>)[sortColumn];
+      const bv = (b as Record<string, unknown>)[sortColumn];
+      if (typeof av === 'number' && typeof bv === 'number') return sortDirection === 'asc' ? av - bv : bv - av;
+      return sortDirection === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+    });
+    return sorted;
+  }, [data, sortColumn, sortDirection]);
 
   if (loading && !data) {
     return (
@@ -358,21 +382,39 @@ export function ProgrammeRollupReport() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              <th className="px-3 py-2 text-left font-medium text-slate-600">Project</th>
-              <th className="px-3 py-2 text-left font-medium text-slate-600">Status</th>
-              <th className="px-3 py-2 text-right font-medium text-slate-600">Baseline</th>
-              <th className="px-3 py-2 text-right font-medium text-slate-600">Forecast</th>
-              <th className="px-3 py-2 text-right font-medium text-slate-600">Actuals</th>
-              <th className="px-3 py-2 text-right font-medium text-slate-600">Remaining</th>
-              <th className="px-3 py-2 text-right font-medium text-slate-600">Variance</th>
-              <th className="px-3 py-2 text-right font-medium text-slate-600">Var%</th>
-              <th className="px-3 py-2 text-center font-medium text-slate-600">RAG</th>
+              <SortableHeader column="project_name" label="Project" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="status" label="Status" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader column="baseline_budget" label="Baseline" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+              <SortableHeader column="current_forecast" label="Forecast" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+              <SortableHeader column="actuals_to_date" label="Actuals" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+              <SortableHeader column="remaining_forecast" label="Remaining" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+              <SortableHeader column="variance" label="Variance" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+              <SortableHeader column="variance_pct" label="Var%" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
+              <SortableHeader column="rag" label="RAG" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="center" />
             </tr>
           </thead>
           <tbody>
-            {Object.entries(grouped).map(([lobName, lobRows]) => (
-              <GroupSection key={lobName} lobName={lobName} rows={lobRows} />
-            ))}
+            {sortColumn ? (
+              sortedRows.map((r) => (
+                <tr key={r.project_id} className="border-t border-slate-100 hover:bg-slate-50">
+                  <td className="px-3 py-2 text-slate-700">{r.project_name}</td>
+                  <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
+                  <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.baseline_budget)}</td>
+                  <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.current_forecast)}</td>
+                  <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.actuals_to_date)}</td>
+                  <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.remaining_forecast)}</td>
+                  <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.variance)}</td>
+                  <td className={`px-3 py-2 text-right font-mono text-xs ${r.variance_pct > 5 ? 'text-red-600' : r.variance_pct > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                    {formatPercent(r.variance_pct)}
+                  </td>
+                  <td className="px-3 py-2 text-center">{ragBadge(r.rag)}</td>
+                </tr>
+              ))
+            ) : (
+              Object.entries(grouped).map(([lobName, lobRows]) => (
+                <GroupSection key={lobName} lobName={lobName} rows={lobRows} />
+              ))
+            )}
             {/* Summary row */}
             <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
               <td className="px-3 py-2 text-slate-700" colSpan={2}>

@@ -547,6 +547,12 @@ def get_review(
 
     # Build DetailViewGrid-style line items from working changes
     from models.financial import ExternalCostType
+    # Hourly rate lookup for converting internal hours → EUR
+    rate_rows = db.query(RateTable).all()
+    rate_map: dict[str, float] = {}
+    for rt in rate_rows:
+        rate_map.setdefault(rt.role_type_id, float(rt.hourly_rate))
+
     changes = cycle.working_changes
     all_months = sorted({c.get("month", "") for c in changes if c.get("month")})
 
@@ -571,11 +577,30 @@ def get_review(
                 "months": {},
             }
 
-        line_items_map[sub_cat]["months"][ch["month"]] = {
-            "before": round(ch.get("old_value", 0), 2),
-            "after": round(ch.get("new_value", 0), 2),
-            "delta": round(ch.get("delta", 0), 2),
-        }
+        old_val = round(ch.get("old_value", 0), 2)
+        new_val = round(ch.get("new_value", 0), 2)
+        delta_val = round(ch.get("delta", 0), 2)
+        cat = ch.get("category", "")
+        if cat == "internal":
+            rate = rate_map.get(sub_cat, 120.0)
+            line_items_map[sub_cat]["months"][ch["month"]] = {
+                "before": old_val,
+                "after": new_val,
+                "delta": delta_val,
+                "before_eur": round(old_val * rate, 2),
+                "after_eur": round(new_val * rate, 2),
+                "delta_eur": round(delta_val * rate, 2),
+            }
+        else:
+            # External: values are already in EUR
+            line_items_map[sub_cat]["months"][ch["month"]] = {
+                "before": None,
+                "after": None,
+                "delta": None,
+                "before_eur": old_val,
+                "after_eur": new_val,
+                "delta_eur": delta_val,
+            }
         if ch.get("suggestion_id") is not None:
             line_items_map[sub_cat]["is_system_suggested"] = True
 
@@ -586,9 +611,16 @@ def get_review(
         for m in all_months:
             mv = li["months"].get(m)
             if mv:
-                months_list.append({"month": m, "before": mv["before"], "after": mv["after"], "delta": mv["delta"]})
+                months_list.append({
+                    "month": m,
+                    "before": mv["before"], "after": mv["after"], "delta": mv["delta"],
+                    "before_eur": mv["before_eur"], "after_eur": mv["after_eur"], "delta_eur": mv["delta_eur"],
+                })
             else:
-                months_list.append({"month": m, "before": None, "after": None, "delta": None})
+                months_list.append({
+                    "month": m, "before": None, "after": None, "delta": None,
+                    "before_eur": None, "after_eur": None, "delta_eur": None,
+                })
         grid_line_items.append({
             "id": li["id"],
             "label": li["label"],
@@ -621,7 +653,14 @@ def get_review(
                 "id": sub_cat,
                 "label": li_info.get("label", sub_cat),
             })
-        cc_groups_map[cc_id]["items"].append(ch)
+        # Enrich change item with delta_eur for correct EUR totals
+        enriched_ch = dict(ch)
+        if cat == "internal":
+            rate = rate_map.get(sub_cat, 120.0)
+            enriched_ch["delta_eur"] = round(ch.get("delta", 0) * rate, 2)
+        else:
+            enriched_ch["delta_eur"] = round(ch.get("delta", 0), 2)
+        cc_groups_map[cc_id]["items"].append(enriched_ch)
 
     cost_centre_groups = list(cc_groups_map.values())
 

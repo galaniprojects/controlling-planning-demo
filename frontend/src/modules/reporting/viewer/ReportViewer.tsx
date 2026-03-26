@@ -110,15 +110,16 @@ export function ReportViewer({
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!hasConfigurator}
-            onClick={() => setConfiguratorOpen(true)}
-          >
-            <Settings2 className="h-3.5 w-3.5 mr-1.5" />
-            Customize
-          </Button>
+          {hasConfigurator && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfiguratorOpen(true)}
+            >
+              <Settings2 className="h-3.5 w-3.5 mr-1.5" />
+              Customize
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
