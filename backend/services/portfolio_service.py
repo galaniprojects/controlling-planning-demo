@@ -22,7 +22,24 @@ from services.calculations import (
 
 
 def _get_projects_for_entity_recursive(db: Session, entity_id: str) -> list[str]:
-    """Get all project IDs assigned to an entity or any of its descendants."""
+    """Get all project IDs assigned to an entity or any of its descendants.
+
+    Falls back to LoB filtering if entity_id matches a LineOfBusiness
+    but not a GroupingEntity (safety net for when no hierarchy is configured).
+    """
+    # Check if this entity exists as a GroupingEntity
+    entity_exists = db.query(GroupingEntity.id).filter(GroupingEntity.id == entity_id).first()
+    if not entity_exists:
+        # Fallback: check if this is a LoB ID
+        lob_exists = db.query(LineOfBusiness.id).filter(LineOfBusiness.id == entity_id).first()
+        if lob_exists:
+            return [
+                r[0] for r in db.query(Project.id)
+                .filter(Project.lob_id == entity_id, Project.is_active.is_(True))
+                .all()
+            ]
+        return []
+
     # Direct project assignments
     direct = [
         a.project_id
