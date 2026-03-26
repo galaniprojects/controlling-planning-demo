@@ -3,6 +3,7 @@ import { adminApi } from '@/api/endpoints';
 
 let cachedLabel: string | null = null;
 let cachedEntities: { value: string; label: string }[] | null = null;
+let cachedHasHierarchy: boolean | null = null;
 let cachePromise: Promise<void> | null = null;
 
 async function fetchAndCache() {
@@ -10,9 +11,11 @@ async function fetchAndCache() {
     const data = await adminApi.getActiveHierarchy();
     cachedLabel = data.top_level_label;
     cachedEntities = data.entities.map((e) => ({ value: e.id, label: e.name }));
+    cachedHasHierarchy = data.hierarchy !== null && data.entities.length > 0;
   } catch {
     cachedLabel = 'Line of Business';
     cachedEntities = [];
+    cachedHasHierarchy = false;
   }
 }
 
@@ -24,12 +27,14 @@ async function fetchAndCache() {
 export function useActiveHierarchy() {
   const [label, setLabel] = useState(cachedLabel || 'Line of Business');
   const [entityOpts, setEntityOpts] = useState<{ value: string; label: string }[]>(cachedEntities || []);
+  const [hasHierarchy, setHasHierarchy] = useState(cachedHasHierarchy ?? false);
   const [isLoading, setIsLoading] = useState(!cachedLabel);
 
   useEffect(() => {
-    if (cachedLabel && cachedEntities) {
+    if (cachedLabel && cachedEntities && cachedHasHierarchy !== null) {
       setLabel(cachedLabel);
       setEntityOpts(cachedEntities);
+      setHasHierarchy(cachedHasHierarchy);
       setIsLoading(false);
       return;
     }
@@ -41,6 +46,7 @@ export function useActiveHierarchy() {
     cachePromise.then(() => {
       setLabel(cachedLabel || 'Line of Business');
       setEntityOpts(cachedEntities || []);
+      setHasHierarchy(cachedHasHierarchy ?? false);
       setIsLoading(false);
     });
   }, []);
@@ -48,7 +54,7 @@ export function useActiveHierarchy() {
   return {
     topLevelLabel: label,
     entityOptions: entityOpts,
-    filterKey: 'grouping_entity' as const,
+    filterKey: (hasHierarchy ? 'grouping_entity' : 'lob') as 'grouping_entity' | 'lob',
     isLoading,
   };
 }
@@ -59,5 +65,6 @@ export function useActiveHierarchy() {
 export function invalidateHierarchyCache() {
   cachedLabel = null;
   cachedEntities = null;
+  cachedHasHierarchy = null;
   cachePromise = null;
 }

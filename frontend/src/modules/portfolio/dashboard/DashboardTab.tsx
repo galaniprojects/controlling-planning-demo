@@ -53,10 +53,15 @@ export function DashboardTab() {
     referenceApi.getLobs().then((res) => setLobs(res.items)).catch(() => {});
   }, []);
 
+  // Reset filters when filterKey changes (e.g. hierarchy activated/deactivated)
+  useEffect(() => {
+    setFilters({ [filterKey]: '', status: '', rag: '', type: '' });
+  }, [filterKey]);
+
   // Load data when role or filters change
   useEffect(() => {
     const params: Record<string, string> = {};
-    if (filters.grouping_entity) params.grouping_entity = filters.grouping_entity;
+    if (filters[filterKey]) params[filterKey] = filters[filterKey];
     if (filters.status) params.status = filters.status;
     if (filters.rag) params.rag = filters.rag;
     if (filters.type) params.type = filters.type;
@@ -112,8 +117,8 @@ export function DashboardTab() {
   }, []);
 
   const handleFilterClear = useCallback(() => {
-    setFilters({ lob: '', status: '', rag: '', type: '' });
-  }, []);
+    setFilters({ [filterKey]: '', status: '', rag: '', type: '' });
+  }, [filterKey]);
 
   const handleRagClick = useCallback((rag: string) => {
     setFilters((prev) => ({ ...prev, rag: prev.rag === rag ? '' : rag }));
