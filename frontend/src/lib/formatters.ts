@@ -42,6 +42,15 @@ export function formatCurrencyDetailed(value: number): string {
 }
 
 /**
+ * Detailed European currency with explicit +/- sign for deltas.
+ * Examples: +2.050 €  -1.200 €
+ */
+export function formatCurrencyDetailedDelta(value: number): string {
+  const formatted = formatCurrencyDetailed(value);
+  return value > 0 ? `+${formatted}` : formatted;
+}
+
+/**
  * Compact European currency for grid cells — k with up to 2 decimals.
  * Examples: 6,35k€  14,4k€  850€  1,2M€
  */
