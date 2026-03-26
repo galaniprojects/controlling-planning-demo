@@ -134,12 +134,28 @@ def get_project_overview(
             "total_hours": round(float(row.total_hours or 0), 1),
         })
 
+    # Check for pending CRs (locks forecast review)
+    pending_cr = (
+        db.query(ChangeRequest)
+        .filter(
+            ChangeRequest.project_id == project_id,
+            ChangeRequest.status.in_(["pending_cc_confirmation", "pending_controller_approval", "changes_requested"]),
+        )
+        .order_by(ChangeRequest.submission_timestamp.desc())
+        .first()
+    )
+
     return {
         "metadata": {
             "id": project.id, "name": project.name, "lob": project.lob.name if project.lob else project.lob_id,
             "status": project.status, "rag": project.rag_status,
             "timeline": {"start": project.start_month, "end": project.end_month, "projected_end": project.projected_end_month},
             "pl_name": project.pl.name if project.pl else None,
+            "pending_cr": {
+                "cr_id": pending_cr.id,
+                "status": pending_cr.status,
+                "submitted_at": pending_cr.submission_timestamp.isoformat() if pending_cr.submission_timestamp else None,
+            } if pending_cr else None,
         },
         "three_point_comparison": {
             "baseline": fins["baseline_total"], "forecast": fins["forecast_total"],

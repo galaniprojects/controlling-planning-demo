@@ -11,8 +11,9 @@
       {"step_number": 3, "instruction": "Click the **Change Requests** tab in the project detail view."},
       {"step_number": 4, "instruction": "Click **+ New Change Request** and select the change category (scope, timeline, resource, external cost, or other)."},
       {"step_number": 5, "instruction": "Fill in the summary, justification, and detailed change lines. If a system suggestion exists, you can pre-fill from it."},
-      {"step_number": 6, "instruction": "Click **Submit** to send the CR to the Controller for review. The Controller can approve it, reject it, or request changes using an editable grid."},
-      {"step_number": 7, "instruction": "If the Controller requests changes, you will see the CR in your Change History tab with an 'Action Required' badge. Expand it to see a diff view comparing your original values with the controller's proposed changes, then Accept or Decline and Resubmit."}
+      {"step_number": 6, "instruction": "Click **Submit** to send the CR to the Controller for review. The Controller can approve it, reject it, or request changes using an editable grid. While the CR is pending, the forecast review button will be locked to prevent overlapping submissions."},
+      {"step_number": 7, "instruction": "If the Controller requests changes, you will see the CR in your Change History tab with an 'Action Required' badge. Expand it to see a diff view comparing your original values with the controller's proposed changes, then Accept or Decline and Resubmit."},
+      {"step_number": 8, "instruction": "If the CR involves internal resource changes, it will route to the CC Owner as the final step. The CC Owner sees delta-based requests showing the change amount (not the total), making it clear exactly what needs to be allocated or de-allocated."}
     ]
   },
   {
@@ -24,9 +25,9 @@
     "steps": [
       {"step_number": 1, "instruction": "Open **Capacity Management** from the Launchpad or sidebar.", "target_module": "capacity"},
       {"step_number": 2, "instruction": "Click the **Request Management** tab to see incoming requests for your cost center."},
-      {"step_number": 3, "instruction": "Review the request details: project, role/cost type, hours or amount, period, and priority."},
+      {"step_number": 3, "instruction": "Review the request details: project, role/cost type, hours or amount, period, priority, and for CR-linked requests the change direction (increase/decrease), delta hours, original allocation, and currently allocated person."},
       {"step_number": 4, "instruction": "Use the **Assignment Preview** to check which team members have availability."},
-      {"step_number": 5, "instruction": "Choose your response: **Confirm** (assign a named person), **Partially Fulfill** (adjust hours or period), **Counter-Propose** (offer an alternative), or **Decline** (with reason)."},
+      {"step_number": 5, "instruction": "Choose your response: **Confirm** (assign a named person), **Partially Fulfill** (adjust hours or period), **Counter-Propose** (offer an alternative), or **Decline** (with reason). For decrease requests, confirming will reduce the existing person's allocation rather than creating a new one."},
       {"step_number": 6, "instruction": "Submit your response. If you confirmed a CR-linked resource request, the CR is automatically approved and the forecast is updated. If you declined, the CR is sent back to the Project Lead."}
     ]
   },
@@ -124,9 +125,22 @@
     "steps": [
       {"step_number": 1, "instruction": "Open the **Project Workbench** and select your project.", "target_module": "workbench"},
       {"step_number": 2, "instruction": "Click the **Forecast** tab to see the monthly forecast grid."},
-      {"step_number": 3, "instruction": "Click any cell to edit the forecasted hours or amount for that month and line item."},
-      {"step_number": 4, "instruction": "The system automatically recalculates totals and variance indicators as you edit."},
-      {"step_number": 5, "instruction": "For significant changes, consider submitting a **Change Request** to maintain controller visibility and audit trail."}
+      {"step_number": 3, "instruction": "Click **Rolling Forecast Review** to start the monthly review wizard. Note: if a CR is already pending for this project, the button will be disabled until the CR is resolved."},
+      {"step_number": 4, "instruction": "Walk through the 5 phases: Retrospective (review variances), Suggestions (apply AI insights), Editing (modify the grid or click 'Keep as is' to proceed without changes), Review (verify changes in full EUR format), and Submit."},
+      {"step_number": 5, "instruction": "Submitted changes become a CR routed to the Controller. If internal resource changes are included, the CR also routes to the CC Owner for final confirmation."}
+    ]
+  },
+  {
+    "id": "faq-13",
+    "question": "What happens when a CR involves reducing hours for a role?",
+    "summary": "The system creates a decrease resource request showing the delta, the original allocation, and the currently assigned person. The CC Owner confirms the reduction.",
+    "applicable_roles": ["project_lead", "cost_center_owner"],
+    "modules_involved": ["workbench", "capacity"],
+    "steps": [
+      {"step_number": 1, "instruction": "When a PL reduces forecasted hours for an internal role (e.g., from 60h to 40h per month), the CR captures the delta as a decrease of 20h."},
+      {"step_number": 2, "instruction": "After controller approval, a resource request is created for the CC Owner with a red 'Decrease' badge, showing: original 60h, delta -20h, resulting total 40h, and the currently allocated person."},
+      {"step_number": 3, "instruction": "The CC Owner reviews and confirms the reduction. Confirming reduces the allocated person's hours rather than creating a new allocation."},
+      {"step_number": 4, "instruction": "The CR is completed and the forecast is updated with the reduced hours."}
     ]
   },
   {

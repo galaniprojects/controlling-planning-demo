@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatCurrencyDelta, formatCurrencyDetailed } from '@/lib/formatters';
+import { formatCurrencyDelta, formatCurrencyDetailed } from '@/lib/formatters';
 import { Sparkles } from 'lucide-react';
 import type { ReviewGroup, ReviewGridData, CostCentreGroup } from '@/types/api';
 
@@ -139,10 +139,10 @@ export function Phase4Review({
                           {mv.before !== null && mv.after !== null ? (
                             <div className="space-y-0.5">
                               <div className="text-[10px] text-slate-400 line-through">
-                                {formatCurrency(mv.before)}
+                                {formatCurrencyDetailed(mv.before)}
                               </div>
                               <div className="text-xs font-medium text-slate-700">
-                                {formatCurrency(mv.after)}
+                                {formatCurrencyDetailed(mv.after)}
                               </div>
                               {mv.delta !== null && mv.delta !== 0 && (
                                 <div
