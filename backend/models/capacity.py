@@ -44,6 +44,8 @@ class ResourceRequest(Base):
     assigned_person_id: Mapped[Optional[str]] = mapped_column(ForeignKey("people.id"), nullable=True)
     adjusted_value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    original_hours_per_month: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    change_direction: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # "increase" / "decrease"
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     modified_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

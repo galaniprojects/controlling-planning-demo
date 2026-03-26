@@ -134,12 +134,28 @@ def get_project_overview(
             "total_hours": round(float(row.total_hours or 0), 1),
         })
 
+    # Check for pending CRs (locks forecast review)
+    pending_cr = (
+        db.query(ChangeRequest)
+        .filter(
+            ChangeRequest.project_id == project_id,
+            ChangeRequest.status.in_(["pending_cc_confirmation", "pending_controller_approval", "changes_requested"]),
+        )
+        .order_by(ChangeRequest.submission_timestamp.desc())
+        .first()
+    )
+
     return {
         "metadata": {
             "id": project.id, "name": project.name, "lob": project.lob.name if project.lob else project.lob_id,
             "status": project.status, "rag": project.rag_status,
             "timeline": {"start": project.start_month, "end": project.end_month, "projected_end": project.projected_end_month},
             "pl_name": project.pl.name if project.pl else None,
+            "pending_cr": {
+                "cr_id": pending_cr.id,
+                "status": pending_cr.status,
+                "submitted_at": pending_cr.submission_timestamp.isoformat() if pending_cr.submission_timestamp else None,
+            } if pending_cr else None,
         },
         "three_point_comparison": {
             "baseline": fins["baseline_total"], "forecast": fins["forecast_total"],
@@ -684,10 +700,16 @@ def submit_forecast_cycle(
                     old_value=str(item.get("old_value", "")),
                     new_value=str(item.get("new_value", "")),
                     delta=str(item.get("delta", "")),
-                    line_item_type=item.get("category"),
+                    line_item_type=item.get("sub_category"),
                     month=item.get("month"),
                 )
                 db.add(detail)
+
+            # Create resource requests for CC Owner to act on
+            if initial_status == "pending_cc_confirmation":
+                db.flush()  # ensure change details are visible via relationship
+                from routers.portfolio import _create_resource_requests_from_cr
+                _create_resource_requests_from_cr(cr, db)
 
             created_crs.append({"id": cr.id, "status": cr.status, "category": cr.change_category, "cost_centre": cc_name})
     else:
@@ -718,10 +740,16 @@ def submit_forecast_cycle(
                     old_value=str(item.get("old_value", "")),
                     new_value=str(item.get("new_value", "")),
                     delta=str(item.get("delta", "")),
-                    line_item_type=item.get("category"),
+                    line_item_type=item.get("sub_category"),
                     month=item.get("month"),
                 )
                 db.add(detail)
+
+            # Create resource requests for CC Owner to act on
+            if initial_status == "pending_cc_confirmation":
+                db.flush()  # ensure change details are visible via relationship
+                from routers.portfolio import _create_resource_requests_from_cr
+                _create_resource_requests_from_cr(cr, db)
 
             created_crs.append({"id": cr.id, "status": cr.status, "category": cr.change_category})
 
@@ -1191,7 +1219,25 @@ def resubmit_cr(
         CRSubmissionSnapshot.is_active.is_(True),
     ).update({"is_active": False})
 
-    cr.status = "pending_controller_approval"
+    # Determine whether to route through CC Owner or directly to Controller
+    has_resource_changes = any(
+        d.line_item_type and d.line_item_type.startswith("role-")
+        for d in cr.change_details
+    )
+
+    if has_resource_changes:
+        cr.status = "pending_cc_confirmation"
+        # Reset CC Owner fields for fresh confirmation
+        cr.cc_owner_id = None
+        cr.cc_status = None
+        cr.cc_confirmation_timestamp = None
+        cr.cc_comments = None
+        # Recreate resource requests
+        from routers.portfolio import _create_resource_requests_from_cr
+        _create_resource_requests_from_cr(cr, db)
+    else:
+        cr.status = "pending_controller_approval"
+
     cr.controller_feedback = None
     cr.controller_status = None
     cr.controller_comments = None
@@ -1199,7 +1245,7 @@ def resubmit_cr(
     cr.controller_approval_timestamp = None
     db.commit()
 
-    return {"status": cr.status, "message": "Change request resubmitted for controller review."}
+    return {"status": cr.status, "message": "Change request resubmitted."}
 
 
 def _apply_cr_to_forecast(cr: ChangeRequest, db: Session) -> None:

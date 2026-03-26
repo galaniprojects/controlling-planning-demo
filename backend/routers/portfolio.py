@@ -1340,19 +1340,9 @@ def approve_cr(
     if body and body.comments:
         cr.controller_comments = body.comments
 
-    # Check if CR has internal resource changes → route to CC Owner
-    has_resource_changes = any(
-        d.line_item_type and d.line_item_type.startswith("role-")
-        for d in cr.change_details
-    )
-
-    if has_resource_changes:
-        cr.status = "pending_cc_confirmation"
-        _create_resource_requests_from_cr(cr, db)
-    else:
-        # No resource impact — approve directly and update forecast
-        cr.status = "approved"
-        _apply_cr_changes_to_forecast(cr, db)
+    # Controller approval is the final step — apply changes to forecast
+    cr.status = "approved"
+    _apply_cr_changes_to_forecast(cr, db)
 
     db.commit()
     return _build_cr_detail(cr, db)
@@ -1396,9 +1386,23 @@ def get_cr_editable_grid(
     if not cr:
         raise HTTPException(404, "Change request not found")
 
+    # Scope grid to only the line items and months referenced in the CR
+    cr_line_items = set()
+    cr_months = set()
+    for d in cr.change_details:
+        if d.line_item_type:
+            cr_line_items.add(d.line_item_type)
+        if d.month:
+            cr_months.add(d.month)
+
     project_id = cr.project_id
-    forecasts = db.query(Forecast).filter(Forecast.project_id == project_id).all()
-    all_months = sorted(set(f.month for f in forecasts))
+    query = db.query(Forecast).filter(Forecast.project_id == project_id)
+    if cr_line_items:
+        query = query.filter(Forecast.sub_category.in_(cr_line_items))
+    if cr_months:
+        query = query.filter(Forecast.month.in_(cr_months))
+    forecasts = query.all()
+    all_months = sorted(cr_months) if cr_months else sorted(set(f.month for f in forecasts))
 
     groups: dict[tuple[str, str], list] = defaultdict(list)
     for f in forecasts:
@@ -1545,7 +1549,7 @@ def send_back_cr(
 
 def _apply_cr_changes_to_forecast(cr: ChangeRequest, db: Session) -> None:
     """Apply CR change details to forecast rows (used on direct approval)."""
-    from models.financial import RateTable
+    from models.people import RateTable
 
     for detail in cr.change_details:
         if detail.month and detail.new_value:
@@ -1593,7 +1597,7 @@ def _create_resource_requests_from_cr(cr: ChangeRequest, db: Session) -> None:
         ResourceRequest.status == "pending",
     ).delete()
 
-    CC_ID = "cc-rail-systems"
+    CC_ID = "cc-muc-apd"
 
     # Group change details by role type (internal resources only)
     groups: dict[str, list] = defaultdict(list)
@@ -1603,14 +1607,26 @@ def _create_resource_requests_from_cr(cr: ChangeRequest, db: Session) -> None:
 
     for role_id, details in groups.items():
         sorted_details = sorted(details, key=lambda d: d.month)
-        hours_values = []
+        delta_values = []
+        old_values = []
         for d in sorted_details:
             try:
-                hours_values.append(float(d.new_value.replace("€", "").replace(",", "").strip()))
+                new_val = float(d.new_value.replace("€", "").replace(",", "").strip()) if d.new_value else 0.0
+                old_val = float(d.old_value.replace("€", "").replace(",", "").strip()) if d.old_value else 0.0
+                delta_values.append(new_val - old_val)
+                old_values.append(old_val)
             except (ValueError, AttributeError):
-                hours_values.append(0)
+                delta_values.append(0)
+                old_values.append(0)
 
-        avg_hours = sum(hours_values) / len(hours_values) if hours_values else 0
+        avg_delta = sum(delta_values) / len(delta_values) if delta_values else 0
+        avg_old = sum(old_values) / len(old_values) if old_values else 0
+
+        # Skip if no actual change
+        if abs(avg_delta) < 0.01:
+            continue
+
+        direction = "increase" if avg_delta > 0 else "decrease"
 
         req = ResourceRequest(
             project_id=cr.project_id,
@@ -1618,7 +1634,9 @@ def _create_resource_requests_from_cr(cr: ChangeRequest, db: Session) -> None:
             cost_center_id=CC_ID,
             request_type="resource",
             role_type_id=role_id,
-            hours_or_amount_per_month=round(avg_hours, 2),
+            hours_or_amount_per_month=round(abs(avg_delta), 2),
+            original_hours_per_month=round(avg_old, 2),
+            change_direction=direction,
             period_start=sorted_details[0].month,
             period_end=sorted_details[-1].month,
             priority="medium",

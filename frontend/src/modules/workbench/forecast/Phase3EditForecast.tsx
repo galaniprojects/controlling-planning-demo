@@ -393,12 +393,23 @@ export function Phase3EditForecast({
             </span>
           )}
         </span>
-        <Button
-          onClick={onSaveAndReview}
-          disabled={loading || workingChanges.length === 0}
-        >
-          {loading ? 'Saving...' : 'Review Changes'}
-        </Button>
+        <div className="flex gap-2">
+          {workingChanges.length === 0 && (
+            <Button
+              variant="outline"
+              onClick={onSaveAndReview}
+              disabled={loading}
+            >
+              {loading ? 'Processing...' : 'Keep as is'}
+            </Button>
+          )}
+          <Button
+            onClick={onSaveAndReview}
+            disabled={loading || workingChanges.length === 0}
+          >
+            {loading ? 'Saving...' : 'Review Changes'}
+          </Button>
+        </div>
       </div>
     </div>
   );

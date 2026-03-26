@@ -239,28 +239,49 @@ def _request_to_dict(r: ResourceRequest, db: Session) -> dict:
         role_or_ct = rt.name if rt else r.role_type_id
     elif r.cost_type_id:
         role_or_ct = r.cost_type_id
+
+    # Find currently allocated person for this role on this project
+    currently_allocated = None
+    if r.role_type_id and r.request_type == "resource":
+        alloc_person = (
+            db.query(Person)
+            .join(Allocation, Allocation.person_id == Person.id)
+            .filter(
+                Allocation.project_id == r.project_id,
+                Person.role_type_id == r.role_type_id,
+                Allocation.hours > 0,
+            )
+            .first()
+        )
+        if alloc_person:
+            currently_allocated = {"id": alloc_person.id, "name": alloc_person.name}
+
     return {
         "id": r.id, "project_id": r.project_id,
         "project_name": proj.name if proj else r.project_id,
         "request_type": r.request_type,
         "role_or_cost_type": role_or_ct,
         "hours_or_amount": float(r.hours_or_amount_per_month),
+        "original_hours": float(r.original_hours_per_month) if r.original_hours_per_month is not None else None,
+        "change_direction": r.change_direction,
         "period_start": r.period_start, "period_end": r.period_end,
         "priority": r.priority, "status": r.status,
         "assigned_person_id": r.assigned_person_id,
         "explanation": r.explanation,
+        "currently_allocated": currently_allocated,
     }
 
 
 def _create_allocations_from_assignments(db: Session, req: ResourceRequest):
-    """Create Allocation records from a ResourceRequest's assignments.
+    """Create/adjust Allocation records from a ResourceRequest's assignments.
 
-    Called when a request is confirmed. If per-month assignments exist, create
-    one Allocation per assignment. Otherwise, fall back to assigned_person_id
-    with the average hours across all months.
+    Called when a request is confirmed. For increases, adds hours. For decreases,
+    subtracts hours from existing allocations.
     """
     if req.request_type != "resource":
         return  # External cost requests don't create allocations
+
+    is_decrease = req.change_direction == "decrease"
 
     assignments = (
         db.query(ResourceRequestAssignment)
@@ -270,15 +291,17 @@ def _create_allocations_from_assignments(db: Session, req: ResourceRequest):
 
     if assignments:
         for a in assignments:
-            # Check if allocation already exists for this person/project/month
             existing = db.query(Allocation).filter(
                 Allocation.person_id == a.person_id,
                 Allocation.project_id == req.project_id,
                 Allocation.month == a.month,
             ).first()
             if existing:
-                existing.hours = float(existing.hours) + float(a.hours)
-            else:
+                if is_decrease:
+                    existing.hours = max(0, float(existing.hours) - float(a.hours))
+                else:
+                    existing.hours = float(existing.hours) + float(a.hours)
+            elif not is_decrease:
                 db.add(Allocation(
                     person_id=a.person_id,
                     project_id=req.project_id,
@@ -287,7 +310,6 @@ def _create_allocations_from_assignments(db: Session, req: ResourceRequest):
                     is_confirmed=True,
                 ))
     elif req.assigned_person_id:
-        # Fallback: use assigned_person_id with average hours across all months
         months = generate_month_range(req.period_start, req.period_end)
         for m in months:
             existing = db.query(Allocation).filter(
@@ -296,8 +318,11 @@ def _create_allocations_from_assignments(db: Session, req: ResourceRequest):
                 Allocation.month == m,
             ).first()
             if existing:
-                existing.hours = float(existing.hours) + float(req.hours_or_amount_per_month)
-            else:
+                if is_decrease:
+                    existing.hours = max(0, float(existing.hours) - float(req.hours_or_amount_per_month))
+                else:
+                    existing.hours = float(existing.hours) + float(req.hours_or_amount_per_month)
+            elif not is_decrease:
                 db.add(Allocation(
                     person_id=req.assigned_person_id,
                     project_id=req.project_id,
@@ -555,15 +580,14 @@ def confirm_request(
         req.assigned_person_id = body.assigned_person_id
     # Create Allocations from assignments
     _create_allocations_from_assignments(db, req)
-    # Advance linked CR — CC Owner is the final stage
+    # Advance linked CR — route to Controller for final approval
     if req.change_request_id:
         cr = db.query(ChangeRequest).filter(ChangeRequest.id == req.change_request_id).first()
         if cr and cr.status == "pending_cc_confirmation":
             cr.cc_owner_id = user.person_id
             cr.cc_status = "confirmed"
             cr.cc_confirmation_timestamp = datetime.utcnow()
-            cr.status = "approved"
-            _apply_cr_to_forecast_on_cc_confirm(cr, db)
+            cr.status = "pending_controller_approval"
     db.commit()
     return _request_to_dict(req, db)
 
@@ -586,8 +610,7 @@ def partially_fulfill_request(
             cr.cc_owner_id = user.person_id
             cr.cc_status = "confirmed"
             cr.cc_confirmation_timestamp = datetime.utcnow()
-            cr.status = "approved"
-            _apply_cr_to_forecast_on_cc_confirm(cr, db)
+            cr.status = "pending_controller_approval"
     db.commit()
     return _request_to_dict(req, db)
 
@@ -609,8 +632,7 @@ def counter_propose_request(
             cr.cc_owner_id = user.person_id
             cr.cc_status = "confirmed"
             cr.cc_confirmation_timestamp = datetime.utcnow()
-            cr.status = "approved"
-            _apply_cr_to_forecast_on_cc_confirm(cr, db)
+            cr.status = "pending_controller_approval"
     db.commit()
     return _request_to_dict(req, db)
 

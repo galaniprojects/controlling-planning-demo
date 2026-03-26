@@ -1,9 +1,27 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: Post-QA Feature Development — **Submission workflow + CC Owner resource assignment complete + grid redesign**
-Last completed: Redesigned CC Owner assignment page as tabular grid with "Assign All" column
-Branch: `docs/submission-workflow-update`
+Phase: Post-QA Feature Development — **CR workflow overhaul complete with delta resources, locking, and formatting fixes**
+Last completed: Delta-based resource requests, forecast locking, Keep as is, EUR formatting, documentation updates
+Branch: `feature/cr-workflow-overhaul`
+
+## CR Workflow Improvements (2026-03-26)
+
+### Changes
+- **Delta-based resource requests:** `ResourceRequest` model has `original_hours_per_month` (Numeric) and `change_direction` ("increase"/"decrease") columns. `_create_resource_requests_from_cr()` in `portfolio.py` computes delta from old/new values. Capacity API exposes `original_hours`, `change_direction`, `currently_allocated` fields. `RequestDetail.tsx` shows direction badge, delta hours, original, total, and currently allocated person.
+- **Decrease handling:** `_create_allocations_from_assignments()` in `capacity.py` subtracts hours for decrease direction instead of adding.
+- **Forecast locking:** `get_project_overview()` in `workbench.py` queries for pending CRs and returns `pending_cr` in metadata. `ForecastTab.tsx` disables "Rolling Forecast Review" button with CR status badge while a CR is pending.
+- **Phase 3 "Keep as is":** `Phase3EditForecast.tsx` has an outline "Keep as is" button when no changes are made, allowing PLs to proceed through the wizard without modifications.
+- **EUR formatting:** Phase 1 (`Phase1Retrospective.tsx`) and Phase 4 (`Phase4Review.tsx`) now use `formatCurrencyDetailed` for full EUR format (e.g. 2.720 €) instead of abbreviated format.
+- **Seed data:** Updated 3 seed resource_requests with `original_hours_per_month` and `change_direction` columns.
+- **In-app documentation:** Updated Project Workbench manual (forecast wizard, CR workflow sections), Capacity Management manual (response actions), and FAQ entries (faq-01, faq-02, faq-09 updated; faq-13 added for decrease requests).
+
+### Verification
+- [x] Delta display: CC Owner sees "+20h" with original 40h, total 60h, and currently allocated person
+- [x] Direction badge: green "Increase" or red "Decrease" with arrow icons
+- [x] Forecast locking: disabled button with "CR-X under review" badge when CR pending
+- [x] Phase 1: EUR values in full format (2.720 €)
+- [x] Keep as is: outline button appears when no changes, proceeds to Phase 4
 
 ## CC Owner Assignment Grid Redesign (2026-03-25)
 

@@ -9,7 +9,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { formatCurrency, formatPercent } from '@/lib/formatters';
+import { formatCurrencyDetailed, formatPercent } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import type { RetrospectiveItem } from '@/types/api';
 import { AlertTriangle } from 'lucide-react';
@@ -89,13 +89,13 @@ export function Phase1Retrospective({
                     </span>
                   </TableCell>
                   <TableCell className="text-right text-sm">
-                    {formatCurrency(item.forecast)}
+                    {formatCurrencyDetailed(item.forecast)}
                   </TableCell>
                   <TableCell className="text-right text-sm">
-                    {formatCurrency(item.actual)}
+                    {formatCurrencyDetailed(item.actual)}
                   </TableCell>
                   <TableCell className="text-right text-sm">
-                    {formatCurrency(item.variance)}
+                    {formatCurrencyDetailed(item.variance)}
                   </TableCell>
                   <TableCell
                     className={cn(
