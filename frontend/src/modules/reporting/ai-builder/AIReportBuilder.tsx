@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
 import { aiReportBuilderApi } from '@/api/endpoints';
 import { ChatPanel } from './ChatPanel';
 import { ReportPreview } from './ReportPreview';
@@ -52,23 +53,26 @@ export function AIReportBuilder() {
   return (
     <div className="space-y-3">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate('/reporting')}
-          className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back
-        </button>
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4.5 w-4.5 text-indigo-600" />
-          <h1 className="text-base font-semibold text-slate-800">
-            AI Report Builder
-          </h1>
-          <Badge className="bg-indigo-100 text-indigo-600 hover:bg-indigo-100 text-[10px] px-1.5 py-0">
-            AI-powered
-          </Badge>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/reporting')}
+            className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back
+          </button>
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4.5 w-4.5 text-indigo-600" />
+            <h1 className="text-base font-semibold text-slate-800">
+              AI Report Builder
+            </h1>
+            <Badge className="bg-indigo-100 text-indigo-600 hover:bg-indigo-100 text-[10px] px-1.5 py-0">
+              AI-powered
+            </Badge>
+          </div>
         </div>
+        <ModuleGuideButton moduleId="ai_report_builder" />
       </div>
 
       {/* Main content: two-panel layout */}
