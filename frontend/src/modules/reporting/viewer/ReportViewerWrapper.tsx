@@ -5,6 +5,7 @@ import { CCFinancialReport } from '../reports/CCFinancialReport';
 import { VendorSpendReport } from '../reports/VendorSpendReport';
 import { ForecastAccuracyReport } from '../reports/ForecastAccuracyReport';
 import { YoYReport } from '../reports/YoYReport';
+import { AIReportBuilder } from '../ai-builder/AIReportBuilder';
 
 const REPORT_TITLES: Record<string, string> = {
   'programme-rollup': 'Programme / Multi-Project Rollup',
@@ -12,6 +13,7 @@ const REPORT_TITLES: Record<string, string> = {
   'vendor-spend': 'Vendor Spend Analysis',
   'forecast-accuracy': 'Forecast Accuracy',
   'year-over-year': 'Year-over-Year Comparison',
+  'ai-builder': 'AI Report Builder',
 };
 
 export function ReportViewerWrapper() {
@@ -44,6 +46,8 @@ export function ReportViewerWrapper() {
       return <ForecastAccuracyReport />;
     case 'year-over-year':
       return <YoYReport />;
+    case 'ai-builder':
+      return <AIReportBuilder />;
     default:
       return null;
   }

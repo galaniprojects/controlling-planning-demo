@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, Gauge, Lock, Users } from 'lucide-react';
+import { Calendar, Clock, Gauge, Lock, Users, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -25,6 +25,7 @@ const GROUP_CONFIG = [
   { key: 'thresholds', label: 'Thresholds', icon: Gauge },
   { key: 'limits', label: 'Limits', icon: Lock },
   { key: 'capacity', label: 'Capacity Settings', icon: Users },
+  { key: 'integrations', label: 'Integrations', icon: KeyRound },
 ];
 
 export function PlanningParameters() {
@@ -107,6 +108,12 @@ export function PlanningParameters() {
     }
   };
 
+  const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
+
+  const toggleSecretVisibility = (key: string) => {
+    setVisibleSecrets((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const renderControl = (param: AdminParameter) => {
     const value = getDisplayValue(param);
 
@@ -122,6 +129,28 @@ export function PlanningParameters() {
             ))}
           </SelectContent>
         </Select>
+      );
+    }
+
+    if (param.data_type === 'secret') {
+      const isVisible = visibleSecrets[param.key] ?? false;
+      return (
+        <div className="flex items-center gap-1">
+          <Input
+            type={isVisible ? 'text' : 'password'}
+            className="h-8 w-[280px] text-sm font-mono"
+            value={value}
+            placeholder="sk-ant-..."
+            onChange={(e) => handleValueChange(param.key, e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={() => toggleSecretVisibility(param.key)}
+            className="p-1.5 text-slate-400 hover:text-slate-600"
+          >
+            {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
       );
     }
 

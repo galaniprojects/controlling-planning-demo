@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, Building2, Truck, Target, CalendarRange } from 'lucide-react';
+import { BarChart3, Building2, Truck, Target, CalendarRange, Sparkles } from 'lucide-react';
 import { ReportCard } from './ReportCard';
 import { SavedViewCard } from './SavedViewCard';
 import { reportsApi } from '@/api/endpoints';
@@ -35,6 +35,13 @@ const REPORTS = [
     name: 'Year-over-Year Comparison',
     description: 'Spending trajectory analysis comparing current and previous fiscal years.',
     icon: <CalendarRange className="h-6 w-6" />,
+  },
+  {
+    id: 'ai-builder',
+    name: 'AI Report Builder',
+    description: 'Describe the report you need in natural language and let AI generate tables, charts, and KPIs.',
+    icon: <Sparkles className="h-6 w-6" />,
+    accent: true,
   },
 ];
 
@@ -77,6 +84,7 @@ export function ReportLibrary() {
               name={r.name}
               description={r.description}
               icon={r.icon}
+              accent={'accent' in r && !!r.accent}
             />
           ))}
         </div>

@@ -1,0 +1,30 @@
+{
+  "module_id": "ai_report_builder",
+  "module_name": "AI Report Builder",
+  "sections": [
+    {
+      "title": "Overview",
+      "body": "The AI Report Builder uses natural language processing to create custom reports on demand. Describe the report you need in plain English, and the AI will query the database, analyze the data, and generate tables, charts, and KPI summaries automatically."
+    },
+    {
+      "title": "Getting Started",
+      "body": "Before using the AI Report Builder, an **Anthropic API key** must be configured. Go to **Administration > Planning Parameters > Integrations** and enter your API key. Once configured, the feature is immediately available without restarting the application."
+    },
+    {
+      "title": "Creating a Report",
+      "body": "Navigate to **Reporting** and click the **AI Report Builder** tile. You will see a chat panel on the left and a report preview area on the right. Type a description of the report you want or click one of the suggested starter prompts. The AI may ask 1-2 clarifying questions before generating the report. Once generated, the report appears in the preview panel with KPI cards, charts, and a data table."
+    },
+    {
+      "title": "Refining Reports",
+      "body": "After a report is generated, you can continue the conversation to refine it. For example: add or remove columns, change the chart type, apply additional filters, or request different groupings. Each refinement produces an updated report in the preview panel."
+    },
+    {
+      "title": "Available Visualizations",
+      "body": "The AI Report Builder can generate: **KPI summary cards** (totals, counts, percentages), **Bar charts** (comparisons across categories), **Line charts** (trends over time), **Pie and donut charts** (distribution breakdowns), and **Data tables** (sortable, with formatted currency and number columns)."
+    },
+    {
+      "title": "Tips for Best Results",
+      "body": "Be specific about what data you want to see. Mention the fiscal year, time period, or specific entities when relevant. Example prompts: 'Show me vendor spend by project for Q1 2026', 'Compare forecast vs actuals for all active projects', 'Which cost centers have the highest internal costs?', 'Monthly spending trends for the last 6 months'."
+    }
+  ]
+}

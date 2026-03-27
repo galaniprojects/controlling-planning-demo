@@ -67,6 +67,8 @@ import type {
   VendorDrillDownRow,
   ForecastAccuracyResponse,
   YoYResponse,
+  AIBuilderStatus,
+  AIConversationReply,
 } from '@/types/api';
 
 export const rolesApi = {
@@ -790,4 +792,27 @@ export const reportsApi = {
 
   exportReport: (reportId: string) =>
     `/api/reports/${reportId}/export`,
+};
+
+// --- AI Report Builder ---
+
+export const aiReportBuilderApi = {
+  getStatus: () =>
+    api.get<AIBuilderStatus>('/api/reports/ai-builder/status'),
+
+  startConversation: (initialMessage: string) =>
+    api.post<AIConversationReply>('/api/reports/ai-builder/conversations', {
+      initial_message: initialMessage,
+    }),
+
+  sendMessage: (conversationId: string, message: string) =>
+    api.post<AIConversationReply>(
+      `/api/reports/ai-builder/conversations/${conversationId}/messages`,
+      { message },
+    ),
+
+  deleteConversation: (conversationId: string) =>
+    api.delete<{ status: string }>(
+      `/api/reports/ai-builder/conversations/${conversationId}`,
+    ),
 };
