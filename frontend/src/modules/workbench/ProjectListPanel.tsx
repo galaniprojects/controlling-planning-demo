@@ -19,10 +19,25 @@ interface Props {
 }
 
 const STATUS_LABELS: Record<string, string> = {
+  active: 'Active',
+  completed: 'Completed',
+  planned: 'Planned',
   draft: 'Draft',
   pending_cc_confirmation: 'CC Review',
   pending_approval: 'Pending',
   changes_requested: 'Changes Req.',
+  rejected: 'Rejected',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  active: 'bg-green-100 text-green-700 hover:bg-green-100',
+  completed: 'bg-slate-100 text-slate-600 hover:bg-slate-100',
+  planned: 'bg-blue-100 text-blue-700 hover:bg-blue-100',
+  draft: 'bg-amber-100 text-amber-700 hover:bg-amber-100',
+  pending_cc_confirmation: 'bg-amber-100 text-amber-700 hover:bg-amber-100',
+  pending_approval: 'bg-amber-100 text-amber-700 hover:bg-amber-100',
+  changes_requested: 'bg-amber-100 text-amber-700 hover:bg-amber-100',
+  rejected: 'bg-red-100 text-red-700 hover:bg-red-100',
 };
 
 export function ProjectListPanel({
@@ -125,7 +140,7 @@ export function ProjectListPanel({
                     {p.type}
                   </Badge>
                   {STATUS_LABELS[p.status] && (
-                    <Badge className="text-[10px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700 hover:bg-amber-100">
+                    <Badge className={cn("text-[10px] px-1.5 py-0 h-4", STATUS_COLORS[p.status])}>
                       {STATUS_LABELS[p.status]}
                     </Badge>
                   )}
