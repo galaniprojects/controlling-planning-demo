@@ -1158,3 +1158,57 @@ export interface YoYResponse {
   }[];
   total: number;
 }
+
+// --- AI Report Builder ---
+
+export interface AIBuilderStatus {
+  available: boolean;
+  message: string | null;
+}
+
+export interface AIColumnDef {
+  key: string;
+  label: string;
+  type: string; // text, currency, percent, number, date
+}
+
+export interface AITableSpec {
+  columns: AIColumnDef[];
+  rows: Record<string, unknown>[];
+  sort_by?: string | null;
+  sort_dir?: string | null;
+}
+
+export interface AIChartSpec {
+  type: string; // bar, line, pie, donut
+  title: string;
+  data: Record<string, unknown>[];
+  data_key: string;
+  category_key: string;
+  secondary_data_key?: string | null;
+}
+
+export interface AIKPIItem {
+  label: string;
+  value: number | string;
+  format: string; // currency, number, percent, text
+}
+
+export interface AIReportSpec {
+  title: string;
+  kpis: AIKPIItem[];
+  table: AITableSpec | null;
+  charts: AIChartSpec[];
+}
+
+export interface AIConversationReply {
+  conversation_id: string;
+  text: string;
+  report: AIReportSpec | null;
+}
+
+export interface AIChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  report?: AIReportSpec | null;
+}

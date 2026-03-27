@@ -29,6 +29,10 @@
     {
       "title": "Saving Views",
       "body": "Click **Save View** to save your current filter and customization settings as a named view. Saved views appear in the Report Library under **My Saved Views** for quick access. You can rename or delete saved views from the library."
+    },
+    {
+      "title": "AI Report Builder",
+      "body": "The **AI Report Builder** tile in the Report Library opens a conversational interface where you can describe any report in natural language. The AI queries the database directly, generates tables, charts, and KPI cards, and lets you iteratively refine the output. An Anthropic API key must be configured in **Administration > Planning Parameters > Integrations** before use."
     }
   ]
 }

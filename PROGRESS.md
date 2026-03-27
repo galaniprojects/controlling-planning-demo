@@ -1,9 +1,45 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: Post-QA Feature Development — **Forecast/allocation data integrity fix**
-Last completed: Fixed forecast aggregation bug, rebuilt allocations from PROJECT_STAFFING
-Branch: `feature/workbench-enhancements`
+Phase: AI Report Builder Feature
+Last completed: AI Report Builder — natural language report generation with Claude
+Branch: `feature/ai-report-builder`
+
+## AI Report Builder (2026-03-27)
+
+### Feature Overview
+- **6th tile in Report Library:** "AI Report Builder" with indigo AI accent styling and badge
+- **Guided chat interface:** Two-panel layout — chat on left, generated report preview on right
+- **Natural language report generation:** Describe any report in plain English, Claude queries the DB and generates tables, charts, and KPIs
+- **Iterative refinement:** Follow-up messages update the report
+- **Role-scoped data access:** AI respects the same role-based data scoping as standard reports
+
+### Backend
+- **New service:** `services/ai_report_service.py` — Anthropic SDK integration, conversation state management, SQL tool use with safety guardrails (read-only connection, DDL blocking, row limits)
+- **New router:** `routers/ai_reports.py` — 4 endpoints (status, start conversation, send message, delete conversation)
+- **New schemas:** `schemas/ai_reports.py` — ReportSpec, KPIItem, TableSpec, ChartSpec, ConversationReply
+- **API key management:** Stored as a planning parameter (`secret` type) in the admin panel, with env var fallback
+
+### Frontend
+- **New components:** `AIReportBuilder.tsx`, `ChatPanel.tsx`, `ReportPreview.tsx`, `useAIReportChat.ts`
+- **ReportLibrary updated:** 6th tile with Sparkles icon and indigo accent
+- **ReportCard enhanced:** Supports `accent` prop for AI-styled cards
+- **Admin panel updated:** New "Integrations" group with secret/password input for API key (show/hide toggle)
+
+### Documentation
+- **New module manual:** `ai_report_builder.json` — 6 sections covering overview, setup, usage, refinement, visualizations, tips
+- **Reporting manual updated:** Added AI Report Builder section
+- **FAQ updated:** New entry for AI Report Builder usage
+- **README.md updated:** Feature description and API endpoint table
+
+### Testing
+- **38 unit tests** in `tests/test_ai_report_service.py` — SQL safety, role scoping, ReportSpec validation, conversation management, API key resolution (all passing)
+- **Smoke test prompts** in `qa/ai-report-builder-prompts.md` — 8 manual test prompts with expected behavior, role-scoped tests, error scenarios
+
+### Verification
+- [x] TypeScript compiles clean (npx tsc --noEmit)
+- [x] All 38 unit tests pass
+- [ ] Manual testing pending (requires API key)
 
 ## Workbench Enhancements (2026-03-27)
 

@@ -44,6 +44,9 @@ Scenario planning tool with 12 action types (7 project-level, 5 portfolio-level)
 ### Reporting
 Five standard reports — Programme Rollup, Cost Center Financial Summary, Vendor Spend Analysis, Forecast Accuracy, and Year-over-Year Comparison. Features include custom project groupings, column configuration, saved views, and export capabilities.
 
+### AI Report Builder
+Natural language report generation powered by Claude. Describe any report in plain English through a guided chat interface — the AI queries the database, generates tables, charts (bar, line, pie), and KPI summary cards. Supports iterative refinement through follow-up messages. Requires an Anthropic API key (configurable in Administration > Planning Parameters > Integrations).
+
 ### Administration
 Entity management for Cost Centers, Competence Centers, organizational entities (Lines of Business, Programs, etc.), Locations, People, and Rate Tables. Configurable portfolio hierarchy with dynamic entity types, multi-level grouping, cross-module label propagation, location-aware planning parameters (standard hours per location), and audit logging.
 
@@ -151,6 +154,7 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Capacity** | `/api/capacity` | 14 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation |
 | **Scenarios** | `/api/scenarios` | 8 | CRUD, actions, comparison, AI advisor |
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
+| **AI Report Builder** | `/api/reports/ai-builder` | 4 | Status check, conversation start, message, cleanup |
 | **Admin** | `/api/admin` | 18 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset |
 | **Docs** | `/api/docs` | 3 | Module manuals, FAQ |
 | **Reference** | `/api/reference` | 4 | Roles, cost types, grouping entities, cost centers |

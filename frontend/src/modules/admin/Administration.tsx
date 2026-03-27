@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ShieldAlert, Building2, Users, Briefcase, MapPin, Network, RotateCcw } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,9 +31,12 @@ import { PortfolioHierarchyPanel } from './hierarchy/PortfolioHierarchyPanel';
 export function Administration() {
   const { context, currentRoleId } = useRole();
   const role = context?.role ?? '';
+  const [searchParams] = useSearchParams();
   const [adminCtx, setAdminCtx] = useState<AdminContext | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedSection, setSelectedSection] = useState('cost_centers');
+  const [selectedSection, setSelectedSection] = useState(
+    searchParams.get('section') || 'cost_centers',
+  );
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
 

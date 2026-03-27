@@ -182,5 +182,20 @@
       {"step_number": 3, "instruction": "The log shows: timestamp, who made the change, entity type, entity name, action, field changed, and old/new values."},
       {"step_number": 4, "instruction": "Use the filters to narrow by entity type, user, or date range."}
     ]
+  },
+  {
+    "id": "faq-11",
+    "question": "How do I use the AI Report Builder?",
+    "summary": "Configure an API key in Administration, then navigate to Reporting and click the AI Report Builder tile to create custom reports using natural language.",
+    "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
+    "modules_involved": ["reporting", "administration"],
+    "steps": [
+      {"step_number": 1, "instruction": "Go to **Administration > Planning Parameters > Integrations** and enter your Anthropic API key.", "target_module": "administration"},
+      {"step_number": 2, "instruction": "Navigate to the **Reporting** module.", "target_module": "reporting"},
+      {"step_number": 3, "instruction": "Click the **AI Report Builder** tile (marked with an AI badge)."},
+      {"step_number": 4, "instruction": "Type a description of the report you want, or click a suggested prompt."},
+      {"step_number": 5, "instruction": "Answer any clarifying questions the AI asks, then view your generated report with tables, charts, and KPI cards."},
+      {"step_number": 6, "instruction": "Refine the report by sending follow-up messages (e.g., 'add a column for status' or 'show as pie chart')."}
+    ]
   }
 ]

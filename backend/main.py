@@ -45,6 +45,7 @@ from routers.workbench import router as workbench_router  # noqa: E402
 from routers.capacity import router as capacity_router  # noqa: E402
 from routers.scenarios import router as scenarios_router  # noqa: E402
 from routers.reports import router as reports_router  # noqa: E402
+from routers.ai_reports import router as ai_reports_router  # noqa: E402
 
 app.include_router(admin_router)
 app.include_router(reference_router)
@@ -55,6 +56,7 @@ app.include_router(workbench_router)
 app.include_router(capacity_router)
 app.include_router(scenarios_router)
 app.include_router(reports_router)
+app.include_router(ai_reports_router)
 
 
 @app.get("/health")
