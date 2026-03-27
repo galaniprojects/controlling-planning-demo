@@ -18,11 +18,20 @@ interface Props {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  lob: 'LoB',
-  program: 'Program',
   project: 'Project',
   service: 'Service',
 };
+
+/** Format entity type name for display as a badge.
+ *  Known types get short labels; dynamic types get title-cased. */
+function getTypeLabel(type: string): string {
+  if (TYPE_LABELS[type]) return TYPE_LABELS[type];
+  // Convert snake_case to Title Case (e.g., "line_of_business" → "Line of Business")
+  return type
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
 
 const columns: TreeTableColumn<ProjectTreeNode>[] = [
   {
@@ -42,7 +51,7 @@ const columns: TreeTableColumn<ProjectTreeNode>[] = [
         )}
         <span className="font-medium text-slate-800 truncate">{node.name}</span>
         <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
-          {TYPE_LABELS[node.type] || node.type}
+          {getTypeLabel(node.type)}
         </Badge>
       </div>
     ),

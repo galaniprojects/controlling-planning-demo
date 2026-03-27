@@ -316,6 +316,7 @@ export interface ProjectMetadata {
   id: string;
   name: string;
   lob: string;
+  hierarchy_path?: { type_name: string; entity_name: string }[];
   status: string;
   rag: string | null;
   timeline: {

@@ -11,7 +11,7 @@ from database import get_db
 from dependencies import get_current_user
 from models.capacity import Allocation
 from models.financial import ExternalCostType
-from models.organization import CompetenceCenter, CostCenter, LineOfBusiness, Location
+from models.organization import CompetenceCenter, CostCenter, GroupingEntity, Location, ProjectGroupingAssignment
 from models.people import Person, RateTable, RoleType
 from models.projects import Project
 from schemas.common import CurrentUser
@@ -36,26 +36,35 @@ def get_lobs(
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(get_current_user),
 ):
-    """Get all Lines of Business with project counts and total budgets."""
-    lobs = db.query(LineOfBusiness).all()
+    """Get all top-level entities (Lines of Business) with project counts and total budgets."""
+    from services.portfolio_service import _get_projects_for_entity_recursive, get_top_level_entity_type_id
+    top_type = get_top_level_entity_type_id(db)
+    if not top_type:
+        return {"items": [], "total": 0}
+
+    entities = db.query(GroupingEntity).filter(
+        GroupingEntity.entity_type_id == top_type,
+        GroupingEntity.is_active.is_(True),
+    ).all()
     items = []
-    for lob in lobs:
+    for ent in entities:
+        ent_pids = _get_projects_for_entity_recursive(db, ent.id)
         project_count = (
             db.query(func.count(Project.id))
-            .filter(Project.lob_id == lob.id, Project.is_active.is_(True))
-            .scalar()
+            .filter(Project.id.in_(ent_pids), Project.is_active.is_(True))
+            .scalar() if ent_pids else 0
         )
         total_budget = (
             db.query(func.coalesce(func.sum(Project.total_budget), 0))
-            .filter(Project.lob_id == lob.id, Project.is_active.is_(True))
-            .scalar()
+            .filter(Project.id.in_(ent_pids), Project.is_active.is_(True))
+            .scalar() if ent_pids else 0
         )
         items.append(
             LoBResponse(
-                id=lob.id,
-                name=lob.name,
-                description=lob.description,
-                is_active=lob.is_active,
+                id=ent.id,
+                name=ent.name,
+                description=None,
+                is_active=ent.is_active,
                 project_count=project_count,
                 total_budget=float(total_budget or 0),
             )

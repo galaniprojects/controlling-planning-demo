@@ -12,6 +12,14 @@ from models.people import Person, RateTable
 from models.projects import Project
 from models.scenarios import Scenario, ScenarioAction, ScenarioCapacityImpact, ScenarioState
 from services.calculations import compute_plan_drift, compute_budget_rag, add_months, month_diff
+from services.portfolio_service import get_project_entity_info, get_top_level_entity_type_id, _get_projects_for_entity_recursive
+
+
+def _get_project_lob_id(db: Session, project_id: str) -> str:
+    """Get the top-level entity ID for a project."""
+    top_type = get_top_level_entity_type_id(db)
+    info = get_project_entity_info(db, project_id, top_type)
+    return info["id"] if info else ""
 
 # Current year derived from demo date
 _CY = int(DEMO_DATE.split("-")[0])
@@ -209,7 +217,7 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
         working[p.id] = {
             "name": p.name, "original_budget": forecast,
             "adjusted_budget": forecast, "baseline": baseline,
-            "rag": p.rag_status, "lob_id": p.lob_id,
+            "rag": p.rag_status, "lob_id": _get_project_lob_id(db, p.id),
             "is_service": p.is_service, "is_affected": False,
             "start": p.start_month, "end": p.end_month,
             "status": p.status,

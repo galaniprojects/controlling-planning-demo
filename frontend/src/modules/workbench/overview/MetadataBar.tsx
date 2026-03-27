@@ -40,7 +40,18 @@ export function MetadataBar({ metadata }: Props) {
       </div>
 
       <div className="flex items-center gap-4 text-sm text-slate-500">
-        <span>LoB: {metadata.lob}</span>
+        {metadata.hierarchy_path && metadata.hierarchy_path.length > 0 ? (
+          <span className="flex items-center gap-1">
+            {metadata.hierarchy_path.map((seg: { type_name: string; entity_name: string }, i: number) => (
+              <span key={i} className="flex items-center gap-1">
+                {i > 0 && <span className="text-slate-300">&rsaquo;</span>}
+                <span>{seg.entity_name}</span>
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span>{metadata.lob}</span>
+        )}
         {metadata.pl_name && <span>PL: {metadata.pl_name}</span>}
       </div>
 

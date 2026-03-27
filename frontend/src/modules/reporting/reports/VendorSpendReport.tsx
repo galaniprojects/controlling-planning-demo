@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Truck, Hash, FileText, DollarSign } from 'lucide-react';
 import { useRole } from '@/contexts/RoleContext';
 import { reportsApi, referenceApi } from '@/api/endpoints';
-import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
+import { useActiveHierarchy, buildHierarchyFilterConfigs, getMostSpecificEntityFilter, clearLowerHierarchyFilters } from '@/hooks/useActiveHierarchy';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { SummaryCard } from '@/modules/capacity/shared/SummaryCard';
 import { ReportViewer } from '../viewer/ReportViewer';
@@ -30,7 +30,7 @@ const FISCAL_YEAR_OPTIONS = [
 
 export function VendorSpendReport() {
   const { currentRoleId } = useRole();
-  const { topLevelLabel } = useActiveHierarchy();
+  const { topLevelLabel, levels, entityTree } = useActiveHierarchy();
   const [searchParams] = useSearchParams();
   const [data, setData] = useState<VendorSpendResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,7 +71,8 @@ export function VendorSpendReport() {
     setLoading(true);
     const params: Record<string, string> = {};
     if (filters.vendor) params.vendor = filters.vendor;
-    if (filters.lob) params.lob = filters.lob;
+    const entityFilter = getMostSpecificEntityFilter(filters, levels);
+    if (entityFilter) params.lob = entityFilter;
     if (filters.status) params.status = filters.status;
     if (filters.fiscal_year) params.fiscal_year = filters.fiscal_year;
     if (filters.expense_cost_type) params.expense_cost_type = filters.expense_cost_type;
@@ -107,17 +108,21 @@ export function VendorSpendReport() {
     ? data.rows.map((r) => ({ value: r.vendor_name, label: r.vendor_name }))
     : [];
 
+  const hierarchyFilters = buildHierarchyFilterConfigs(levels, entityTree, filters, lobs);
   const filterConfigs: FilterConfig[] = [
     { key: 'vendor', label: 'Vendor', options: vendorOptions },
-    {
-      key: 'lob',
-      label: topLevelLabel,
-      options: lobs.map((l) => ({ value: l.id, label: l.name })),
-    },
+    ...hierarchyFilters,
     { key: 'status', label: 'Project Status', options: STATUS_OPTIONS },
     { key: 'fiscal_year', label: 'Fiscal Year', options: FISCAL_YEAR_OPTIONS },
     { key: 'expense_cost_type', label: 'Expense Cost Type', options: costTypes.map((t) => ({ value: t.id, label: t.name })) },
   ];
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters((prev) => {
+      const updated = { ...prev, [key]: value };
+      return clearLowerHierarchyFilters(updated, key, levels);
+    });
+  };
 
   const onSort = (column: string) => {
     if (sortColumn === column) {
@@ -258,8 +263,8 @@ export function VendorSpendReport() {
       reportId="vendor-spend"
       filters={filterConfigs}
       filterValues={filters}
-      onFilterChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
-      onFilterClear={() => setFilters({ vendor: '', lob: '', status: '', fiscal_year: '2026', expense_cost_type: '' })}
+      onFilterChange={handleFilterChange}
+      onFilterClear={() => setFilters({ vendor: '', status: '', fiscal_year: '2026', expense_cost_type: '' })}
       kpis={kpiRow}
       view={view}
       onViewChange={setView}

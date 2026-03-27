@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { DetailViewGrid } from '@/components/shared/DetailViewGrid';
 import { DetailViewKPIStrip } from '@/components/shared/DetailViewKPIStrip';
 import { useRole } from '@/contexts/RoleContext';
+import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
 import { portfolioApi } from '@/api/endpoints';
 import type { IntakeDetail } from '@/types/api';
 import { ArrowLeft, Check, X, Undo2, Edit2 } from 'lucide-react';
@@ -24,6 +25,7 @@ type ActionMode = 'idle' | 'approve' | 'reject' | 'send-back' | 'resubmit' | 'ed
 
 export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: Props) {
   const { context } = useRole();
+  const { topLevelLabel } = useActiveHierarchy();
   const isController = context?.role === 'controller';
 
   const [data, setData] = useState<IntakeDetail | null>(null);
@@ -106,7 +108,7 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
           )}
         </div>
         <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm max-w-lg">
-          <div className="text-slate-500">Requesting LoB</div>
+          <div className="text-slate-500">Requesting {topLevelLabel}</div>
           <div className="text-slate-700 font-medium">{data.lob_name}</div>
           {data.pl_name && (
             <>

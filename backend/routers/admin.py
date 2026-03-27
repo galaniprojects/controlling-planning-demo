@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from dependencies import get_current_user, require_role
 from models.organization import (
-    CompetenceCenter, CostCenter, LineOfBusiness, Location,
+    CompetenceCenter, CostCenter, Location,
     GroupingEntityType, GroupingEntity, GroupingHierarchy,
     GroupingHierarchyLevel, ProjectGroupingAssignment,
 )
@@ -256,13 +256,17 @@ def create_lob(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("controller")),
 ):
-    """Create a new Line of Business."""
-    lob = LineOfBusiness(id=_gen_id("lob"), name=body.name, description=body.description)
-    db.add(lob)
-    _log_audit(db, user, "lob", lob.id, lob.name, "create")
+    """Create a new Line of Business (as a GroupingEntity)."""
+    from services.portfolio_service import get_top_level_entity_type_id
+    top_type = get_top_level_entity_type_id(db)
+    if not top_type:
+        raise HTTPException(400, "No active hierarchy configured")
+    entity = GroupingEntity(id=_gen_id("lob"), name=body.name, entity_type_id=top_type)
+    db.add(entity)
+    _log_audit(db, user, "lob", entity.id, entity.name, "create")
     db.commit()
-    db.refresh(lob)
-    return {"id": lob.id, "name": lob.name, "is_active": lob.is_active}
+    db.refresh(entity)
+    return {"id": entity.id, "name": entity.name, "is_active": entity.is_active}
 
 
 @router.put("/lobs/{lob_id}")
@@ -272,18 +276,16 @@ def update_lob(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("controller")),
 ):
-    """Update a Line of Business."""
-    lob = db.query(LineOfBusiness).filter(LineOfBusiness.id == lob_id).first()
-    if not lob:
-        raise HTTPException(404, "LoB not found")
+    """Update a Line of Business (GroupingEntity)."""
+    entity = db.query(GroupingEntity).filter(GroupingEntity.id == lob_id).first()
+    if not entity:
+        raise HTTPException(404, "Entity not found")
     if body.name is not None:
-        _log_audit(db, user, "lob", lob.id, lob.name, "update", "name", lob.name, body.name)
-        lob.name = body.name
-    if body.description is not None:
-        lob.description = body.description
+        _log_audit(db, user, "lob", entity.id, entity.name, "update", "name", entity.name, body.name)
+        entity.name = body.name
     db.commit()
-    db.refresh(lob)
-    return {"id": lob.id, "name": lob.name, "is_active": lob.is_active}
+    db.refresh(entity)
+    return {"id": entity.id, "name": entity.name, "is_active": entity.is_active}
 
 
 # ---------------------------------------------------------------------------
@@ -296,13 +298,15 @@ def get_lob_projects(
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role("controller")),
 ):
-    """List projects assigned to a Line of Business."""
+    """List projects assigned to an entity (LoB or other grouping entity)."""
+    from services.portfolio_service import _get_projects_for_entity_recursive
+    project_ids = _get_projects_for_entity_recursive(db, lob_id)
     projects = (
         db.query(Project)
-        .filter(Project.lob_id == lob_id, Project.is_active.is_(True))
+        .filter(Project.id.in_(project_ids), Project.is_active.is_(True))
         .order_by(Project.name)
         .all()
-    )
+    ) if project_ids else []
     items = [
         {
             "id": p.id,
@@ -322,22 +326,29 @@ def assign_project_to_lob(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("controller")),
 ):
-    """Reassign a project to a different Line of Business."""
-    lob = db.query(LineOfBusiness).filter(LineOfBusiness.id == lob_id).first()
-    if not lob:
-        raise HTTPException(404, "Line of Business not found")
+    """Reassign a project to a different grouping entity."""
+    entity = db.query(GroupingEntity).filter(GroupingEntity.id == lob_id).first()
+    if not entity:
+        raise HTTPException(404, "Grouping entity not found")
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
-    old_lob_id = project.lob_id
-    old_lob_name = ""
-    if old_lob_id:
-        old_lob = db.query(LineOfBusiness).filter(LineOfBusiness.id == old_lob_id).first()
-        old_lob_name = old_lob.name if old_lob else old_lob_id
-    project.lob_id = lob_id
-    _log_audit(db, user, "project", project.id, project.name, "update", "lob_id", old_lob_id, lob_id)
+    # Remove existing assignment
+    old_assignment = db.query(ProjectGroupingAssignment).filter(
+        ProjectGroupingAssignment.project_id == project_id
+    ).first()
+    old_entity_id = old_assignment.grouping_entity_id if old_assignment else ""
+    old_entity_name = ""
+    if old_assignment:
+        old_entity = db.query(GroupingEntity).get(old_assignment.grouping_entity_id)
+        old_entity_name = old_entity.name if old_entity else old_entity_id
+        db.delete(old_assignment)
+    # Create new assignment
+    new_assignment = ProjectGroupingAssignment(project_id=project_id, grouping_entity_id=lob_id)
+    db.add(new_assignment)
+    _log_audit(db, user, "project", project.id, project.name, "update", "entity_id", old_entity_id, lob_id)
     db.commit()
-    return {"status": "ok", "project_id": project.id, "lob_id": lob_id, "old_lob_name": old_lob_name}
+    return {"status": "ok", "project_id": project.id, "lob_id": lob_id, "old_lob_name": old_entity_name}
 
 
 # ---------------------------------------------------------------------------
@@ -957,7 +968,11 @@ def get_admin_context(
     """Get admin module landing page context."""
     cost_center_count = db.query(func.count(CostCenter.id)).scalar()
     people_count = db.query(func.count(Person.id)).filter(Person.is_active.is_(True)).scalar()
-    lob_count = db.query(func.count(LineOfBusiness.id)).scalar()
+    from services.portfolio_service import get_top_level_entity_type_id
+    top_type = get_top_level_entity_type_id(db)
+    lob_count = db.query(func.count(GroupingEntity.id)).filter(
+        GroupingEntity.entity_type_id == top_type
+    ).scalar() if top_type else 0
     location_count = db.query(func.count(Location.id)).scalar()
     competence_center_count = db.query(func.count(CompetenceCenter.id)).scalar()
 

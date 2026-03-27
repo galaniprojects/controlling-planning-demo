@@ -11,7 +11,8 @@ from models.capacity import Allocation, ResourceRequest, ResourceRequestAssignme
 from models.change_requests import ChangeRequest
 from models.financial import Forecast
 from models.people import RateTable
-from models.organization import CostCenter, LineOfBusiness
+from models.organization import CostCenter, GroupingEntity
+from services.portfolio_service import _get_projects_for_entity_recursive, get_project_entity_info, get_top_level_entity_type_id
 from models.people import Person, RoleType
 from models.projects import Project
 from schemas.capacity import (
@@ -676,8 +677,9 @@ def get_pending_project_confirmations(
         .all()
     )
     items = []
+    top_type = get_top_level_entity_type_id(db)
     for p in projects:
-        lob = db.query(LineOfBusiness).filter(LineOfBusiness.id == p.lob_id).first()
+        entity_info = get_project_entity_info(db, p.id, top_type)
         pl = db.query(Person).filter(Person.id == p.pl_person_id).first() if p.pl_person_id else None
         # Count resource requests for this project
         req_count = (
@@ -688,7 +690,7 @@ def get_pending_project_confirmations(
         items.append({
             "id": p.id,
             "name": p.name,
-            "lob_name": lob.name if lob else "Unknown",
+            "lob_name": entity_info["name"] if entity_info else "Unknown",
             "pl_name": pl.name if pl else None,
             "start_month": p.start_month,
             "end_month": p.end_month,
@@ -709,7 +711,7 @@ def get_project_assignment_detail(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    lob = db.query(LineOfBusiness).filter(LineOfBusiness.id == project.lob_id).first()
+    entity_info = get_project_entity_info(db, project.id, get_top_level_entity_type_id(db))
     pl = db.query(Person).filter(Person.id == project.pl_person_id).first() if project.pl_person_id else None
 
     # Get all resource requests for this project
@@ -748,7 +750,7 @@ def get_project_assignment_detail(
             "id": project.id,
             "name": project.name,
             "description": project.description,
-            "lob_name": lob.name if lob else "Unknown",
+            "lob_name": entity_info["name"] if entity_info else "Unknown",
             "pl_name": pl.name if pl else None,
             "start_month": project.start_month,
             "end_month": project.end_month,
@@ -979,8 +981,13 @@ def get_org_heatmap(
             rows.append(OrgHeatmapRow(id=role.id, name=role.name, utilization=cells))
 
     elif pivot == "lob":
-        for lob in db.query(LineOfBusiness).all():
-            proj_ids = [p.id for p in db.query(Project).filter(Project.lob_id == lob.id).all()]
+        top_type = get_top_level_entity_type_id(db)
+        top_entities = db.query(GroupingEntity).filter(
+            GroupingEntity.entity_type_id == top_type,
+            GroupingEntity.is_active.is_(True),
+        ).all() if top_type else []
+        for ent in top_entities:
+            proj_ids = _get_projects_for_entity_recursive(db, ent.id)
             if not proj_ids:
                 continue
             cells = []
@@ -1001,7 +1008,7 @@ def get_org_heatmap(
                     allocated_hours=round(total, 1),
                     standard_hours=round(avg_std * people_count, 1) if people_count else 0,
                 ))
-            rows.append(OrgHeatmapRow(id=lob.id, name=lob.name, utilization=cells))
+            rows.append(OrgHeatmapRow(id=ent.id, name=ent.name, utilization=cells))
 
     return {"items": rows, "total": len(rows)}
 
@@ -1031,7 +1038,7 @@ def get_heatmap_detail(
             db.query(Allocation).filter(Allocation.person_id.in_(pids), Allocation.month == month).all()
         ) if pids else []
     elif pivot == "lob":
-        proj_ids = [p.id for p in db.query(Project).filter(Project.lob_id == dimension_id).all()]
+        proj_ids = _get_projects_for_entity_recursive(db, dimension_id)
         allocs = (
             db.query(Allocation).filter(Allocation.project_id.in_(proj_ids), Allocation.month == month).all()
         ) if proj_ids else []
@@ -1058,10 +1065,11 @@ def get_heatmap_detail(
         headcount = len(people) if people else 0
     else:
         std_h = get_standard_hours(db)
+        lob_proj_ids = _get_projects_for_entity_recursive(db, dimension_id)
         headcount = db.query(func.count(func.distinct(Allocation.person_id))).filter(
-            Allocation.project_id.in_([p.id for p in db.query(Project).filter(Project.lob_id == dimension_id).all()]),
+            Allocation.project_id.in_(lob_proj_ids),
             Allocation.month == month,
-        ).scalar() or 0
+        ).scalar() if lob_proj_ids else 0
     total_available = std_h * headcount
     delta = total_available - total_allocated
 

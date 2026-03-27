@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import type { IntakeItem } from '@/types/api';
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function IntakeTable({ items, loading, selectedId, onSelect, onOpenDetail }: Props) {
+  const { topLevelLabel } = useActiveHierarchy();
   if (loading) {
     return (
       <div className="space-y-2">
@@ -46,7 +48,7 @@ export function IntakeTable({ items, loading, selectedId, onSelect, onOpenDetail
           <TableRow>
             <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Project Name</TableHead>
             <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Submitted By</TableHead>
-            <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">LoB</TableHead>
+            <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">{topLevelLabel}</TableHead>
             <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 text-right">Est. Budget</TableHead>
             <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Submitted</TableHead>
             <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Status</TableHead>
