@@ -584,7 +584,11 @@ def approve_project(
     if total_budget > 0:
         project.total_budget = round(total_budget, 2)
 
-    # 3. Create notification for the submitting PL (action type #8)
+    # 3. Auto-generate allocations from forecast data
+    from services.allocation_service import ensure_project_allocations
+    ensure_project_allocations(project_id, db)
+
+    # 4. Create notification for the submitting PL (action type #8)
     if project.pl_person_id:
         notification = Notification(
             user_person_id=project.pl_person_id,
@@ -1593,6 +1597,10 @@ def _apply_cr_changes_to_forecast(cr: ChangeRequest, db: Session) -> None:
                         row.amount_eur = new_val
                 except (ValueError, AttributeError):
                     pass
+
+    # After updating forecast, ensure allocations match
+    from services.allocation_service import ensure_project_allocations
+    ensure_project_allocations(cr.project_id, db)
 
 
 def _create_resource_requests_from_cr(cr: ChangeRequest, db: Session) -> None:

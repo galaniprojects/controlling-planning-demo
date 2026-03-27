@@ -1,8 +1,8 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: Post-QA Feature Development — **Workbench enhancements**
-Last completed: Workbench overview improvements and expandable employee assignments in forecast grid
+Phase: Post-QA Feature Development — **Allocation coverage fix**
+Last completed: Auto-allocation service and seed data gap-filling for complete employee coverage
 Branch: `feature/workbench-enhancements`
 
 ## Workbench Enhancements (2026-03-27)
@@ -30,6 +30,32 @@ Branch: `feature/workbench-enhancements`
 - [x] Expanding a role shows employee names with per-month hours
 - [x] Expand All / Collapse All button works correctly
 - [x] TypeScript: no compilation errors
+
+## Allocation Coverage Fix (2026-03-27)
+
+### Auto-Allocation Service (`backend/services/allocation_service.py`)
+- **New service:** `ensure_project_allocations(project_id, db)` auto-generates allocation rows from forecast data
+- **Deterministic person selection:** Uses MD5 hash of `project_id:role_type_id` for stable person assignment across months
+- **Gap-filling logic:** For each (role, month), calculates difference between forecast hours and existing allocations, creates new allocations to fill the gap
+- **Hour splitting:** Caps individual allocations at 160h/month, splits across multiple people if needed
+- **Prefers existing:** Reuses people already allocated to the project for consistency
+
+### Integration Points
+- **Project approval:** `approve_project()` in portfolio.py calls `ensure_project_allocations()` after creating baselines — newly approved projects get automatic employee assignments
+- **CR direct approval:** `_apply_cr_changes_to_forecast()` in portfolio.py calls the service after updating forecast — allocation changes follow forecast changes
+- **PL accepts changes:** `_apply_cr_to_forecast()` in workbench.py calls the service after applying controller-proposed changes
+
+### Seed Data Gap-Filling (`backend/seed/generate_seed/s06_allocations.py`)
+- **Two-phase generation:** Phase 1 processes explicit ASSIGNMENTS (unchanged), Phase 2 uses PROJECT_STAFFING to fill gaps
+- **Result:** 4830 total allocation rows (2908 explicit + 1922 gap-filled), up from ~2908 explicit-only
+- **Preserves narratives:** Existing ASSIGNMENTS with intentional over-allocations are kept intact
+
+### Verification
+- [x] Cloud Migration Wave 3: Systems Administrator now has Lakshmi Menon assigned (30h/month)
+- [x] Cloud Migration Wave 3: Cloud / Platform Engineer has 3 people summing to forecast hours
+- [x] Pending projects (Autonomous Braking Prototype) have no allocations — will be created at approval
+- [x] Seed data regenerated: 21,242 lines in seed.sql
+- [x] Demo reset successful
 
 ## Hierarchy Migration (2026-03-27)
 

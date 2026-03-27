@@ -1382,3 +1382,7 @@ def _apply_cr_to_forecast(cr: ChangeRequest, db: Session) -> None:
                         row.amount_eur = new_val
                 except (ValueError, AttributeError):
                     pass
+
+    # After updating forecast, ensure allocations match
+    from services.allocation_service import ensure_project_allocations
+    ensure_project_allocations(cr.project_id, db)

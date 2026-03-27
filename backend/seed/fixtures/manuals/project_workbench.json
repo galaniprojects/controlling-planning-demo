@@ -20,7 +20,7 @@
     },
     {
       "title": "Forecast & Planning Tab",
-      "body": "In read mode, shows the current forecast grid with months as columns and resource roles + external cost types as rows. Internal resource roles with employee assignments are expandable: click the role name to reveal which employees are assigned per month with their allocated hours. Use the 'Expand All Resources' / 'Collapse All Resources' button above the grid to toggle all role expansions at once. To edit, start a Monthly Review cycle which walks through 5 phases: Retrospective, System Suggestions, Editing, Review, and Submit."
+      "body": "In read mode, shows the current forecast grid with months as columns and resource roles + external cost types as rows. Internal resource roles with employee assignments are expandable: click the role name to reveal which employees are assigned per month with their allocated hours. Use the 'Expand All Resources' / 'Collapse All Resources' button above the grid to toggle all role expansions at once.\\n\\n**Auto-Allocation:** The system automatically assigns employees to internal resource lines so that allocation hours match forecast hours. When a project is approved or a change request is accepted, allocations are created or updated automatically. People already allocated to the project are preferred for consistency; additional people are selected deterministically from the matching role pool.\\n\\nTo edit, start a Monthly Review cycle which walks through 5 phases: Retrospective, System Suggestions, Editing, Review, and Submit."
     },
     {
       "title": "Monthly Forecast Wizard",
