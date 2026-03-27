@@ -723,222 +723,26 @@ FORECAST_ADJUSTMENTS = {
 }
 
 # ---------------------------------------------------------------------------
-# Person-Project Assignments for allocations
-# (person_id, project_id, hours_per_month, start, end, {month_overrides})
+# Allocation overrides — narrative-specific person assignments
+# These override the auto-generated allocations from PROJECT_STAFFING
+# to create specific demo narratives (over-allocation, unconfirmed, etc.)
 # ---------------------------------------------------------------------------
 
-ASSIGNMENTS = [
-    # --- MUC / APD ---
-    ("p-brenner", "proj-erp2",      40,  "2024-07", "2026-09", {}),  # Sr Arch oversight
-    ("p-brenner", "svc-tbs-maint",  60,  "2024-01", "2026-12", {}),
-
-    # p-fischer (Sr Dev): ERP + SAP — OVER-ALLOCATED in MUC (106% Mar-May 2026)
-    ("p-fischer", "proj-erp2",      80,  "2024-07", "2026-09",
-     {"2026-03": 110, "2026-04": 110, "2026-05": 110}),
-    ("p-fischer", "proj-sap",       60,  "2024-01", "2026-06", {}),
-
-    # p-wolf (Sr Dev): brake until 2026-03, then under-utilized
-    ("p-wolf",    "proj-brake",     80,  "2025-03", "2026-03", {}),
-    ("p-wolf",    "svc-euc",        30,  "2024-01", "2026-12", {}),
-
-    # p-keller (Sr Dev): sensor + predmaint
-    ("p-keller",  "proj-sensor",    60,  "2025-03", "2026-12", {}),
-    ("p-keller",  "proj-predmaint", 40,  "2025-06", "2027-03", {}),
-
-    # p-schmidt (Dev): ERP + sensor
-    ("p-schmidt", "proj-erp2",      60,  "2024-07", "2026-09", {}),
-    ("p-schmidt", "proj-sensor",    40,  "2025-03", "2026-12", {}),
-
-    # p-bauer (Dev): ERP + middleware svc
-    ("p-bauer",   "proj-erp2",      80,  "2024-07", "2026-09", {}),
-    ("p-bauer",   "svc-middleware",  40,  "2024-01", "2026-12", {}),
-
-    # p-neumann (Dev): workplace + tbs-maint
-    ("p-neumann", "proj-workplace", 60,  "2025-06", "2026-06", {}),
-    ("p-neumann", "svc-tbs-maint",  60,  "2024-01", "2026-12", {}),
-
-    # p-hoffmann (Jr Dev): ERP testing + euc
-    ("p-hoffmann","proj-erp2",      40,  "2024-07", "2026-09", {}),
-    ("p-hoffmann","svc-euc",        40,  "2024-01", "2026-12", {}),
-
-    # --- MUC / INF ---
-    # p-wagner (Cloud): cloud3 + netsec
-    ("p-wagner",  "proj-cloud3",    60,  "2025-01", "2026-06", {}),
-    ("p-wagner",  "svc-netsec",     60,  "2024-01", "2026-12", {}),
-
-    # p-braun (Cloud): cloud3 + iam
-    ("p-braun",   "proj-cloud3",    60,  "2025-01", "2026-06", {}),
-    ("p-braun",   "proj-iam",       30,  "2025-01", "2026-09", {}),
-
-    # p-becker (SysAdmin): netsec + euc
-    ("p-becker", "svc-netsec",     60,  "2024-01", "2026-12", {}),
-    ("p-becker", "svc-euc",        40,  "2024-01", "2026-12", {}),
-
-    # p-frank (Network): iam + netsec
-    ("p-frank",   "proj-iam",       40,  "2025-01", "2026-09", {}),
-    ("p-frank",   "svc-netsec",     40,  "2024-01", "2026-12", {}),
-
-    # --- MUC / BSO ---
-    # p-mueller (SAP): sap + sap-ops
-    ("p-mueller", "proj-sap",       80,  "2022-01", "2026-06", {}),
-    ("p-mueller", "svc-sap-ops",    40,  "2024-01", "2026-12", {}),
-
-    # p-hartmann (SAP): erp2 + sap-ops
-    ("p-hartmann","proj-erp2",      40,  "2024-07", "2026-09", {}),
-    ("p-hartmann","svc-sap-ops",    40,  "2024-01", "2026-12", {}),
-
-    # p-krause (BA): erp2 + workplace
-    ("p-krause",  "proj-erp2",      30,  "2024-07", "2026-09", {}),
-    ("p-krause",  "proj-workplace", 40,  "2025-06", "2026-06", {}),
-
-    # --- MUC / QA (housed in APD) ---
-    # p-jung (QA): erp2 + sensor
-    ("p-jung",    "proj-erp2",      40,  "2024-07", "2026-09", {}),
-    ("p-jung",    "proj-sensor",    30,  "2025-03", "2026-12", {}),
-
-    # p-berger (QA): brake + tbs-maint
-    ("p-berger",  "proj-brake",     30,  "2025-03", "2026-03", {}),
-    ("p-berger",  "svc-tbs-maint",  40,  "2024-01", "2026-12", {}),
-
-    # --- MUC / DDA ---
-    # p-schubert (Data Eng): sensor + dataplatform
-    ("p-schubert","proj-sensor",    40,  "2025-03", "2026-12", {}),
-    ("p-schubert","svc-dataplatform",40, "2024-01", "2026-12", {}),
-
-    # p-winter (Data Eng): predmaint + dataplatform
-    ("p-winter",  "proj-predmaint", 30,  "2025-06", "2027-03", {}),
-    ("p-winter",  "svc-dataplatform",40, "2024-01", "2026-12", {}),
-
-    # p-lorenz (Data Sci): aiml + telematics
-    ("p-lorenz",  "proj-aiml",      40,  "2025-09", "2026-06", {}),
-    ("p-lorenz",  "proj-telematics",30,  "2025-06", "2026-09", {}),
-
-    # --- BUD / APD ---
-    # p-nagy (Sr Arch): signal + raildiag
-    ("p-nagy",    "proj-signal",    30,  "2023-01", "2026-06", {}),
-    ("p-nagy",    "proj-raildiag",  40,  "2024-06", "2027-06", {}),
-
-    # p-szabo (Sr Dev): OVER-ALLOCATED — signal + raildiag + fleet
-    ("p-szabo",   "proj-signal",    60,  "2023-01", "2026-06", {}),
-    ("p-szabo",   "proj-raildiag",  40,  "2024-06", "2027-06", {}),
-    ("p-szabo",   "proj-fleet",     40,  "2025-01", "2026-06",
-     {"2026-03": 80, "2026-04": 80, "2026-05": 80}),  # overallocation months
-
-    # p-toth (Sr Dev): sap + rail-maint
-    ("p-toth",    "proj-sap",       60,  "2022-01", "2026-06", {}),
-    ("p-toth",    "svc-rail-maint", 40,  "2024-01", "2026-12", {}),
-
-    # p-horvath (Sr Dev): fleet + telematics
-    ("p-horvath", "proj-fleet",     60,  "2025-01", "2026-06", {}),
-    ("p-horvath", "proj-telematics",40,  "2025-06", "2026-09", {}),
-
-    # p-kovacs (Dev): brake + signal
-    ("p-kovacs",  "proj-brake",     60,  "2025-03", "2026-03", {}),
-    ("p-kovacs",  "proj-signal",    60,  "2023-01", "2026-06", {}),
-
-    # p-molnar (Dev): sap + middleware
-    ("p-molnar",  "proj-sap",       80,  "2022-01", "2026-06", {}),
-    ("p-molnar",  "svc-middleware",  40,  "2024-01", "2026-12", {}),
-
-    # p-varga (Dev): raildiag + rail-maint
-    ("p-varga",   "proj-raildiag",  60,  "2024-06", "2027-06", {}),
-    ("p-varga",   "svc-rail-maint", 40,  "2024-01", "2026-12", {}),
-
-    # p-kiss (Dev): fleet + iot svc
-    ("p-kiss",    "proj-fleet",     60,  "2025-01", "2026-06", {}),
-    ("p-kiss",    "svc-iot",        30,  "2024-01", "2026-12", {}),
-
-    # --- BUD / INF ---
-    # p-farkas (Cloud): cloud3 + workplace + iot
-    ("p-farkas",  "proj-workplace", 40,  "2025-06", "2026-06", {}),
-    ("p-farkas",  "svc-iot",        30,  "2024-01", "2026-12", {}),
-
-    # p-balogh (SysAdmin): rail-desk + iam
-    ("p-balogh",  "svc-rail-desk",  60,  "2024-01", "2026-12", {}),
-    ("p-balogh",  "proj-iam",       30,  "2025-01", "2026-09", {}),
-
-    # p-takacs (Network): signal-sup + netsec assist
-    ("p-takacs",  "svc-signal-sup", 40,  "2024-01", "2026-12", {}),
-    ("p-takacs",  "svc-netsec",     30,  "2024-01", "2026-12", {}),
-
-    # p-fekete (Jr Dev): raildiag + rail-desk
-    ("p-fekete",  "proj-raildiag",  40,  "2024-06", "2027-06", {}),
-    ("p-fekete",  "svc-rail-desk",  40,  "2024-01", "2026-12", {}),
-
-    # --- BUD / DDA ---
-    # p-simon (Data Eng): telematics + aiml
-    ("p-simon",   "proj-telematics",40,  "2025-06", "2026-09", {}),
-    ("p-simon",   "proj-aiml",      40,  "2025-09", "2026-06", {}),
-
-    # p-nemeth (Data Sci): sensor consulting + dataplatform
-    ("p-nemeth",  "proj-sensor",    30,  "2025-03", "2026-12", {}),
-    ("p-nemeth",  "svc-dataplatform",30, "2024-01", "2026-12", {}),
-
-    # --- BUD / QA (housed in APD) ---
-    # p-papp (QA): sap + rail-maint
-    ("p-papp",    "proj-sap",       40,  "2022-01", "2026-06", {}),
-    ("p-papp",    "svc-rail-maint", 30,  "2024-01", "2026-12", {}),
-
-    # p-lukacs (QA): fleet + raildiag
-    ("p-lukacs",  "proj-fleet",     20,  "2025-01", "2026-06", {}),
-    ("p-lukacs",  "proj-raildiag",  20,  "2024-06", "2027-06", {}),
-    ("p-lukacs",  "proj-telematics",20,  "2025-06", "2026-09", {}),
-
-    # --- PUN / APD ---
-    # p-patel (Sr Dev): erp2 + predmaint
-    ("p-patel",   "proj-erp2",      40,  "2024-07", "2026-09", {}),
-    ("p-patel",   "proj-predmaint", 40,  "2025-06", "2027-03", {}),
-
-    # p-kumar (Sr Dev): predmaint + sensor
-    ("p-kumar",   "proj-predmaint", 60,  "2025-06", "2027-03", {}),
-    ("p-kumar",   "proj-sensor",    40,  "2025-03", "2026-12", {}),
-
-    # p-gupta (Dev): erp2 + workplace
-    ("p-gupta",   "proj-erp2",      40,  "2024-07", "2026-09", {}),
-    ("p-gupta",   "proj-workplace", 40,  "2025-06", "2026-06", {}),
-
-    # p-singh (Dev): fleet + tbs-maint
-    ("p-singh",   "proj-fleet",     40,  "2025-01", "2026-06", {}),
-    ("p-singh",   "svc-tbs-maint",  40,  "2024-01", "2026-12", {}),
-
-    # p-das (Dev): sensor + dba
-    ("p-das",     "proj-sensor",    40,  "2025-03", "2026-12", {}),
-    ("p-das",     "svc-dba",        30,  "2024-01", "2026-12", {}),
-
-    # p-joshi (Jr Dev): predmaint + sap-ops
-    ("p-joshi",   "proj-predmaint", 40,  "2025-06", "2027-03", {}),
-    ("p-joshi",   "svc-sap-ops",    40,  "2024-01", "2026-12", {}),
-
-    # p-iyer (Jr Dev): workplace + euc
-    ("p-iyer",    "proj-workplace", 40,  "2025-06", "2026-06", {}),
-    ("p-iyer",    "svc-euc",        40,  "2024-01", "2026-12", {}),
-
-    # p-reddy (QA): predmaint + erp2
-    ("p-reddy",   "proj-predmaint", 20,  "2025-06", "2027-03", {}),
-    ("p-reddy",   "proj-erp2",      30,  "2024-07", "2026-09", {}),
-
-    # --- PUN / INF ---
-    # p-nair (Cloud): cloud3 + iot
-    ("p-nair",    "proj-cloud3",    40,  "2025-01", "2026-06", {}),
-    ("p-nair",    "svc-iot",        30,  "2024-01", "2026-12", {}),
-
-    # p-menon (SysAdmin): sap-ops + dba
-    ("p-menon",   "svc-sap-ops",    40,  "2024-01", "2026-12", {}),
-    ("p-menon",   "svc-dba",        50,  "2024-01", "2026-12", {}),
-
-    # p-pillai (Network): netsec + signal-sup
-    ("p-pillai",  "svc-netsec",     40,  "2024-01", "2026-12", {}),
-    ("p-pillai",  "svc-signal-sup", 30,  "2024-01", "2026-12", {}),
-
-    # --- PUN / BSO ---
-    # p-rao (SAP): sap + sap-ops
-    ("p-rao",     "proj-sap",       40,  "2022-01", "2026-06", {}),
-    ("p-rao",     "svc-sap-ops",    30,  "2024-01", "2026-12", {}),
-
-    # p-desai (BA): raildiag + predmaint
-    ("p-desai",   "proj-raildiag",  20,  "2024-06", "2027-06", {}),
-    ("p-desai",   "proj-predmaint", 20,  "2025-06", "2027-03", {}),
-]
+ASSIGNMENT_OVERRIDES = {
+    # p-fischer over-allocation on proj-erp2 (troubled project narrative)
+    # Shows 106% utilization in Mar-May 2026 on capacity heatmap
+    ("p-fischer", "proj-erp2"): {
+        "base_hours": 80,
+        "overrides": {"2026-03": 110, "2026-04": 110, "2026-05": 110},
+        "unconfirmed_range": ("2026-04", "2026-07"),
+    },
+    # p-szabo over-allocation on proj-fleet
+    # Shows over-utilization in Mar-May 2026 (combined with signal + raildiag)
+    ("p-szabo", "proj-fleet"): {
+        "base_hours": 40,
+        "overrides": {"2026-03": 80, "2026-04": 80, "2026-05": 80},
+    },
+}
 
 # ---------------------------------------------------------------------------
 # Change Request definitions

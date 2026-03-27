@@ -338,12 +338,20 @@ def get_project_forecast(
     baselines = db.query(Baseline).filter(Baseline.project_id == project_id).all()
     actuals_list = db.query(Actuals).filter(Actuals.project_id == project_id).all()
 
-    bl_map = {}
+    bl_map: dict[str, dict[str, dict]] = {}
     for b in baselines:
-        bl_map.setdefault(b.sub_category, {})[b.month] = {"hours": float(b.hours or 0), "amount": float(b.amount_eur)}
-    ac_map = {}
+        sub = bl_map.setdefault(b.sub_category, {})
+        if b.month not in sub:
+            sub[b.month] = {"hours": 0.0, "amount": 0.0}
+        sub[b.month]["hours"] += float(b.hours or 0)
+        sub[b.month]["amount"] += float(b.amount_eur)
+    ac_map: dict[str, dict[str, dict]] = {}
     for a in actuals_list:
-        ac_map.setdefault(a.sub_category, {})[a.month] = {"hours": float(a.hours or 0), "amount": float(a.amount_eur)}
+        sub = ac_map.setdefault(a.sub_category, {})
+        if a.month not in sub:
+            sub[a.month] = {"hours": 0.0, "amount": 0.0}
+        sub[a.month]["hours"] += float(a.hours or 0)
+        sub[a.month]["amount"] += float(a.amount_eur)
 
     # Pre-load hourly rates for internal roles (first rate per role_type_id)
     rate_rows = db.query(RateTable).all()
@@ -366,23 +374,35 @@ def get_project_forecast(
             if f.category == "internal":
                 row_data["hourly_rate"] = rate_map.get(f.sub_category)
             rows_map[key] = row_data
-        bl = bl_map.get(f.sub_category, {}).get(f.month, {})
-        ac = ac_map.get(f.sub_category, {}).get(f.month, {})
-        cell = {
-            "month": f.month,
-            "forecast_hours": float(f.hours or 0),
-            "forecast_amount": float(f.amount_eur),
-            "baseline_hours": bl.get("hours", 0),
-            "baseline_amount": bl.get("amount", 0),
-            "actuals_hours": ac.get("hours", 0),
-            "actuals_amount": ac.get("amount", 0),
-        }
-        # External cost procurement fields
-        if f.category == "external":
-            cell["ext_status"] = f.ext_status
-            cell["po_number"] = f.po_number
-            cell["vendor"] = f.vendor
-        rows_map[key]["months"].append(cell)
+        # Merge duplicate (role, month) cells from multi-location staffing
+        existing_cell = None
+        if f.category == "internal":
+            for c in rows_map[key]["months"]:
+                if c["month"] == f.month:
+                    existing_cell = c
+                    break
+        if existing_cell:
+            existing_cell["forecast_hours"] += float(f.hours or 0)
+            existing_cell["forecast_amount"] += float(f.amount_eur)
+            # baseline/actuals already aggregated in bl_map/ac_map
+        else:
+            bl = bl_map.get(f.sub_category, {}).get(f.month, {})
+            ac = ac_map.get(f.sub_category, {}).get(f.month, {})
+            cell = {
+                "month": f.month,
+                "forecast_hours": float(f.hours or 0),
+                "forecast_amount": float(f.amount_eur),
+                "baseline_hours": bl.get("hours", 0),
+                "baseline_amount": bl.get("amount", 0),
+                "actuals_hours": ac.get("hours", 0),
+                "actuals_amount": ac.get("amount", 0),
+            }
+            # External cost procurement fields
+            if f.category == "external":
+                cell["ext_status"] = f.ext_status
+                cell["po_number"] = f.po_number
+                cell["vendor"] = f.vendor
+            rows_map[key]["months"].append(cell)
 
     items = list(rows_map.values())
 

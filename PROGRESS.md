@@ -1,8 +1,8 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: Post-QA Feature Development — **Allocation coverage fix**
-Last completed: Auto-allocation service and seed data gap-filling for complete employee coverage
+Phase: Post-QA Feature Development — **Forecast/allocation data integrity fix**
+Last completed: Fixed forecast aggregation bug, rebuilt allocations from PROJECT_STAFFING
 Branch: `feature/workbench-enhancements`
 
 ## Workbench Enhancements (2026-03-27)
@@ -31,31 +31,31 @@ Branch: `feature/workbench-enhancements`
 - [x] Expand All / Collapse All button works correctly
 - [x] TypeScript: no compilation errors
 
-## Allocation Coverage Fix (2026-03-27)
+## Forecast/Allocation Data Integrity Fix (2026-03-27)
 
-### Auto-Allocation Service (`backend/services/allocation_service.py`)
-- **New service:** `ensure_project_allocations(project_id, db)` auto-generates allocation rows from forecast data
-- **Deterministic person selection:** Uses MD5 hash of `project_id:role_type_id` for stable person assignment across months
-- **Gap-filling logic:** For each (role, month), calculates difference between forecast hours and existing allocations, creates new allocations to fill the gap
-- **Hour splitting:** Caps individual allocations at 160h/month, splits across multiple people if needed
-- **Prefers existing:** Reuses people already allocated to the project for consistency
+### Backend Forecast Aggregation Fix (`backend/routers/workbench.py`)
+- **Bug fixed:** Multi-location roles (e.g., cloud@MUC 60h + cloud@PUN 40h) were creating duplicate month cells. Frontend `findCell()` only returned the first, silently dropping the second location's data
+- **Baseline/actuals maps fixed:** `bl_map`/`ac_map` now accumulate instead of overwriting when multiple rows exist per (sub_category, month)
+- **Forecast cells merged:** When building rows_map, duplicate (role, month) cells are summed into a single cell
 
-### Integration Points
-- **Project approval:** `approve_project()` in portfolio.py calls `ensure_project_allocations()` after creating baselines — newly approved projects get automatic employee assignments
-- **CR direct approval:** `_apply_cr_changes_to_forecast()` in portfolio.py calls the service after updating forecast — allocation changes follow forecast changes
-- **PL accepts changes:** `_apply_cr_to_forecast()` in workbench.py calls the service after applying controller-proposed changes
+### Seed Data Rebuild (`backend/seed/generate_seed/s06_allocations.py`)
+- **ASSIGNMENTS removed:** Deleted the independently-maintained 210-line ASSIGNMENTS config that diverged from PROJECT_STAFFING
+- **Single-source generation:** All allocations now derived directly from PROJECT_STAFFING + FORECAST_ADJUSTMENTS, ensuring hours always match forecast
+- **ASSIGNMENT_OVERRIDES:** Small config (~15 lines) preserves narrative exceptions: p-fischer over-allocation on proj-erp2 (110h in Mar-May 2026), p-szabo over-allocation on proj-fleet
+- **Result:** 3,492 allocation rows, all matching forecast totals
 
-### Seed Data Gap-Filling (`backend/seed/generate_seed/s06_allocations.py`)
-- **Two-phase generation:** Phase 1 processes explicit ASSIGNMENTS (unchanged), Phase 2 uses PROJECT_STAFFING to fill gaps
-- **Result:** 4830 total allocation rows (2908 explicit + 1922 gap-filled), up from ~2908 explicit-only
-- **Preserves narratives:** Existing ASSIGNMENTS with intentional over-allocations are kept intact
+### Runtime Auto-Allocation Service (`backend/services/allocation_service.py`)
+- **Unchanged:** Runtime service correctly reads from forecast table and fills gaps for dynamically approved projects
+- **Integration points:** approve_project(), CR approval, and PL accept-changes all call ensure_project_allocations()
 
 ### Verification
-- [x] Cloud Migration Wave 3: Systems Administrator now has Lakshmi Menon assigned (30h/month)
-- [x] Cloud Migration Wave 3: Cloud / Platform Engineer has 3 people summing to forecast hours
-- [x] Pending projects (Autonomous Braking Prototype) have no allocations — will be created at approval
-- [x] Seed data regenerated: 21,242 lines in seed.sql
-- [x] Demo reset successful
+- [x] proj-cloud3: Cloud/Platform Engineer shows 100h/month (was incorrectly showing 60h)
+- [x] proj-cloud3: Michael Wagner 100h matches forecast, Lakshmi Menon 30h matches sysadmin forecast
+- [x] proj-erp2: Sr Developer shows 140h forecast (100 MUC adjusted + 40 PUN), BL: 120h (80+40 base)
+- [x] proj-erp2: Lena Fischer shows 110h in March 2026 (over-allocation narrative preserved)
+- [x] proj-autobrake: No allocations (pending_approval) — will be created at runtime approval
+- [x] Baselines and actuals properly aggregated across locations
+- [x] Seed data regenerated: 19,890 lines in seed.sql
 
 ## Hierarchy Migration (2026-03-27)
 
