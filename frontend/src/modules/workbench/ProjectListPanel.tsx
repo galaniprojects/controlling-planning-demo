@@ -30,14 +30,14 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  active: 'bg-green-100 text-green-700 hover:bg-green-100',
+  active: 'bg-slate-100 text-slate-600 hover:bg-slate-100',
   completed: 'bg-slate-100 text-slate-600 hover:bg-slate-100',
-  planned: 'bg-blue-100 text-blue-700 hover:bg-blue-100',
+  planned: 'bg-slate-100 text-slate-600 hover:bg-slate-100',
   draft: 'bg-amber-100 text-amber-700 hover:bg-amber-100',
   pending_cc_confirmation: 'bg-amber-100 text-amber-700 hover:bg-amber-100',
   pending_approval: 'bg-amber-100 text-amber-700 hover:bg-amber-100',
   changes_requested: 'bg-amber-100 text-amber-700 hover:bg-amber-100',
-  rejected: 'bg-red-100 text-red-700 hover:bg-red-100',
+  rejected: 'bg-slate-100 text-slate-600 hover:bg-slate-100',
 };
 
 export function ProjectListPanel({
