@@ -9,15 +9,16 @@ import {
 import type { ResourcePlanSummaryItem } from '@/types/api';
 
 interface Props {
+  title: string;
   items: ResourcePlanSummaryItem[];
 }
 
-export function ResourceSummaryTable({ items }: Props) {
+export function ResourceSummaryTable({ title, items }: Props) {
   if (items.length === 0) {
     return (
       <div className="border border-slate-200 rounded-lg p-4">
         <h3 className="text-sm font-medium text-slate-500 mb-2">
-          Resource Plan
+          {title}
         </h3>
         <p className="text-sm text-slate-400">No resource allocations.</p>
       </div>
@@ -27,7 +28,7 @@ export function ResourceSummaryTable({ items }: Props) {
   return (
     <div className="border border-slate-200 rounded-lg p-4">
       <h3 className="text-sm font-medium text-slate-500 mb-2">
-        Resource Plan
+        {title}
       </h3>
       <Table>
         <TableHeader>

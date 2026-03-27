@@ -1,9 +1,61 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: Post-QA Feature Development — **Hierarchy migration complete**
-Last completed: Full schema migration replacing LineOfBusiness/Program with dynamic GroupingEntity hierarchy, multi-level report filters, dynamic labels
-Branch: `feature/hierarchy-migration` (merged)
+Phase: Post-QA Feature Development — **Forecast/allocation data integrity fix**
+Last completed: Fixed forecast aggregation bug, rebuilt allocations from PROJECT_STAFFING
+Branch: `feature/workbench-enhancements`
+
+## Workbench Enhancements (2026-03-27)
+
+### Cost Classification % Split
+- **All project types now show percentage:** Pure CapEx/OpEx projects display "CapEx 100%" or "OpEx 100%" with the total amount, matching the mixed-type display style
+
+### Dynamic Resource Plan Title
+- **Title adapts to project lifecycle:** Active projects show "Resource Plan {current year}" with hours filtered to current year only; planned projects show "Resource Plan {start year}" with lifetime hours; completed projects show "Resources Consumed" with lifetime totals
+- **Backend filtering:** Resource plan summary query filters by demo year for active projects
+
+### Expandable Employee Assignments in Forecast Grid
+- **Clickable role names:** Internal resource roles with employee allocations show an expand/collapse chevron. Clicking reveals sub-rows with assigned employee names and per-month hours
+- **Expand/Collapse All button:** "Expand All Resources" / "Collapse All Resources" toggle above the grid
+- **Backend enhancement:** Forecast endpoint now returns `assignments` array per internal row, grouping allocations by person's role type with monthly hours breakdown
+
+### Documentation Updates
+- **Module manual updated:** project_workbench.json — Overview Tab and Forecast & Planning Tab sections updated with new features
+- **PROGRESS.md updated:** This section
+
+### Verification
+- [x] Cost Classification shows percentage for pure CapEx and OpEx projects
+- [x] Resource Plan title shows "Resource Plan 2026" for active projects
+- [x] Forecast grid: role names are clickable with expand chevrons
+- [x] Expanding a role shows employee names with per-month hours
+- [x] Expand All / Collapse All button works correctly
+- [x] TypeScript: no compilation errors
+
+## Forecast/Allocation Data Integrity Fix (2026-03-27)
+
+### Backend Forecast Aggregation Fix (`backend/routers/workbench.py`)
+- **Bug fixed:** Multi-location roles (e.g., cloud@MUC 60h + cloud@PUN 40h) were creating duplicate month cells. Frontend `findCell()` only returned the first, silently dropping the second location's data
+- **Baseline/actuals maps fixed:** `bl_map`/`ac_map` now accumulate instead of overwriting when multiple rows exist per (sub_category, month)
+- **Forecast cells merged:** When building rows_map, duplicate (role, month) cells are summed into a single cell
+
+### Seed Data Rebuild (`backend/seed/generate_seed/s06_allocations.py`)
+- **ASSIGNMENTS removed:** Deleted the independently-maintained 210-line ASSIGNMENTS config that diverged from PROJECT_STAFFING
+- **Single-source generation:** All allocations now derived directly from PROJECT_STAFFING + FORECAST_ADJUSTMENTS, ensuring hours always match forecast
+- **ASSIGNMENT_OVERRIDES:** Small config (~15 lines) preserves narrative exceptions: p-fischer over-allocation on proj-erp2 (110h in Mar-May 2026), p-szabo over-allocation on proj-fleet
+- **Result:** 3,492 allocation rows, all matching forecast totals
+
+### Runtime Auto-Allocation Service (`backend/services/allocation_service.py`)
+- **Unchanged:** Runtime service correctly reads from forecast table and fills gaps for dynamically approved projects
+- **Integration points:** approve_project(), CR approval, and PL accept-changes all call ensure_project_allocations()
+
+### Verification
+- [x] proj-cloud3: Cloud/Platform Engineer shows 100h/month (was incorrectly showing 60h)
+- [x] proj-cloud3: Michael Wagner 100h matches forecast, Lakshmi Menon 30h matches sysadmin forecast
+- [x] proj-erp2: Sr Developer shows 140h forecast (100 MUC adjusted + 40 PUN), BL: 120h (80+40 base)
+- [x] proj-erp2: Lena Fischer shows 110h in March 2026 (over-allocation narrative preserved)
+- [x] proj-autobrake: No allocations (pending_approval) — will be created at runtime approval
+- [x] Baselines and actuals properly aggregated across locations
+- [x] Seed data regenerated: 19,890 lines in seed.sql
 
 ## Hierarchy Migration (2026-03-27)
 

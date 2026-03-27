@@ -84,7 +84,7 @@ export function OverviewTab({ projectId }: Props) {
           capexPct={data.capex_opex.capex_pct}
           opexPct={data.capex_opex.opex_pct}
         />
-        <ResourceSummaryTable items={data.resource_plan_summary} />
+        <ResourceSummaryTable title={data.resource_plan_title} items={data.resource_plan_summary} />
       </div>
     </div>
   );

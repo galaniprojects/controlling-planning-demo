@@ -26,7 +26,7 @@ export function CapexOpexDisplay({ type, capexAmount, opexAmount, capexPct, opex
       >
         {label}
       </Badge>
-      {isMixed && (
+      {isMixed ? (
         <div className="mt-3 space-y-2">
           {/* Split bar */}
           <div className="flex h-2 rounded-full overflow-hidden">
@@ -49,6 +49,13 @@ export function CapexOpexDisplay({ type, capexAmount, opexAmount, capexPct, opex
               OpEx {opexPct?.toFixed(0)}% ({formatCurrency(opexAmount!)})
             </span>
           </div>
+        </div>
+      ) : (
+        <div className="mt-3 text-xs text-slate-600">
+          <span className={`inline-block w-2 h-2 rounded-full mr-1 ${type === 'capex' ? 'bg-blue-500' : 'bg-amber-500'}`} />
+          {label} 100%
+          {type === 'capex' && capexAmount != null && ` (${formatCurrency(capexAmount)})`}
+          {type === 'opex' && opexAmount != null && ` (${formatCurrency(opexAmount)})`}
         </div>
       )}
     </div>

@@ -12,7 +12,7 @@
     },
     {
       "title": "Overview Tab",
-      "body": "Shows project metadata (name, hierarchy path, status, RAG, timeline), the 3-point comparison table (Baseline vs Current Forecast vs Actuals with variance columns), a monthly trajectory line chart (three lines showing baseline, forecast, and actuals over time), CapEx/OpEx breakdown, and resource plan summary."
+      "body": "Shows project metadata (name, hierarchy path, status, RAG, timeline), the 3-point comparison table (Baseline vs Current Forecast vs Actuals with variance columns), a monthly trajectory line chart (three lines showing baseline, forecast, and actuals over time), CapEx/OpEx breakdown with percentage split (shown for all project types including pure CapEx/OpEx), and resource plan summary. The resource plan title adapts to the project lifecycle: active projects show 'Resource Plan [current year]' with hours filtered to that year, planned projects show 'Resource Plan [start year]' with lifetime hours, and completed projects show 'Resources Consumed' with lifetime totals."
     },
     {
       "title": "3-Point Comparison",
@@ -20,7 +20,7 @@
     },
     {
       "title": "Forecast & Planning Tab",
-      "body": "In read mode, shows the current forecast grid with months as columns and resource roles + external cost types as rows. To edit, start a Monthly Review cycle which walks through 5 phases: Retrospective, System Suggestions, Editing, Review, and Submit."
+      "body": "In read mode, shows the current forecast grid with months as columns and resource roles + external cost types as rows. Internal resource roles with employee assignments are expandable: click the role name to reveal which employees are assigned per month with their allocated hours. Use the 'Expand All Resources' / 'Collapse All Resources' button above the grid to toggle all role expansions at once.\\n\\n**Auto-Allocation:** The system automatically assigns employees to internal resource lines so that allocation hours match forecast hours. When a project is approved or a change request is accepted, allocations are created or updated automatically. People already allocated to the project are preferred for consistency; additional people are selected deterministically from the matching role pool.\\n\\nTo edit, start a Monthly Review cycle which walks through 5 phases: Retrospective, System Suggestions, Editing, Review, and Submit."
     },
     {
       "title": "Monthly Forecast Wizard",
