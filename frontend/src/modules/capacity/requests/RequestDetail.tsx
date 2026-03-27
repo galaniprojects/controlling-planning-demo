@@ -5,9 +5,9 @@ import type { CapacityRequestItem } from '@/types/api';
 import { ArrowUp, ArrowDown, User } from 'lucide-react';
 
 const PRIORITY_COLORS: Record<string, string> = {
-  high: 'bg-red-100 text-red-700',
-  medium: 'bg-amber-100 text-amber-700',
-  low: 'bg-slate-100 text-slate-500',
+  high: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  medium: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  low: 'bg-muted text-muted-foreground',
 };
 
 interface RequestDetailProps {
@@ -28,12 +28,12 @@ export function RequestDetail({ request, onProjectClick }: RequestDetailProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-slate-800">Request #{request.id}</h3>
+        <h3 className="text-base font-semibold text-foreground">Request #{request.id}</h3>
         <div className="flex items-center gap-2">
           {direction && (
             <Badge className={isDecrease
-              ? 'bg-red-100 text-red-700'
-              : 'bg-green-100 text-green-700'
+              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+              : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
             }>
               {isDecrease
                 ? <><ArrowDown className="h-3 w-3 mr-0.5" />Decrease</>
@@ -47,59 +47,59 @@ export function RequestDetail({ request, onProjectClick }: RequestDetailProps) {
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
         <div>
-          <span className="text-slate-500">Project: </span>
+          <span className="text-muted-foreground">Project: </span>
           {onProjectClick ? (
             <button
               type="button"
               onClick={onProjectClick}
-              className="text-blue-700 hover:underline"
+              className="text-primary hover:underline"
             >
               {request.project_name}
             </button>
           ) : (
-            <span className="text-slate-700">{request.project_name}</span>
+            <span className="text-foreground">{request.project_name}</span>
           )}
         </div>
         <div>
-          <span className="text-slate-500">Type: </span>
-          <span className="text-slate-700">
+          <span className="text-muted-foreground">Type: </span>
+          <span className="text-foreground">
             {isResource ? 'Resource Request' : 'External Cost'}
           </span>
         </div>
         <div>
-          <span className="text-slate-500">{isResource ? 'Role' : 'Cost Type'}: </span>
-          <span className="text-slate-700">{request.role_or_cost_type}</span>
+          <span className="text-muted-foreground">{isResource ? 'Role' : 'Cost Type'}: </span>
+          <span className="text-foreground">{request.role_or_cost_type}</span>
         </div>
         <div>
-          <span className="text-slate-500">{isResource ? 'Hours/month' : 'Amount/month'}: </span>
+          <span className="text-muted-foreground">{isResource ? 'Hours/month' : 'Amount/month'}: </span>
           {isResource && direction ? (
-            <span className="font-medium text-slate-700">
+            <span className="font-medium text-foreground">
               {originalHours != null && originalHours > 0 && (
-                <span className="text-slate-400 mr-1">{originalHours}h</span>
+                <span className="text-muted-foreground mr-1">{originalHours}h</span>
               )}
-              <span className={isDecrease ? 'text-red-600' : 'text-green-600'}>
+              <span className={isDecrease ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
                 {isDecrease ? '-' : '+'}{request.hours_or_amount}h
               </span>
               {newTotal != null && (
-                <span className="text-slate-700 ml-1">
+                <span className="text-foreground ml-1">
                   = {newTotal}h
                 </span>
               )}
             </span>
           ) : (
-            <span className="font-medium text-slate-700">
+            <span className="font-medium text-foreground">
               {isResource ? `${request.hours_or_amount}h` : formatCurrency(request.hours_or_amount)}
             </span>
           )}
         </div>
         <div>
-          <span className="text-slate-500">Period: </span>
-          <span className="text-slate-700">
+          <span className="text-muted-foreground">Period: </span>
+          <span className="text-foreground">
             {request.period_start} — {request.period_end}
           </span>
         </div>
         <div>
-          <span className="text-slate-500">Priority: </span>
+          <span className="text-muted-foreground">Priority: </span>
           <Badge
             variant="outline"
             className={PRIORITY_COLORS[request.priority]}
@@ -109,8 +109,8 @@ export function RequestDetail({ request, onProjectClick }: RequestDetailProps) {
         </div>
         {currentlyAllocated && (
           <div className="col-span-2">
-            <span className="text-slate-500">Currently allocated: </span>
-            <span className="text-slate-700 inline-flex items-center gap-1">
+            <span className="text-muted-foreground">Currently allocated: </span>
+            <span className="text-foreground inline-flex items-center gap-1">
               <User className="h-3 w-3" />
               {currentlyAllocated.name}
             </span>
@@ -119,8 +119,8 @@ export function RequestDetail({ request, onProjectClick }: RequestDetailProps) {
       </div>
 
       {request.explanation && (
-        <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-600">
-          <span className="text-xs font-medium text-slate-500">Response: </span>
+        <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">Response: </span>
           {request.explanation}
         </div>
       )}

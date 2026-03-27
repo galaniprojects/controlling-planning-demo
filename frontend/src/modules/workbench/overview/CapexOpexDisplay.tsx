@@ -16,8 +16,8 @@ export function CapexOpexDisplay({ type, capexAmount, opexAmount, capexPct, opex
   const isMixed = type === 'mixed' && capexAmount != null && opexAmount != null;
 
   return (
-    <div className="border border-slate-200 rounded-lg p-4">
-      <h3 className="text-sm font-medium text-slate-500 mb-2">
+    <div className="border border-border rounded-lg p-4">
+      <h3 className="text-sm font-medium text-muted-foreground mb-2">
         Cost Classification
       </h3>
       <Badge
@@ -39,7 +39,7 @@ export function CapexOpexDisplay({ type, capexAmount, opexAmount, capexPct, opex
               style={{ width: `${opexPct}%` }}
             />
           </div>
-          <div className="flex justify-between text-xs text-slate-600">
+          <div className="flex justify-between text-xs text-muted-foreground">
             <span>
               <span className="inline-block w-2 h-2 rounded-full bg-blue-500 mr-1" />
               CapEx {capexPct?.toFixed(0)}% ({formatCurrency(capexAmount!)})
@@ -51,7 +51,7 @@ export function CapexOpexDisplay({ type, capexAmount, opexAmount, capexPct, opex
           </div>
         </div>
       ) : (
-        <div className="mt-3 text-xs text-slate-600">
+        <div className="mt-3 text-xs text-muted-foreground">
           <span className={`inline-block w-2 h-2 rounded-full mr-1 ${type === 'capex' ? 'bg-blue-500' : 'bg-amber-500'}`} />
           {label} 100%
           {type === 'capex' && capexAmount != null && ` (${formatCurrency(capexAmount)})`}

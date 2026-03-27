@@ -47,7 +47,7 @@ export function OrgOverviewTab() {
   }
 
   if (!summary) {
-    return <p className="text-sm text-slate-400">Failed to load organization data.</p>;
+    return <p className="text-sm text-muted-foreground">Failed to load organization data.</p>;
   }
 
   return (
@@ -55,7 +55,7 @@ export function OrgOverviewTab() {
       <OrgSummaryBar data={summary} />
 
       <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-slate-600">View by:</label>
+        <label className="text-sm font-medium text-muted-foreground">View by:</label>
         <Select value={pivot} onValueChange={setPivot}>
           <SelectTrigger className="w-[200px]">
             <SelectValue />

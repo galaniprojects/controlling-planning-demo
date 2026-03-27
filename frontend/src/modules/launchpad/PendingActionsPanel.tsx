@@ -50,10 +50,10 @@ export function PendingActionsPanel({ actions, loading }: Props) {
   const urgentCount = actions.filter((a) => a.urgency === 'urgent').length;
 
   return (
-    <div className="border border-slate-200 rounded-lg bg-white">
+    <div className="border border-border rounded-lg bg-card">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-        <h3 className="text-sm font-semibold text-slate-800">Pending Actions</h3>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <h3 className="text-sm font-semibold text-foreground">Pending Actions</h3>
         {urgentCount > 0 && (
           <Badge variant="destructive" className="text-xs px-1.5 py-0">
             {urgentCount}
@@ -66,39 +66,39 @@ export function PendingActionsPanel({ actions, loading }: Props) {
         {loading ? (
           <div className="p-4 space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-12 bg-slate-50 rounded animate-pulse" />
+              <div key={i} className="h-12 bg-muted/50 rounded animate-pulse" />
             ))}
           </div>
         ) : actions.length === 0 ? (
           <div className="py-12 text-center">
-            <CircleCheck className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">All caught up</p>
+            <CircleCheck className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">All caught up</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-border">
             {actions.map((action) => (
               <div
                 key={action.id}
                 onClick={() => handleClick(action)}
-                className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors"
+                className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-accent transition-colors"
               >
                 {/* Urgency bar */}
                 <div
                   className={`w-[3px] self-stretch rounded-full shrink-0 ${
-                    action.urgency === 'urgent' ? 'bg-red-500' : 'bg-slate-300'
+                    action.urgency === 'urgent' ? 'bg-red-500' : 'bg-muted-foreground/40'
                   }`}
                 />
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800 leading-tight">
+                  <p className="text-sm font-medium text-foreground leading-tight">
                     {action.title}
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
                     {action.description}
                   </p>
                 </div>
                 {/* Arrow */}
-                <ChevronRight className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
               </div>
             ))}
           </div>

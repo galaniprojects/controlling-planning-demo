@@ -68,7 +68,7 @@ export function CreateScenarioModal({
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">
+            <label className="text-sm font-medium text-foreground mb-1 block">
               Name *
             </label>
             <Input
@@ -79,7 +79,7 @@ export function CreateScenarioModal({
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">
+            <label className="text-sm font-medium text-foreground mb-1 block">
               Description
             </label>
             <Textarea
@@ -91,7 +91,7 @@ export function CreateScenarioModal({
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">
+            <label className="text-sm font-medium text-foreground mb-1 block">
               Clone From (optional)
             </label>
             <Select value={cloneFrom} onValueChange={setCloneFrom}>
@@ -107,7 +107,7 @@ export function CreateScenarioModal({
               </SelectContent>
             </Select>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

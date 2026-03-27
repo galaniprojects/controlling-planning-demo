@@ -135,49 +135,49 @@ export function AssignmentGrid({
   if (requests.length === 0) return null;
 
   return (
-    <div className="border border-slate-200 rounded-lg overflow-hidden">
+    <div className="border border-border rounded-lg overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm" style={{ fontVariantNumeric: 'tabular-nums' }}>
           <thead>
             {/* Row 1: Year headers */}
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="sticky left-0 z-10 bg-slate-50 px-3 py-1.5 text-left text-xs font-medium text-slate-500 w-[220px] min-w-[220px]">
+            <tr className="bg-muted/50 border-b border-border">
+              <th className="sticky left-0 z-10 bg-muted/50 px-3 py-1.5 text-left text-xs font-medium text-muted-foreground w-[220px] min-w-[220px]">
                 Role
               </th>
-              <th className="px-1 py-1.5 text-center text-xs font-medium text-slate-500 w-[70px] min-w-[70px] border-r border-slate-200">
+              <th className="px-1 py-1.5 text-center text-xs font-medium text-muted-foreground w-[70px] min-w-[70px] border-r border-border">
                 All
               </th>
               {yearGroups.map((yg) => (
                 <th
                   key={yg.year}
                   colSpan={yg.isExpanded ? yg.months.length : 1}
-                  className="px-2 py-1.5 text-center text-xs font-medium text-slate-500 cursor-pointer hover:bg-slate-100"
+                  className="px-2 py-1.5 text-center text-xs font-medium text-muted-foreground cursor-pointer hover:bg-muted"
                   onClick={() => toggleYear(yg.year)}
                 >
                   {yg.year} {yg.isExpanded ? '\u25B4' : '\u25BE'}
                 </th>
               ))}
-              <th className="px-3 py-1.5 text-center text-xs font-medium text-slate-500 w-[80px]">
+              <th className="px-3 py-1.5 text-center text-xs font-medium text-muted-foreground w-[80px]">
                 Status
               </th>
             </tr>
             {/* Row 2: Month sub-headers */}
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="sticky left-0 z-10 bg-slate-50 px-3 py-1 text-left text-xs text-slate-400" />
-              <th className="px-1 py-1 text-center text-xs text-slate-400 border-r border-slate-200" />
+            <tr className="bg-muted/50 border-b border-border">
+              <th className="sticky left-0 z-10 bg-muted/50 px-3 py-1 text-left text-xs text-muted-foreground" />
+              <th className="px-1 py-1 text-center text-xs text-muted-foreground border-r border-border" />
               {visibleColumns.map((col) =>
                 col.type === 'month' ? (
                   <th
                     key={col.key}
                     className={cn(
-                      'px-1 py-1 text-center text-xs text-slate-400 min-w-[90px]',
-                      col.isJanuary && 'border-l-2 border-l-slate-300',
+                      'px-1 py-1 text-center text-xs text-muted-foreground min-w-[90px]',
+                      col.isJanuary && 'border-l-2 border-l-border',
                     )}
                   >
                     {monthLabel(col.key)}
                   </th>
                 ) : (
-                  <th key={`ys-${col.year}`} className="px-1 py-1 text-center text-xs text-slate-400 min-w-[90px]">
+                  <th key={`ys-${col.year}`} className="px-1 py-1 text-center text-xs text-muted-foreground min-w-[90px]">
                     Summary
                   </th>
                 ),
@@ -187,10 +187,10 @@ export function AssignmentGrid({
           </thead>
           <tbody>
             {/* Section header */}
-            <tr className="bg-blue-50">
+            <tr className="bg-primary/5">
               <td
                 colSpan={visibleColumns.length + 3}
-                className="px-3 py-1.5 text-xs font-semibold text-blue-800 uppercase tracking-wide"
+                className="px-3 py-1.5 text-xs font-semibold text-primary uppercase tracking-wide"
               >
                 Internal Resources
               </td>
@@ -274,18 +274,18 @@ function AssignmentRow({
     : null;
 
   return (
-    <tr className="border-b border-slate-100 hover:bg-slate-50/30">
+    <tr className="border-b border-border/50 hover:bg-muted/20">
       {/* Sticky left: role info */}
-      <td className="sticky left-0 z-10 bg-white px-3 py-2 whitespace-nowrap border-r border-slate-100">
+      <td className="sticky left-0 z-10 bg-card px-3 py-2 whitespace-nowrap border-r border-border/50">
         <div className="flex flex-col">
-          <span className="text-sm font-medium text-slate-700">{request.role_or_cost_type}</span>
-          <span className="text-[11px] text-slate-400">
+          <span className="text-sm font-medium text-foreground">{request.role_or_cost_type}</span>
+          <span className="text-[11px] text-muted-foreground">
             {request.hours_or_amount}h avg/mo | {request.priority}
           </span>
         </div>
       </td>
       {/* Assign All cell */}
-      <td className="px-0.5 py-1.5 text-center border-r border-slate-200">
+      <td className="px-0.5 py-1.5 text-center border-r border-border">
         {isEditingAll ? (
           <Select
             value={unifiedPersonId || ''}
@@ -301,7 +301,7 @@ function AssignmentRow({
             <SelectContent>
               {matchingRole.length > 0 && (
                 <SelectGroup>
-                  <SelectLabel className="text-xs text-slate-400">Matching Role</SelectLabel>
+                  <SelectLabel className="text-xs text-muted-foreground">Matching Role</SelectLabel>
                   {matchingRole.map((p) => (
                     <SelectItem key={p.person_id} value={p.person_id}>
                       {p.name}
@@ -312,12 +312,12 @@ function AssignmentRow({
               {matchingRole.length > 0 && otherPeople.length > 0 && <SelectSeparator />}
               {otherPeople.length > 0 && (
                 <SelectGroup>
-                  <SelectLabel className="text-xs text-slate-400">Other Roles</SelectLabel>
+                  <SelectLabel className="text-xs text-muted-foreground">Other Roles</SelectLabel>
                   {otherPeople.map((p) => (
                     <SelectItem key={p.person_id} value={p.person_id}>
                       <span className="flex items-center gap-2">
                         <span>{p.name}</span>
-                        <span className="text-xs text-slate-400">{p.roleName}</span>
+                        <span className="text-xs text-muted-foreground">{p.roleName}</span>
                       </span>
                     </SelectItem>
                   ))}
@@ -332,8 +332,8 @@ function AssignmentRow({
             className={cn(
               'w-full rounded px-1 py-1 text-xs transition-colors',
               unifiedPerson
-                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                : 'bg-slate-50 text-slate-400 hover:bg-slate-100',
+                ? 'bg-primary/5 text-primary hover:bg-primary/10'
+                : 'bg-muted/50 text-muted-foreground hover:bg-muted',
             )}
             title="Assign one person to all months"
           >
@@ -370,11 +370,11 @@ function AssignmentRow({
             <td
               key={month}
               className={cn(
-                'px-1 py-1.5 text-center min-w-[90px] bg-slate-50',
-                col.isJanuary && 'border-l-2 border-l-slate-300',
+                'px-1 py-1.5 text-center min-w-[90px] bg-muted/50',
+                col.isJanuary && 'border-l-2 border-l-border',
               )}
             >
-              <span className="text-slate-300">--</span>
+              <span className="text-muted-foreground/40">--</span>
             </td>
           );
         }
@@ -385,7 +385,7 @@ function AssignmentRow({
               key={month}
               className={cn(
                 'px-0.5 py-0.5 min-w-[90px]',
-                col.isJanuary && 'border-l-2 border-l-slate-300',
+                col.isJanuary && 'border-l-2 border-l-border',
               )}
             >
               <Select
@@ -402,7 +402,7 @@ function AssignmentRow({
                 <SelectContent>
                   {matchingRole.length > 0 && (
                     <SelectGroup>
-                      <SelectLabel className="text-xs text-slate-400">Matching Role</SelectLabel>
+                      <SelectLabel className="text-xs text-muted-foreground">Matching Role</SelectLabel>
                       {matchingRole.map((p) => (
                         <SelectItem key={p.person_id} value={p.person_id}>
                           <span className="flex items-center gap-2">
@@ -429,12 +429,12 @@ function AssignmentRow({
                   {matchingRole.length > 0 && otherPeople.length > 0 && <SelectSeparator />}
                   {otherPeople.length > 0 && (
                     <SelectGroup>
-                      <SelectLabel className="text-xs text-slate-400">Other Roles</SelectLabel>
+                      <SelectLabel className="text-xs text-muted-foreground">Other Roles</SelectLabel>
                       {otherPeople.map((p) => (
                         <SelectItem key={p.person_id} value={p.person_id}>
                           <span className="flex items-center gap-2">
                             <span>{p.name}</span>
-                            <span className="text-xs text-slate-400">{p.roleName}</span>
+                            <span className="text-xs text-muted-foreground">{p.roleName}</span>
                             {p.utilizationByMonth[month] !== undefined && (
                               <span
                                 className={cn(
@@ -465,7 +465,7 @@ function AssignmentRow({
             key={month}
             className={cn(
               'px-1 py-1.5 text-center min-w-[90px]',
-              col.isJanuary && 'border-l-2 border-l-slate-300',
+              col.isJanuary && 'border-l-2 border-l-border',
             )}
           >
             <button
@@ -474,8 +474,8 @@ function AssignmentRow({
               className={cn(
                 'w-full rounded px-1.5 py-1 text-xs transition-colors',
                 assignedPerson
-                  ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                  : 'bg-amber-50 text-amber-400 hover:bg-amber-100',
+                  ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30'
+                  : 'bg-amber-50 text-amber-400 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30',
               )}
             >
               {assignedPerson ? shortName(assignedPerson.name) : '--'}
@@ -489,7 +489,7 @@ function AssignmentRow({
           variant="outline"
           className={cn(
             'text-xs whitespace-nowrap',
-            fullyAssigned ? 'border-green-300 text-green-700' : 'border-amber-300 text-amber-700',
+            fullyAssigned ? 'border-green-300 text-green-700 dark:border-green-700 dark:text-green-400' : 'border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400',
           )}
         >
           {isSaving ? '...' : `${assignedCount}/${totalMonths}`}
@@ -518,8 +518,8 @@ function YearSummaryCell({
 
   if (inRangeMonths.length === 0) {
     return (
-      <td className="px-1 py-1.5 text-center min-w-[90px] bg-slate-50">
-        <span className="text-slate-300">--</span>
+      <td className="px-1 py-1.5 text-center min-w-[90px] bg-muted/50">
+        <span className="text-muted-foreground/40">--</span>
       </td>
     );
   }
@@ -532,14 +532,14 @@ function YearSummaryCell({
 
   if (assignedIds.length === 0) {
     label = '--';
-    style = 'text-slate-400';
+    style = 'text-muted-foreground';
   } else if (uniqueIds.length === 1) {
     const person = availablePeople.find((p) => p.person_id === uniqueIds[0]);
     label = person ? shortName(person.name) : '--';
-    style = assignedIds.length === inRangeMonths.length ? 'text-green-700' : 'text-amber-600';
+    style = assignedIds.length === inRangeMonths.length ? 'text-green-700 dark:text-green-400' : 'text-amber-600 dark:text-amber-400';
   } else {
     label = 'Mixed';
-    style = 'text-slate-500 italic';
+    style = 'text-muted-foreground italic';
   }
 
   return (

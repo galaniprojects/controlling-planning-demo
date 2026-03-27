@@ -11,7 +11,7 @@ export function Reporting() {
     <div className="px-6 py-6 space-y-4">
       {!isAIBuilder && (
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-slate-900">Reporting</h1>
+          <h1 className="text-xl font-semibold text-foreground">Reporting</h1>
           <ModuleGuideButton moduleId="reporting" />
         </div>
       )}

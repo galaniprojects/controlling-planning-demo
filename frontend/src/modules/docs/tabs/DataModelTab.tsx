@@ -116,7 +116,7 @@ export function DataModelTab() {
           <CardTitle className="text-lg">Entity Overview</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-slate-600 mb-4">
+          <p className="text-sm text-muted-foreground mb-4">
             The data model centers around <strong>Projects</strong>, which have <strong>Forecast</strong> rows
             (monthly baseline/forecast/actuals), <strong>Resource Allocations</strong> (person assignments),
             and <strong>Change Requests</strong> (budget change proposals). Projects belong to a
@@ -124,7 +124,7 @@ export function DataModelTab() {
             <strong> Cost Centers</strong> and <strong>Competence Centers</strong> with location-aware rate tables.
           </p>
 
-          <div className="font-mono text-xs bg-slate-50 rounded-lg p-4 text-slate-700 leading-relaxed whitespace-pre">{`Project ──── LoB
+          <div className="font-mono text-xs bg-muted/50 rounded-lg p-4 text-foreground leading-relaxed whitespace-pre">{`Project ──── LoB
    │  ╰───── Programme
    │
    ├── Forecast (monthly: baseline/forecast/actuals)
@@ -150,18 +150,18 @@ Grouping Hierarchy ──── Entity Types ──── Entities ──── 
           {ENTITIES.map((entity) => (
             <div key={entity.table} className="border rounded-lg p-3">
               <div className="flex items-center gap-2 mb-2">
-                <span className="font-medium text-sm text-slate-900">{entity.name}</span>
+                <span className="font-medium text-sm text-foreground">{entity.name}</span>
                 <Badge variant="outline" className="text-xs font-mono">{entity.table}</Badge>
               </div>
-              <p className="text-xs text-slate-600 mb-2">{entity.description}</p>
+              <p className="text-xs text-muted-foreground mb-2">{entity.description}</p>
               <div className="flex flex-wrap gap-1 mb-2">
                 {entity.fields.map((f) => (
-                  <span key={f} className="text-xs font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
+                  <span key={f} className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
                     {f}
                   </span>
                 ))}
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-muted-foreground">
                 {entity.relationships.map((r, i) => (
                   <span key={i}>
                     {i > 0 && ' · '}
@@ -183,17 +183,17 @@ Grouping Hierarchy ──── Entity Types ──── Entities ──── 
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-2 text-slate-500 font-medium">Entity</th>
-                <th className="text-left py-2 text-slate-500 font-medium">Count</th>
-                <th className="text-left py-2 text-slate-500 font-medium">Notes</th>
+                <th className="text-left py-2 text-muted-foreground font-medium">Entity</th>
+                <th className="text-left py-2 text-muted-foreground font-medium">Count</th>
+                <th className="text-left py-2 text-muted-foreground font-medium">Notes</th>
               </tr>
             </thead>
             <tbody>
               {SEED_SUMMARY.map((row) => (
                 <tr key={row.entity} className="border-b last:border-0">
-                  <td className="py-2 font-medium text-slate-700">{row.entity}</td>
-                  <td className="py-2 text-slate-600 font-mono text-xs">{row.count}</td>
-                  <td className="py-2 text-slate-500 text-xs">{row.note}</td>
+                  <td className="py-2 font-medium text-foreground">{row.entity}</td>
+                  <td className="py-2 text-muted-foreground font-mono text-xs">{row.count}</td>
+                  <td className="py-2 text-muted-foreground text-xs">{row.note}</td>
                 </tr>
               ))}
             </tbody>
@@ -206,11 +206,11 @@ Grouping Hierarchy ──── Entity Types ──── Entities ──── 
         <CardHeader>
           <CardTitle className="text-lg">Financial Data Model</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-slate-700 space-y-3">
+        <CardContent className="text-sm text-foreground space-y-3">
           <p>
             Each project has three layers of financial data per month:
           </p>
-          <ul className="list-disc list-inside space-y-1 text-slate-600">
+          <ul className="list-disc list-inside space-y-1 text-muted-foreground">
             <li><strong>Baseline</strong> — original approved budget (set at project approval, updated by approved CRs)</li>
             <li><strong>Forecast</strong> — current expected spend (updated via rolling forecast wizard)</li>
             <li><strong>Actuals</strong> — recorded spend to date (terminates at demo date boundary: April 2026)</li>

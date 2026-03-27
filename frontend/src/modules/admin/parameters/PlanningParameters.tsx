@@ -146,7 +146,7 @@ export function PlanningParameters() {
           <button
             type="button"
             onClick={() => toggleSecretVisibility(param.key)}
-            className="p-1.5 text-slate-400 hover:text-slate-600"
+            className="p-1.5 text-muted-foreground hover:text-foreground"
           >
             {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -163,7 +163,7 @@ export function PlanningParameters() {
           onChange={(e) => handleValueChange(param.key, e.target.value)}
         />
         {param.data_type === 'percentage' && (
-          <span className="text-sm text-slate-400">%</span>
+          <span className="text-sm text-muted-foreground">%</span>
         )}
       </div>
     );
@@ -181,7 +181,7 @@ export function PlanningParameters() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-base font-semibold text-slate-800">Planning Parameters</h2>
+      <h2 className="text-base font-semibold text-foreground">Planning Parameters</h2>
 
       {groupedParams.map((group) => {
         if (group.params.length === 0) return null;
@@ -192,8 +192,8 @@ export function PlanningParameters() {
         return (
           <Card key={group.key} className="p-4 space-y-3">
             <div className="flex items-center gap-2">
-              <Icon className="h-4 w-4 text-slate-500" />
-              <h3 className="text-sm font-semibold text-slate-700">{group.label}</h3>
+              <Icon className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-foreground">{group.label}</h3>
             </div>
             <Separator />
 
@@ -202,12 +202,12 @@ export function PlanningParameters() {
               return (
                 <div
                   key={param.key}
-                  className={`flex items-center justify-between py-2.5 border-b border-slate-100 last:border-b-0 ${isEdited ? 'bg-amber-50 -mx-2 px-2 rounded' : ''}`}
+                  className={`flex items-center justify-between py-2.5 border-b border-border last:border-b-0 ${isEdited ? 'bg-amber-50 -mx-2 px-2 rounded' : ''}`}
                 >
                   <div className="flex-1 min-w-0 mr-4">
-                    <p className="text-sm font-medium text-slate-700">{param.name}</p>
-                    <p className="text-xs text-slate-500">{param.description}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-sm font-medium text-foreground">{param.name}</p>
+                    <p className="text-xs text-muted-foreground">{param.description}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       Default: {param.default_value}
                       {param.data_type === 'percentage' ? '%' : ''}
                     </p>
@@ -218,7 +218,7 @@ export function PlanningParameters() {
             })}
 
             {result?.group === group.key && (
-              <div className="rounded-md border border-blue-200 bg-blue-50 p-2.5 text-sm text-blue-800">
+              <div className="rounded-md border border-primary/20 bg-primary/5 p-2.5 text-sm text-primary">
                 {result.message}
               </div>
             )}

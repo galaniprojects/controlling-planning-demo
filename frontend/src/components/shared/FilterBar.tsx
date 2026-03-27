@@ -45,7 +45,7 @@ export function FilterBar({ filters, values, onChange, onClear }: FilterBarProps
               </SelectTrigger>
               <SelectContent>
                 {isActive && (
-                  <SelectItem value="__all__" className="text-slate-500">
+                  <SelectItem value="__all__" className="text-muted-foreground">
                     Show All
                   </SelectItem>
                 )}
@@ -60,7 +60,7 @@ export function FilterBar({ filters, values, onChange, onClear }: FilterBarProps
         );
       })}
       {hasActiveFilters && (
-        <Button variant="ghost" size="sm" onClick={onClear} className="text-slate-500">
+        <Button variant="ghost" size="sm" onClick={onClear} className="text-muted-foreground">
           <X className="h-3.5 w-3.5 mr-1" />
           Clear
         </Button>

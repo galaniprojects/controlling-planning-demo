@@ -95,7 +95,7 @@ export function SubmissionDiffView({ projectId, onBack }: Props) {
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Back
         </Button>
-        <p className="text-sm text-slate-400">No comparison data available for this project.</p>
+        <p className="text-sm text-muted-foreground">No comparison data available for this project.</p>
       </div>
     );
   }
@@ -110,59 +110,59 @@ export function SubmissionDiffView({ projectId, onBack }: Props) {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h2 className="text-lg font-semibold text-slate-800">Review Proposed Changes</h2>
-          <p className="text-sm text-slate-500">{data.project_name}</p>
+          <h2 className="text-lg font-semibold text-foreground">Review Proposed Changes</h2>
+          <p className="text-sm text-muted-foreground">{data.project_name}</p>
         </div>
       </div>
 
       {/* Feedback card */}
       {data.submission_feedback && (
-        <Card className="border-amber-200 bg-amber-50">
+        <Card className="border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-amber-800">Controller Feedback</CardTitle>
+            <CardTitle className="text-sm font-medium text-amber-800 dark:text-amber-400">Controller Feedback</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-amber-700">{data.submission_feedback}</p>
+            <p className="text-sm text-amber-700 dark:text-amber-400">{data.submission_feedback}</p>
           </CardContent>
         </Card>
       )}
 
       {/* Result message */}
       {result && (
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
           {result}
         </div>
       )}
 
       {/* Comparison grid */}
-      <div className="border border-slate-200 rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="sticky left-0 z-10 bg-slate-50 px-3 py-1.5 text-left text-xs font-medium text-slate-500 w-[180px] min-w-[180px]">
+              <tr className="bg-muted/50 border-b border-border">
+                <th className="sticky left-0 z-10 bg-muted/50 px-3 py-1.5 text-left text-xs font-medium text-muted-foreground w-[180px] min-w-[180px]">
                   Line Item
                 </th>
                 {yearGroups.map((yg) => (
                   <th
                     key={yg.year}
                     colSpan={yg.isExpanded ? yg.months.length : 1}
-                    className="px-2 py-1.5 text-center text-xs font-medium text-slate-500 cursor-pointer hover:bg-slate-100"
+                    className="px-2 py-1.5 text-center text-xs font-medium text-muted-foreground cursor-pointer hover:bg-accent"
                     onClick={() => toggleYear(yg.year)}
                   >
                     {yg.year} {yg.isExpanded ? '\u25B4' : '\u25BE'}
                   </th>
                 ))}
               </tr>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="sticky left-0 z-10 bg-slate-50 px-3 py-1 text-left text-xs text-slate-400" />
+              <tr className="bg-muted/50 border-b border-border">
+                <th className="sticky left-0 z-10 bg-muted/50 px-3 py-1 text-left text-xs text-muted-foreground" />
                 {visibleColumns.map((col) =>
                   col.type === 'month' ? (
-                    <th key={col.key} className="px-2 py-1 text-center text-xs text-slate-400 min-w-[80px]">
+                    <th key={col.key} className="px-2 py-1 text-center text-xs text-muted-foreground min-w-[80px]">
                       {monthLabel(col.key)}
                     </th>
                   ) : (
-                    <th key={`ys-${col.year}`} className="px-2 py-1 text-center text-xs text-slate-400 min-w-[80px]">
+                    <th key={`ys-${col.year}`} className="px-2 py-1 text-center text-xs text-muted-foreground min-w-[80px]">
                       Sum
                     </th>
                   )
@@ -183,7 +183,7 @@ export function SubmissionDiffView({ projectId, onBack }: Props) {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-slate-500">
+      <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <span className="inline-block w-3 h-3 rounded bg-green-100 border border-green-300" />
           Reduction
@@ -226,8 +226,8 @@ function DiffRow({ item, visibleColumns }: DiffRowProps) {
   const isInternal = item.category === 'internal';
 
   return (
-    <tr className="border-b border-slate-100">
-      <td className="sticky left-0 z-10 bg-white px-3 py-2 text-sm text-slate-700 whitespace-nowrap">
+    <tr className="border-b border-border">
+      <td className="sticky left-0 z-10 bg-card px-3 py-2 text-sm text-foreground whitespace-nowrap">
         {item.name}
       </td>
       {visibleColumns.map((col) => {
@@ -241,11 +241,11 @@ function DiffRow({ item, visibleColumns }: DiffRowProps) {
             <td key={`ys-${col.year}`} className="px-2 py-2 text-center">
               {hasChange ? (
                 <div className="text-xs">
-                  <div className="text-slate-400 line-through">{formatNumber(currentSum)}</div>
-                  <div className="font-medium text-slate-700">{formatNumber(proposedSum)}</div>
+                  <div className="text-muted-foreground line-through">{formatNumber(currentSum)}</div>
+                  <div className="font-medium text-foreground">{formatNumber(proposedSum)}</div>
                 </div>
               ) : (
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted-foreground">
                   {currentSum > 0 ? formatNumber(currentSum) : '\u2014'}
                 </span>
               )}
@@ -255,7 +255,7 @@ function DiffRow({ item, visibleColumns }: DiffRowProps) {
 
         const cell = item.months.find((m) => m.month === col.key);
         if (!cell) {
-          return <td key={col.key} className="px-2 py-2 text-center text-xs text-slate-300">{'\u2014'}</td>;
+          return <td key={col.key} className="px-2 py-2 text-center text-xs text-muted-foreground/40">{'\u2014'}</td>;
         }
 
         const currentVal = isInternal ? cell.current : cell.current_eur;
@@ -263,7 +263,7 @@ function DiffRow({ item, visibleColumns }: DiffRowProps) {
 
         if (!cell.is_changed) {
           return (
-            <td key={col.key} className="px-2 py-2 text-center text-xs text-slate-500">
+            <td key={col.key} className="px-2 py-2 text-center text-xs text-muted-foreground">
               {currentVal > 0 ? formatNumber(currentVal) : '\u2014'}
             </td>
           );
@@ -271,16 +271,16 @@ function DiffRow({ item, visibleColumns }: DiffRowProps) {
 
         // Determine change color
         const diff = proposedVal - currentVal;
-        let bgClass = 'bg-blue-50'; // default: other change
-        if (diff < 0) bgClass = 'bg-green-50'; // reduction
-        else if (diff > 0) bgClass = 'bg-red-50'; // increase
+        let bgClass = 'bg-blue-50 dark:bg-blue-900/20'; // default: other change
+        if (diff < 0) bgClass = 'bg-green-50 dark:bg-green-900/20'; // reduction
+        else if (diff > 0) bgClass = 'bg-red-50 dark:bg-red-900/20'; // increase
 
         return (
           <td key={col.key} className={`px-2 py-1 text-center ${bgClass}`}>
-            <div className="text-[10px] text-slate-400 line-through">
+            <div className="text-[10px] text-muted-foreground line-through">
               {currentVal > 0 ? formatNumber(currentVal) : '\u2014'}
             </div>
-            <div className="text-xs font-medium text-slate-700">
+            <div className="text-xs font-medium text-foreground">
               {proposedVal > 0 ? formatNumber(proposedVal) : '0'}
             </div>
           </td>

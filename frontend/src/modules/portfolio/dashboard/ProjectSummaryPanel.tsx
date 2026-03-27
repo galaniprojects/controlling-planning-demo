@@ -49,7 +49,7 @@ export function ProjectSummaryPanel({ projectId }: Props) {
   }
 
   if (!data) {
-    return <p className="text-sm text-slate-400">Project not found.</p>;
+    return <p className="text-sm text-muted-foreground">Project not found.</p>;
   }
 
   const bs = data.budget_snapshot;
@@ -70,7 +70,7 @@ export function ProjectSummaryPanel({ projectId }: Props) {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <h3 className="text-base font-semibold text-slate-800">{data.name}</h3>
+        <h3 className="text-base font-semibold text-foreground">{data.name}</h3>
         {data.rag && (
           <Badge className={cn('text-xs capitalize', ragBgColor(data.rag))}>
             {data.rag}
@@ -80,37 +80,37 @@ export function ProjectSummaryPanel({ projectId }: Props) {
 
       {/* Budget Snapshot */}
       <div>
-        <p className="text-xs font-medium text-slate-500 mb-2">Budget Snapshot</p>
+        <p className="text-xs font-medium text-muted-foreground mb-2">Budget Snapshot</p>
         <div className="grid grid-cols-2 gap-2">
           <Card>
             <CardContent className="p-3">
-              <p className="text-xs text-slate-500">Baseline</p>
-              <p className="text-sm font-semibold text-slate-800">{formatCurrency(bs.baseline)}</p>
+              <p className="text-xs text-muted-foreground">Baseline</p>
+              <p className="text-sm font-semibold text-foreground">{formatCurrency(bs.baseline)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-3">
-              <p className="text-xs text-slate-500">Forecast</p>
-              <p className="text-sm font-semibold text-slate-800">{formatCurrency(bs.forecast)}</p>
+              <p className="text-xs text-muted-foreground">Forecast</p>
+              <p className="text-sm font-semibold text-foreground">{formatCurrency(bs.forecast)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-3">
-              <p className="text-xs text-slate-500">Actuals YTD</p>
-              <p className="text-sm font-semibold text-slate-800">{formatCurrency(bs.actuals_ytd)}</p>
+              <p className="text-xs text-muted-foreground">Actuals YTD</p>
+              <p className="text-sm font-semibold text-foreground">{formatCurrency(bs.actuals_ytd)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-3">
-              <p className="text-xs text-slate-500">Plan Drift</p>
+              <p className="text-xs text-muted-foreground">Plan Drift</p>
               <p
                 className={cn(
                   'text-sm font-semibold',
                   bs.plan_drift_pct > 10
-                    ? 'text-red-600'
+                    ? 'text-red-600 dark:text-red-400'
                     : bs.plan_drift_pct > 5
-                      ? 'text-amber-600'
-                      : 'text-green-600',
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-green-600 dark:text-green-400',
                 )}
               >
                 {formatPercent(bs.plan_drift_pct)}
@@ -123,15 +123,15 @@ export function ProjectSummaryPanel({ projectId }: Props) {
       {/* Timeline */}
       {data.timeline?.start && (
         <div>
-          <p className="text-xs font-medium text-slate-500 mb-2">Timeline</p>
+          <p className="text-xs font-medium text-muted-foreground mb-2">Timeline</p>
           <div className="space-y-1">
-            <div className="flex justify-between text-xs text-slate-400">
+            <div className="flex justify-between text-xs text-muted-foreground">
               <span>{data.timeline.start}</span>
               <span>{data.timeline.end || '?'}</span>
             </div>
-            <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
               <div
-                className="h-full rounded-full bg-blue-600 transition-all"
+                className="h-full rounded-full bg-primary transition-all"
                 style={{ width: `${timelinePct}%` }}
               />
             </div>
@@ -142,26 +142,26 @@ export function ProjectSummaryPanel({ projectId }: Props) {
       {/* Last CR Summary */}
       {data.last_cr_summary && (
         <div>
-          <p className="text-xs font-medium text-slate-500 mb-1">Last Change Request</p>
-          <p className="text-sm text-slate-600">{data.last_cr_summary}</p>
+          <p className="text-xs font-medium text-muted-foreground mb-1">Last Change Request</p>
+          <p className="text-sm text-muted-foreground">{data.last_cr_summary}</p>
         </div>
       )}
 
       {/* Forecast Sparkline */}
       {data.forecast_sparkline.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-slate-500 mb-1">Forecast Trend</p>
+          <p className="text-xs font-medium text-muted-foreground mb-1">Forecast Trend</p>
           <ResponsiveContainer width="100%" height={80}>
             <AreaChart data={data.forecast_sparkline}>
               <Tooltip
                 formatter={(value: number) => [formatCurrency(value), 'Forecast']}
-                contentStyle={{ fontSize: 12, borderRadius: 6 }}
+                contentStyle={{ fontSize: 12, borderRadius: 6, backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--card-foreground)' }}
               />
               <Area
                 type="monotone"
                 dataKey="amount"
-                stroke="#1d4ed8"
-                fill="#dbeafe"
+                stroke="hsl(var(--primary))"
+                fill="hsl(var(--primary) / 0.15)"
                 strokeWidth={1.5}
               />
             </AreaChart>

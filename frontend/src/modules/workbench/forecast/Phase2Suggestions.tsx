@@ -34,10 +34,10 @@ export function Phase2Suggestions({
     return (
       <div className="space-y-4">
         <div>
-          <h3 className="text-base font-semibold text-slate-800">
+          <h3 className="text-base font-semibold text-foreground">
             Phase 2: System Suggestions
           </h3>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             No suggestions for this cycle. Proceeding to edit.
           </p>
         </div>
@@ -49,10 +49,10 @@ export function Phase2Suggestions({
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-base font-semibold text-slate-800">
+        <h3 className="text-base font-semibold text-foreground">
           Phase 2: System Suggestions
         </h3>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Review system-generated insights. Apply or dismiss each suggestion
           before editing the forecast.
         </p>
@@ -67,7 +67,7 @@ export function Phase2Suggestions({
               key={s.id}
               className={
                 isApplied
-                  ? 'border-green-200 bg-green-50'
+                  ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20'
                   : isDismissed
                     ? 'opacity-50'
                     : ''
@@ -80,7 +80,7 @@ export function Phase2Suggestions({
                     {TYPE_LABELS[s.type] || s.type}
                   </Badge>
                   {isApplied && (
-                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 text-[10px]">
+                    <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 text-[10px]">
                       Applied
                     </Badge>
                   )}
@@ -90,11 +90,11 @@ export function Phase2Suggestions({
                     </Badge>
                   )}
                 </div>
-                <p className="text-sm text-slate-700">{s.observation}</p>
-                <p className="text-sm font-medium text-slate-800">
+                <p className="text-sm text-foreground">{s.observation}</p>
+                <p className="text-sm font-medium text-foreground">
                   {s.recommendation}
                 </p>
-                <p className="text-xs text-slate-500">{s.impact_description}</p>
+                <p className="text-xs text-muted-foreground">{s.impact_description}</p>
                 <div className="flex gap-2 pt-1">
                   {!isApplied && (
                     <Button

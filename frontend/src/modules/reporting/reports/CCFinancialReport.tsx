@@ -127,7 +127,7 @@ export function CCFinancialReport() {
   }
 
   if (!data) {
-    return <p className="text-sm text-slate-400">Failed to load report data.</p>;
+    return <p className="text-sm text-muted-foreground">Failed to load report data.</p>;
   }
 
   const { kpis, rows, chart_data } = data;
@@ -163,10 +163,10 @@ export function CCFinancialReport() {
   );
 
   const tableContent = (
-    <div className="rounded-lg border border-slate-200 bg-white overflow-auto">
+    <div className="rounded-lg border border-border bg-card overflow-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
+          <tr className="border-b border-border bg-muted/50">
             <SortableHeader column="cost_center_name" label="Cost Center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
             <SortableHeader column="project_name" label="Project" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
             <SortableHeader column="internal_hours" label="Internal Hours" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
@@ -179,9 +179,9 @@ export function CCFinancialReport() {
         </thead>
         <tbody>
           {sortedRows.map((r) => (
-            <tr key={r.project_id} className="border-t border-slate-100 hover:bg-slate-50">
-              <td className="px-3 py-2 text-slate-700">{r.cost_center_name ?? '—'}</td>
-              <td className="px-3 py-2 text-slate-700">{r.project_name}</td>
+            <tr key={r.project_id} className="border-t border-border hover:bg-accent">
+              <td className="px-3 py-2 text-foreground">{r.cost_center_name ?? '—'}</td>
+              <td className="px-3 py-2 text-foreground">{r.project_name}</td>
               <td className="px-3 py-2 text-right font-mono text-xs">
                 {r.internal_hours.toLocaleString('de-DE')}
               </td>
@@ -203,9 +203,9 @@ export function CCFinancialReport() {
             </tr>
           ))}
           {/* Summary row */}
-          <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
+          <tr className="border-t-2 border-border bg-muted/50 font-semibold">
             <td />
-            <td className="px-3 py-2 text-slate-700">
+            <td className="px-3 py-2 text-foreground">
               Total ({sortedRows.length} projects)
             </td>
             <td className="px-3 py-2 text-right font-mono text-xs">

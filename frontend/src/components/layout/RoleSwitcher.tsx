@@ -22,12 +22,12 @@ export function RoleSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-1.5 text-sm hover:bg-slate-50">
-          <span className="font-medium text-slate-700">
+        <button className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent">
+          <span className="font-medium text-foreground">
             {currentRole?.user_name ?? 'Loading...'}
           </span>
           <svg
-            className="h-3.5 w-3.5 text-slate-400"
+            className="h-3.5 w-3.5 text-muted-foreground"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -42,11 +42,11 @@ export function RoleSwitcher() {
           <DropdownMenuItem
             key={role.id}
             onClick={() => handleSwitch(role.id)}
-            className={role.id === currentRoleId ? 'bg-slate-100' : ''}
+            className={role.id === currentRoleId ? 'bg-accent' : ''}
           >
             <div className="flex flex-col">
               <span className="font-medium">{role.user_name}</span>
-              <span className="text-xs text-slate-500">{role.user_title}</span>
+              <span className="text-xs text-muted-foreground">{role.user_title}</span>
             </div>
           </DropdownMenuItem>
         ))}

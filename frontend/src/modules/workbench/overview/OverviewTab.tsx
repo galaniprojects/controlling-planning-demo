@@ -47,7 +47,7 @@ export function OverviewTab({ projectId }: Props) {
   }
 
   if (!data) {
-    return <p className="text-sm text-slate-400">Failed to load project overview.</p>;
+    return <p className="text-sm text-muted-foreground">Failed to load project overview.</p>;
   }
 
   return (
@@ -70,7 +70,7 @@ export function OverviewTab({ projectId }: Props) {
       <ThreePointTable data={data.three_point_comparison} />
 
       <div>
-        <h3 className="text-sm font-medium text-slate-500 mb-2">
+        <h3 className="text-sm font-medium text-muted-foreground mb-2">
           Forecast Trajectory
         </h3>
         <ProjectTrajectoryChart data={data.trajectory_chart} />

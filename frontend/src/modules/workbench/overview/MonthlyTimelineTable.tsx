@@ -59,7 +59,7 @@ export function MonthlyTimelineTable({ data, status, startMonth, endMonth }: Pro
   }, [yearGroups, byMonth]);
 
   return (
-    <div className="border border-slate-200 rounded-lg overflow-hidden">
+    <div className="border border-border rounded-lg overflow-hidden">
       <div className="overflow-x-auto">
         <div
           className="grid min-w-max"
@@ -68,7 +68,7 @@ export function MonthlyTimelineTable({ data, status, startMonth, endMonth }: Pro
           }}
         >
           {/* Header row: year toggles + month names */}
-          <div className="sticky left-0 z-10 bg-slate-50 border-b border-slate-200 px-3 py-2 text-xs font-medium text-slate-500">
+          <div className="sticky left-0 z-10 bg-muted/50 border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground">
             Monthly Breakdown
           </div>
           {visibleColumns.map((col) =>
@@ -76,9 +76,9 @@ export function MonthlyTimelineTable({ data, status, startMonth, endMonth }: Pro
               <div
                 key={col.key}
                 className={cn(
-                  'border-b border-slate-200 px-2 py-2 text-xs font-medium text-center',
-                  isElapsedMonth(col.key) ? 'bg-slate-100 text-slate-500' : 'bg-slate-50 text-slate-600',
-                  col.isJanuary && 'border-l border-slate-300',
+                  'border-b border-border px-2 py-2 text-xs font-medium text-center',
+                  isElapsedMonth(col.key) ? 'bg-muted text-muted-foreground' : 'bg-muted/50 text-muted-foreground',
+                  col.isJanuary && 'border-l border-border',
                 )}
               >
                 {formatMonthShort(col.key)}
@@ -88,7 +88,7 @@ export function MonthlyTimelineTable({ data, status, startMonth, endMonth }: Pro
                 key={`yr-${col.year}`}
                 type="button"
                 onClick={() => toggleYear(col.year)}
-                className="border-b border-l border-slate-200 bg-slate-100 px-2 py-2 text-xs font-semibold text-slate-600 text-center hover:bg-slate-200 transition-colors cursor-pointer flex items-center justify-center gap-1"
+                className="border-b border-l border-border bg-muted px-2 py-2 text-xs font-semibold text-muted-foreground text-center hover:bg-accent transition-colors cursor-pointer flex items-center justify-center gap-1"
               >
                 <ChevronRight className="h-3 w-3" />
                 {col.year}
@@ -99,7 +99,7 @@ export function MonthlyTimelineTable({ data, status, startMonth, endMonth }: Pro
           {/* Year header row (expand/collapse toggles for expanded years) */}
           {yearGroups.some((g) => g.isExpanded && g.months.length > 1) && (
             <>
-              <div className="sticky left-0 z-10 bg-white" />
+              <div className="sticky left-0 z-10 bg-card" />
               {renderYearHeaderCells(yearGroups, visibleColumns, toggleYear)}
             </>
           )}
@@ -145,7 +145,7 @@ function renderYearHeaderCells(
           type="button"
           onClick={() => toggleYear(col.year)}
           style={{ gridColumn: `span ${group.months.length}` }}
-          className="bg-slate-50 px-2 py-1 text-[10px] font-semibold text-slate-500 text-center hover:bg-slate-100 transition-colors cursor-pointer flex items-center justify-center gap-0.5 border-b border-slate-100"
+          className="bg-muted/50 px-2 py-1 text-[10px] font-semibold text-muted-foreground text-center hover:bg-accent transition-colors cursor-pointer flex items-center justify-center gap-0.5 border-b border-border"
         >
           <ChevronDown className="h-2.5 w-2.5" />
           FY {col.year}
@@ -168,7 +168,7 @@ interface RowCellsProps {
 function RowCells({ label, rowKey, visibleColumns, byMonth, yearSums }: RowCellsProps) {
   return (
     <>
-      <div className="sticky left-0 z-10 bg-white border-b border-slate-100 px-3 py-2 text-xs font-medium text-slate-700 whitespace-nowrap">
+      <div className="sticky left-0 z-10 bg-card border-b border-border px-3 py-2 text-xs font-medium text-foreground whitespace-nowrap">
         {label}
       </div>
       {visibleColumns.map((col) => {
@@ -177,7 +177,7 @@ function RowCells({ label, rowKey, visibleColumns, byMonth, yearSums }: RowCells
           return (
             <div
               key={`${rowKey}-yr-${col.year}`}
-              className="border-b border-l border-slate-100 bg-slate-50 px-2 py-2 text-xs text-right text-slate-600 font-medium"
+              className="border-b border-l border-border bg-muted/50 px-2 py-2 text-xs text-right text-muted-foreground font-medium"
             >
               {formatCurrency(val)}
             </div>
@@ -189,10 +189,10 @@ function RowCells({ label, rowKey, visibleColumns, byMonth, yearSums }: RowCells
           <div
             key={`${rowKey}-${col.key}`}
             className={cn(
-              'border-b border-slate-100 px-2 py-2 text-xs text-right',
-              isElapsedMonth(col.key) ? 'bg-slate-50/50 text-slate-600' : 'text-slate-700',
-              col.isJanuary && 'border-l border-slate-200',
-              val === null && 'text-slate-300',
+              'border-b border-border px-2 py-2 text-xs text-right',
+              isElapsedMonth(col.key) ? 'bg-muted/30 text-muted-foreground' : 'text-foreground',
+              col.isJanuary && 'border-l border-border',
+              val === null && 'text-muted-foreground/40',
             )}
           >
             {val != null ? formatCurrency(val) : '\u2014'}

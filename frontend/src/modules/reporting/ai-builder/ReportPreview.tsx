@@ -33,7 +33,7 @@ export function ReportPreview({ report }: ReportPreviewProps) {
   return (
     <div className="space-y-5">
       {/* Title */}
-      <h2 className="text-lg font-semibold text-slate-800">{report.title}</h2>
+      <h2 className="text-lg font-semibold text-foreground">{report.title}</h2>
 
       {/* KPIs */}
       {report.kpis.length > 0 && <KPIRow kpis={report.kpis} />}
@@ -54,8 +54,8 @@ function KPIRow({ kpis }: { kpis: AIKPIItem[] }) {
     <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(kpis.length, 4)}, 1fr)` }}>
       {kpis.map((kpi, i) => (
         <Card key={i} className="p-3">
-          <p className="text-xs text-slate-500 mb-1">{kpi.label}</p>
-          <p className="text-lg font-semibold text-slate-800">
+          <p className="text-xs text-muted-foreground mb-1">{kpi.label}</p>
+          <p className="text-lg font-semibold text-foreground">
             {formatKPIValue(kpi)}
           </p>
         </Card>
@@ -87,8 +87,8 @@ function ChartRenderer({ spec }: { spec: AIChartSpec }) {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-indigo-600">{icon}</span>
-        <h3 className="text-sm font-semibold text-slate-700">{spec.title}</h3>
+        <span className="text-indigo-600 dark:text-indigo-400">{icon}</span>
+        <h3 className="text-sm font-semibold text-foreground">{spec.title}</h3>
       </div>
       <div className="h-[300px]">
         {(spec.type === 'bar') && <BarChartView spec={spec} />}
@@ -103,17 +103,17 @@ function BarChartView({ spec }: { spec: AIChartSpec }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={spec.data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
         <XAxis
           dataKey={spec.category_key}
-          tick={{ fontSize: 11, fill: '#64748b' }}
+          tick={{ fontSize: 11, fill: 'var(--chart-axis)' }}
           tickLine={false}
           interval={0}
           angle={spec.data.length > 6 ? -35 : 0}
           textAnchor={spec.data.length > 6 ? 'end' : 'middle'}
           height={spec.data.length > 6 ? 80 : 30}
         />
-        <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
+        <YAxis tick={{ fontSize: 11, fill: 'var(--chart-axis)' }} tickLine={false} />
         <Tooltip formatter={(val: number) => formatCurrencyDetailed(val)} />
         <Bar dataKey={spec.data_key} fill="#6366f1" radius={[4, 4, 0, 0]} />
         {spec.secondary_data_key && (
@@ -129,9 +129,9 @@ function LineChartView({ spec }: { spec: AIChartSpec }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={spec.data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey={spec.category_key} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
-        <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+        <XAxis dataKey={spec.category_key} tick={{ fontSize: 11, fill: 'var(--chart-axis)' }} tickLine={false} />
+        <YAxis tick={{ fontSize: 11, fill: 'var(--chart-axis)' }} tickLine={false} />
         <Tooltip formatter={(val: number) => formatCurrencyDetailed(val)} />
         <Line type="monotone" dataKey={spec.data_key} stroke="#6366f1" strokeWidth={2} dot={{ r: 3, fill: '#6366f1' }} />
         {spec.secondary_data_key && (
@@ -200,21 +200,21 @@ function TableRenderer({ spec }: { spec: AITableSpec }) {
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
-        <Table2 className="h-3.5 w-3.5 text-indigo-600" />
-        <span className="text-xs font-medium text-slate-500">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+        <Table2 className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+        <span className="text-xs font-medium text-muted-foreground">
           {spec.rows.length} row{spec.rows.length !== 1 ? 's' : ''}
         </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50">
+            <tr className="border-b border-border bg-muted/50">
               {spec.columns.map((col) => (
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
-                  className="px-4 py-2.5 text-left text-xs font-medium text-slate-600 cursor-pointer hover:text-slate-800 select-none whitespace-nowrap"
+                  className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none whitespace-nowrap"
                 >
                   <div className="flex items-center gap-1">
                     {col.label}
@@ -232,12 +232,12 @@ function TableRenderer({ spec }: { spec: AITableSpec }) {
             {sortedRows.map((row, i) => (
               <tr
                 key={i}
-                className="border-b border-slate-50 last:border-b-0 hover:bg-slate-50/50"
+                className="border-b border-border/50 last:border-b-0 hover:bg-accent/50"
               >
                 {spec.columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`px-4 py-2 text-slate-700 whitespace-nowrap ${
+                    className={`px-4 py-2 text-foreground whitespace-nowrap ${
                       col.type !== 'text' ? 'text-right tabular-nums' : ''
                     }`}
                   >

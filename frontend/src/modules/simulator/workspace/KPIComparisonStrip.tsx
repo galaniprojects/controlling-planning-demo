@@ -11,14 +11,14 @@ interface Props {
 function DeltaIndicator({ delta }: { delta: number }) {
   if (delta === 0)
     return (
-      <span className="flex items-center gap-0.5 text-slate-500 text-xs">
+      <span className="flex items-center gap-0.5 text-muted-foreground text-xs">
         <Minus className="h-3 w-3" /> No change
       </span>
     );
 
   const isNegative = delta < 0;
   // For budget: negative = savings = good (green)
-  const color = isNegative ? 'text-green-600' : 'text-red-600';
+  const color = isNegative ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
   const Icon = isNegative ? ArrowDown : ArrowUp;
 
   return (
@@ -44,19 +44,19 @@ function KPICard({
 }) {
   return (
     <Card className="p-4 space-y-2">
-      <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
         {label}
       </p>
       <div className="space-y-1">
         <div className="flex items-baseline justify-between">
-          <span className="text-xs text-slate-400">Current</span>
-          <span className="text-sm font-semibold text-slate-700">
+          <span className="text-xs text-muted-foreground">Current</span>
+          <span className="text-sm font-semibold text-foreground">
             {currentValue}
           </span>
         </div>
         <div className="flex items-baseline justify-between">
-          <span className="text-xs text-slate-400">Scenario</span>
-          <span className="text-sm font-semibold text-slate-900">
+          <span className="text-xs text-muted-foreground">Scenario</span>
+          <span className="text-sm font-semibold text-foreground">
             {scenarioValue}
           </span>
         </div>
@@ -69,19 +69,19 @@ function KPICard({
 function TimeFrameCard({ segment }: { segment: TimeFrameSegment }) {
   return (
     <Card className="p-3 space-y-1.5 flex-1 min-w-0">
-      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
         {segment.label}
       </p>
       <div className="space-y-0.5">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-[10px] text-slate-400">FC</span>
-          <span className="text-xs font-semibold text-slate-700 tabular-nums">
+          <span className="text-[10px] text-muted-foreground">FC</span>
+          <span className="text-xs font-semibold text-foreground tabular-nums">
             {formatCurrency(segment.original)}
           </span>
         </div>
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-[10px] text-slate-400">Scenario</span>
-          <span className="text-xs font-semibold text-slate-900 tabular-nums">
+          <span className="text-[10px] text-muted-foreground">Scenario</span>
+          <span className="text-xs font-semibold text-foreground tabular-nums">
             {formatCurrency(segment.adjusted)}
           </span>
         </div>
@@ -116,7 +116,7 @@ export function KPIComparisonStrip({ impact, affectedCount }: Props) {
           delta={impact.total_budget_delta}
         />
         <Card className="p-4 space-y-2">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             RAG Distribution
           </p>
           <div className="flex items-center gap-3 mt-2">
@@ -135,17 +135,17 @@ export function KPIComparisonStrip({ impact, affectedCount }: Props) {
           </div>
         </Card>
         <Card className="p-4 space-y-2">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Projects Affected
           </p>
-          <p className="text-2xl font-semibold text-slate-900">{affectedCount}</p>
+          <p className="text-2xl font-semibold text-foreground">{affectedCount}</p>
         </Card>
       </div>
 
       {/* SIM-03: Time Frame Breakdown */}
       {breakdown && breakdown.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-slate-500 mb-2">Portfolio Impact by Time Frame</p>
+          <p className="text-xs font-medium text-muted-foreground mb-2">Portfolio Impact by Time Frame</p>
           <div className="flex gap-3">
             {breakdown.map((seg) => (
               <TimeFrameCard key={seg.label} segment={seg} />

@@ -8,7 +8,7 @@ export function Breadcrumb() {
   const segments = location.pathname.split('/').filter(Boolean);
 
   if (segments.length === 0) {
-    return <span className="text-sm text-slate-500">Launchpad</span>;
+    return <span className="text-sm text-muted-foreground">Launchpad</span>;
   }
 
   return (
@@ -20,13 +20,13 @@ export function Breadcrumb() {
 
         return (
           <span key={path} className="flex items-center gap-1.5">
-            <span className="text-slate-300">/</span>
+            <span className="text-muted-foreground/40">/</span>
             {isLast ? (
-              <span className="text-sm font-medium text-slate-700">{label}</span>
+              <span className="text-sm font-medium text-foreground">{label}</span>
             ) : (
               <button
                 onClick={() => navigate(path)}
-                className="text-sm text-slate-500 hover:text-blue-800"
+                className="text-sm text-muted-foreground hover:text-primary"
               >
                 {label}
               </button>

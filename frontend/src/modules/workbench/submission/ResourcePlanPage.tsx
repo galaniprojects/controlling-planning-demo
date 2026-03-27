@@ -211,7 +211,7 @@ export function ResourcePlanPage() {
   if (!meta) {
     return (
       <div className="px-6 py-6">
-        <p className="text-slate-500">Project not found.</p>
+        <p className="text-muted-foreground">Project not found.</p>
         <Button variant="ghost" onClick={() => navigate('/workbench')} className="mt-2">
           <ArrowLeft className="h-4 w-4 mr-1" /> Back to Workbench
         </Button>
@@ -237,14 +237,14 @@ export function ResourcePlanPage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-lg font-semibold text-slate-800">
+          <h1 className="text-lg font-semibold text-foreground">
             {isResubmit ? 'Edit Resource Plan' : 'Resource Plan'}
           </h1>
-          <div className="flex items-center gap-2 text-sm text-slate-500">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>{meta.name}</span>
-            <span className="text-slate-300">|</span>
+            <span className="text-muted-foreground/40">|</span>
             <span>{meta.lob_name}</span>
-            <span className="text-slate-300">|</span>
+            <span className="text-muted-foreground/40">|</span>
             <span>{meta.start_month} to {meta.end_month || '...'}</span>
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">
               {meta.capex_opex}
@@ -255,61 +255,61 @@ export function ResourcePlanPage() {
 
       {/* Feedback banner for resubmission */}
       {isResubmit && meta.submission_feedback && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-          <p className="text-sm font-medium text-amber-800">Feedback</p>
-          <p className="text-sm text-amber-700 mt-1">{meta.submission_feedback}</p>
+        <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-400">Feedback</p>
+          <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">{meta.submission_feedback}</p>
         </div>
       )}
 
       {/* Grid */}
-      <div className="border border-slate-200 rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               {/* Year headers */}
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="sticky left-0 z-10 bg-slate-50 px-3 py-1.5 text-left text-xs font-medium text-slate-500 w-[200px] min-w-[200px]">
+              <tr className="bg-muted/50 border-b border-border">
+                <th className="sticky left-0 z-10 bg-muted/50 px-3 py-1.5 text-left text-xs font-medium text-muted-foreground w-[200px] min-w-[200px]">
                   Line Item
                 </th>
                 {yearGroups.map((yg) => (
                   <th
                     key={yg.year}
                     colSpan={yg.isExpanded ? yg.months.length : 1}
-                    className="px-2 py-1.5 text-center text-xs font-medium text-slate-500 cursor-pointer hover:bg-slate-100"
+                    className="px-2 py-1.5 text-center text-xs font-medium text-muted-foreground cursor-pointer hover:bg-muted"
                     onClick={() => toggleYear(yg.year)}
                   >
                     {yg.year} {yg.isExpanded ? '\u25B4' : '\u25BE'}
                   </th>
                 ))}
-                <th className="px-3 py-1.5 text-right text-xs font-medium text-slate-500 w-[100px]">
+                <th className="px-3 py-1.5 text-right text-xs font-medium text-muted-foreground w-[100px]">
                   Total
                 </th>
                 <th className="w-[40px]" />
               </tr>
               {/* Month headers */}
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="sticky left-0 z-10 bg-slate-50 px-3 py-1 text-left text-xs text-slate-400">
+              <tr className="bg-muted/50 border-b border-border">
+                <th className="sticky left-0 z-10 bg-muted/50 px-3 py-1 text-left text-xs text-muted-foreground">
                   Unit
                 </th>
                 {visibleColumns.map((col) =>
                   col.type === 'month' ? (
-                    <th key={col.key} className="px-2 py-1 text-center text-xs text-slate-400 min-w-[70px]">
+                    <th key={col.key} className="px-2 py-1 text-center text-xs text-muted-foreground min-w-[70px]">
                       {monthLabel(col.key)}
                     </th>
                   ) : (
-                    <th key={`ys-${col.year}`} className="px-2 py-1 text-center text-xs text-slate-400 min-w-[70px]">
+                    <th key={`ys-${col.year}`} className="px-2 py-1 text-center text-xs text-muted-foreground min-w-[70px]">
                       Sum
                     </th>
                   )
                 )}
-                <th className="px-3 py-1 text-right text-xs text-slate-400">EUR</th>
+                <th className="px-3 py-1 text-right text-xs text-muted-foreground">EUR</th>
                 <th />
               </tr>
             </thead>
             <tbody>
               {/* INTERNAL RESOURCES */}
-              <tr className="bg-blue-50">
-                <td colSpan={visibleColumns.length + 3} className="px-3 py-1.5 text-xs font-semibold text-blue-800 uppercase tracking-wide">
+              <tr className="bg-primary/5">
+                <td colSpan={visibleColumns.length + 3} className="px-3 py-1.5 text-xs font-semibold text-primary uppercase tracking-wide">
                   Internal Resources (hours)
                 </td>
               </tr>
@@ -328,7 +328,7 @@ export function ResourcePlanPage() {
                 />
               ))}
               {/* Add internal resource */}
-              <tr className="border-b border-slate-100">
+              <tr className="border-b border-border">
                 <td colSpan={visibleColumns.length + 3} className="px-3 py-1.5">
                   <AddResourceDropdown
                     items={availableRoles}
@@ -339,8 +339,8 @@ export function ResourcePlanPage() {
               </tr>
 
               {/* EXTERNAL COSTS */}
-              <tr className="bg-emerald-50">
-                <td colSpan={visibleColumns.length + 3} className="px-3 py-1.5 text-xs font-semibold text-emerald-800 uppercase tracking-wide">
+              <tr className="bg-emerald-50 dark:bg-emerald-900/20">
+                <td colSpan={visibleColumns.length + 3} className="px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-400 uppercase tracking-wide">
                   External Costs (EUR)
                 </td>
               </tr>
@@ -359,7 +359,7 @@ export function ResourcePlanPage() {
                 />
               ))}
               {/* Add external cost */}
-              <tr className="border-b border-slate-100">
+              <tr className="border-b border-border">
                 <td colSpan={visibleColumns.length + 3} className="px-3 py-1.5">
                   <AddResourceDropdown
                     items={availableCostTypes}
@@ -370,16 +370,16 @@ export function ResourcePlanPage() {
               </tr>
 
               {/* Grand Total */}
-              <tr className="bg-slate-100 font-semibold">
-                <td className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-sm text-slate-700">
+              <tr className="bg-muted font-semibold">
+                <td className="sticky left-0 z-10 bg-muted px-3 py-2 text-sm text-foreground">
                   Grand Total
                 </td>
                 {visibleColumns.map((col) => (
-                  <td key={col.type === 'month' ? col.key : `ys-${col.year}`} className="px-2 py-2 text-center text-xs text-slate-500">
+                  <td key={col.type === 'month' ? col.key : `ys-${col.year}`} className="px-2 py-2 text-center text-xs text-muted-foreground">
                     {/* Per-column grand totals omitted for simplicity */}
                   </td>
                 ))}
-                <td className="px-3 py-2 text-right text-sm text-slate-800">
+                <td className="px-3 py-2 text-right text-sm text-foreground">
                   {formatCurrencyDetailed(grandTotalEur)}
                 </td>
                 <td />
@@ -429,12 +429,12 @@ function ResourceRow({
   getLineTotal, getLineTotalEur, getYearTotal,
 }: ResourceRowProps) {
   return (
-    <tr className="border-b border-slate-100 hover:bg-slate-50/50">
-      <td className="sticky left-0 z-10 bg-white px-3 py-1.5 text-sm text-slate-700 whitespace-nowrap">
+    <tr className="border-b border-border hover:bg-muted/50/50">
+      <td className="sticky left-0 z-10 bg-card px-3 py-1.5 text-sm text-foreground whitespace-nowrap">
         <div className="flex items-center gap-1.5">
           <span>{line.name}</span>
           {line.category === 'internal' && (
-            <span className="text-[10px] text-slate-400">@{formatNumber(line.rate)}/h</span>
+            <span className="text-[10px] text-muted-foreground">@{formatNumber(line.rate)}/h</span>
           )}
         </div>
       </td>
@@ -442,7 +442,7 @@ function ResourceRow({
         if (col.type === 'yearSummary') {
           const yearSum = getYearTotal(line, col.months);
           return (
-            <td key={`ys-${col.year}`} className="px-2 py-1.5 text-center text-xs text-slate-500">
+            <td key={`ys-${col.year}`} className="px-2 py-1.5 text-center text-xs text-muted-foreground">
               {yearSum > 0 ? formatNumber(yearSum) : '—'}
             </td>
           );
@@ -476,7 +476,7 @@ function ResourceRow({
               />
             ) : (
               <button
-                className="w-full h-7 text-xs text-center rounded hover:bg-blue-50 transition-colors"
+                className="w-full h-7 text-xs text-center rounded hover:bg-primary/5 transition-colors"
                 onClick={() => onEditStart(cellId)}
               >
                 {value > 0 ? formatNumber(value) : '—'}
@@ -485,7 +485,7 @@ function ResourceRow({
           </td>
         );
       })}
-      <td className="px-3 py-1.5 text-right text-xs font-medium text-slate-700 whitespace-nowrap">
+      <td className="px-3 py-1.5 text-right text-xs font-medium text-foreground whitespace-nowrap">
         {line.category === 'internal' ? (
           <span>{formatNumber(getLineTotal(line))}h / {formatCurrencyDetailed(getLineTotalEur(line))}</span>
         ) : (
@@ -494,7 +494,7 @@ function ResourceRow({
       </td>
       <td className="px-1 py-1.5">
         <button
-          className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+          className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 transition-colors"
           onClick={() => onRemove(line.id)}
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -518,7 +518,7 @@ function AddResourceDropdown({ items, onSelect, label }: AddResourceDropdownProp
   if (!adding) {
     return (
       <button
-        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+        className="flex items-center gap-1 text-xs text-primary/80 hover:text-primary"
         onClick={() => setAdding(true)}
       >
         <Plus className="h-3.5 w-3.5" /> {label}

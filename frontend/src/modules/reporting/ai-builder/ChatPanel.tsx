@@ -90,10 +90,10 @@ export function ChatPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-indigo-600" />
-          <h3 className="text-sm font-semibold text-slate-900">
+          <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-sm font-semibold text-foreground">
             AI Report Builder
           </h3>
         </div>
@@ -102,7 +102,7 @@ export function ChatPanel({
             variant="ghost"
             size="sm"
             onClick={onReset}
-            className="text-slate-500 hover:text-slate-700 h-7 px-2"
+            className="text-muted-foreground hover:text-foreground h-7 px-2"
           >
             <RotateCcw className="h-3.5 w-3.5 mr-1" />
             New
@@ -115,19 +115,19 @@ export function ChatPanel({
         {isEmpty && (
           <div className="space-y-4">
             <div className="text-center py-6">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-50 mb-3">
-                <Sparkles className="h-6 w-6 text-indigo-600" />
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-900/20 mb-3">
+                <Sparkles className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
               </div>
-              <h4 className="text-sm font-semibold text-slate-800">
+              <h4 className="text-sm font-semibold text-foreground">
                 Describe the report you need
               </h4>
-              <p className="text-xs text-slate-500 mt-1 max-w-[260px] mx-auto">
+              <p className="text-xs text-muted-foreground mt-1 max-w-[260px] mx-auto">
                 I can create tables, charts, and KPI summaries from any data in
                 the system.
               </p>
             </div>
             <div className="space-y-2">
-              <p className="text-xs font-medium text-slate-500 px-1">
+              <p className="text-xs font-medium text-muted-foreground px-1">
                 Try one of these:
               </p>
               {STARTER_PROMPTS.map((prompt) => (
@@ -135,7 +135,7 @@ export function ChatPanel({
                   key={prompt}
                   onClick={() => onSendMessage(prompt)}
                   disabled={isLoading}
-                  className="block w-full text-left rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors disabled:opacity-50"
+                  className="block w-full text-left rounded-lg border border-border bg-card px-3 py-2.5 text-xs text-foreground hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-colors disabled:opacity-50"
                 >
                   {prompt}
                 </button>
@@ -153,13 +153,13 @@ export function ChatPanel({
               className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed ${
                 msg.role === 'user'
                   ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-100 text-slate-800'
+                  : 'bg-muted text-foreground'
               }`}
             >
               <MessageContent text={msg.content} />
               {msg.report && (
-                <div className="mt-2 pt-2 border-t border-slate-200/50">
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded px-2 py-0.5">
+                <div className="mt-2 pt-2 border-t border-border/50">
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 rounded px-2 py-0.5">
                     <Sparkles className="h-3 w-3" />
                     Report generated
                   </span>
@@ -172,13 +172,13 @@ export function ChatPanel({
         {/* Loading indicator */}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-slate-100 rounded-lg px-3 py-2">
+            <div className="bg-muted rounded-lg px-3 py-2">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-2.5 w-2.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
                   <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-indigo-500" />
                 </span>
-                <p className="text-xs text-indigo-600 font-medium">
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
                   {LOADING_PHASES[loadingPhase]}
                 </p>
               </div>
@@ -188,7 +188,7 @@ export function ChatPanel({
       </div>
 
       {/* Input area */}
-      <div className="border-t border-slate-200 p-3">
+      <div className="border-t border-border p-3">
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -198,7 +198,7 @@ export function ChatPanel({
             placeholder="Describe the report you want..."
             rows={1}
             disabled={isLoading}
-            className="flex-1 resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50"
+            className="flex-1 resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50"
           />
           <Button
             size="sm"

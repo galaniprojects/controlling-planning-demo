@@ -59,7 +59,7 @@ export function CRDetailModal({ projectId, crId, open, onOpenChange }: Props) {
               <Skeleton className="h-6 w-64" />
             ) : data ? (
               <>
-                <div className="flex items-center gap-2 text-xs text-slate-400">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>{data.project_name}</span>
                   <span>/</span>
                   <span>Change History</span>
@@ -77,12 +77,12 @@ export function CRDetailModal({ projectId, crId, open, onOpenChange }: Props) {
                   <Badge variant="outline" className="text-xs capitalize">
                     {data.change_category.replace('_', ' ')}
                   </Badge>
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-muted-foreground">
                     Submitted by {data.submitted_by} on{' '}
                     {data.submission_date?.split(' ')[0]}
                   </span>
                   {data.decided_by && (
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-muted-foreground">
                       Decided by {data.decided_by}
                       {data.decided_date && ` on ${data.decided_date.split(' ')[0]}`}
                     </span>
@@ -111,17 +111,17 @@ export function CRDetailModal({ projectId, crId, open, onOpenChange }: Props) {
               <DetailViewKPIStrip kpis={data.grid_data.kpis} />
             </>
           ) : (
-            <p className="text-sm text-slate-400 py-4">
+            <p className="text-sm text-muted-foreground py-4">
               No detailed grid data available for this change request.
             </p>
           )}
 
           {data?.justification && (
-            <div className="border-t border-slate-200 pt-3">
-              <h4 className="text-xs font-medium text-slate-500 mb-1">
+            <div className="border-t border-border pt-3">
+              <h4 className="text-xs font-medium text-muted-foreground mb-1">
                 Justification
               </h4>
-              <p className="text-sm text-slate-600">{data.justification}</p>
+              <p className="text-sm text-muted-foreground">{data.justification}</p>
             </div>
           )}
         </div>

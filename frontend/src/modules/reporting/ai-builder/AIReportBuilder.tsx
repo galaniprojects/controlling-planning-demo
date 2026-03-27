@@ -40,7 +40,7 @@ export function AIReportBuilder() {
       <div className="space-y-4">
         <button
           onClick={() => navigate('/reporting')}
-          className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"
+          className="flex items-center gap-1.5 text-sm text-primary/80 hover:text-primary"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to Reports
@@ -57,17 +57,17 @@ export function AIReportBuilder() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/reporting')}
-            className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"
+            className="flex items-center gap-1.5 text-sm text-primary/80 hover:text-primary"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back
           </button>
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4.5 w-4.5 text-indigo-600" />
-            <h1 className="text-base font-semibold text-slate-800">
+            <Sparkles className="h-4.5 w-4.5 text-indigo-600 dark:text-indigo-400" />
+            <h1 className="text-base font-semibold text-foreground">
               AI Report Builder
             </h1>
-            <Badge className="bg-indigo-100 text-indigo-600 hover:bg-indigo-100 text-[10px] px-1.5 py-0">
+            <Badge className="bg-indigo-100 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 text-[10px] px-1.5 py-0">
               AI-powered
             </Badge>
           </div>
@@ -97,13 +97,13 @@ export function AIReportBuilder() {
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
-                  <Sparkles className="h-7 w-7 text-slate-400" />
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
+                  <Sparkles className="h-7 w-7 text-muted-foreground" />
                 </div>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted-foreground">
                   Your report will appear here
                 </p>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Describe what you need in the chat panel
                 </p>
               </div>
@@ -120,16 +120,16 @@ function SetupRequiredCard({ message }: { message?: string | null }) {
 
   return (
     <Card className="max-w-lg mx-auto mt-12 p-8 text-center">
-      <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-50 mb-4">
-        <Settings className="h-7 w-7 text-amber-600" />
+      <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-50 dark:bg-amber-900/30 mb-4">
+        <Settings className="h-7 w-7 text-amber-600 dark:text-amber-400" />
       </div>
-      <h2 className="text-base font-semibold text-slate-800 mb-2">
+      <h2 className="text-base font-semibold text-foreground mb-2">
         Setup Required
       </h2>
-      <p className="text-sm text-slate-500 mb-4">
+      <p className="text-sm text-muted-foreground mb-4">
         {message || 'The AI Report Builder requires an Anthropic API key to function.'}
       </p>
-      <p className="text-xs text-slate-400 mb-6">
+      <p className="text-xs text-muted-foreground mb-6">
         Go to Administration and set your API key in Planning Parameters under the Integrations section.
       </p>
       <Button

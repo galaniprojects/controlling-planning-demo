@@ -174,61 +174,61 @@ export function EditableCRGrid({ crId, onConfirm, onCancel }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
-        <p className="text-sm font-medium text-amber-800">Edit Change Request Values</p>
-        <p className="text-xs text-amber-700 mt-1">
+      <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/30 p-3">
+        <p className="text-sm font-medium text-amber-800 dark:text-amber-400">Edit Change Request Values</p>
+        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
           Adjust the values below. Changed cells are highlighted. When done, add your feedback and confirm.
         </p>
       </div>
 
       {/* Grid */}
-      <div className="border border-slate-200 rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="sticky left-0 z-10 bg-slate-50 px-3 py-1.5 text-left text-xs font-medium text-slate-500 w-[200px] min-w-[200px]">
+              <tr className="bg-muted/50 border-b border-border">
+                <th className="sticky left-0 z-10 bg-muted/50 px-3 py-1.5 text-left text-xs font-medium text-muted-foreground w-[200px] min-w-[200px]">
                   Line Item
                 </th>
                 {yearGroups.map((yg) => (
                   <th
                     key={yg.year}
                     colSpan={yg.isExpanded ? yg.months.length : 1}
-                    className="px-2 py-1.5 text-center text-xs font-medium text-slate-500 cursor-pointer hover:bg-slate-100"
+                    className="px-2 py-1.5 text-center text-xs font-medium text-muted-foreground cursor-pointer hover:bg-accent"
                     onClick={() => toggleYear(yg.year)}
                   >
                     {yg.year} {yg.isExpanded ? '\u25B4' : '\u25BE'}
                   </th>
                 ))}
-                <th className="px-3 py-1.5 text-right text-xs font-medium text-slate-500 w-[100px]">
+                <th className="px-3 py-1.5 text-right text-xs font-medium text-muted-foreground w-[100px]">
                   Total
                 </th>
                 <th className="w-[40px]" />
               </tr>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="sticky left-0 z-10 bg-slate-50 px-3 py-1 text-left text-xs text-slate-400">
+              <tr className="bg-muted/50 border-b border-border">
+                <th className="sticky left-0 z-10 bg-muted/50 px-3 py-1 text-left text-xs text-muted-foreground">
                   Unit
                 </th>
                 {visibleColumns.map((col) =>
                   col.type === 'month' ? (
-                    <th key={col.key} className="px-2 py-1 text-center text-xs text-slate-400 min-w-[70px]">
+                    <th key={col.key} className="px-2 py-1 text-center text-xs text-muted-foreground min-w-[70px]">
                       {monthLabel(col.key)}
                     </th>
                   ) : (
-                    <th key={`ys-${col.year}`} className="px-2 py-1 text-center text-xs text-slate-400 min-w-[70px]">
+                    <th key={`ys-${col.year}`} className="px-2 py-1 text-center text-xs text-muted-foreground min-w-[70px]">
                       Sum
                     </th>
                   )
                 )}
-                <th className="px-3 py-1 text-right text-xs text-slate-400">EUR</th>
+                <th className="px-3 py-1 text-right text-xs text-muted-foreground">EUR</th>
                 <th />
               </tr>
             </thead>
             <tbody>
               {/* INTERNAL RESOURCES */}
               {internalLines.length > 0 && (
-                <tr className="bg-blue-50">
-                  <td colSpan={visibleColumns.length + 3} className="px-3 py-1.5 text-xs font-semibold text-blue-800 uppercase tracking-wide">
+                <tr className="bg-primary/5">
+                  <td colSpan={visibleColumns.length + 3} className="px-3 py-1.5 text-xs font-semibold text-primary uppercase tracking-wide">
                     Internal Resources (hours)
                   </td>
                 </tr>
@@ -251,8 +251,8 @@ export function EditableCRGrid({ crId, onConfirm, onCancel }: Props) {
 
               {/* EXTERNAL COSTS */}
               {externalLines.length > 0 && (
-                <tr className="bg-emerald-50">
-                  <td colSpan={visibleColumns.length + 3} className="px-3 py-1.5 text-xs font-semibold text-emerald-800 uppercase tracking-wide">
+                <tr className="bg-emerald-50 dark:bg-emerald-900/20">
+                  <td colSpan={visibleColumns.length + 3} className="px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-400 uppercase tracking-wide">
                     External Costs (EUR)
                   </td>
                 </tr>
@@ -274,14 +274,14 @@ export function EditableCRGrid({ crId, onConfirm, onCancel }: Props) {
               ))}
 
               {/* Grand Total */}
-              <tr className="bg-slate-100 font-semibold">
-                <td className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-sm text-slate-700">
+              <tr className="bg-muted font-semibold">
+                <td className="sticky left-0 z-10 bg-muted px-3 py-2 text-sm text-foreground">
                   Grand Total
                 </td>
                 {visibleColumns.map((col) => (
                   <td key={col.type === 'month' ? col.key : `ys-${col.year}`} className="px-2 py-2" />
                 ))}
-                <td className="px-3 py-2 text-right text-sm text-slate-800">
+                <td className="px-3 py-2 text-right text-sm text-foreground">
                   {formatCurrencyDetailed(grandTotalEur)}
                 </td>
                 <td />
@@ -294,7 +294,7 @@ export function EditableCRGrid({ crId, onConfirm, onCancel }: Props) {
       {/* Feedback + Actions */}
       <div className="space-y-3">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">
+          <label className="block text-xs font-medium text-muted-foreground mb-1">
             Feedback for Project Lead (required)
           </label>
           <Textarea
@@ -342,12 +342,12 @@ function EditRow({
   getLineTotal, getLineTotalEur, getYearTotal, isChanged,
 }: EditRowProps) {
   return (
-    <tr className="border-b border-slate-100 hover:bg-slate-50/50">
-      <td className="sticky left-0 z-10 bg-white px-3 py-1.5 text-sm text-slate-700 whitespace-nowrap">
+    <tr className="border-b border-border hover:bg-accent/50">
+      <td className="sticky left-0 z-10 bg-card px-3 py-1.5 text-sm text-foreground whitespace-nowrap">
         <div className="flex items-center gap-1.5">
           <span>{line.name}</span>
           {line.category === 'internal' && line.rate > 1 && (
-            <span className="text-[10px] text-slate-400">@{formatNumber(line.rate)}/h</span>
+            <span className="text-[10px] text-muted-foreground">@{formatNumber(line.rate)}/h</span>
           )}
         </div>
       </td>
@@ -355,7 +355,7 @@ function EditRow({
         if (col.type === 'yearSummary') {
           const yearSum = getYearTotal(line, col.months);
           return (
-            <td key={`ys-${col.year}`} className="px-2 py-1.5 text-center text-xs text-slate-500">
+            <td key={`ys-${col.year}`} className="px-2 py-1.5 text-center text-xs text-muted-foreground">
               {yearSum > 0 ? formatNumber(yearSum) : '\u2014'}
             </td>
           );
@@ -392,8 +392,8 @@ function EditRow({
               <button
                 className={`w-full h-7 text-xs text-center rounded transition-colors ${
                   changed
-                    ? 'bg-amber-100 text-amber-800 font-medium hover:bg-amber-200'
-                    : 'hover:bg-blue-50'
+                    ? 'bg-amber-100 text-amber-800 font-medium hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50'
+                    : 'hover:bg-primary/5'
                 }`}
                 onClick={() => onEditStart(cellId)}
               >
@@ -403,7 +403,7 @@ function EditRow({
           </td>
         );
       })}
-      <td className="px-3 py-1.5 text-right text-xs font-medium text-slate-700 whitespace-nowrap">
+      <td className="px-3 py-1.5 text-right text-xs font-medium text-foreground whitespace-nowrap">
         {line.category === 'internal' ? (
           <span>{formatNumber(getLineTotal(line))}h / {formatCurrencyDetailed(getLineTotalEur(line))}</span>
         ) : (
@@ -412,7 +412,7 @@ function EditRow({
       </td>
       <td className="px-1 py-1.5">
         <button
-          className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+          className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-muted-foreground hover:text-red-500 transition-colors"
           onClick={() => onRemove(line.id)}
         >
           <Trash2 className="h-3.5 w-3.5" />

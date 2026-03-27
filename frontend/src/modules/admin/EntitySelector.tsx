@@ -47,8 +47,8 @@ export function EntitySelector({ selected, onSelect }: EntitySelectorProps) {
         className={cn(
           'flex items-center gap-2.5 w-full px-3 py-2 text-sm rounded-md transition-colors text-left',
           isActive
-            ? 'bg-blue-50 text-blue-700 font-medium border-l-2 border-blue-600 pl-2.5'
-            : 'text-slate-600 hover:bg-slate-100',
+            ? 'bg-primary/5 text-primary font-medium border-l-2 border-primary pl-2.5'
+            : 'text-muted-foreground hover:bg-accent',
         )}
       >
         <Icon className="h-4 w-4 shrink-0" />
@@ -59,17 +59,17 @@ export function EntitySelector({ selected, onSelect }: EntitySelectorProps) {
 
   return (
     <nav className="w-[220px] shrink-0 space-y-1">
-      <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+      <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
         Entities
       </p>
       {ENTITY_SECTIONS.map(renderItem)}
       <Separator className="my-2" />
-      <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+      <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
         Portfolio Structure
       </p>
       {PORTFOLIO_SECTIONS.map(renderItem)}
       <Separator className="my-2" />
-      <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+      <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
         System
       </p>
       {SYSTEM_SECTIONS.map(renderItem)}

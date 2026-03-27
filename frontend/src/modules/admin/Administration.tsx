@@ -65,11 +65,11 @@ export function Administration() {
     return (
       <div className="px-6 py-6">
         <Card className="max-w-md mx-auto mt-24 p-8 text-center">
-          <ShieldAlert className="h-10 w-10 text-slate-400 mx-auto mb-3" />
-          <h2 className="text-lg font-semibold text-slate-700 mb-1">
+          <ShieldAlert className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <h2 className="text-lg font-semibold text-foreground mb-1">
             Access Restricted
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             The Administration module is available to Controllers only.
           </p>
         </Card>
@@ -90,7 +90,7 @@ export function Administration() {
   if (!adminCtx) {
     return (
       <div className="px-6 py-6">
-        <p className="text-sm text-slate-400">Failed to load administration context.</p>
+        <p className="text-sm text-muted-foreground">Failed to load administration context.</p>
       </div>
     );
   }
@@ -135,7 +135,7 @@ export function Administration() {
     <div className="px-6 py-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">Administration</h1>
+        <h1 className="text-xl font-semibold text-foreground">Administration</h1>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"

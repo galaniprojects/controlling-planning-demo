@@ -18,7 +18,7 @@ function CustomTooltip({ active, payload, total }: { active?: boolean; payload?:
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   const label = name.charAt(0).toUpperCase() + name.slice(1);
   return (
-    <div className="rounded-md bg-white px-3 py-2 shadow-md border border-slate-200 text-sm">
+    <div className="rounded-md bg-card px-3 py-2 shadow-md border border-border text-sm text-card-foreground">
       <span className="font-medium">{label}</span>: {value} projects ({pct}%)
     </div>
   );
@@ -64,7 +64,7 @@ export function RAGDonutChart({ data, activeRag, onSegmentClick }: Props) {
           y="48%"
           textAnchor="middle"
           dominantBaseline="middle"
-          className="fill-slate-800 text-2xl font-semibold"
+          className="fill-foreground text-2xl font-semibold"
           fontSize={24}
           fontWeight={600}
         >
@@ -75,7 +75,7 @@ export function RAGDonutChart({ data, activeRag, onSegmentClick }: Props) {
           y="60%"
           textAnchor="middle"
           dominantBaseline="middle"
-          className="fill-slate-500"
+          className="fill-muted-foreground"
           fontSize={12}
         >
           projects

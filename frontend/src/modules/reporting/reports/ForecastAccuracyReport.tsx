@@ -44,9 +44,9 @@ const FISCAL_YEAR_OPTIONS = [
 
 function ratingBadge(rating: string) {
   const colors: Record<string, string> = {
-    green: 'bg-green-100 text-green-700',
-    amber: 'bg-amber-100 text-amber-700',
-    red: 'bg-red-100 text-red-700',
+    green: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    amber: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    red: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
   };
   const labels: Record<string, string> = {
     green: '<5%',
@@ -55,7 +55,7 @@ function ratingBadge(rating: string) {
   };
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${colors[rating] ?? 'bg-slate-100 text-slate-500'}`}
+      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${colors[rating] ?? 'bg-muted text-muted-foreground'}`}
     >
       {rating.charAt(0).toUpperCase() + rating.slice(1)} ({labels[rating] ?? ''})
     </span>
@@ -169,7 +169,7 @@ export function ForecastAccuracyReport() {
   }
 
   if (!data) {
-    return <p className="text-sm text-slate-400">Failed to load report data.</p>;
+    return <p className="text-sm text-muted-foreground">Failed to load report data.</p>;
   }
 
   const { kpis, chart_data } = data;
@@ -209,10 +209,10 @@ export function ForecastAccuracyReport() {
   );
 
   const tableContent = (
-    <div className="rounded-lg border border-slate-200 bg-white overflow-auto">
+    <div className="rounded-lg border border-border bg-card overflow-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
+          <tr className="border-b border-border bg-muted/50">
             {show('project_name') && <SortableHeader column="project_name" label="Project" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
             {show('lob_name') && <SortableHeader column="lob_name" label={topLevelLabel} sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
             {show('forecast_value') && <SortableHeader column="forecast_value" label="Forecast" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
@@ -224,27 +224,27 @@ export function ForecastAccuracyReport() {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.project_id} className="border-t border-slate-100 hover:bg-slate-50">
-              {show('project_name') && <td className="px-3 py-2 text-slate-700">{r.project_name}</td>}
-              {show('lob_name') && <td className="px-3 py-2 text-slate-500 text-xs">{r.lob_name}</td>}
+            <tr key={r.project_id} className="border-t border-border hover:bg-accent">
+              {show('project_name') && <td className="px-3 py-2 text-foreground">{r.project_name}</td>}
+              {show('lob_name') && <td className="px-3 py-2 text-muted-foreground text-xs">{r.lob_name}</td>}
               {show('forecast_value') && <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.forecast_value)}</td>}
               {show('actual_value') && <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.actual_value)}</td>}
               {show('variance') && <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.variance)}</td>}
               {show('variance_pct') && (
-                <td className={`px-3 py-2 text-right font-mono text-xs ${r.variance_pct > 15 ? 'text-red-600' : r.variance_pct > 5 ? 'text-amber-600' : 'text-green-600'}`}>
+                <td className={`px-3 py-2 text-right font-mono text-xs ${r.variance_pct > 15 ? 'text-red-600 dark:text-red-400' : r.variance_pct > 5 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
                   {formatPercent(r.variance_pct)}
                 </td>
               )}
               {show('accuracy_rating') && <td className="px-3 py-2 text-center">{ratingBadge(r.accuracy_rating)}</td>}
             </tr>
           ))}
-          <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
-            <td className="px-3 py-2 text-slate-700" colSpan={show('lob_name') ? 2 : 1}>
+          <tr className="border-t-2 border-border bg-muted/50 font-semibold">
+            <td className="px-3 py-2 text-foreground" colSpan={show('lob_name') ? 2 : 1}>
               Total ({rows.length} projects)
             </td>
-            {show('forecast_value') && <td className="px-3 py-2 text-right text-slate-700">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.forecast_value, 0))}</td>}
-            {show('actual_value') && <td className="px-3 py-2 text-right text-slate-700">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.actual_value, 0))}</td>}
-            {show('variance') && <td className="px-3 py-2 text-right text-slate-700">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.variance, 0))}</td>}
+            {show('forecast_value') && <td className="px-3 py-2 text-right text-foreground">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.forecast_value, 0))}</td>}
+            {show('actual_value') && <td className="px-3 py-2 text-right text-foreground">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.actual_value, 0))}</td>}
+            {show('variance') && <td className="px-3 py-2 text-right text-foreground">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.variance, 0))}</td>}
             {show('variance_pct') && <td />}
             {show('accuracy_rating') && <td />}
           </tr>

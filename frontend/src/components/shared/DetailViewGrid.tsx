@@ -69,14 +69,14 @@ function fmtDeltaWithEur(delta: number, deltaEur: number, unit: 'hours' | 'eur')
 /** Returns tailwind text color class for delta */
 function deltaColor(current: number, proposed: number): string {
   const delta = proposed - current;
-  if (delta < 0) return 'text-[#059669]'; // green: reduction
-  if (delta === 0) return 'text-slate-400';
+  if (delta < 0) return 'text-emerald-600 dark:text-emerald-400'; // green: reduction
+  if (delta === 0) return 'text-muted-foreground';
   // new from zero → red
-  if (current === 0) return 'text-[#dc2626]';
+  if (current === 0) return 'text-red-600 dark:text-red-400';
   // percentage change
   const pct = Math.abs(delta / current) * 100;
-  if (pct >= 25) return 'text-[#dc2626]'; // red: significant ≥25%
-  return 'text-[#2563eb]'; // blue: moderate <25%
+  if (pct >= 25) return 'text-red-600 dark:text-red-400'; // red: significant ≥25%
+  return 'text-blue-600 dark:text-blue-400'; // blue: moderate <25%
 }
 
 // ---------------------------------------------------------------------------
@@ -117,7 +117,7 @@ export function DetailViewGrid({
 
   if (lineItems.length === 0) {
     return (
-      <div className="rounded-md border border-slate-200 p-6 text-center text-sm text-slate-400">
+      <div className="rounded-md border border-border p-6 text-center text-sm text-muted-foreground">
         No line items to display.
       </div>
     );
@@ -125,19 +125,19 @@ export function DetailViewGrid({
 
   return (
     <div className="space-y-1">
-      <div className="overflow-x-auto rounded-md border border-slate-200">
+      <div className="overflow-x-auto rounded-md border border-border">
         <table className="w-full border-collapse text-xs" style={{ fontVariantNumeric: 'tabular-nums' }}>
           {/* Year header row */}
           <thead>
-            <tr className="bg-slate-50">
-              <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left font-medium text-slate-600 whitespace-nowrap border-b border-slate-200" />
+            <tr className="bg-muted">
+              <th className="sticky left-0 z-10 bg-muted px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap border-b border-border" />
               {yearGroups.map((yg) => {
                 const colSpan = yg.isExpanded ? yg.months.length : 1;
                 return (
                   <th
                     key={yg.year}
                     colSpan={colSpan}
-                    className="px-2 py-1.5 text-center font-semibold text-blue-800 cursor-pointer select-none border-b border-slate-200 border-l border-l-slate-300"
+                    className="px-2 py-1.5 text-center font-semibold text-primary cursor-pointer select-none border-b border-border border-l border-l-border"
                     onClick={() => toggleYear(yg.year)}
                   >
                     <span className="inline-flex items-center gap-1">
@@ -154,26 +154,26 @@ export function DetailViewGrid({
               {/* Summary columns header */}
               {cellPattern === 'comparison' ? (
                 <>
-                  <th className="px-2 py-1.5 text-right font-medium text-slate-600 border-b border-slate-200 border-l border-l-slate-300 min-w-[80px]">Current</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-slate-600 border-b border-slate-200 min-w-[80px]">Proposed</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-slate-600 border-b border-slate-200 min-w-[80px]">Delta</th>
+                  <th className="px-2 py-1.5 text-right font-medium text-muted-foreground border-b border-border border-l border-l-border min-w-[80px]">Current</th>
+                  <th className="px-2 py-1.5 text-right font-medium text-muted-foreground border-b border-border min-w-[80px]">Proposed</th>
+                  <th className="px-2 py-1.5 text-right font-medium text-muted-foreground border-b border-border min-w-[80px]">Delta</th>
                 </>
               ) : (
-                <th className="px-2 py-1.5 text-right font-medium text-slate-600 border-b border-slate-200 border-l border-l-slate-300 min-w-[80px]">Total</th>
+                <th className="px-2 py-1.5 text-right font-medium text-muted-foreground border-b border-border border-l border-l-border min-w-[80px]">Total</th>
               )}
             </tr>
 
             {/* Month header row */}
-            <tr className="bg-slate-50">
-              <th className="sticky left-0 z-10 bg-slate-50 px-3 py-1 text-left text-slate-500 border-b border-slate-200" />
-              {visibleColumns.map((col, i) => {
+            <tr className="bg-muted">
+              <th className="sticky left-0 z-10 bg-muted px-3 py-1 text-left text-muted-foreground border-b border-border" />
+              {visibleColumns.map((col) => {
                 if (col.type === 'month') {
                   return (
                     <th
                       key={col.key}
-                      className={`px-2 py-1 text-center text-slate-500 font-normal border-b border-slate-200 ${
-                        col.isJanuary ? 'border-l-2 border-l-slate-400' : ''
-                      } ${isElapsedMonth(col.key) ? 'bg-[#fafafa]' : ''}`}
+                      className={`px-2 py-1 text-center text-muted-foreground font-normal border-b border-border ${
+                        col.isJanuary ? 'border-l-2 border-l-border' : ''
+                      } ${isElapsedMonth(col.key) ? 'bg-muted/80' : ''}`}
                     >
                       {formatMonthShort(col.key)}
                     </th>
@@ -182,14 +182,14 @@ export function DetailViewGrid({
                 return (
                   <th
                     key={`ys-${col.year}`}
-                    className="px-2 py-1 text-center text-slate-500 font-normal border-b border-slate-200 border-l border-l-slate-300"
+                    className="px-2 py-1 text-center text-muted-foreground font-normal border-b border-border border-l border-l-border"
                   >
                     Total
                   </th>
                 );
               })}
               {Array.from({ length: summaryColCount }).map((_, i) => (
-                <th key={`sh-${i}`} className="border-b border-slate-200" />
+                <th key={`sh-${i}`} className="border-b border-border" />
               ))}
             </tr>
           </thead>
@@ -232,7 +232,7 @@ export function DetailViewGrid({
       </div>
 
       {cellPattern === 'comparison' && (
-        <p className="text-[10px] text-slate-400 text-right px-1">
+        <p className="text-[10px] text-muted-foreground text-right px-1">
           Color thresholds are configurable (currently 25%)
         </p>
       )}
@@ -249,7 +249,7 @@ function SectionHeader({ label, colSpan }: { label: string; colSpan: number }) {
     <tr>
       <td
         colSpan={colSpan}
-        className="px-3 py-1.5 text-[10px] font-semibold tracking-wider text-slate-400 uppercase bg-slate-50 border-b border-slate-100"
+        className="px-3 py-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase bg-muted border-b border-border"
       >
         {label}
       </td>
@@ -274,9 +274,9 @@ function LineItemRow({ item, visibleColumns, cellPattern }: LineItemRowProps) {
   }, [item.months]);
 
   return (
-    <tr className="border-b border-slate-100 hover:bg-slate-50/50">
+    <tr className="border-b border-border hover:bg-accent/30">
       {/* Line item name */}
-      <td className="sticky left-0 z-10 bg-white px-3 py-2 text-sm text-slate-700 font-medium whitespace-nowrap border-r border-slate-100">
+      <td className="sticky left-0 z-10 bg-card px-3 py-2 text-sm text-foreground font-medium whitespace-nowrap border-r border-border">
         {item.name}
       </td>
 
@@ -289,8 +289,8 @@ function LineItemRow({ item, visibleColumns, cellPattern }: LineItemRowProps) {
             <td
               key={col.key}
               className={`px-2 py-1.5 text-right align-top ${
-                col.isJanuary ? 'border-l-2 border-l-slate-400' : ''
-              } ${elapsed ? 'bg-[#fafafa]' : ''}`}
+                col.isJanuary ? 'border-l-2 border-l-border' : ''
+              } ${elapsed ? 'bg-muted/50' : ''}`}
             >
               {cellPattern === 'comparison'
                 ? renderComparisonCell(mv, item.unit)
@@ -304,7 +304,7 @@ function LineItemRow({ item, visibleColumns, cellPattern }: LineItemRowProps) {
         return (
           <td
             key={`ys-${col.year}`}
-            className="px-2 py-1.5 text-right align-top border-l border-l-slate-300"
+            className="px-2 py-1.5 text-right align-top border-l border-l-border"
           >
             {cellPattern === 'comparison'
               ? renderComparisonYearSummary(yearMonths, monthMap, item.unit)
@@ -316,17 +316,17 @@ function LineItemRow({ item, visibleColumns, cellPattern }: LineItemRowProps) {
       {/* Row totals */}
       {cellPattern === 'comparison' ? (
         <>
-          <td className="px-2 py-1.5 text-right font-medium text-slate-500 border-l border-l-slate-300 whitespace-nowrap">
+          <td className="px-2 py-1.5 text-right font-medium text-muted-foreground border-l border-l-border whitespace-nowrap">
             {fmtWithEur(item.current_total ?? 0, item.current_total_eur ?? 0, item.unit)}
           </td>
-          <td className="px-2 py-1.5 text-right font-semibold text-slate-800 whitespace-nowrap">
+          <td className="px-2 py-1.5 text-right font-semibold text-foreground whitespace-nowrap">
             {fmtWithEur(item.proposed_total, item.proposed_total_eur, item.unit)}
           </td>
           <td className="px-2 py-1.5 text-right whitespace-nowrap">
             {(() => {
               const delta = item.proposed_total - (item.current_total ?? 0);
               const deltaEur = item.proposed_total_eur - (item.current_total_eur ?? 0);
-              if (delta === 0) return <span className="text-slate-400">—</span>;
+              if (delta === 0) return <span className="text-muted-foreground">—</span>;
               const color = deltaColor(item.current_total ?? 0, item.proposed_total);
               return (
                 <span className={`font-semibold ${color}`}>
@@ -337,7 +337,7 @@ function LineItemRow({ item, visibleColumns, cellPattern }: LineItemRowProps) {
           </td>
         </>
       ) : (
-        <td className="px-2 py-1.5 text-right font-semibold text-slate-800 border-l border-l-slate-300 whitespace-nowrap">
+        <td className="px-2 py-1.5 text-right font-semibold text-foreground border-l border-l-border whitespace-nowrap">
           {fmtWithEur(item.proposed_total, item.proposed_total_eur, item.unit)}
         </td>
       )}
@@ -350,12 +350,12 @@ function LineItemRow({ item, visibleColumns, cellPattern }: LineItemRowProps) {
 // ---------------------------------------------------------------------------
 
 function renderComparisonCell(mv: DetailViewMonthValue | undefined, unit: 'hours' | 'eur') {
-  if (!mv) return <span className="text-slate-300">—</span>;
+  if (!mv) return <span className="text-muted-foreground/40">—</span>;
 
   if (!mv.is_changed) {
     // Unchanged: single muted value
     return (
-      <span className="text-[#94a3b8]">
+      <span className="text-muted-foreground">
         {fmtPrimary(mv.proposed, unit)}
       </span>
     );
@@ -369,14 +369,14 @@ function renderComparisonCell(mv: DetailViewMonthValue | undefined, unit: 'hours
   const color = deltaColor(current, mv.proposed);
 
   return (
-    <div className="bg-[#fffbeb] rounded px-1 py-0.5 -mx-1 space-y-0">
-      <div className="font-semibold text-[#0f172a] whitespace-nowrap">
+    <div className="bg-amber-50 dark:bg-amber-900/20 rounded px-1 py-0.5 -mx-1 space-y-0">
+      <div className="font-semibold text-foreground whitespace-nowrap">
         {fmtWithEur(mv.proposed, mv.proposed_eur, unit)}
       </div>
       <div className={`font-medium ${color} whitespace-nowrap`}>
         {fmtDeltaWithEur(delta, deltaEur, unit)}
       </div>
-      <div className="text-[#94a3b8] whitespace-nowrap">
+      <div className="text-muted-foreground whitespace-nowrap">
         {fmtWithEur(current, currentEur, unit)}
       </div>
     </div>
@@ -385,9 +385,9 @@ function renderComparisonCell(mv: DetailViewMonthValue | undefined, unit: 'hours
 
 function renderIntakeCell(mv: DetailViewMonthValue | undefined, unit: 'hours' | 'eur') {
   if (!mv || mv.proposed === 0) {
-    return <span className="text-slate-300">—</span>;
+    return <span className="text-muted-foreground/40">—</span>;
   }
-  return <span className="text-slate-700">{fmtWithEur(mv.proposed, mv.proposed_eur, unit)}</span>;
+  return <span className="text-foreground">{fmtWithEur(mv.proposed, mv.proposed_eur, unit)}</span>;
 }
 
 function renderComparisonYearSummary(
@@ -408,14 +408,14 @@ function renderComparisonYearSummary(
   }
 
   if (!anyChanged) {
-    return <span className="text-[#94a3b8]">{fmtPrimary(proposed, unit)}</span>;
+    return <span className="text-muted-foreground">{fmtPrimary(proposed, unit)}</span>;
   }
 
   const delta = proposed - current;
   const color = deltaColor(current, proposed);
   return (
     <div className="space-y-0">
-      <div className="font-semibold text-[#0f172a]">{fmtPrimary(proposed, unit)}</div>
+      <div className="font-semibold text-foreground">{fmtPrimary(proposed, unit)}</div>
       <div className={`font-medium ${color}`}>{fmtDeltaPrimary(delta, unit)}</div>
     </div>
   );
@@ -435,6 +435,6 @@ function renderIntakeYearSummary(
       totalEur += mv.proposed_eur;
     }
   }
-  if (total === 0) return <span className="text-slate-300">—</span>;
-  return <span className="text-slate-700">{fmtWithEur(total, totalEur, unit)}</span>;
+  if (total === 0) return <span className="text-muted-foreground/40">—</span>;
+  return <span className="text-foreground">{fmtWithEur(total, totalEur, unit)}</span>;
 }

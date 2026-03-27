@@ -6,7 +6,7 @@ import { formatCurrency } from '@/lib/formatters';
 function RagDot({ rag }: { rag: string | null }) {
   if (!rag)
     return (
-      <span className="h-2.5 w-2.5 rounded-full bg-slate-200 inline-block" />
+      <span className="h-2.5 w-2.5 rounded-full bg-muted inline-block" />
     );
   const colors: Record<string, string> = {
     green: 'bg-green-500',
@@ -15,7 +15,7 @@ function RagDot({ rag }: { rag: string | null }) {
   };
   return (
     <span
-      className={`h-2.5 w-2.5 rounded-full inline-block ${colors[rag] ?? 'bg-slate-200'}`}
+      className={`h-2.5 w-2.5 rounded-full inline-block ${colors[rag] ?? 'bg-muted'}`}
     />
   );
 }
@@ -57,7 +57,7 @@ export function DrillDownContent({
   if (items.length === 0) {
     return (
       <div className="p-4">
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-muted-foreground">
           No drill-down detail available for this project.
         </p>
       </div>
@@ -76,33 +76,33 @@ export function DrillDownContent({
     <div className="p-4 space-y-4">
       {/* Budget comparison */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-slate-50 rounded-lg p-3">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+        <div className="bg-muted/50 rounded-lg p-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
             Original Budget
           </p>
-          <p className="text-lg font-semibold text-slate-900">
+          <p className="text-lg font-semibold text-foreground">
             {formatCurrency(originalBudget)}
           </p>
         </div>
-        <div className="bg-slate-50 rounded-lg p-3">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+        <div className="bg-muted/50 rounded-lg p-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
             Scenario Budget
           </p>
-          <p className="text-lg font-semibold text-slate-900">
+          <p className="text-lg font-semibold text-foreground">
             {formatCurrency(adjustedBudget)}
           </p>
         </div>
-        <div className="bg-slate-50 rounded-lg p-3">
-          <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
+        <div className="bg-muted/50 rounded-lg p-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
             Delta
           </p>
           <p
             className={`text-lg font-semibold ${
               budgetDelta < 0
-                ? 'text-green-600'
+                ? 'text-green-600 dark:text-green-400'
                 : budgetDelta > 0
-                  ? 'text-red-600'
-                  : 'text-slate-500'
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-muted-foreground'
             }`}
           >
             {budgetDelta === 0 ? '—' : formatCurrency(budgetDelta)}
@@ -113,20 +113,20 @@ export function DrillDownContent({
       {/* RAG status */}
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Original RAG:</span>
+          <span className="text-xs text-muted-foreground">Original RAG:</span>
           <RagDot rag={originalRag} />
-          <span className="text-xs text-slate-600 capitalize">
+          <span className="text-xs text-muted-foreground capitalize">
             {originalRag ?? 'N/A'}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Scenario RAG:</span>
+          <span className="text-xs text-muted-foreground">Scenario RAG:</span>
           <RagDot rag={adjustedRag} />
-          <span className="text-xs text-slate-600 capitalize">
+          <span className="text-xs text-muted-foreground capitalize">
             {adjustedRag ?? 'N/A'}
           </span>
           {isAffected && originalRag !== adjustedRag && (
-            <span className="text-[10px] text-amber-600 font-medium">
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
               changed
             </span>
           )}

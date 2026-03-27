@@ -16,18 +16,18 @@ interface Props {
 export function ResourceSummaryTable({ title, items }: Props) {
   if (items.length === 0) {
     return (
-      <div className="border border-slate-200 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-slate-500 mb-2">
+      <div className="border border-border rounded-lg p-4">
+        <h3 className="text-sm font-medium text-muted-foreground mb-2">
           {title}
         </h3>
-        <p className="text-sm text-slate-400">No resource allocations.</p>
+        <p className="text-sm text-muted-foreground">No resource allocations.</p>
       </div>
     );
   }
 
   return (
-    <div className="border border-slate-200 rounded-lg p-4">
-      <h3 className="text-sm font-medium text-slate-500 mb-2">
+    <div className="border border-border rounded-lg p-4">
+      <h3 className="text-sm font-medium text-muted-foreground mb-2">
         {title}
       </h3>
       <Table>

@@ -19,7 +19,7 @@ interface TreeNode {
 }
 
 function RagDot({ rag }: { rag: string | null }) {
-  if (!rag) return <span className="h-2.5 w-2.5 rounded-full bg-slate-200 inline-block" />;
+  if (!rag) return <span className="h-2.5 w-2.5 rounded-full bg-muted inline-block" />;
   const colors: Record<string, string> = {
     green: 'bg-green-500',
     amber: 'bg-amber-500',
@@ -27,7 +27,7 @@ function RagDot({ rag }: { rag: string | null }) {
   };
   return (
     <span
-      className={`h-2.5 w-2.5 rounded-full inline-block ${colors[rag] ?? 'bg-slate-200'}`}
+      className={`h-2.5 w-2.5 rounded-full inline-block ${colors[rag] ?? 'bg-muted'}`}
     />
   );
 }
@@ -60,9 +60,9 @@ export function ScenarioPortfolioTree({ projectStates, loading, onRowClick }: Pr
         header: 'Project',
         accessor: (node: TreeNode) => (
           <span className="flex items-center gap-2">
-            <span className="text-sm text-slate-900">{node.name}</span>
+            <span className="text-sm text-foreground">{node.name}</span>
             {node.is_affected && (
-              <Badge className="bg-amber-100 text-amber-600 hover:bg-amber-100 text-[10px] px-1.5 py-0">
+              <Badge className="bg-amber-100 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 text-[10px] px-1.5 py-0">
                 Changed
               </Badge>
             )}
@@ -73,7 +73,7 @@ export function ScenarioPortfolioTree({ projectStates, loading, onRowClick }: Pr
       {
         header: 'Current Budget',
         accessor: (node: TreeNode) => (
-          <span className="text-sm text-slate-600">
+          <span className="text-sm text-muted-foreground">
             {formatCurrency(node.original_budget)}
           </span>
         ),
@@ -82,7 +82,7 @@ export function ScenarioPortfolioTree({ projectStates, loading, onRowClick }: Pr
         header: 'Scenario Budget',
         accessor: (node: TreeNode) => (
           <span
-            className={`text-sm font-medium ${node.is_affected ? 'text-slate-900' : 'text-slate-600'}`}
+            className={`text-sm font-medium ${node.is_affected ? 'text-foreground' : 'text-muted-foreground'}`}
           >
             {formatCurrency(node.adjusted_budget)}
           </span>
@@ -92,9 +92,9 @@ export function ScenarioPortfolioTree({ projectStates, loading, onRowClick }: Pr
         header: 'Delta',
         accessor: (node: TreeNode) => {
           if (node.budget_delta === 0)
-            return <span className="text-xs text-slate-400">—</span>;
+            return <span className="text-xs text-muted-foreground">—</span>;
           const color =
-            node.budget_delta < 0 ? 'text-green-600' : 'text-red-600';
+            node.budget_delta < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
           return (
             <span className={`text-sm font-medium ${color}`}>
               {formatCurrencyDelta(node.budget_delta)}
@@ -116,7 +116,7 @@ export function ScenarioPortfolioTree({ projectStates, loading, onRowClick }: Pr
             <span className={changed ? 'flex items-center gap-1.5' : ''}>
               <RagDot rag={node.adjusted_rag} />
               {changed && (
-                <span className="text-[10px] text-amber-600 font-medium">
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
                   changed
                 </span>
               )}
@@ -141,7 +141,7 @@ export function ScenarioPortfolioTree({ projectStates, loading, onRowClick }: Pr
 
   return (
     <div>
-      <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
         Portfolio Impact ({nodes.length} projects)
       </h4>
       <ExpandableTreeTable data={nodes} columns={columns} onRowClick={onRowClick} />

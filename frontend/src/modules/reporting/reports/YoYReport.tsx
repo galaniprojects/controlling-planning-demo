@@ -171,7 +171,7 @@ export function YoYReport() {
   }
 
   if (!data) {
-    return <p className="text-sm text-slate-400">Failed to load report data.</p>;
+    return <p className="text-sm text-muted-foreground">Failed to load report data.</p>;
   }
 
   const { kpis, chart_data } = data;
@@ -248,7 +248,7 @@ export function YoYReport() {
         </Button>
         {showMonthly && (
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-slate-500">Months:</span>
+            <span className="text-xs text-muted-foreground">Months:</span>
             {MONTH_OPTIONS.map((m) => {
               const checked = selectedMonths.includes(m.value);
               return (
@@ -263,7 +263,7 @@ export function YoYReport() {
                       )
                     }
                   />
-                  <span className="text-xs text-slate-600">{m.label}</span>
+                  <span className="text-xs text-muted-foreground">{m.label}</span>
                 </label>
               );
             })}
@@ -271,10 +271,10 @@ export function YoYReport() {
         )}
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white overflow-auto">
+      <div className="rounded-lg border border-border bg-card overflow-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
+            <tr className="border-b border-border bg-muted/50">
               {show('lob_name') && <SortableHeader column="lob_name" label={topLevelLabel} sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
               {show('project_name') && <SortableHeader column="project_name" label="Project" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
               {show('month') && <SortableHeader column="month" label="Month" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
@@ -288,19 +288,19 @@ export function YoYReport() {
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={`${r.project_id ?? ''}-${r.month ?? ''}-${i}`} className="border-t border-slate-100 hover:bg-slate-50">
-                {show('lob_name') && <td className="px-3 py-2 text-slate-600 text-xs">{r.lob_name || '\u2014'}</td>}
-                {show('project_name') && <td className="px-3 py-2 text-slate-700 font-medium">{r.project_name || '\u2014'}</td>}
-                {show('month') && <td className="px-3 py-2 text-slate-700 font-medium">{r.month || '\u2014'}</td>}
+              <tr key={`${r.project_id ?? ''}-${r.month ?? ''}-${i}`} className="border-t border-border hover:bg-accent">
+                {show('lob_name') && <td className="px-3 py-2 text-muted-foreground text-xs">{r.lob_name || '\u2014'}</td>}
+                {show('project_name') && <td className="px-3 py-2 text-foreground font-medium">{r.project_name || '\u2014'}</td>}
+                {show('month') && <td className="px-3 py-2 text-foreground font-medium">{r.month || '\u2014'}</td>}
                 {show('fy_current') && <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.fy_current)}</td>}
                 {show('fy_previous') && <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.fy_previous)}</td>}
                 {show('delta') && (
-                  <td className={`px-3 py-2 text-right font-mono text-xs ${r.delta > 0 ? 'text-red-600' : r.delta < 0 ? 'text-green-600' : ''}`}>
+                  <td className={`px-3 py-2 text-right font-mono text-xs ${r.delta > 0 ? 'text-red-600 dark:text-red-400' : r.delta < 0 ? 'text-green-600 dark:text-green-400' : ''}`}>
                     {formatCurrencyDetailed(r.delta)}
                   </td>
                 )}
                 {show('delta_pct') && (
-                  <td className={`px-3 py-2 text-right font-mono text-xs ${r.delta_pct > 0 ? 'text-red-600' : r.delta_pct < 0 ? 'text-green-600' : ''}`}>
+                  <td className={`px-3 py-2 text-right font-mono text-xs ${r.delta_pct > 0 ? 'text-red-600 dark:text-red-400' : r.delta_pct < 0 ? 'text-green-600 dark:text-green-400' : ''}`}>
                     {formatPercent(r.delta_pct)}
                   </td>
                 )}
@@ -308,13 +308,13 @@ export function YoYReport() {
                 {show('cumulative_previous') && <td className="px-3 py-2 text-right font-mono text-xs">{r.cumulative_previous != null ? formatCurrencyDetailed(r.cumulative_previous) : '\u2014'}</td>}
               </tr>
             ))}
-            <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
-              {show('lob_name') && <td className="px-3 py-2 text-slate-700">Total</td>}
-              {show('project_name') && <td className="px-3 py-2 text-slate-700">{!show('lob_name') ? 'Total' : ''}</td>}
+            <tr className="border-t-2 border-border bg-muted/50 font-semibold">
+              {show('lob_name') && <td className="px-3 py-2 text-foreground">Total</td>}
+              {show('project_name') && <td className="px-3 py-2 text-foreground">{!show('lob_name') ? 'Total' : ''}</td>}
               {show('month') && <td />}
-              {show('fy_current') && <td className="px-3 py-2 text-right text-slate-700">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.fy_current, 0))}</td>}
-              {show('fy_previous') && <td className="px-3 py-2 text-right text-slate-700">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.fy_previous, 0))}</td>}
-              {show('delta') && <td className="px-3 py-2 text-right text-slate-700">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.delta, 0))}</td>}
+              {show('fy_current') && <td className="px-3 py-2 text-right text-foreground">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.fy_current, 0))}</td>}
+              {show('fy_previous') && <td className="px-3 py-2 text-right text-foreground">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.fy_previous, 0))}</td>}
+              {show('delta') && <td className="px-3 py-2 text-right text-foreground">{formatCurrencyDetailed(rows.reduce((s, r) => s + r.delta, 0))}</td>}
               {show('delta_pct') && <td />}
               {show('cumulative_current') && <td />}
               {show('cumulative_previous') && <td />}

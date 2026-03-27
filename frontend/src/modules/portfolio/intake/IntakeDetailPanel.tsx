@@ -85,7 +85,7 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
   }
 
   if (!data) {
-    return <p className="text-sm text-slate-400">Project not found.</p>;
+    return <p className="text-sm text-muted-foreground">Project not found.</p>;
   }
 
   return (
@@ -93,13 +93,13 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
       {/* Header */}
       <div className="space-y-1">
         <div className="flex items-center gap-2">
-          <h3 className="text-base font-semibold text-slate-800">{data.name}</h3>
+          <h3 className="text-base font-semibold text-foreground">{data.name}</h3>
           <Badge variant="outline" className="text-xs capitalize">
             {data.status.replace(/_/g, ' ')}
           </Badge>
         </div>
         {data.description && (
-          <p className="text-sm text-slate-600">{data.description}</p>
+          <p className="text-sm text-muted-foreground">{data.description}</p>
         )}
       </div>
 
@@ -115,24 +115,24 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
           <div>
-            <p className="text-xs text-slate-500">Line of Business</p>
-            <p className="text-slate-700">{data.lob_name}</p>
+            <p className="text-xs text-muted-foreground">Line of Business</p>
+            <p className="text-foreground">{data.lob_name}</p>
           </div>
           <div>
-            <p className="text-xs text-slate-500">CapEx / OpEx</p>
-            <p className="text-slate-700 capitalize">{data.capex_opex}</p>
+            <p className="text-xs text-muted-foreground">CapEx / OpEx</p>
+            <p className="text-foreground capitalize">{data.capex_opex}</p>
           </div>
           <div>
-            <p className="text-xs text-slate-500">Start</p>
-            <p className="text-slate-700">{data.start_month}</p>
+            <p className="text-xs text-muted-foreground">Start</p>
+            <p className="text-foreground">{data.start_month}</p>
           </div>
           <div>
-            <p className="text-xs text-slate-500">End</p>
-            <p className="text-slate-700">{data.end_month || '—'}</p>
+            <p className="text-xs text-muted-foreground">End</p>
+            <p className="text-foreground">{data.end_month || '—'}</p>
           </div>
           <div className="col-span-2">
-            <p className="text-xs text-slate-500">Estimated Budget</p>
-            <p className="text-lg font-semibold text-slate-800">
+            <p className="text-xs text-muted-foreground">Estimated Budget</p>
+            <p className="text-lg font-semibold text-foreground">
               {data.estimated_budget != null ? formatCurrency(data.estimated_budget) : '—'}
             </p>
           </div>
@@ -141,15 +141,15 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
 
       {/* Action Result */}
       {actionResult && (
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
           {actionResult}
         </div>
       )}
 
       {/* Resubmit (PL only, when changes_requested) */}
       {!isController && data.status === 'changes_requested' && !actionResult && (
-        <div className="space-y-3 pt-2 border-t border-slate-200">
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="space-y-3 pt-2 border-t border-border">
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
             Changes requested by Controller. Review feedback above and resubmit when ready.
           </div>
           <Button size="sm" onClick={handleResubmit} disabled={submitting}>
@@ -160,7 +160,7 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
 
       {/* Actions (controller only) */}
       {isController && !actionResult && (
-        <div className="space-y-3 pt-2 border-t border-slate-200">
+        <div className="space-y-3 pt-2 border-t border-border">
           {actionMode === 'idle' ? (
             <div className="flex gap-2">
               <Button size="sm" onClick={() => setActionMode('approve')}>
@@ -171,7 +171,7 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
                 size="sm"
                 variant="outline"
                 onClick={() => setActionMode('reject')}
-                className="text-red-600 hover:text-red-700"
+                className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
               >
                 <X className="h-3.5 w-3.5 mr-1" />
                 Reject
@@ -189,7 +189,7 @@ export function IntakeDetailPanel({ projectId, onActionComplete, onOpenDetail }:
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-slate-600 capitalize">
+              <p className="text-xs font-medium text-muted-foreground capitalize">
                 {actionMode === 'approve' ? 'Comments (optional)' : actionMode === 'reject' ? 'Reason (required)' : 'Comments (required)'}
               </p>
               <Textarea

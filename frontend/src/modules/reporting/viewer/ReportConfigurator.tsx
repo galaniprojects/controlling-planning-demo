@@ -56,18 +56,18 @@ export function ReportConfigurator({
         <div className="space-y-6 mt-6">
           {/* Column visibility */}
           <div>
-            <h3 className="text-sm font-medium text-slate-700 mb-3">Visible Columns</h3>
+            <h3 className="text-sm font-medium text-foreground mb-3">Visible Columns</h3>
             <div className="space-y-2">
               {availableColumns.map((col) => (
                 <label
                   key={col.key}
-                  className="flex items-center gap-2.5 cursor-pointer rounded px-2 py-1.5 hover:bg-slate-50"
+                  className="flex items-center gap-2.5 cursor-pointer rounded px-2 py-1.5 hover:bg-accent"
                 >
                   <Checkbox
                     checked={visibleColumns.includes(col.key)}
                     onCheckedChange={() => toggleColumn(col.key)}
                   />
-                  <span className="text-sm text-slate-600">{col.label}</span>
+                  <span className="text-sm text-muted-foreground">{col.label}</span>
                 </label>
               ))}
             </div>
@@ -76,7 +76,7 @@ export function ReportConfigurator({
           {/* Sort order */}
           {onSortChange && (
             <div>
-              <h3 className="text-sm font-medium text-slate-700 mb-3">Sort Order</h3>
+              <h3 className="text-sm font-medium text-foreground mb-3">Sort Order</h3>
               <div className="space-y-2">
                 <Select
                   value={sortColumn || '__none__'}

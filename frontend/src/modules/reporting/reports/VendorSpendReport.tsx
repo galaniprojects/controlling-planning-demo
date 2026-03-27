@@ -156,7 +156,7 @@ export function VendorSpendReport() {
   }
 
   if (!data) {
-    return <p className="text-sm text-slate-400">Failed to load report data.</p>;
+    return <p className="text-sm text-muted-foreground">Failed to load report data.</p>;
   }
 
   const { kpis, rows, chart_data } = data;
@@ -187,11 +187,11 @@ export function VendorSpendReport() {
   );
 
   const tableContent = (
-    <div className="rounded-lg border border-slate-200 bg-white overflow-auto">
+    <div className="rounded-lg border border-border bg-card overflow-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
-            <th className="px-3 py-2 text-left font-medium text-slate-600 w-8" />
+          <tr className="border-b border-border bg-muted/50">
+            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-8" />
             <SortableHeader column="vendor_name" label="Vendor" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
             <SortableHeader column="expense_cost_type" label="Expense Cost Type" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
             <SortableHeader column="total_ordered" label="Ordered" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
@@ -214,9 +214,9 @@ export function VendorSpendReport() {
             />
           ))}
           {/* Summary row */}
-          <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
+          <tr className="border-t-2 border-border bg-muted/50 font-semibold">
             <td />
-            <td className="px-3 py-2 text-slate-700">
+            <td className="px-3 py-2 text-foreground">
               Total ({rows.length} vendors)
             </td>
             <td />
@@ -291,18 +291,18 @@ function VendorRow({
   return (
     <>
       <tr
-        className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer"
+        className="border-t border-border hover:bg-accent cursor-pointer"
         onClick={onToggle}
       >
-        <td className="px-3 py-2 text-slate-400">
+        <td className="px-3 py-2 text-muted-foreground">
           {isExpanded ? (
             <ChevronDown className="h-4 w-4" />
           ) : (
             <ChevronRight className="h-4 w-4" />
           )}
         </td>
-        <td className="px-3 py-2 text-slate-700 font-medium">{row.vendor_name}</td>
-        <td className="px-3 py-2 text-slate-600 text-xs">{(row as Record<string, unknown>).expense_cost_type as string || '\u2014'}</td>
+        <td className="px-3 py-2 text-foreground font-medium">{row.vendor_name}</td>
+        <td className="px-3 py-2 text-muted-foreground text-xs">{(row as Record<string, unknown>).expense_cost_type as string || '\u2014'}</td>
         <td className="px-3 py-2 text-right font-mono text-xs">
           {formatCurrencyDetailed(row.total_ordered)}
         </td>
@@ -320,36 +320,36 @@ function VendorRow({
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={9} className="bg-blue-50/30 px-6 py-3">
+          <td colSpan={9} className="bg-primary/5 px-6 py-3">
             {drillLoading ? (
               <Skeleton className="h-16 w-full" />
             ) : drillDown.length === 0 ? (
-              <p className="text-xs text-slate-400">No detail records.</p>
+              <p className="text-xs text-muted-foreground">No detail records.</p>
             ) : (
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-blue-100">
-                    <th className="py-1 text-left font-medium text-slate-500">Project</th>
-                    <th className="py-1 text-left font-medium text-slate-500">Month</th>
-                    <th className="py-1 text-left font-medium text-slate-500">Cost Type</th>
-                    <th className="py-1 text-right font-medium text-slate-500">Amount</th>
-                    <th className="py-1 text-center font-medium text-slate-500">Status</th>
-                    <th className="py-1 text-left font-medium text-slate-500">PO #</th>
+                  <tr className="border-b border-border/50">
+                    <th className="py-1 text-left font-medium text-muted-foreground">Project</th>
+                    <th className="py-1 text-left font-medium text-muted-foreground">Month</th>
+                    <th className="py-1 text-left font-medium text-muted-foreground">Cost Type</th>
+                    <th className="py-1 text-right font-medium text-muted-foreground">Amount</th>
+                    <th className="py-1 text-center font-medium text-muted-foreground">Status</th>
+                    <th className="py-1 text-left font-medium text-muted-foreground">PO #</th>
                   </tr>
                 </thead>
                 <tbody>
                   {drillDown.map((d, i) => (
-                    <tr key={i} className="border-t border-blue-50">
-                      <td className="py-1 text-slate-600">{d.project_name}</td>
-                      <td className="py-1 text-slate-600">{d.month}</td>
-                      <td className="py-1 text-slate-600">{d.cost_type}</td>
+                    <tr key={i} className="border-t border-border/30">
+                      <td className="py-1 text-muted-foreground">{d.project_name}</td>
+                      <td className="py-1 text-muted-foreground">{d.month}</td>
+                      <td className="py-1 text-muted-foreground">{d.cost_type}</td>
                       <td className="py-1 text-right font-mono">
                         {formatCurrencyDetailed(d.amount)}
                       </td>
                       <td className="py-1 text-center">
                         {d.status ? <ExternalCostStatusBadge status={d.status} /> : '—'}
                       </td>
-                      <td className="py-1 text-slate-500">{d.po_number || '—'}</td>
+                      <td className="py-1 text-muted-foreground">{d.po_number || '—'}</td>
                     </tr>
                   ))}
                 </tbody>

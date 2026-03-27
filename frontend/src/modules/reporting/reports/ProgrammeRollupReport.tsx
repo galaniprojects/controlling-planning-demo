@@ -50,14 +50,14 @@ const FISCAL_YEAR_OPTIONS = [
 ];
 
 function ragBadge(rag: string | null) {
-  if (!rag) return <span className="text-xs text-slate-400">{'\u2014'}</span>;
+  if (!rag) return <span className="text-xs text-muted-foreground">{'\u2014'}</span>;
   const colors: Record<string, string> = {
-    green: 'bg-green-100 text-green-700',
-    amber: 'bg-amber-100 text-amber-700',
-    red: 'bg-red-100 text-red-700',
+    green: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    amber: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    red: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${colors[rag] ?? 'bg-slate-100 text-slate-500'}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${colors[rag] ?? 'bg-muted text-muted-foreground'}`}>
       {rag.charAt(0).toUpperCase() + rag.slice(1)}
     </span>
   );
@@ -231,7 +231,7 @@ export function ProgrammeRollupReport() {
   }
 
   if (!data) {
-    return <p className="text-sm text-slate-400">Failed to load report data.</p>;
+    return <p className="text-sm text-muted-foreground">Failed to load report data.</p>;
   }
 
   const { kpis, rows, chart_data } = data;
@@ -292,14 +292,14 @@ export function ProgrammeRollupReport() {
           {customGroupMode ? 'Exit Custom Group' : 'Custom Group'}
         </Button>
         {customGroupMode && selectedProjectIds.length > 0 && (
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-muted-foreground">
             {selectedProjectIds.length} project{selectedProjectIds.length !== 1 ? 's' : ''} selected
           </span>
         )}
       </div>
 
       {customGroupMode && (
-        <div className="border rounded-lg p-3 bg-slate-50 space-y-3">
+        <div className="border rounded-lg p-3 bg-muted/50 space-y-3">
           <div className="flex gap-3">
             {/* Project selector */}
             <div className="flex-1 space-y-2">
@@ -309,9 +309,9 @@ export function ProgrammeRollupReport() {
                 onChange={(e) => setProjectSearch(e.target.value)}
                 className="text-sm h-8"
               />
-              <div className="border rounded bg-white max-h-40 overflow-y-auto p-2 space-y-1">
+              <div className="border rounded bg-card max-h-40 overflow-y-auto p-2 space-y-1">
                 {filteredProjects.length === 0 ? (
-                  <p className="text-xs text-slate-400 py-1">No projects found</p>
+                  <p className="text-xs text-muted-foreground py-1">No projects found</p>
                 ) : (
                   filteredProjects.map((p) => (
                     <label key={p.id} className="flex items-center gap-2 cursor-pointer">
@@ -319,7 +319,7 @@ export function ProgrammeRollupReport() {
                         checked={selectedProjectIds.includes(p.id)}
                         onCheckedChange={() => handleToggleProject(p.id)}
                       />
-                      <span className="text-xs text-slate-700">{p.name}</span>
+                      <span className="text-xs text-foreground">{p.name}</span>
                     </label>
                   ))
                 )}
@@ -328,21 +328,21 @@ export function ProgrammeRollupReport() {
 
             {/* Saved groups */}
             <div className="w-56 space-y-2">
-              <p className="text-xs font-medium text-slate-500">Saved Groups</p>
+              <p className="text-xs font-medium text-muted-foreground">Saved Groups</p>
               {savedGroups.length === 0 ? (
-                <p className="text-xs text-slate-400">No saved groups</p>
+                <p className="text-xs text-muted-foreground">No saved groups</p>
               ) : (
                 <div className="space-y-1 max-h-40 overflow-y-auto">
                   {savedGroups.map((g) => (
-                    <div key={g.id} className="flex items-center justify-between gap-1 text-xs border rounded px-2 py-1 bg-white">
+                    <div key={g.id} className="flex items-center justify-between gap-1 text-xs border rounded px-2 py-1 bg-card">
                       <button
-                        className="text-left text-slate-700 hover:text-blue-600 truncate flex-1"
+                        className="text-left text-foreground hover:text-primary truncate flex-1"
                         onClick={() => handleLoadGroup(g)}
                       >
                         {g.name} ({g.project_ids.length})
                       </button>
                       <button
-                        className="text-slate-400 hover:text-red-500 shrink-0"
+                        className="text-muted-foreground hover:text-red-500 dark:hover:text-red-400 shrink-0"
                         onClick={() => handleDeleteGroup(g.id)}
                       >
                         <X className="h-3 w-3" />
@@ -383,10 +383,10 @@ export function ProgrammeRollupReport() {
         </div>
       )}
 
-      <div className="rounded-lg border border-slate-200 bg-white overflow-auto">
+      <div className="rounded-lg border border-border bg-card overflow-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
+            <tr className="border-b border-border bg-muted/50">
               <SortableHeader column="project_name" label="Project" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="status" label="Status" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />
               <SortableHeader column="baseline_budget" label="Baseline" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />
@@ -401,15 +401,15 @@ export function ProgrammeRollupReport() {
           <tbody>
             {sortColumn ? (
               sortedRows.map((r) => (
-                <tr key={r.project_id} className="border-t border-slate-100 hover:bg-slate-50">
-                  <td className="px-3 py-2 text-slate-700">{r.project_name}</td>
+                <tr key={r.project_id} className="border-t border-border hover:bg-accent">
+                  <td className="px-3 py-2 text-foreground">{r.project_name}</td>
                   <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
                   <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.baseline_budget)}</td>
                   <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.current_forecast)}</td>
                   <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.actuals_to_date)}</td>
                   <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.remaining_forecast)}</td>
                   <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.variance)}</td>
-                  <td className={`px-3 py-2 text-right font-mono text-xs ${r.variance_pct > 5 ? 'text-red-600' : r.variance_pct > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                  <td className={`px-3 py-2 text-right font-mono text-xs ${r.variance_pct > 5 ? 'text-red-600 dark:text-red-400' : r.variance_pct > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
                     {formatPercent(r.variance_pct)}
                   </td>
                   <td className="px-3 py-2 text-center">{ragBadge(r.rag)}</td>
@@ -421,26 +421,26 @@ export function ProgrammeRollupReport() {
               ))
             )}
             {/* Summary row */}
-            <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
-              <td className="px-3 py-2 text-slate-700" colSpan={2}>
+            <tr className="border-t-2 border-border bg-muted/50 font-semibold">
+              <td className="px-3 py-2 text-foreground" colSpan={2}>
                 Total ({rows.length} projects)
               </td>
-              <td className="px-3 py-2 text-right text-slate-700">
+              <td className="px-3 py-2 text-right text-foreground">
                 {formatCurrencyDetailed(kpis.total_baseline)}
               </td>
-              <td className="px-3 py-2 text-right text-slate-700">
+              <td className="px-3 py-2 text-right text-foreground">
                 {formatCurrencyDetailed(kpis.total_forecast)}
               </td>
-              <td className="px-3 py-2 text-right text-slate-700">
+              <td className="px-3 py-2 text-right text-foreground">
                 {formatCurrencyDetailed(rows.reduce((s, r) => s + r.actuals_to_date, 0))}
               </td>
-              <td className="px-3 py-2 text-right text-slate-700">
+              <td className="px-3 py-2 text-right text-foreground">
                 {formatCurrencyDetailed(rows.reduce((s, r) => s + r.remaining_forecast, 0))}
               </td>
-              <td className="px-3 py-2 text-right text-slate-700">
+              <td className="px-3 py-2 text-right text-foreground">
                 {formatCurrencyDetailed(kpis.overall_variance)}
               </td>
-              <td className="px-3 py-2 text-right text-slate-700">
+              <td className="px-3 py-2 text-right text-foreground">
                 {formatPercent(kpis.overall_variance_pct)}
               </td>
               <td />
@@ -496,21 +496,21 @@ function GroupSection({
 
   return (
     <>
-      <tr className="bg-blue-50/50 border-t border-slate-200">
-        <td className="px-3 py-1.5 text-xs font-semibold text-blue-700" colSpan={9}>
+      <tr className="bg-primary/5 border-t border-border">
+        <td className="px-3 py-1.5 text-xs font-semibold text-primary" colSpan={9}>
           {lobName} {'\u2014'} {rows.length} projects | Baseline: {formatCurrency(subtotalBaseline)} | Forecast: {formatCurrency(subtotalForecast)}
         </td>
       </tr>
       {rows.map((r) => (
-        <tr key={r.project_id} className="border-t border-slate-100 hover:bg-slate-50">
-          <td className="px-3 py-2 text-slate-700">{r.project_name}</td>
+        <tr key={r.project_id} className="border-t border-border hover:bg-accent">
+          <td className="px-3 py-2 text-foreground">{r.project_name}</td>
           <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
           <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.baseline_budget)}</td>
           <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.current_forecast)}</td>
           <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.actuals_to_date)}</td>
           <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.remaining_forecast)}</td>
           <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrencyDetailed(r.variance)}</td>
-          <td className={`px-3 py-2 text-right font-mono text-xs ${r.variance_pct > 5 ? 'text-red-600' : r.variance_pct > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+          <td className={`px-3 py-2 text-right font-mono text-xs ${r.variance_pct > 5 ? 'text-red-600 dark:text-red-400' : r.variance_pct > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
             {formatPercent(r.variance_pct)}
           </td>
           <td className="px-3 py-2 text-center">{ragBadge(r.rag)}</td>

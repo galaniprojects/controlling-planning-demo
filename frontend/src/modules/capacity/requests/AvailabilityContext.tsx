@@ -22,19 +22,19 @@ export function AvailabilityContext({
 
   if (!isResource) {
     return (
-      <div className="rounded-md border border-slate-200 bg-white p-4">
-        <h4 className="text-sm font-medium text-slate-700 mb-2">External Cost Request</h4>
-        <div className="text-sm text-slate-600 space-y-1">
+      <div className="rounded-md border border-border bg-card p-4">
+        <h4 className="text-sm font-medium text-foreground mb-2">External Cost Request</h4>
+        <div className="text-sm text-muted-foreground space-y-1">
           <p>
-            <span className="text-slate-500">Cost Type: </span>
+            <span className="text-muted-foreground">Cost Type: </span>
             {request.role_or_cost_type}
           </p>
           <p>
-            <span className="text-slate-500">Amount: </span>
+            <span className="text-muted-foreground">Amount: </span>
             €{request.hours_or_amount.toLocaleString()}/month
           </p>
           <p>
-            <span className="text-slate-500">Period: </span>
+            <span className="text-muted-foreground">Period: </span>
             {request.period_start} — {request.period_end}
           </p>
         </div>
@@ -106,24 +106,24 @@ function ResourceAvailability({
 
   if (allPeople.length === 0) {
     return (
-      <p className="text-sm text-slate-400">No team members available for assignment.</p>
+      <p className="text-sm text-muted-foreground">No team members available for assignment.</p>
     );
   }
 
   return (
     <div className="space-y-3">
-      <h4 className="text-sm font-medium text-slate-700">
+      <h4 className="text-sm font-medium text-foreground">
         Available Team Members
       </h4>
 
-      <div className="rounded-md border border-slate-200 overflow-auto">
+      <div className="rounded-md border border-border overflow-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="px-3 py-2 text-left text-xs font-medium text-slate-500">Person</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-slate-500">Role</th>
+            <tr className="bg-muted/50 border-b border-border">
+              <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Person</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Role</th>
               {allPeople[0]?.utilization.map((c) => (
-                <th key={c.month} className="px-2 py-2 text-center text-xs font-medium text-slate-500">
+                <th key={c.month} className="px-2 py-2 text-center text-xs font-medium text-muted-foreground">
                   {c.month.slice(5)}
                 </th>
               ))}
@@ -136,21 +136,21 @@ function ResourceAvailability({
                 <tr
                   key={person.person_id}
                   className={cn(
-                    'border-b border-slate-50 cursor-pointer transition-colors',
-                    isSelected ? 'bg-blue-50' : 'hover:bg-slate-50',
+                    'border-b border-border/50 cursor-pointer transition-colors',
+                    isSelected ? 'bg-primary/5' : 'hover:bg-muted/50',
                   )}
                   onClick={() =>
                     onSelectPerson(isSelected ? null : person.person_id)
                   }
                 >
-                  <td className="px-3 py-2 font-medium text-slate-700">{person.name}</td>
-                  <td className="px-3 py-2 text-slate-500">{person.roleName}</td>
+                  <td className="px-3 py-2 font-medium text-foreground">{person.name}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{person.roleName}</td>
                   {person.utilization.map((cell) => {
                     const bgMap: Record<string, string> = {
-                      blue: 'bg-blue-100 text-blue-700',
-                      green: 'bg-green-100 text-green-700',
-                      amber: 'bg-amber-100 text-amber-700',
-                      red: 'bg-red-100 text-red-700',
+                      blue: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                      green: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                      amber: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                      red: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
                     };
                     return (
                       <td key={cell.month} className="px-2 py-2 text-center">

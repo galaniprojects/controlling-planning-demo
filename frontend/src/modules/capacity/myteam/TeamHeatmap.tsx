@@ -59,7 +59,7 @@ export function TeamHeatmap({ ccId, onPersonClick }: TeamHeatmapProps) {
   }
 
   if (data.length === 0) {
-    return <p className="text-sm text-slate-400">No team data available.</p>;
+    return <p className="text-sm text-muted-foreground">No team data available.</p>;
   }
 
   return (

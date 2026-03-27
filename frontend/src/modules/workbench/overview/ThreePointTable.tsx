@@ -16,9 +16,9 @@ interface Props {
 
 function varianceColor(pct: number): string {
   const abs = Math.abs(pct);
-  if (abs > 10) return 'text-red-600';
-  if (abs > 5) return 'text-amber-600';
-  return 'text-green-600';
+  if (abs > 10) return 'text-red-600 dark:text-red-400';
+  if (abs > 5) return 'text-amber-600 dark:text-amber-400';
+  return 'text-green-600 dark:text-green-400';
 }
 
 export function ThreePointTable({ data }: Props) {
@@ -33,10 +33,10 @@ export function ThreePointTable({ data }: Props) {
     : 0;
 
   return (
-    <div className="border border-slate-200 rounded-lg overflow-hidden">
+    <div className="border border-border rounded-lg overflow-hidden">
       <Table>
         <TableHeader>
-          <TableRow className="bg-slate-50">
+          <TableRow className="bg-muted/50">
             <TableHead className="w-32">Metric</TableHead>
             <TableHead className="text-right">Baseline</TableHead>
             <TableHead className="text-right">Forecast</TableHead>
@@ -48,7 +48,7 @@ export function ThreePointTable({ data }: Props) {
         </TableHeader>
         <TableBody>
           <TableRow>
-            <TableCell className="font-medium text-slate-700">
+            <TableCell className="font-medium text-foreground">
               Total Cost
             </TableCell>
             <TableCell className="text-right">
@@ -65,7 +65,7 @@ export function ThreePointTable({ data }: Props) {
                 <span className={cn('font-medium', varianceColor(planDriftPct))}>
                   {formatPercent(planDriftPct)}
                 </span>
-                <span className="block text-xs text-slate-400">
+                <span className="block text-xs text-muted-foreground">
                   {formatCurrency(data.forecast - data.baseline)}
                 </span>
               </div>
@@ -75,7 +75,7 @@ export function ThreePointTable({ data }: Props) {
                 <span className={cn('font-medium', varianceColor(execVarPct))}>
                   {formatPercent(execVarPct)}
                 </span>
-                <span className="block text-xs text-slate-400">
+                <span className="block text-xs text-muted-foreground">
                   {formatCurrency(data.execution_variance)}
                 </span>
               </div>
@@ -85,7 +85,7 @@ export function ThreePointTable({ data }: Props) {
                 <span className={cn('font-medium', varianceColor(totalVarPct))}>
                   {formatPercent(totalVarPct)}
                 </span>
-                <span className="block text-xs text-slate-400">
+                <span className="block text-xs text-muted-foreground">
                   {formatCurrency(data.total_variance)}
                 </span>
               </div>

@@ -80,20 +80,20 @@ export function ProjectTimelineChart({ data }: Props) {
     return (
       <div className="space-y-2 min-w-0 overflow-hidden">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-slate-500">
+          <h3 className="text-sm font-medium text-muted-foreground">
             Project Timeline
           </h3>
           <ViewToggle viewMode={viewMode} onChange={setViewMode} />
         </div>
 
-        <div className="border border-slate-200 rounded-lg bg-white overflow-hidden">
+        <div className="border border-border rounded-lg bg-card overflow-hidden">
           <div className="flex overflow-hidden">
             {/* Fixed Y-axis */}
-            <div className="shrink-0 w-16 border-r border-slate-100">
+            <div className="shrink-0 w-16 border-r border-border">
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={data.monthly_data} margin={{ top: 24, right: 0, left: 0, bottom: 24 }}>
                   <YAxis
-                    tick={{ fontSize: 10, fill: '#64748b' }}
+                    tick={{ fontSize: 10, fill: 'var(--chart-axis)' }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v: number) => formatCurrency(v)}
@@ -113,7 +113,7 @@ export function ProjectTimelineChart({ data }: Props) {
                     barGap={1}
                     barSize={14}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
                     <XAxis
                       dataKey="month"
                       tick={({ x, y, payload }) => {
@@ -123,7 +123,7 @@ export function ProjectTimelineChart({ data }: Props) {
                             x={x}
                             y={y + 12}
                             textAnchor="middle"
-                            fill={isJan ? '#1e293b' : '#64748b'}
+                            fill={isJan ? 'var(--foreground)' : 'var(--chart-axis)'}
                             fontSize={isJan ? 11 : 10}
                             fontWeight={isJan ? 600 : 400}
                           >
@@ -141,7 +141,7 @@ export function ProjectTimelineChart({ data }: Props) {
                         formatCurrency(value),
                         name.charAt(0).toUpperCase() + name.slice(1),
                       ]}
-                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                      contentStyle={{ fontSize: 12, borderRadius: 8, backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--card-foreground)' }}
                       labelFormatter={(label: string) => formatMonth(label)}
                     />
                     <Legend
@@ -228,19 +228,19 @@ export function ProjectTimelineChart({ data }: Props) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-slate-500">
+        <h3 className="text-sm font-medium text-muted-foreground">
           Project Timeline — Cumulative
         </h3>
         <ViewToggle viewMode={viewMode} onChange={setViewMode} />
       </div>
 
-      <div className="border border-slate-200 rounded-lg bg-white p-2">
+      <div className="border border-border rounded-lg bg-card p-2">
         <ResponsiveContainer width="100%" height={280}>
           <LineChart
             data={data.cumulative_data}
             margin={{ top: 24, right: 16, left: 0, bottom: 0 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
             <XAxis
               dataKey="month"
               tick={({ x, y, payload }) => {
@@ -250,7 +250,7 @@ export function ProjectTimelineChart({ data }: Props) {
                     x={x}
                     y={y + 12}
                     textAnchor="middle"
-                    fill={isJan ? '#1e293b' : '#64748b'}
+                    fill={isJan ? 'var(--foreground)' : 'var(--chart-axis)'}
                     fontSize={isJan ? 11 : 10}
                     fontWeight={isJan ? 600 : 400}
                   >
@@ -263,7 +263,7 @@ export function ProjectTimelineChart({ data }: Props) {
               height={28}
             />
             <YAxis
-              tick={{ fontSize: 10, fill: '#64748b' }}
+              tick={{ fontSize: 10, fill: 'var(--chart-axis)' }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v: number) => formatCurrency(v)}
@@ -275,7 +275,7 @@ export function ProjectTimelineChart({ data }: Props) {
                   ? 'Budget Ceiling'
                   : name.charAt(0).toUpperCase() + name.slice(1),
               ]}
-              contentStyle={{ fontSize: 12, borderRadius: 8 }}
+              contentStyle={{ fontSize: 12, borderRadius: 8, backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--card-foreground)' }}
               labelFormatter={(label: string) => formatMonth(label)}
             />
             <Legend
@@ -371,7 +371,7 @@ function ViewToggle({
   onChange: (m: ViewMode) => void;
 }) {
   return (
-    <div className="flex gap-1 border border-slate-200 rounded-md p-0.5">
+    <div className="flex gap-1 border border-border rounded-md p-0.5">
       <Button
         variant={viewMode === 'monthly' ? 'default' : 'ghost'}
         size="sm"

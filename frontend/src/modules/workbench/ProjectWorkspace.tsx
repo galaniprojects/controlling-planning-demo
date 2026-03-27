@@ -36,10 +36,10 @@ export function ProjectWorkspace({ projectId, role, status }: Props) {
     <div className="space-y-4">
       {/* Changes Requested Banner */}
       {status === 'changes_requested' && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 space-y-3">
-          <p className="text-sm font-semibold text-amber-800">Changes Requested by Controller</p>
+        <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 p-4 space-y-3">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">Changes Requested by Controller</p>
           {feedback && (
-            <p className="text-sm text-amber-700">{feedback}</p>
+            <p className="text-sm text-amber-700 dark:text-amber-400">{feedback}</p>
           )}
           <div className="flex gap-2">
             <Button

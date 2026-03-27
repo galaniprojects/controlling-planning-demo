@@ -47,7 +47,7 @@ export function MyTeamTab({ ccId, showRequestsButton = true }: MyTeamTabProps) {
   }
 
   if (!summary) {
-    return <p className="text-sm text-slate-400">Failed to load team data.</p>;
+    return <p className="text-sm text-muted-foreground">Failed to load team data.</p>;
   }
 
   return (
@@ -59,8 +59,8 @@ export function MyTeamTab({ ccId, showRequestsButton = true }: MyTeamTabProps) {
           className={cn(
             'inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors',
             summary.pending_request_count > 0
-              ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'
-              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+              ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/40'
+              : 'border-border bg-card text-muted-foreground hover:bg-muted/50',
           )}
         >
           <Inbox className="h-4 w-4" />
@@ -71,7 +71,7 @@ export function MyTeamTab({ ccId, showRequestsButton = true }: MyTeamTabProps) {
       <TeamSummaryBar data={summary} />
 
       <div>
-        <h3 className="mb-2 text-sm font-medium text-slate-600">Team Utilization Heatmap</h3>
+        <h3 className="mb-2 text-sm font-medium text-muted-foreground">Team Utilization Heatmap</h3>
         <TeamHeatmap ccId={ccId} onPersonClick={handlePersonClick} />
       </div>
     </div>

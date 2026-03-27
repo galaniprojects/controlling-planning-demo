@@ -87,7 +87,7 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700">Project Name</label>
+            <label className="text-sm font-medium text-foreground">Project Name</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -96,7 +96,7 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700">Description</label>
+            <label className="text-sm font-medium text-foreground">Description</label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -106,7 +106,7 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700">Line of Business</label>
+            <label className="text-sm font-medium text-foreground">Line of Business</label>
             <Select value={lobId} onValueChange={setLobId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select LoB" />
@@ -123,7 +123,7 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700">Start Month</label>
+              <label className="text-sm font-medium text-foreground">Start Month</label>
               <Input
                 type="month"
                 value={startMonth}
@@ -131,7 +131,7 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700">End Month</label>
+              <label className="text-sm font-medium text-foreground">End Month</label>
               <Input
                 type="month"
                 value={endMonth}

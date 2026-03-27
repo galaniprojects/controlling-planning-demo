@@ -66,7 +66,7 @@ export function ExpandableTreeTable<T extends { id: string; children?: T[] }>({
           key={node.id}
           className={cn(
             'cursor-pointer transition-colors',
-            isSelected ? 'bg-blue-50' : 'hover:bg-slate-50',
+            isSelected ? 'bg-accent' : 'hover:bg-accent/50',
           )}
           onClick={() => onRowClick?.(node)}
         >
@@ -76,7 +76,7 @@ export function ExpandableTreeTable<T extends { id: string; children?: T[] }>({
               className={cn(
                 'px-3 py-2 text-sm',
                 i === 0 && 'sticky left-0 z-10',
-                i === 0 && (isSelected ? 'bg-blue-50' : 'bg-white'),
+                i === 0 && (isSelected ? 'bg-accent' : 'bg-card'),
                 col.className,
               )}
             >
@@ -91,11 +91,11 @@ export function ExpandableTreeTable<T extends { id: string; children?: T[] }>({
                         e.stopPropagation();
                         toggleExpand(node.id);
                       }}
-                      className="p-0.5 rounded hover:bg-slate-200 shrink-0"
+                      className="p-0.5 rounded hover:bg-accent shrink-0"
                     >
                       <ChevronRight
                         className={cn(
-                          'h-4 w-4 text-slate-400 transition-transform',
+                          'h-4 w-4 text-muted-foreground transition-transform',
                           isExpanded && 'rotate-90',
                         )}
                       />
@@ -122,7 +122,7 @@ export function ExpandableTreeTable<T extends { id: string; children?: T[] }>({
   }
 
   return (
-    <div className="rounded-md border border-slate-200 overflow-auto">
+    <div className="rounded-md border border-border overflow-auto">
       <Table>
         <TableHeader>
           {headerGroups && (
@@ -132,7 +132,7 @@ export function ExpandableTreeTable<T extends { id: string; children?: T[] }>({
                   key={i}
                   colSpan={group.colSpan}
                   className={cn(
-                    'px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-center',
+                    'px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-center',
                     group.className,
                   )}
                 >
@@ -146,8 +146,8 @@ export function ExpandableTreeTable<T extends { id: string; children?: T[] }>({
               <TableHead
                 key={i}
                 className={cn(
-                  'px-3 py-2 text-xs font-medium text-slate-500',
-                  i === 0 && 'sticky left-0 z-10 bg-slate-50',
+                  'px-3 py-2 text-xs font-medium text-muted-foreground',
+                  i === 0 && 'sticky left-0 z-10 bg-muted',
                   col.className,
                 )}
               >
@@ -161,7 +161,7 @@ export function ExpandableTreeTable<T extends { id: string; children?: T[] }>({
             renderRows(data, 0)
           ) : (
             <TableRow>
-              <TableCell colSpan={columns.length} className="text-center py-8 text-slate-400">
+              <TableCell colSpan={columns.length} className="text-center py-8 text-muted-foreground">
                 No data available
               </TableCell>
             </TableRow>

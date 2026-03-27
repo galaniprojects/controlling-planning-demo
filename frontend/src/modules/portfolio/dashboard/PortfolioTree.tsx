@@ -49,7 +49,7 @@ const columns: TreeTableColumn<ProjectTreeNode>[] = [
             )}
           />
         )}
-        <span className="font-medium text-slate-800 truncate">{node.name}</span>
+        <span className="font-medium text-foreground truncate">{node.name}</span>
         <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
           {getTypeLabel(node.type)}
         </Badge>
@@ -61,9 +61,9 @@ const columns: TreeTableColumn<ProjectTreeNode>[] = [
     className: 'w-[90px]',
     accessor: (node) =>
       node.status ? (
-        <span className="capitalize text-slate-600">{node.status.replace(/_/g, ' ')}</span>
+        <span className="capitalize text-muted-foreground">{node.status.replace(/_/g, ' ')}</span>
       ) : (
-        <span className="text-slate-300">&mdash;</span>
+        <span className="text-muted-foreground/40">&mdash;</span>
       ),
   },
   {
@@ -75,7 +75,7 @@ const columns: TreeTableColumn<ProjectTreeNode>[] = [
           {node.rag}
         </Badge>
       ) : (
-        <span className="text-slate-300">&mdash;</span>
+        <span className="text-muted-foreground/40">&mdash;</span>
       ),
   },
   // --- CY Cluster ---
@@ -83,21 +83,21 @@ const columns: TreeTableColumn<ProjectTreeNode>[] = [
     header: 'Baseline CY',
     className: 'w-[90px] text-right',
     accessor: (node) => (
-      <span className="text-slate-700">{formatCurrency(node.baseline_cy ?? 0)}</span>
+      <span className="text-foreground">{formatCurrency(node.baseline_cy ?? 0)}</span>
     ),
   },
   {
     header: 'Forecast CY',
     className: 'w-[90px] text-right',
     accessor: (node) => (
-      <span className="text-slate-700">{formatCurrency(node.forecast_cy ?? 0)}</span>
+      <span className="text-foreground">{formatCurrency(node.forecast_cy ?? 0)}</span>
     ),
   },
   {
     header: 'Actuals YTD',
     className: 'w-[90px] text-right',
     accessor: (node) => (
-      <span className="text-slate-700">{formatCurrency(node.actuals_cy ?? 0)}</span>
+      <span className="text-foreground">{formatCurrency(node.actuals_cy ?? 0)}</span>
     ),
   },
   // --- Timeline (separator) ---
@@ -106,11 +106,11 @@ const columns: TreeTableColumn<ProjectTreeNode>[] = [
     className: 'w-[130px]',
     accessor: (node) =>
       node.timeline?.start ? (
-        <span className="text-slate-500 text-xs">
+        <span className="text-muted-foreground text-xs">
           {node.timeline.start} &mdash; {node.timeline.end || '?'}
         </span>
       ) : (
-        <span className="text-slate-300">&mdash;</span>
+        <span className="text-muted-foreground/40">&mdash;</span>
       ),
   },
   // --- PY Cluster ---
@@ -118,21 +118,21 @@ const columns: TreeTableColumn<ProjectTreeNode>[] = [
     header: 'Baseline PY',
     className: 'w-[90px] text-right',
     accessor: (node) => (
-      <span className="text-slate-500">{formatCurrency(node.baseline_py ?? 0)}</span>
+      <span className="text-muted-foreground">{formatCurrency(node.baseline_py ?? 0)}</span>
     ),
   },
   {
     header: 'Forecast PY',
     className: 'w-[90px] text-right',
     accessor: (node) => (
-      <span className="text-slate-500">{formatCurrency(node.forecast_py ?? 0)}</span>
+      <span className="text-muted-foreground">{formatCurrency(node.forecast_py ?? 0)}</span>
     ),
   },
   {
     header: 'Actuals PY',
     className: 'w-[90px] text-right',
     accessor: (node) => (
-      <span className="text-slate-500">{formatCurrency(node.actuals_py ?? 0)}</span>
+      <span className="text-muted-foreground">{formatCurrency(node.actuals_py ?? 0)}</span>
     ),
   },
 ];
@@ -150,9 +150,9 @@ export function PortfolioTree({ data, loading, selectedId, onProjectSelect }: Pr
 
   const headerGroups: HeaderGroup[] = [
     { label: '', colSpan: 3 },                    // Name, Status, RAG
-    { label: 'CY 2026', colSpan: 3, className: 'border-b border-slate-200' },  // Baseline CY, Forecast CY, Actuals YTD
+    { label: 'CY 2026', colSpan: 3, className: 'border-b border-border' },  // Baseline CY, Forecast CY, Actuals YTD
     { label: '', colSpan: 1 },                    // Timeline
-    { label: 'Prior Years', colSpan: 3, className: 'border-b border-slate-200' }, // Baseline PY, Forecast PY, Actuals PY
+    { label: 'Prior Years', colSpan: 3, className: 'border-b border-border' }, // Baseline PY, Forecast PY, Actuals PY
   ];
 
   return (

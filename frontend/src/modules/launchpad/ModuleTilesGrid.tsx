@@ -29,7 +29,7 @@ export function ModuleTilesGrid({ modules }: Props) {
           <Card
             key={mod.id}
             className={`cursor-pointer transition-shadow hover:shadow-md ${
-              isPrimary ? 'border-2 border-blue-800' : ''
+              isPrimary ? 'border-2 border-primary' : ''
             }`}
             onClick={() => navigate(MODULE_ROUTES[mod.id] || '/')}
           >
@@ -45,7 +45,7 @@ export function ModuleTilesGrid({ modules }: Props) {
               <CardDescription className="text-xs">{mod.description}</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm font-medium text-blue-800">
+              <p className="text-sm font-medium text-primary">
                 {mod.contextual_metric}
               </p>
             </CardContent>

@@ -14,10 +14,10 @@ import type { RefPerson } from '@/types/api';
 import { EntityFormDialog } from './EntityFormDialog';
 
 function utilizationColor(pct: number): string {
-  if (pct > 100) return 'text-red-700 bg-red-50';
-  if (pct >= 90) return 'text-amber-700 bg-amber-50';
-  if (pct >= 70) return 'text-green-700 bg-green-50';
-  return 'text-blue-700 bg-blue-50';
+  if (pct > 100) return 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30';
+  if (pct >= 90) return 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30';
+  if (pct >= 70) return 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30';
+  return 'text-primary bg-primary/5';
 }
 
 interface PeoplePanelProps {
@@ -114,33 +114,33 @@ export function PeoplePanel({ onDataChanged }: PeoplePanelProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-slate-800">People</h2>
+        <h2 className="text-base font-semibold text-foreground">People</h2>
         <Button size="sm" onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-1" />
           Add New
         </Button>
       </div>
 
-      <div className="rounded-md border border-slate-200 overflow-auto">
+      <div className="rounded-md border border-border overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Name</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[150px]">Role</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[160px]">Cost Center</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[160px]">Competence Center</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[100px] text-right">Utilization</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[80px]">Status</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[100px]">Actions</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground">Name</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[150px]">Role</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[160px]">Cost Center</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[160px]">Competence Center</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[100px] text-right">Utilization</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[80px]">Status</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.map((item) => (
-              <TableRow key={item.id} className="hover:bg-slate-50">
-                <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">{item.name}</TableCell>
-                <TableCell className="px-3 py-2 text-sm text-slate-600">{item.role_name}</TableCell>
-                <TableCell className="px-3 py-2 text-sm text-slate-600">{item.cost_center_name || '—'}</TableCell>
-                <TableCell className="px-3 py-2 text-sm text-slate-600">{item.competence_center_name || '—'}</TableCell>
+              <TableRow key={item.id} className="hover:bg-accent">
+                <TableCell className="px-3 py-2 text-sm font-medium text-foreground">{item.name}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-muted-foreground">{item.role_name}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-muted-foreground">{item.cost_center_name || '—'}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-muted-foreground">{item.competence_center_name || '—'}</TableCell>
                 <TableCell className="px-3 py-2 text-right">
                   {item.is_active ? (
                     <span
@@ -149,7 +149,7 @@ export function PeoplePanel({ onDataChanged }: PeoplePanelProps) {
                       {item.utilization_pct}%
                     </span>
                   ) : (
-                    <span className="text-xs text-slate-400">—</span>
+                    <span className="text-xs text-muted-foreground">—</span>
                   )}
                 </TableCell>
                 <TableCell className="px-3 py-2">
@@ -157,7 +157,7 @@ export function PeoplePanel({ onDataChanged }: PeoplePanelProps) {
                     className={
                       item.is_active
                         ? 'bg-green-100 text-green-700 hover:bg-green-100'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-100'
+                        : 'bg-muted text-muted-foreground hover:bg-muted'
                     }
                   >
                     {item.is_active ? 'Active' : 'Inactive'}
@@ -184,7 +184,7 @@ export function PeoplePanel({ onDataChanged }: PeoplePanelProps) {
             ))}
             {items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="px-3 py-8 text-center text-sm text-slate-400">
+                <TableCell colSpan={7} className="px-3 py-8 text-center text-sm text-muted-foreground">
                   No people found
                 </TableCell>
               </TableRow>

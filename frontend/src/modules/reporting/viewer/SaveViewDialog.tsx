@@ -33,7 +33,7 @@ export function SaveViewDialog({ open, onOpenChange, onSave }: SaveViewDialogPro
           <DialogTitle>Save View</DialogTitle>
         </DialogHeader>
         <div className="py-2">
-          <label className="text-sm text-slate-600 block mb-1.5">View name</label>
+          <label className="text-sm text-muted-foreground block mb-1.5">View name</label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}

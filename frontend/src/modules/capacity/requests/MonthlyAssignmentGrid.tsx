@@ -136,8 +136,8 @@ export function MonthlyAssignmentGrid({
 
   if (loading) {
     return (
-      <div className="rounded-md border border-slate-200 bg-white p-4">
-        <div className="h-24 animate-pulse rounded bg-slate-100" />
+      <div className="rounded-md border border-border bg-card p-4">
+        <div className="h-24 animate-pulse rounded bg-muted" />
       </div>
     );
   }
@@ -145,17 +145,17 @@ export function MonthlyAssignmentGrid({
   if (monthlyHours.length === 0) return null;
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 space-y-3">
+    <div className="rounded-md border border-border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h4 className="text-sm font-medium text-slate-700">Resource Assignment</h4>
+          <h4 className="text-sm font-medium text-foreground">Resource Assignment</h4>
           <Badge
             variant="outline"
             className={cn(
               'text-xs',
               assignedCount === totalMonths
-                ? 'border-green-300 text-green-700'
-                : 'border-amber-300 text-amber-700',
+                ? 'border-green-300 text-green-700 dark:border-green-700 dark:text-green-400'
+                : 'border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400',
             )}
           >
             {assignedCount}/{totalMonths} months assigned
@@ -184,7 +184,7 @@ export function MonthlyAssignmentGrid({
       {!isSplit ? (
         /* Unified mode: single select for all months */
         <div className="space-y-2">
-          <label className="text-xs text-slate-500">
+          <label className="text-xs text-muted-foreground">
             Assign one person to all {totalMonths} months:
           </label>
           <PersonSelect
@@ -195,30 +195,30 @@ export function MonthlyAssignmentGrid({
             placeholder="Select employee..."
           />
           {unifiedPersonId && (
-            <div className="rounded border border-slate-100 overflow-auto">
+            <div className="rounded border border-border/50 overflow-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100">
-                    <th className="px-2 py-1.5 text-left text-slate-500 font-medium">Month</th>
-                    <th className="px-2 py-1.5 text-right text-slate-500 font-medium">Hours</th>
-                    <th className="px-2 py-1.5 text-left text-slate-500 font-medium">Assigned</th>
+                  <tr className="bg-muted/50 border-b border-border/50">
+                    <th className="px-2 py-1.5 text-left text-muted-foreground font-medium">Month</th>
+                    <th className="px-2 py-1.5 text-right text-muted-foreground font-medium">Hours</th>
+                    <th className="px-2 py-1.5 text-left text-muted-foreground font-medium">Assigned</th>
                   </tr>
                 </thead>
                 <tbody>
                   {monthlyHours.map((mh) => {
                     const person = availablePeople.find((p) => p.person_id === assignments[mh.month]);
                     return (
-                      <tr key={mh.month} className="border-b border-slate-50">
-                        <td className="px-2 py-1.5 text-slate-600">{formatMonth(mh.month)}</td>
-                        <td className="px-2 py-1.5 text-right text-slate-600">{mh.hours}h</td>
+                      <tr key={mh.month} className="border-b border-border/30">
+                        <td className="px-2 py-1.5 text-muted-foreground">{formatMonth(mh.month)}</td>
+                        <td className="px-2 py-1.5 text-right text-muted-foreground">{mh.hours}h</td>
                         <td className="px-2 py-1.5">
                           {person ? (
-                            <span className="flex items-center gap-1 text-green-700">
+                            <span className="flex items-center gap-1 text-green-700 dark:text-green-400">
                               <Check className="h-3 w-3" />
                               {person.name}
                             </span>
                           ) : (
-                            <span className="text-slate-400">--</span>
+                            <span className="text-muted-foreground">--</span>
                           )}
                         </td>
                       </tr>
@@ -231,22 +231,22 @@ export function MonthlyAssignmentGrid({
         </div>
       ) : (
         /* Split mode: per-month selects */
-        <div className="rounded border border-slate-100 overflow-auto">
+        <div className="rounded border border-border/50 overflow-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-2 py-1.5 text-left text-slate-500 font-medium">Month</th>
-                <th className="px-2 py-1.5 text-right text-slate-500 font-medium">Hours</th>
-                <th className="px-2 py-1.5 text-left text-slate-500 font-medium min-w-[200px]">
+              <tr className="bg-muted/50 border-b border-border/50">
+                <th className="px-2 py-1.5 text-left text-muted-foreground font-medium">Month</th>
+                <th className="px-2 py-1.5 text-right text-muted-foreground font-medium">Hours</th>
+                <th className="px-2 py-1.5 text-left text-muted-foreground font-medium min-w-[200px]">
                   Assigned Employee
                 </th>
               </tr>
             </thead>
             <tbody>
               {monthlyHours.map((mh) => (
-                <tr key={mh.month} className="border-b border-slate-50">
-                  <td className="px-2 py-1.5 text-slate-600">{formatMonth(mh.month)}</td>
-                  <td className="px-2 py-1.5 text-right text-slate-600">{mh.hours}h</td>
+                <tr key={mh.month} className="border-b border-border/30">
+                  <td className="px-2 py-1.5 text-muted-foreground">{formatMonth(mh.month)}</td>
+                  <td className="px-2 py-1.5 text-right text-muted-foreground">{mh.hours}h</td>
                   <td className="px-2 py-1.5">
                     <PersonSelect
                       value={assignments[mh.month] ?? ''}
@@ -265,12 +265,12 @@ export function MonthlyAssignmentGrid({
         </div>
       )}
 
-      {saving && <p className="text-xs text-slate-400">Saving...</p>}
+      {saving && <p className="text-xs text-muted-foreground">Saving...</p>}
       {saveResult && (
         <p
           className={cn(
             'text-xs',
-            saveResult === 'Saved' ? 'text-green-600' : 'text-red-600',
+            saveResult === 'Saved' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
           )}
         >
           {saveResult}
@@ -307,7 +307,7 @@ function PersonSelect({
       <SelectContent>
         {matchingRole.length > 0 && (
           <SelectGroup>
-            <SelectLabel className="text-xs text-slate-400">Matching Role</SelectLabel>
+            <SelectLabel className="text-xs text-muted-foreground">Matching Role</SelectLabel>
             {matchingRole.map((p) => (
               <SelectItem key={p.person_id} value={p.person_id}>
                 <span className="flex items-center gap-2">
@@ -334,12 +334,12 @@ function PersonSelect({
         {matchingRole.length > 0 && otherPeople.length > 0 && <SelectSeparator />}
         {otherPeople.length > 0 && (
           <SelectGroup>
-            <SelectLabel className="text-xs text-slate-400">Other Roles</SelectLabel>
+            <SelectLabel className="text-xs text-muted-foreground">Other Roles</SelectLabel>
             {otherPeople.map((p) => (
               <SelectItem key={p.person_id} value={p.person_id}>
                 <span className="flex items-center gap-2">
                   <span>{p.name}</span>
-                  <span className="text-xs text-slate-400">{p.roleName}</span>
+                  <span className="text-xs text-muted-foreground">{p.roleName}</span>
                   {month && p.utilizationByMonth[month] !== undefined && (
                     <span
                       className={cn(

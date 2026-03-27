@@ -123,14 +123,14 @@ export function ActionItem({ action, onRemove, projectNames, readOnly }: Props) 
   const delta = formatDelta(action.impact_delta);
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-50 group">
-      <Icon className="h-4 w-4 text-slate-400 shrink-0" />
+    <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent group">
+      <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-slate-700 truncate">{description}</p>
+        <p className="text-sm text-foreground truncate">{description}</p>
         {action.group_label && (
           <Badge
             variant="outline"
-            className="text-[10px] text-indigo-600 border-indigo-200 mt-0.5"
+            className="text-[10px] text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 mt-0.5"
           >
             {action.group_label}
           </Badge>
@@ -139,7 +139,7 @@ export function ActionItem({ action, onRemove, projectNames, readOnly }: Props) 
       {delta && (
         <span
           className={`text-xs font-medium shrink-0 ${
-            delta.startsWith('-') ? 'text-green-600' : 'text-red-600'
+            delta.startsWith('-') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
           }`}
         >
           {delta}
@@ -152,7 +152,7 @@ export function ActionItem({ action, onRemove, projectNames, readOnly }: Props) 
           className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={() => onRemove(action.id)}
         >
-          <X className="h-3.5 w-3.5 text-slate-400" />
+          <X className="h-3.5 w-3.5 text-muted-foreground" />
         </Button>
       )}
     </div>

@@ -51,19 +51,19 @@ export function FaqTab() {
           placeholder="Search FAQs..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 max-w-sm px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 max-w-sm px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         />
         <select
           value={filterModule}
           onChange={(e) => setFilterModule(e.target.value)}
-          className="px-3 py-2 border rounded-md text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 border rounded-md text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <option value="">All modules</option>
           {modules.map((m) => (
             <option key={m} value={m}>{m}</option>
           ))}
         </select>
-        <span className="text-xs text-slate-400">{filtered.length} of {faqs.length} FAQs</span>
+        <span className="text-xs text-muted-foreground">{filtered.length} of {faqs.length} FAQs</span>
       </div>
 
       {/* FAQ list */}
@@ -74,13 +74,13 @@ export function FaqTab() {
             <Card key={faq.id}>
               <button
                 onClick={() => setExpandedId(isExpanded ? null : faq.id)}
-                className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-slate-50 transition-colors"
+                className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-accent transition-colors"
               >
-                <span className="text-slate-400 mt-0.5 text-xs shrink-0">{isExpanded ? '−' : '+'}</span>
+                <span className="text-muted-foreground mt-0.5 text-xs shrink-0">{isExpanded ? '−' : '+'}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900">{faq.question}</p>
+                  <p className="text-sm font-medium text-foreground">{faq.question}</p>
                   {!isExpanded && (
-                    <p className="text-xs text-slate-500 mt-0.5 truncate">{faq.summary}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{faq.summary}</p>
                   )}
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -92,11 +92,11 @@ export function FaqTab() {
 
               {isExpanded && (
                 <CardContent className="pt-0 pb-4 px-4 ml-6">
-                  <p className="text-sm text-slate-600 mb-3">{faq.summary}</p>
+                  <p className="text-sm text-muted-foreground mb-3">{faq.summary}</p>
 
                   {faq.applicable_roles && faq.applicable_roles.length > 0 && (
                     <div className="flex gap-1 mb-3">
-                      <span className="text-xs text-slate-400">Roles:</span>
+                      <span className="text-xs text-muted-foreground">Roles:</span>
                       {faq.applicable_roles.map((r) => (
                         <Badge key={r} variant="secondary" className="text-xs">{r}</Badge>
                       ))}
@@ -107,10 +107,10 @@ export function FaqTab() {
                     <ol className="space-y-2">
                       {faq.steps.map((step) => (
                         <li key={step.step_number} className="flex gap-2 text-sm">
-                          <span className="text-xs font-mono text-slate-400 mt-0.5 shrink-0 w-5 text-right">
+                          <span className="text-xs font-mono text-muted-foreground mt-0.5 shrink-0 w-5 text-right">
                             {step.step_number}.
                           </span>
-                          <span className="text-slate-700">{renderMarkdownBold(step.instruction)}</span>
+                          <span className="text-foreground">{renderMarkdownBold(step.instruction)}</span>
                         </li>
                       ))}
                     </ol>
@@ -122,7 +122,7 @@ export function FaqTab() {
         })}
 
         {filtered.length === 0 && (
-          <p className="text-sm text-slate-400 text-center py-8">No FAQs match your search.</p>
+          <p className="text-sm text-muted-foreground text-center py-8">No FAQs match your search.</p>
         )}
       </div>
     </div>

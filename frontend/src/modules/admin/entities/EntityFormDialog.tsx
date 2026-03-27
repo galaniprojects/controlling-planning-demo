@@ -123,7 +123,7 @@ export function EntityFormDialog({
       const options = dropdownOptions[field.optionsKey ?? ''] ?? [];
       return (
         <div key={field.key} className="space-y-1.5">
-          <label className="text-sm font-medium text-slate-700">
+          <label className="text-sm font-medium text-foreground">
             {field.label} {field.required && <span className="text-red-500">*</span>}
           </label>
           <Select
@@ -147,7 +147,7 @@ export function EntityFormDialog({
     if (field.type === 'textarea') {
       return (
         <div key={field.key} className="space-y-1.5">
-          <label className="text-sm font-medium text-slate-700">
+          <label className="text-sm font-medium text-foreground">
             {field.label} {field.required && <span className="text-red-500">*</span>}
           </label>
           <Textarea
@@ -160,14 +160,14 @@ export function EntityFormDialog({
     }
     return (
       <div key={field.key} className="space-y-1.5">
-        <label className="text-sm font-medium text-slate-700">
+        <label className="text-sm font-medium text-foreground">
           {field.label} {field.required && <span className="text-red-500">*</span>}
         </label>
         <Input
           value={values[field.key] || ''}
           onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
           disabled={field.disabled}
-          className={field.disabled ? 'bg-slate-50 text-slate-500' : ''}
+          className={field.disabled ? 'bg-muted/50 text-muted-foreground' : ''}
         />
       </div>
     );

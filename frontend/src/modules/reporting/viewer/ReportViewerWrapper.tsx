@@ -25,12 +25,12 @@ export function ReportViewerWrapper() {
       <div className="space-y-4">
         <button
           onClick={() => navigate('/reporting')}
-          className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"
+          className="flex items-center gap-1.5 text-sm text-primary/80 hover:text-primary"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to Reports
         </button>
-        <p className="text-sm text-slate-400">Report not found.</p>
+        <p className="text-sm text-muted-foreground">Report not found.</p>
       </div>
     );
   }

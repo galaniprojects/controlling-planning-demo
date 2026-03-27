@@ -331,16 +331,16 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
 
     return (
       <React.Fragment key={entity.id}>
-        <TableRow className="hover:bg-slate-50 cursor-pointer" onClick={() => toggleExpand(entity.id)}>
+        <TableRow className="hover:bg-accent cursor-pointer" onClick={() => toggleExpand(entity.id)}>
           <TableCell className="px-3 py-2" style={{ paddingLeft: `${12 + depth * 20}px` }}>
             {hasContent
               ? isExpanded
-                ? <ChevronDown className="h-4 w-4 text-slate-400 inline" />
-                : <ChevronRight className="h-4 w-4 text-slate-400 inline" />
+                ? <ChevronDown className="h-4 w-4 text-muted-foreground inline" />
+                : <ChevronRight className="h-4 w-4 text-muted-foreground inline" />
               : <span className="inline-block w-4" />}
           </TableCell>
-          <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">{entity.name}</TableCell>
-          <TableCell className="px-3 py-2 text-sm text-slate-600 text-right">{entity.project_count}</TableCell>
+          <TableCell className="px-3 py-2 text-sm font-medium text-foreground">{entity.name}</TableCell>
+          <TableCell className="px-3 py-2 text-sm text-muted-foreground text-right">{entity.project_count}</TableCell>
           <TableCell className="px-3 py-2" onClick={(ev) => ev.stopPropagation()}>
             {isLeaf ? (
               <Button size="sm" variant="outline" className="h-7" onClick={() => openProjectAssignDialog(entity.id)}>
@@ -357,13 +357,13 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
         </TableRow>
         {isExpanded && isLeaf && entity.projects.length > 0 && (
           <TableRow>
-            <TableCell colSpan={4} className="py-1 bg-slate-50" style={{ paddingLeft: `${32 + depth * 20}px` }}>
+            <TableCell colSpan={4} className="py-1 bg-muted/50" style={{ paddingLeft: `${32 + depth * 20}px` }}>
               <div className="space-y-0.5">
                 {entity.projects.map((p) => (
                   <div key={p.id} className="flex items-center justify-between py-0.5">
-                    <span className="text-sm text-slate-600">{p.name}</span>
+                    <span className="text-sm text-muted-foreground">{p.name}</span>
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100 text-xs">{p.status.replace(/_/g, ' ')}</Badge>
+                      <Badge className="bg-muted text-muted-foreground hover:bg-muted text-xs">{p.status.replace(/_/g, ' ')}</Badge>
                       <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-600" onClick={() => handleUnassignProject(p.id)}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -377,7 +377,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
         {isExpanded && !isLeaf && entity.children.map((child) => renderEntityRow(child, depth + 1))}
         {isExpanded && !isLeaf && entity.children.length === 0 && (
           <TableRow>
-            <TableCell colSpan={4} className="py-1 text-sm text-slate-400 bg-slate-50" style={{ paddingLeft: `${32 + depth * 20}px` }}>
+            <TableCell colSpan={4} className="py-1 text-sm text-muted-foreground bg-muted/50" style={{ paddingLeft: `${32 + depth * 20}px` }}>
               No {getChildTypeForEntity(entity.entity_type_id)?.entity_type_name || 'children'} assigned
             </TableCell>
           </TableRow>
@@ -388,8 +388,8 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
 
   return (
     <div className="space-y-3">
-      <h2 className="text-base font-semibold text-slate-800">Portfolio Hierarchy</h2>
-      <p className="text-sm text-slate-500">
+      <h2 className="text-base font-semibold text-foreground">Portfolio Hierarchy</h2>
+      <p className="text-sm text-muted-foreground">
         Configure how projects are grouped across the application. The active hierarchy determines
         the grouping structure in Portfolio Overview, Reporting, and all other modules.
       </p>
@@ -405,35 +405,35 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
         {/* --- Hierarchies Tab --- */}
         <TabsContent value="hierarchies" className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-slate-700">Defined Hierarchies</h3>
+            <h3 className="text-sm font-medium text-foreground">Defined Hierarchies</h3>
             <Button size="sm" onClick={() => { setNewHierName(''); setNewHierLevels([]); setCreateHierOpen(true); }}>
               <Plus className="h-4 w-4 mr-1" />
               Create Hierarchy
             </Button>
           </div>
           {loadingHier ? <Skeleton className="h-10 w-full" /> : (
-            <div className="rounded-md border border-slate-200">
+            <div className="rounded-md border border-border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Name</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Levels</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[100px]">Status</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[120px]">Actions</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground">Name</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground">Levels</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[100px]">Status</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[120px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {hierarchies.map((h) => (
-                    <TableRow key={h.id} className="hover:bg-slate-50">
-                      <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">{h.name}</TableCell>
-                      <TableCell className="px-3 py-2 text-sm text-slate-600">
+                    <TableRow key={h.id} className="hover:bg-accent">
+                      <TableCell className="px-3 py-2 text-sm font-medium text-foreground">{h.name}</TableCell>
+                      <TableCell className="px-3 py-2 text-sm text-muted-foreground">
                         {h.levels.map((l) => l.entity_type_name).join(' → ')} → Project
                       </TableCell>
                       <TableCell className="px-3 py-2">
                         {h.is_active_hierarchy ? (
                           <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge>
                         ) : (
-                          <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100">Inactive</Badge>
+                          <Badge className="bg-muted text-muted-foreground hover:bg-muted">Inactive</Badge>
                         )}
                       </TableCell>
                       <TableCell className="px-3 py-2">
@@ -448,7 +448,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
                   ))}
                   {hierarchies.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="px-3 py-8 text-center text-sm text-slate-400">No hierarchies defined</TableCell>
+                      <TableCell colSpan={4} className="px-3 py-8 text-center text-sm text-muted-foreground">No hierarchies defined</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -459,22 +459,22 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
 
         {/* --- Entity Types Tab --- */}
         <TabsContent value="entity_types" className="space-y-3">
-          <h3 className="text-sm font-medium text-slate-700">Entity Types</h3>
+          <h3 className="text-sm font-medium text-foreground">Entity Types</h3>
           {loadingTypes ? <Skeleton className="h-10 w-full" /> : (
-            <div className="rounded-md border border-slate-200">
+            <div className="rounded-md border border-border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Name</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[100px] text-right">Entities</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[80px]">Status</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground">Name</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[100px] text-right">Entities</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[80px]">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {entityTypes.map((t) => (
-                    <TableRow key={t.id} className="hover:bg-slate-50">
-                      <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">{t.name}</TableCell>
-                      <TableCell className="px-3 py-2 text-sm text-slate-600 text-right">{t.entity_count}</TableCell>
+                    <TableRow key={t.id} className="hover:bg-accent">
+                      <TableCell className="px-3 py-2 text-sm font-medium text-foreground">{t.name}</TableCell>
+                      <TableCell className="px-3 py-2 text-sm text-muted-foreground text-right">{t.entity_count}</TableCell>
                       <TableCell className="px-3 py-2">
                         <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge>
                       </TableCell>
@@ -503,7 +503,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
         <TabsContent value="entities" className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <h3 className="text-sm font-medium text-slate-700">Entities</h3>
+              <h3 className="text-sm font-medium text-foreground">Entities</h3>
               <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
                 <SelectTrigger className="w-[200px] h-8 text-sm">
                   <SelectValue placeholder="All types" />
@@ -522,26 +522,26 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
             </Button>
           </div>
           {loadingEntities ? <Skeleton className="h-10 w-full" /> : (
-            <div className="rounded-md border border-slate-200">
+            <div className="rounded-md border border-border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Name</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[160px]">Type</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[100px] text-right">Projects</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground">Name</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[160px]">Type</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[100px] text-right">Projects</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {entities.map((e) => (
-                    <TableRow key={e.id} className="hover:bg-slate-50">
-                      <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">{e.name}</TableCell>
-                      <TableCell className="px-3 py-2 text-sm text-slate-600">{e.entity_type_name}</TableCell>
-                      <TableCell className="px-3 py-2 text-sm text-slate-600 text-right">{e.project_count}</TableCell>
+                    <TableRow key={e.id} className="hover:bg-accent">
+                      <TableCell className="px-3 py-2 text-sm font-medium text-foreground">{e.name}</TableCell>
+                      <TableCell className="px-3 py-2 text-sm text-muted-foreground">{e.entity_type_name}</TableCell>
+                      <TableCell className="px-3 py-2 text-sm text-muted-foreground text-right">{e.project_count}</TableCell>
                     </TableRow>
                   ))}
                   {entities.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="px-3 py-8 text-center text-sm text-slate-400">No entities found</TableCell>
+                      <TableCell colSpan={3} className="px-3 py-8 text-center text-sm text-muted-foreground">No entities found</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -552,25 +552,25 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
 
         {/* --- Hierarchy Assignment Tab --- */}
         <TabsContent value="assignments" className="space-y-3">
-          <h3 className="text-sm font-medium text-slate-700">
+          <h3 className="text-sm font-medium text-foreground">
             Active Hierarchy: {activeLevels.map((l) => l.entity_type_name).join(' → ')} → Project
           </h3>
           {loadingActive ? <Skeleton className="h-10 w-full" /> : (
-            <div className="rounded-md border border-slate-200">
+            <div className="rounded-md border border-border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[30px]" />
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Name</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[100px] text-right">Projects</TableHead>
-                    <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[140px]">Assign</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[30px]" />
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground">Name</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[100px] text-right">Projects</TableHead>
+                    <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[140px]">Assign</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {activeEntities.map((e) => renderEntityRow(e, 0))}
                   {activeEntities.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="px-3 py-8 text-center text-sm text-slate-400">
+                      <TableCell colSpan={4} className="px-3 py-8 text-center text-sm text-muted-foreground">
                         No entities in active hierarchy
                       </TableCell>
                     </TableRow>
@@ -594,14 +594,14 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700">Hierarchy Name</label>
+              <label className="text-sm font-medium text-foreground">Hierarchy Name</label>
               <Input value={newHierName} onChange={(e) => setNewHierName(e.target.value)} placeholder="e.g., Department Structure" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700">Levels (top to bottom)</label>
+              <label className="text-sm font-medium text-foreground">Levels (top to bottom)</label>
               {newHierLevels.map((levelId, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400 w-6">L{i + 1}</span>
+                  <span className="text-xs text-muted-foreground w-6">L{i + 1}</span>
                   <Select value={levelId} onValueChange={(v) => { const n = [...newHierLevels]; n[i] = v; setNewHierLevels(n); }}>
                     <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -616,13 +616,13 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
                 </div>
               ))}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 w-6" />
+                <span className="text-xs text-muted-foreground w-6" />
                 <Button variant="outline" size="sm" onClick={() => setNewHierLevels([...newHierLevels, entityTypes[0]?.id || ''])}>
                   <Plus className="h-3.5 w-3.5 mr-1" />
                   Add Level
                 </Button>
               </div>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 {newHierLevels.length > 0
                   ? `${newHierLevels.map((id) => entityTypes.find((t) => t.id === id)?.name || '?').join(' → ')} → Project`
                   : 'Add at least one level'}
@@ -651,7 +651,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700">Entity Type</label>
+              <label className="text-sm font-medium text-foreground">Entity Type</label>
               <Select value={newEntityTypeId} onValueChange={setNewEntityTypeId}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>
@@ -663,7 +663,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
             </div>
             {createdEntities.length > 0 && (
               <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-500">Created</label>
+                <label className="text-xs font-medium text-muted-foreground">Created</label>
                 <div className="flex flex-wrap gap-1.5">
                   {createdEntities.map((name, i) => (
                     <Badge key={i} className="bg-green-100 text-green-700 hover:bg-green-100">{name}</Badge>
@@ -672,7 +672,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
               </div>
             )}
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700">Name</label>
+              <label className="text-sm font-medium text-foreground">Name</label>
               <div className="flex gap-2">
                 <Input
                   value={newEntityName}
@@ -741,7 +741,7 @@ export function PortfolioHierarchyPanel({ onDataChanged }: PortfolioHierarchyPan
               </SelectContent>
             </Select>
             {unassignedChildEntities.length === 0 && (
-              <p className="text-sm text-slate-400 mt-2">No unassigned entities of this type available. Create new entities in the Entities tab first.</p>
+              <p className="text-sm text-muted-foreground mt-2">No unassigned entities of this type available. Create new entities in the Entities tab first.</p>
             )}
           </div>
           <DialogFooter>

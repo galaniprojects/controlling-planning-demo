@@ -75,7 +75,7 @@ export function ReportLibrary() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-sm font-medium text-slate-600 mb-3">Standard Reports</h2>
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">Standard Reports</h2>
         <div className="grid grid-cols-3 gap-4">
           {REPORTS.map((r) => (
             <ReportCard
@@ -91,7 +91,7 @@ export function ReportLibrary() {
       </div>
 
       <div>
-        <h2 className="text-sm font-medium text-slate-600 mb-3">My Saved Views</h2>
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">My Saved Views</h2>
         {savedViews.length > 0 ? (
           <div className="grid grid-cols-3 gap-4">
             {savedViews.map((v) => (
@@ -104,8 +104,8 @@ export function ReportLibrary() {
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-            <p className="text-sm text-slate-400">
+          <div className="rounded-lg border border-dashed border-border bg-muted/50 p-8 text-center">
+            <p className="text-sm text-muted-foreground">
               No saved views yet. Open a report and click "Save View" to save your filter configuration.
             </p>
           </div>

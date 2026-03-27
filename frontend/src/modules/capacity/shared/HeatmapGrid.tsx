@@ -62,9 +62,9 @@ export function HeatmapGrid({
         {/* Label cell */}
         <div
           className={cn(
-            'flex items-center gap-1 border-b border-slate-100 px-3 py-2 text-sm',
-            row.isAggregate ? 'font-medium text-slate-700' : 'text-slate-600',
-            (onRowClick && !row.isAggregate) && 'cursor-pointer hover:bg-slate-50',
+            'flex items-center gap-1 border-b border-border px-3 py-2 text-sm',
+            row.isAggregate ? 'font-medium text-foreground' : 'text-muted-foreground',
+            (onRowClick && !row.isAggregate) && 'cursor-pointer hover:bg-accent',
           )}
           style={{ paddingLeft: `${depth * 20 + 12}px` }}
           onClick={() => {
@@ -78,11 +78,11 @@ export function HeatmapGrid({
                 e.stopPropagation();
                 toggleExpand(row.id);
               }}
-              className="p-0.5 rounded hover:bg-slate-200 shrink-0"
+              className="p-0.5 rounded hover:bg-accent shrink-0"
             >
               <ChevronRight
                 className={cn(
-                  'h-3.5 w-3.5 text-slate-400 transition-transform',
+                  'h-3.5 w-3.5 text-muted-foreground transition-transform',
                   isExpanded && 'rotate-90',
                 )}
               />
@@ -97,7 +97,7 @@ export function HeatmapGrid({
         {row.utilization.map((cell, i) => (
           <div
             key={`${row.id}-${months[i]}`}
-            className="border-b border-slate-100 px-0.5 py-1.5"
+            className="border-b border-border px-0.5 py-1.5"
           >
             <UtilizationCellView
               cell={cell}
@@ -124,16 +124,16 @@ export function HeatmapGrid({
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-md border border-border bg-card">
       <div className="grid" style={{ gridTemplateColumns: gridCols }}>
         {/* Header */}
-        <div className="sticky top-0 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 border-b border-slate-200">
+        <div className="sticky top-0 bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground border-b border-border">
           &nbsp;
         </div>
         {months.map((m) => (
           <div
             key={m}
-            className="sticky top-0 bg-slate-50 px-1 py-2 text-xs font-medium text-slate-500 text-center border-b border-slate-200"
+            className="sticky top-0 bg-muted/50 px-1 py-2 text-xs font-medium text-muted-foreground text-center border-b border-border"
           >
             {formatMonth(m)}
           </div>
@@ -144,7 +144,7 @@ export function HeatmapGrid({
           rows.flatMap((row) => renderRow(row, 0))
         ) : (
           <div
-            className="col-span-full py-8 text-center text-sm text-slate-400"
+            className="col-span-full py-8 text-center text-sm text-muted-foreground"
           >
             No data available
           </div>

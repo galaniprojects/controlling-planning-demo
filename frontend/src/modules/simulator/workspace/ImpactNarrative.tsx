@@ -30,10 +30,10 @@ export function ImpactNarrative({ impact, affectedCount }: Props) {
   const narrative = generateNarrative(impact, affectedCount);
 
   return (
-    <Card className="bg-indigo-50 border-indigo-100 p-4">
+    <Card className="bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800 p-4">
       <div className="flex gap-3">
-        <Info className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
-        <p className="text-sm text-slate-700 leading-relaxed">{narrative}</p>
+        <Info className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+        <p className="text-sm text-foreground leading-relaxed">{narrative}</p>
       </div>
     </Card>
   );

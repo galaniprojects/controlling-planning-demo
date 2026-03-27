@@ -120,14 +120,14 @@ export function RequestActionBar({
 
   if (!isPending) {
     return (
-      <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-500">
+      <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
         This request has already been processed ({request.status}).
       </div>
     );
   }
 
   return (
-    <div className="space-y-3 border-t border-slate-200 pt-3">
+    <div className="space-y-3 border-t border-border pt-3">
       {mode === 'idle' && (
         <div className="flex gap-2">
           <Button size="sm" onClick={() => setMode('confirm')}>
@@ -147,7 +147,7 @@ export function RequestActionBar({
 
       {mode === 'confirm' && (
         <div className="space-y-2">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             {isResource
               ? selectedPersonId
                 ? 'Confirm this request and assign the selected person?'
@@ -167,7 +167,7 @@ export function RequestActionBar({
 
       {mode === 'partial' && (
         <div className="space-y-2">
-          <label className="text-sm text-slate-600">
+          <label className="text-sm text-muted-foreground">
             Adjusted {isResource ? 'hours/month' : 'amount/month'}:
           </label>
           <Input
@@ -190,7 +190,7 @@ export function RequestActionBar({
 
       {mode === 'counter' && (
         <div className="space-y-2">
-          <label className="text-sm text-slate-600">Counter-proposal explanation:</label>
+          <label className="text-sm text-muted-foreground">Counter-proposal explanation:</label>
           <Textarea
             placeholder="Describe your alternative proposal..."
             value={text}
@@ -210,7 +210,7 @@ export function RequestActionBar({
 
       {mode === 'decline' && (
         <div className="space-y-2">
-          <label className="text-sm text-slate-600">Reason for declining:</label>
+          <label className="text-sm text-muted-foreground">Reason for declining:</label>
           <Textarea
             placeholder="Provide a reason for declining..."
             value={text}
@@ -231,7 +231,7 @@ export function RequestActionBar({
       {result && (
         <p className={cn(
           'text-sm',
-          result.includes('Failed') || result.includes('Please') ? 'text-red-600' : 'text-green-600',
+          result.includes('Failed') || result.includes('Please') ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400',
         )}>
           {result}
         </p>
