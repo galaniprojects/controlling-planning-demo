@@ -30,13 +30,13 @@ A full-featured IT financial planning and portfolio management demo application 
 ## Features
 
 ### Portfolio Overview
-IT portfolio dashboard with KPI tiles (CY-scoped to current fiscal year), hierarchical project tree grouped by Line of Business, budget/forecast/actuals tracking, RAG status indicators, intake queue for new project submissions, change request approvals, and controller review with editable grids and diff comparison views.
+IT portfolio dashboard with KPI tiles (CY-scoped to current fiscal year), hierarchical project tree grouped by configurable organizational hierarchy (e.g., Line of Business → Program → Project), budget/forecast/actuals tracking, RAG status indicators, intake queue for new project submissions, change request approvals, and controller review with editable grids and diff comparison views.
 
 ### Project Workbench
 Master-detail project workspace with three tabs: Overview (timeline chart, three-point estimates, resource summary), Forecast & Planning (monthly grid with collapsible year columns, CapEx/OpEx per line item), and Change History. Includes a 5-phase rolling forecast wizard with AI-generated suggestions and a full project submission workflow with resource planning, CC Owner confirmation, and controller change request review.
 
 ### Capacity Management
-Team utilization heatmaps (CSS grid, person x month), cell-level drill-down showing allocated/available hours with person-level detail, organization-wide overview with 3 pivot views (Cost Center, Role, LoB), and resource request management with assignment preview.
+Team utilization heatmaps (CSS grid, person x month), cell-level drill-down showing allocated/available hours with person-level detail, organization-wide overview with 3 pivot views (Cost Center, Role, top-level entity), and resource request management with assignment preview.
 
 ### What-If Simulator
 Scenario planning tool with 12 action types (7 project-level, 5 portfolio-level), real-time KPI impact calculation, year-scoped actions, multi-scenario comparison, portfolio drill-down, and an AI Advisor panel with optimization recommendations.
@@ -45,7 +45,7 @@ Scenario planning tool with 12 action types (7 project-level, 5 portfolio-level)
 Five standard reports — Programme Rollup, Cost Center Financial Summary, Vendor Spend Analysis, Forecast Accuracy, and Year-over-Year Comparison. Features include custom project groupings, column configuration, saved views, and export capabilities.
 
 ### Administration
-Entity management for Cost Centers, Competence Centers, Lines of Business, Locations, People, and Rate Tables. Configurable portfolio hierarchy with cross-module label propagation, location-aware planning parameters (standard hours per location), and audit logging.
+Entity management for Cost Centers, Competence Centers, organizational entities (Lines of Business, Programs, etc.), Locations, People, and Rate Tables. Configurable portfolio hierarchy with dynamic entity types, multi-level grouping, cross-module label propagation, location-aware planning parameters (standard hours per location), and audit logging.
 
 ---
 
@@ -151,9 +151,9 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Capacity** | `/api/capacity` | 14 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation |
 | **Scenarios** | `/api/scenarios` | 8 | CRUD, actions, comparison, AI advisor |
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
-| **Admin** | `/api/admin` | 18 | Entity CRUD (cost centers, CCs, LoBs, locations, people), rates, parameters, hierarchy, audit log, demo reset |
+| **Admin** | `/api/admin` | 18 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset |
 | **Docs** | `/api/docs` | 3 | Module manuals, FAQ |
-| **Reference** | `/api/reference` | 4 | Roles, cost types, LoBs, cost centers |
+| **Reference** | `/api/reference` | 4 | Roles, cost types, grouping entities, cost centers |
 
 ### Submission Workflow Endpoints
 

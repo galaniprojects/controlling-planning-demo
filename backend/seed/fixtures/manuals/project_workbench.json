@@ -8,11 +8,11 @@
     },
     {
       "title": "Project List",
-      "body": "The left panel shows projects filtered by your role. Project Leads see their assigned projects; Controllers see all. Each entry shows the project name, RAG indicator, type badge, and next action due. Projects in Draft or Pending Approval status also appear for PLs with appropriate status badges.\n\nUse the **New** button at the top to create a new project draft. The creation form collects project name, description, Line of Business, CapEx/OpEx classification, start/end months, and optional resource plan allocation."
+      "body": "The left panel shows projects filtered by your role. Project Leads see their assigned projects; Controllers see all. Each entry shows the project name, RAG indicator, type badge, and next action due. Projects in Draft or Pending Approval status also appear for PLs with appropriate status badges.\n\nUse the **New** button at the top to create a new project draft. The creation form collects project name, description, organizational entity (e.g., Line of Business), CapEx/OpEx classification, start/end months, and optional resource plan allocation."
     },
     {
       "title": "Overview Tab",
-      "body": "Shows project metadata (name, LoB, status, RAG, timeline), the 3-point comparison table (Baseline vs Current Forecast vs Actuals with variance columns), a monthly trajectory line chart (three lines showing baseline, forecast, and actuals over time), CapEx/OpEx breakdown, and resource plan summary."
+      "body": "Shows project metadata (name, hierarchy path, status, RAG, timeline), the 3-point comparison table (Baseline vs Current Forecast vs Actuals with variance columns), a monthly trajectory line chart (three lines showing baseline, forecast, and actuals over time), CapEx/OpEx breakdown, and resource plan summary."
     },
     {
       "title": "3-Point Comparison",

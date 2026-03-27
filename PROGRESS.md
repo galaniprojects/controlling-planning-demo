@@ -1,9 +1,47 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: Post-QA Feature Development — **Demo polish for April 2026 presentation**
-Last completed: Demo date update, dynamic month labels, number formatting, chart swap
-Branch: `feature/demo-polish-april`
+Phase: Post-QA Feature Development — **Hierarchy migration complete**
+Last completed: Full schema migration replacing LineOfBusiness/Program with dynamic GroupingEntity hierarchy, multi-level report filters, dynamic labels
+Branch: `feature/hierarchy-migration` (merged)
+
+## Hierarchy Migration (2026-03-27)
+
+### Schema Migration
+- **Removed `LineOfBusiness` and `Program` models:** Replaced with `GroupingEntity`, `GroupingEntityType`, `GroupingHierarchy`, and `ProjectGroupingAssignment` models
+- **Seed data updated:** LoB/Program inserts replaced with entity type, hierarchy, entity, and assignment inserts. Seed generator updated to match.
+- **All backend routers migrated:** Portfolio, workbench, capacity, reports, admin, reference, scenarios, and launchpad routers updated to use GroupingEntity lookups instead of LoB/Program joins
+- **Portfolio service rewritten:** `_get_project_lob_name()`, `_get_scoped_project_ids()`, tree building, and all entity resolution functions now use GroupingEntity hierarchy
+
+### Multi-Level Report Filters
+- **`useActiveHierarchy` hook enhanced:** Returns `levels` (all hierarchy levels) and `entityTree` (full nested entity tree) in addition to existing `topLevelLabel` and `entityOptions`
+- **Helper functions added:** `buildHierarchyFilterConfigs()` generates cascading FilterConfig[] for all hierarchy levels; `getMostSpecificEntityFilter()` finds the lowest-level selected entity; `clearLowerHierarchyFilters()` clears child filters when a parent changes
+- **All 4 report components updated:** Programme Rollup, Forecast Accuracy, Vendor Spend, YoY — all show cascading multi-level filters (e.g., "Line of Business" + "Program") with child options scoped to selected parent
+
+### Dynamic Labels & Hierarchy Path
+- **Workbench MetadataBar:** Shows full hierarchy breadcrumb path (e.g., "Truck & Bus Systems (TBS) > Digital Braking Platform") instead of hardcoded "LoB:" prefix
+- **Backend `get_project_hierarchy_path()`:** Walks up entity ancestry to build root-to-leaf path, added to workbench overview metadata
+- **PortfolioTree:** Dynamic type badges via `getTypeLabel()` converting entity type IDs to display names
+- **IntakeTable:** Dynamic column header from `useActiveHierarchy().topLevelLabel`
+- **IntakeDetailWorkspace:** Dynamic "Requesting {topLevelLabel}" label
+- **Report columns:** ForecastAccuracy and YoY use dynamic column labels
+- **Report export:** CSV headers dynamically use active hierarchy's top-level entity type name
+
+### Documentation Updates
+- **Module manuals updated:** portfolio_overview.json, capacity_management.json, project_workbench.json — replaced hardcoded "LoB" references with dynamic hierarchy terminology
+- **README.md updated:** Feature descriptions, API table descriptions updated to reflect GroupingEntity system
+- **PROGRESS.md updated:** This section
+
+### Verification
+- [x] Seed data validates, backend starts cleanly after reset
+- [x] TypeScript: no compilation errors
+- [x] Portfolio tree: dynamic type badges (Line Of Business, Program, Project, Service)
+- [x] Reports: cascading multi-level filters with program-level scoping
+- [x] Workbench: full hierarchy path with breadcrumb separator
+- [x] Intake table: dynamic column header
+- [x] Intake detail: dynamic "Requesting" label
+- [x] Backend: program-level filtering returns correct project subset
+- [x] Backend: export headers use dynamic entity type name
 
 ## Demo Polish — April 2026 (2026-03-26)
 

@@ -8,11 +8,11 @@
     },
     {
       "title": "Dashboard Tab",
-      "body": "The Dashboard shows a KPI summary row at the top (total budget, YTD spend, forecast-at-completion, variance, CapEx/OpEx split, Run/Change ratio), followed by a filter bar and the portfolio tree table. The tree is expandable: LoB → Program → Project/Service. Each row shows RAG status, budget figures, and timeline. Click any project row to open a summary panel on the right."
+      "body": "The Dashboard shows a KPI summary row at the top (total budget, YTD spend, forecast-at-completion, variance, CapEx/OpEx split, Run/Change ratio), followed by a filter bar and the portfolio tree table. The tree is expandable following the active organizational hierarchy (e.g., Line of Business → Program → Project/Service). Each row shows RAG status, budget figures, and timeline. Click any project row to open a summary panel on the right."
     },
     {
       "title": "Portfolio Tree Navigation",
-      "body": "Expand LoB rows to see programs and projects underneath. Aggregate values (budget, variance) roll up at each level. Use the filter bar to narrow by LoB, status, RAG color, cost center, or type (project vs service). Sort by any column header."
+      "body": "Expand top-level rows to see child entities and projects underneath. Aggregate values (budget, variance) roll up at each level. Use the filter bar to narrow by organizational hierarchy level, status, RAG color, cost center, or type (project vs service). Sort by any column header."
     },
     {
       "title": "Summary Panel",
@@ -20,11 +20,11 @@
     },
     {
       "title": "Charts",
-      "body": "Three charts complement the table: Budget by LoB (stacked bar), Forecast Trajectory (line chart showing how total forecast shifted over time), and RAG Distribution (donut chart). These update based on active filters."
+      "body": "Three charts complement the table: Forecast by top-level entity (stacked bar), Forecast Trajectory (line chart showing how total forecast shifted over time), and RAG Distribution (donut chart). These update based on active filters."
     },
     {
       "title": "Intake Queue Tab",
-      "body": "Shows pending new project submissions and projects with requested changes. Each row displays the project name, submitter, LoB, estimated budget, timeline, submission date, and current status (pending_approval, changes_requested).\n\n**Controller actions:** Click a row to review the full estimation. Controllers can:\n- **Approve** — project becomes active with the estimation locked in as baseline\n- **Reject** — project is returned to draft\n- **Request Changes** — opens an editable forecast grid where the controller can modify specific cells (hours, amounts), add feedback text, and send back to the Project Lead with proposed changes\n\n**Diff View:** When a controller has requested changes, clicking 'Open Full Detail' shows a side-by-side diff comparing the original submission against the controller's proposed changes. Changed cells are highlighted (green for reductions, red for increases). A KPI strip shows Original Plan, Proposed Changes, and Impact totals.\n\n**Project Lead actions:** When changes are requested, the PL sees the project in their Intake Queue with a 'changes_requested' badge. They can:\n- **Accept Changes** — applies the controller's proposed forecast and resubmits for CC confirmation\n- **Edit and Resubmit** — opens the forecast grid for the PL to make their own edits before resubmitting"
+      "body": "Shows pending new project submissions and projects with requested changes. Each row displays the project name, submitter, organizational entity, estimated budget, timeline, submission date, and current status (pending_approval, changes_requested).\n\n**Controller actions:** Click a row to review the full estimation. Controllers can:\n- **Approve** — project becomes active with the estimation locked in as baseline\n- **Reject** — project is returned to draft\n- **Request Changes** — opens an editable forecast grid where the controller can modify specific cells (hours, amounts), add feedback text, and send back to the Project Lead with proposed changes\n\n**Diff View:** When a controller has requested changes, clicking 'Open Full Detail' shows a side-by-side diff comparing the original submission against the controller's proposed changes. Changed cells are highlighted (green for reductions, red for increases). A KPI strip shows Original Plan, Proposed Changes, and Impact totals.\n\n**Project Lead actions:** When changes are requested, the PL sees the project in their Intake Queue with a 'changes_requested' badge. They can:\n- **Accept Changes** — applies the controller's proposed forecast and resubmits for CC confirmation\n- **Edit and Resubmit** — opens the forecast grid for the PL to make their own edits before resubmitting"
     },
     {
       "title": "CR Approvals Tab",

@@ -20,7 +20,7 @@
     },
     {
       "title": "Project Confirmation Banner",
-      "body": "When projects are submitted and awaiting resource confirmation, a banner appears at the top of the My Team tab showing pending projects. Each project card shows the name, LoB, project lead, timeline, and number of resource requests. Click **Review & Assign Resources** to open the dedicated assignment page, or **Decline** to send the project back to the Project Lead with a reason."
+      "body": "When projects are submitted and awaiting resource confirmation, a banner appears at the top of the My Team tab showing pending projects. Each project card shows the name, organizational entity, project lead, timeline, and number of resource requests. Click **Review & Assign Resources** to open the dedicated assignment page, or **Decline** to send the project back to the Project Lead with a reason."
     },
     {
       "title": "Resource Assignment Grid",
@@ -48,7 +48,7 @@
     },
     {
       "title": "Organization Overview Tab",
-      "body": "Shows utilization across all cost centers in a single heatmap. Supports three pivot dimensions: by LoB, by Role, and by Cost Center. Click any cell or row to open a bottom drawer showing project-level consumption detail for that dimension."
+      "body": "Shows utilization across all cost centers in a single heatmap. Supports three pivot dimensions: by top-level entity (e.g., Line of Business), by Role, and by Cost Center. Click any cell or row to open a bottom drawer showing project-level consumption detail for that dimension."
     }
   ]
 }
