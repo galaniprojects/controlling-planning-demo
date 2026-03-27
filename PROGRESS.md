@@ -1,9 +1,35 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: Post-QA Feature Development — **Hierarchy migration complete**
-Last completed: Full schema migration replacing LineOfBusiness/Program with dynamic GroupingEntity hierarchy, multi-level report filters, dynamic labels
-Branch: `feature/hierarchy-migration` (merged)
+Phase: Post-QA Feature Development — **Workbench enhancements**
+Last completed: Workbench overview improvements and expandable employee assignments in forecast grid
+Branch: `feature/workbench-enhancements`
+
+## Workbench Enhancements (2026-03-27)
+
+### Cost Classification % Split
+- **All project types now show percentage:** Pure CapEx/OpEx projects display "CapEx 100%" or "OpEx 100%" with the total amount, matching the mixed-type display style
+
+### Dynamic Resource Plan Title
+- **Title adapts to project lifecycle:** Active projects show "Resource Plan {current year}" with hours filtered to current year only; planned projects show "Resource Plan {start year}" with lifetime hours; completed projects show "Resources Consumed" with lifetime totals
+- **Backend filtering:** Resource plan summary query filters by demo year for active projects
+
+### Expandable Employee Assignments in Forecast Grid
+- **Clickable role names:** Internal resource roles with employee allocations show an expand/collapse chevron. Clicking reveals sub-rows with assigned employee names and per-month hours
+- **Expand/Collapse All button:** "Expand All Resources" / "Collapse All Resources" toggle above the grid
+- **Backend enhancement:** Forecast endpoint now returns `assignments` array per internal row, grouping allocations by person's role type with monthly hours breakdown
+
+### Documentation Updates
+- **Module manual updated:** project_workbench.json — Overview Tab and Forecast & Planning Tab sections updated with new features
+- **PROGRESS.md updated:** This section
+
+### Verification
+- [x] Cost Classification shows percentage for pure CapEx and OpEx projects
+- [x] Resource Plan title shows "Resource Plan 2026" for active projects
+- [x] Forecast grid: role names are clickable with expand chevrons
+- [x] Expanding a role shows employee names with per-month hours
+- [x] Expand All / Collapse All button works correctly
+- [x] TypeScript: no compilation errors
 
 ## Hierarchy Migration (2026-03-27)
 
