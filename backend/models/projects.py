@@ -7,28 +7,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 
 
-class Program(Base):
-    __tablename__ = "programs"
-
-    id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    lob_id: Mapped[str] = mapped_column(ForeignKey("lines_of_business.id"), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    # Relationships
-    lob: Mapped["LineOfBusiness"] = relationship(back_populates="programs")
-    projects: Mapped[list["Project"]] = relationship(back_populates="program")
-
-
 class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    lob_id: Mapped[str] = mapped_column(ForeignKey("lines_of_business.id"), nullable=False)
-    program_id: Mapped[Optional[str]] = mapped_column(ForeignKey("programs.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False)
     # Status: draft, pending_cc_confirmation, pending_approval, active, planned, completed, rejected, changes_requested
     submission_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -50,8 +34,6 @@ class Project(Base):
     modified_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    lob: Mapped["LineOfBusiness"] = relationship(back_populates="projects")
-    program: Mapped[Optional["Program"]] = relationship(back_populates="projects")
     pl: Mapped[Optional["Person"]] = relationship()
     baselines: Mapped[list["Baseline"]] = relationship(back_populates="project")
     forecasts: Mapped[list["Forecast"]] = relationship(back_populates="project")
@@ -59,6 +41,7 @@ class Project(Base):
     allocations: Mapped[list["Allocation"]] = relationship(back_populates="project")
     change_requests: Mapped[list["ChangeRequest"]] = relationship(back_populates="project")
     phases: Mapped[list["ProjectPhase"]] = relationship(back_populates="project", order_by="ProjectPhase.phase_number")
+    entity_assignments: Mapped[list["ProjectGroupingAssignment"]] = relationship(back_populates="project")
 
 
 class ProjectPhase(Base):

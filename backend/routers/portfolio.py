@@ -76,13 +76,12 @@ def get_portfolio_kpis(
 
     # Build project filter for CapEx/OpEx split
     proj_filter = [Project.is_active.is_(True)]
-    if grouping_entity:
+    entity_filter = grouping_entity or lob
+    if entity_filter:
         from services.portfolio_service import _get_projects_for_entity_recursive
-        ge_pids = _get_projects_for_entity_recursive(db, grouping_entity)
+        ge_pids = _get_projects_for_entity_recursive(db, entity_filter)
         if ge_pids:
             proj_filter.append(Project.id.in_(ge_pids))
-    elif lob:
-        proj_filter.append(Project.lob_id == lob)
     if status:
         proj_filter.append(Project.status == status)
     if rag:
@@ -231,21 +230,20 @@ def get_dashboard_charts(
     _user: CurrentUser = Depends(get_current_user),
 ):
     """Get chart data for portfolio dashboard."""
-    from models.organization import LineOfBusiness
+    from models.organization import GroupingEntity, GroupingHierarchy, ProjectGroupingAssignment
     from models.people import Person
     from models.capacity import Allocation
+    from services.portfolio_service import _get_projects_for_entity_recursive, get_top_level_entity_type_id
 
     # Build set of project IDs matching all filters
     pq = db.query(Project.id).filter(Project.is_active.is_(True))
-    if grouping_entity:
-        from services.portfolio_service import _get_projects_for_entity_recursive
-        ge_pids = _get_projects_for_entity_recursive(db, grouping_entity)
+    entity_filter = grouping_entity or lob
+    if entity_filter:
+        ge_pids = _get_projects_for_entity_recursive(db, entity_filter)
         if ge_pids:
             pq = pq.filter(Project.id.in_(ge_pids))
         else:
             pq = pq.filter(False)
-    elif lob:
-        pq = pq.filter(Project.lob_id == lob)
     if status:
         pq = pq.filter(Project.status == status)
     if rag:
@@ -261,24 +259,32 @@ def get_dashboard_charts(
             pq = pq.filter(False)  # no matches
     filtered_pids = [r[0] for r in pq.all()]
 
-    # Forecast by LoB (current fiscal year)
+    # Forecast by top-level entity (current fiscal year)
     cy_prefix = "2026"
-    lobs = db.query(LineOfBusiness).all()
+    top_type_id = get_top_level_entity_type_id(db)
+    top_entities = []
+    if top_type_id:
+        top_entities = db.query(GroupingEntity).filter(
+            GroupingEntity.entity_type_id == top_type_id,
+            GroupingEntity.is_active.is_(True),
+        ).all()
     forecast_by_lob = []
-    for l in lobs:
-        lob_pids = [r[0] for r in db.query(Project.id).filter(Project.lob_id == l.id, Project.id.in_(filtered_pids)).all()]
-        if not lob_pids:
-            forecast_by_lob.append({"lob_id": l.id, "lob_name": l.name, "forecast": 0, "baseline": 0})
+    for ent in top_entities:
+        ent_pids = _get_projects_for_entity_recursive(db, ent.id)
+        # Intersect with filtered project IDs
+        ent_pids = [pid for pid in ent_pids if pid in set(filtered_pids)]
+        if not ent_pids:
+            forecast_by_lob.append({"lob_id": ent.id, "lob_name": ent.name, "forecast": 0, "baseline": 0})
             continue
         fc_total = float(db.query(func.coalesce(func.sum(Forecast.amount_eur), 0)).filter(
-            Forecast.project_id.in_(lob_pids),
+            Forecast.project_id.in_(ent_pids),
             func.substr(Forecast.month, 1, 4) == cy_prefix,
         ).scalar())
         bl_total = float(db.query(func.coalesce(func.sum(Baseline.amount_eur), 0)).filter(
-            Baseline.project_id.in_(lob_pids),
+            Baseline.project_id.in_(ent_pids),
             func.substr(Baseline.month, 1, 4) == cy_prefix,
         ).scalar())
-        forecast_by_lob.append({"lob_id": l.id, "lob_name": l.name, "forecast": round(fc_total, 2), "baseline": round(bl_total, 2)})
+        forecast_by_lob.append({"lob_id": ent.id, "lob_name": ent.name, "forecast": round(fc_total, 2), "baseline": round(bl_total, 2)})
 
     # Forecast trajectory (cumulative baseline + forecast + actuals)
     fc_q = db.query(Forecast.month, func.sum(Forecast.amount_eur).label("total")).filter(Forecast.project_id.in_(filtered_pids)).group_by(Forecast.month).order_by(Forecast.month)
@@ -336,18 +342,21 @@ def get_intake_queue(
         query = query.filter(Project.pl_person_id == user.person_id)
 
     projects = query.all()
-    items = [
-        IntakeItem(
+    from services.portfolio_service import get_project_entity_info, get_top_level_entity_type_id
+    top_type = get_top_level_entity_type_id(db)
+    items = []
+    for p in projects:
+        entity_info = get_project_entity_info(db, p.id, top_type)
+        lob_name = entity_info["name"] if entity_info else "Unassigned"
+        items.append(IntakeItem(
             project_id=p.id,
             name=p.name,
             submitted_by=p.pl.name if p.pl else None,
-            lob=p.lob.name if p.lob else p.lob_id,
+            lob=lob_name,
             estimated_budget=float(p.total_budget) if p.total_budget else None,
             submission_date=str(p.created_at) if p.created_at else None,
             status=p.status,
-        )
-        for p in projects
-    ]
+        ))
     return {"items": items, "total": len(items)}
 
 
@@ -507,12 +516,16 @@ def get_intake_detail(
         kpis=grid_kpis,
     )
 
+    from services.portfolio_service import get_project_entity_info, get_top_level_entity_type_id
+    top_type = get_top_level_entity_type_id(db)
+    entity_info = get_project_entity_info(db, project.id, top_type)
+
     return {
         "project_id": project.id,
         "name": project.name,
         "description": project.description,
-        "lob_id": project.lob_id,
-        "lob_name": project.lob.name if project.lob else "",
+        "lob_id": entity_info["id"] if entity_info else "",
+        "lob_name": entity_info["name"] if entity_info else "",
         "start_month": project.start_month,
         "end_month": project.end_month,
         "estimated_budget": float(project.total_budget) if project.total_budget else None,

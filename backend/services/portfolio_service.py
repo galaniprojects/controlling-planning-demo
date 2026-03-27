@@ -8,9 +8,12 @@ from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from models.capacity import Allocation
 from models.financial import Actuals, Baseline, Forecast
-from models.organization import GroupingEntity, LineOfBusiness, ProjectGroupingAssignment
+from models.organization import (
+    GroupingEntity, GroupingEntityType, GroupingHierarchy,
+    GroupingHierarchyLevel, ProjectGroupingAssignment,
+)
 from models.people import Person
-from models.projects import Program, Project
+from models.projects import Project
 from services.calculations import (
     FTE_HOURS,
     compute_budget_rag,
@@ -21,25 +24,61 @@ from services.calculations import (
 )
 
 
-def _get_projects_for_entity_recursive(db: Session, entity_id: str) -> list[str]:
-    """Get all project IDs assigned to an entity or any of its descendants.
+# ---------------------------------------------------------------------------
+# Utility: resolve a project's entity of a given type (e.g., LoB name)
+# ---------------------------------------------------------------------------
 
-    Falls back to LoB filtering if entity_id matches a LineOfBusiness
-    but not a GroupingEntity (safety net for when no hierarchy is configured).
+def get_project_entity_info(db: Session, project_id: str, entity_type_id: str | None = None) -> dict | None:
+    """Get the entity (of given type) that a project belongs to, walking up the tree.
+
+    If entity_type_id is None, returns the directly-assigned entity.
+    Returns {'id': ..., 'name': ..., 'entity_type_id': ...} or None.
     """
-    # Check if this entity exists as a GroupingEntity
-    entity_exists = db.query(GroupingEntity.id).filter(GroupingEntity.id == entity_id).first()
-    if not entity_exists:
-        # Fallback: check if this is a LoB ID
-        lob_exists = db.query(LineOfBusiness.id).filter(LineOfBusiness.id == entity_id).first()
-        if lob_exists:
-            return [
-                r[0] for r in db.query(Project.id)
-                .filter(Project.lob_id == entity_id, Project.is_active.is_(True))
-                .all()
-            ]
-        return []
+    assignment = (
+        db.query(ProjectGroupingAssignment)
+        .filter(ProjectGroupingAssignment.project_id == project_id)
+        .first()
+    )
+    if not assignment:
+        return None
 
+    entity = db.query(GroupingEntity).get(assignment.grouping_entity_id)
+    if not entity:
+        return None
+
+    if entity_type_id is None:
+        return {"id": entity.id, "name": entity.name, "entity_type_id": entity.entity_type_id}
+
+    # Walk up through parent entities to find the matching type
+    current = entity
+    visited = set()
+    while current:
+        if current.id in visited:
+            break
+        visited.add(current.id)
+        if current.entity_type_id == entity_type_id:
+            return {"id": current.id, "name": current.name, "entity_type_id": current.entity_type_id}
+        if current.parent_entity_id:
+            current = db.query(GroupingEntity).get(current.parent_entity_id)
+        else:
+            break
+    return None
+
+
+def get_top_level_entity_type_id(db: Session) -> str | None:
+    """Get the entity type ID for the top level of the active hierarchy."""
+    hierarchy = (
+        db.query(GroupingHierarchy)
+        .filter(GroupingHierarchy.is_active_hierarchy.is_(True))
+        .first()
+    )
+    if not hierarchy or not hierarchy.levels:
+        return None
+    return hierarchy.levels[0].entity_type_id
+
+
+def _get_projects_for_entity_recursive(db: Session, entity_id: str) -> list[str]:
+    """Get all project IDs assigned to an entity or any of its descendants."""
     # Direct project assignments
     direct = [
         a.project_id
@@ -62,22 +101,26 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
     """Compute portfolio-level KPI summary, optionally filtered."""
     filters = filters or {}
 
+    empty_result = {
+        "baseline": 0, "current_forecast": 0, "ytd_actuals": 0,
+        "plan_drift_amount": 0, "plan_drift_pct": 0,
+        "run_total": 0, "change_total": 0, "run_pct": 50, "change_pct": 50,
+        "lifetime_baseline": 0, "lifetime_forecast": 0, "lifetime_actuals": 0,
+        "active_project_count": 0,
+    }
+
     # Build filtered project ID list
     proj_q = db.query(Project.id).filter(Project.is_active.is_(True))
-    if filters.get("grouping_entity"):
-        ge_project_ids = _get_projects_for_entity_recursive(db, filters["grouping_entity"])
+
+    # Entity filter (covers both old "lob" param and new "grouping_entity" param)
+    entity_filter = filters.get("grouping_entity") or filters.get("lob")
+    if entity_filter:
+        ge_project_ids = _get_projects_for_entity_recursive(db, entity_filter)
         if ge_project_ids:
             proj_q = proj_q.filter(Project.id.in_(ge_project_ids))
         else:
-            return {
-                "baseline": 0, "current_forecast": 0, "ytd_actuals": 0,
-                "plan_drift_amount": 0, "plan_drift_pct": 0,
-                "run_total": 0, "change_total": 0, "run_pct": 50, "change_pct": 50,
-                "lifetime_baseline": 0, "lifetime_forecast": 0, "lifetime_actuals": 0,
-                "active_project_count": 0,
-            }
-    if filters.get("lob"):
-        proj_q = proj_q.filter(Project.lob_id == filters["lob"])
+            return empty_result
+
     if filters.get("status"):
         proj_q = proj_q.filter(Project.status == filters["status"])
     if filters.get("rag"):
@@ -90,22 +133,11 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
     project_ids = [r[0] for r in proj_q.all()]
 
     if not project_ids:
-        return {
-            "baseline": 0, "current_forecast": 0, "ytd_actuals": 0,
-            "plan_drift_amount": 0, "plan_drift_pct": 0,
-            "run_total": 0, "change_total": 0, "run_pct": 50, "change_pct": 50,
-        }
+        return empty_result
 
-    # CY boundaries (fiscal year 2026: Jan–Dec)
+    # CY boundaries (fiscal year 2026: Jan-Dec)
     cy_start = "2026-01"
     cy_end = "2026-12"
-
-    # Total budget
-    total_budget = (
-        db.query(func.coalesce(func.sum(Project.total_budget), 0))
-        .filter(Project.id.in_(project_ids))
-        .scalar()
-    )
 
     # --- Lifetime totals ---
     lifetime_forecast = float(
@@ -166,7 +198,7 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
     else:
         overall_utilization = 0.0
 
-    # Run/Change ratio — services use annual_budget, projects use total_budget
+    # Run/Change ratio
     run_budget = (
         db.query(func.coalesce(func.sum(Project.annual_budget), 0))
         .filter(Project.id.in_(project_ids), Project.is_service.is_(True))
@@ -270,26 +302,24 @@ def compute_project_financials(db: Session, project_id: str) -> dict:
 
 
 def build_portfolio_tree(db: Session, filters: dict | None = None) -> list[dict]:
-    """Build hierarchical portfolio tree: LoB -> Program -> Project.
+    """Build hierarchical portfolio tree from the active GroupingEntity hierarchy.
 
-    Three-pass approach:
-    1. Load all projects (with optional filters)
-    2. Group into hierarchy
-    3. Aggregate bottom-up
+    Uses the active hierarchy to build entity levels (e.g., LoB -> Program -> Project).
+    Falls back to a flat project list if no hierarchy is configured.
     """
     filters = filters or {}
 
-    # Pass 1: Load projects
+    # --- Load projects (with optional filters) ---
     query = db.query(Project).filter(Project.is_active.is_(True))
 
-    if filters.get("grouping_entity"):
-        ge_project_ids = _get_projects_for_entity_recursive(db, filters["grouping_entity"])
+    # Entity filter (covers both old "lob" param and new "grouping_entity" param)
+    entity_filter = filters.get("grouping_entity") or filters.get("lob")
+    if entity_filter:
+        ge_project_ids = _get_projects_for_entity_recursive(db, entity_filter)
         if ge_project_ids:
             query = query.filter(Project.id.in_(ge_project_ids))
         else:
             return []
-    if filters.get("lob"):
-        query = query.filter(Project.lob_id == filters["lob"])
     if filters.get("status"):
         query = query.filter(Project.status == filters["status"])
     if filters.get("rag"):
@@ -301,163 +331,172 @@ def build_portfolio_tree(db: Session, filters: dict | None = None) -> list[dict]
             query = query.filter(Project.is_service.is_(False))
 
     projects = query.all()
+    if not projects:
+        return []
 
-    # Compute financials for each project
-    project_nodes = []
-    for p in projects:
-        fins = compute_project_financials(db, p.id)
-        project_nodes.append({
-            "id": p.id,
-            "name": p.name,
-            "type": "service" if p.is_service else "project",
-            "status": p.status,
-            "rag": p.rag_status,
-            "baseline_budget": fins["baseline_total"],
-            "current_forecast": fins["forecast_total"],
-            "actuals_ytd": fins["actuals_ytd"],
-            "variance_pct": fins["plan_drift_pct"],
-            "baseline_cy": fins["baseline_cy"],
-            "forecast_cy": fins["forecast_cy"],
-            "actuals_cy": fins["actuals_cy"],
-            "baseline_py": fins["baseline_py"],
-            "forecast_py": fins["forecast_py"],
-            "actuals_py": fins["actuals_py"],
-            "timeline": {
-                "start": p.start_month,
-                "end": p.end_month,
-                "projected_end": p.projected_end_month,
-            },
-            "lob_id": p.lob_id,
-            "program_id": p.program_id,
-            "children": [],
-        })
+    # Build project ID -> project mapping
+    project_map = {p.id: p for p in projects}
+    project_ids = set(project_map.keys())
 
-    # Pass 2: Group into hierarchy
-    lob_map: dict[str, dict] = {}  # lob_id -> {lob_node, programs: {prog_id -> prog_node}, direct: []}
-    all_lobs = db.query(LineOfBusiness).all()
+    # --- Compute financials for each project ---
+    project_fin_cache: dict[str, dict] = {}
+    for pid in project_ids:
+        project_fin_cache[pid] = compute_project_financials(db, pid)
 
-    for lob in all_lobs:
-        if filters.get("lob") and lob.id != filters["lob"]:
-            continue
-        lob_map[lob.id] = {
-            "id": lob.id,
-            "name": lob.name,
-            "type": "lob",
-            "_programs": {},
-            "_direct": [],
+    # --- Load all assignments for these projects ---
+    assignments = (
+        db.query(ProjectGroupingAssignment)
+        .filter(ProjectGroupingAssignment.project_id.in_(project_ids))
+        .all()
+    )
+    # entity_id -> [project_ids]
+    entity_projects: dict[str, list[str]] = {}
+    project_entity: dict[str, str] = {}  # project_id -> entity_id
+    for a in assignments:
+        entity_projects.setdefault(a.grouping_entity_id, []).append(a.project_id)
+        project_entity[a.project_id] = a.grouping_entity_id
+
+    # --- Load the active hierarchy ---
+    hierarchy = (
+        db.query(GroupingHierarchy)
+        .filter(GroupingHierarchy.is_active_hierarchy.is_(True))
+        .first()
+    )
+
+    if not hierarchy or not hierarchy.levels:
+        # No hierarchy — return flat project list
+        return [_make_project_node(project_map[pid], project_fin_cache[pid]) for pid in project_ids]
+
+    # --- Load entity type names for type labels ---
+    entity_type_names: dict[str, str] = {}
+    for level in hierarchy.levels:
+        et = db.query(GroupingEntityType).get(level.entity_type_id)
+        if et:
+            entity_type_names[et.id] = et.name.lower().replace(" ", "_")
+
+    # --- Load all entities and build the tree recursively ---
+    all_entities = db.query(GroupingEntity).filter(GroupingEntity.is_active.is_(True)).all()
+    entity_by_id = {e.id: e for e in all_entities}
+
+    # Get the entity type IDs in the hierarchy (ordered top to bottom)
+    hierarchy_type_ids = [level.entity_type_id for level in hierarchy.levels]
+    top_type_id = hierarchy_type_ids[0]
+
+    # Find top-level entities
+    top_entities = [e for e in all_entities if e.entity_type_id == top_type_id and e.parent_entity_id is None]
+
+    rag_priority = {"red": 2, "amber": 1, "green": 0, None: -1}
+
+    def build_entity_node(entity: GroupingEntity) -> dict | None:
+        """Recursively build a tree node for an entity."""
+        children = []
+
+        # Find child entities (entities whose parent is this entity)
+        child_entities = [e for e in all_entities if e.parent_entity_id == entity.id]
+        for child in child_entities:
+            child_node = build_entity_node(child)
+            if child_node:
+                children.append(child_node)
+
+        # Find directly assigned projects
+        direct_pids = [pid for pid in entity_projects.get(entity.id, []) if pid in project_ids]
+        for pid in direct_pids:
+            children.append(_make_project_node(project_map[pid], project_fin_cache[pid]))
+
+        if not children:
+            return None
+
+        # Aggregate financials from children
+        agg = _aggregate_children(children, rag_priority)
+        type_label = entity_type_names.get(entity.entity_type_id, entity.entity_type_id)
+
+        return {
+            "id": entity.id,
+            "name": entity.name,
+            "type": type_label,
+            "status": None,
+            "rag": agg["rag"],
+            "baseline_budget": agg["baseline_budget"],
+            "current_forecast": agg["current_forecast"],
+            "actuals_ytd": agg["actuals_ytd"],
+            "variance_pct": agg["variance_pct"],
+            "baseline_cy": agg["baseline_cy"],
+            "forecast_cy": agg["forecast_cy"],
+            "actuals_cy": agg["actuals_cy"],
+            "baseline_py": agg["baseline_py"],
+            "forecast_py": agg["forecast_py"],
+            "actuals_py": agg["actuals_py"],
+            "timeline": None,
+            "children": children,
         }
 
-    # Load programs
-    programs = db.query(Program).all()
-    for prog in programs:
-        if prog.lob_id in lob_map:
-            lob_map[prog.lob_id]["_programs"][prog.id] = {
-                "id": prog.id,
-                "name": prog.name,
-                "type": "program",
-                "_children": [],
-            }
-
-    # Place projects
-    for pn in project_nodes:
-        lob_id = pn["lob_id"]
-        prog_id = pn["program_id"]
-        if lob_id not in lob_map:
-            continue
-        if prog_id and prog_id in lob_map[lob_id]["_programs"]:
-            lob_map[lob_id]["_programs"][prog_id]["_children"].append(pn)
-        else:
-            lob_map[lob_id]["_direct"].append(pn)
-
-    # Pass 3: Aggregate bottom-up
-    rag_priority = {"red": 2, "amber": 1, "green": 0, None: -1}
     tree = []
+    for te in top_entities:
+        node = build_entity_node(te)
+        if node:
+            tree.append(node)
 
-    for lob_id, lob_data in lob_map.items():
-        lob_children = []
-        lob_baseline = lob_forecast = lob_actuals = 0.0
-        lob_bcy = lob_fcy = lob_acy = lob_bpy = lob_fpy = lob_apy = 0.0
-        worst_rag = None
-
-        def _agg_cy_py(src_list):
-            """Sum CY/PY fields from a list of nodes."""
-            return {
-                "baseline_cy": sum(c.get("baseline_cy", 0) for c in src_list),
-                "forecast_cy": sum(c.get("forecast_cy", 0) for c in src_list),
-                "actuals_cy": sum(c.get("actuals_cy", 0) for c in src_list),
-                "baseline_py": sum(c.get("baseline_py", 0) for c in src_list),
-                "forecast_py": sum(c.get("forecast_py", 0) for c in src_list),
-                "actuals_py": sum(c.get("actuals_py", 0) for c in src_list),
-            }
-
-        # Process programs
-        for prog_id, prog_data in lob_data["_programs"].items():
-            prog_baseline = sum(c["baseline_budget"] for c in prog_data["_children"])
-            prog_forecast = sum(c["current_forecast"] for c in prog_data["_children"])
-            prog_actuals = sum(c["actuals_ytd"] for c in prog_data["_children"])
-            prog_variance = compute_plan_drift(prog_forecast, prog_baseline) if prog_baseline else 0.0
-            prog_rag = max(
-                (c["rag"] for c in prog_data["_children"] if c["rag"]),
-                key=lambda r: rag_priority.get(r, -1),
-                default=None,
-            )
-            cp = _agg_cy_py(prog_data["_children"])
-
-            if prog_data["_children"]:
-                prog_node = {
-                    "id": prog_data["id"],
-                    "name": prog_data["name"],
-                    "type": "program",
-                    "status": None,
-                    "rag": prog_rag,
-                    "baseline_budget": round(prog_baseline, 2),
-                    "current_forecast": round(prog_forecast, 2),
-                    "actuals_ytd": round(prog_actuals, 2),
-                    "variance_pct": round(prog_variance, 1),
-                    **{k: round(v, 2) for k, v in cp.items()},
-                    "timeline": None,
-                    "children": prog_data["_children"],
-                }
-                lob_children.append(prog_node)
-                lob_baseline += prog_baseline
-                lob_forecast += prog_forecast
-                lob_actuals += prog_actuals
-                lob_bcy += cp["baseline_cy"]; lob_fcy += cp["forecast_cy"]; lob_acy += cp["actuals_cy"]
-                lob_bpy += cp["baseline_py"]; lob_fpy += cp["forecast_py"]; lob_apy += cp["actuals_py"]
-                if prog_rag and rag_priority.get(prog_rag, -1) > rag_priority.get(worst_rag, -1):
-                    worst_rag = prog_rag
-
-        # Direct projects (no program)
-        for pn in lob_data["_direct"]:
-            lob_children.append(pn)
-            lob_baseline += pn["baseline_budget"]
-            lob_forecast += pn["current_forecast"]
-            lob_actuals += pn["actuals_ytd"]
-            lob_bcy += pn.get("baseline_cy", 0); lob_fcy += pn.get("forecast_cy", 0); lob_acy += pn.get("actuals_cy", 0)
-            lob_bpy += pn.get("baseline_py", 0); lob_fpy += pn.get("forecast_py", 0); lob_apy += pn.get("actuals_py", 0)
-            if pn["rag"] and rag_priority.get(pn["rag"], -1) > rag_priority.get(worst_rag, -1):
-                worst_rag = pn["rag"]
-
-        if lob_children:
-            lob_variance = compute_plan_drift(lob_forecast, lob_baseline) if lob_baseline else 0.0
-            tree.append({
-                "id": lob_data["id"],
-                "name": lob_data["name"],
-                "type": "lob",
-                "status": None,
-                "rag": worst_rag,
-                "baseline_budget": round(lob_baseline, 2),
-                "current_forecast": round(lob_forecast, 2),
-                "actuals_ytd": round(lob_actuals, 2),
-                "variance_pct": round(lob_variance, 1),
-                "baseline_cy": round(lob_bcy, 2),
-                "forecast_cy": round(lob_fcy, 2),
-                "actuals_cy": round(lob_acy, 2),
-                "baseline_py": round(lob_bpy, 2),
-                "forecast_py": round(lob_fpy, 2),
-                "actuals_py": round(lob_apy, 2),
-                "timeline": None,
-                "children": lob_children,
-            })
+    # Also pick up projects not assigned to any entity in the hierarchy
+    assigned_pids = set()
+    for pid_list in entity_projects.values():
+        assigned_pids.update(pid_list)
+    unassigned = project_ids - assigned_pids
+    for pid in unassigned:
+        tree.append(_make_project_node(project_map[pid], project_fin_cache[pid]))
 
     return tree
+
+
+def _make_project_node(p: Project, fins: dict) -> dict:
+    """Create a project tree node."""
+    return {
+        "id": p.id,
+        "name": p.name,
+        "type": "service" if p.is_service else "project",
+        "status": p.status,
+        "rag": p.rag_status,
+        "baseline_budget": fins["baseline_total"],
+        "current_forecast": fins["forecast_total"],
+        "actuals_ytd": fins["actuals_ytd"],
+        "variance_pct": fins["plan_drift_pct"],
+        "baseline_cy": fins["baseline_cy"],
+        "forecast_cy": fins["forecast_cy"],
+        "actuals_cy": fins["actuals_cy"],
+        "baseline_py": fins["baseline_py"],
+        "forecast_py": fins["forecast_py"],
+        "actuals_py": fins["actuals_py"],
+        "timeline": {
+            "start": p.start_month,
+            "end": p.end_month,
+            "projected_end": p.projected_end_month,
+        },
+        "children": [],
+    }
+
+
+def _aggregate_children(children: list[dict], rag_priority: dict) -> dict:
+    """Aggregate financials and RAG from a list of child nodes."""
+    baseline = sum(c.get("baseline_budget", 0) for c in children)
+    forecast = sum(c.get("current_forecast", 0) for c in children)
+    actuals = sum(c.get("actuals_ytd", 0) for c in children)
+    variance = compute_plan_drift(forecast, baseline) if baseline else 0.0
+
+    worst_rag = None
+    for c in children:
+        r = c.get("rag")
+        if r and rag_priority.get(r, -1) > rag_priority.get(worst_rag, -1):
+            worst_rag = r
+
+    return {
+        "baseline_budget": round(baseline, 2),
+        "current_forecast": round(forecast, 2),
+        "actuals_ytd": round(actuals, 2),
+        "variance_pct": round(variance, 1),
+        "rag": worst_rag,
+        "baseline_cy": round(sum(c.get("baseline_cy", 0) for c in children), 2),
+        "forecast_cy": round(sum(c.get("forecast_cy", 0) for c in children), 2),
+        "actuals_cy": round(sum(c.get("actuals_cy", 0) for c in children), 2),
+        "baseline_py": round(sum(c.get("baseline_py", 0) for c in children), 2),
+        "forecast_py": round(sum(c.get("forecast_py", 0) for c in children), 2),
+        "actuals_py": round(sum(c.get("actuals_py", 0) for c in children), 2),
+    }

@@ -7,21 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 
 
-class LineOfBusiness(Base):
-    __tablename__ = "lines_of_business"
-
-    id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    modified_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationships
-    programs: Mapped[list["Program"]] = relationship(back_populates="lob")
-    projects: Mapped[list["Project"]] = relationship(back_populates="lob")
-
-
 class Location(Base):
     __tablename__ = "locations"
 
@@ -134,4 +119,5 @@ class ProjectGroupingAssignment(Base):
     grouping_entity_id: Mapped[str] = mapped_column(ForeignKey("grouping_entities.id"), nullable=False)
 
     # Relationships
+    project: Mapped["Project"] = relationship(back_populates="entity_assignments")
     grouping_entity: Mapped["GroupingEntity"] = relationship(back_populates="project_assignments")

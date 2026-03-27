@@ -1,21 +1,48 @@
-"""Generate organizational structure: LoBs, locations, competence centres, cost centres, external cost types."""
+"""Generate organizational structure: grouping entities/hierarchy, locations, competence centres, cost centres, external cost types."""
 
-from .config import LOBS, LOCATIONS, COMPETENCE_CENTRES, COST_CENTRES, EXTERNAL_COST_TYPES, CREATED_AT, sql_str
+from .config import LOBS, PROGRAMMES, LOCATIONS, COMPETENCE_CENTRES, COST_CENTRES, EXTERNAL_COST_TYPES, CREATED_AT, sql_str
 
 
 def generate() -> str:
     lines = []
 
-    # --- Lines of Business ---
+    # --- Grouping Entity Types ---
     lines.append("-- =============================================================================")
-    lines.append("-- 1. Lines of Business")
+    lines.append("-- 1. Grouping Entity Types (replaces Lines of Business)")
     lines.append("-- =============================================================================")
     lines.append("")
-    lines.append("INSERT INTO lines_of_business (id, name, description, is_active, created_at, modified_at) VALUES")
+    lines.append("INSERT INTO grouping_entity_types (id, name, is_active, created_at) VALUES")
+    lines.append(f"('get-lob', 'Line of Business', 1, '{CREATED_AT}'),")
+    lines.append(f"('get-prog', 'Program', 1, '{CREATED_AT}');")
+    lines.append("")
+
+    # --- Grouping Entities (LoB + Program) ---
+    lines.append("-- =============================================================================")
+    lines.append("-- 1b. Grouping Entities (LoB + Program entities)")
+    lines.append("-- =============================================================================")
+    lines.append("")
+    lines.append("INSERT INTO grouping_entities (id, entity_type_id, name, parent_entity_id, is_active, created_at) VALUES")
     rows = []
+    # LoB entities
     for lob in LOBS:
-        rows.append(f"({sql_str(lob['id'])}, {sql_str(lob['name'])}, {sql_str(lob['description'])}, 1, '{CREATED_AT}', '{CREATED_AT}')")
+        rows.append(f"({sql_str(lob['id'])}, 'get-lob', {sql_str(lob['name'])}, NULL, 1, '{CREATED_AT}')")
+    # Program entities (with parent_entity_id pointing to their LoB)
+    for prog in PROGRAMMES:
+        rows.append(f"({sql_str(prog['id'])}, 'get-prog', {sql_str(prog['name'])}, {sql_str(prog['lob_id'])}, 1, '{CREATED_AT}')")
     lines.append(",\n".join(rows) + ";")
+    lines.append("")
+
+    # --- Grouping Hierarchy ---
+    lines.append("-- =============================================================================")
+    lines.append("-- 1c. Grouping Hierarchy (Standard: LoB -> Program)")
+    lines.append("-- =============================================================================")
+    lines.append("")
+    lines.append(f"INSERT INTO grouping_hierarchies (id, name, is_active_hierarchy, created_at) VALUES")
+    lines.append(f"('hier-standard', 'Standard Portfolio Hierarchy', 1, '{CREATED_AT}');")
+    lines.append("")
+    lines.append("INSERT INTO grouping_hierarchy_levels (hierarchy_id, level_order, entity_type_id) VALUES")
+    lines.append("('hier-standard', 0, 'get-lob'),")
+    lines.append("('hier-standard', 1, 'get-prog');")
     lines.append("")
 
     # --- Locations ---

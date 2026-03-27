@@ -1,22 +1,10 @@
-"""Generate programmes, projects/services, planning parameters, and KPI definitions."""
+"""Generate projects/services, grouping assignments, planning parameters, and KPI definitions."""
 
 from .config import PROGRAMMES, PROJECTS, CREATED_AT, sql_str
 
 
 def generate() -> str:
     lines = []
-
-    # --- Programmes ---
-    lines.append("-- =============================================================================")
-    lines.append("-- 10. Programmes")
-    lines.append("-- =============================================================================")
-    lines.append("")
-    lines.append("INSERT INTO programs (id, name, lob_id, description, created_at) VALUES")
-    rows = []
-    for prog in PROGRAMMES:
-        rows.append(f"({sql_str(prog['id'])}, {sql_str(prog['name'])}, {sql_str(prog['lob_id'])}, NULL, '{CREATED_AT}')")
-    lines.append(",\n".join(rows) + ";")
-    lines.append("")
 
     # --- Projects & Services ---
     lines.append("-- =============================================================================")
@@ -31,7 +19,7 @@ def generate() -> str:
 
     for lob_id, projs in by_lob.items():
         lines.append(f"-- {lob_id}")
-        lines.append("INSERT INTO projects (id, name, description, lob_id, program_id, status, rag_status, capex_opex, start_month, end_month, projected_end_month, pl_person_id, is_service, annual_budget, total_budget, last_forecast_submitted_month, is_active, created_at, modified_at) VALUES")
+        lines.append("INSERT INTO projects (id, name, description, status, rag_status, capex_opex, start_month, end_month, projected_end_month, pl_person_id, is_service, annual_budget, total_budget, last_forecast_submitted_month, is_active, created_at, modified_at) VALUES")
         rows = []
         for p in projs:
             is_svc = 1 if p["type"] == "service" else 0
@@ -62,7 +50,7 @@ def generate() -> str:
 
             rows.append(
                 f"({sql_str(p['id'])}, {sql_str(p['name'])}, NULL, "
-                f"{sql_str(p['lob'])}, {sql_str(p.get('prog'))}, {sql_str(p['status'])}, "
+                f"{sql_str(p['status'])}, "
                 f"{sql_str(p['rag'])}, {sql_str(p['capex_opex'])}, "
                 f"{sql_str(p['start'])}, {sql_str(p.get('end'))}, {sql_str(projected_end)}, "
                 f"{sql_str(p.get('pl'))}, {is_svc}, "
@@ -71,6 +59,21 @@ def generate() -> str:
             )
         lines.append(",\n".join(rows) + ";")
         lines.append("")
+
+    # --- Project Grouping Assignments ---
+    lines.append("-- =============================================================================")
+    lines.append("-- Project Grouping Assignments (replaces lob_id / program_id on projects)")
+    lines.append("-- =============================================================================")
+    lines.append("")
+    lines.append("INSERT INTO project_grouping_assignments (project_id, grouping_entity_id) VALUES")
+    rows = []
+    for p in PROJECTS:
+        # Projects with a program → assigned to program entity
+        # Projects without a program → assigned to LoB entity
+        entity_id = p.get("prog") or p["lob"]
+        rows.append(f"({sql_str(p['id'])}, {sql_str(entity_id)})")
+    lines.append(",\n".join(rows) + ";")
+    lines.append("")
 
     # --- Planning Parameters ---
     lines.append("-- =============================================================================")

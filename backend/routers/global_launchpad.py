@@ -33,9 +33,23 @@ from schemas.global_launchpad import (
     RoleInfo,
 )
 from services.calculations import add_months
-from services.portfolio_service import compute_portfolio_kpis
+from services.portfolio_service import compute_portfolio_kpis, get_project_entity_info, get_top_level_entity_type_id
 
 router = APIRouter(prefix="/api", tags=["Global / Launchpad"])
+
+
+def _get_project_lob_name(db: Session, project_id: str) -> str:
+    """Get the top-level entity name (LoB) for a project."""
+    top_type = get_top_level_entity_type_id(db)
+    info = get_project_entity_info(db, project_id, top_type)
+    return info["name"] if info else "Unassigned"
+
+
+def _get_project_entity_id(db: Session, project_id: str) -> str:
+    """Get the top-level entity ID for a project."""
+    top_type = get_top_level_entity_type_id(db)
+    info = get_project_entity_info(db, project_id, top_type)
+    return info["id"] if info else ""
 
 
 # ---------------------------------------------------------------------------
@@ -699,7 +713,6 @@ def create_project(
         id=f"proj-{uuid4().hex[:8]}",
         name=body.name,
         description=body.description,
-        lob_id=body.lob_id,
         status="draft",
         capex_opex=body.capex_opex,
         start_month=body.start_month,
@@ -708,6 +721,16 @@ def create_project(
         total_budget=round(estimated_cost, 2) if estimated_cost > 0 else None,
     )
     db.add(project)
+    db.flush()  # Get project.id before creating assignment
+
+    # Create entity assignment (lob_id now refers to a GroupingEntity)
+    from models.organization import ProjectGroupingAssignment
+    if body.lob_id:
+        assignment = ProjectGroupingAssignment(
+            project_id=project.id,
+            grouping_entity_id=body.lob_id,
+        )
+        db.add(assignment)
 
     # Generate Forecast rows from resource plan and external costs
     from models.financial import Forecast
@@ -828,8 +851,8 @@ def get_project_draft(
         "id": project.id,
         "name": project.name,
         "description": project.description,
-        "lob_id": project.lob_id,
-        "lob_name": project.lob.name if project.lob else project.lob_id,
+        "lob_id": _get_project_entity_id(db, project.id),
+        "lob_name": _get_project_lob_name(db, project.id),
         "start_month": project.start_month,
         "end_month": project.end_month,
         "status": project.status,

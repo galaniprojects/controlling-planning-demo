@@ -24,9 +24,16 @@ from services.calculations import compute_plan_drift, add_months
 from services.forecast_cycle import (
     clear_cycle, get_cycle_by_id, start_cycle,
 )
-from services.portfolio_service import compute_project_financials
+from services.portfolio_service import compute_project_financials, get_project_entity_info, get_top_level_entity_type_id
 
 router = APIRouter(prefix="/api/projects", tags=["Project Workbench"])
+
+
+def _get_project_lob_name(db: Session, project_id: str) -> str:
+    """Get the top-level entity name (LoB) for a project."""
+    top_type = get_top_level_entity_type_id(db)
+    info = get_project_entity_info(db, project_id, top_type)
+    return info["name"] if info else "Unassigned"
 
 
 @router.get("")
@@ -147,7 +154,7 @@ def get_project_overview(
 
     return {
         "metadata": {
-            "id": project.id, "name": project.name, "lob": project.lob.name if project.lob else project.lob_id,
+            "id": project.id, "name": project.name, "lob": _get_project_lob_name(db, project.id),
             "status": project.status, "rag": project.rag_status,
             "timeline": {"start": project.start_month, "end": project.end_month, "projected_end": project.projected_end_month},
             "pl_name": project.pl.name if project.pl else None,

@@ -19,6 +19,7 @@ interface Props {
 
 const TYPE_LABELS: Record<string, string> = {
   lob: 'LoB',
+  line_of_business: 'LoB',
   program: 'Program',
   project: 'Project',
   service: 'Service',

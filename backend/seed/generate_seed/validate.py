@@ -374,11 +374,13 @@ def check_entity_counts(db) -> tuple[bool, list[str]]:
     counts = {
         "projects": (32, "SELECT COUNT(*) as cnt FROM projects"),
         "people": (52, "SELECT COUNT(*) as cnt FROM people"),
-        "lines_of_business": (4, "SELECT COUNT(*) as cnt FROM lines_of_business"),
+        "grouping_entity_types": (2, "SELECT COUNT(*) as cnt FROM grouping_entity_types"),
+        "grouping_entities": (8, "SELECT COUNT(*) as cnt FROM grouping_entities"),
+        "grouping_hierarchies": (1, "SELECT COUNT(*) as cnt FROM grouping_hierarchies"),
+        "project_grouping_assignments": (32, "SELECT COUNT(*) as cnt FROM project_grouping_assignments"),
         "cost_centers": (10, "SELECT COUNT(*) as cnt FROM cost_centers"),
         "locations": (3, "SELECT COUNT(*) as cnt FROM locations"),
         "competence_centers": (4, "SELECT COUNT(*) as cnt FROM competence_centers"),
-        "programs": (4, "SELECT COUNT(*) as cnt FROM programs"),
     }
 
     for table, (expected, query) in counts.items():

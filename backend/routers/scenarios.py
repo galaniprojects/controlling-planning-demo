@@ -278,10 +278,12 @@ def get_drill_down(
     if level == "project" and parent_id:
         items = [ps for ps in project_states if ps["project_id"] == parent_id]
     elif level == "lob":
+        from services.portfolio_service import get_project_entity_info, get_top_level_entity_type_id
+        top_type = get_top_level_entity_type_id(db)
         lob_map = {}
         for ps in project_states:
-            proj = db.query(Project).filter(Project.id == ps["project_id"]).first()
-            lob_id = proj.lob_id if proj else "unknown"
+            entity_info = get_project_entity_info(db, ps["project_id"], top_type)
+            lob_id = entity_info["id"] if entity_info else "unknown"
             lob_map.setdefault(lob_id, {"id": lob_id, "original": 0, "adjusted": 0, "delta": 0, "projects": []})
             lob_map[lob_id]["original"] += ps["original_budget"]
             lob_map[lob_id]["adjusted"] += ps["adjusted_budget"]

@@ -11,13 +11,58 @@ from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from models.capacity import Allocation
 from models.financial import Actuals, Baseline, Forecast
-from models.organization import CostCenter, LineOfBusiness
+from models.organization import CostCenter, GroupingEntity, ProjectGroupingAssignment
 from models.people import Person, RateTable, RoleType
 from models.projects import Project
 from models.financial import ExternalCostType
 from models.reporting import ForecastSnapshot
 from schemas.common import CurrentUser
 from services.calculations import add_months, compute_plan_drift
+
+
+# ---------------------------------------------------------------------------
+# Entity lookup helper (replaces LineOfBusiness lookups)
+# ---------------------------------------------------------------------------
+
+def _build_project_lob_map(db: Session) -> dict[str, tuple[str, str]]:
+    """Build a mapping of project_id -> (lob_id, lob_name).
+
+    Walks up from each project's assigned entity to the top-level entity type
+    (from the active hierarchy). Returns {project_id: (entity_id, entity_name)}.
+    """
+    from services.portfolio_service import get_top_level_entity_type_id
+    top_type = get_top_level_entity_type_id(db)
+
+    # Load all assignments and entities
+    assignments = db.query(ProjectGroupingAssignment).all()
+    entities = {e.id: e for e in db.query(GroupingEntity).all()}
+
+    result: dict[str, tuple[str, str]] = {}
+    for a in assignments:
+        entity = entities.get(a.grouping_entity_id)
+        if not entity:
+            continue
+
+        # Walk up to find the top-level entity type
+        current = entity
+        visited = set()
+        found = None
+        while current and current.id not in visited:
+            visited.add(current.id)
+            if top_type and current.entity_type_id == top_type:
+                found = current
+                break
+            if current.parent_entity_id:
+                current = entities.get(current.parent_entity_id)
+            else:
+                break
+        if found:
+            result[a.project_id] = (found.id, found.name)
+        else:
+            # Use the directly assigned entity if no hierarchy match
+            result[a.project_id] = (entity.id, entity.name)
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +102,12 @@ def _get_scoped_project_ids(
 
     # Apply common filters
     if filters.get("lob"):
-        q = q.filter(Project.lob_id == filters["lob"])
+        from services.portfolio_service import _get_projects_for_entity_recursive
+        lob_pids = _get_projects_for_entity_recursive(db, filters["lob"])
+        if lob_pids:
+            q = q.filter(Project.id.in_(lob_pids))
+        else:
+            return []
     if filters.get("status"):
         q = q.filter(Project.status == filters["status"])
     if filters.get("rag"):
@@ -102,7 +152,7 @@ def compute_programme_rollup(
 
     # Load projects with financials
     projects = db.query(Project).filter(Project.id.in_(project_ids)).all()
-    lobs = {l.id: l.name for l in db.query(LineOfBusiness).all()}
+    lob_map = _build_project_lob_map(db)
 
     # Build optional year filter (None = lifetime totals)
     year_prefix = str(fiscal_year) if fiscal_year else None
@@ -134,8 +184,8 @@ def compute_programme_rollup(
         rows.append({
             "project_id": p.id,
             "project_name": p.name,
-            "lob_id": p.lob_id,
-            "lob_name": lobs.get(p.lob_id, ""),
+            "lob_id": lob_map.get(p.id, ("", ""))[0],
+            "lob_name": lob_map.get(p.id, ("", ""))[1],
             "status": p.status,
             "rag": p.rag_status,
             "baseline_budget": round(baseline, 2),
@@ -549,7 +599,7 @@ def compute_forecast_accuracy(
         return {"kpis": {}, "rows": [], "chart_data": [], "total": 0}
 
     snapshot_month = add_months(DEMO_DATE, -horizon_months)
-    lobs = {l.id: l.name for l in db.query(LineOfBusiness).all()}
+    lob_map = _build_project_lob_map(db)
 
     # Get snapshot forecasts closest to the target month
     snapshots = (
@@ -609,8 +659,8 @@ def compute_forecast_accuracy(
         rows.append({
             "project_id": p.id,
             "project_name": p.name,
-            "lob_id": p.lob_id,
-            "lob_name": lobs.get(p.lob_id, ""),
+            "lob_id": lob_map.get(p.id, ("", ""))[0],
+            "lob_name": lob_map.get(p.id, ("", ""))[1],
             "forecast_value": round(forecast_val, 2),
             "actual_value": round(actual_val, 2),
             "variance": round(variance, 2),
@@ -675,13 +725,13 @@ def compute_year_over_year(
     ]
 
     # Build project info lookup (RPT-07: LoB + Project columns)
+    lob_map = _build_project_lob_map(db)
     project_info: dict[str, dict] = {}
     for p in db.query(Project).filter(Project.id.in_(project_ids)).all():
-        lob = db.query(LineOfBusiness).filter(LineOfBusiness.id == p.lob_id).first()
         project_info[p.id] = {
             "project_name": p.name,
-            "lob_id": p.lob_id or "",
-            "lob_name": lob.name if lob else "",
+            "lob_id": lob_map.get(p.id, ("", ""))[0],
+            "lob_name": lob_map.get(p.id, ("", ""))[1],
         }
 
     def _base_query(year: int):
