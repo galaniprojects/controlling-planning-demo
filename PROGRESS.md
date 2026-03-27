@@ -57,6 +57,13 @@ Branch: `feature/workbench-enhancements`
 - [x] Baselines and actuals properly aggregated across locations
 - [x] Seed data regenerated: 19,890 lines in seed.sql
 
+## Sidebar Status Badges (2026-03-27)
+
+### Project List Panel (`frontend/src/modules/workbench/ProjectListPanel.tsx`)
+- **Status badges for all statuses:** Active, Completed, Planned, Draft, Pending, CC Review, Changes Req., Rejected
+- **Color-coded:** Amber for workflow statuses (Draft, Pending, CC Review, Changes Req.), neutral slate for lifecycle statuses (Active, Completed, Planned, Rejected)
+- **Documentation updated:** README.md, project_workbench.json manual, PROGRESS.md
+
 ## Hierarchy Migration (2026-03-27)
 
 ### Schema Migration
