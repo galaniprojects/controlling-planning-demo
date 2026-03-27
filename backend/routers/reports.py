@@ -441,6 +441,18 @@ def export_report(
     if not config:
         raise HTTPException(404, f"Unknown report: {report_id}")
 
+    # Dynamic top-level entity label for export headers
+    from services.portfolio_service import get_top_level_entity_type_id
+    from models.organization import GroupingEntityType
+    top_type_id = get_top_level_entity_type_id(db)
+    top_label = "LoB"
+    if top_type_id:
+        et = db.query(GroupingEntityType).get(top_type_id)
+        if et:
+            top_label = et.name
+    config = dict(config)  # shallow copy to avoid mutating the constant
+    config["headers"] = [top_label if h == "LoB" else h for h in config["headers"]]
+
     filters: dict = {}
     if lob:
         filters["lob"] = lob

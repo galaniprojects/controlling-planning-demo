@@ -24,7 +24,7 @@ from services.calculations import compute_plan_drift, add_months
 from services.forecast_cycle import (
     clear_cycle, get_cycle_by_id, start_cycle,
 )
-from services.portfolio_service import compute_project_financials, get_project_entity_info, get_top_level_entity_type_id
+from services.portfolio_service import compute_project_financials, get_project_entity_info, get_project_hierarchy_path, get_top_level_entity_type_id
 
 router = APIRouter(prefix="/api/projects", tags=["Project Workbench"])
 
@@ -155,6 +155,7 @@ def get_project_overview(
     return {
         "metadata": {
             "id": project.id, "name": project.name, "lob": _get_project_lob_name(db, project.id),
+            "hierarchy_path": get_project_hierarchy_path(db, project.id),
             "status": project.status, "rag": project.rag_status,
             "timeline": {"start": project.start_month, "end": project.end_month, "projected_end": project.projected_end_month},
             "pl_name": project.pl.name if project.pl else None,

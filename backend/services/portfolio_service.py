@@ -65,6 +65,45 @@ def get_project_entity_info(db: Session, project_id: str, entity_type_id: str | 
     return None
 
 
+def get_project_hierarchy_path(db: Session, project_id: str) -> list[dict]:
+    """Return the full hierarchy path from root to the project's assigned entity.
+
+    Returns a list like:
+      [{"type_name": "Line of Business", "entity_name": "Truck & Bus Systems (TBS)"},
+       {"type_name": "Program", "entity_name": "Digital Braking Platform"}]
+    """
+    assignment = (
+        db.query(ProjectGroupingAssignment)
+        .filter(ProjectGroupingAssignment.project_id == project_id)
+        .first()
+    )
+    if not assignment:
+        return []
+
+    entity = db.query(GroupingEntity).get(assignment.grouping_entity_id)
+    if not entity:
+        return []
+
+    # Collect the chain from assigned entity up to root
+    chain = []
+    current = entity
+    visited = set()
+    while current:
+        if current.id in visited:
+            break
+        visited.add(current.id)
+        type_name = current.entity_type.name if current.entity_type else current.entity_type_id
+        chain.append({"type_name": type_name, "entity_name": current.name})
+        if current.parent_entity_id:
+            current = db.query(GroupingEntity).get(current.parent_entity_id)
+        else:
+            break
+
+    # Reverse to get root-first order
+    chain.reverse()
+    return chain
+
+
 def get_top_level_entity_type_id(db: Session) -> str | None:
     """Get the entity type ID for the top level of the active hierarchy."""
     hierarchy = (

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
 import { reportsApi, referenceApi } from '@/api/endpoints';
-import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
+import { useActiveHierarchy, buildHierarchyFilterConfigs, getMostSpecificEntityFilter, clearLowerHierarchyFilters } from '@/hooks/useActiveHierarchy';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { SummaryCard } from '@/modules/capacity/shared/SummaryCard';
 import { ReportViewer, type ColumnDef } from '../viewer/ReportViewer';
@@ -56,7 +56,7 @@ const MONTH_OPTIONS = [
 
 export function YoYReport() {
   const { currentRoleId } = useRole();
-  const { topLevelLabel, entityOptions } = useActiveHierarchy();
+  const { topLevelLabel, levels, entityTree } = useActiveHierarchy();
   const [searchParams] = useSearchParams();
   const [data, setData] = useState<YoYResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,7 +102,8 @@ export function YoYReport() {
   const fetchData = useCallback(() => {
     setLoading(true);
     const params: Record<string, string> = {};
-    if (filters.lob) params.lob = filters.lob;
+    const entityFilter = getMostSpecificEntityFilter(filters, levels);
+    if (entityFilter) params.lob = entityFilter;
     if (filters.cost_type) params.cost_type = filters.cost_type;
     if (filters.fy_current) params.fy_current = filters.fy_current;
     if (filters.fy_previous) params.fy_previous = filters.fy_previous;
@@ -120,16 +121,20 @@ export function YoYReport() {
     fetchData();
   }, [fetchData]);
 
+  const hierarchyFilters = buildHierarchyFilterConfigs(levels, entityTree, filters, lobs);
   const filterConfigs: FilterConfig[] = [
-    {
-      key: 'lob',
-      label: topLevelLabel,
-      options: lobs.map((l) => ({ value: l.id, label: l.name })),
-    },
+    ...hierarchyFilters,
     { key: 'cost_type', label: 'Cost Type', options: COST_TYPE_OPTIONS },
     { key: 'fy_current', label: 'Current Year', options: FISCAL_YEAR_OPTIONS },
     { key: 'fy_previous', label: 'Previous Year', options: FISCAL_YEAR_OPTIONS },
   ];
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters((prev) => {
+      const updated = { ...prev, [key]: value };
+      return clearLowerHierarchyFilters(updated, key, levels);
+    });
+  };
 
   const onSort = (column: string) => {
     if (sortColumn === column) {
@@ -270,7 +275,7 @@ export function YoYReport() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              {show('lob_name') && <SortableHeader column="lob_name" label="LoB" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
+              {show('lob_name') && <SortableHeader column="lob_name" label={topLevelLabel} sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
               {show('project_name') && <SortableHeader column="project_name" label="Project" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
               {show('month') && <SortableHeader column="month" label="Month" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
               {show('fy_current') && <SortableHeader column="fy_current" label={`FY ${kpis.fy_current_label}`} sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
@@ -341,9 +346,9 @@ export function YoYReport() {
       reportId="year-over-year"
       filters={filterConfigs}
       filterValues={filters}
-      onFilterChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
+      onFilterChange={handleFilterChange}
       onFilterClear={() => {
-        setFilters({ lob: '', cost_type: '', fy_current: '2026', fy_previous: '2025' });
+        setFilters({ cost_type: '', fy_current: '2026', fy_previous: '2025' });
         setShowMonthly(false);
         setSelectedMonths([]);
       }}

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
 import { reportsApi, referenceApi, workbenchApi } from '@/api/endpoints';
-import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
+import { useActiveHierarchy, buildHierarchyFilterConfigs, getMostSpecificEntityFilter, clearLowerHierarchyFilters } from '@/hooks/useActiveHierarchy';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SummaryCard } from '@/modules/capacity/shared/SummaryCard';
@@ -76,7 +76,7 @@ interface CustomGroup {
 
 export function ProgrammeRollupReport() {
   const { currentRoleId } = useRole();
-  const { topLevelLabel, entityOptions } = useActiveHierarchy();
+  const { topLevelLabel, entityOptions, levels, entityTree } = useActiveHierarchy();
   const [searchParams] = useSearchParams();
   const [data, setData] = useState<ProgrammeRollupResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -129,7 +129,8 @@ export function ProgrammeRollupReport() {
   const fetchData = useCallback(() => {
     setLoading(true);
     const params: Record<string, string> = {};
-    if (filters.lob) params.lob = filters.lob;
+    const entityFilter = getMostSpecificEntityFilter(filters, levels);
+    if (entityFilter) params.lob = entityFilter;
     if (filters.status) params.status = filters.status;
     if (filters.rag) params.rag = filters.rag;
     if (filters.type) params.type = filters.type;
@@ -150,17 +151,21 @@ export function ProgrammeRollupReport() {
     fetchData();
   }, [fetchData]);
 
+  const hierarchyFilters = buildHierarchyFilterConfigs(levels, entityTree, filters, lobs);
   const filterConfigs: FilterConfig[] = [
-    {
-      key: 'lob',
-      label: topLevelLabel,
-      options: entityOptions.length > 0 ? entityOptions : lobs.map((l) => ({ value: l.id, label: l.name })),
-    },
+    ...hierarchyFilters,
     { key: 'status', label: 'Status', options: STATUS_OPTIONS },
     { key: 'rag', label: 'RAG', options: RAG_OPTIONS },
     { key: 'type', label: 'Type', options: TYPE_OPTIONS },
     { key: 'fiscal_year', label: 'Fiscal Year', options: FISCAL_YEAR_OPTIONS },
   ];
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters((prev) => {
+      const updated = { ...prev, [key]: value };
+      return clearLowerHierarchyFilters(updated, key, levels);
+    });
+  };
 
   const handleToggleProject = (pid: string) => {
     setSelectedProjectIds((prev) =>
@@ -467,8 +472,8 @@ export function ProgrammeRollupReport() {
       reportId="programme-rollup"
       filters={filterConfigs}
       filterValues={filters}
-      onFilterChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
-      onFilterClear={() => setFilters({ lob: '', status: '', rag: '', type: '', fiscal_year: '2026' })}
+      onFilterChange={handleFilterChange}
+      onFilterClear={() => setFilters({ status: '', rag: '', type: '', fiscal_year: '2026' })}
       kpis={kpiRow}
       view={view}
       onViewChange={setView}

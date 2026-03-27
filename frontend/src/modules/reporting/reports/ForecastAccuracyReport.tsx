@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
 import { reportsApi, referenceApi } from '@/api/endpoints';
-import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
+import { useActiveHierarchy, buildHierarchyFilterConfigs, getMostSpecificEntityFilter, clearLowerHierarchyFilters } from '@/hooks/useActiveHierarchy';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { SummaryCard } from '@/modules/capacity/shared/SummaryCard';
 import { ReportViewer, type ColumnDef } from '../viewer/ReportViewer';
@@ -15,7 +15,7 @@ import { Target, CheckCircle2, AlertTriangle, TrendingUp } from 'lucide-react';
 
 const ALL_COLUMNS: ColumnDef[] = [
   { key: 'project_name', label: 'Project' },
-  { key: 'lob_name', label: 'LoB' },
+  { key: 'lob_name', label: 'LoB' }, // label overridden dynamically in component
   { key: 'forecast_value', label: 'Forecast' },
   { key: 'actual_value', label: 'Actual' },
   { key: 'variance', label: 'Variance' },
@@ -64,7 +64,7 @@ function ratingBadge(rating: string) {
 
 export function ForecastAccuracyReport() {
   const { currentRoleId } = useRole();
-  const { topLevelLabel } = useActiveHierarchy();
+  const { topLevelLabel, levels, entityTree } = useActiveHierarchy();
   const [searchParams] = useSearchParams();
   const [data, setData] = useState<ForecastAccuracyResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,7 +102,8 @@ export function ForecastAccuracyReport() {
   const fetchData = useCallback(() => {
     setLoading(true);
     const params: Record<string, string> = {};
-    if (filters.lob) params.lob = filters.lob;
+    const entityFilter = getMostSpecificEntityFilter(filters, levels);
+    if (entityFilter) params.lob = entityFilter;
     if (filters.type) params.type = filters.type;
     if (filters.horizon) params.horizon = filters.horizon;
     if (filters.fiscal_year) params.fiscal_year = filters.fiscal_year;
@@ -118,16 +119,20 @@ export function ForecastAccuracyReport() {
     fetchData();
   }, [fetchData]);
 
+  const hierarchyFilters = buildHierarchyFilterConfigs(levels, entityTree, filters, lobs);
   const filterConfigs: FilterConfig[] = [
-    {
-      key: 'lob',
-      label: topLevelLabel,
-      options: lobs.map((l) => ({ value: l.id, label: l.name })),
-    },
+    ...hierarchyFilters,
     { key: 'type', label: 'Type', options: TYPE_OPTIONS },
     { key: 'horizon', label: 'Forecast Horizon', options: HORIZON_OPTIONS },
     { key: 'fiscal_year', label: 'Fiscal Year', options: FISCAL_YEAR_OPTIONS },
   ];
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters((prev) => {
+      const updated = { ...prev, [key]: value };
+      return clearLowerHierarchyFilters(updated, key, levels);
+    });
+  };
 
   const onSort = (column: string) => {
     if (sortColumn === column) {
@@ -209,7 +214,7 @@ export function ForecastAccuracyReport() {
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
             {show('project_name') && <SortableHeader column="project_name" label="Project" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
-            {show('lob_name') && <SortableHeader column="lob_name" label="LoB" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
+            {show('lob_name') && <SortableHeader column="lob_name" label={topLevelLabel} sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} />}
             {show('forecast_value') && <SortableHeader column="forecast_value" label="Forecast" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
             {show('actual_value') && <SortableHeader column="actual_value" label="Actual" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
             {show('variance') && <SortableHeader column="variance" label="Variance" sortColumn={sortColumn} sortDirection={sortDirection} onSort={onSort} align="right" />}
@@ -269,14 +274,14 @@ export function ForecastAccuracyReport() {
       reportId="forecast-accuracy"
       filters={filterConfigs}
       filterValues={filters}
-      onFilterChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
-      onFilterClear={() => setFilters({ lob: '', type: '', horizon: '6', fiscal_year: '2026' })}
+      onFilterChange={handleFilterChange}
+      onFilterClear={() => setFilters({ type: '', horizon: '6', fiscal_year: '2026' })}
       kpis={kpiRow}
       view={view}
       onViewChange={setView}
       chartContent={<ForecastAccuracyChart data={chart_data} />}
       tableContent={tableContent}
-      availableColumns={ALL_COLUMNS}
+      availableColumns={ALL_COLUMNS.map((c) => c.key === 'lob_name' ? { ...c, label: topLevelLabel } : c)}
       visibleColumns={visibleCols}
       onVisibleColumnsChange={setVisibleCols}
       sortColumn={sortColumn}
