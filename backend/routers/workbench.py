@@ -126,12 +126,31 @@ def get_project_overview(
         "opex_pct": round((opex_amt / total_co) * 100, 1) if total_co else 0,
     }
 
-    # Resource plan summary
-    internal_rows = (
-        db.query(Forecast.sub_category, func.sum(Forecast.hours).label("total_hours"))
-        .filter(Forecast.project_id == project_id, Forecast.category == "internal")
-        .group_by(Forecast.sub_category).all()
+    # Resource plan summary — title and filtering depend on project lifecycle
+    from config import DEMO_DATE
+    demo_year = DEMO_DATE[:4]  # "2026"
+
+    if project.status == "active":
+        resource_title = f"Resource Plan {demo_year}"
+        rp_filter = Forecast.month.like(f"{demo_year}-%")
+    elif project.status == "planned":
+        start_year = project.start_month[:4] if project.start_month else demo_year
+        resource_title = f"Resource Plan {start_year}"
+        rp_filter = None
+    elif project.status == "completed":
+        resource_title = "Resources Consumed"
+        rp_filter = None
+    else:
+        resource_title = "Resource Plan"
+        rp_filter = None
+
+    rp_query = db.query(Forecast.sub_category, func.sum(Forecast.hours).label("total_hours")).filter(
+        Forecast.project_id == project_id, Forecast.category == "internal"
     )
+    if rp_filter is not None:
+        rp_query = rp_query.filter(rp_filter)
+    internal_rows = rp_query.group_by(Forecast.sub_category).all()
+
     resource_summary = []
     for row in internal_rows:
         role = db.query(RoleType).filter(RoleType.id == row.sub_category).first()
@@ -172,6 +191,7 @@ def get_project_overview(
         },
         "trajectory_chart": trajectory,
         "capex_opex": capex_opex,
+        "resource_plan_title": resource_title,
         "resource_plan_summary": resource_summary,
     }
 
@@ -365,6 +385,42 @@ def get_project_forecast(
         rows_map[key]["months"].append(cell)
 
     items = list(rows_map.values())
+
+    # Attach employee assignments for internal rows from allocations
+    from sqlalchemy.orm import joinedload
+    allocs = (
+        db.query(Allocation)
+        .options(joinedload(Allocation.person))
+        .filter(Allocation.project_id == project_id)
+        .all()
+    )
+    # Group: role_type_id -> person_id -> [{month, hours}]
+    role_person_months: dict[str, dict[str, list[dict]]] = {}
+    person_names: dict[str, str] = {}
+    for a in allocs:
+        if not a.person:
+            continue
+        role_id = a.person.role_type_id
+        pid = a.person_id
+        person_names[pid] = a.person.name
+        role_person_months.setdefault(role_id, {}).setdefault(pid, []).append(
+            {"month": a.month, "hours": float(a.hours)}
+        )
+    # Build per-role assignment arrays
+    role_assignments: dict[str, list[dict]] = {}
+    for role_id, persons in role_person_months.items():
+        role_assignments[role_id] = [
+            {
+                "person_id": pid,
+                "person_name": person_names[pid],
+                "months": sorted(months, key=lambda m: m["month"]),
+            }
+            for pid, months in persons.items()
+        ]
+    for row in items:
+        if row["category"] == "internal":
+            row["assignments"] = role_assignments.get(row["sub_category"], [])
+
     return {"items": items, "total": len(items)}
 
 

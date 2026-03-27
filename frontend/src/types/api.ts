@@ -354,6 +354,7 @@ export interface ProjectOverview {
   three_point_comparison: ThreePointComparison;
   trajectory_chart: TrajectoryPoint[];
   capex_opex: { type: string; capex_amount?: number; opex_amount?: number; capex_pct?: number; opex_pct?: number };
+  resource_plan_title: string;
   resource_plan_summary: ResourcePlanSummaryItem[];
 }
 
@@ -416,6 +417,12 @@ export interface ForecastMonthCell {
   vendor?: string | null;
 }
 
+export interface PersonAssignment {
+  person_id: string;
+  person_name: string;
+  months: { month: string; hours: number }[];
+}
+
 export interface ForecastGridRow {
   category: string;
   sub_category: string;
@@ -423,6 +430,7 @@ export interface ForecastGridRow {
   capex_opex?: string | null;
   months: ForecastMonthCell[];
   hourly_rate?: number | null; // Internal rows only
+  assignments?: PersonAssignment[];
 }
 
 export interface RetrospectiveItem {

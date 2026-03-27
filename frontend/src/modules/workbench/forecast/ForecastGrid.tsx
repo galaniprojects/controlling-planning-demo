@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -8,13 +8,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { formatCurrencyCompact, formatNumber } from '@/lib/formatters';
 import { formatMonthShort, isElapsedMonth } from '@/lib/yearColumns';
 import { useCollapsibleYears } from '@/hooks/useCollapsibleYears';
 import type { VisibleColumn } from '@/hooks/useCollapsibleYears';
 import { workbenchApi } from '@/api/endpoints';
-import type { ForecastGridRow, ForecastMonthCell } from '@/types/api';
+import type { ForecastGridRow, ForecastMonthCell, PersonAssignment } from '@/types/api';
 
 interface Props {
   projectId: string;
@@ -41,6 +43,35 @@ function sumCells(
 export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
   const [rows, setRows] = useState<ForecastGridRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedRoles, setExpandedRoles] = useState<Set<string>>(new Set());
+
+  const toggleRole = useCallback((subCategory: string) => {
+    setExpandedRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(subCategory)) next.delete(subCategory);
+      else next.add(subCategory);
+      return next;
+    });
+  }, []);
+
+  const hasAnyAssignments = rows.some(
+    (r) => r.category === 'internal' && r.assignments && r.assignments.length > 0,
+  );
+
+  const expandableRoleIds = rows
+    .filter((r) => r.category === 'internal' && r.assignments && r.assignments.length > 0)
+    .map((r) => r.sub_category);
+
+  const allExpanded = expandableRoleIds.length > 0 && expandableRoleIds.every((id) => expandedRoles.has(id));
+
+  const toggleAll = useCallback(() => {
+    setExpandedRoles((prev) => {
+      if (expandableRoleIds.every((id) => prev.has(id))) {
+        return new Set();
+      }
+      return new Set(expandableRoleIds);
+    });
+  }, [expandableRoleIds]);
 
   useEffect(() => {
     setLoading(true);
@@ -96,6 +127,47 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
     let total = 0;
     for (const m of months) total += sumColumnMonth(targetRows, m, field);
     return total;
+  }
+
+  function findPersonHours(assignment: PersonAssignment, month: string): number {
+    const m = assignment.months.find((e) => e.month === month);
+    return m ? m.hours : 0;
+  }
+
+  function sumPersonHours(assignment: PersonAssignment, months: string[]): number {
+    let total = 0;
+    for (const m of months) total += findPersonHours(assignment, m);
+    return total;
+  }
+
+  function renderAssignmentRow(assignment: PersonAssignment) {
+    return (
+      <TableRow key={`assign-${assignment.person_id}`} className="bg-slate-50/40">
+        <TableCell className="sticky left-0 bg-slate-50/40 z-10 border-r border-slate-200 whitespace-nowrap pl-8 text-xs text-slate-500">
+          {assignment.person_name}
+        </TableCell>
+        {visibleColumns.map((col) => {
+          if (col.type === 'yearSummary') {
+            const total = sumPersonHours(assignment, col.months);
+            return (
+              <TableCell key={`pa-ys-${col.year}`} className="text-right border-l-2 border-slate-300 text-xs text-slate-500 font-tabular">
+                {total > 0 ? `${formatNumber(total)}h` : <span className="text-slate-300">&mdash;</span>}
+              </TableCell>
+            );
+          }
+          const hours = findPersonHours(assignment, col.key);
+          const elapsed = isElapsedMonth(col.key);
+          return (
+            <TableCell
+              key={`pa-${col.key}`}
+              className={`text-right text-xs text-slate-500 font-tabular ${col.isJanuary ? 'border-l-2 border-slate-300' : ''} ${elapsed ? 'bg-[#fafafa]' : ''}`}
+            >
+              {hours > 0 ? `${formatNumber(hours)}h` : <span className="text-slate-300">&mdash;</span>}
+            </TableCell>
+          );
+        })}
+      </TableRow>
+    );
   }
 
   function renderTotalRow(
@@ -292,6 +364,21 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
   }
 
   return (
+    <div className="space-y-2">
+      {hasAnyAssignments && (
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-slate-600 gap-1"
+            onClick={toggleAll}
+          >
+            {allExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            <Users className="h-3.5 w-3.5" />
+            {allExpanded ? 'Collapse All Resources' : 'Expand All Resources'}
+          </Button>
+        </div>
+      )}
     <div className="border border-slate-200 rounded-lg overflow-x-auto">
       <Table>
         <TableHeader>
@@ -313,21 +400,39 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
                   Internal Resources (Hours / EUR)
                 </TableCell>
               </TableRow>
-              {internalRows.map((row) => (
-                <TableRow key={`${row.category}-${row.sub_category}`}>
-                  <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200 whitespace-nowrap">
-                    <div className="flex items-center gap-1.5">
-                      {row.sub_category_name}
-                      {row.capex_opex && (
-                        <Badge variant="outline" className={`text-[9px] px-1 py-0 h-3.5 ${row.capex_opex === 'capex' ? 'text-blue-600 border-blue-200' : 'text-amber-600 border-amber-200'}`}>
-                          {row.capex_opex === 'capex' ? 'CapEx' : 'OpEx'}
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  {visibleColumns.map((col) => renderInternalCell(row, col))}
-                </TableRow>
-              ))}
+              {internalRows.map((row) => {
+                const hasAssignments = row.assignments && row.assignments.length > 0;
+                const isExpanded = expandedRoles.has(row.sub_category);
+                return (
+                  <React.Fragment key={`${row.category}-${row.sub_category}`}>
+                    <TableRow>
+                      <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          {hasAssignments ? (
+                            <button
+                              type="button"
+                              className="flex items-center gap-1 cursor-pointer hover:text-blue-700 transition-colors"
+                              onClick={() => toggleRole(row.sub_category)}
+                            >
+                              {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
+                              {row.sub_category_name}
+                            </button>
+                          ) : (
+                            <span>{row.sub_category_name}</span>
+                          )}
+                          {row.capex_opex && (
+                            <Badge variant="outline" className={`text-[9px] px-1 py-0 h-3.5 ${row.capex_opex === 'capex' ? 'text-blue-600 border-blue-200' : 'text-amber-600 border-amber-200'}`}>
+                              {row.capex_opex === 'capex' ? 'CapEx' : 'OpEx'}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      {visibleColumns.map((col) => renderInternalCell(row, col))}
+                    </TableRow>
+                    {isExpanded && row.assignments?.map((a) => renderAssignmentRow(a))}
+                  </React.Fragment>
+                );
+              })}
               {renderTotalRow('Subtotal Internal', internalRows, 'subtotal')}
             </>
           )}
@@ -363,6 +468,7 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
           )}
         </TableBody>
       </Table>
+    </div>
     </div>
   );
 }
