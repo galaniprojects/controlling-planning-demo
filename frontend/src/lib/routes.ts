@@ -18,6 +18,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   '/capacity/requests': 'Resource Requests',
   '/simulator': 'What-If Simulator',
   '/reporting': 'Reporting',
+  '/reporting/builder': 'Report Builder',
   '/admin': 'Administration',
   '/docs': 'Documentation',
 };

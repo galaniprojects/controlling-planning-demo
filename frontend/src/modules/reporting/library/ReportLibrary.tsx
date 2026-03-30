@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, Building2, Truck, Target, CalendarRange, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { BarChart3, Building2, Truck, Target, CalendarRange, Sparkles, LayoutGrid } from 'lucide-react';
 import { ReportCard } from './ReportCard';
 import { SavedViewCard } from './SavedViewCard';
 import { reportsApi } from '@/api/endpoints';
@@ -46,6 +47,7 @@ const REPORTS = [
 ];
 
 export function ReportLibrary() {
+  const navigate = useNavigate();
   const [savedViews, setSavedViews] = useState<SavedViewItem[]>([]);
 
   useEffect(() => {
@@ -87,6 +89,26 @@ export function ReportLibrary() {
               accent={'accent' in r && !!r.accent}
             />
           ))}
+        </div>
+      </div>
+
+      <div className="border-t border-border pt-6">
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">Build Your Own</h2>
+        <div
+          onClick={() => navigate('/reporting/builder')}
+          className="cursor-pointer rounded-lg border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-primary"
+        >
+          <div className="flex items-start gap-3">
+            <div className="rounded-md bg-primary/10 p-2 text-primary">
+              <LayoutGrid className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground">Report Builder</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Build custom reports by selecting dimensions and measures. Drag them into rows, columns, filters, and values to create cross-tabulated views.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
