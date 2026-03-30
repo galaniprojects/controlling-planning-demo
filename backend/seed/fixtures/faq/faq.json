@@ -295,15 +295,15 @@
   },
   {
     "id": "faq-22",
-    "question": "How do I export a Report Builder report to Excel?",
-    "summary": "Click the Export button in the Report Builder toolbar to download the current report as an Excel file with full formatting.",
+    "question": "How do I export a Report Builder report to CSV?",
+    "summary": "Click the Export button in the Report Builder toolbar to download the current report as a CSV file with metadata and subtotals.",
     "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
     "modules_involved": ["reporting"],
     "steps": [
       {"step_number": 1, "instruction": "Build or load your report in the **Report Builder** and ensure results are displayed."},
       {"step_number": 2, "instruction": "Click the **Export** button in the toolbar."},
-      {"step_number": 3, "instruction": "The system generates an Excel file (.xlsx) with two sheets: **Report Data** (full cross-tabulation with merged headers, subtotals, grand totals, and conditional formatting colours preserved) and **Report Info** (metadata including report name, export date, dimensions, measures, filters, and calculated measure formulas)."},
-      {"step_number": 4, "instruction": "The file downloads automatically with the naming pattern **CRETA_ReportBuilder_[Name]_[Date].xlsx**. Values use European number formatting (dot for thousands, comma for decimals)."}
+      {"step_number": 3, "instruction": "The system generates a CSV file with metadata comment rows (report name, export date, user, filters), column headers, data rows with subtotals and grand totals. Cross-tabulated reports are flattened into columns named by dimension value and measure."},
+      {"step_number": 4, "instruction": "The file downloads automatically with the naming pattern **CRETA_ReportBuilder_[Name]_[Date].csv**. The CSV includes a UTF-8 BOM for correct Excel compatibility."}
     ]
   }
 ]

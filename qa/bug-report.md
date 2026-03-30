@@ -29,7 +29,7 @@
 | **Total** | | **191** | **172** | **1** | **4** | **14** |
 
 ### Issue Counts
-- **Functional Bugs (BUG):** 1
+- **Functional Bugs (BUG):** 0 (1 fixed)
 - **UI/Cosmetic (UI):** 0
 - **Data Issues (DATA):** 0
 - **Spec Gaps (SPEC):** 4 (+ 1 closed by design)
@@ -255,18 +255,13 @@
 - RB-17: **PASS** (Share dialog: user checkboxes for 4 personas, "Publish to Report Library" toggle; no per-user permission levels — simplified model)
 - RB-18: **FAIL** (Export button triggers GET /api/report-builder/export/1 but returns HTTP 500; related to KNOWN-22)
 
-### BUG-001: Report Builder Excel Export Returns 500 (P3)
+### ~~BUG-001: Report Builder Excel Export Returns 500 (P3)~~ — FIXED
 - **Category:** Functional Bug
 - **Suite/Scenario:** Suite 12 / RB-18
 - **Persona:** Anna Meier (Controller)
-- **Steps:**
-  1. Open a saved Report Builder report
-  2. Click the "Export" button in the toolbar
-- **Expected:** Export endpoint returns 200 with Excel file content-type, download initiates
-- **Actual:** GET `/api/report-builder/export/1` returns HTTP 500 Internal Server Error
-- **Console Errors:** None visible in browser
-- **Known Issue?:** Possibly related to KNOWN-22 (Excel export formatting edge cases)
-- **Impact:** Users cannot export Report Builder reports to Excel
+- **Root Cause:** `report_builder_export.py` used dict-style access (`d["id"]`) on dataclass objects (`DimensionDef`, `MeasureDef`) from the catalog, causing `TypeError: 'MeasureDef' object is not subscriptable`
+- **Fix:** Migrated all exports (Report Builder + Standard Reports) from openpyxl Excel to simple CSV. Fixed dataclass attribute access. Removed openpyxl dependency. Branch: `fix/csv-export`
+- **Verification:** Both export endpoints return 200 with valid CSV content. 12 unit tests pass.
 
 ## Session F — Suite 13: AI Report Builder
 
@@ -329,4 +324,4 @@
 | SPEC-003 | P3 | Spec Gap | Forecast Wizard Phase 2 (Suggestions) skipped | 5 |
 | SPEC-004 | P4 | Spec Gap | Planning Parameters missing Standard Hours section | 9 |
 | SPEC-005 | P3 | Spec Gap | Assignment Grid uses simplified UX vs spec | 14 |
-| BUG-001 | P3 | Bug | Report Builder Excel Export returns HTTP 500 | 12 |
+| ~~BUG-001~~ | ~~P3~~ | ~~Bug~~ | ~~Report Builder Excel Export returns HTTP 500~~ — **Fixed** (CSV migration) | 12 |

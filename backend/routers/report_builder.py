@@ -37,7 +37,7 @@ from services.report_builder_saved import (
     soft_delete_saved_report,
     update_saved_report,
 )
-from services.report_builder_export import export_report_to_excel
+from services.report_builder_export import export_report_to_csv
 
 router = APIRouter(prefix="/api/report-builder", tags=["Report Builder"])
 
@@ -225,12 +225,12 @@ def export_unsaved(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Export the current (unsaved) report composition to Excel."""
-    buf = export_report_to_excel(db, user, body, report_name="Custom Report")
-    filename = f"CRETA_ReportBuilder_Custom_{__import__('datetime').date.today().isoformat()}.xlsx"
+    """Export the current (unsaved) report composition to CSV."""
+    buf = export_report_to_csv(db, user, body, report_name="Custom Report")
+    filename = f"CRETA_ReportBuilder_Custom_{__import__('datetime').date.today().isoformat()}.csv"
     return StreamingResponse(
         buf,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
@@ -241,16 +241,16 @@ def export_saved(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Export a saved report to Excel."""
+    """Export a saved report to CSV."""
     report = get_saved_report(db, report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     definition = json.loads(report.definition) if isinstance(report.definition, str) else report.definition
-    buf = export_report_to_excel(db, user, definition, report_name=report.name)
+    buf = export_report_to_csv(db, user, definition, report_name=report.name)
     safe_name = report.name.replace(" ", "_").replace("/", "-")
-    filename = f"CRETA_ReportBuilder_{safe_name}_{__import__('datetime').date.today().isoformat()}.xlsx"
+    filename = f"CRETA_ReportBuilder_{safe_name}_{__import__('datetime').date.today().isoformat()}.csv"
     return StreamingResponse(
         buf,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
