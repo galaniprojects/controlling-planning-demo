@@ -75,14 +75,14 @@ export function AIAdvisorPanel({
   );
 
   return (
-    <div className="w-[370px] shrink-0 border-l border-indigo-100 bg-indigo-50/60 overflow-y-auto p-4 space-y-4">
+    <div className="w-[370px] shrink-0 border-l border-indigo-100 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/20 overflow-y-auto p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-indigo-600" />
-          <h3 className="text-sm font-semibold text-slate-900">AI Advisor</h3>
+          <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-sm font-semibold text-foreground">AI Advisor</h3>
         </div>
-        <Badge className="bg-indigo-100 text-indigo-600 hover:bg-indigo-100 text-[10px] px-1.5 py-0">
+        <Badge className="bg-indigo-100 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 text-[10px] px-1.5 py-0">
           AI-assisted
         </Badge>
       </div>
@@ -94,7 +94,7 @@ export function AIAdvisorPanel({
           value={goalText}
           onChange={(e) => setGoalText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-          className="text-sm bg-white"
+          className="text-sm bg-card"
         />
         <Button
           size="sm"
@@ -113,7 +113,7 @@ export function AIAdvisorPanel({
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
             <span className="relative inline-flex h-3 w-3 rounded-full bg-indigo-500" />
           </span>
-          <p className="text-sm text-indigo-600 font-medium">
+          <p className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
             {LOADING_PHASES[loadingPhase]}
           </p>
         </div>
@@ -121,8 +121,8 @@ export function AIAdvisorPanel({
 
       {/* No-match message */}
       {noMatch && (
-        <Card className="bg-white p-4">
-          <p className="text-sm text-slate-500">
+        <Card className="bg-card p-4">
+          <p className="text-sm text-muted-foreground">
             I wasn&apos;t able to map that goal to a specific optimization
             strategy. Try goals like: &ldquo;Find cost savings&rdquo;,
             &ldquo;Reduce utilization pressure&rdquo;, or &ldquo;Prioritize
@@ -144,14 +144,14 @@ export function AIAdvisorPanel({
 
       {/* Narrative summary after apply */}
       {advisorNarrative && (
-        <Card className="bg-indigo-50 border-indigo-200 p-4">
+        <Card className="bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800 p-4">
           <div className="flex items-start gap-2">
-            <Lightbulb className="h-4 w-4 text-indigo-600 mt-0.5 shrink-0" />
+            <Lightbulb className="h-4 w-4 text-indigo-600 dark:text-indigo-400 mt-0.5 shrink-0" />
             <div>
-              <p className="text-xs font-semibold text-indigo-700 mb-1">
+              <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-400 mb-1">
                 Applied Path Summary
               </p>
-              <p className="text-xs text-slate-700 leading-relaxed">
+              <p className="text-xs text-foreground leading-relaxed">
                 {advisorNarrative}
               </p>
             </div>

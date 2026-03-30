@@ -15,19 +15,19 @@ const ITEMS: { key: keyof TimelineSummary; label: string; format: 'currency' | '
 
 export function TimelineSummaryStrip({ summary }: Props) {
   return (
-    <div className="flex items-center gap-6 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
-      <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider whitespace-nowrap">
+    <div className="flex items-center gap-6 px-3 py-2 bg-muted/50 border border-border rounded-lg">
+      <div className="text-[10px] font-semibold text-primary uppercase tracking-wider whitespace-nowrap">
         FY 2026
       </div>
-      <div className="w-px h-6 bg-slate-200" />
+      <div className="w-px h-6 bg-border" />
       {ITEMS.map((item) => {
         const value = summary[item.key];
         return (
           <div key={item.key} className="text-center">
-            <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">
+            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
               {item.label}
             </div>
-            <div className="text-sm font-semibold text-slate-700">
+            <div className="text-sm font-semibold text-foreground">
               {item.format === 'currency'
                 ? formatCurrency(value)
                 : formatPercent(value)}

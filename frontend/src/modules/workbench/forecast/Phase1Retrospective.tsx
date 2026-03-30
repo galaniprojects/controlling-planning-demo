@@ -59,19 +59,19 @@ export function Phase1Retrospective({
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-base font-semibold text-slate-800">
+        <h3 className="text-base font-semibold text-foreground">
           Phase 1: Retrospective{monthLabel ? ` — ${monthLabel} Actuals` : ''}
         </h3>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Review last month's forecast vs actuals. Explain any significant
           variances (&gt;10%).
         </p>
       </div>
 
-      <div className="border border-slate-200 rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
+            <TableRow className="bg-muted/50">
               <TableHead>Line Item</TableHead>
               <TableHead className="text-right">{monthLabel ? `${monthLabel} Forecast` : 'Forecast'}</TableHead>
               <TableHead className="text-right">{monthLabel ? `${monthLabel} Actual` : 'Actual'}</TableHead>
@@ -87,17 +87,17 @@ export function Phase1Retrospective({
                 <TableRow
                   key={key}
                   className={cn(
-                    item.significant && 'bg-amber-50',
+                    item.significant && 'bg-amber-50 dark:bg-amber-900/20',
                   )}
                 >
                   <TableCell className="font-medium text-sm">
                     {nameMap[item.sub_category] || item.sub_category}
                     {item.person_name && (
-                      <span className="text-xs text-slate-400 ml-1">
+                      <span className="text-xs text-muted-foreground ml-1">
                         &mdash; {item.person_name}
                       </span>
                     )}
-                    <span className="ml-1.5 text-xs text-slate-400 capitalize">
+                    <span className="ml-1.5 text-xs text-muted-foreground capitalize">
                       ({item.category === 'internal' ? 'Internal' : 'External'})
                     </span>
                   </TableCell>
@@ -114,17 +114,17 @@ export function Phase1Retrospective({
                     className={cn(
                       'text-right text-sm font-medium',
                       Math.abs(item.variance_pct) > 10
-                        ? 'text-red-600'
+                        ? 'text-red-600 dark:text-red-400'
                         : Math.abs(item.variance_pct) > 5
-                          ? 'text-amber-600'
-                          : 'text-green-600',
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-green-600 dark:text-green-400',
                     )}
                   >
                     {formatPercent(item.variance_pct)}
                   </TableCell>
                   <TableCell>
                     {item.significant && (
-                      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                      <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40">
                         <AlertTriangle className="h-3 w-3 mr-0.5" />
                         Flag
                       </Badge>
@@ -140,7 +140,7 @@ export function Phase1Retrospective({
       {/* Explanation inputs for flagged items */}
       {flaggedWithIdx.length > 0 && (
         <div className="space-y-3">
-          <p className="text-sm font-medium text-slate-600">
+          <p className="text-sm font-medium text-muted-foreground">
             Please explain the flagged variances:
           </p>
           {flaggedWithIdx.map(({ item, idx }) => {
@@ -149,7 +149,7 @@ export function Phase1Retrospective({
             const personSuffix = item.person_name ? ` \u2014 ${item.person_name}` : '';
             return (
               <div key={key} className="space-y-1">
-                <label className="text-xs font-medium text-slate-500">
+                <label className="text-xs font-medium text-muted-foreground">
                   {label}{personSuffix} ({formatPercent(item.variance_pct)}
                   {' '}variance)
                 </label>

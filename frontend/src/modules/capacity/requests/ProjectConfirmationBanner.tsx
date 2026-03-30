@@ -72,7 +72,7 @@ export function ProjectConfirmationBanner({ onConfirmComplete }: Props) {
   if (loading || projects.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50">
+    <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/20">
       {/* Header */}
       <button
         type="button"
@@ -80,19 +80,19 @@ export function ProjectConfirmationBanner({ onConfirmComplete }: Props) {
         onClick={() => setExpanded((e) => !e)}
       >
         <div className="flex items-center gap-2">
-          <Badge className="bg-blue-600 text-white hover:bg-blue-600">
+          <Badge className="bg-primary text-primary-foreground hover:bg-primary">
             {projects.length}
           </Badge>
-          <span className="text-sm font-medium text-blue-800">
+          <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
             {projects.length === 1
               ? 'Project awaiting resource confirmation'
               : 'Projects awaiting resource confirmation'}
           </span>
         </div>
         {expanded ? (
-          <ChevronUp className="h-4 w-4 text-blue-500" />
+          <ChevronUp className="h-4 w-4 text-blue-500 dark:text-blue-400" />
         ) : (
-          <ChevronDown className="h-4 w-4 text-blue-500" />
+          <ChevronDown className="h-4 w-4 text-blue-500 dark:text-blue-400" />
         )}
       </button>
 
@@ -100,19 +100,19 @@ export function ProjectConfirmationBanner({ onConfirmComplete }: Props) {
       {expanded && (
         <div className="px-4 pb-4 space-y-3">
           {projects.map((p) => (
-            <Card key={p.id} className="border-blue-100">
+            <Card key={p.id} className="border-blue-100 dark:border-blue-800">
               <CardContent className="pt-4 pb-3 space-y-3">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-slate-800">{p.name}</p>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                    <p className="text-sm font-semibold text-foreground">{p.name}</p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                       <span>{p.lob_name}</span>
                       {p.pl_name && <span>PL: {p.pl_name}</span>}
                       <span>
                         {p.start_month} -- {p.end_month || 'Ongoing'}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {p.resource_request_count} resource request{p.resource_request_count !== 1 ? 's' : ''}
                     </p>
                   </div>
@@ -120,7 +120,7 @@ export function ProjectConfirmationBanner({ onConfirmComplete }: Props) {
 
                 {/* Result message */}
                 {results[p.id] && (
-                  <div className="rounded border border-blue-200 bg-white p-2 text-xs text-blue-700">
+                  <div className="rounded border border-blue-200 bg-card p-2 text-xs text-primary dark:border-blue-700">
                     {results[p.id]}
                   </div>
                 )}

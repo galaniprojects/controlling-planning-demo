@@ -195,7 +195,7 @@ export function ProjectAssignmentPage() {
   }
 
   if (!detail) {
-    return <p className="text-sm text-slate-400">Project not found.</p>;
+    return <p className="text-sm text-muted-foreground">Project not found.</p>;
   }
 
   const { project, all_resource_requests_assigned } = detail;
@@ -207,7 +207,7 @@ export function ProjectAssignmentPage() {
       <button
         type="button"
         onClick={() => navigate('/capacity')}
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-blue-700"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to Capacity Management
@@ -218,8 +218,8 @@ export function ProjectAssignmentPage() {
         <CardContent className="pt-4 pb-3">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-800">{project.name}</h2>
-              <div className="flex items-center gap-3 mt-1 text-sm text-slate-500">
+              <h2 className="text-lg font-semibold text-foreground">{project.name}</h2>
+              <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
                 <span>{project.lob_name}</span>
                 {project.pl_name && <span>PL: {project.pl_name}</span>}
                 <span>
@@ -227,14 +227,14 @@ export function ProjectAssignmentPage() {
                 </span>
               </div>
               {project.description && (
-                <p className="text-sm text-slate-500 mt-2 max-w-2xl">{project.description}</p>
+                <p className="text-sm text-muted-foreground mt-2 max-w-2xl">{project.description}</p>
               )}
             </div>
             <Badge
               className={cn(
                 all_resource_requests_assigned
-                  ? 'bg-green-100 text-green-700 hover:bg-green-100'
-                  : 'bg-amber-100 text-amber-700 hover:bg-amber-100',
+                  ? 'bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/40'
+                  : 'bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/40',
               )}
             >
               {all_resource_requests_assigned ? 'All Assigned' : 'Pending Assignment'}
@@ -261,19 +261,19 @@ export function ProjectAssignmentPage() {
 
       {/* Team Availability Reference */}
       {availablePeople.length > 0 && (
-        <div className="rounded-lg border border-slate-200 bg-white">
+        <div className="rounded-lg border border-border bg-card">
           <button
             type="button"
             className="w-full flex items-center justify-between px-4 py-3"
             onClick={() => setHeatmapExpanded((e) => !e)}
           >
-            <span className="text-sm font-medium text-slate-700">
+            <span className="text-sm font-medium text-foreground">
               Team Availability ({availablePeople.length} members)
             </span>
             {heatmapExpanded ? (
-              <ChevronUp className="h-4 w-4 text-slate-400" />
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
             ) : (
-              <ChevronDown className="h-4 w-4 text-slate-400" />
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
             )}
           </button>
           {heatmapExpanded && (
@@ -290,8 +290,8 @@ export function ProjectAssignmentPage() {
           className={cn(
             'rounded border p-3 text-sm',
             result.type === 'success'
-              ? 'border-green-200 bg-green-50 text-green-700'
-              : 'border-red-200 bg-red-50 text-red-700',
+              ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900/20 dark:text-green-400'
+              : 'border-red-200 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-400',
           )}
         >
           {result.message}
@@ -313,7 +313,7 @@ export function ProjectAssignmentPage() {
 
       {/* Actions */}
       {!result && project.status === 'pending_cc_confirmation' && (
-        <div className="flex gap-2 pt-2 border-t border-slate-200">
+        <div className="flex gap-2 pt-2 border-t border-border">
           {declining ? (
             <>
               <Button
@@ -355,7 +355,7 @@ export function ProjectAssignmentPage() {
                 Decline
               </Button>
               {!all_resource_requests_assigned && (
-                <span className="text-xs text-amber-600 self-center ml-2">
+                <span className="text-xs text-amber-600 dark:text-amber-400 self-center ml-2">
                   Assign all resource requests before confirming
                 </span>
               )}
@@ -379,14 +379,14 @@ function TeamHeatmapTable({ data }: { data: RoleHeatmapRow[] }) {
   const months = allPeople[0]?.utilization.map((u) => u.month) ?? [];
 
   return (
-    <div className="rounded-md border border-slate-200 overflow-auto">
+    <div className="rounded-md border border-border overflow-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="bg-slate-50 border-b border-slate-200">
-            <th className="px-2 py-1.5 text-left text-slate-500 font-medium">Person</th>
-            <th className="px-2 py-1.5 text-left text-slate-500 font-medium">Role</th>
+          <tr className="bg-muted/50 border-b border-border">
+            <th className="px-2 py-1.5 text-left text-muted-foreground font-medium">Person</th>
+            <th className="px-2 py-1.5 text-left text-muted-foreground font-medium">Role</th>
             {months.map((m) => (
-              <th key={m} className="px-1 py-1.5 text-center text-slate-500 font-medium">
+              <th key={m} className="px-1 py-1.5 text-center text-muted-foreground font-medium">
                 {m.slice(5)}
               </th>
             ))}
@@ -394,15 +394,15 @@ function TeamHeatmapTable({ data }: { data: RoleHeatmapRow[] }) {
         </thead>
         <tbody>
           {allPeople.map((person) => (
-            <tr key={person.person_id} className="border-b border-slate-50">
-              <td className="px-2 py-1.5 font-medium text-slate-700">{person.name}</td>
-              <td className="px-2 py-1.5 text-slate-500">{person.roleName}</td>
+            <tr key={person.person_id} className="border-b border-border/50">
+              <td className="px-2 py-1.5 font-medium text-foreground">{person.name}</td>
+              <td className="px-2 py-1.5 text-muted-foreground">{person.roleName}</td>
               {person.utilization.map((cell) => {
                 const bgMap: Record<string, string> = {
-                  blue: 'bg-blue-100 text-blue-700',
-                  green: 'bg-green-100 text-green-700',
-                  amber: 'bg-amber-100 text-amber-700',
-                  red: 'bg-red-100 text-red-700',
+                  blue: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                  green: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                  amber: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                  red: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
                 };
                 return (
                   <td key={cell.month} className="px-1 py-1.5 text-center">

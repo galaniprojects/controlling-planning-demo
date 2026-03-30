@@ -34,20 +34,20 @@ function ColumnSummaryCard({
 
   return (
     <Card className="p-4 space-y-2">
-      <p className="text-xs font-medium text-slate-500 uppercase tracking-wider truncate">
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider truncate">
         {column.label}
       </p>
-      <p className="text-xl font-bold text-slate-900">
+      <p className="text-xl font-bold text-foreground">
         {formatCurrency(total)}
       </p>
       {!isBaseline && delta !== 0 && (
         <p
-          className={`text-sm font-medium ${delta < 0 ? 'text-green-600' : 'text-red-600'}`}
+          className={`text-sm font-medium ${delta < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
         >
           {formatCurrencyDelta(delta)}
         </p>
       )}
-      <div className="flex items-center gap-2 text-xs text-slate-500">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-green-500" />
           {ragCounts.green}

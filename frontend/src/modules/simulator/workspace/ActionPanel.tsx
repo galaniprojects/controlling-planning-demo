@@ -86,7 +86,7 @@ export function ActionPanel({
             />
           ) : (
             <h3
-              className={`text-sm font-semibold text-slate-900 flex-1 truncate ${!readOnly ? 'cursor-pointer hover:text-blue-800' : ''}`}
+              className={`text-sm font-semibold text-foreground flex-1 truncate ${!readOnly ? 'cursor-pointer hover:text-primary' : ''}`}
               onClick={readOnly ? undefined : () => setEditingName(true)}
               title={readOnly ? undefined : 'Click to edit'}
             >
@@ -96,15 +96,15 @@ export function ActionPanel({
           <Badge
             className={
               metadata.status === 'published'
-                ? 'bg-green-100 text-green-700 hover:bg-green-100'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-100'
+                ? 'bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-muted text-muted-foreground hover:bg-muted'
             }
           >
             {metadata.status === 'published' ? 'Published' : 'Private'}
           </Badge>
         </div>
         {readOnly ? (
-          <p className="text-xs text-slate-600">{metadata.description || 'No description.'}</p>
+          <p className="text-xs text-muted-foreground">{metadata.description || 'No description.'}</p>
         ) : (
           <Textarea
             value={descValue}
@@ -119,11 +119,11 @@ export function ActionPanel({
 
       {/* Applied actions list */}
       <div>
-        <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
           Applied Actions ({actions.length})
         </h4>
         {actions.length === 0 ? (
-          <p className="text-xs text-slate-400 italic px-3 py-4 text-center">
+          <p className="text-xs text-muted-foreground italic px-3 py-4 text-center">
             No actions applied yet. Add actions below to model scenario impacts.
           </p>
         ) : (
@@ -148,7 +148,7 @@ export function ActionPanel({
           <Separator />
           {/* Add action form */}
           <div>
-            <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               Add Action
             </h4>
             <AddActionForm

@@ -76,15 +76,15 @@ export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
   }
 
   if (!data) {
-    return <p className="text-sm text-slate-400">Change request not found.</p>;
+    return <p className="text-sm text-muted-foreground">Change request not found.</p>;
   }
 
   return (
     <div className="space-y-5">
       {/* Header */}
       <div className="space-y-2">
-        <p className="text-xs text-slate-500">{data.project_name}</p>
-        <h3 className="text-base font-semibold text-slate-800">{data.summary}</h3>
+        <p className="text-xs text-muted-foreground">{data.project_name}</p>
+        <h3 className="text-base font-semibold text-foreground">{data.summary}</h3>
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="outline" className="text-xs capitalize">
             {data.change_category}
@@ -93,7 +93,7 @@ export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
             {data.status.replace(/_/g, ' ')}
           </Badge>
           {data.is_system_suggested && (
-            <Badge className="bg-indigo-100 text-indigo-700 text-xs">
+            <Badge className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-xs">
               <Sparkles className="h-3 w-3 mr-1" />
               System Suggested
             </Badge>
@@ -112,8 +112,8 @@ export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
       {/* Justification */}
       {data.justification && (
         <div>
-          <p className="text-xs font-medium text-slate-500 mb-1">Justification</p>
-          <p className="text-sm text-slate-600">{data.justification}</p>
+          <p className="text-xs font-medium text-muted-foreground mb-1">Justification</p>
+          <p className="text-sm text-muted-foreground">{data.justification}</p>
         </div>
       )}
 
@@ -122,20 +122,20 @@ export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
       {/* CC Owner Confirmation */}
       {data.cc_owner && (
         <div>
-          <p className="text-xs font-medium text-slate-500 mb-2">CC Owner Confirmation</p>
+          <p className="text-xs font-medium text-muted-foreground mb-2">CC Owner Confirmation</p>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-500">Confirmed by</span>
-              <span className="text-slate-700">{data.cc_owner}</span>
+              <span className="text-muted-foreground">Confirmed by</span>
+              <span className="text-foreground">{data.cc_owner}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">Status</span>
-              <span className="text-slate-700 capitalize">{data.cc_status?.replace(/_/g, ' ') || '—'}</span>
+              <span className="text-muted-foreground">Status</span>
+              <span className="text-foreground capitalize">{data.cc_status?.replace(/_/g, ' ') || '—'}</span>
             </div>
             {data.cc_comments && (
               <div className="pt-1">
-                <p className="text-xs text-slate-500">Comments</p>
-                <p className="text-slate-600">{data.cc_comments}</p>
+                <p className="text-xs text-muted-foreground">Comments</p>
+                <p className="text-muted-foreground">{data.cc_comments}</p>
               </div>
             )}
           </div>
@@ -147,7 +147,7 @@ export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
       {/* Changes — tabular detail view grid */}
       {data.grid_data ? (
         <div className="space-y-2">
-          <p className="text-xs font-medium text-slate-500">Changes</p>
+          <p className="text-xs font-medium text-muted-foreground">Changes</p>
           <DetailViewGrid
             lineItems={data.grid_data.line_items}
             months={data.grid_data.months}
@@ -159,26 +159,26 @@ export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
         </div>
       ) : data.changes.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-slate-500 mb-2">Changes</p>
-          <div className="rounded-md border border-slate-200 overflow-auto">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Changes</p>
+          <div className="rounded-md border border-border overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="px-2 py-1.5 text-[11px] font-medium text-slate-500">Field</TableHead>
-                  <TableHead className="px-2 py-1.5 text-[11px] font-medium text-slate-500">Month</TableHead>
-                  <TableHead className="px-2 py-1.5 text-[11px] font-medium text-slate-500 text-right">Old</TableHead>
-                  <TableHead className="px-2 py-1.5 text-[11px] font-medium text-slate-500 text-right">New</TableHead>
-                  <TableHead className="px-2 py-1.5 text-[11px] font-medium text-slate-500 text-right">Delta</TableHead>
+                  <TableHead className="px-2 py-1.5 text-[11px] font-medium text-muted-foreground">Field</TableHead>
+                  <TableHead className="px-2 py-1.5 text-[11px] font-medium text-muted-foreground">Month</TableHead>
+                  <TableHead className="px-2 py-1.5 text-[11px] font-medium text-muted-foreground text-right">Old</TableHead>
+                  <TableHead className="px-2 py-1.5 text-[11px] font-medium text-muted-foreground text-right">New</TableHead>
+                  <TableHead className="px-2 py-1.5 text-[11px] font-medium text-muted-foreground text-right">Delta</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.changes.map((c, i) => (
                   <TableRow key={i}>
-                    <TableCell className="px-2 py-1.5 text-xs text-slate-700">{c.field_changed}</TableCell>
-                    <TableCell className="px-2 py-1.5 text-xs text-slate-500">{c.month || '—'}</TableCell>
-                    <TableCell className="px-2 py-1.5 text-xs text-slate-500 text-right">{c.old_value || '—'}</TableCell>
-                    <TableCell className="px-2 py-1.5 text-xs text-slate-700 text-right font-medium">{c.new_value || '—'}</TableCell>
-                    <TableCell className="px-2 py-1.5 text-xs text-right font-medium text-amber-600">{c.delta || '—'}</TableCell>
+                    <TableCell className="px-2 py-1.5 text-xs text-foreground">{c.field_changed}</TableCell>
+                    <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">{c.month || '—'}</TableCell>
+                    <TableCell className="px-2 py-1.5 text-xs text-muted-foreground text-right">{c.old_value || '—'}</TableCell>
+                    <TableCell className="px-2 py-1.5 text-xs text-foreground text-right font-medium">{c.new_value || '—'}</TableCell>
+                    <TableCell className="px-2 py-1.5 text-xs text-right font-medium text-amber-600 dark:text-amber-400">{c.delta || '—'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -189,14 +189,14 @@ export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
 
       {/* Action Result */}
       {actionResult && (
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
           {actionResult}
         </div>
       )}
 
       {/* Actions */}
       {!actionResult && (
-        <div className="space-y-3 pt-2 border-t border-slate-200">
+        <div className="space-y-3 pt-2 border-t border-border">
           {actionMode === 'idle' ? (
             <div className="flex gap-2">
               <Button size="sm" onClick={() => setActionMode('approve')}>
@@ -207,7 +207,7 @@ export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
                 size="sm"
                 variant="outline"
                 onClick={() => setActionMode('reject')}
-                className="text-red-600 hover:text-red-700"
+                className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
               >
                 <X className="h-3.5 w-3.5 mr-1" />
                 Reject
@@ -225,7 +225,7 @@ export function CRDetailPanel({ crId, onActionComplete, onOpenDetail }: Props) {
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-slate-600 capitalize">
+              <p className="text-xs font-medium text-muted-foreground capitalize">
                 {actionMode === 'approve' ? 'Comments (optional)' : 'Reason (required)'}
               </p>
               <Textarea

@@ -9,9 +9,9 @@ interface Props {
 
 function driftColor(pct: number): string {
   const abs = Math.abs(pct);
-  if (abs < 5) return 'text-green-600';
-  if (abs < 10) return 'text-amber-600';
-  return 'text-red-600';
+  if (abs < 5) return 'text-green-600 dark:text-green-400';
+  if (abs < 10) return 'text-amber-600 dark:text-amber-400';
+  return 'text-red-600 dark:text-red-400';
 }
 
 export function PortfolioKPIRow({ data }: Props) {
@@ -35,31 +35,31 @@ export function PortfolioKPIRow({ data }: Props) {
   return (
     <div className="space-y-3">
       {/* CY label */}
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">FY 2026</p>
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">FY 2026</p>
 
       {/* Main KPI tiles — CY scoped */}
       <div className="flex flex-wrap gap-3">
         <Card>
           <CardContent className="px-3 py-2.5">
-            <p className="text-[10px] text-slate-500 mb-1">Baseline</p>
-            <p className="text-base font-semibold text-slate-800">{formatCurrency(data.baseline)}</p>
+            <p className="text-[10px] text-muted-foreground mb-1">Baseline</p>
+            <p className="text-base font-semibold text-foreground">{formatCurrency(data.baseline)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="px-3 py-2.5">
-            <p className="text-[10px] text-slate-500 mb-1">Current Forecast</p>
-            <p className="text-base font-semibold text-slate-800">{formatCurrency(data.current_forecast)}</p>
+            <p className="text-[10px] text-muted-foreground mb-1">Current Forecast</p>
+            <p className="text-base font-semibold text-foreground">{formatCurrency(data.current_forecast)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="px-3 py-2.5">
-            <p className="text-[10px] text-slate-500 mb-1">YTD Actuals</p>
-            <p className="text-base font-semibold text-slate-800">{formatCurrency(data.ytd_actuals)}</p>
+            <p className="text-[10px] text-muted-foreground mb-1">YTD Actuals</p>
+            <p className="text-base font-semibold text-foreground">{formatCurrency(data.ytd_actuals)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="px-3 py-2.5">
-            <p className="text-[10px] text-slate-500 mb-1">Plan Drift</p>
+            <p className="text-[10px] text-muted-foreground mb-1">Plan Drift</p>
             <p className={`text-base font-semibold ${driftColor(data.plan_drift_pct)}`}>
               {formatCurrency(data.plan_drift_amount)}
             </p>
@@ -70,12 +70,12 @@ export function PortfolioKPIRow({ data }: Props) {
         </Card>
         <Card>
           <CardContent className="px-3 py-2.5">
-            <p className="text-[10px] text-slate-500 mb-1">Run / Change</p>
+            <p className="text-[10px] text-muted-foreground mb-1">Run / Change</p>
             <div className="space-y-0.5">
-              <p className="text-xs font-semibold text-slate-800">
+              <p className="text-xs font-semibold text-foreground">
                 Run: {formatCurrency(data.run_total)} ({data.run_pct}%)
               </p>
-              <p className="text-xs font-semibold text-slate-800">
+              <p className="text-xs font-semibold text-foreground">
                 Chg: {formatCurrency(data.change_total)} ({data.change_pct}%)
               </p>
             </div>
@@ -83,12 +83,12 @@ export function PortfolioKPIRow({ data }: Props) {
         </Card>
         <Card>
           <CardContent className="px-3 py-2.5">
-            <p className="text-[10px] text-slate-500 mb-1">CapEx / OpEx</p>
+            <p className="text-[10px] text-muted-foreground mb-1">CapEx / OpEx</p>
             <div className="space-y-0.5">
-              <p className="text-xs font-semibold text-slate-800">
+              <p className="text-xs font-semibold text-foreground">
                 CapEx: {formatCurrency(data.capex_total)} ({data.capex_pct}%)
               </p>
-              <p className="text-xs font-semibold text-slate-800">
+              <p className="text-xs font-semibold text-foreground">
                 OpEx: {formatCurrency(data.opex_total)} ({data.opex_pct}%)
               </p>
             </div>
@@ -98,12 +98,12 @@ export function PortfolioKPIRow({ data }: Props) {
 
       {/* Lifetime summary — compact, subordinate styling */}
       {data.lifetime_baseline != null && (
-        <div className="flex items-center gap-6 px-1 py-1.5 text-xs text-slate-400">
-          <span className="font-medium text-slate-500 uppercase tracking-wide text-[10px]">Lifetime</span>
-          <span>Baseline: <span className="font-medium text-slate-600">{formatCurrency(data.lifetime_baseline)}</span></span>
-          <span>Forecast: <span className="font-medium text-slate-600">{formatCurrency(data.lifetime_forecast ?? 0)}</span></span>
-          <span>Actuals: <span className="font-medium text-slate-600">{formatCurrency(data.lifetime_actuals ?? 0)}</span></span>
-          <span>Active Projects: <span className="font-medium text-slate-600">{data.active_project_count ?? 0}</span></span>
+        <div className="flex items-center gap-6 px-1 py-1.5 text-xs text-muted-foreground">
+          <span className="font-medium text-muted-foreground uppercase tracking-wide text-[10px]">Lifetime</span>
+          <span>Baseline: <span className="font-medium text-muted-foreground">{formatCurrency(data.lifetime_baseline)}</span></span>
+          <span>Forecast: <span className="font-medium text-muted-foreground">{formatCurrency(data.lifetime_forecast ?? 0)}</span></span>
+          <span>Actuals: <span className="font-medium text-muted-foreground">{formatCurrency(data.lifetime_actuals ?? 0)}</span></span>
+          <span>Active Projects: <span className="font-medium text-muted-foreground">{data.active_project_count ?? 0}</span></span>
         </div>
       )}
     </div>

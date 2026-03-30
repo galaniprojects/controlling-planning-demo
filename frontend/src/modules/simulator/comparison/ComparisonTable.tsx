@@ -13,7 +13,7 @@ import { formatCurrency, formatCurrencyDelta } from '@/lib/formatters';
 function RagDot({ rag }: { rag: string | null }) {
   if (!rag)
     return (
-      <span className="h-2 w-2 rounded-full bg-slate-200 inline-block" />
+      <span className="h-2 w-2 rounded-full bg-muted inline-block" />
     );
   const colors: Record<string, string> = {
     green: 'bg-green-500',
@@ -22,7 +22,7 @@ function RagDot({ rag }: { rag: string | null }) {
   };
   return (
     <span
-      className={`h-2 w-2 rounded-full inline-block ${colors[rag] ?? 'bg-slate-200'}`}
+      className={`h-2 w-2 rounded-full inline-block ${colors[rag] ?? 'bg-muted'}`}
     />
   );
 }
@@ -64,7 +64,7 @@ export function ComparisonTable({ columns }: ComparisonTableProps) {
               <TableHead key={i} className="text-right min-w-[140px]">
                 <div>
                   <p className="font-medium">{col.label}</p>
-                  <p className="text-xs text-slate-400 font-normal">
+                  <p className="text-xs text-muted-foreground font-normal">
                     {formatCurrency(columnTotals[i])}
                   </p>
                 </div>
@@ -75,7 +75,7 @@ export function ComparisonTable({ columns }: ComparisonTableProps) {
         <TableBody>
           {projectRows.map(([pid, name]) => (
             <TableRow key={pid}>
-              <TableCell className="text-sm font-medium text-slate-900">
+              <TableCell className="text-sm font-medium text-foreground">
                 {name}
               </TableCell>
               {columns.map((col, i) => {
@@ -83,7 +83,7 @@ export function ComparisonTable({ columns }: ComparisonTableProps) {
                 if (!d) {
                   return (
                     <TableCell key={i} className="text-right">
-                      <span className="text-slate-300">—</span>
+                      <span className="text-muted-foreground/40">—</span>
                     </TableCell>
                   );
                 }
@@ -91,13 +91,13 @@ export function ComparisonTable({ columns }: ComparisonTableProps) {
                   <TableCell key={i} className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <RagDot rag={d.rag} />
-                      <span className="text-sm text-slate-700">
+                      <span className="text-sm text-foreground">
                         {formatCurrency(d.budget)}
                       </span>
                     </div>
                     {d.delta !== undefined && d.delta !== 0 && (
                       <span
-                        className={`text-xs ${d.delta < 0 ? 'text-green-600' : 'text-red-600'}`}
+                        className={`text-xs ${d.delta < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
                       >
                         {formatCurrencyDelta(d.delta)}
                       </span>

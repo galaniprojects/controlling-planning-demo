@@ -55,7 +55,7 @@ export function PhaseStrip({ phases, months }: Props) {
                     <span className="truncate px-1">{phase.name}</span>
                     {hasSlip && baselineEndIdx !== undefined && (
                       <div
-                        className="absolute top-0 h-full w-0.5 bg-slate-400"
+                        className="absolute top-0 h-full w-0.5 bg-muted-foreground"
                         style={{
                           left: `${((baselineEndIdx - startIdx + 1) / (endIdx - startIdx + 1)) * 100}%`,
                         }}
@@ -67,10 +67,10 @@ export function PhaseStrip({ phases, months }: Props) {
                 <TooltipContent side="bottom" className="text-xs">
                   <div className="space-y-1">
                     <div className="font-medium">{phase.name}</div>
-                    <div className="text-slate-400">
+                    <div className="text-muted-foreground">
                       Baseline: {phase.baseline_start} to {phase.baseline_end}
                     </div>
-                    <div className="text-slate-400">
+                    <div className="text-muted-foreground">
                       Forecast: {phase.forecast_start} to {phase.forecast_end}
                     </div>
                     {hasSlip && (

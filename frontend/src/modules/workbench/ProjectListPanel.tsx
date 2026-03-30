@@ -30,14 +30,14 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  active: 'bg-slate-100 text-slate-600 hover:bg-slate-100',
-  completed: 'bg-slate-100 text-slate-600 hover:bg-slate-100',
-  planned: 'bg-slate-100 text-slate-600 hover:bg-slate-100',
-  draft: 'bg-amber-100 text-amber-700 hover:bg-amber-100',
-  pending_cc_confirmation: 'bg-amber-100 text-amber-700 hover:bg-amber-100',
-  pending_approval: 'bg-amber-100 text-amber-700 hover:bg-amber-100',
-  changes_requested: 'bg-amber-100 text-amber-700 hover:bg-amber-100',
-  rejected: 'bg-slate-100 text-slate-600 hover:bg-slate-100',
+  active: 'bg-muted text-muted-foreground hover:bg-muted',
+  completed: 'bg-muted text-muted-foreground hover:bg-muted',
+  planned: 'bg-muted text-muted-foreground hover:bg-muted',
+  draft: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40',
+  pending_cc_confirmation: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40',
+  pending_approval: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40',
+  changes_requested: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40',
+  rejected: 'bg-muted text-muted-foreground hover:bg-muted',
 };
 
 export function ProjectListPanel({
@@ -55,14 +55,14 @@ export function ProjectListPanel({
   return (
     <div
       className={cn(
-        'shrink-0 border border-slate-200 rounded-lg bg-white transition-all duration-200 overflow-hidden',
+        'shrink-0 border border-border rounded-lg bg-card transition-all duration-200 overflow-hidden',
         collapsed ? 'w-10' : 'w-[280px]',
       )}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         {!collapsed && (
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Projects
           </span>
         )}
@@ -71,7 +71,7 @@ export function ProjectListPanel({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-xs text-blue-700 hover:text-blue-800 hover:bg-blue-50"
+              className="h-7 px-2 text-xs text-primary hover:text-primary hover:bg-primary/5"
               onClick={() => setSubmitOpen(true)}
             >
               <Plus className="h-3.5 w-3.5 mr-0.5" />
@@ -85,9 +85,9 @@ export function ProjectListPanel({
             onClick={onToggleCollapse}
           >
             {collapsed ? (
-              <PanelLeftOpen className="h-4 w-4 text-slate-500" />
+              <PanelLeftOpen className="h-4 w-4 text-muted-foreground" />
             ) : (
-              <PanelLeftClose className="h-4 w-4 text-slate-500" />
+              <PanelLeftClose className="h-4 w-4 text-muted-foreground" />
             )}
           </Button>
         </div>
@@ -103,7 +103,7 @@ export function ProjectListPanel({
               ))}
             </div>
           ) : projects.length === 0 ? (
-            <p className="p-3 text-sm text-slate-400">No projects found.</p>
+            <p className="p-3 text-sm text-muted-foreground">No projects found.</p>
           ) : (
             projects.map((p) => (
               <button
@@ -112,8 +112,8 @@ export function ProjectListPanel({
                 className={cn(
                   'w-full text-left px-3 py-2.5 border-l-2 transition-colors',
                   selectedId === p.id
-                    ? 'bg-blue-50 border-blue-600'
-                    : 'border-transparent hover:bg-slate-50',
+                    ? 'bg-primary/5 border-primary'
+                    : 'border-transparent hover:bg-accent',
                 )}
               >
                 <div className="flex items-center gap-1.5">
@@ -128,7 +128,7 @@ export function ProjectListPanel({
                       )}
                     />
                   )}
-                  <span className="text-sm font-medium text-slate-700 truncate">
+                  <span className="text-sm font-medium text-foreground truncate">
                     {p.name}
                   </span>
                 </div>

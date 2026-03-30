@@ -39,8 +39,8 @@ export function CCFinancialCharts({ pie, costType, internalBreakdown, externalBr
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         {/* Budget distribution pie */}
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h3 className="text-xs font-medium text-slate-500 mb-2">Budget by Project</h3>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h3 className="text-xs font-medium text-muted-foreground mb-2">Budget by Project</h3>
           <div style={{ height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -61,7 +61,7 @@ export function CCFinancialCharts({ pie, costType, internalBreakdown, externalBr
                 </Pie>
                 <Tooltip
                   formatter={(value: number) => formatCurrency(value)}
-                  contentStyle={{ fontSize: 12 }}
+                  contentStyle={{ fontSize: 12, backgroundColor: 'var(--card)', border: '1px solid var(--border)', color: 'var(--card-foreground)' }}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -69,8 +69,8 @@ export function CCFinancialCharts({ pie, costType, internalBreakdown, externalBr
         </div>
 
         {/* Spend per cost type */}
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h3 className="text-xs font-medium text-slate-500 mb-2">Spend per Cost Type</h3>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h3 className="text-xs font-medium text-muted-foreground mb-2">Spend per Cost Type</h3>
           <div style={{ height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
@@ -78,21 +78,21 @@ export function CCFinancialCharts({ pie, costType, internalBreakdown, externalBr
                 layout="vertical"
                 margin={{ left: 10, right: 20, top: 10, bottom: 10 }}
               >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--chart-grid)" />
                 <XAxis
                   type="number"
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: 'var(--chart-axis)' }}
                   tickFormatter={(v: number) => formatCurrency(v)}
                 />
                 <YAxis
                   type="category"
                   dataKey="name"
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 12, fill: 'var(--chart-axis)' }}
                   width={70}
                 />
                 <Tooltip
                   formatter={(value: number) => formatCurrency(value)}
-                  contentStyle={{ fontSize: 12 }}
+                  contentStyle={{ fontSize: 12, backgroundColor: 'var(--card)', border: '1px solid var(--border)', color: 'var(--card-foreground)' }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar
@@ -116,32 +116,32 @@ export function CCFinancialCharts({ pie, costType, internalBreakdown, externalBr
       {/* Detailed breakdown row */}
       <div className="grid grid-cols-2 gap-4">
         {/* Internal spend by role */}
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h3 className="text-xs font-medium text-slate-500 mb-2">Internal Spend by Role</h3>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h3 className="text-xs font-medium text-muted-foreground mb-2">Internal Spend by Role</h3>
           <div style={{ height: 280 }}>
             {internalBreakdown.length === 0 ? (
-              <p className="text-xs text-slate-400 pt-8 text-center">No internal spend data</p>
+              <p className="text-xs text-muted-foreground pt-8 text-center">No internal spend data</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={internalBreakdown}
                   margin={{ left: 10, right: 20, top: 10, bottom: 40 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
                   <XAxis
                     dataKey="name"
-                    tick={{ fontSize: 10 }}
+                    tick={{ fontSize: 10, fill: 'var(--chart-axis)' }}
                     angle={-30}
                     textAnchor="end"
                     height={50}
                   />
                   <YAxis
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 11, fill: 'var(--chart-axis)' }}
                     tickFormatter={(v: number) => formatCurrency(v)}
                   />
                   <Tooltip
                     formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{ fontSize: 12 }}
+                    contentStyle={{ fontSize: 12, backgroundColor: 'var(--card)', border: '1px solid var(--border)', color: 'var(--card-foreground)' }}
                   />
                   <Bar dataKey="value" name="Spend" radius={[4, 4, 0, 0]}>
                     {internalBreakdown.map((_entry, i) => (
@@ -155,32 +155,32 @@ export function CCFinancialCharts({ pie, costType, internalBreakdown, externalBr
         </div>
 
         {/* External spend by cost type */}
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h3 className="text-xs font-medium text-slate-500 mb-2">External Spend by Cost Type</h3>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h3 className="text-xs font-medium text-muted-foreground mb-2">External Spend by Cost Type</h3>
           <div style={{ height: 280 }}>
             {externalBreakdown.length === 0 ? (
-              <p className="text-xs text-slate-400 pt-8 text-center">No external spend data</p>
+              <p className="text-xs text-muted-foreground pt-8 text-center">No external spend data</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={externalBreakdown}
                   margin={{ left: 10, right: 20, top: 10, bottom: 40 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
                   <XAxis
                     dataKey="name"
-                    tick={{ fontSize: 10 }}
+                    tick={{ fontSize: 10, fill: 'var(--chart-axis)' }}
                     angle={-30}
                     textAnchor="end"
                     height={50}
                   />
                   <YAxis
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 11, fill: 'var(--chart-axis)' }}
                     tickFormatter={(v: number) => formatCurrency(v)}
                   />
                   <Tooltip
                     formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{ fontSize: 12 }}
+                    contentStyle={{ fontSize: 12, backgroundColor: 'var(--card)', border: '1px solid var(--border)', color: 'var(--card-foreground)' }}
                   />
                   <Bar dataKey="value" name="Spend" radius={[4, 4, 0, 0]}>
                     {externalBreakdown.map((_entry, i) => (

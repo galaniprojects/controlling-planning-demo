@@ -77,10 +77,10 @@ export function ForecastTab({ projectId, role }: Props) {
       {role === 'project_lead' && projectStatus === 'active' && (
         <div className="flex items-center justify-end gap-3">
           {pendingCR && (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="h-4 w-4" />
               <span>CR-{pendingCR.cr_id} under review</span>
-              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-700">
                 {STATUS_LABELS[pendingCR.status] || pendingCR.status}
               </Badge>
             </div>

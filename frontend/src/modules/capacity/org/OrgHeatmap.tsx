@@ -62,7 +62,7 @@ export function OrgHeatmap({ pivot, onRowClick, onCellClick }: OrgHeatmapProps) 
   }
 
   if (data.length === 0) {
-    return <p className="text-sm text-slate-400">No organization data available.</p>;
+    return <p className="text-sm text-muted-foreground">No organization data available.</p>;
   }
 
   const gridCols = `max-content repeat(${visibleColumns.length}, minmax(56px, 1fr))`;
@@ -77,10 +77,10 @@ export function OrgHeatmap({ pivot, onRowClick, onCellClick }: OrgHeatmapProps) 
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-md border border-border bg-card">
       <div className="grid" style={{ gridTemplateColumns: gridCols }}>
         {/* Header */}
-        <div className="sticky top-0 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 border-b border-slate-200">
+        <div className="sticky top-0 bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground border-b border-border">
           &nbsp;
         </div>
         {visibleColumns.map((col) =>
@@ -88,9 +88,9 @@ export function OrgHeatmap({ pivot, onRowClick, onCellClick }: OrgHeatmapProps) 
             <div
               key={col.key}
               className={cn(
-                'sticky top-0 bg-slate-50 px-1 py-2 text-xs font-medium text-slate-500 text-center border-b border-slate-200',
-                isElapsedMonth(col.key) && 'bg-slate-100',
-                col.isJanuary && 'border-l border-slate-300',
+                'sticky top-0 bg-muted/50 px-1 py-2 text-xs font-medium text-muted-foreground text-center border-b border-border',
+                isElapsedMonth(col.key) && 'bg-muted',
+                col.isJanuary && 'border-l border-border',
               )}
             >
               {formatMonthShort(col.key)}
@@ -100,7 +100,7 @@ export function OrgHeatmap({ pivot, onRowClick, onCellClick }: OrgHeatmapProps) 
               key={`yr-${col.year}`}
               type="button"
               onClick={() => toggleYear(col.year)}
-              className="sticky top-0 bg-slate-100 px-1 py-2 text-xs font-semibold text-slate-600 text-center border-b border-l border-slate-200 hover:bg-slate-200 transition-colors cursor-pointer flex items-center justify-center gap-0.5"
+              className="sticky top-0 bg-muted px-1 py-2 text-xs font-semibold text-muted-foreground text-center border-b border-l border-border hover:bg-accent transition-colors cursor-pointer flex items-center justify-center gap-0.5"
             >
               <ChevronRight className="h-3 w-3" />
               {col.year}
@@ -111,7 +111,7 @@ export function OrgHeatmap({ pivot, onRowClick, onCellClick }: OrgHeatmapProps) 
         {/* Year group headers for expanded years */}
         {yearGroups.some((g) => g.isExpanded && g.months.length > 1) && (
           <>
-            <div className="bg-white" />
+            <div className="bg-card" />
             {(() => {
               const cells: React.ReactNode[] = [];
               for (const col of visibleColumns) {
@@ -127,7 +127,7 @@ export function OrgHeatmap({ pivot, onRowClick, onCellClick }: OrgHeatmapProps) 
                       type="button"
                       onClick={() => toggleYear(col.year)}
                       style={{ gridColumn: `span ${group.months.length}` }}
-                      className="bg-slate-50 px-1 py-1 text-[10px] font-semibold text-slate-500 text-center hover:bg-slate-100 transition-colors cursor-pointer flex items-center justify-center gap-0.5 border-b border-slate-100"
+                      className="bg-muted/50 px-1 py-1 text-[10px] font-semibold text-muted-foreground text-center hover:bg-muted transition-colors cursor-pointer flex items-center justify-center gap-0.5 border-b border-border/50"
                     >
                       <ChevronDown className="h-2.5 w-2.5" />
                       FY {col.year}
@@ -144,7 +144,7 @@ export function OrgHeatmap({ pivot, onRowClick, onCellClick }: OrgHeatmapProps) 
         {data.map((row) => (
           <div key={row.id} className="contents group" role="row">
             <div
-              className="flex items-center gap-1 border-b border-slate-100 px-3 py-2 text-sm font-medium text-slate-700 cursor-pointer hover:bg-slate-50 whitespace-nowrap"
+              className="flex items-center gap-1 border-b border-border/50 px-3 py-2 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50 whitespace-nowrap"
               onClick={() => onRowClick({ id: row.id, label: row.name })}
             >
               {row.name}
@@ -155,9 +155,9 @@ export function OrgHeatmap({ pivot, onRowClick, onCellClick }: OrgHeatmapProps) 
                 <div
                   key={`${row.id}-${col.type === 'month' ? col.key : `yr-${col.year}`}`}
                   className={cn(
-                    'border-b border-slate-100 px-0.5 py-1.5',
-                    col.type === 'yearSummary' && 'border-l border-slate-200 bg-slate-50/50',
-                    col.type === 'month' && col.isJanuary && 'border-l border-slate-200',
+                    'border-b border-border/50 px-0.5 py-1.5',
+                    col.type === 'yearSummary' && 'border-l border-border bg-muted/30',
+                    col.type === 'month' && col.isJanuary && 'border-l border-border',
                   )}
                 >
                   <UtilizationCellView

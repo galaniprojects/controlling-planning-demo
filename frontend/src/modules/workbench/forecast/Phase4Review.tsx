@@ -52,10 +52,10 @@ export function Phase4Review({
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-base font-semibold text-slate-800">
+        <h3 className="text-base font-semibold text-foreground">
           Phase 4: Review & Submit
         </h3>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Review your changes below. Provide justification for each affected
           cost centre before submitting.
         </p>
@@ -63,25 +63,25 @@ export function Phase4Review({
 
       {/* Impact summary */}
       <div className="flex items-center gap-4">
-        <Card className="border-blue-200 bg-blue-50 flex-1">
+        <Card className="border-primary/30 bg-primary/5 flex-1">
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-blue-800">
+              <span className="text-sm font-medium text-primary">
                 Total Impact
               </span>
-              <span className="text-lg font-semibold text-blue-900">
+              <span className="text-lg font-semibold text-primary">
                 {formatCurrencyDetailedDelta(totalImpact)}
               </span>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-slate-200 flex-1">
+        <Card className="border-border flex-1">
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-600">
+              <span className="text-sm font-medium text-muted-foreground">
                 Changes
               </span>
-              <span className="text-lg font-semibold text-slate-800">
+              <span className="text-lg font-semibold text-foreground">
                 {totalChangeCount}
               </span>
             </div>
@@ -93,14 +93,14 @@ export function Phase4Review({
       {reviewGridData && reviewGridData.line_items.length > 0 && (
         <Card>
           <CardContent className="p-4">
-            <h4 className="text-sm font-medium text-slate-700 mb-3">
+            <h4 className="text-sm font-medium text-foreground mb-3">
               All Affected Line Items
             </h4>
-            <div className="border border-slate-200 rounded overflow-x-auto">
+            <div className="border border-border rounded overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50">
-                    <TableHead className="sticky left-0 bg-slate-50 z-10 min-w-[160px]">
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="sticky left-0 bg-muted/50 z-10 min-w-[160px]">
                       Line Item
                     </TableHead>
                     {reviewGridData.months.map((m) => (
@@ -113,9 +113,9 @@ export function Phase4Review({
                 <TableBody>
                   {reviewGridData.line_items.map((li) => (
                     <TableRow key={li.id}>
-                      <TableCell className="sticky left-0 bg-white z-10 border-r border-slate-100">
+                      <TableCell className="sticky left-0 bg-card z-10 border-r border-border/50">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-medium text-slate-700">
+                          <span className="text-sm font-medium text-foreground">
                             {li.label}
                           </span>
                           {li.is_system_suggested && (
@@ -126,8 +126,8 @@ export function Phase4Review({
                               variant="outline"
                               className={`text-[8px] px-1 py-0 h-3.5 ${
                                 li.capex_opex === 'capex'
-                                  ? 'text-blue-600 border-blue-200'
-                                  : 'text-amber-600 border-amber-200'
+                                  ? 'text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800'
+                                  : 'text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
                               }`}
                             >
                               {li.capex_opex === 'capex' ? 'CapEx' : 'OpEx'}
@@ -141,28 +141,28 @@ export function Phase4Review({
                             <div className="space-y-0.5">
                               {/* Hours row — only for internal items */}
                               {mv.before !== null && mv.after !== null && (
-                                <div className="text-[10px] text-slate-500">
+                                <div className="text-[10px] text-muted-foreground">
                                   <span className="line-through">{mv.before}h</span>
                                   {' \u2192 '}
                                   <span className="font-medium">{mv.after}h</span>
                                   {mv.delta !== null && mv.delta !== 0 && (
-                                    <span className={mv.delta > 0 ? ' text-red-500' : ' text-green-600'}>
+                                    <span className={mv.delta > 0 ? ' text-red-500 dark:text-red-400' : ' text-green-600'}>
                                       {' '}{mv.delta > 0 ? '+' : ''}{mv.delta}h
                                     </span>
                                   )}
                                 </div>
                               )}
                               {/* EUR row — always shown */}
-                              <div className="text-[10px] text-slate-400 line-through">
+                              <div className="text-[10px] text-muted-foreground line-through">
                                 {formatCurrencyDetailed(mv.before_eur)}
                               </div>
-                              <div className="text-xs font-medium text-slate-700">
+                              <div className="text-xs font-medium text-foreground">
                                 {formatCurrencyDetailed(mv.after_eur)}
                               </div>
                               {mv.delta_eur !== null && mv.delta_eur !== 0 && (
                                 <div
                                   className={`text-[10px] ${
-                                    mv.delta_eur > 0 ? 'text-red-500' : 'text-green-600'
+                                    mv.delta_eur > 0 ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400'
                                   }`}
                                 >
                                   {formatCurrencyDetailedDelta(mv.delta_eur)}
@@ -170,7 +170,7 @@ export function Phase4Review({
                               )}
                             </div>
                           ) : (
-                            <span className="text-slate-300">—</span>
+                            <span className="text-muted-foreground/40">—</span>
                           )}
                         </TableCell>
                       ))}
@@ -186,21 +186,21 @@ export function Phase4Review({
       {/* Per-cost-centre justification */}
       {groups ? (
         <div className="space-y-3">
-          <h4 className="text-sm font-medium text-slate-700">
+          <h4 className="text-sm font-medium text-foreground">
             Justification by Cost Centre
           </h4>
           {groups.map((group) => (
-            <Card key={group.id} className="border-slate-200">
+            <Card key={group.id} className="border-border">
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center gap-2">
-                  <h5 className="font-medium text-slate-800">
+                  <h5 className="font-medium text-foreground">
                     {group.name}
                   </h5>
                   <Badge variant="outline" className="text-[10px]">
                     {group.items.length} change{group.items.length !== 1 ? 's' : ''}
                   </Badge>
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-muted-foreground">
                   Affected: {group.line_items.map((li) => li.label).join(', ')}
                 </div>
                 <Textarea
@@ -220,7 +220,7 @@ export function Phase4Review({
             <Card key={group.type}>
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center gap-2">
-                  <h5 className="font-medium text-slate-800">
+                  <h5 className="font-medium text-foreground">
                     {group.type === 'resource'
                       ? 'Resource Changes'
                       : group.type === 'external_cost'

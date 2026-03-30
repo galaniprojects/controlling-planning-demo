@@ -12,7 +12,7 @@ export function DocumentationHub() {
   return (
     <div className="px-6 py-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">Documentation</h1>
+        <h1 className="text-xl font-semibold text-foreground">Documentation</h1>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

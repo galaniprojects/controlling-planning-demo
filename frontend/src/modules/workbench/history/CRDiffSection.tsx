@@ -117,7 +117,7 @@ export function CRDiffSection({ projectId, crId, onActionComplete }: Props) {
 
   if (!data || !data.grid_data) {
     return (
-      <p className="text-sm text-slate-400">No comparison data available.</p>
+      <p className="text-sm text-muted-foreground">No comparison data available.</p>
     );
   }
 
@@ -128,15 +128,15 @@ export function CRDiffSection({ projectId, crId, onActionComplete }: Props) {
     <div className="space-y-4">
       {/* Controller feedback */}
       {data.controller_feedback && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 space-y-1">
-          <p className="text-sm font-semibold text-amber-800">Controller Feedback</p>
-          <p className="text-sm text-amber-700">{data.controller_feedback}</p>
+        <div className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 p-4 space-y-1">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">Controller Feedback</p>
+          <p className="text-sm text-amber-700 dark:text-amber-400">{data.controller_feedback}</p>
         </div>
       )}
 
       {/* Result message */}
       {result && (
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-primary">
           {result}
         </div>
       )}
@@ -145,11 +145,11 @@ export function CRDiffSection({ projectId, crId, onActionComplete }: Props) {
       {kpis && kpis.length > 0 && (
         <div className="flex gap-4">
           {kpis.map((kpi) => (
-            <div key={kpi.label} className="rounded-md border border-slate-200 bg-white px-4 py-3 min-w-[140px]">
-              <p className="text-xs text-slate-500">{kpi.label}</p>
+            <div key={kpi.label} className="rounded-md border border-border bg-card px-4 py-3 min-w-[140px]">
+              <p className="text-xs text-muted-foreground">{kpi.label}</p>
               <p
                 className="text-lg font-semibold"
-                style={{ color: kpi.color || '#334155' }}
+                style={{ color: kpi.color || 'var(--foreground)' }}
               >
                 {kpi.format === 'currency_delta' && kpi.value > 0 && '+'}
                 {formatCurrencyValue(kpi.value)}
@@ -160,34 +160,34 @@ export function CRDiffSection({ projectId, crId, onActionComplete }: Props) {
       )}
 
       {/* Comparison grid */}
-      <div className="border border-slate-200 rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="sticky left-0 z-10 bg-slate-50 px-3 py-1.5 text-left text-xs font-medium text-slate-500 w-[180px] min-w-[180px]">
+              <tr className="bg-muted/50 border-b border-border">
+                <th className="sticky left-0 z-10 bg-muted/50 px-3 py-1.5 text-left text-xs font-medium text-muted-foreground w-[180px] min-w-[180px]">
                   Line Item
                 </th>
                 {yearGroups.map((yg) => (
                   <th
                     key={yg.year}
                     colSpan={yg.isExpanded ? yg.months.length : 1}
-                    className="px-2 py-1.5 text-center text-xs font-medium text-slate-500 cursor-pointer hover:bg-slate-100"
+                    className="px-2 py-1.5 text-center text-xs font-medium text-muted-foreground cursor-pointer hover:bg-accent"
                     onClick={() => toggleYear(yg.year)}
                   >
                     {yg.year} {yg.isExpanded ? '\u25B4' : '\u25BE'}
                   </th>
                 ))}
               </tr>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="sticky left-0 z-10 bg-slate-50 px-3 py-1 text-left text-xs text-slate-400" />
+              <tr className="bg-muted/50 border-b border-border">
+                <th className="sticky left-0 z-10 bg-muted/50 px-3 py-1 text-left text-xs text-muted-foreground" />
                 {visibleColumns.map((col) =>
                   col.type === 'month' ? (
-                    <th key={col.key} className="px-2 py-1 text-center text-xs text-slate-400 min-w-[80px]">
+                    <th key={col.key} className="px-2 py-1 text-center text-xs text-muted-foreground min-w-[80px]">
                       {monthLabel(col.key)}
                     </th>
                   ) : (
-                    <th key={`ys-${col.year}`} className="px-2 py-1 text-center text-xs text-slate-400 min-w-[80px]">
+                    <th key={`ys-${col.year}`} className="px-2 py-1 text-center text-xs text-muted-foreground min-w-[80px]">
                       Sum
                     </th>
                   )
@@ -208,7 +208,7 @@ export function CRDiffSection({ projectId, crId, onActionComplete }: Props) {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-slate-500">
+      <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <span className="inline-block w-3 h-3 rounded bg-green-100 border border-green-300" />
           Reduction
@@ -251,8 +251,8 @@ function DiffRow({ item, visibleColumns }: DiffRowProps) {
   const isInternal = item.category === 'internal';
 
   return (
-    <tr className="border-b border-slate-100">
-      <td className="sticky left-0 z-10 bg-white px-3 py-2 text-sm text-slate-700 whitespace-nowrap">
+    <tr className="border-b border-border">
+      <td className="sticky left-0 z-10 bg-card px-3 py-2 text-sm text-foreground whitespace-nowrap">
         {item.name}
       </td>
       {visibleColumns.map((col) => {
@@ -265,11 +265,11 @@ function DiffRow({ item, visibleColumns }: DiffRowProps) {
             <td key={`ys-${col.year}`} className="px-2 py-2 text-center">
               {hasChange ? (
                 <div className="text-xs">
-                  <div className="text-slate-400 line-through">{formatNumber(currentSum)}</div>
-                  <div className="font-medium text-slate-700">{formatNumber(proposedSum)}</div>
+                  <div className="text-muted-foreground line-through">{formatNumber(currentSum)}</div>
+                  <div className="font-medium text-foreground">{formatNumber(proposedSum)}</div>
                 </div>
               ) : (
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted-foreground">
                   {currentSum > 0 ? formatNumber(currentSum) : '\u2014'}
                 </span>
               )}
@@ -279,7 +279,7 @@ function DiffRow({ item, visibleColumns }: DiffRowProps) {
 
         const cell = item.months.find((m) => m.month === col.key);
         if (!cell) {
-          return <td key={col.key} className="px-2 py-2 text-center text-xs text-slate-300">{'\u2014'}</td>;
+          return <td key={col.key} className="px-2 py-2 text-center text-xs text-muted-foreground/40">{'\u2014'}</td>;
         }
 
         const currentVal = isInternal ? cell.current : cell.current_eur;
@@ -287,23 +287,23 @@ function DiffRow({ item, visibleColumns }: DiffRowProps) {
 
         if (!cell.is_changed) {
           return (
-            <td key={col.key} className="px-2 py-2 text-center text-xs text-slate-500">
+            <td key={col.key} className="px-2 py-2 text-center text-xs text-muted-foreground">
               {currentVal > 0 ? formatNumber(currentVal) : '\u2014'}
             </td>
           );
         }
 
         const diff = proposedVal - currentVal;
-        let bgClass = 'bg-blue-50';
-        if (diff < 0) bgClass = 'bg-green-50';
-        else if (diff > 0) bgClass = 'bg-red-50';
+        let bgClass = 'bg-blue-50 dark:bg-blue-900/20';
+        if (diff < 0) bgClass = 'bg-green-50 dark:bg-green-900/20';
+        else if (diff > 0) bgClass = 'bg-red-50 dark:bg-red-900/20';
 
         return (
           <td key={col.key} className={`px-2 py-1 text-center ${bgClass}`}>
-            <div className="text-[10px] text-slate-400 line-through">
+            <div className="text-[10px] text-muted-foreground line-through">
               {currentVal > 0 ? formatNumber(currentVal) : '\u2014'}
             </div>
-            <div className="text-xs font-medium text-slate-700">
+            <div className="text-xs font-medium text-foreground">
               {proposedVal > 0 ? formatNumber(proposedVal) : '0'}
             </div>
           </td>

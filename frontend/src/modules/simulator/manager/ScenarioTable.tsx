@@ -67,8 +67,8 @@ export function ScenarioTable({
   if (scenarios.length === 0) {
     return (
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-        <p className="text-xs text-slate-400 italic py-4 text-center">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <p className="text-xs text-muted-foreground italic py-4 text-center">
           No scenarios yet.
         </p>
       </div>
@@ -77,7 +77,7 @@ export function ScenarioTable({
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
       <Table>
         <TableHeader>
           <TableRow>
@@ -95,16 +95,16 @@ export function ScenarioTable({
             return (
               <TableRow
                 key={s.id}
-                className="cursor-pointer hover:bg-slate-50"
+                className="cursor-pointer hover:bg-accent"
                 onClick={() => onOpen(s.id)}
               >
                 <TableCell>
                   <div>
-                    <p className="text-sm font-medium text-slate-900">
+                    <p className="text-sm font-medium text-foreground">
                       {s.name}
                     </p>
                     {s.description && (
-                      <p className="text-xs text-slate-500 truncate max-w-[260px]">
+                      <p className="text-xs text-muted-foreground truncate max-w-[260px]">
                         {s.description}
                       </p>
                     )}
@@ -114,20 +114,20 @@ export function ScenarioTable({
                   <Badge
                     className={
                       s.status === 'published'
-                        ? 'bg-green-100 text-green-700 hover:bg-green-100'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-100'
+                        ? 'bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-muted text-muted-foreground hover:bg-muted'
                     }
                   >
                     {s.status === 'published' ? 'Published' : 'Private'}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-xs text-slate-600">
+                <TableCell className="text-xs text-muted-foreground">
                   {s.author_name}
                 </TableCell>
-                <TableCell className="text-xs text-slate-500">
+                <TableCell className="text-xs text-muted-foreground">
                   {formatDate(s.modified_at)}
                 </TableCell>
-                <TableCell className="text-xs text-slate-600 max-w-[200px] truncate">
+                <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
                   {formatHeadlineImpact(s.headline_impact)}
                 </TableCell>
                 <TableCell>
@@ -166,7 +166,7 @@ export function ScenarioTable({
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem
-                            className="text-red-600"
+                            className="text-red-600 dark:text-red-400"
                             onClick={() => onDelete(s.id)}
                           >
                             Delete

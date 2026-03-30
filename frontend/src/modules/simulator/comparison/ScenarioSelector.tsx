@@ -56,10 +56,10 @@ export function ScenarioSelector({
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-slate-900 mb-1">
+        <h2 className="text-lg font-semibold text-foreground mb-1">
           Compare Scenarios
         </h2>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted-foreground">
           Select up to 3 scenarios to compare side-by-side with the current
           state.
         </p>
@@ -75,10 +75,10 @@ export function ScenarioSelector({
               key={s.id}
               className={`flex items-center gap-3 px-3 py-2.5 rounded cursor-pointer transition-colors ${
                 checked
-                  ? 'bg-blue-50'
+                  ? 'bg-primary/5'
                   : disabled
                     ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:bg-slate-50'
+                    : 'hover:bg-accent'
               }`}
             >
               <Checkbox
@@ -91,8 +91,8 @@ export function ScenarioSelector({
                 }}
               />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900">{s.name}</p>
-                <p className="text-xs text-slate-500 truncate">
+                <p className="text-sm font-medium text-foreground">{s.name}</p>
+                <p className="text-xs text-muted-foreground truncate">
                   {s.author_name}
                   {s.description ? ` — ${s.description}` : ''}
                 </p>
@@ -100,14 +100,14 @@ export function ScenarioSelector({
               <Badge
                 className={`text-[10px] ${
                   s.status === 'published'
-                    ? 'bg-green-100 text-green-700 hover:bg-green-100'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-100'
+                    ? 'bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-muted text-muted-foreground hover:bg-muted'
                 }`}
               >
                 {s.status}
               </Badge>
               {s.headline_impact && (
-                <span className="text-xs text-slate-400 max-w-[160px] truncate">
+                <span className="text-xs text-muted-foreground max-w-[160px] truncate">
                   {formatHeadlineImpact(s.headline_impact)}
                 </span>
               )}

@@ -57,7 +57,7 @@ export function RequestManagement({ ccId }: RequestManagementProps) {
 
   if (!ccId) {
     return (
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-muted-foreground">
         No cost center available for request management.
       </p>
     );
@@ -68,7 +68,7 @@ export function RequestManagement({ ccId }: RequestManagementProps) {
       <button
         type="button"
         onClick={() => navigate('/capacity')}
-        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-blue-700"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to Capacity Management
@@ -76,7 +76,7 @@ export function RequestManagement({ ccId }: RequestManagementProps) {
 
       <ProjectConfirmationBanner onConfirmComplete={fetchRequests} />
 
-      <div className="flex rounded-md border border-slate-200 bg-white" style={{ height: 'calc(100vh - 240px)' }}>
+      <div className="flex rounded-md border border-border bg-card" style={{ height: 'calc(100vh - 240px)' }}>
         {loading ? (
           <div className="p-4 space-y-3 w-full">
             <Skeleton className="h-8 w-48" />
@@ -118,7 +118,7 @@ export function RequestManagement({ ccId }: RequestManagementProps) {
                   />
                 </>
               ) : (
-                <p className="text-sm text-slate-400">
+                <p className="text-sm text-muted-foreground">
                   Select a request from the list to view details.
                 </p>
               )}

@@ -71,53 +71,53 @@ export function CRDetailWorkspace({ crId, onBack, onActionComplete }: Props) {
   }
 
   if (!data) {
-    return <p className="text-sm text-slate-400">Change request not found.</p>;
+    return <p className="text-sm text-muted-foreground">Change request not found.</p>;
   }
 
   return (
     <div className="space-y-6">
       {/* Breadcrumb + Back */}
-      <div className="flex items-center gap-2 text-sm text-slate-500">
-        <Button variant="ghost" size="sm" onClick={onBack} className="text-slate-600 -ml-2">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Button variant="ghost" size="sm" onClick={onBack} className="text-muted-foreground -ml-2">
           <ArrowLeft className="h-4 w-4 mr-1" />
           Approvals
         </Button>
         <span>/</span>
-        <span className="text-slate-700 font-medium truncate">{data.summary}</span>
+        <span className="text-foreground font-medium truncate">{data.summary}</span>
       </div>
 
       {/* Header */}
       <div className="space-y-3">
-        <h2 className="text-xl font-semibold text-slate-800">{data.summary}</h2>
+        <h2 className="text-xl font-semibold text-foreground">{data.summary}</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <StatusBadge status={data.status} />
           <Badge variant="outline" className="text-xs capitalize">
             {data.change_category.replace(/_/g, ' ')}
           </Badge>
           {data.is_system_suggested && (
-            <Badge className="bg-indigo-100 text-indigo-700 text-xs">
+            <Badge className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-xs">
               <Sparkles className="h-3 w-3 mr-1" />
               System Suggested
             </Badge>
           )}
         </div>
         <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm max-w-lg">
-          <div className="text-slate-500">Project</div>
-          <div className="text-slate-700 font-medium">{data.project_name}</div>
-          <div className="text-slate-500">Submitted by</div>
-          <div className="text-slate-700">
+          <div className="text-muted-foreground">Project</div>
+          <div className="text-foreground font-medium">{data.project_name}</div>
+          <div className="text-muted-foreground">Submitted by</div>
+          <div className="text-foreground">
             {data.submitted_by}
-            <span className="text-slate-400 ml-2">
+            <span className="text-muted-foreground ml-2">
               {new Date(data.submission_date).toLocaleDateString()}
             </span>
           </div>
           {data.cc_owner && (
             <>
-              <div className="text-slate-500">Confirmed by (CC Owner)</div>
-              <div className="text-slate-700">
+              <div className="text-muted-foreground">Confirmed by (CC Owner)</div>
+              <div className="text-foreground">
                 {data.cc_owner}
                 {data.cc_status && (
-                  <span className="text-slate-400 ml-2 capitalize">
+                  <span className="text-muted-foreground ml-2 capitalize">
                     ({data.cc_status})
                   </span>
                 )}
@@ -147,14 +147,14 @@ export function CRDetailWorkspace({ crId, onBack, onActionComplete }: Props) {
                 <CardTitle className="text-sm font-medium">Change Details</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted-foreground">
                   This change request does not contain monthly value changes for grid display.
                 </p>
                 <ul className="mt-2 space-y-1">
                   {data.changes.map((c, i) => (
-                    <li key={i} className="text-sm text-slate-600">
+                    <li key={i} className="text-sm text-muted-foreground">
                       {c.field_changed}: {c.old_value ?? '\u2014'} → {c.new_value ?? '\u2014'}
-                      {c.month && <span className="text-slate-400 ml-1">({c.month})</span>}
+                      {c.month && <span className="text-muted-foreground ml-1">({c.month})</span>}
                     </li>
                   ))}
                 </ul>
@@ -171,7 +171,7 @@ export function CRDetailWorkspace({ crId, onBack, onActionComplete }: Props) {
             <CardTitle className="text-sm font-medium">Justification</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-slate-600">{data.justification}</p>
+            <p className="text-sm text-muted-foreground">{data.justification}</p>
           </CardContent>
         </Card>
       )}
@@ -183,14 +183,14 @@ export function CRDetailWorkspace({ crId, onBack, onActionComplete }: Props) {
             <CardTitle className="text-sm font-medium">CC Owner Comments</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-slate-600">{data.cc_comments}</p>
+            <p className="text-sm text-muted-foreground">{data.cc_comments}</p>
           </CardContent>
         </Card>
       )}
 
       {/* Action Result */}
       {actionResult && (
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
           {actionResult}
         </div>
       )}
@@ -223,7 +223,7 @@ export function CRDetailWorkspace({ crId, onBack, onActionComplete }: Props) {
                   size="sm"
                   variant="outline"
                   onClick={() => setActionMode('reject')}
-                  className="text-red-600 hover:text-red-700"
+                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                 >
                   <X className="h-3.5 w-3.5 mr-1" />
                   Reject
@@ -235,7 +235,7 @@ export function CRDetailWorkspace({ crId, onBack, onActionComplete }: Props) {
               </div>
             ) : (
               <div className="space-y-3">
-                <p className="text-xs font-medium text-slate-600">
+                <p className="text-xs font-medium text-muted-foreground">
                   {actionMode === 'approve' ? 'Comments (optional)' : 'Reason (required)'}
                 </p>
                 <Textarea

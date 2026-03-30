@@ -155,11 +155,11 @@ export function LoBsPanel({ onDataChanged }: LoBsPanelProps) {
   const statusBadge = (status: string) => {
     const colors: Record<string, string> = {
       active: 'bg-green-100 text-green-700',
-      planned: 'bg-blue-100 text-blue-700',
-      completed: 'bg-slate-100 text-slate-500',
+      planned: 'bg-primary/10 text-primary',
+      completed: 'bg-muted text-muted-foreground',
       pending_approval: 'bg-amber-100 text-amber-700',
     };
-    return colors[status] || 'bg-slate-100 text-slate-500';
+    return colors[status] || 'bg-muted text-muted-foreground';
   };
 
   if (loading) {
@@ -175,41 +175,41 @@ export function LoBsPanel({ onDataChanged }: LoBsPanelProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-slate-800">Lines of Business</h2>
+        <h2 className="text-base font-semibold text-foreground">Lines of Business</h2>
         <Button size="sm" onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-1" />
           Add New
         </Button>
       </div>
 
-      <div className="rounded-md border border-slate-200 overflow-auto">
+      <div className="rounded-md border border-border overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[30px]" />
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Name</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Description</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[90px] text-right">Projects</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[130px] text-right">Total Budget</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[80px]">Status</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[70px]">Actions</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[30px]" />
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground">Name</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground">Description</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[90px] text-right">Projects</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[130px] text-right">Total Budget</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[80px]">Status</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[70px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.map((item) => (
               <>
-                <TableRow key={item.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => toggleExpand(item.id)}>
+                <TableRow key={item.id} className="hover:bg-accent cursor-pointer" onClick={() => toggleExpand(item.id)}>
                   <TableCell className="px-3 py-2">
                     {expandedId === item.id
-                      ? <ChevronDown className="h-4 w-4 text-slate-400" />
-                      : <ChevronRight className="h-4 w-4 text-slate-400" />}
+                      ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">{item.name}</TableCell>
-                  <TableCell className="px-3 py-2 text-sm text-slate-600 max-w-[200px] truncate">
+                  <TableCell className="px-3 py-2 text-sm font-medium text-foreground">{item.name}</TableCell>
+                  <TableCell className="px-3 py-2 text-sm text-muted-foreground max-w-[200px] truncate">
                     {item.description || '—'}
                   </TableCell>
-                  <TableCell className="px-3 py-2 text-sm text-slate-600 text-right">{item.project_count}</TableCell>
-                  <TableCell className="px-3 py-2 text-sm text-slate-600 text-right">
+                  <TableCell className="px-3 py-2 text-sm text-muted-foreground text-right">{item.project_count}</TableCell>
+                  <TableCell className="px-3 py-2 text-sm text-muted-foreground text-right">
                     {formatCurrency(item.total_budget)}
                   </TableCell>
                   <TableCell className="px-3 py-2">
@@ -217,7 +217,7 @@ export function LoBsPanel({ onDataChanged }: LoBsPanelProps) {
                       className={
                         item.is_active
                           ? 'bg-green-100 text-green-700 hover:bg-green-100'
-                          : 'bg-slate-100 text-slate-500 hover:bg-slate-100'
+                          : 'bg-muted text-muted-foreground hover:bg-muted'
                       }
                     >
                       {item.is_active ? 'Active' : 'Inactive'}
@@ -231,10 +231,10 @@ export function LoBsPanel({ onDataChanged }: LoBsPanelProps) {
                 </TableRow>
                 {expandedId === item.id && (
                   <TableRow key={`${item.id}-detail`}>
-                    <TableCell colSpan={7} className="px-4 py-3 bg-slate-50 border-t-0">
+                    <TableCell colSpan={7} className="px-4 py-3 bg-muted/50 border-t-0">
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-medium text-slate-700">Assigned Projects</h3>
+                          <h3 className="text-sm font-medium text-foreground">Assigned Projects</h3>
                           <Button size="sm" variant="outline" onClick={openAssignDialog}>
                             <FolderPlus className="h-3.5 w-3.5 mr-1" />
                             Assign Project
@@ -243,27 +243,27 @@ export function LoBsPanel({ onDataChanged }: LoBsPanelProps) {
                         {loadingProjects ? (
                           <Skeleton className="h-8 w-full" />
                         ) : lobProjects.length === 0 ? (
-                          <p className="text-sm text-slate-400 py-2">No projects assigned</p>
+                          <p className="text-sm text-muted-foreground py-2">No projects assigned</p>
                         ) : (
-                          <div className="rounded border border-slate-200 bg-white">
+                          <div className="rounded border border-border bg-card">
                             <Table>
                               <TableHeader>
                                 <TableRow>
-                                  <TableHead className="px-3 py-1.5 text-xs font-medium text-slate-500">Project Name</TableHead>
-                                  <TableHead className="px-3 py-1.5 text-xs font-medium text-slate-500 w-[120px]">Status</TableHead>
-                                  <TableHead className="px-3 py-1.5 text-xs font-medium text-slate-500 w-[130px] text-right">Budget</TableHead>
+                                  <TableHead className="px-3 py-1.5 text-xs font-medium text-muted-foreground">Project Name</TableHead>
+                                  <TableHead className="px-3 py-1.5 text-xs font-medium text-muted-foreground w-[120px]">Status</TableHead>
+                                  <TableHead className="px-3 py-1.5 text-xs font-medium text-muted-foreground w-[130px] text-right">Budget</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
                                 {lobProjects.map((p) => (
-                                  <TableRow key={p.id} className="hover:bg-slate-50">
-                                    <TableCell className="px-3 py-1.5 text-sm text-slate-800">{p.name}</TableCell>
+                                  <TableRow key={p.id} className="hover:bg-accent">
+                                    <TableCell className="px-3 py-1.5 text-sm text-foreground">{p.name}</TableCell>
                                     <TableCell className="px-3 py-1.5">
                                       <Badge className={`${statusBadge(p.status)} hover:${statusBadge(p.status)}`}>
                                         {p.status.replace(/_/g, ' ')}
                                       </Badge>
                                     </TableCell>
-                                    <TableCell className="px-3 py-1.5 text-sm text-slate-600 text-right">
+                                    <TableCell className="px-3 py-1.5 text-sm text-muted-foreground text-right">
                                       {formatCurrency(p.total_budget)}
                                     </TableCell>
                                   </TableRow>
@@ -280,7 +280,7 @@ export function LoBsPanel({ onDataChanged }: LoBsPanelProps) {
             ))}
             {items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="px-3 py-8 text-center text-sm text-slate-400">
+                <TableCell colSpan={7} className="px-3 py-8 text-center text-sm text-muted-foreground">
                   No lines of business found
                 </TableCell>
               </TableRow>

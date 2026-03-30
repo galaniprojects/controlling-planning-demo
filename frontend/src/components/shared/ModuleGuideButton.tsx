@@ -22,8 +22,8 @@ export function ModuleGuideButton({ moduleId }: Props) {
         <div className="space-y-6">
           {manual.sections.map((section, i) => (
             <div key={i} className="space-y-2">
-              <h3 className="text-sm font-semibold text-slate-800">{section.title}</h3>
-              <p className="text-sm text-slate-600 whitespace-pre-line">{renderMarkdownBold(section.body)}</p>
+              <h3 className="text-sm font-semibold text-foreground">{section.title}</h3>
+              <p className="text-sm text-muted-foreground whitespace-pre-line">{renderMarkdownBold(section.body)}</p>
             </div>
           ))}
         </div>,

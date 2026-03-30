@@ -361,12 +361,12 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
   return (
     <div className="space-y-3">
       {/* Section tabs */}
-      <div className="flex gap-1 bg-slate-100 p-0.5 rounded-md">
+      <div className="flex gap-1 bg-muted p-0.5 rounded-md">
         <button
           className={`flex-1 text-xs font-medium py-1.5 rounded ${
             section === 'project'
-              ? 'bg-white shadow-sm text-slate-900'
-              : 'text-slate-500'
+              ? 'bg-card shadow-sm text-foreground'
+              : 'text-muted-foreground'
           }`}
           onClick={() => handleSectionChange('project')}
         >
@@ -375,8 +375,8 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
         <button
           className={`flex-1 text-xs font-medium py-1.5 rounded ${
             section === 'portfolio'
-              ? 'bg-white shadow-sm text-slate-900'
-              : 'text-slate-500'
+              ? 'bg-card shadow-sm text-foreground'
+              : 'text-muted-foreground'
           }`}
           onClick={() => handleSectionChange('portfolio')}
         >
@@ -417,8 +417,8 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
       {/* SIM-04: Year selector */}
       {config && (
         <div>
-          <label className="text-xs text-slate-500 mb-1 block">
-            Apply to Year(s) <span className="text-slate-400">(all years if none selected)</span>
+          <label className="text-xs text-muted-foreground mb-1 block">
+            Apply to Year(s) <span className="text-muted-foreground">(all years if none selected)</span>
           </label>
           <div className="border rounded-md max-h-28 overflow-y-auto p-2 space-y-1.5">
             {YEAR_OPTIONS.map((opt) => {
@@ -435,7 +435,7 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
                       )
                     }
                   />
-                  <span className="text-sm text-slate-700">{opt.label}</span>
+                  <span className="text-sm text-foreground">{opt.label}</span>
                 </label>
               );
             })}
@@ -446,7 +446,7 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
       {/* Dynamic parameter fields */}
       {parameters.map((p) => (
         <div key={p.key}>
-          <label className="text-xs text-slate-500 mb-1 block">{p.label}</label>
+          <label className="text-xs text-muted-foreground mb-1 block">{p.label}</label>
           {p.type === 'select' ? (
             <Select
               value={paramValues[p.key] || ''}
@@ -466,7 +466,7 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
           ) : p.type === 'multi-select' ? (
             <div className="border rounded-md max-h-36 overflow-y-auto p-2 space-y-1.5">
               {(p.options ?? []).length === 0 ? (
-                <p className="text-xs text-slate-400 py-1">Select scope first</p>
+                <p className="text-xs text-muted-foreground py-1">Select scope first</p>
               ) : (
                 (p.options ?? []).map((opt) => {
                   const selected = (paramValues[p.key] || '').split(',').includes(opt.value);
@@ -476,7 +476,7 @@ export function AddActionForm({ onApplyAction, projectStates, loading }: Props) 
                         checked={selected}
                         onCheckedChange={() => handleMultiSelectToggle(p.key, opt.value)}
                       />
-                      <span className="text-sm text-slate-700">{opt.label}</span>
+                      <span className="text-sm text-foreground">{opt.label}</span>
                     </label>
                   );
                 })

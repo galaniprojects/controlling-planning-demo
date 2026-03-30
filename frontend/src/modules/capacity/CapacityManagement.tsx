@@ -75,7 +75,7 @@ function CapacityTabs({
         {/* Controller needs a CC selector */}
         {isController && (
           <div className="mb-4">
-            <label className="block text-xs font-medium text-slate-500 mb-1">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">
               Select Cost Center
             </label>
             <Select value={selectedCcId} onValueChange={setSelectedCcId}>
@@ -96,7 +96,7 @@ function CapacityTabs({
         {effectiveCcId ? (
           <MyTeamTab ccId={effectiveCcId} showRequestsButton={showRequestsButton} />
         ) : (
-          <p className="text-sm text-slate-400">Select a cost center to view team details.</p>
+          <p className="text-sm text-muted-foreground">Select a cost center to view team details.</p>
         )}
       </TabsContent>
 
@@ -127,7 +127,7 @@ export function CapacityManagement() {
   if (!loading && role === 'project_lead') {
     return (
       <div className="px-6 py-6">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted-foreground">
           Capacity Management is not available for the Project Lead role.
         </p>
       </div>
@@ -147,7 +147,7 @@ export function CapacityManagement() {
   if (!capContext) {
     return (
       <div className="px-6 py-6">
-        <p className="text-sm text-slate-400">Failed to load capacity context.</p>
+        <p className="text-sm text-muted-foreground">Failed to load capacity context.</p>
       </div>
     );
   }
@@ -155,7 +155,7 @@ export function CapacityManagement() {
   return (
     <div className="px-6 py-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-800">Capacity Management</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Capacity Management</h1>
         <ModuleGuideButton moduleId="capacity_management" />
       </div>
 

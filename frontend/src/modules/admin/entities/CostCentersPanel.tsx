@@ -109,38 +109,38 @@ export function CostCentersPanel({ onDataChanged }: CostCentersPanelProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-slate-800">Cost Centers</h2>
+        <h2 className="text-base font-semibold text-foreground">Cost Centers</h2>
         <Button size="sm" onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-1" />
           Add New
         </Button>
       </div>
 
-      <div className="rounded-md border border-slate-200 overflow-auto">
+      <div className="rounded-md border border-border overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">Name</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[140px]">Location</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[160px]">Competence Center</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[90px] text-right">Headcount</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[80px]">Status</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[100px]">Actions</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground">Name</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[140px]">Location</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[160px]">Competence Center</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[90px] text-right">Headcount</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[80px]">Status</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.map((item) => (
-              <TableRow key={item.id} className="hover:bg-slate-50">
-                <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">{item.name}</TableCell>
-                <TableCell className="px-3 py-2 text-sm text-slate-600">{item.location_name}</TableCell>
-                <TableCell className="px-3 py-2 text-sm text-slate-600">{item.competence_center_name}</TableCell>
-                <TableCell className="px-3 py-2 text-sm text-slate-600 text-right">{item.headcount}</TableCell>
+              <TableRow key={item.id} className="hover:bg-accent">
+                <TableCell className="px-3 py-2 text-sm font-medium text-foreground">{item.name}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-muted-foreground">{item.location_name}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-muted-foreground">{item.competence_center_name}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-muted-foreground text-right">{item.headcount}</TableCell>
                 <TableCell className="px-3 py-2">
                   <Badge
                     className={
                       item.is_active
                         ? 'bg-green-100 text-green-700 hover:bg-green-100'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-100'
+                        : 'bg-muted text-muted-foreground hover:bg-muted'
                     }
                   >
                     {item.is_active ? 'Active' : 'Inactive'}
@@ -167,7 +167,7 @@ export function CostCentersPanel({ onDataChanged }: CostCentersPanelProps) {
             ))}
             {items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="px-3 py-8 text-center text-sm text-slate-400">
+                <TableCell colSpan={6} className="px-3 py-8 text-center text-sm text-muted-foreground">
                   No cost centers found
                 </TableCell>
               </TableRow>

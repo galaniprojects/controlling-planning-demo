@@ -816,3 +816,25 @@ export const aiReportBuilderApi = {
       `/api/reports/ai-builder/conversations/${conversationId}`,
     ),
 };
+
+// ---------------------------------------------------------------------------
+// Report Builder
+// ---------------------------------------------------------------------------
+
+import type {
+  CatalogResponse,
+  ReportExecuteRequest,
+  ReportExecuteResponse,
+  FilterValuesResponse,
+} from '@/types/reportBuilder';
+
+export const reportBuilderApi = {
+  getCatalog: () =>
+    api.get<CatalogResponse>('/api/report-builder/catalog'),
+
+  execute: (body: ReportExecuteRequest) =>
+    api.post<ReportExecuteResponse>('/api/report-builder/execute', body),
+
+  getFilterValues: (dimensionId: string) =>
+    api.get<FilterValuesResponse>(`/api/report-builder/filter-values/${dimensionId}`),
+};

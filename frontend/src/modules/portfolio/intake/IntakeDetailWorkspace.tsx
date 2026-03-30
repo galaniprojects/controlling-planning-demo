@@ -83,41 +83,41 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
   }
 
   if (!data) {
-    return <p className="text-sm text-slate-400">Project not found.</p>;
+    return <p className="text-sm text-muted-foreground">Project not found.</p>;
   }
 
   return (
     <div className="space-y-6">
       {/* Breadcrumb + Back */}
-      <div className="flex items-center gap-2 text-sm text-slate-500">
-        <Button variant="ghost" size="sm" onClick={onBack} className="text-slate-600 -ml-2">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Button variant="ghost" size="sm" onClick={onBack} className="text-muted-foreground -ml-2">
           <ArrowLeft className="h-4 w-4 mr-1" />
           Intake Queue
         </Button>
         <span>/</span>
-        <span className="text-slate-700 font-medium truncate">{data.name}</span>
+        <span className="text-foreground font-medium truncate">{data.name}</span>
       </div>
 
       {/* Header */}
       <div className="space-y-3">
-        <h2 className="text-xl font-semibold text-slate-800">{data.name}</h2>
+        <h2 className="text-xl font-semibold text-foreground">{data.name}</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <StatusBadge status={data.status} />
           {data.capex_opex && (
-            <span className="text-xs text-slate-500 uppercase">{data.capex_opex}</span>
+            <span className="text-xs text-muted-foreground uppercase">{data.capex_opex}</span>
           )}
         </div>
         <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm max-w-lg">
-          <div className="text-slate-500">Requesting {topLevelLabel}</div>
-          <div className="text-slate-700 font-medium">{data.lob_name}</div>
+          <div className="text-muted-foreground">Requesting {topLevelLabel}</div>
+          <div className="text-foreground font-medium">{data.lob_name}</div>
           {data.pl_name && (
             <>
-              <div className="text-slate-500">Project Lead</div>
-              <div className="text-slate-700">{data.pl_name}</div>
+              <div className="text-muted-foreground">Project Lead</div>
+              <div className="text-foreground">{data.pl_name}</div>
             </>
           )}
-          <div className="text-slate-500">Proposed Timeline</div>
-          <div className="text-slate-700">
+          <div className="text-muted-foreground">Proposed Timeline</div>
+          <div className="text-foreground">
             {data.start_month} — {data.end_month || 'Ongoing'}
           </div>
         </div>
@@ -132,7 +132,7 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
               <CardTitle className="text-sm font-medium">Business Case</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-slate-600">{data.description}</p>
+              <p className="text-sm text-muted-foreground">{data.description}</p>
             </CardContent>
           </Card>
         </>
@@ -151,7 +151,7 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
           <DetailViewKPIStrip kpis={data.grid_data.kpis} />
         </div>
       ) : (
-        <div className="rounded-md border border-slate-200 p-6 text-center text-sm text-slate-400">
+        <div className="rounded-md border border-border p-6 text-center text-sm text-muted-foreground">
           No resource or cost plan data submitted yet.
         </div>
       )}
@@ -179,12 +179,12 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
                   }
                   return (
                     <div key={rp.role_id} className="text-sm">
-                      <p className="font-medium text-slate-700">{rp.role_name}</p>
+                      <p className="font-medium text-foreground">{rp.role_name}</p>
                       <div className="ml-3 mt-1 space-y-0.5">
                         {Array.from(personMap.entries()).map(([pid, info]) => (
-                          <p key={pid} className="text-slate-600">
+                          <p key={pid} className="text-muted-foreground">
                             {info.name}
-                            <span className="text-slate-400 ml-1">
+                            <span className="text-muted-foreground ml-1">
                               ({formatMonthRange(info.months)})
                             </span>
                           </p>
@@ -202,12 +202,12 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
       {/* Changes Requested — PL review with diff */}
       {data.status === 'changes_requested' && !isController && !actionResult && (
         <div className="space-y-4">
-          <div className="rounded-md border border-amber-300 bg-amber-50 p-4 space-y-2">
-            <p className="text-sm font-semibold text-amber-800">Changes Requested</p>
+          <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/30 p-4 space-y-2">
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">Changes Requested</p>
             {data.submission_feedback ? (
-              <p className="text-sm text-amber-700">{data.submission_feedback}</p>
+              <p className="text-sm text-amber-700 dark:text-amber-400">{data.submission_feedback}</p>
             ) : (
-              <p className="text-sm text-amber-700">
+              <p className="text-sm text-amber-700 dark:text-amber-400">
                 The controller has reviewed your submission and requested changes. Review the comparison below.
               </p>
             )}
@@ -216,7 +216,7 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
           <Separator />
 
           <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Proposed Changes</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-3">Proposed Changes</h3>
             <IntakeDiffSection projectId={projectId} onActionComplete={onActionComplete} />
           </div>
         </div>
@@ -224,7 +224,7 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
 
       {/* Action Result */}
       {actionResult && (
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
           {actionResult}
         </div>
       )}
@@ -257,7 +257,7 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
                   size="sm"
                   variant="outline"
                   onClick={() => setActionMode('reject')}
-                  className="text-red-600 hover:text-red-700"
+                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                 >
                   <X className="h-3.5 w-3.5 mr-1" />
                   Reject
@@ -269,7 +269,7 @@ export function IntakeDetailWorkspace({ projectId, onBack, onActionComplete }: P
               </div>
             ) : (
               <div className="space-y-3">
-                <p className="text-xs font-medium text-slate-600">
+                <p className="text-xs font-medium text-muted-foreground">
                   {actionMode === 'approve' ? 'Comments (optional)' : 'Reason (required)'}
                 </p>
                 <Textarea

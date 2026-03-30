@@ -58,7 +58,7 @@ export function ProjectWorkbench() {
   return (
     <div className="px-6 py-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-800">
+        <h1 className="text-2xl font-semibold text-foreground">
           Project Workbench
         </h1>
         <ModuleGuideButton moduleId="project_workbench" />
@@ -93,7 +93,7 @@ export function ProjectWorkbench() {
               status={projects.find((p) => p.id === selectedId)?.status}
             />
           ) : (
-            <div className="flex items-center justify-center h-64 text-slate-400 text-sm">
+            <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
               {loading ? (
                 <div className="space-y-3 w-full max-w-md">
                   <Skeleton className="h-8 w-48" />

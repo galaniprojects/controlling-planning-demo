@@ -136,7 +136,7 @@ export function Phase3EditForecast({
     month: string,
   ) => {
     const cell = row.months?.find((c) => c.month === month);
-    if (!cell) return <span className="text-slate-300">—</span>;
+    if (!cell) return <span className="text-muted-foreground/40">—</span>;
 
     const isInternal = category === 'internal';
     const originalValue = isInternal ? cell.forecast_hours : cell.forecast_amount;
@@ -185,14 +185,14 @@ export function Phase3EditForecast({
     if (!canEdit) {
       // Read-only past cell
       return (
-        <div className="bg-slate-50 rounded px-1.5 py-0.5">
-          <span className="text-sm text-slate-500">
+        <div className="bg-muted/50 rounded px-1.5 py-0.5">
+          <span className="text-sm text-muted-foreground">
             {isInternal
               ? `${displayValue.toLocaleString()} hrs`
               : formatCurrency(displayValue)}
           </span>
           {isInternal && rate && (
-            <span className="block text-[10px] text-slate-300">
+            <span className="block text-[10px] text-muted-foreground/40">
               {formatCurrencyDetailed(displayValue * rate)}
             </span>
           )}
@@ -205,9 +205,9 @@ export function Phase3EditForecast({
         <button
           className={cn(
             'text-sm font-medium cursor-pointer px-1.5 py-0.5 rounded transition-colors w-full text-right',
-            isSuggested && 'bg-blue-50 text-blue-700',
-            isChanged && !isSuggested && 'bg-yellow-50 text-yellow-700',
-            !isChanged && 'hover:bg-slate-100',
+            isSuggested && 'bg-primary/5 text-primary',
+            isChanged && !isSuggested && 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400',
+            !isChanged && 'hover:bg-accent',
           )}
           onClick={() => setEditingCell(cellKey)}
         >
@@ -216,7 +216,7 @@ export function Phase3EditForecast({
             : formatCurrency(displayValue)}
         </button>
         {isInternal && rate && (
-          <span className="block text-[10px] text-slate-400 text-right pr-1.5">
+          <span className="block text-[10px] text-muted-foreground text-right pr-1.5">
             {formatCurrencyDetailed(displayValue * rate)}
           </span>
         )}
@@ -234,7 +234,7 @@ export function Phase3EditForecast({
     const cells = months
       .map((m) => row.months.find((c) => c.month === m))
       .filter(Boolean) as ForecastMonthCell[];
-    if (cells.length === 0) return <span className="text-slate-300">—</span>;
+    if (cells.length === 0) return <span className="text-muted-foreground/40">—</span>;
 
     const total = isInternal
       ? cells.reduce((s, c) => s + c.forecast_hours, 0)
@@ -242,12 +242,12 @@ export function Phase3EditForecast({
     const rate = isInternal ? row.hourly_rate : undefined;
 
     return (
-      <div className="bg-slate-50 rounded px-1.5 py-0.5">
-        <span className="text-sm text-slate-500">
+      <div className="bg-muted/50 rounded px-1.5 py-0.5">
+        <span className="text-sm text-muted-foreground">
           {isInternal ? `${total.toLocaleString()} hrs` : formatCurrency(total)}
         </span>
         {isInternal && rate && (
-          <span className="block text-[10px] text-slate-300">
+          <span className="block text-[10px] text-muted-foreground/40">
             {formatCurrency(total * rate)}
           </span>
         )}
@@ -276,20 +276,20 @@ export function Phase3EditForecast({
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-base font-semibold text-slate-800">
+        <h3 className="text-base font-semibold text-foreground">
           Phase 3: Edit Forecast
         </h3>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Click any cell to edit future months. Past months are read-only (greyed out).
           Blue cells are from applied suggestions, yellow cells are manual changes.
         </p>
       </div>
 
-      <div className="border border-slate-200 rounded-lg overflow-x-auto max-w-full">
+      <div className="border border-border rounded-lg overflow-x-auto max-w-full">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
-              <TableHead className="sticky left-0 bg-slate-50 z-10 border-r border-slate-200 whitespace-nowrap">
+            <TableRow className="bg-muted/50">
+              <TableHead className="sticky left-0 bg-muted/50 z-10 border-r border-border whitespace-nowrap">
                 Line Item
               </TableHead>
               {columns.map((col) => (
@@ -297,8 +297,8 @@ export function Phase3EditForecast({
                   key={col.type === 'month' ? col.key : `sum-${col.year}`}
                   className={cn(
                     'text-right min-w-[90px]',
-                    col.type === 'yearSummary' && 'cursor-pointer select-none hover:bg-slate-100',
-                    col.type === 'month' && !isEditable(col.key) && 'bg-slate-100/50',
+                    col.type === 'yearSummary' && 'cursor-pointer select-none hover:bg-accent',
+                    col.type === 'month' && !isEditable(col.key) && 'bg-muted/30',
                   )}
                   onClick={col.type === 'yearSummary' ? () => toggleYear(col.year) : undefined}
                 >
@@ -306,7 +306,7 @@ export function Phase3EditForecast({
                     <span>
                       {formatMonth(col.key)}
                       {!isEditable(col.key) && (
-                        <span className="block text-[9px] text-slate-400">read-only</span>
+                        <span className="block text-[9px] text-muted-foreground">read-only</span>
                       )}
                     </span>
                   ) : (
@@ -322,17 +322,17 @@ export function Phase3EditForecast({
           <TableBody>
             {internalRows.length > 0 && (
               <>
-                <TableRow className="bg-slate-50/50">
+                <TableRow className="bg-muted/50/50">
                   <TableCell
                     colSpan={colCount}
-                    className="font-medium text-xs text-slate-500 uppercase tracking-wide"
+                    className="font-medium text-xs text-muted-foreground uppercase tracking-wide"
                   >
                     Internal Resources (Hours)
                   </TableCell>
                 </TableRow>
                 {internalRows.map((row) => (
                   <TableRow key={`${row.category}-${row.sub_category}`}>
-                    <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200">
+                    <TableCell className="sticky left-0 bg-card font-medium text-sm z-10 border-r border-border">
                       {row.sub_category_name}
                     </TableCell>
                     {columns.map((col) => (
@@ -349,17 +349,17 @@ export function Phase3EditForecast({
 
             {externalRows.length > 0 && (
               <>
-                <TableRow className="bg-slate-50/50">
+                <TableRow className="bg-muted/50/50">
                   <TableCell
                     colSpan={colCount}
-                    className="font-medium text-xs text-slate-500 uppercase tracking-wide"
+                    className="font-medium text-xs text-muted-foreground uppercase tracking-wide"
                   >
                     External Costs (EUR)
                   </TableCell>
                 </TableRow>
                 {externalRows.map((row) => (
                   <TableRow key={`${row.category}-${row.sub_category}`}>
-                    <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200">
+                    <TableCell className="sticky left-0 bg-card font-medium text-sm z-10 border-r border-border">
                       {row.sub_category_name}
                     </TableCell>
                     {columns.map((col) => (
@@ -378,14 +378,14 @@ export function Phase3EditForecast({
       </div>
 
       {/* Change summary bar */}
-      <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
-        <span className="text-sm text-slate-600">
+      <div className="flex items-center justify-between bg-muted/50 border border-border rounded-lg px-4 py-3">
+        <span className="text-sm text-muted-foreground">
           {workingChanges.length} change{workingChanges.length !== 1 ? 's' : ''}
           {totalDeltaEur !== 0 && (
             <span
               className={cn(
                 'ml-2 font-medium',
-                totalDeltaEur > 0 ? 'text-red-600' : 'text-green-600',
+                totalDeltaEur > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400',
               )}
             >
               (total impact: {totalDeltaEur > 0 ? '+' : ''}

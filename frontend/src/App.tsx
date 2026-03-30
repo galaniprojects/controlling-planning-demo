@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import { RoleProvider } from '@/contexts/RoleContext';
 import { SidePanelProvider } from '@/contexts/SidePanelContext';
 import { BottomDrawerProvider } from '@/contexts/BottomDrawerContext';
@@ -15,6 +16,7 @@ import { ResourcePlanPage } from '@/modules/workbench/submission/ResourcePlanPag
 
 export default function App() {
   return (
+    <ThemeProvider>
     <BrowserRouter>
       <RoleProvider>
         <SidePanelProvider>
@@ -36,5 +38,6 @@ export default function App() {
         </SidePanelProvider>
       </RoleProvider>
     </BrowserRouter>
+    </ThemeProvider>
   );
 }

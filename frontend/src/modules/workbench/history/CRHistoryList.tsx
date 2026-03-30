@@ -58,7 +58,7 @@ export function CRHistoryList({ items, projectId, onRefresh }: Props) {
 
   if (items.length === 0) {
     return (
-      <p className="text-sm text-slate-400 py-4">
+      <p className="text-sm text-muted-foreground py-4">
         No change requests found.
       </p>
     );
@@ -75,43 +75,43 @@ export function CRHistoryList({ items, projectId, onRefresh }: Props) {
             key={cr.id}
             className={cn(
               'border rounded-lg overflow-hidden',
-              isSentBack ? 'border-amber-300' : 'border-slate-200',
+              isSentBack ? 'border-amber-300 dark:border-amber-700' : 'border-border',
             )}
           >
             {/* Summary row */}
             <button
               className={cn(
-                'w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors',
-                isSentBack && 'bg-amber-50/50',
+                'w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-accent transition-colors',
+                isSentBack && 'bg-amber-50/50 dark:bg-amber-900/10',
               )}
               onClick={() => setExpandedId(isExpanded ? null : cr.id)}
             >
               <ChevronDown
                 className={cn(
-                  'h-4 w-4 text-slate-400 transition-transform shrink-0',
+                  'h-4 w-4 text-muted-foreground transition-transform shrink-0',
                   isExpanded && 'rotate-180',
                 )}
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   {isSentBack && (
-                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                   )}
-                  <span className="text-sm font-medium text-slate-700">
+                  <span className="text-sm font-medium text-foreground">
                     {cr.summary}
                   </span>
                   {cr.is_system_suggested && (
                     <Sparkles className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                   )}
                 </div>
-                <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
+                <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                   <span>{cr.submission_date?.split(' ')[0]}</span>
                   <span>by {cr.submitted_by}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {isSentBack && (
-                  <Badge className="bg-amber-100 text-amber-800 text-[10px]">
+                  <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-[10px]">
                     Action Required
                   </Badge>
                 )}
@@ -119,7 +119,7 @@ export function CRHistoryList({ items, projectId, onRefresh }: Props) {
                   <span
                     className={cn(
                       'text-xs font-medium whitespace-nowrap',
-                      cr.impact_eur < 0 ? 'text-emerald-600' : cr.impact_eur > 0 ? 'text-red-600' : 'text-slate-500',
+                      cr.impact_eur < 0 ? 'text-emerald-600 dark:text-emerald-400' : cr.impact_eur > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground',
                     )}
                   >
                     {cr.impact_eur > 0 ? '+' : ''}{formatCurrencyCompact(cr.impact_eur)}
@@ -134,7 +134,7 @@ export function CRHistoryList({ items, projectId, onRefresh }: Props) {
 
             {/* Expanded detail */}
             {isExpanded && (
-              <div className="border-t border-slate-200 px-4 py-3 bg-slate-50 space-y-3">
+              <div className="border-t border-border px-4 py-3 bg-muted/50 space-y-3">
                 {/* Diff section for sent-back CRs */}
                 {isSentBack && (
                   <>
@@ -170,7 +170,7 @@ export function CRHistoryList({ items, projectId, onRefresh }: Props) {
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-400">
+                      <p className="text-sm text-muted-foreground">
                         No detailed grid data available for this change request.
                       </p>
                     )}
@@ -180,10 +180,10 @@ export function CRHistoryList({ items, projectId, onRefresh }: Props) {
                 {/* Justification */}
                 {cr.justification && (
                   <div>
-                    <h5 className="text-xs font-medium text-slate-500 mb-1">
+                    <h5 className="text-xs font-medium text-muted-foreground mb-1">
                       Justification
                     </h5>
-                    <p className="text-sm text-slate-600">{cr.justification}</p>
+                    <p className="text-sm text-muted-foreground">{cr.justification}</p>
                   </div>
                 )}
 

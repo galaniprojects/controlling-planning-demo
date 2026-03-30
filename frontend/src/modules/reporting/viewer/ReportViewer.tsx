@@ -101,14 +101,14 @@ export function ReportViewer({
       {/* Back link + title */}
       <button
         onClick={() => navigate('/reporting')}
-        className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700"
+        className="flex items-center gap-1.5 text-sm text-primary/80 hover:text-primary"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Back to Reports
       </button>
 
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
+        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
         <div className="flex items-center gap-2">
           {hasConfigurator && (
             <Button

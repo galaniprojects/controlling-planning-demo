@@ -99,7 +99,7 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
   }
 
   if (rows.length === 0) {
-    return <p className="text-sm text-slate-400">No forecast data available.</p>;
+    return <p className="text-sm text-muted-foreground">No forecast data available.</p>;
   }
 
   const internalRows = rows.filter((r) => r.category === 'internal');
@@ -142,16 +142,16 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
 
   function renderAssignmentRow(assignment: PersonAssignment) {
     return (
-      <TableRow key={`assign-${assignment.person_id}`} className="bg-slate-50/40">
-        <TableCell className="sticky left-0 bg-slate-50/40 z-10 border-r border-slate-200 whitespace-nowrap pl-8 text-xs text-slate-500">
+      <TableRow key={`assign-${assignment.person_id}`} className="bg-muted/20">
+        <TableCell className="sticky left-0 bg-muted/20 z-10 border-r border-border whitespace-nowrap pl-8 text-xs text-muted-foreground">
           {assignment.person_name}
         </TableCell>
         {visibleColumns.map((col) => {
           if (col.type === 'yearSummary') {
             const total = sumPersonHours(assignment, col.months);
             return (
-              <TableCell key={`pa-ys-${col.year}`} className="text-right border-l-2 border-slate-300 text-xs text-slate-500 font-tabular">
-                {total > 0 ? `${formatNumber(total)}h` : <span className="text-slate-300">&mdash;</span>}
+              <TableCell key={`pa-ys-${col.year}`} className="text-right border-l-2 border-border text-xs text-muted-foreground font-tabular">
+                {total > 0 ? `${formatNumber(total)}h` : <span className="text-muted-foreground/40">&mdash;</span>}
               </TableCell>
             );
           }
@@ -160,9 +160,9 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
           return (
             <TableCell
               key={`pa-${col.key}`}
-              className={`text-right text-xs text-slate-500 font-tabular ${col.isJanuary ? 'border-l-2 border-slate-300' : ''} ${elapsed ? 'bg-[#fafafa]' : ''}`}
+              className={`text-right text-xs text-muted-foreground font-tabular ${col.isJanuary ? 'border-l-2 border-border' : ''} ${elapsed ? 'bg-muted/20' : ''}`}
             >
-              {hours > 0 ? `${formatNumber(hours)}h` : <span className="text-slate-300">&mdash;</span>}
+              {hours > 0 ? `${formatNumber(hours)}h` : <span className="text-muted-foreground/40">&mdash;</span>}
             </TableCell>
           );
         })}
@@ -176,18 +176,18 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
     style: 'subtotal' | 'grand',
   ) {
     const bgClass = style === 'grand'
-      ? 'bg-slate-100 border-t-2 border-slate-300'
-      : 'bg-slate-50 border-t border-slate-200';
+      ? 'bg-muted border-t-2 border-border'
+      : 'bg-muted/50 border-t border-border';
     const labelClass = style === 'grand'
-      ? 'font-bold text-sm text-slate-800'
-      : 'font-semibold text-xs text-slate-600';
+      ? 'font-bold text-sm text-foreground'
+      : 'font-semibold text-xs text-muted-foreground';
     const valueClass = style === 'grand'
       ? 'font-bold text-sm'
       : 'font-semibold text-xs';
 
     return (
       <TableRow className={bgClass}>
-        <TableCell className={`sticky left-0 z-10 ${style === 'grand' ? 'bg-slate-100' : 'bg-slate-50'} border-r border-slate-200 whitespace-nowrap ${labelClass}`}>
+        <TableCell className={`sticky left-0 z-10 ${style === 'grand' ? 'bg-muted' : 'bg-muted/50'} border-r border-border whitespace-nowrap ${labelClass}`}>
           {label}
         </TableCell>
         {visibleColumns.map((col) => {
@@ -195,10 +195,10 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
             const fc = sumColumnMonths(targetRows, col.months, 'forecast_amount');
             const bl = sumColumnMonths(targetRows, col.months, 'baseline_amount');
             return (
-              <TableCell key={`tot-ys-${col.year}`} className="text-right border-l-2 border-slate-300">
+              <TableCell key={`tot-ys-${col.year}`} className="text-right border-l-2 border-border">
                 <div>
                   <span className={`font-tabular ${valueClass}`}>{formatCurrencyCompact(fc)}</span>
-                  <span className="block text-[10px] text-slate-400 font-tabular">BL: {formatCurrencyCompact(bl)}</span>
+                  <span className="block text-[10px] text-muted-foreground font-tabular">BL: {formatCurrencyCompact(bl)}</span>
                 </div>
               </TableCell>
             );
@@ -211,13 +211,13 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
           return (
             <TableCell
               key={`tot-${month}`}
-              className={`text-right ${col.isJanuary ? 'border-l-2 border-slate-300' : ''} ${elapsed ? 'bg-[#fafafa]' : ''}`}
+              className={`text-right ${col.isJanuary ? 'border-l-2 border-border' : ''} ${elapsed ? 'bg-muted/20' : ''}`}
             >
               <div>
                 <span className={`font-tabular ${valueClass}`}>{formatCurrencyCompact(fc)}</span>
-                <span className="block text-[10px] text-slate-400 font-tabular">BL: {formatCurrencyCompact(bl)}</span>
+                <span className="block text-[10px] text-muted-foreground font-tabular">BL: {formatCurrencyCompact(bl)}</span>
                 {act > 0 && (
-                  <span className="block text-[10px] text-slate-400 font-tabular">Act: {formatCurrencyCompact(act)}</span>
+                  <span className="block text-[10px] text-muted-foreground font-tabular">Act: {formatCurrencyCompact(act)}</span>
                 )}
               </div>
             </TableCell>
@@ -229,18 +229,18 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
 
   function renderYearHeaders() {
     return (
-      <TableRow className="bg-slate-50">
-        <TableHead className="sticky left-0 bg-slate-50 z-10 border-r border-slate-200 whitespace-nowrap" rowSpan={2}>
+      <TableRow className="bg-muted/50">
+        <TableHead className="sticky left-0 bg-muted/50 z-10 border-r border-border whitespace-nowrap" rowSpan={2}>
           Line Item
         </TableHead>
         {yearGroups.map((g) => (
           <TableHead
             key={g.year}
             colSpan={g.isExpanded ? g.months.length : 1}
-            className="text-center cursor-pointer select-none border-l-2 border-slate-300"
+            className="text-center cursor-pointer select-none border-l-2 border-border"
             onClick={() => toggleYear(g.year)}
           >
-            <span className="text-[#1e40af] font-semibold">
+            <span className="text-primary font-semibold">
               {g.isExpanded ? '\u25BE' : '\u25B8'} {g.year}
             </span>
           </TableHead>
@@ -251,11 +251,11 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
 
   function renderMonthHeaders() {
     return (
-      <TableRow className="bg-slate-50">
+      <TableRow className="bg-muted/50">
         {visibleColumns.map((col) => {
           if (col.type === 'yearSummary') {
             return (
-              <TableHead key={`sum-${col.year}`} className="text-right min-w-[90px] text-xs text-slate-400 border-l-2 border-slate-300">
+              <TableHead key={`sum-${col.year}`} className="text-right min-w-[90px] text-xs text-muted-foreground border-l-2 border-border">
                 Total
               </TableHead>
             );
@@ -264,7 +264,7 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
           return (
             <TableHead
               key={col.key}
-              className={`text-right min-w-[100px] ${col.isJanuary ? 'border-l-2 border-slate-300 font-semibold' : ''} ${elapsed ? 'bg-[#fafafa]' : ''}`}
+              className={`text-right min-w-[100px] ${col.isJanuary ? 'border-l-2 border-border font-semibold' : ''} ${elapsed ? 'bg-muted/20' : ''}`}
             >
               {formatMonthShort(col.key)}
             </TableHead>
@@ -280,12 +280,12 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
       const blTotalHours = sumCells(row, col.months, 'baseline_hours');
       const totalEur = sumCells(row, col.months, 'forecast_amount');
       return (
-        <TableCell key={`sum-${col.year}`} className="text-right border-l-2 border-slate-300">
+        <TableCell key={`sum-${col.year}`} className="text-right border-l-2 border-border">
           <div>
             <span className="font-tabular font-medium">
               {formatNumber(totalHours)}h / {formatCurrencyCompact(totalEur)}
             </span>
-            <span className="block text-[10px] text-slate-400 font-tabular">
+            <span className="block text-[10px] text-muted-foreground font-tabular">
               BL: {formatNumber(blTotalHours)}h
             </span>
           </div>
@@ -297,24 +297,24 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
     return (
       <TableCell
         key={col.key}
-        className={`text-right ${col.isJanuary ? 'border-l-2 border-slate-300' : ''} ${elapsed ? 'bg-[#fafafa]' : ''}`}
+        className={`text-right ${col.isJanuary ? 'border-l-2 border-border' : ''} ${elapsed ? 'bg-muted/20' : ''}`}
       >
         {cell ? (
           <div>
             <span className="font-tabular font-medium">
               {formatNumber(cell.forecast_hours)}h / {formatCurrencyCompact(cell.forecast_amount)}
             </span>
-            <span className="block text-[10px] text-slate-400 font-tabular">
+            <span className="block text-[10px] text-muted-foreground font-tabular">
               BL: {formatNumber(cell.baseline_hours)}h
             </span>
             {cell.actuals_hours > 0 && (
-              <span className="block text-[10px] text-slate-400 font-tabular">
+              <span className="block text-[10px] text-muted-foreground font-tabular">
                 Act: {formatNumber(cell.actuals_hours)}h / {formatCurrencyCompact(cell.actuals_amount)}
               </span>
             )}
           </div>
         ) : (
-          <span className="text-slate-300">&mdash;</span>
+          <span className="text-muted-foreground/40">&mdash;</span>
         )}
       </TableCell>
     );
@@ -325,10 +325,10 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
       const total = sumCells(row, col.months, 'forecast_amount');
       const blTotal = sumCells(row, col.months, 'baseline_amount');
       return (
-        <TableCell key={`sum-${col.year}`} className="text-right border-l-2 border-slate-300">
+        <TableCell key={`sum-${col.year}`} className="text-right border-l-2 border-border">
           <div>
             <span className="font-tabular font-medium">{formatCurrencyCompact(total)}</span>
-            <span className="block text-[10px] text-slate-400 font-tabular">
+            <span className="block text-[10px] text-muted-foreground font-tabular">
               BL: {formatCurrencyCompact(blTotal)}
             </span>
           </div>
@@ -340,24 +340,24 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
     return (
       <TableCell
         key={col.key}
-        className={`text-right ${col.isJanuary ? 'border-l-2 border-slate-300' : ''} ${elapsed ? 'bg-[#fafafa]' : ''}`}
+        className={`text-right ${col.isJanuary ? 'border-l-2 border-border' : ''} ${elapsed ? 'bg-muted/20' : ''}`}
       >
         {cell ? (
           <div>
             <span className="font-tabular font-medium">
               {formatCurrencyCompact(cell.forecast_amount)}
             </span>
-            <span className="block text-[10px] text-slate-400 font-tabular">
+            <span className="block text-[10px] text-muted-foreground font-tabular">
               BL: {formatCurrencyCompact(cell.baseline_amount)}
             </span>
             {cell.actuals_amount > 0 && (
-              <span className="block text-[10px] text-slate-400 font-tabular">
+              <span className="block text-[10px] text-muted-foreground font-tabular">
                 Act: {formatCurrencyCompact(cell.actuals_amount)}
               </span>
             )}
           </div>
         ) : (
-          <span className="text-slate-300">&mdash;</span>
+          <span className="text-muted-foreground/40">&mdash;</span>
         )}
       </TableCell>
     );
@@ -370,7 +370,7 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
           <Button
             variant="ghost"
             size="sm"
-            className="text-xs text-slate-600 gap-1"
+            className="text-xs text-muted-foreground gap-1"
             onClick={toggleAll}
           >
             {allExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -379,7 +379,7 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
           </Button>
         </div>
       )}
-    <div className="border border-slate-200 rounded-lg overflow-x-auto">
+    <div className="border border-border rounded-lg overflow-x-auto">
       <Table>
         <TableHeader>
           {renderYearHeaders()}
@@ -392,10 +392,10 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
           {/* Internal Resources group */}
           {internalRows.length > 0 && (
             <>
-              <TableRow className="bg-slate-50/50">
+              <TableRow className="bg-muted/30">
                 <TableCell
                   colSpan={visibleColumns.length + 1}
-                  className="font-medium text-xs text-slate-500 uppercase tracking-wide"
+                  className="font-medium text-xs text-muted-foreground uppercase tracking-wide"
                 >
                   Internal Resources (Hours / EUR)
                 </TableCell>
@@ -406,22 +406,22 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
                 return (
                   <React.Fragment key={`${row.category}-${row.sub_category}`}>
                     <TableRow>
-                      <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200 whitespace-nowrap">
+                      <TableCell className="sticky left-0 bg-card font-medium text-sm z-10 border-r border-border whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           {hasAssignments ? (
                             <button
                               type="button"
-                              className="flex items-center gap-1 cursor-pointer hover:text-blue-700 transition-colors"
+                              className="flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
                               onClick={() => toggleRole(row.sub_category)}
                             >
-                              {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
+                              {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
                               {row.sub_category_name}
                             </button>
                           ) : (
                             <span>{row.sub_category_name}</span>
                           )}
                           {row.capex_opex && (
-                            <Badge variant="outline" className={`text-[9px] px-1 py-0 h-3.5 ${row.capex_opex === 'capex' ? 'text-blue-600 border-blue-200' : 'text-amber-600 border-amber-200'}`}>
+                            <Badge variant="outline" className={`text-[9px] px-1 py-0 h-3.5 ${row.capex_opex === 'capex' ? 'text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800' : 'text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'}`}>
                               {row.capex_opex === 'capex' ? 'CapEx' : 'OpEx'}
                             </Badge>
                           )}
@@ -440,21 +440,21 @@ export function ForecastGrid({ projectId, defaultExpandedYear }: Props) {
           {/* External Costs group */}
           {externalRows.length > 0 && (
             <>
-              <TableRow className="bg-slate-50/50">
+              <TableRow className="bg-muted/30">
                 <TableCell
                   colSpan={visibleColumns.length + 1}
-                  className="font-medium text-xs text-slate-500 uppercase tracking-wide"
+                  className="font-medium text-xs text-muted-foreground uppercase tracking-wide"
                 >
                   External Costs (EUR)
                 </TableCell>
               </TableRow>
               {externalRows.map((row) => (
                 <TableRow key={`${row.category}-${row.sub_category}`}>
-                  <TableCell className="sticky left-0 bg-white font-medium text-sm z-10 border-r border-slate-200 whitespace-nowrap">
+                  <TableCell className="sticky left-0 bg-card font-medium text-sm z-10 border-r border-border whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
                       {row.sub_category_name}
                       {row.capex_opex && (
-                        <Badge variant="outline" className={`text-[9px] px-1 py-0 h-3.5 ${row.capex_opex === 'capex' ? 'text-blue-600 border-blue-200' : 'text-amber-600 border-amber-200'}`}>
+                        <Badge variant="outline" className={`text-[9px] px-1 py-0 h-3.5 ${row.capex_opex === 'capex' ? 'text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800' : 'text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'}`}>
                           {row.capex_opex === 'capex' ? 'CapEx' : 'OpEx'}
                         </Badge>
                       )}

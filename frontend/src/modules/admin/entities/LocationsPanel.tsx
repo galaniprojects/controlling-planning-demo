@@ -67,36 +67,36 @@ export function LocationsPanel({ onDataChanged }: LocationsPanelProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-slate-800">Locations</h2>
+        <h2 className="text-base font-semibold text-foreground">Locations</h2>
         <Button size="sm" onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-1" />
           Add New
         </Button>
       </div>
 
-      <div className="rounded-md border border-slate-200 overflow-auto">
+      <div className="rounded-md border border-border overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500">City</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[160px]">Country</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[110px] text-right">Cost Centers</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[80px]">Status</TableHead>
-              <TableHead className="px-3 py-2 text-xs font-medium text-slate-500 w-[70px]">Actions</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground">City</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[160px]">Country</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[110px] text-right">Cost Centers</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[80px]">Status</TableHead>
+              <TableHead className="px-3 py-2 text-xs font-medium text-muted-foreground w-[70px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.map((item) => (
-              <TableRow key={item.id} className="hover:bg-slate-50">
-                <TableCell className="px-3 py-2 text-sm font-medium text-slate-800">{item.city}</TableCell>
-                <TableCell className="px-3 py-2 text-sm text-slate-600">{item.country}</TableCell>
-                <TableCell className="px-3 py-2 text-sm text-slate-600 text-right">{item.cost_center_count}</TableCell>
+              <TableRow key={item.id} className="hover:bg-accent">
+                <TableCell className="px-3 py-2 text-sm font-medium text-foreground">{item.city}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-muted-foreground">{item.country}</TableCell>
+                <TableCell className="px-3 py-2 text-sm text-muted-foreground text-right">{item.cost_center_count}</TableCell>
                 <TableCell className="px-3 py-2">
                   <Badge
                     className={
                       item.is_active
                         ? 'bg-green-100 text-green-700 hover:bg-green-100'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-100'
+                        : 'bg-muted text-muted-foreground hover:bg-muted'
                     }
                   >
                     {item.is_active ? 'Active' : 'Inactive'}
@@ -111,7 +111,7 @@ export function LocationsPanel({ onDataChanged }: LocationsPanelProps) {
             ))}
             {items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="px-3 py-8 text-center text-sm text-slate-400">
+                <TableCell colSpan={5} className="px-3 py-8 text-center text-sm text-muted-foreground">
                   No locations found
                 </TableCell>
               </TableRow>

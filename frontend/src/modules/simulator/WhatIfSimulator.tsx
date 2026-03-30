@@ -27,11 +27,11 @@ export function WhatIfSimulator() {
     return (
       <div className="px-6 py-6">
         <Card className="max-w-md mx-auto mt-24 p-8 text-center">
-          <ShieldAlert className="h-10 w-10 text-slate-400 mx-auto mb-3" />
-          <h2 className="text-lg font-semibold text-slate-700 mb-1">
+          <ShieldAlert className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <h2 className="text-lg font-semibold text-foreground mb-1">
             Access Restricted
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             The What-If Simulator is available to Controllers and Executives
             only.
           </p>
@@ -45,7 +45,7 @@ export function WhatIfSimulator() {
       {/* Header */}
       {phase.view === 'manager' && (
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-slate-900">
+          <h1 className="text-xl font-semibold text-foreground">
             What-If Simulator
           </h1>
           <ModuleGuideButton moduleId="whatif_simulator" />

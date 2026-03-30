@@ -26,7 +26,7 @@ export function OverviewTab() {
         <CardHeader>
           <CardTitle className="text-lg">About CRETA</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm text-slate-700">
+        <CardContent className="space-y-3 text-sm text-foreground">
           <p>
             <strong>CRETA</strong> (Controlling, Reporting, Estimation, Tracking & Allocations) is an IT financial
             planning and portfolio management application. It provides end-to-end project portfolio
@@ -49,10 +49,10 @@ export function OverviewTab() {
             {MODULES.map((mod) => (
               <div key={mod.route} className="border rounded-lg p-3 space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm text-slate-900">{mod.name}</span>
+                  <span className="font-medium text-sm text-foreground">{mod.name}</span>
                   <Badge variant="outline" className="text-xs font-mono">{mod.route}</Badge>
                 </div>
-                <p className="text-xs text-slate-500">{mod.description}</p>
+                <p className="text-xs text-muted-foreground">{mod.description}</p>
               </div>
             ))}
           </div>
@@ -65,7 +65,7 @@ export function OverviewTab() {
           <CardTitle className="text-lg">Architecture</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="font-mono text-xs bg-slate-50 rounded-lg p-4 text-slate-700 leading-relaxed whitespace-pre">{`Browser (React SPA)
+          <div className="font-mono text-xs bg-muted/50 rounded-lg p-4 text-foreground leading-relaxed whitespace-pre">{`Browser (React SPA)
     |
     |  HTTP (JSON)
     |  All requests include X-Current-User header
@@ -82,9 +82,9 @@ SQLite Database (creta_demo.db)
     |
     Seed data: seed.sql + JSON fixtures`}</div>
 
-          <div className="text-sm text-slate-700 space-y-2">
+          <div className="text-sm text-foreground space-y-2">
             <p><strong>Key architectural rules:</strong></p>
-            <ul className="list-disc list-inside space-y-1 text-slate-600">
+            <ul className="list-disc list-inside space-y-1 text-muted-foreground">
               <li>Server-side computation — frontend receives ready-to-render data</li>
               <li>SQLAlchemy ORM for all database access (no raw SQL in application code)</li>
               <li>Deactivation pattern (is_active flag), never deletion</li>
@@ -105,15 +105,15 @@ SQLite Database (creta_demo.db)
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-2 text-slate-500 font-medium">Layer</th>
-                <th className="text-left py-2 text-slate-500 font-medium">Technology</th>
+                <th className="text-left py-2 text-muted-foreground font-medium">Layer</th>
+                <th className="text-left py-2 text-muted-foreground font-medium">Technology</th>
               </tr>
             </thead>
             <tbody>
               {TECH_STACK.map((row) => (
                 <tr key={row.layer} className="border-b last:border-0">
-                  <td className="py-2 font-medium text-slate-700">{row.layer}</td>
-                  <td className="py-2 text-slate-600">{row.tech}</td>
+                  <td className="py-2 font-medium text-foreground">{row.layer}</td>
+                  <td className="py-2 text-muted-foreground">{row.tech}</td>
                 </tr>
               ))}
             </tbody>
@@ -130,16 +130,16 @@ SQLite Database (creta_demo.db)
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-2 text-slate-500 font-medium">Persona</th>
-                <th className="text-left py-2 text-slate-500 font-medium">Role</th>
-                <th className="text-left py-2 text-slate-500 font-medium">Key Access</th>
+                <th className="text-left py-2 text-muted-foreground font-medium">Persona</th>
+                <th className="text-left py-2 text-muted-foreground font-medium">Role</th>
+                <th className="text-left py-2 text-muted-foreground font-medium">Key Access</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b"><td className="py-2 font-medium">Anna Meier</td><td className="py-2">Controller</td><td className="py-2 text-slate-600">Full access — all modules, admin, approvals, scenarios</td></tr>
-              <tr className="border-b"><td className="py-2 font-medium">Thomas Brenner</td><td className="py-2">CC Owner</td><td className="py-2 text-slate-600">Capacity management, portfolio dashboard</td></tr>
-              <tr className="border-b"><td className="py-2 font-medium">Priya Sharma</td><td className="py-2">Project Lead</td><td className="py-2 text-slate-600">Project workbench, forecast cycles, intake submission</td></tr>
-              <tr className="border-0"><td className="py-2 font-medium">Thomas Becker</td><td className="py-2">Executive</td><td className="py-2 text-slate-600">Portfolio dashboard, scenarios (read-only)</td></tr>
+              <tr className="border-b"><td className="py-2 font-medium">Anna Meier</td><td className="py-2">Controller</td><td className="py-2 text-muted-foreground">Full access — all modules, admin, approvals, scenarios</td></tr>
+              <tr className="border-b"><td className="py-2 font-medium">Thomas Brenner</td><td className="py-2">CC Owner</td><td className="py-2 text-muted-foreground">Capacity management, portfolio dashboard</td></tr>
+              <tr className="border-b"><td className="py-2 font-medium">Priya Sharma</td><td className="py-2">Project Lead</td><td className="py-2 text-muted-foreground">Project workbench, forecast cycles, intake submission</td></tr>
+              <tr className="border-0"><td className="py-2 font-medium">Thomas Becker</td><td className="py-2">Executive</td><td className="py-2 text-muted-foreground">Portfolio dashboard, scenarios (read-only)</td></tr>
             </tbody>
           </table>
         </CardContent>

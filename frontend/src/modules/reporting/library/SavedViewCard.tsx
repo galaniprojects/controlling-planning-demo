@@ -51,14 +51,14 @@ export function SavedViewCard({ view, onRename, onDelete }: SavedViewCardProps) 
   return (
     <>
       <div
-        className="group rounded-lg border border-slate-200 bg-white p-4 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all relative"
+        className="group rounded-lg border border-border bg-card p-4 cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all relative"
         onClick={() => navigate(`/reporting/${view.report_id}?view=${view.id}`)}
       >
         <div className="flex items-start justify-between">
           <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-semibold text-slate-700 truncate">{view.name}</h3>
-            <p className="text-xs text-slate-400 mt-0.5">{reportName}</p>
-            <p className="text-[10px] text-slate-300 mt-1">Modified: {modified}</p>
+            <h3 className="text-sm font-semibold text-foreground truncate">{view.name}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{reportName}</p>
+            <p className="text-[10px] text-muted-foreground/40 mt-1">Modified: {modified}</p>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -82,7 +82,7 @@ export function SavedViewCard({ view, onRename, onDelete }: SavedViewCardProps) 
                 Rename
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="text-red-600"
+                className="text-red-600 dark:text-red-400"
                 onClick={(e) => {
                   e.stopPropagation();
                   onDelete(view.id);

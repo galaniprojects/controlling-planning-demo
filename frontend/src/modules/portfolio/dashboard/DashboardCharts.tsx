@@ -33,7 +33,7 @@ export function DashboardCharts({ data, activeRag, onRagClick }: Props) {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-slate-600">Forecast by {topLevelLabel}</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">Forecast by {topLevelLabel}</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <BudgetByLobChart data={data.forecast_by_lob} />
@@ -42,7 +42,7 @@ export function DashboardCharts({ data, activeRag, onRagClick }: Props) {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-slate-600">Forecast Trajectory</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">Forecast Trajectory</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <ForecastTrajectoryChart data={data.forecast_trajectory} />
@@ -51,7 +51,7 @@ export function DashboardCharts({ data, activeRag, onRagClick }: Props) {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-slate-600">RAG Distribution</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">RAG Distribution</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <RAGDonutChart data={data.rag_distribution} activeRag={activeRag} onSegmentClick={onRagClick} />

@@ -24,9 +24,9 @@ export function MetadataBar({ metadata }: Props) {
   }
 
   return (
-    <div className="space-y-3 p-4 bg-white border border-slate-200 rounded-lg">
+    <div className="space-y-3 p-4 bg-card border border-border rounded-lg">
       <div className="flex items-center gap-2 flex-wrap">
-        <h2 className="text-lg font-semibold text-slate-800">
+        <h2 className="text-lg font-semibold text-foreground">
           {metadata.name}
         </h2>
         {metadata.rag && (
@@ -39,12 +39,12 @@ export function MetadataBar({ metadata }: Props) {
         </Badge>
       </div>
 
-      <div className="flex items-center gap-4 text-sm text-slate-500">
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
         {metadata.hierarchy_path && metadata.hierarchy_path.length > 0 ? (
           <span className="flex items-center gap-1">
             {metadata.hierarchy_path.map((seg: { type_name: string; entity_name: string }, i: number) => (
               <span key={i} className="flex items-center gap-1">
-                {i > 0 && <span className="text-slate-300">&rsaquo;</span>}
+                {i > 0 && <span className="text-muted-foreground/40">&rsaquo;</span>}
                 <span>{seg.entity_name}</span>
               </span>
             ))}
@@ -58,19 +58,19 @@ export function MetadataBar({ metadata }: Props) {
       {/* Timeline bar */}
       {metadata.timeline.start && (
         <div className="space-y-1">
-          <div className="flex justify-between text-xs text-slate-400">
+          <div className="flex justify-between text-xs text-muted-foreground">
             <span>{metadata.timeline.start}</span>
             <span>{metadata.timeline.end || '?'}</span>
           </div>
-          <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
             <div
-              className="h-full rounded-full bg-blue-600 transition-all"
+              className="h-full rounded-full bg-primary transition-all"
               style={{ width: `${timelinePct}%` }}
             />
           </div>
           {metadata.timeline.projected_end &&
             metadata.timeline.projected_end !== metadata.timeline.end && (
-              <p className="text-xs text-amber-600">
+              <p className="text-xs text-amber-600 dark:text-amber-400">
                 Projected end: {metadata.timeline.projected_end}
               </p>
             )}

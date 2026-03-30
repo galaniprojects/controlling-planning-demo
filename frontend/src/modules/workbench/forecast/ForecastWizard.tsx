@@ -47,7 +47,7 @@ export function ForecastWizard({ projectId, nameMap, onComplete, onCancel }: Pro
   if (state.error) {
     return (
       <div className="space-y-3">
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 p-3 text-sm text-red-800 dark:text-red-400">
           {state.error}
         </div>
         <Button variant="outline" size="sm" onClick={onCancel}>
@@ -69,17 +69,17 @@ export function ForecastWizard({ projectId, nameMap, onComplete, onCancel }: Pro
             <div key={label} className="flex items-center">
               {i > 0 && (
                 <div
-                  className={`w-8 h-0.5 ${isDone ? 'bg-blue-600' : 'bg-slate-200'}`}
+                  className={`w-8 h-0.5 ${isDone ? 'bg-primary' : 'bg-border'}`}
                 />
               )}
               <div className="flex items-center gap-1.5">
                 <div
                   className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-medium ${
                     isDone
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-primary text-primary-foreground'
                       : isCurrent
-                        ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-600'
-                        : 'bg-slate-100 text-slate-400'
+                        ? 'bg-primary/10 text-primary ring-2 ring-primary'
+                        : 'bg-muted text-muted-foreground'
                   }`}
                 >
                   {isDone ? <Check className="h-3.5 w-3.5" /> : phaseNum}
@@ -87,8 +87,8 @@ export function ForecastWizard({ projectId, nameMap, onComplete, onCancel }: Pro
                 <span
                   className={`text-xs ${
                     isCurrent
-                      ? 'font-medium text-slate-700'
-                      : 'text-slate-400'
+                      ? 'font-medium text-foreground'
+                      : 'text-muted-foreground'
                   }`}
                 >
                   {label}

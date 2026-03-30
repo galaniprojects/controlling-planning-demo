@@ -13,12 +13,12 @@ export function BottomDrawer({ title, open, onClose, children }: BottomDrawerPro
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
-      <div className="fixed bottom-0 left-0 right-0 z-50 h-[40vh] rounded-t-lg border-t border-slate-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-3">
-          <span className="text-sm font-semibold text-slate-700">{title}</span>
+      <div className="fixed bottom-0 left-0 right-0 z-50 h-[40vh] rounded-t-lg border-t border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-6 py-3">
+          <span className="text-sm font-semibold text-foreground">{title}</span>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600"
+            className="text-muted-foreground hover:text-foreground"
           >
             &times;
           </button>

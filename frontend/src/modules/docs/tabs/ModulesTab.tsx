@@ -32,8 +32,8 @@ export function ModulesTab() {
             onClick={() => setExpandedModule(m.module_id)}
             className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
               expandedModule === m.module_id
-                ? 'bg-blue-50 text-blue-700 font-medium'
-                : 'text-slate-600 hover:bg-slate-50'
+                ? 'bg-primary/5 text-primary font-medium'
+                : 'text-muted-foreground hover:bg-accent'
             }`}
           >
             {m.module_name}
@@ -47,13 +47,13 @@ export function ModulesTab() {
           .filter((m) => m.module_id === expandedModule)
           .map((manual) => (
             <div key={manual.module_id} className="space-y-4">
-              <h2 className="text-lg font-semibold text-slate-900">{manual.module_name}</h2>
+              <h2 className="text-lg font-semibold text-foreground">{manual.module_name}</h2>
               {manual.sections.map((section, i) => (
                 <Card key={i}>
                   <CardHeader className="py-3">
                     <CardTitle className="text-sm font-medium">{section.title}</CardTitle>
                   </CardHeader>
-                  <CardContent className="text-sm text-slate-600 leading-relaxed">
+                  <CardContent className="text-sm text-muted-foreground leading-relaxed">
                     {section.body.split('\n').map((line, j) => (
                       <p key={j} className={line.trim() === '' ? 'h-2' : 'mb-1'}>
                         {renderMarkdownBold(line)}

@@ -28,8 +28,8 @@ interface Props {
 export function ForecastAccuracyChart({ data }: Props) {
   if (data.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-12 text-center">
-        <p className="text-sm text-slate-400">No data to display.</p>
+      <div className="rounded-lg border border-dashed border-border bg-muted/50 p-12 text-center">
+        <p className="text-sm text-muted-foreground">No data to display.</p>
       </div>
     );
   }
@@ -52,25 +52,25 @@ export function ForecastAccuracyChart({ data }: Props) {
   ];
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4" style={{ height: 400 }}>
+    <div className="rounded-lg border border-border bg-card p-4" style={{ height: 400 }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart margin={{ top: 10, right: 20, bottom: 20, left: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
           <XAxis
             dataKey="forecast"
             type="number"
             domain={[minVal, maxVal]}
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 11, fill: 'var(--chart-axis)' }}
             tickFormatter={(v: number) => formatCurrency(v)}
-            label={{ value: 'Forecast (€)', position: 'insideBottom', offset: -10, fontSize: 11 }}
+            label={{ value: 'Forecast (€)', position: 'insideBottom', offset: -10, fontSize: 11, fill: 'var(--chart-axis)' }}
           />
           <YAxis
             dataKey="actual"
             type="number"
             domain={[minVal, maxVal]}
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 11, fill: 'var(--chart-axis)' }}
             tickFormatter={(v: number) => formatCurrency(v)}
-            label={{ value: 'Actual (€)', angle: -90, position: 'insideLeft', offset: -5, fontSize: 11 }}
+            label={{ value: 'Actual (€)', angle: -90, position: 'insideLeft', offset: -5, fontSize: 11, fill: 'var(--chart-axis)' }}
           />
           <Tooltip
             content={({ payload }) => {
@@ -78,7 +78,7 @@ export function ForecastAccuracyChart({ data }: Props) {
               const p = payload[0]?.payload as ChartPoint | undefined;
               if (!p) return null;
               return (
-                <div className="rounded border border-slate-200 bg-white p-2 shadow text-xs">
+                <div className="rounded border border-border bg-card p-2 shadow text-xs text-foreground">
                   <p className="font-medium">{p.project_name}</p>
                   <p>Forecast: {formatCurrency(p.forecast)}</p>
                   <p>Actual: {formatCurrency(p.actual)}</p>

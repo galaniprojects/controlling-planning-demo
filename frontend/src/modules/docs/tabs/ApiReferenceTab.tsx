@@ -41,10 +41,10 @@ interface GroupedEndpoint {
 }
 
 const METHOD_COLORS: Record<string, string> = {
-  get: 'bg-green-100 text-green-800',
-  post: 'bg-blue-100 text-blue-800',
-  put: 'bg-amber-100 text-amber-800',
-  delete: 'bg-red-100 text-red-800',
+  get: 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400',
+  post: 'bg-primary/10 text-primary',
+  put: 'bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400',
+  delete: 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400',
 };
 
 const TAG_ORDER = [
@@ -106,16 +106,16 @@ export function ApiReferenceTab() {
 
   return (
     <div className="space-y-4 mt-4">
-      <div className="flex items-center gap-3 text-sm text-slate-500">
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <span>{sortedTags.length} endpoint groups</span>
-        <span className="text-slate-300">|</span>
+        <span className="text-muted-foreground/40">|</span>
         <span>{Object.values(groups).flat().length} total endpoints</span>
-        <span className="text-slate-300">|</span>
+        <span className="text-muted-foreground/40">|</span>
         <a
           href="http://localhost:8000/docs"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:underline"
+          className="text-primary/80 hover:underline"
         >
           Open Swagger UI
         </a>
@@ -128,7 +128,7 @@ export function ApiReferenceTab() {
         return (
           <Card key={tag}>
             <CardHeader
-              className="py-3 cursor-pointer hover:bg-slate-50 transition-colors"
+              className="py-3 cursor-pointer hover:bg-accent transition-colors"
               onClick={() => setExpandedTag(isExpanded ? null : tag)}
             >
               <div className="flex items-center justify-between">
@@ -137,7 +137,7 @@ export function ApiReferenceTab() {
                   <Badge variant="outline" className="text-xs">
                     {endpoints.length} endpoint{endpoints.length !== 1 ? 's' : ''}
                   </Badge>
-                  <span className="text-slate-400 text-xs">{isExpanded ? '−' : '+'}</span>
+                  <span className="text-muted-foreground text-xs">{isExpanded ? '−' : '+'}</span>
                 </div>
               </div>
             </CardHeader>
@@ -152,43 +152,43 @@ export function ApiReferenceTab() {
                     <div key={key} className="border rounded-md">
                       <button
                         onClick={() => setExpandedEndpoint(isEndpointExpanded ? null : key)}
-                        className="w-full text-left px-3 py-2 flex items-center gap-3 hover:bg-slate-50 transition-colors"
+                        className="w-full text-left px-3 py-2 flex items-center gap-3 hover:bg-accent transition-colors"
                       >
-                        <Badge className={`text-xs font-mono px-2 py-0.5 ${METHOD_COLORS[ep.method.toLowerCase()] || 'bg-slate-100 text-slate-700'}`}>
+                        <Badge className={`text-xs font-mono px-2 py-0.5 ${METHOD_COLORS[ep.method.toLowerCase()] || 'bg-muted text-foreground'}`}>
                           {ep.method}
                         </Badge>
-                        <code className="text-xs text-slate-700 font-mono">{ep.path}</code>
+                        <code className="text-xs text-foreground font-mono">{ep.path}</code>
                         {ep.summary && (
-                          <span className="text-xs text-slate-400 ml-auto truncate max-w-[300px]">
+                          <span className="text-xs text-muted-foreground ml-auto truncate max-w-[300px]">
                             {ep.summary}
                           </span>
                         )}
                       </button>
 
                       {isEndpointExpanded && (
-                        <div className="px-3 pb-3 space-y-3 border-t bg-slate-50/50">
+                        <div className="px-3 pb-3 space-y-3 border-t bg-muted/30">
                           {ep.description && (
-                            <p className="text-xs text-slate-600 pt-2">{ep.description}</p>
+                            <p className="text-xs text-muted-foreground pt-2">{ep.description}</p>
                           )}
 
                           {ep.parameters.length > 0 && (
                             <div>
-                              <p className="text-xs font-medium text-slate-500 mb-1">Parameters</p>
+                              <p className="text-xs font-medium text-muted-foreground mb-1">Parameters</p>
                               <table className="w-full text-xs">
                                 <thead>
                                   <tr className="border-b">
-                                    <th className="text-left py-1 text-slate-400">Name</th>
-                                    <th className="text-left py-1 text-slate-400">In</th>
-                                    <th className="text-left py-1 text-slate-400">Type</th>
-                                    <th className="text-left py-1 text-slate-400">Required</th>
+                                    <th className="text-left py-1 text-muted-foreground">Name</th>
+                                    <th className="text-left py-1 text-muted-foreground">In</th>
+                                    <th className="text-left py-1 text-muted-foreground">Type</th>
+                                    <th className="text-left py-1 text-muted-foreground">Required</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {ep.parameters.map((p) => (
                                     <tr key={p.name} className="border-b last:border-0">
                                       <td className="py-1 font-mono">{p.name}</td>
-                                      <td className="py-1 text-slate-500">{p.in}</td>
-                                      <td className="py-1 text-slate-500">{p.schema?.type || '—'}</td>
+                                      <td className="py-1 text-muted-foreground">{p.in}</td>
+                                      <td className="py-1 text-muted-foreground">{p.schema?.type || '—'}</td>
                                       <td className="py-1">{p.required ? 'Yes' : 'No'}</td>
                                     </tr>
                                   ))}
@@ -198,7 +198,7 @@ export function ApiReferenceTab() {
                           )}
 
                           {ep.hasBody && (
-                            <p className="text-xs text-slate-500">Request body: JSON</p>
+                            <p className="text-xs text-muted-foreground">Request body: JSON</p>
                           )}
                         </div>
                       )}

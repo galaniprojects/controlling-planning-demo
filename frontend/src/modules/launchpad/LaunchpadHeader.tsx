@@ -38,15 +38,15 @@ export function LaunchpadHeader({ userName, role }: Props) {
       <div className="flex items-center justify-center gap-0 text-base tracking-wide mb-3 flex-wrap">
         {CRETA_WORDS.map((word, i) => (
           <span key={word.letter} className="inline-flex items-center">
-            {i > 0 && <span className="mx-1.5 text-slate-300">·</span>}
-            <span className="text-blue-800 font-bold">{word.letter}</span>
-            <span className="text-slate-400">{word.rest}</span>
+            {i > 0 && <span className="mx-1.5 text-muted-foreground/40">·</span>}
+            <span className="text-primary font-bold">{word.letter}</span>
+            <span className="text-muted-foreground">{word.rest}</span>
           </span>
         ))}
       </div>
 
       {/* Greeting */}
-      <p className="text-xl text-slate-700 mb-2">
+      <p className="text-xl text-foreground mb-2">
         {getGreeting()}, {getFirstName(userName)}
       </p>
 

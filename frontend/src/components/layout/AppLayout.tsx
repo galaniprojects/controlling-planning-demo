@@ -16,7 +16,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   } = useBottomDrawer();
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       <TopBar />
       <div className="flex">
         <main

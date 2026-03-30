@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, Building2, Truck, Target, CalendarRange, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { BarChart3, Building2, Truck, Target, CalendarRange, Sparkles, LayoutGrid } from 'lucide-react';
 import { ReportCard } from './ReportCard';
 import { SavedViewCard } from './SavedViewCard';
 import { reportsApi } from '@/api/endpoints';
@@ -46,6 +47,7 @@ const REPORTS = [
 ];
 
 export function ReportLibrary() {
+  const navigate = useNavigate();
   const [savedViews, setSavedViews] = useState<SavedViewItem[]>([]);
 
   useEffect(() => {
@@ -75,7 +77,7 @@ export function ReportLibrary() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-sm font-medium text-slate-600 mb-3">Standard Reports</h2>
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">Standard Reports</h2>
         <div className="grid grid-cols-3 gap-4">
           {REPORTS.map((r) => (
             <ReportCard
@@ -90,8 +92,28 @@ export function ReportLibrary() {
         </div>
       </div>
 
+      <div className="border-t border-border pt-6">
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">Build Your Own</h2>
+        <div
+          onClick={() => navigate('/reporting/builder')}
+          className="cursor-pointer rounded-lg border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-primary"
+        >
+          <div className="flex items-start gap-3">
+            <div className="rounded-md bg-primary/10 p-2 text-primary">
+              <LayoutGrid className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground">Report Builder</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Build custom reports by selecting dimensions and measures. Drag them into rows, columns, filters, and values to create cross-tabulated views.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div>
-        <h2 className="text-sm font-medium text-slate-600 mb-3">My Saved Views</h2>
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">My Saved Views</h2>
         {savedViews.length > 0 ? (
           <div className="grid grid-cols-3 gap-4">
             {savedViews.map((v) => (
@@ -104,8 +126,8 @@ export function ReportLibrary() {
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-            <p className="text-sm text-slate-400">
+          <div className="rounded-lg border border-dashed border-border bg-muted/50 p-8 text-center">
+            <p className="text-sm text-muted-foreground">
               No saved views yet. Open a report and click "Save View" to save your filter configuration.
             </p>
           </div>

@@ -27,19 +27,19 @@ export function SortableHeader({
 
   return (
     <th
-      className={`px-3 py-2 font-medium text-slate-600 cursor-pointer select-none hover:bg-slate-100 transition-colors ${alignClass} ${className}`}
+      className={`px-3 py-2 font-medium text-muted-foreground cursor-pointer select-none hover:bg-accent transition-colors ${alignClass} ${className}`}
       onClick={() => onSort(column)}
     >
       <span className="inline-flex items-center gap-0.5">
         {label}
         {isActive ? (
           sortDirection === 'desc' ? (
-            <ChevronDown className="h-3.5 w-3.5 text-blue-600" />
+            <ChevronDown className="h-3.5 w-3.5 text-primary" />
           ) : (
-            <ChevronUp className="h-3.5 w-3.5 text-blue-600" />
+            <ChevronUp className="h-3.5 w-3.5 text-primary" />
           )
         ) : (
-          <ChevronDown className="h-3.5 w-3.5 text-slate-300" />
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/40" />
         )}
       </span>
     </th>

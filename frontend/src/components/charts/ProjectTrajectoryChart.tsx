@@ -20,15 +20,15 @@ export function ProjectTrajectoryChart({ data, height = 240 }: Props) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
         <XAxis
           dataKey="month"
-          tick={{ fontSize: 12, fill: '#64748b' }}
-          axisLine={{ stroke: '#e2e8f0' }}
+          tick={{ fontSize: 12, fill: 'var(--chart-axis)' }}
+          axisLine={{ stroke: 'var(--chart-grid)' }}
           tickLine={false}
         />
         <YAxis
-          tick={{ fontSize: 12, fill: '#64748b' }}
+          tick={{ fontSize: 12, fill: 'var(--chart-axis)' }}
           axisLine={false}
           tickLine={false}
           tickFormatter={(v: number) => formatCurrency(v)}
@@ -38,7 +38,7 @@ export function ProjectTrajectoryChart({ data, height = 240 }: Props) {
             formatCurrency(value),
             name.charAt(0).toUpperCase() + name.slice(1),
           ]}
-          contentStyle={{ fontSize: 13, borderRadius: 8 }}
+          contentStyle={{ fontSize: 13, borderRadius: 8, backgroundColor: 'var(--card)', borderColor: 'var(--border)', color: 'var(--card-foreground)' }}
         />
         <Legend
           wrapperStyle={{ fontSize: 12 }}
@@ -49,7 +49,7 @@ export function ProjectTrajectoryChart({ data, height = 240 }: Props) {
         <Line
           type="monotone"
           dataKey="baseline"
-          stroke="#94a3b8"
+          stroke="var(--chart-axis)"
           strokeWidth={2}
           strokeDasharray="5 5"
           dot={false}
@@ -58,7 +58,7 @@ export function ProjectTrajectoryChart({ data, height = 240 }: Props) {
         <Line
           type="monotone"
           dataKey="forecast"
-          stroke="#1d4ed8"
+          stroke="var(--chart-1)"
           strokeWidth={2}
           dot={false}
           activeDot={{ r: 4 }}
@@ -66,7 +66,7 @@ export function ProjectTrajectoryChart({ data, height = 240 }: Props) {
         <Line
           type="monotone"
           dataKey="actuals"
-          stroke="#1e293b"
+          stroke="var(--foreground)"
           strokeWidth={2}
           dot={false}
           activeDot={{ r: 4 }}
