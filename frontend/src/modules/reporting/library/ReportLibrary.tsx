@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Building2, Truck, Target, CalendarRange, Sparkles, LayoutGrid } from 'lucide-react';
+import { BarChart3, Building2, Truck, Target, CalendarRange, Sparkles, LayoutGrid, Users } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { ReportCard } from './ReportCard';
 import { SavedViewCard } from './SavedViewCard';
-import { reportsApi } from '@/api/endpoints';
+import { reportsApi, reportBuilderApi } from '@/api/endpoints';
 import type { SavedViewItem } from '@/types/api';
+import type { SavedReportSummary, SharedReportSummary } from '@/types/reportBuilder';
 
 const REPORTS = [
   {
@@ -49,9 +51,13 @@ const REPORTS = [
 export function ReportLibrary() {
   const navigate = useNavigate();
   const [savedViews, setSavedViews] = useState<SavedViewItem[]>([]);
+  const [customReports, setCustomReports] = useState<SavedReportSummary[]>([]);
+  const [sharedReports, setSharedReports] = useState<SharedReportSummary[]>([]);
 
   useEffect(() => {
     reportsApi.getSavedViews().then((r) => setSavedViews(r.items)).catch(() => {});
+    reportBuilderApi.listSaved().then((r) => setCustomReports(r.items)).catch(() => {});
+    reportBuilderApi.listShared().then((r) => setSharedReports(r.items)).catch(() => {});
   }, []);
 
   const handleRename = async (id: number, name: string) => {
@@ -112,10 +118,70 @@ export function ReportLibrary() {
         </div>
       </div>
 
+      {/* Shared Reports */}
+      {sharedReports.length > 0 && (
+        <div>
+          <h2 className="text-sm font-medium text-muted-foreground mb-3">Shared Reports</h2>
+          <div className="grid grid-cols-3 gap-4">
+            {sharedReports.map((r) => (
+              <div
+                key={`shared-${r.id}`}
+                onClick={() => navigate(`/reporting/builder?reportId=${r.id}`)}
+                className="cursor-pointer rounded-lg border border-border bg-card p-4 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="rounded-md bg-accent p-2 text-muted-foreground">
+                    <Users className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-foreground text-sm truncate">{r.name}</h3>
+                      {r.permission && (
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          {r.permission === 'can_edit' ? 'Can edit' : 'View only'}
+                        </Badge>
+                      )}
+                    </div>
+                    {r.description && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{r.description}</p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground mt-1">by {r.created_by}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div>
         <h2 className="text-sm font-medium text-muted-foreground mb-3">My Saved Views</h2>
-        {savedViews.length > 0 ? (
+        {savedViews.length > 0 || customReports.length > 0 ? (
           <div className="grid grid-cols-3 gap-4">
+            {/* Custom Report Builder reports */}
+            {customReports.map((r) => (
+              <div
+                key={`custom-${r.id}`}
+                onClick={() => navigate(`/reporting/builder?reportId=${r.id}`)}
+                className="cursor-pointer rounded-lg border border-border bg-card p-4 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="rounded-md bg-primary/10 p-2 text-primary">
+                    <LayoutGrid className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-foreground text-sm truncate">{r.name}</h3>
+                      <Badge variant="secondary" className="text-[10px] shrink-0">Custom</Badge>
+                    </div>
+                    {r.description && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{r.description}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {/* Standard report saved views */}
             {savedViews.map((v) => (
               <SavedViewCard
                 key={v.id}

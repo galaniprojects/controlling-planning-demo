@@ -116,3 +116,41 @@ export interface CalculatedMeasureDef {
 /* ── Chart view types ── */
 
 export type ChartViewType = 'table' | 'bar' | 'line' | 'pie';
+
+/* ── Saved report types ── */
+
+export interface ReportDefinition {
+  rows: string[];
+  columns: string[];
+  filters: Record<string, string[]>;
+  values: string[];
+  calculatedMeasures: MeasureItem[];
+  formatRules: ConditionalFormatRule[];
+  viewMode: ChartViewType;
+}
+
+export interface SavedReportSummary {
+  id: number;
+  name: string;
+  description: string | null;
+  created_by: string;
+  is_published: boolean;
+  created_at: string;
+  modified_at: string;
+}
+
+export interface SavedReportDetail extends SavedReportSummary {
+  definition: ReportDefinition;
+}
+
+export interface SharedReportSummary {
+  id: number;
+  name: string;
+  description: string | null;
+  created_by: string;
+  is_published: boolean;
+  permission: string | null;
+  shared_at: string | null;
+  created_at: string;
+  modified_at: string;
+}

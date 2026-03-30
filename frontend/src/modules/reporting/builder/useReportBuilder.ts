@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { reportBuilderApi } from '@/api/endpoints';
 import type {
   CatalogResponse,
+  ChartViewType,
   ColumnMeta,
   ConditionalFormatRule,
   DimensionItem,
   FormatPresetId,
   MeasureItem,
+  ReportDefinition,
   ReportExecuteResponse,
   ZoneName,
 } from '@/types/reportBuilder';
@@ -45,6 +47,11 @@ export function useReportBuilder() {
   const [formatRules, setFormatRules] = useState<ConditionalFormatRule[]>([]);
   const [calculatedMeasures, setCalculatedMeasures] = useState<MeasureItem[]>([]);
   const hasRun = useRef(false);
+
+  // Save / Load state
+  const [savedReportId, setSavedReportId] = useState<number | null>(null);
+  const [savedReportName, setSavedReportName] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Load catalog on mount
   useEffect(() => {
@@ -291,6 +298,127 @@ export function useReportBuilder() {
     }
   }, [zones, filterSelections]);
 
+  // Build the full report definition for saving
+  const getDefinition = useCallback(
+    (viewMode: ChartViewType): ReportDefinition => ({
+      rows: zones.rows.map((d) => d.id),
+      columns: zones.columns.map((d) => d.id),
+      filters: filterSelections,
+      values: zones.values.map((m) => m.id),
+      calculatedMeasures,
+      formatRules,
+      viewMode,
+    }),
+    [zones, filterSelections, calculatedMeasures, formatRules],
+  );
+
+  // Save report (first save)
+  const saveReport = useCallback(
+    async (name: string, description: string | undefined, viewMode: ChartViewType) => {
+      setIsSaving(true);
+      try {
+        const definition = getDefinition(viewMode);
+        const res = await reportBuilderApi.createSaved({ name, description, definition });
+        setSavedReportId(res.id);
+        setSavedReportName(res.name);
+        return res;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [getDefinition],
+  );
+
+  // Update existing saved report
+  const updateReport = useCallback(
+    async (viewMode: ChartViewType) => {
+      if (!savedReportId) return;
+      setIsSaving(true);
+      try {
+        const definition = getDefinition(viewMode);
+        await reportBuilderApi.updateSaved(savedReportId, { definition });
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [savedReportId, getDefinition],
+  );
+
+  // Save As (create copy)
+  const saveAsReport = useCallback(
+    async (name: string, description: string | undefined, viewMode: ChartViewType) => {
+      setIsSaving(true);
+      try {
+        const definition = getDefinition(viewMode);
+        const res = await reportBuilderApi.createSaved({ name, description, definition });
+        setSavedReportId(res.id);
+        setSavedReportName(res.name);
+        return res;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [getDefinition],
+  );
+
+  // Load a saved report definition into the builder
+  const loadReport = useCallback(
+    (def: ReportDefinition, id: number, name: string, catalogData: CatalogResponse) => {
+      // Restore zones from IDs using catalog data
+      const dimMap = new Map(catalogData.dimensions.map((d) => [d.id, d]));
+      const measureMap = new Map(catalogData.measures.map((m) => [m.id, m]));
+
+      const rows = def.rows.map((id) => dimMap.get(id)).filter(Boolean) as DimensionItem[];
+      const columns = def.columns.map((id) => dimMap.get(id)).filter(Boolean) as DimensionItem[];
+      const filters = Object.keys(def.filters)
+        .map((id) => dimMap.get(id))
+        .filter(Boolean) as DimensionItem[];
+      const values: MeasureItem[] = def.values
+        .map((id) => {
+          // Check if it's a calculated measure from the definition
+          const calc = def.calculatedMeasures.find((cm) => cm.id === id);
+          if (calc) return calc;
+          return measureMap.get(id);
+        })
+        .filter(Boolean) as MeasureItem[];
+
+      setZones({ rows, columns, filters, values });
+      setFilterSelections(def.filters);
+      setCalculatedMeasures(def.calculatedMeasures || []);
+      setFormatRules(def.formatRules || []);
+      setSavedReportId(id);
+      setSavedReportName(name);
+
+      // Load filter options for all filter dimensions
+      for (const dim of filters) {
+        loadFilterValues(dim.id);
+      }
+
+      // Reset run state so auto-run triggers fresh
+      hasRun.current = false;
+      setResults(null);
+      setIsStale(false);
+      setError(null);
+    },
+    [loadFilterValues],
+  );
+
+  // Clear / reset to new report
+  const clearReport = useCallback(() => {
+    setZones({ rows: [], columns: [], filters: [], values: [] });
+    setFilterSelections({});
+    setFilterOptions({});
+    setResults(null);
+    setIsLoading(false);
+    setIsStale(false);
+    setError(null);
+    setFormatRules([]);
+    setCalculatedMeasures([]);
+    setSavedReportId(null);
+    setSavedReportName(null);
+    hasRun.current = false;
+  }, []);
+
   const canRun = zones.values.length > 0;
 
   return {
@@ -321,5 +449,15 @@ export function useReportBuilder() {
     addCalculatedMeasure,
     updateCalculatedMeasure,
     removeCalculatedMeasure,
+    // Save / Load
+    savedReportId,
+    savedReportName,
+    isSaving,
+    saveReport,
+    updateReport,
+    saveAsReport,
+    loadReport,
+    clearReport,
+    getDefinition,
   };
 }

@@ -45,7 +45,7 @@ Scenario planning tool with 12 action types (7 project-level, 5 portfolio-level)
 Five standard reports — Programme Rollup, Cost Center Financial Summary, Vendor Spend Analysis, Forecast Accuracy, and Year-over-Year Comparison. Features include custom project groupings, column configuration, saved views, and export capabilities.
 
 ### Interactive Report Builder
-Click-to-build OLAP-style report builder with a data catalog of 18 dimensions and 16 measures. Drag dimensions into Rows, Columns, and Filters zones; add measures to Values. Cross-tabulation renderer with nested column headers (e.g., Fiscal Year > Measure Name), collapsible row groups with subtotals, grand totals, sticky headers, column sorting, and conditional formatting with RAG presets.
+Click-to-build OLAP-style report builder with a data catalog of 18 dimensions and 16 measures. Drag dimensions into Rows, Columns, and Filters zones; add measures to Values. Cross-tabulation renderer with nested column headers (e.g., Fiscal Year > Measure Name), collapsible row groups with subtotals, grand totals, sticky headers, column sorting, and conditional formatting with RAG presets. Calculated measures with two-operand formulas. Four chart views (Table, Bar, Line, Pie). Save, load, and share reports with permission controls. Publish to Report Library for team access. Excel export with merged headers, European formatting, and conditional formatting colours.
 
 ### AI Report Builder
 Natural language report generation powered by Claude. Describe any report in plain English through a guided chat interface — the AI queries the database, generates tables, charts (bar, line, pie), and KPI summary cards. Supports iterative refinement through follow-up messages. Requires an Anthropic API key (configurable in Administration > Planning Parameters > Integrations).
@@ -160,7 +160,7 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Capacity** | `/api/capacity` | 14 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation |
 | **Scenarios** | `/api/scenarios` | 8 | CRUD, actions, comparison, AI advisor |
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
-| **Report Builder** | `/api/report-builder` | 3 | Data catalog, filter options, query execution |
+| **Report Builder** | `/api/report-builder` | 12 | Data catalog, filter options, query execution, saved reports CRUD, share/publish, Excel export |
 | **AI Report Builder** | `/api/reports/ai-builder` | 4 | Status check, conversation start, message, cleanup |
 | **Admin** | `/api/admin` | 18 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset |
 | **Docs** | `/api/docs` | 3 | Module manuals, FAQ |
