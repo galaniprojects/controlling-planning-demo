@@ -9,7 +9,7 @@
 ## Tech Stack
 - **Backend:** FastAPI (Python 3.12+), SQLAlchemy ORM, SQLite (embedded)
 - **Frontend:** React (Vite), shadcn/ui (Radix UI + Tailwind CSS), Recharts, Inter font
-- **Currency:** EUR (€), **Language:** English, **Demo Date:** February 2026
+- **Currency:** EUR (€), **Language:** English, **Demo Date:** April 2026
 
 ## Key Architectural Rules (Non-Negotiable)
 - SQLAlchemy ORM for ALL database access — no raw SQL in application code (seed.sql is the exception)
@@ -22,65 +22,141 @@
 - shadcn/ui components only — no additional component libraries
 - Heatmaps use CSS grid (not Recharts)
 - What-If: every action returns full recalculated state; pre-built scenarios use pre-computed snapshots
+- European number formatting: dot for thousands, comma for decimals (€14.400,00)
+- No emojis anywhere in the UI — text and Lucide icons only
+- Demo date April 2026 — all time-dependent logic (elapsed month tinting, actuals cutoffs, forecast boundaries, pending action triggers) uses this date
+- **Dark Mode:** Always use semantic Tailwind color classes — never hardcoded colors like `bg-white`, `text-slate-700`, or `border-slate-200`. Use `bg-background`, `bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`, `bg-accent`, `text-primary`, etc. For status/semantic colors (RAG: red/amber/green), keep the light variant AND add a `dark:` variant (e.g. `bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400`). For chart/SVG inline styles, use CSS custom properties (`var(--chart-grid)`, `var(--foreground)`) — never hex values. Test every new component in both light and dark themes.
 
-## Build Phases
-1. **Phase A:** Foundation — Database schema + seed data ✅
-2. **Phase B:** Backend API (90 endpoints across 8 groups) ✅
-3. **Phase C:** Frontend Shell (routing, layout, role switcher) ✅
-4. **Phase D:** Module UIs — split into 5 sessions:
-   - **D1:** Portfolio Overview (7.2, 10.3) — tree, filters, charts, approvals ✅
-   - **D2:** Project Workbench (7.3, 10.4) — master-detail, forecast wizard ← NEXT
-   - **D3:** Capacity Management (7.4, 10.5) — heatmap, request management
-   - **D4:** What-If Simulator (7.5, 10.6) — scenarios, AI Advisor
-   - **D5:** Administration (7.6, 10.9) — CRUD tables, parameters
-5. **Phase E:** Documentation content + polish
+## Build Status
+All phases are complete. The application is fully built with 8 modules:
+1. **Launchpad** — personalized hub, pending actions with deep-linking, KPI summaries
+2. **Portfolio Overview** — KPI dashboard, hierarchical project tree, intake queue, CR approvals
+3. **Project Workbench** — master-detail workspace, 5-phase rolling forecast wizard, submission workflow, change requests
+4. **Capacity Management** — team utilization heatmaps, org-wide pivot views, resource request management
+5. **What-If Simulator** — 12 action types, real-time KPI impact, scenario comparison, AI Advisor
+6. **Reporting** — 5 standard reports + AI Report Builder (natural language with Claude), saved views, export
+7. **Administration** — entity CRUD, rate tables, hierarchy configuration, audit logging, planning parameters
+8. **Documentation Hub** — module guides, FAQ, API reference, data model overview
 
-## D1 Established Components (reuse in D2–D5)
-- `components/shared/ExpandableTreeTable` — generic recursive tree table → D2, D4
-- `components/shared/FilterBar` — horizontal Select dropdowns with Clear → all modules
-- `components/shared/Skeleton` — pulsing loading placeholder → all modules
-- `components/shared/ModuleGuideButton` — fetches `/api/docs/modules/{id}` → all modules (IDs use underscores: `project_workbench`, `capacity_management`, `whatif_simulator`, `administration`)
-- `components/charts/*` — Recharts wrappers (bar, line, donut) → D2, D4
+Current focus: enhancements, bug fixes, and demo preparation.
+
+## Established Components & Patterns
+
+### Shared Components (`components/shared/`)
+- `ExpandableTreeTable` — generic recursive tree table with multi-column support
+- `FilterBar` — horizontal Select dropdowns with active filter display and Clear
+- `Skeleton` — pulsing loading placeholder
+- `ModuleGuideButton` — fetches `/api/docs/modules/{id}` (IDs use underscores: `project_workbench`, `capacity_management`, `whatif_simulator`, `administration`)
+- `DetailViewGrid` — month × line-item grid with collapsible years, "comparison" and "intake" cell patterns
+- `DetailViewKPIStrip` — 3-column KPI display strip with optional custom coloring
+- `SortableHeader` — clickable table header with sort direction indicators
+- `StatusBadge` — color-coded status badge (pending, approved, rejected, sent_back)
+- `SubmitProjectDialog` — dialog for submitting new projects with metadata fields
+
+### Chart Components (`components/charts/`)
+- `BudgetByLobChart`, `RAGDonutChart`, `ProjectTrajectoryChart`, `ForecastTrajectoryChart`
+
+### Layout Components (`components/layout/`)
+- `AppLayout`, `BottomDrawer`, `Breadcrumb`, `HelpButton`, `RoleSwitcher`, `SidePanel`, `TopBar`
+
+### shadcn/ui Components (14 installed)
+badge, button, card, checkbox, dialog, dropdown-menu, input, select, separator, sheet, table, tabs, textarea, tooltip
+
+### Contexts (`contexts/`)
+- `ThemeContext` — light/dark/system toggle with localStorage persistence
+- `RoleContext` — role switching and current role tracking
+- `SidePanelContext` — side panel state management (open/close, title, content)
+- `BottomDrawerContext` — bottom drawer state management
+
+### Hooks (`hooks/`)
+- `useActiveHierarchy` — portfolio hierarchy state management
+- `useCollapsibleYears` — year column collapsibility for grids
+- `useTableSort` — table sorting logic
+
+### Utilities (`lib/`)
+- `formatters.ts` — currency and number formatting
+- `rag.ts` — RAG status utilities
+- `routes.ts` — application route definitions
+- `yearColumns.ts` — year/month column logic
+- `detailViewTypes.ts` — TypeScript types for detail grid views
+- `renderMarkdownBold.tsx` — markdown rendering helper
+- `utils.ts` — general utilities
+
+### Key Patterns
 - **Tab pattern:** Use controlled `value` + `useEffect` to reset on role change (NOT `defaultValue`)
 - **Action pattern:** idle → mode → textarea → submit → result → `onActionComplete` callback
-- shadcn components installed: button, card, badge, dropdown-menu, separator, tooltip, tabs, select, table, textarea
-
-## Cross-Module Navigation Rule
-- Wire inbound links during the module's own session
-- Outbound links to unbuilt modules → navigate to route but show placeholder gracefully
-- Retroactively connect outbound links when target module is built
-- Final verification of all cross-module links in Phase E
+- **Heatmap pattern:** CSS grid (not Recharts)
 
 ## Session Protocol
-1. **Start:** Always read `PROGRESS.md` first to understand current state
-2. **Reference:** Read relevant sections of `CPC_Demo_App_Specification.md` for current phase
+1. **Start:** Read `CLAUDE.md` and `PROGRESS.md` to understand current state
+2. **Reference:** Check `guides/` directory for relevant spec documents and session guides for the current work
 3. **Verify:** Run the app to confirm current state matches PROGRESS.md
 4. **Work:** Continue from where the last session left off
-5. **End:** Update `PROGRESS.md` with completed work, next steps, any deviations or issues
+5. **Test:** Write unit tests for every new function; suggest manual testing of new features before creating a PR
+6. **Document:** Update `PROGRESS.md`, `README.md`, and in-app documentation module (`backend/seed/fixtures/` manuals) if features changed
+7. **End:** Commit all changes with descriptive messages
 
 ## Documentation Updates (Non-Negotiable)
 - **Any time API endpoints are added, changed, or removed**, update `README.md` (API tables) and `PROGRESS.md`
 - **Any time software features change significantly**, update `README.md` (Features section) and `PROGRESS.md`
-- **Any time new models or schema changes are made**, update `PROGRESS.md` and `docs/submission-workflow-plan.md` if relevant
+- **Any time new models or schema changes are made**, update `PROGRESS.md`
+- **Any time module behavior changes**, update the in-app documentation module content (`backend/seed/fixtures/` manuals)
 - Documentation updates are part of the definition of done — do not consider a task complete until docs are updated
 
-## Quality Assurance
-- `qa/test-plan.md` — Living E2E regression test plan (138 scenarios across 10 suites)
-- `qa/bug-report.md` — Created during testing sessions to track issues found
-- When asked to "start testing" or "run E2E tests", read `qa/test-plan.md` for full instructions
+## Testing Requirements
+- **Unit tests:** Every new backend function must have corresponding tests in `backend/tests/` — run with `python -m pytest tests/ -v`
+- **Manual testing:** Before creating a PR, suggest the user manually test the new feature in the browser
+- **QA test plan:** `qa/test-plan.md` — living E2E regression test plan (138 scenarios across 10 suites)
+- **Bug tracking:** `qa/bug-report.md` — created during testing sessions to track issues found
 - **Testing sessions are read-only:** do not fix code during testing, only document issues in `qa/bug-report.md`
 - After testing, a separate fix session addresses issues from the bug report
 
+## Git Discipline
+- Create a new branch for each feature/session with a descriptive name
+- Commit after every meaningful milestone
+- Descriptive commit messages: `"Feature-name: description of what was done"`
+- Do not squash — preserve build history
+- Update `PROGRESS.md` as the final commit of each session
+
 ## Critical File Paths
-- `CPC_Demo_App_Specification.md` — Single source of truth (read-only, do not modify)
-- `Claude_Code_Handoff.md` — Build guide with phase details and architecture rules
-- `PROGRESS.md` — Build progress tracker (update every session)
-- `SETUP.md` — Setup guide for running the project (update when components change)
-- `qa/test-plan.md` — E2E regression test plan (update after every version)
-- `backend/seed/seed.sql` — All relational seed data
+
+### Project Documentation
+- `CLAUDE.md` — project instructions (this file)
+- `PROGRESS.md` — build progress tracker (update every session)
+- `README.md` — feature overview, API docs, setup instructions
+- `SETUP.md` — detailed setup guide
+
+### Specs & Guides
+- `guides/` — active spec documents and session guides for current/upcoming work
+
+### Archive
+- `docs_archive/` — completed/superseded spec and session guide files
+
+### Planning Documents
+- `docs/submission-workflow-plan.md` — submission workflow design
+- `docs/hierarchy-migration-plan.md` — hierarchy migration plan
+
+### QA
+- `qa/test-plan.md` — E2E regression test plan
+- `qa/bug-report.md` — bug tracking during test sessions
+- `qa/ai-report-builder-prompts.md` — AI Report Builder test prompts
+
+### Backend
+- `backend/seed/seed.sql` — all relational seed data
 - `backend/seed/fixtures/` — JSON fixtures (manuals, FAQ, AI Advisor goals)
 - `backend/models/` — SQLAlchemy ORM models
 - `backend/routers/` — FastAPI route handlers
+- `backend/services/` — business logic services
+- `backend/tests/` — unit tests
+
+### Frontend
+- `frontend/src/modules/` — 8 module UIs (launchpad, portfolio, workbench, capacity, simulator, reporting, admin, docs)
+- `frontend/src/components/` — shared, layout, chart, and UI components
+- `frontend/src/contexts/` — React contexts (Theme, Role, SidePanel, BottomDrawer)
+- `frontend/src/hooks/` — custom hooks
+- `frontend/src/lib/` — utilities and helpers
+- `frontend/src/api/` — API client and endpoint definitions
+- `frontend/src/types/` — TypeScript type definitions
 
 ## Commands
 ```bash
@@ -92,41 +168,13 @@ python main.py  # Runs on http://localhost:8000, Swagger at /docs
 # Frontend
 cd frontend && npm install && npm run dev  # Runs on http://localhost:5173
 
+# Unit tests
+cd backend && python -m pytest tests/ -v
+
 # Reset demo data
 curl -X POST http://localhost:8000/api/admin/reset-demo
 ```
 
-## Git Discipline
-- Commit after every meaningful milestone
-- Descriptive messages: `"Phase X: description of what was done"`
-- Do not squash — preserve build history
-
-## v3 Implementation
-
-### Specification Documents
-- `CRETA_v3_Change_Specification.md` — authoritative spec for all v3 changes (supersedes v1 and v2 specs where conflicts exist)
-- `CRETA_v3_Section9_Seed_Data.md` — authoritative spec for the complete seed data overhaul
-- `Session_1_Guide.md` through `Session_6_Guide.md` — per-session implementation roadmaps
-
-### Session Workflow
-1. At the start of each session, read the session guide for the current session
-2. Reference the two spec documents for design detail when the guide points to a spec section (e.g., "see §3.1")
-3. At the end of each session, update `PROGRESS.md` with:
-   - What was completed (list each item from the session guide)
-   - Verification results (which checklist items pass/fail)
-   - Issues found (anything that needs attention)
-   - What the next session should start with
-4. Commit `PROGRESS.md` and all changes
-
-### Key Constraints
-- Demo date: April 2026. All time-dependent logic (elapsed month tinting, actuals cutoffs, forecast boundaries, pending action triggers) uses this date.
-- European number formatting: dot for thousands, comma for decimals (€14.400,00)
-- No emojis anywhere in the UI — text and Lucide icons only
-- Tech stack: FastAPI + SQLAlchemy (backend), React + Vite + shadcn/ui + Recharts (frontend), SQLite for demo
-- The v1 and v2 specification documents are not part of the v3 workflow. Work from the codebase plus the v3 documents only.
-
-### Git Discipline
-- Create a new branch for each session with a descriptive name
-- Commit after every meaningful milestone within a session
-- Descriptive commit messages: `"v3 Session 1: collapsible year columns component"`, `"v3 Session 1: Launchpad redesign"`
-- Update `PROGRESS.md` as the final commit of each session
+## Cross-Module Navigation
+- All modules are built — links should navigate directly to the target module/view
+- Verify navigation paths when adding new cross-module links

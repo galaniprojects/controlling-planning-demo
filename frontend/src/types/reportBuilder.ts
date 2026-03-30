@@ -51,3 +51,53 @@ export interface FilterValuesResponse {
 }
 
 export type ZoneName = 'rows' | 'columns' | 'filters' | 'values';
+
+/* ── Cross-tab types ── */
+
+export interface ColHeaderNode {
+  label: string;
+  span: number;
+  children?: ColHeaderNode[];
+}
+
+export interface ColLeaf {
+  colKey: string;          // "colVal1|colVal2|measureId"
+  measureId: string;
+  measureFormat: string;
+  labels: string[];        // column dim values for this path
+}
+
+export interface RowEntry {
+  dimValues: Record<string, string>;
+  cells: Record<string, number | null>;
+}
+
+export interface RowGroup {
+  key: string;
+  label: string;
+  children: RowEntry[];
+  subtotals: Record<string, number>;
+}
+
+export interface CrossTabData {
+  headerLevels: ColHeaderNode[][];   // one array per header row
+  colLeaves: ColLeaf[];
+  rowGroups: RowGroup[];
+  grandTotals: Record<string, number>;
+}
+
+/* ── Conditional formatting types ── */
+
+export type FormatOperator = '<' | '<=' | '>' | '>=' | '=' | 'between';
+
+export interface ConditionalFormatRule {
+  id: string;
+  measureId: string;
+  operator: FormatOperator;
+  value: number;
+  value2?: number;
+  color: string;
+  label?: string;
+}
+
+export type FormatPresetId = 'budget_variance_rag' | 'utilisation_rag' | 'spend_threshold';
