@@ -1,9 +1,92 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: AI Report Builder Feature
-Last completed: AI Report Builder — natural language report generation with Claude
-Branch: `feature/ai-report-builder`
+Phase: Report Builder
+Last completed: Report Builder Session 2 — Cross-Tabulation & Conditional Formatting
+Branch: `feature/report-builder`
+
+## Report Builder Session 2: Cross-Tabulation & Conditional Formatting (2026-03-30)
+
+### Feature Overview
+- **OLAP-style cross-tabulation:** Flat API rows pivoted into nested row/column headers with subtotals and grand totals
+- **Nested column headers:** Multi-level `<thead>` rows with `colSpan` — column dims (e.g., Fiscal Year) as outer headers, measure names as inner headers
+- **Row grouping:** Outermost row dim creates collapsible groups with ▼/▶ toggle (ChevronDown/ChevronRight)
+- **Subtotals & grand totals:** Per-group subtotals computed by summing cells; grand total row at bottom
+- **Sticky positioning:** Row dim columns sticky-left, all header rows sticky-top, with z-index layering
+- **Column sorting:** Click column headers to sort within groups (asc → desc → none cycle)
+- **Conditional formatting:** Rule-based cell coloring with last-match-wins evaluation
+- **3 RAG presets:** Budget Variance (green/amber/red on M05), Utilisation (red/amber/green on M14), Spend Threshold (green/red on M03)
+- **Formatting drawer:** Right-side Sheet with preset buttons, per-measure rule sections, inline rule editors (operator, value, color swatches)
+- **Format legend:** Horizontal bar below table showing active rules as colored chips
+
+### Files Created
+- `frontend/src/modules/reporting/builder/crossTabTransform.ts` — pivot algorithm (flat rows → CrossTabData)
+- `frontend/src/modules/reporting/builder/CrossTabTable.tsx` — cross-tab renderer with collapse/expand, sorting, sticky headers
+- `frontend/src/modules/reporting/builder/conditionalFormat.ts` — color palette, operator options, 3 preset definitions
+- `frontend/src/modules/reporting/builder/ConditionalFormatSheet.tsx` — formatting drawer UI (Sheet)
+- `frontend/src/modules/reporting/builder/FormatLegend.tsx` — active rules legend bar
+
+### Files Modified
+- `frontend/src/types/reportBuilder.ts` — added CrossTabData, ColHeaderNode, ColLeaf, RowEntry, RowGroup, ConditionalFormatRule, FormatOperator, FormatPresetId types
+- `frontend/src/modules/reporting/builder/useReportBuilder.ts` — added formatRules state and handlers (add/remove/update/applyPreset/clearAll)
+- `frontend/src/modules/reporting/builder/ReportBuilder.tsx` — activated Formatting button, conditional CrossTabTable/ResultsTable rendering, FormatLegend
+- `frontend/src/modules/reporting/builder/ResultsTable.tsx` — added subtotals per group, grand total row, conditional format cell coloring
+
+### Verification
+- [x] Cross-tab renders with nested column headers (Fiscal Year → measure names)
+- [x] Row groups collapse/expand with chevron toggles
+- [x] Subtotals per group, grand total at bottom
+- [x] Sticky headers (top and left) during scroll
+- [x] Column sorting within groups
+- [x] Conditional formatting drawer opens with presets and rule editors
+- [x] Presets disabled when required measure not in Values zone
+- [x] Cell background colors applied correctly (126 cells colored in test)
+- [x] Format legend renders active rules
+- [x] European number formatting throughout
+- [x] Dark mode renders correctly
+- [x] Flat table mode (no column dims) still works with subtotals
+
+## Report Builder Session 1: Data Catalog, Query Engine & UI Scaffold (2026-03-28)
+
+### Feature Overview
+- **Data catalog:** 18 dimensions across 5 categories + 16 measures across 4 categories, served from backend
+- **Query engine:** Backend builds dynamic SQL from dimension/measure/filter selections, returns flat rows with column metadata
+- **Click-to-add UX:** Click dimensions/measures in catalog to add to zones (Rows, Columns, Filters, Values)
+- **Drop zones:** 4 zones with pills showing placement, reorder arrows, move-to-zone buttons, and remove
+- **Filter zone:** Multi-select dropdowns with dynamic option loading per filter dimension
+- **Flat results table:** Sortable columns, row count, stale indicator, empty states
+
+### Backend
+- **New router:** `routers/report_builder.py` — 3 endpoints (catalog, filter options, execute query)
+- **New service:** `services/report_builder_service.py` — catalog builder, dynamic SQL query engine
+- **New schemas:** `schemas/report_builder.py` — CatalogResponse, QueryRequest, ReportExecuteResponse
+
+### Frontend
+- **New components:** `ReportBuilder.tsx`, `CatalogPanel.tsx`, `DropZones.tsx`, `ResultsTable.tsx`, `useReportBuilder.ts`
+- **New types:** `frontend/src/types/reportBuilder.ts`
+- **Route integration:** 7th tile "Report Builder" in Report Library
+
+## Dark Mode (2026-03-27)
+
+### Feature Overview
+- **Theme toggle:** Sun/Moon button in TopBar cycles between light and dark mode
+- **ThemeContext:** React context with `light`/`dark`/`system` support, localStorage persistence (`creta-theme` key)
+- **Flash prevention:** Inline script in `index.html` applies `.dark` class before React renders
+- **141 files converted:** All hardcoded Tailwind colors (`bg-white`, `text-slate-*`, `border-slate-*`) replaced with semantic CSS variable classes (`bg-card`, `text-foreground`, `border-border`, etc.)
+- **Status colors preserved:** Amber/green/red status badges keep light variants with `dark:` variants added
+- **Chart dark mode:** New `--chart-grid` and `--chart-axis` CSS variables, Recharts tooltips use `var()` for dark-aware backgrounds
+
+### Files Changed
+- **New:** `frontend/src/contexts/ThemeContext.tsx`
+- **Modified:** `frontend/index.html`, `frontend/src/App.tsx`, `frontend/src/index.css`
+- **Layout:** 7 files (AppLayout, TopBar, SidePanel, BottomDrawer, Breadcrumb, RoleSwitcher, HelpButton)
+- **Shared:** 9 files (ExpandableTreeTable, StatusBadge, DetailViewGrid, DetailViewKPIStrip, FilterBar, Skeleton, ModuleGuideButton, SortableHeader, SubmitProjectDialog)
+- **Charts:** 4 files (BudgetByLobChart, ProjectTrajectoryChart, ForecastTrajectoryChart, RAGDonutChart)
+- **Domain modules:** ~120 files across Launchpad, Portfolio, Workbench, Capacity, Simulator, Reporting, Admin, Docs
+
+### CLAUDE.md Updated
+- Dark Mode added as non-negotiable architectural rule
+- ThemeContext added to established components list
 
 ## AI Report Builder (2026-03-27)
 

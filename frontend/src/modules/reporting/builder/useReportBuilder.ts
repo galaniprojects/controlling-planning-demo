@@ -2,11 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { reportBuilderApi } from '@/api/endpoints';
 import type {
   CatalogResponse,
+  ConditionalFormatRule,
   DimensionItem,
+  FormatPresetId,
   MeasureItem,
   ReportExecuteResponse,
   ZoneName,
 } from '@/types/reportBuilder';
+import { generateRuleId, getPresetRules } from './conditionalFormat';
 
 export interface ZoneState {
   rows: DimensionItem[];
@@ -33,6 +36,7 @@ export function useReportBuilder() {
   const [isLoading, setIsLoading] = useState(false);
   const [isStale, setIsStale] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formatRules, setFormatRules] = useState<ConditionalFormatRule[]>([]);
   const hasRun = useRef(false);
 
   // Load catalog on mount
@@ -155,6 +159,42 @@ export function useReportBuilder() {
     [],
   );
 
+  // Conditional formatting handlers
+  const addFormatRule = useCallback(
+    (rule: Omit<ConditionalFormatRule, 'id'>) => {
+      setFormatRules((prev) => [...prev, { ...rule, id: generateRuleId() }]);
+    },
+    [],
+  );
+
+  const removeFormatRule = useCallback((ruleId: string) => {
+    setFormatRules((prev) => prev.filter((r) => r.id !== ruleId));
+  }, []);
+
+  const updateFormatRule = useCallback(
+    (ruleId: string, updates: Partial<ConditionalFormatRule>) => {
+      setFormatRules((prev) =>
+        prev.map((r) => (r.id === ruleId ? { ...r, ...updates } : r)),
+      );
+    },
+    [],
+  );
+
+  const applyPreset = useCallback((presetId: FormatPresetId) => {
+    const rules = getPresetRules(presetId);
+    setFormatRules((prev) => {
+      // Remove existing rules for the preset's measure, then add preset rules
+      const measureId = rules[0]?.measureId;
+      if (!measureId) return prev;
+      const filtered = prev.filter((r) => r.measureId !== measureId);
+      return [...filtered, ...rules];
+    });
+  }, []);
+
+  const clearFormatRules = useCallback(() => {
+    setFormatRules([]);
+  }, []);
+
   // Run report
   const runReport = useCallback(async () => {
     setIsLoading(true);
@@ -190,6 +230,7 @@ export function useReportBuilder() {
     isStale,
     error,
     canRun,
+    formatRules,
     addDimensionToZone,
     addMeasureToValues,
     removeFromZone,
@@ -198,5 +239,10 @@ export function useReportBuilder() {
     updateFilterSelection,
     findItemZone,
     runReport,
+    addFormatRule,
+    removeFormatRule,
+    updateFormatRule,
+    applyPreset,
+    clearFormatRules,
   };
 }
