@@ -93,6 +93,20 @@ const ENTITIES = [
     fields: ['id', 'name', 'is_active', 'levels (JSON)'],
     relationships: ['has Entity Types', 'has Entities', 'has Entity-Project assignments'],
   },
+  {
+    name: 'Saved Report',
+    table: 'saved_reports',
+    description: 'User-saved Report Builder custom report definitions with sharing and publishing support.',
+    fields: ['id', 'name', 'description', 'created_by', 'definition (JSON)', 'is_published', 'is_active', 'created_at', 'modified_at'],
+    relationships: ['has SavedReportShares'],
+  },
+  {
+    name: 'Saved Report Share',
+    table: 'saved_report_shares',
+    description: 'Sharing records for saved Report Builder reports with permission levels (view_only, can_edit).',
+    fields: ['id', 'report_id', 'shared_with', 'permission', 'shared_at'],
+    relationships: ['belongs to SavedReport'],
+  },
 ];
 
 const SEED_SUMMARY = [
@@ -137,7 +151,8 @@ export function DataModelTab() {
 
 Notification ──── Role (recipient)
 Scenario ──── Scenario Action[]
-Grouping Hierarchy ──── Entity Types ──── Entities ──── Projects`}</div>
+Grouping Hierarchy ──── Entity Types ──── Entities ──── Projects
+SavedReport ──── SavedReportShare[] (permissions)`}</div>
         </CardContent>
       </Card>
 

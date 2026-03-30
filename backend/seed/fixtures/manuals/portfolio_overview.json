@@ -4,7 +4,7 @@
   "sections": [
     {
       "title": "Overview",
-      "body": "Portfolio Overview provides a comprehensive view of all projects and services across the organization. It has three tabs: Dashboard, Intake Queue, and Approvals. Controllers and executives use this module to monitor portfolio health, review new submissions, and approve change requests."
+      "body": "Portfolio Overview provides a comprehensive view of all projects and services across the organization. It has three tabs: Dashboard, Intake Queue, and Approvals. Controllers and executives use this module to monitor portfolio health, review new submissions, and approve change requests. Tab visibility is role-based: the **Dashboard** is visible to all roles, the **Intake Queue** is visible to Controllers and Project Leads, and the **CR Approvals** tab is visible only to Controllers."
     },
     {
       "title": "Dashboard Tab",

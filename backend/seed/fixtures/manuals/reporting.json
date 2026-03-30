@@ -8,7 +8,7 @@
     },
     {
       "title": "Report Library",
-      "body": "The landing page shows all available reports as cards. **Standard Reports** are pre-built analytical views. **My Saved Views** shows any report configurations you have saved for quick access. Click any card to open the report."
+      "body": "The landing page organizes reports into four sections. **Standard Reports** shows five pre-built analytical views plus the AI Report Builder tile. **Build Your Own** features the Report Builder tile for OLAP-style custom report composition. **Shared Reports** displays reports that other users have published or shared with you, showing permission badges (View only / Can edit) and the author. **My Saved Views** shows your personally saved report configurations and custom Report Builder reports (marked with a 'Custom' badge) for quick access. Click any card to open the report."
     },
     {
       "title": "Standard Reports",

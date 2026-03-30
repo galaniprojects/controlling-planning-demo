@@ -16,7 +16,7 @@
     },
     {
       "title": "Actions",
-      "body": "Actions can target individual projects or the entire portfolio. Types include: Delay Project, Remove Project, Reduce Budget, Cut Consulting, Accelerate Project, Add Budget, and Across-the-Board Cut. Each action specifies parameters (e.g., delay by N months, reduce by X%). Every action returns the full recalculated scenario state."
+      "body": "Actions can target individual projects or the entire portfolio.\n\n**Project-scope actions:** Remove Project, Reduce/Adjust Budget, Increase Budget, Delay Project, Accelerate Project, Pause Project, Change Allocation (add, modify, or remove resource assignments), Cut Consulting, and Adjust External Cost.\n\n**Portfolio-scope actions:** Across-the-Board Cut (percentage reduction on all projects), Cut by LoB (target a specific organizational entity), Cut by Type (target CapEx or OpEx), Freeze New Starts (prevent planned projects from beginning), Cap Cost Category (limit a specific cost type), and Rate Escalation (model hourly rate increases).\n\nEach action specifies parameters (e.g., delay by N months, reduce by X%). Every action returns the full recalculated scenario state."
     },
     {
       "title": "Impact Dashboard",
@@ -32,7 +32,7 @@
     },
     {
       "title": "Important Notes",
-      "body": "Scenarios are sandboxes — they never affect live portfolio data. All impact calculations are performed server-side. Pre-built scenarios use pre-computed snapshots for instant loading. The AI Advisor uses pattern matching, not a live AI model."
+      "body": "Scenarios are sandboxes — they never affect live portfolio data. All impact calculations are performed server-side. Pre-built scenarios use pre-computed snapshots for instant loading. The AI Advisor uses pattern matching, not a live AI model. All charts and visualizations in the simulator support both light and dark mode themes."
     }
   ]
 }
