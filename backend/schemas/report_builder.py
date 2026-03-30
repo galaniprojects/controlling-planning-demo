@@ -29,3 +29,56 @@ class ReportExecuteResponse(BaseModel):
 class FilterValuesResponse(BaseModel):
     dimension_id: str
     values: list[str]
+
+
+# --- Saved Reports ---
+
+
+class SavedReportCreate(BaseModel):
+    name: str
+    description: str | None = None
+    definition: dict  # full report state as JSON object
+
+
+class SavedReportUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    definition: dict | None = None
+
+
+class SavedReportOut(BaseModel):
+    id: int
+    name: str
+    description: str | None = None
+    created_by: str
+    is_published: bool
+    created_at: str
+    modified_at: str
+
+    model_config = {"from_attributes": True}
+
+
+class SavedReportDetail(SavedReportOut):
+    definition: dict
+
+
+class ShareEntry(BaseModel):
+    shared_with: str  # user or role ID
+    permission: str = "view_only"  # view_only | can_edit
+
+
+class ShareReportRequest(BaseModel):
+    shares: list[ShareEntry] = []
+    is_published: bool = False
+
+
+class SharedReportOut(BaseModel):
+    id: int
+    name: str
+    description: str | None = None
+    created_by: str
+    is_published: bool
+    permission: str | None = None  # null for published-only reports
+    shared_at: str | None = None
+    created_at: str
+    modified_at: str

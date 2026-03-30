@@ -1,4 +1,5 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Loader2,
   Play,
@@ -7,13 +8,21 @@ import {
   FunctionSquare,
   Download,
   Save,
+  Share2,
   LayoutGrid,
   LineChart as LineChartIcon,
   PieChart as PieChartIcon,
   Table2,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { CatalogPanel } from './CatalogPanel';
 import { DropZones } from './DropZones';
@@ -25,6 +34,9 @@ import { CalculatedMeasureDialog } from './CalculatedMeasureDialog';
 import { ReportBarChart } from './ReportBarChart';
 import { ReportLineChart } from './ReportLineChart';
 import { ReportPieChart } from './ReportPieChart';
+import { SaveReportDialog } from './SaveReportDialog';
+import { LoadReportDropdown } from './LoadReportDropdown';
+import { ShareReportDialog } from './ShareReportDialog';
 import { useReportBuilder } from './useReportBuilder';
 import { isCalculatedMeasure } from './calculatedMeasures';
 import {
@@ -34,9 +46,13 @@ import {
   canShowLineChart,
   canShowPieChart,
 } from './chartTransform';
+import { reportBuilderApi } from '@/api/endpoints';
+import { getCurrentUserId } from '@/api/client';
 import type { ChartViewType, MeasureItem } from '@/types/reportBuilder';
 
 export function ReportBuilder() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const {
     catalog,
     zones,
@@ -65,12 +81,25 @@ export function ReportBuilder() {
     addCalculatedMeasure,
     updateCalculatedMeasure,
     removeCalculatedMeasure,
+    // Save / Load
+    savedReportId,
+    savedReportName,
+    isSaving,
+    saveReport,
+    updateReport,
+    saveAsReport,
+    loadReport,
+    clearReport,
   } = useReportBuilder();
 
   const [isFormatOpen, setIsFormatOpen] = useState(false);
   const [viewType, setViewType] = useState<ChartViewType>('table');
   const [calcDialogOpen, setCalcDialogOpen] = useState(false);
   const [editingCalcMeasure, setEditingCalcMeasure] = useState<MeasureItem | null>(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveAsMode, setSaveAsMode] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Chart availability
   const lineAvailable = canShowLineChart(zones);
@@ -131,6 +160,133 @@ export function ReportBuilder() {
     removeCalculatedMeasure(measureId);
   }
 
+  // Load report from URL param
+  const loadedFromUrl = useRef(false);
+  useEffect(() => {
+    const reportId = searchParams.get('reportId');
+    if (reportId && catalog && !loadedFromUrl.current) {
+      loadedFromUrl.current = true;
+      const id = parseInt(reportId, 10);
+      if (!isNaN(id)) {
+        reportBuilderApi.getSaved(id).then((detail) => {
+          loadReport(detail.definition, detail.id, detail.name, catalog);
+          if (detail.definition.viewMode) setViewType(detail.definition.viewMode);
+          // Auto-run after loading
+          setTimeout(() => {
+            // runReport will be called after state is hydrated
+          }, 0);
+        }).catch(() => {});
+      }
+    }
+  }, [catalog, searchParams, loadReport]);
+
+  // Auto-run after loading a report (when zones change and we have a savedReportId but haven't run yet)
+  const pendingAutoRun = useRef(false);
+  const handleLoadReport = useCallback(
+    async (reportId: number) => {
+      if (!catalog) return;
+      try {
+        const detail = await reportBuilderApi.getSaved(reportId);
+        loadReport(detail.definition, detail.id, detail.name, catalog);
+        if (detail.definition.viewMode) setViewType(detail.definition.viewMode);
+        pendingAutoRun.current = true;
+        // Update URL
+        setSearchParams({ reportId: String(reportId) }, { replace: true });
+      } catch {
+        // silent fail
+      }
+    },
+    [catalog, loadReport, setSearchParams],
+  );
+
+  // Trigger auto-run when pendingAutoRun is set and zones have been hydrated
+  useEffect(() => {
+    if (pendingAutoRun.current && canRun) {
+      pendingAutoRun.current = false;
+      runReport();
+    }
+  }, [canRun, zones, runReport]);
+
+  // Also auto-run after URL-based load
+  useEffect(() => {
+    if (loadedFromUrl.current && canRun && !results && !isLoading && savedReportId) {
+      runReport();
+      loadedFromUrl.current = false;
+    }
+  }, [canRun, results, isLoading, savedReportId, runReport]);
+
+  function handleNewReport() {
+    clearReport();
+    setViewType('table');
+    setSearchParams({}, { replace: true });
+  }
+
+  async function handleSave(name: string, description?: string) {
+    await saveReport(name, description, viewType);
+  }
+
+  async function handleSaveAs(name: string, description?: string) {
+    const res = await saveAsReport(name, description, viewType);
+    if (res) {
+      setSearchParams({ reportId: String(res.id) }, { replace: true });
+    }
+  }
+
+  async function handleQuickSave() {
+    if (savedReportId) {
+      await updateReport(viewType);
+    } else {
+      setSaveAsMode(false);
+      setSaveDialogOpen(true);
+    }
+  }
+
+  async function handleExport() {
+    setIsExporting(true);
+    try {
+      let response: Response;
+      if (savedReportId) {
+        response = await fetch(`/api/report-builder/export/${savedReportId}`, {
+          headers: { 'X-Current-User': getCurrentUserId() },
+        });
+      } else {
+        response = await fetch('/api/report-builder/export', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Current-User': getCurrentUserId(),
+          },
+          body: JSON.stringify({
+            rows: zones.rows.map((d) => d.id),
+            columns: zones.columns.map((d) => d.id),
+            filters: Object.fromEntries(
+              Object.entries(filterSelections).filter(([, v]) => v.length > 0),
+            ),
+            values: zones.values.map((m) => m.id),
+            calculatedMeasures,
+            formatRules,
+            viewMode: viewType,
+          }),
+        });
+      }
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const disposition = response.headers.get('Content-Disposition');
+      const match = disposition?.match(/filename="(.+)"/);
+      a.download = match?.[1] ?? `CRETA_ReportBuilder_Export.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      // silent fail for demo
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   if (!catalog) {
     return (
       <div className="space-y-4">
@@ -163,6 +319,14 @@ export function ReportBuilder() {
 
       {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Report name header (when saved) */}
+        {savedReportName && (
+          <div className="flex-shrink-0 px-4 pt-3 pb-1">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">{savedReportName}</span>
+            </p>
+          </div>
+        )}
         {/* Drop zones */}
         <div className="flex-shrink-0 p-4 border-b border-border max-h-[40%] overflow-y-auto">
           <DropZones
@@ -262,8 +426,98 @@ export function ReportBuilder() {
 
             <div className="flex-1" />
 
-            <PlaceholderButton icon={<Download className="h-3.5 w-3.5" />} label="Export" tooltip="Coming in Session 4" />
-            <PlaceholderButton icon={<Save className="h-3.5 w-3.5" />} label="Save Report" tooltip="Coming in Session 4" />
+            {/* Load */}
+            <LoadReportDropdown
+              currentReportId={savedReportId}
+              onLoad={handleLoadReport}
+              onNew={handleNewReport}
+            />
+
+            {/* Export */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                  disabled={!results || isExporting}
+                  onClick={handleExport}
+                >
+                  {isExporting ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
+                  <span className="hidden sm:inline">Export</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Export to Excel</TooltipContent>
+            </Tooltip>
+
+            {/* Save / Save As */}
+            <div className="flex items-center">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-xs rounded-r-none"
+                    disabled={!canRun || isSaving}
+                    onClick={handleQuickSave}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5" />
+                    )}
+                    <span className="hidden sm:inline">
+                      {savedReportId ? 'Save' : 'Save Report'}
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{savedReportId ? 'Save changes' : 'Save report'}</TooltipContent>
+              </Tooltip>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="px-1 rounded-l-none border-l border-border"
+                    disabled={!canRun || isSaving}
+                  >
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setSaveAsMode(false);
+                      setSaveDialogOpen(true);
+                    }}
+                  >
+                    Save as new report
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Share (visible when saved) */}
+            {savedReportId && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    onClick={() => setShareDialogOpen(true)}
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Share</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Share this report</TooltipContent>
+              </Tooltip>
+            )}
 
             {/* Run Report button */}
             <Tooltip>
@@ -415,6 +669,25 @@ export function ReportBuilder() {
         onSave={handleCalcSave}
         onDelete={handleCalcDelete}
       />
+
+      {/* Save Report Dialog */}
+      <SaveReportDialog
+        open={saveDialogOpen}
+        onOpenChange={setSaveDialogOpen}
+        onSave={saveAsMode ? handleSaveAs : handleSave}
+        isSaving={isSaving}
+        title={saveAsMode || savedReportId ? 'Save As New Report' : 'Save Report'}
+        defaultName={saveAsMode && savedReportName ? `${savedReportName} (Copy)` : ''}
+      />
+
+      {/* Share Report Dialog */}
+      {savedReportId && (
+        <ShareReportDialog
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          reportId={savedReportId}
+        />
+      )}
     </div>
   );
 }
@@ -465,18 +738,3 @@ function ViewToggleButton({
   return btn;
 }
 
-function PlaceholderButton({ icon, label, tooltip }: { icon: React.ReactNode; label: string; tooltip?: string }) {
-  return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="sm" disabled className="gap-1.5 text-xs opacity-50">
-            {icon}
-            <span className="hidden sm:inline">{label}</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{tooltip ?? 'Coming in a future session'}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}

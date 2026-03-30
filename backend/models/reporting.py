@@ -1,10 +1,10 @@
-"""Reporting module models — SavedView and ForecastSnapshot."""
+"""Reporting module models — SavedView, ForecastSnapshot, SavedReport."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -25,6 +25,38 @@ class ForecastSnapshot(Base):
     forecast_total: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
 
     project = relationship("Project")
+
+
+class SavedReport(Base):
+    """User-saved Report Builder custom report definition."""
+
+    __tablename__ = "saved_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(50), nullable=False)
+    definition: Mapped[str] = mapped_column(Text, nullable=False)  # JSON blob
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    modified_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    shares = relationship("SavedReportShare", back_populates="report", cascade="all, delete-orphan")
+
+
+class SavedReportShare(Base):
+    """Sharing record for a saved Report Builder report."""
+
+    __tablename__ = "saved_report_shares"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    report_id: Mapped[int] = mapped_column(ForeignKey("saved_reports.id"), nullable=False)
+    shared_with: Mapped[str] = mapped_column(String(50), nullable=False)  # user or role ID
+    permission: Mapped[str] = mapped_column(String(20), nullable=False)  # view_only | can_edit
+    shared_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    report = relationship("SavedReport", back_populates="shares")
 
 
 class SavedView(Base):

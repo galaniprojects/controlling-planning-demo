@@ -43,6 +43,18 @@
       "body": "Use the **view toggle** (Table, Bar, Line, Pie) in the Report Builder toolbar to switch between visualizations. **Bar charts** group by the first row dimension. **Line charts** require a time dimension (Fiscal Year, Quarter, or Month) on columns. **Pie charts** show the first row dimension as segments sized by the first measure. Charts respect active filters and update when you re-run the report."
     },
     {
+      "title": "Saving & Loading Reports",
+      "body": "Click **Save Report** in the Report Builder toolbar to save your current report composition. The first save prompts for a **name** and optional **description**. Subsequent saves overwrite silently. Use **Save As** (dropdown next to Save) to create a copy with a new name. Saved reports appear in the Report Library under **My Saved Views** with a **Custom** badge. Click **Load** (folder icon) to open a dropdown of your saved reports — selecting one restores all zones, filters, calculated measures, conditional formatting, and view mode, then auto-runs the query."
+    },
+    {
+      "title": "Sharing & Publishing Reports",
+      "body": "After saving a Report Builder report, click the **Share** button to share it with other users. Select recipients, choose a permission level (**View only** or **Can edit**), and optionally toggle **Publish to Report Library** to make the report visible to all users in the **Shared Reports** section. Shared reports appear in the recipient's **Shared with Me** section in the Report Library."
+    },
+    {
+      "title": "Report Builder Export",
+      "body": "Click **Export** in the Report Builder toolbar to download the current report as an Excel file (.xlsx). The export includes two sheets: **Report Data** with the full cross-tabulation table (including merged headers, subtotals, grand totals, and conditional formatting colours), and **Report Info** with metadata (report name, export date, dimensions, measures, filters, and calculated measure formulas). File naming follows the pattern CRETA_ReportBuilder_[Name]_[Date].xlsx."
+    },
+    {
       "title": "AI Report Builder",
       "body": "The **AI Report Builder** tile in the Report Library opens a conversational interface where you can describe any report in natural language. The AI queries the database directly, generates tables, charts, and KPI cards, and lets you iteratively refine the output. An Anthropic API key must be configured in **Administration > Planning Parameters > Integrations** before use."
     }

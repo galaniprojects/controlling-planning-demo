@@ -197,5 +197,73 @@
       {"step_number": 5, "instruction": "Answer any clarifying questions the AI asks, then view your generated report with tables, charts, and KPI cards."},
       {"step_number": 6, "instruction": "Refine the report by sending follow-up messages (e.g., 'add a column for status' or 'show as pie chart')."}
     ]
+  },
+  {
+    "id": "faq-11",
+    "question": "How do I build a custom report?",
+    "summary": "Use the Report Builder to compose OLAP-style reports by selecting dimensions and measures from the data catalog.",
+    "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
+    "modules_involved": ["reporting"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to the **Reporting** module and click the **Report Builder** tile in the 'Build Your Own' section.", "target_module": "reporting"},
+      {"step_number": 2, "instruction": "Browse the **Data Catalog** on the left and click dimensions to add them to the **Rows**, **Columns**, or **Filters** zones."},
+      {"step_number": 3, "instruction": "Click measures to add them to the **Values** zone. At least one measure is required."},
+      {"step_number": 4, "instruction": "Optionally set filter values by clicking the dropdowns in the Filters zone."},
+      {"step_number": 5, "instruction": "Click **Run Report** to generate results. Use the view toggle to switch between Table, Bar, Line, and Pie chart views."}
+    ]
+  },
+  {
+    "id": "faq-12",
+    "question": "What is the difference between rows and columns in Report Builder?",
+    "summary": "Row dimensions appear as row headers on the left, column dimensions create a cross-tabulation with nested column headers across the top.",
+    "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
+    "modules_involved": ["reporting"],
+    "steps": [
+      {"step_number": 1, "instruction": "**Rows** place dimension values as row labels on the left side of the table. Multiple row dimensions create hierarchical groupings."},
+      {"step_number": 2, "instruction": "**Columns** pivot dimension values across the top, creating a cross-tabulation. Each column combination is paired with every measure in Values."},
+      {"step_number": 3, "instruction": "**Filters** restrict the data without adding visual structure. Drop a dimension into Filters and select specific values to narrow results."},
+      {"step_number": 4, "instruction": "Tip: Use Rows for the entity you want to compare (e.g., projects), Columns for time periods (e.g., months), and Filters for scope restrictions (e.g., a specific LoB)."}
+    ]
+  },
+  {
+    "id": "faq-13",
+    "question": "How do I create a calculated measure?",
+    "summary": "Use the Calculated Measures dialog to define custom formulas combining two existing measures.",
+    "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
+    "modules_involved": ["reporting"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open the Report Builder and click the **fx Calculated** button in the toolbar."},
+      {"step_number": 2, "instruction": "Enter a **name** for the calculated measure."},
+      {"step_number": 3, "instruction": "Select **Operand A**, choose an **operator** (+, -, x, /), and select **Operand B**."},
+      {"step_number": 4, "instruction": "Choose a **display format** (currency, percent, number, or hours) and review the live preview."},
+      {"step_number": 5, "instruction": "Click **Save** to add the calculated measure to the Values zone. It will be computed client-side from the underlying data."}
+    ]
+  },
+  {
+    "id": "faq-14",
+    "question": "How do I share a report with my team?",
+    "summary": "Save a Report Builder report, then use the Share button to send it to specific users or publish it to the Report Library.",
+    "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
+    "modules_involved": ["reporting"],
+    "steps": [
+      {"step_number": 1, "instruction": "Build your report in the Report Builder and click **Save Report** to save it with a name."},
+      {"step_number": 2, "instruction": "After saving, a **Share** button appears in the toolbar. Click it."},
+      {"step_number": 3, "instruction": "Select the users you want to share with and choose a permission level: **View only** or **Can edit**."},
+      {"step_number": 4, "instruction": "Optionally toggle **Publish to Report Library** to make the report visible to all users in the Shared Reports section."},
+      {"step_number": 5, "instruction": "Click **Share** to confirm. Recipients will see the report in their Report Library under 'Shared with Me'."}
+    ]
+  },
+  {
+    "id": "faq-15",
+    "question": "Why does my Report Builder report show no data?",
+    "summary": "Common causes include incompatible dimension-measure combinations, overly restrictive filters, or role-based data scoping.",
+    "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
+    "modules_involved": ["reporting"],
+    "steps": [
+      {"step_number": 1, "instruction": "Check the **warnings** area below the toolbar — the system will flag incompatible dimension-measure combinations."},
+      {"step_number": 2, "instruction": "Review your **Filters** zone. If filters are too restrictive (e.g., a specific month with no data), try broadening them or clearing all filters."},
+      {"step_number": 3, "instruction": "Verify your **role** — Project Leads only see their assigned projects, CC Owners see their cost center. Switch to Controller or Executive role for full data access."},
+      {"step_number": 4, "instruction": "Try a simpler query first (one row dimension + one measure) to confirm data exists, then add complexity incrementally."}
+    ]
   }
 ]

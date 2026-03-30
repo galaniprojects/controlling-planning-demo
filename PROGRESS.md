@@ -2,8 +2,44 @@
 
 ## Current Status
 Phase: Report Builder
-Last completed: Report Builder Session 3 — Calculated Measures & Chart Views
-Branch: `feature/report-builder-session3`
+Last completed: Report Builder Session 4 — Save, Share, Export & Polish
+Branch: `feature/report-builder-session4`
+
+## Report Builder Session 4: Save, Share, Export & Polish (2026-03-30)
+
+### Feature Overview
+- **Save/Load reports:** Save report compositions with name and description, silent overwrite on subsequent saves, "Save As" for copies
+- **Load dropdown:** Toolbar button lists saved reports with modified dates, delete option with confirmation
+- **URL-based loading:** `?reportId=` parameter loads and auto-runs a saved report
+- **Share & publish:** Share dialog with user selection, permission levels (View only / Can edit), "Publish to Report Library" toggle
+- **Report Library integration:** Custom reports show in "My Saved Views" with "Custom" badge, shared/published reports in "Shared Reports" section
+- **Excel export:** Server-side cross-tab generation with openpyxl — merged headers, European formatting, subtotals, grand totals, conditional formatting colours
+- **Export metadata:** Second sheet with report name, date, user, dimensions, measures, filters, calculated measure formulas
+- **Guide panel content:** 3 new manual sections (Saving, Sharing, Export) + 5 new FAQ entries
+
+### Technical Details
+- **New models:** `SavedReport` (with `is_active` soft delete, `is_published` flag, JSON `definition` blob), `SavedReportShare` (report_id, shared_with, permission)
+- **New backend services:** `report_builder_saved.py` (CRUD + share), `report_builder_export.py` (Excel generation with cross-tab pivot)
+- **8 new API endpoints:** CRUD for saved reports, share, list shared, export (saved + unsaved)
+- **New frontend components:** `SaveReportDialog`, `LoadReportDropdown`, `ShareReportDialog`
+- **Modified frontend:** `useReportBuilder.ts` (save/load/export state), `ReportBuilder.tsx` (toolbar buttons, URL params), `ReportLibrary.tsx` (custom + shared sections)
+- **18 unit tests** for saved reports CRUD and sharing service
+- **Guide updates:** 3 manual sections, 5 FAQ entries
+
+### API Endpoints Added
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/report-builder/saved` | List user's saved reports |
+| POST | `/api/report-builder/saved` | Create new saved report |
+| GET | `/api/report-builder/saved/{id}` | Get saved report with definition |
+| PUT | `/api/report-builder/saved/{id}` | Update saved report |
+| DELETE | `/api/report-builder/saved/{id}` | Soft-delete saved report |
+| POST | `/api/report-builder/saved/{id}/share` | Share/publish report |
+| GET | `/api/report-builder/shared` | List shared/published reports |
+| POST | `/api/report-builder/export` | Export unsaved report to Excel |
+| GET | `/api/report-builder/export/{id}` | Export saved report to Excel |
+
+---
 
 ## Report Builder Session 3: Calculated Measures & Chart Views (2026-03-30)
 

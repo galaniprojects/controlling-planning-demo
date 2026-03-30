@@ -14,7 +14,7 @@ from models.change_requests import ChangeRequest, CRChangeDetail, CRSubmissionSn
 from models.scenarios import Scenario, ScenarioAction, ScenarioState, ScenarioCapacityImpact
 from models.system import PlanningParameter, KPIDefinition, Notification, AuditLog, SystemSuggestion
 from models.users import DemoPersona
-from models.reporting import ForecastSnapshot, SavedView
+from models.reporting import ForecastSnapshot, SavedReport, SavedReportShare, SavedView
 from models.submissions import ProjectSubmissionSnapshot
 
 __all__ = [
@@ -29,6 +29,6 @@ __all__ = [
     "Scenario", "ScenarioAction", "ScenarioState", "ScenarioCapacityImpact",
     "PlanningParameter", "KPIDefinition", "Notification", "AuditLog", "SystemSuggestion",
     "DemoPersona",
-    "ForecastSnapshot", "SavedView",
+    "ForecastSnapshot", "SavedReport", "SavedReportShare", "SavedView",
     "ProjectSubmissionSnapshot",
 ]

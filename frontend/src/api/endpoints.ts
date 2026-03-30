@@ -826,6 +826,10 @@ import type {
   ReportExecuteRequest,
   ReportExecuteResponse,
   FilterValuesResponse,
+  ReportDefinition,
+  SavedReportDetail,
+  SavedReportSummary,
+  SharedReportSummary,
 } from '@/types/reportBuilder';
 
 export const reportBuilderApi = {
@@ -837,4 +841,27 @@ export const reportBuilderApi = {
 
   getFilterValues: (dimensionId: string) =>
     api.get<FilterValuesResponse>(`/api/report-builder/filter-values/${dimensionId}`),
+
+  // Saved reports
+  listSaved: () =>
+    api.get<{ items: SavedReportSummary[]; total: number }>('/api/report-builder/saved'),
+
+  getSaved: (id: number) =>
+    api.get<SavedReportDetail>(`/api/report-builder/saved/${id}`),
+
+  createSaved: (data: { name: string; description?: string; definition: ReportDefinition }) =>
+    api.post<SavedReportDetail>('/api/report-builder/saved', data),
+
+  updateSaved: (id: number, data: { name?: string; description?: string; definition?: ReportDefinition }) =>
+    api.put<SavedReportDetail>(`/api/report-builder/saved/${id}`, data),
+
+  deleteSaved: (id: number) =>
+    api.delete<{ ok: boolean }>(`/api/report-builder/saved/${id}`),
+
+  shareSaved: (id: number, data: { shares: { shared_with: string; permission: string }[]; is_published: boolean }) =>
+    api.post<{ ok: boolean }>(`/api/report-builder/saved/${id}/share`, data),
+
+  listShared: () =>
+    api.get<{ items: SharedReportSummary[]; total: number }>('/api/report-builder/shared'),
+
 };
