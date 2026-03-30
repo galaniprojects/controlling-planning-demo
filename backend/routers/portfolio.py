@@ -732,7 +732,7 @@ def resubmit_project(
     from models.system import Notification
     from models.submissions import ProjectSubmissionSnapshot
     from models.people import RateTable
-    from routers.global_launchpad import _create_resource_requests_from_forecast, _save_forecast_snapshot
+    from routers.global_launchpad import _reconcile_resource_requests_from_forecast, _save_forecast_snapshot
     import json
 
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -783,12 +783,12 @@ def resubmit_project(
     project.submission_feedback = None
     project.status = "pending_cc_confirmation"
 
-    # Create resource requests
-    _create_resource_requests_from_forecast(db, project)
+    # Reconcile resource requests (preserves previous CC assignments)
+    _reconcile_resource_requests_from_forecast(db, project)
 
-    # Notify CC Owner
+    # Notify CC Owner (Thomas Brenner = p-brenner)
     notification = Notification(
-        user_person_id="p-becker",
+        user_person_id="p-brenner",
         message=f"Project '{project.name}' resubmitted — needs resource confirmation",
         severity="action",
         deep_link_module="capacity",
@@ -958,7 +958,7 @@ def accept_changes(
     import json as _json
     from models.submissions import ProjectSubmissionSnapshot
     from models.system import Notification
-    from routers.global_launchpad import _create_resource_requests_from_forecast, _save_forecast_snapshot
+    from routers.global_launchpad import _reconcile_resource_requests_from_forecast, _save_forecast_snapshot
 
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -1003,12 +1003,12 @@ def accept_changes(
     project.submission_feedback = None
     project.status = "pending_cc_confirmation"
 
-    # Create resource requests
-    _create_resource_requests_from_forecast(db, project)
+    # Reconcile resource requests (preserves previous CC assignments)
+    _reconcile_resource_requests_from_forecast(db, project)
 
-    # Notify CC Owner
+    # Notify CC Owner (Thomas Brenner = p-brenner)
     notification = Notification(
-        user_person_id="p-becker",
+        user_person_id="p-brenner",
         message=f"Project '{project.name}' updated — needs resource confirmation",
         severity="action",
         deep_link_module="capacity",

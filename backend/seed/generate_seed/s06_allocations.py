@@ -149,4 +149,38 @@ def generate() -> str:
 ('proj-erp2', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 20, '2026-04', '2026-06', 'high', 'pending', NULL, NULL, 'Additional Sr Dev hours needed for final go-live sprint.', 9, '2026-03-05 09:00:00', '2026-03-05 09:00:00'),
 ('proj-sensor', 'cc-muc-dda', 'external_cost', NULL, 'ext-cloud', 5000, '2026-04', '2026-12', 'medium', 'pending', NULL, NULL, 'AWS production infrastructure scaling.', 15, '2026-03-08 09:30:00', '2026-03-08 09:30:00');""")
 
+    # --- Resource Requests for proj-autobrake (pending_cc_confirmation) ---
+    # 5 internal roles + 4 external costs, all pending CC confirmation
+    parts.append("\n-- Resource Requests for Autonomous Braking Prototype (pending CC confirmation)")
+    parts.append("""INSERT INTO resource_requests (id, project_id, cost_center_id, request_type, role_type_id, cost_type_id, hours_or_amount_per_month, period_start, period_end, priority, status, assigned_person_id, adjusted_value, explanation, change_request_id, created_at, modified_at) VALUES
+(100, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-arch', NULL, 40, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(101, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 80, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(102, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-dev', NULL, 100, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(103, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-qa', NULL, 40, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(104, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-ba', NULL, 20, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(105, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-consulting', 8000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(106, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-sw-licenses', 5000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(107, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-cloud', 6000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(108, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-other', 3000, '2026-06', '2027-12', 'low', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00');""")
+
+    # --- Pre-assign some resources for proj-autobrake ---
+    # Sr Architect (req 100) fully assigned to p-brenner, Sr Dev (req 101) fully assigned to p-fischer
+    # Dev, QA, BA left unassigned for CC Owner to assign during demo
+    parts.append("\n-- Resource Request Assignments for Autonomous Braking (partial — Sr Arch + Sr Dev pre-assigned)")
+    autobrake_months = month_range("2026-06", "2027-12")
+    assign_rows = []
+    for mo in autobrake_months:
+        # Sr Architect → p-brenner (40h/mo)
+        assign_rows.append(f"(100, {sql_str(mo)}, 'p-brenner', 40, '{CREATED_AT}', '{CREATED_AT}')")
+        # Sr Developer → p-fischer (80h/mo)
+        assign_rows.append(f"(101, {sql_str(mo)}, 'p-fischer', 80, '{CREATED_AT}', '{CREATED_AT}')")
+
+    parts.append(f"-- {len(assign_rows)} assignment rows (2 roles x {len(autobrake_months)} months)")
+    for i in range(0, len(assign_rows), BATCH_SIZE):
+        batch = assign_rows[i:i + BATCH_SIZE]
+        parts.append(
+            "INSERT INTO resource_request_assignments (resource_request_id, month, person_id, hours, created_at, modified_at) VALUES\n"
+            + ",\n".join(batch) + ";"
+        )
+
     return "\n".join(parts)

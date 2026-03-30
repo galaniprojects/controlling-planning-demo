@@ -29,10 +29,10 @@ INSERT INTO notifications (user_person_id, message, severity, deep_link_module, 
 ('p-brenner', 'CR pending confirmation: CR #9 for ERP Integration Phase 2 requires your review', 'action', 'portfolio', 'proj-erp2', 0, '2026-03-05 09:00:00'),
 ('p-brenner', 'CR pending confirmation: CR #15 for Sensor Data Pipeline requires your review', 'action', 'portfolio', 'proj-sensor', 0, '2026-03-08 09:30:00'),
 ('p-brenner', 'Resource request: Predictive Maintenance PoC is requesting a Senior Developer from your cost centre', 'action', 'capacity', 'proj-predmaint', 0, '2026-02-20 10:00:00'),
+('p-brenner', 'Project ''Autonomous Braking Prototype'' needs resource confirmation', 'action', 'capacity', 'proj-autobrake', 0, '2026-03-15 10:00:00'),
 -- Anna (Controller) notifications
 ('p-meier', 'CR pending approval: CR #12 for SAP S/4HANA Migration is ready for your review', 'action', 'portfolio', 'proj-sap', 0, '2026-03-02 11:00:00'),
 ('p-meier', 'CR pending approval: CR #19 for IAM Overhaul is ready for your review', 'action', 'portfolio', 'proj-iam', 0, '2026-03-04 11:00:00'),
-('p-meier', 'New project pending review: Autonomous Braking Prototype submitted for approval', 'action', 'portfolio', 'proj-autobrake', 0, '2026-02-28 10:00:00'),
 ('p-meier', 'Forecast overdue: ERP Integration Phase 2 — March 2026 forecast has not been submitted by Project Lead', 'info', 'workbench', 'proj-erp2', 0, '2026-04-01 08:00:00'),
 -- Thomas (Executive) notifications
 ('p-becker', 'Scenario published: Budget Pressure: 15% Reduction has been published by Anna Meier', 'info', 'whatif', NULL, 0, '2026-03-07 10:00:00'),
