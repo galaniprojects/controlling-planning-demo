@@ -243,6 +243,27 @@ export function ProjectAssignmentPage() {
         </CardContent>
       </Card>
 
+      {/* Re-confirmation banner (shown when project was resubmitted with changes) */}
+      {resourceRequests.some((r) => r.change_direction) && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm dark:border-blue-800 dark:bg-blue-950/30">
+          <p className="font-medium text-foreground">Re-confirmation Required</p>
+          <p className="text-muted-foreground mt-1">
+            This project was resubmitted with changes. Previous assignments are preserved.
+            Cells with changes are highlighted -- please review and confirm.
+          </p>
+          <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded ring-2 ring-blue-300 bg-blue-100 dark:ring-blue-700 dark:bg-blue-900/30" />
+              Hours increased
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded ring-2 ring-orange-300 bg-orange-100 dark:ring-orange-700 dark:bg-orange-900/30" />
+              Hours decreased
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Assignment Grid */}
       {gridLoading ? (
         <Skeleton className="h-[300px] w-full" />

@@ -605,6 +605,8 @@ export interface CapacityRequestItem {
   request_type: string;
   role_or_cost_type: string;
   hours_or_amount: number;
+  original_hours: number | null;
+  change_direction: 'increase' | 'decrease' | null;
   period_start: string;
   period_end: string;
   priority: string;

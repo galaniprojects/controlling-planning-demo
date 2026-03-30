@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCollapsibleYears } from '@/hooks/useCollapsibleYears';
 import { capacityApi } from '@/api/endpoints';
@@ -246,6 +247,12 @@ function AssignmentRow({
 }: AssignmentRowProps) {
   const assignments = reqData?.assignments ?? {};
 
+  // Build per-month hours lookup
+  const hoursByMonth: Record<string, number> = {};
+  for (const h of reqData?.hours ?? []) {
+    hoursByMonth[h.month] = h.hours;
+  }
+
   // Count assigned months
   const monthsInRange = reqData?.hours.map((h) => h.month) ?? [];
   const assignedCount = monthsInRange.filter((m) => assignments[m]).length;
@@ -279,9 +286,23 @@ function AssignmentRow({
       <td className="sticky left-0 z-10 bg-card px-3 py-2 whitespace-nowrap border-r border-border/50">
         <div className="flex flex-col">
           <span className="text-sm font-medium text-foreground">{request.role_or_cost_type}</span>
-          <span className="text-[11px] text-muted-foreground">
-            {request.hours_or_amount}h avg/mo | {request.priority}
-          </span>
+          {request.change_direction && request.original_hours != null ? (
+            <span className={cn(
+              'text-[11px] flex items-center gap-1',
+              request.change_direction === 'increase'
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-orange-600 dark:text-orange-400',
+            )}>
+              {request.change_direction === 'increase'
+                ? <ArrowUp className="h-3 w-3" />
+                : <ArrowDown className="h-3 w-3" />}
+              {request.original_hours}h → {request.hours_or_amount}h avg/mo
+            </span>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">
+              {request.hours_or_amount}h avg/mo | {request.priority}
+            </span>
+          )}
         </div>
       </td>
       {/* Assign All cell */}
@@ -460,11 +481,20 @@ function AssignmentRow({
           );
         }
 
+        // Cell-level change detection: compare this month's hours to original average
+        const cellHours = hoursByMonth[month];
+        const origAvg = request.original_hours;
+        const hasChange = request.change_direction != null && origAvg != null
+          && cellHours != null && Math.abs(cellHours - origAvg) >= 0.5;
+        const cellChangeDir = hasChange
+          ? (cellHours > origAvg! ? 'increase' : 'decrease')
+          : null;
+
         return (
           <td
             key={month}
             className={cn(
-              'px-1 py-1.5 text-center min-w-[90px]',
+              'px-1 py-1 text-center min-w-[90px]',
               col.isJanuary && 'border-l-2 border-l-border',
             )}
           >
@@ -472,13 +502,44 @@ function AssignmentRow({
               type="button"
               onClick={() => onEditStart(cellId)}
               className={cn(
-                'w-full rounded px-1.5 py-1 text-xs transition-colors',
+                'w-full rounded px-1.5 py-0.5 text-xs transition-colors',
                 assignedPerson
-                  ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30'
-                  : 'bg-amber-50 text-amber-400 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30',
+                  ? cellChangeDir === 'increase'
+                    ? 'bg-blue-50 text-blue-700 ring-2 ring-blue-300 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:ring-blue-700 dark:hover:bg-blue-900/30'
+                    : cellChangeDir === 'decrease'
+                      ? 'bg-orange-50 text-orange-700 ring-2 ring-orange-300 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:ring-orange-700 dark:hover:bg-orange-900/30'
+                      : 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30'
+                  : cellChangeDir
+                    ? cellChangeDir === 'increase'
+                      ? 'bg-blue-50 text-blue-700 ring-2 ring-blue-300 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:ring-blue-700 dark:hover:bg-blue-900/30'
+                      : 'bg-orange-50 text-orange-700 ring-2 ring-orange-300 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:ring-orange-700 dark:hover:bg-orange-900/30'
+                    : 'bg-amber-50 text-amber-400 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30',
               )}
             >
-              {assignedPerson ? shortName(assignedPerson.name) : '--'}
+              <div className="flex flex-col items-center gap-0">
+                {/* Hours display */}
+                {cellHours != null && (
+                  <span className={cn(
+                    'text-[10px] leading-tight font-medium',
+                    assignedPerson ? '' : 'text-inherit',
+                  )}>
+                    {cellChangeDir && origAvg != null ? (
+                      <>
+                        <span className="line-through opacity-60">{Math.round(origAvg)}h</span>
+                        <span className="mx-0.5">→</span>
+                        <span>{Math.round(cellHours)}h</span>
+                      </>
+                    ) : (
+                      <>{Math.round(cellHours)}h</>
+                    )}
+                  </span>
+                )}
+                {/* Person name */}
+                {assignedPerson && (
+                  <span className="text-xs leading-tight">{shortName(assignedPerson.name)}</span>
+                )}
+                {!assignedPerson && cellHours == null && '--'}
+              </div>
             </button>
           </td>
         );

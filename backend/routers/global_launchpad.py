@@ -14,7 +14,7 @@ from dependencies import get_current_user
 from collections import defaultdict
 
 from models.change_requests import ChangeRequest
-from models.capacity import Allocation, ResourceRequest
+from models.capacity import Allocation, ResourceRequest, ResourceRequestAssignment
 from models.financial import Forecast
 from models.people import RateTable, RoleType
 from models.projects import Project
@@ -637,6 +637,102 @@ def _create_resource_requests_from_forecast(db: Session, project: Project):
         db.add(req)
 
 
+def _reconcile_resource_requests_from_forecast(db: Session, project: Project):
+    """Reconcile ResourceRequest rows with the project's current Forecast data.
+
+    Unlike _create_resource_requests_from_forecast (which deletes everything),
+    this function preserves existing requests and their assignments when the
+    project is resubmitted after a send-back cycle.  It detects increases and
+    decreases and populates original_hours_per_month / change_direction so the
+    CC Owner's UI can highlight what changed.
+    """
+    from services.calculations import generate_month_range
+
+    # 1. Index existing requests by natural key
+    existing_requests = db.query(ResourceRequest).filter(
+        ResourceRequest.project_id == project.id,
+    ).all()
+
+    existing_map: dict[tuple[str, str | None, str | None], ResourceRequest] = {}
+    for req in existing_requests:
+        key = (req.request_type, req.role_type_id, req.cost_type_id)
+        existing_map[key] = req
+
+    # 2. Build new specs from current forecast (same grouping as _create_...)
+    forecasts = db.query(Forecast).filter(Forecast.project_id == project.id).all()
+    groups: dict[tuple[str, str], list] = defaultdict(list)
+    for f in forecasts:
+        groups[(f.category, f.sub_category)].append(f)
+
+    CC_ID = "cc-muc-apd"
+    seen_keys: set[tuple[str, str | None, str | None]] = set()
+
+    for (category, sub_cat), items in groups.items():
+        sorted_items = sorted(items, key=lambda x: x.month)
+        request_type = "resource" if category == "internal" else "external_cost"
+        role_type_id = sub_cat if category == "internal" else None
+        cost_type_id = sub_cat if category == "external" else None
+        key = (request_type, role_type_id, cost_type_id)
+        seen_keys.add(key)
+
+        if category == "internal":
+            new_avg = sum(float(i.hours or 0) for i in items) / len(items)
+        else:
+            new_avg = sum(float(i.amount_eur or 0) for i in items) / len(items)
+        new_avg = round(new_avg, 2)
+        new_start = sorted_items[0].month
+        new_end = sorted_items[-1].month
+
+        if key in existing_map:
+            req = existing_map[key]
+            old_avg = round(float(req.hours_or_amount_per_month), 2)
+
+            # Detect change direction
+            if abs(new_avg - old_avg) < 0.01:
+                req.change_direction = None
+                req.original_hours_per_month = None
+            elif new_avg > old_avg:
+                req.original_hours_per_month = old_avg
+                req.change_direction = "increase"
+            else:
+                req.original_hours_per_month = old_avg
+                req.change_direction = "decrease"
+
+            req.hours_or_amount_per_month = new_avg
+            req.period_start = new_start
+            req.period_end = new_end
+            req.status = "pending"
+
+            # Prune assignments outside the new period
+            new_months = set(generate_month_range(new_start, new_end))
+            for assignment in list(req.assignments):
+                if assignment.month not in new_months:
+                    db.delete(assignment)
+        else:
+            # Brand-new role/cost type — create fresh request
+            db.add(ResourceRequest(
+                project_id=project.id,
+                cost_center_id=CC_ID,
+                request_type=request_type,
+                role_type_id=role_type_id,
+                cost_type_id=cost_type_id,
+                hours_or_amount_per_month=new_avg,
+                period_start=new_start,
+                period_end=new_end,
+                priority="medium",
+                status="pending",
+            ))
+
+    # 3. Delete requests that no longer have forecast data (cascades to assignments)
+    for key, req in existing_map.items():
+        if key not in seen_keys:
+            db.delete(req)
+
+    # 4. Clean up Allocations — they'll be recreated when CC confirms again
+    db.query(Allocation).filter(Allocation.project_id == project.id).delete()
+    db.flush()
+
+
 def _save_forecast_snapshot(db: Session, project: Project, snapshot_type: str, person_id: str, comments: str | None = None):
     """Save a snapshot of the project's current forecast data."""
     forecasts = db.query(Forecast).filter(Forecast.project_id == project.id).all()
@@ -817,9 +913,9 @@ def submit_project(
     project.status = "pending_cc_confirmation"
     project.submission_feedback = None
 
-    # Notify CC Owner (Thomas Becker = p-becker)
+    # Notify CC Owner (Thomas Brenner = p-brenner)
     _create_notification(
-        db, "p-becker",
+        db, "p-brenner",
         f"Project '{project.name}' needs resource confirmation",
         severity="action",
         module="capacity",

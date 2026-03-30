@@ -234,7 +234,7 @@ INSERT INTO projects (id, name, description, status, rag_status, capex_opex, sta
 ('proj-erp2', 'ERP Integration Phase 2', NULL, 'active', 'red', 'capex', '2024-07', '2026-09', '2026-09', 'p-sharma', 0, NULL, 1200000, '2026-02', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-sap', 'SAP S/4HANA Migration', NULL, 'active', 'green', 'capex', '2022-01', '2026-06', '2026-06', NULL, 0, NULL, 4500000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-brake', 'Brake Control Unit Refresh', NULL, 'active', 'green', 'capex', '2025-03', '2026-03', '2026-03', NULL, 0, NULL, 250000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-autobrake', 'Autonomous Braking Prototype', NULL, 'pending_approval', NULL, 'capex', '2026-06', '2027-12', '2027-12', 'p-sharma', 0, NULL, 900000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-autobrake', 'Autonomous Braking Prototype', NULL, 'pending_cc_confirmation', NULL, 'capex', '2026-06', '2027-12', '2027-12', 'p-sharma', 0, NULL, 900000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-legacy', 'Legacy System Decommission', NULL, 'completed', 'green', 'opex', '2022-06', '2024-03', '2024-03', NULL, 0, NULL, 180000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-connveh', 'Connected Vehicle Platform', NULL, 'planned', 'green', 'capex', '2026-10', '2028-12', '2028-12', NULL, 0, NULL, 1800000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('svc-sap-ops', 'SAP Basis Operations', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 400000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
@@ -321,8 +321,7 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('forecast_deadline', 'Forecast Deadline', 'Day of month when forecast is due', '15', '15', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_amber_threshold', 'RAG Amber Threshold', 'Budget variance % for amber status', '5', '5', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_red_threshold', 'RAG Red Threshold', 'Budget variance % for red status', '10', '10', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('anthropic_api_key', 'Anthropic API Key', 'API key for the AI Report Builder (Claude). Obtain from console.anthropic.com.', '', '', 'secret', 'integrations', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- 13. KPI Definitions
@@ -16069,7 +16068,7 @@ UPDATE projects SET annual_budget = 99600.00 WHERE id = 'svc-iot';
 -- Allocations & Resource Requests
 -- =============================================================================
 
--- Allocations (3492 rows)
+-- Allocations (3606 rows)
 INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-balogh', 'svc-euc', '2024-01', 60.0, 1),
 ('p-balogh', 'svc-euc', '2024-02', 60.0, 1),
@@ -16289,6 +16288,25 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-balogh', 'svc-rail-desk', '2029-10', 60.0, 1),
 ('p-balogh', 'svc-rail-desk', '2029-11', 60.0, 1),
 ('p-balogh', 'svc-rail-desk', '2029-12', 60.0, 1),
+('p-bauer', 'proj-autobrake', '2026-06', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2026-07', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2026-08', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2026-09', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2026-10', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2026-11', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2026-12', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2027-01', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2027-02', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2027-03', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2027-04', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2027-05', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2027-06', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2027-07', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2027-08', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2027-09', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2027-10', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2027-11', 40.0, 1),
+('p-bauer', 'proj-autobrake', '2027-12', 40.0, 1),
 ('p-bauer', 'proj-fleet', '2025-01', 100.0, 1),
 ('p-bauer', 'proj-fleet', '2025-02', 100.0, 1),
 ('p-bauer', 'proj-fleet', '2025-03', 100.0, 1),
@@ -16353,7 +16371,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-bauer', 'svc-rail-maint', '2027-08', 60.0, 1),
 ('p-bauer', 'svc-rail-maint', '2027-09', 60.0, 1),
 ('p-bauer', 'svc-rail-maint', '2027-10', 60.0, 1),
-('p-bauer', 'svc-rail-maint', '2027-11', 60.0, 1),
+('p-bauer', 'svc-rail-maint', '2027-11', 60.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-bauer', 'svc-rail-maint', '2027-12', 60.0, 1),
 ('p-bauer', 'svc-rail-maint', '2028-01', 60.0, 1),
 ('p-bauer', 'svc-rail-maint', '2028-02', 60.0, 1),
@@ -16372,8 +16391,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-bauer', 'svc-rail-maint', '2029-03', 60.0, 1),
 ('p-bauer', 'svc-rail-maint', '2029-04', 60.0, 1),
 ('p-bauer', 'svc-rail-maint', '2029-05', 60.0, 1),
-('p-bauer', 'svc-rail-maint', '2029-06', 60.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-bauer', 'svc-rail-maint', '2029-06', 60.0, 1),
 ('p-bauer', 'svc-rail-maint', '2029-07', 60.0, 1),
 ('p-bauer', 'svc-rail-maint', '2029-08', 60.0, 1),
 ('p-bauer', 'svc-rail-maint', '2029-09', 60.0, 1),
@@ -16454,7 +16472,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-becker', 'svc-dataplatform', '2025-08', 30.0, 1),
 ('p-becker', 'svc-dataplatform', '2025-09', 30.0, 1),
 ('p-becker', 'svc-dataplatform', '2025-10', 30.0, 1),
-('p-becker', 'svc-dataplatform', '2025-11', 30.0, 1),
+('p-becker', 'svc-dataplatform', '2025-11', 30.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-becker', 'svc-dataplatform', '2025-12', 30.0, 1),
 ('p-becker', 'svc-dataplatform', '2026-01', 30.0, 1),
 ('p-becker', 'svc-dataplatform', '2026-02', 30.0, 1),
@@ -16473,8 +16492,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-becker', 'svc-dataplatform', '2027-03', 30.0, 1),
 ('p-becker', 'svc-dataplatform', '2027-04', 30.0, 1),
 ('p-becker', 'svc-dataplatform', '2027-05', 30.0, 1),
-('p-becker', 'svc-dataplatform', '2027-06', 30.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-becker', 'svc-dataplatform', '2027-06', 30.0, 1),
 ('p-becker', 'svc-dataplatform', '2027-07', 30.0, 1),
 ('p-becker', 'svc-dataplatform', '2027-08', 30.0, 1),
 ('p-becker', 'svc-dataplatform', '2027-09', 30.0, 1),
@@ -16555,7 +16573,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-becker', 'svc-dba', '2027-12', 50.0, 1),
 ('p-becker', 'svc-dba', '2028-01', 50.0, 1),
 ('p-becker', 'svc-dba', '2028-02', 50.0, 1),
-('p-becker', 'svc-dba', '2028-03', 50.0, 1),
+('p-becker', 'svc-dba', '2028-03', 50.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-becker', 'svc-dba', '2028-04', 50.0, 1),
 ('p-becker', 'svc-dba', '2028-05', 50.0, 1),
 ('p-becker', 'svc-dba', '2028-06', 50.0, 1),
@@ -16574,8 +16593,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-becker', 'svc-dba', '2029-07', 50.0, 1),
 ('p-becker', 'svc-dba', '2029-08', 50.0, 1),
 ('p-becker', 'svc-dba', '2029-09', 50.0, 1),
-('p-becker', 'svc-dba', '2029-10', 50.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-becker', 'svc-dba', '2029-10', 50.0, 1),
 ('p-becker', 'svc-dba', '2029-11', 50.0, 1),
 ('p-becker', 'svc-dba', '2029-12', 50.0, 1),
 ('p-becker', 'svc-middleware', '2024-01', 50.0, 1),
@@ -16656,7 +16674,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-becker', 'svc-netsec', '2024-04', 40.0, 1),
 ('p-becker', 'svc-netsec', '2024-05', 40.0, 1),
 ('p-becker', 'svc-netsec', '2024-06', 40.0, 1),
-('p-becker', 'svc-netsec', '2024-07', 40.0, 1),
+('p-becker', 'svc-netsec', '2024-07', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-becker', 'svc-netsec', '2024-08', 40.0, 1),
 ('p-becker', 'svc-netsec', '2024-09', 40.0, 1),
 ('p-becker', 'svc-netsec', '2024-10', 40.0, 1),
@@ -16675,8 +16694,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-becker', 'svc-netsec', '2025-11', 40.0, 1),
 ('p-becker', 'svc-netsec', '2025-12', 40.0, 1),
 ('p-becker', 'svc-netsec', '2026-01', 40.0, 1),
-('p-becker', 'svc-netsec', '2026-02', 40.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-becker', 'svc-netsec', '2026-02', 40.0, 1),
 ('p-becker', 'svc-netsec', '2026-03', 40.0, 1),
 ('p-becker', 'svc-netsec', '2026-04', 40.0, 1),
 ('p-becker', 'svc-netsec', '2026-05', 40.0, 1),
@@ -16757,7 +16775,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-becker', 'svc-sap-ops', '2026-08', 40.0, 1),
 ('p-becker', 'svc-sap-ops', '2026-09', 40.0, 1),
 ('p-becker', 'svc-sap-ops', '2026-10', 40.0, 1),
-('p-becker', 'svc-sap-ops', '2026-11', 40.0, 1),
+('p-becker', 'svc-sap-ops', '2026-11', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-becker', 'svc-sap-ops', '2026-12', 40.0, 1),
 ('p-becker', 'svc-sap-ops', '2027-01', 40.0, 1),
 ('p-becker', 'svc-sap-ops', '2027-02', 40.0, 1),
@@ -16776,8 +16795,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-becker', 'svc-sap-ops', '2028-03', 40.0, 1),
 ('p-becker', 'svc-sap-ops', '2028-04', 40.0, 1),
 ('p-becker', 'svc-sap-ops', '2028-05', 40.0, 1),
-('p-becker', 'svc-sap-ops', '2028-06', 40.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-becker', 'svc-sap-ops', '2028-06', 40.0, 1),
 ('p-becker', 'svc-sap-ops', '2028-07', 40.0, 1),
 ('p-becker', 'svc-sap-ops', '2028-08', 40.0, 1),
 ('p-becker', 'svc-sap-ops', '2028-09', 40.0, 1),
@@ -16858,7 +16876,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-becker', 'svc-signal-sup', '2028-12', 40.0, 1),
 ('p-becker', 'svc-signal-sup', '2029-01', 40.0, 1),
 ('p-becker', 'svc-signal-sup', '2029-02', 40.0, 1),
-('p-becker', 'svc-signal-sup', '2029-03', 40.0, 1),
+('p-becker', 'svc-signal-sup', '2029-03', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-becker', 'svc-signal-sup', '2029-04', 40.0, 1),
 ('p-becker', 'svc-signal-sup', '2029-05', 40.0, 1),
 ('p-becker', 'svc-signal-sup', '2029-06', 40.0, 1),
@@ -16877,8 +16896,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-berger', 'proj-telematics', '2025-12', 20.0, 1),
 ('p-berger', 'proj-telematics', '2026-01', 20.0, 1),
 ('p-berger', 'proj-telematics', '2026-02', 20.0, 1),
-('p-berger', 'proj-telematics', '2026-03', 20.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-berger', 'proj-telematics', '2026-03', 20.0, 1),
 ('p-berger', 'proj-telematics', '2026-04', 20.0, 1),
 ('p-berger', 'proj-telematics', '2026-05', 20.0, 1),
 ('p-berger', 'proj-telematics', '2026-06', 20.0, 1),
@@ -16959,7 +16977,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-braun', 'svc-iot', '2028-11', 30.0, 1),
 ('p-braun', 'svc-iot', '2028-12', 30.0, 1),
 ('p-braun', 'svc-iot', '2029-01', 30.0, 1),
-('p-braun', 'svc-iot', '2029-02', 30.0, 1),
+('p-braun', 'svc-iot', '2029-02', 30.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-braun', 'svc-iot', '2029-03', 30.0, 1),
 ('p-braun', 'svc-iot', '2029-04', 30.0, 1),
 ('p-braun', 'svc-iot', '2029-05', 30.0, 1),
@@ -16978,8 +16997,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-braun', 'svc-netsec', '2024-06', 30.0, 1),
 ('p-braun', 'svc-netsec', '2024-07', 30.0, 1),
 ('p-braun', 'svc-netsec', '2024-08', 30.0, 1),
-('p-braun', 'svc-netsec', '2024-09', 30.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-braun', 'svc-netsec', '2024-09', 30.0, 1),
 ('p-braun', 'svc-netsec', '2024-10', 30.0, 1),
 ('p-braun', 'svc-netsec', '2024-11', 30.0, 1),
 ('p-braun', 'svc-netsec', '2024-12', 30.0, 1),
@@ -17043,6 +17061,26 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-braun', 'svc-netsec', '2029-10', 30.0, 1),
 ('p-braun', 'svc-netsec', '2029-11', 30.0, 1),
 ('p-braun', 'svc-netsec', '2029-12', 30.0, 1),
+('p-brenner', 'proj-autobrake', '2026-06', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2026-07', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2026-08', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2026-09', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2026-10', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2026-11', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2026-12', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2027-01', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2027-02', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2027-03', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2027-04', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2027-05', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2027-06', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2027-07', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2027-08', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2027-09', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2027-10', 40.0, 1),
+('p-brenner', 'proj-autobrake', '2027-11', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-brenner', 'proj-autobrake', '2027-12', 40.0, 1),
 ('p-brenner', 'proj-connveh', '2026-10', 40.0, 1),
 ('p-brenner', 'proj-connveh', '2026-11', 40.0, 1),
 ('p-brenner', 'proj-connveh', '2026-12', 40.0, 1),
@@ -17079,8 +17117,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-brenner', 'proj-signal', '2023-07', 30.0, 1),
 ('p-brenner', 'proj-signal', '2023-08', 30.0, 1),
 ('p-brenner', 'proj-signal', '2023-09', 30.0, 1),
-('p-brenner', 'proj-signal', '2023-10', 30.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-brenner', 'proj-signal', '2023-10', 30.0, 1),
 ('p-brenner', 'proj-signal', '2023-11', 30.0, 1),
 ('p-brenner', 'proj-signal', '2023-12', 30.0, 1),
 ('p-brenner', 'proj-signal', '2024-01', 30.0, 1),
@@ -17142,7 +17179,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-das', 'proj-erp2', '2026-09', 100.0, 1),
 ('p-das', 'proj-iam', '2025-01', 40.0, 1),
 ('p-das', 'proj-iam', '2025-02', 40.0, 1),
-('p-das', 'proj-iam', '2025-03', 40.0, 1),
+('p-das', 'proj-iam', '2025-03', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-das', 'proj-iam', '2025-04', 40.0, 1),
 ('p-das', 'proj-iam', '2025-05', 40.0, 1),
 ('p-das', 'proj-iam', '2025-06', 40.0, 1),
@@ -17180,8 +17218,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-das', 'proj-sap', '2023-05', 80.0, 1),
 ('p-das', 'proj-sap', '2023-06', 80.0, 1),
 ('p-das', 'proj-sap', '2023-07', 80.0, 1),
-('p-das', 'proj-sap', '2023-08', 80.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-das', 'proj-sap', '2023-08', 80.0, 1),
 ('p-das', 'proj-sap', '2023-09', 80.0, 1),
 ('p-das', 'proj-sap', '2023-10', 80.0, 1),
 ('p-das', 'proj-sap', '2023-11', 80.0, 1),
@@ -17243,7 +17280,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-das', 'svc-tbs-maint', '2026-01', 100.0, 1),
 ('p-das', 'svc-tbs-maint', '2026-02', 100.0, 1),
 ('p-das', 'svc-tbs-maint', '2026-03', 100.0, 1),
-('p-das', 'svc-tbs-maint', '2026-04', 100.0, 1),
+('p-das', 'svc-tbs-maint', '2026-04', 100.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-das', 'svc-tbs-maint', '2026-05', 100.0, 1),
 ('p-das', 'svc-tbs-maint', '2026-06', 100.0, 1),
 ('p-das', 'svc-tbs-maint', '2026-07', 100.0, 1),
@@ -17281,14 +17319,32 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-das', 'svc-tbs-maint', '2029-03', 100.0, 1),
 ('p-das', 'svc-tbs-maint', '2029-04', 100.0, 1),
 ('p-das', 'svc-tbs-maint', '2029-05', 100.0, 1),
-('p-das', 'svc-tbs-maint', '2029-06', 100.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-das', 'svc-tbs-maint', '2029-06', 100.0, 1),
 ('p-das', 'svc-tbs-maint', '2029-07', 100.0, 1),
 ('p-das', 'svc-tbs-maint', '2029-08', 100.0, 1),
 ('p-das', 'svc-tbs-maint', '2029-09', 100.0, 1),
 ('p-das', 'svc-tbs-maint', '2029-10', 100.0, 1),
 ('p-das', 'svc-tbs-maint', '2029-11', 100.0, 1),
 ('p-das', 'svc-tbs-maint', '2029-12', 100.0, 1),
+('p-desai', 'proj-autobrake', '2026-06', 20.0, 1),
+('p-desai', 'proj-autobrake', '2026-07', 20.0, 1),
+('p-desai', 'proj-autobrake', '2026-08', 20.0, 1),
+('p-desai', 'proj-autobrake', '2026-09', 20.0, 1),
+('p-desai', 'proj-autobrake', '2026-10', 20.0, 1),
+('p-desai', 'proj-autobrake', '2026-11', 20.0, 1),
+('p-desai', 'proj-autobrake', '2026-12', 20.0, 1),
+('p-desai', 'proj-autobrake', '2027-01', 20.0, 1),
+('p-desai', 'proj-autobrake', '2027-02', 20.0, 1),
+('p-desai', 'proj-autobrake', '2027-03', 20.0, 1),
+('p-desai', 'proj-autobrake', '2027-04', 20.0, 1),
+('p-desai', 'proj-autobrake', '2027-05', 20.0, 1),
+('p-desai', 'proj-autobrake', '2027-06', 20.0, 1),
+('p-desai', 'proj-autobrake', '2027-07', 20.0, 1),
+('p-desai', 'proj-autobrake', '2027-08', 20.0, 1),
+('p-desai', 'proj-autobrake', '2027-09', 20.0, 1),
+('p-desai', 'proj-autobrake', '2027-10', 20.0, 1),
+('p-desai', 'proj-autobrake', '2027-11', 20.0, 1),
+('p-desai', 'proj-autobrake', '2027-12', 20.0, 1),
 ('p-desai', 'proj-erp2', '2024-07', 30.0, 1),
 ('p-desai', 'proj-erp2', '2024-08', 30.0, 1),
 ('p-desai', 'proj-erp2', '2024-09', 30.0, 1),
@@ -17325,7 +17381,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-desai', 'proj-raildiag', '2024-12', 20.0, 1),
 ('p-desai', 'proj-raildiag', '2025-01', 20.0, 1),
 ('p-desai', 'proj-raildiag', '2025-02', 20.0, 1),
-('p-desai', 'proj-raildiag', '2025-03', 20.0, 1),
+('p-desai', 'proj-raildiag', '2025-03', 20.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-desai', 'proj-raildiag', '2025-04', 20.0, 1),
 ('p-desai', 'proj-raildiag', '2025-05', 20.0, 1),
 ('p-desai', 'proj-raildiag', '2025-06', 20.0, 1),
@@ -17382,8 +17439,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-desai', 'proj-sap', '2024-03', 30.0, 1),
 ('p-desai', 'proj-sap', '2024-04', 30.0, 1),
 ('p-desai', 'proj-sap', '2024-05', 30.0, 1),
-('p-desai', 'proj-sap', '2024-06', 30.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-desai', 'proj-sap', '2024-06', 30.0, 1),
 ('p-desai', 'proj-sap', '2024-07', 30.0, 1),
 ('p-desai', 'proj-sap', '2024-08', 30.0, 1),
 ('p-desai', 'proj-sap', '2024-09', 30.0, 1),
@@ -17426,7 +17482,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-desai', 'proj-workshop', '2024-04', 20.0, 1),
 ('p-desai', 'proj-workshop', '2024-05', 20.0, 1),
 ('p-desai', 'proj-workshop', '2024-06', 20.0, 1),
-('p-desai', 'proj-workshop', '2024-07', 20.0, 1),
+('p-desai', 'proj-workshop', '2024-07', 20.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-desai', 'proj-workshop', '2024-08', 20.0, 1),
 ('p-desai', 'proj-workshop', '2024-09', 20.0, 1),
 ('p-desai', 'proj-workshop', '2024-10', 20.0, 1),
@@ -17483,8 +17540,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-farkas', 'proj-datacenter', '2022-09', 80.0, 1),
 ('p-farkas', 'proj-datacenter', '2022-10', 80.0, 1),
 ('p-farkas', 'proj-datacenter', '2022-11', 80.0, 1),
-('p-farkas', 'proj-datacenter', '2022-12', 80.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-farkas', 'proj-datacenter', '2022-12', 80.0, 1),
 ('p-farkas', 'proj-datacenter', '2023-01', 80.0, 1),
 ('p-farkas', 'proj-datacenter', '2023-02', 80.0, 1),
 ('p-farkas', 'proj-datacenter', '2023-03', 80.0, 1),
@@ -17527,7 +17583,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-farkas', 'proj-sensor', '2025-09', 30.0, 1),
 ('p-farkas', 'proj-sensor', '2025-10', 30.0, 1),
 ('p-farkas', 'proj-sensor', '2025-11', 30.0, 1),
-('p-farkas', 'proj-sensor', '2025-12', 30.0, 1),
+('p-farkas', 'proj-sensor', '2025-12', 30.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-farkas', 'proj-sensor', '2026-01', 30.0, 1),
 ('p-farkas', 'proj-sensor', '2026-02', 30.0, 1),
 ('p-farkas', 'proj-sensor', '2026-03', 30.0, 1),
@@ -17584,8 +17641,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-fischer', 'proj-signal', '2024-03', 60.0, 1),
 ('p-fischer', 'proj-signal', '2024-04', 60.0, 1),
 ('p-fischer', 'proj-signal', '2024-05', 60.0, 1),
-('p-fischer', 'proj-signal', '2024-06', 60.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-fischer', 'proj-signal', '2024-06', 60.0, 1),
 ('p-fischer', 'proj-signal', '2024-07', 60.0, 1),
 ('p-fischer', 'proj-signal', '2024-08', 60.0, 1),
 ('p-fischer', 'proj-signal', '2024-09', 60.0, 1),
@@ -17628,7 +17684,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-frank', 'proj-wan', '2023-04', 100.0, 1),
 ('p-frank', 'proj-wan', '2023-05', 100.0, 1),
 ('p-frank', 'proj-wan', '2023-06', 100.0, 1),
-('p-frank', 'proj-wan', '2023-07', 100.0, 1),
+('p-frank', 'proj-wan', '2023-07', 100.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-frank', 'proj-wan', '2023-08', 100.0, 1),
 ('p-frank', 'proj-wan', '2023-09', 100.0, 1),
 ('p-frank', 'proj-wan', '2023-10', 100.0, 1),
@@ -17685,8 +17742,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-gupta', 'svc-middleware', '2025-09', 80.0, 1),
 ('p-gupta', 'svc-middleware', '2025-10', 80.0, 1),
 ('p-gupta', 'svc-middleware', '2025-11', 80.0, 1),
-('p-gupta', 'svc-middleware', '2025-12', 80.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-gupta', 'svc-middleware', '2025-12', 80.0, 1),
 ('p-gupta', 'svc-middleware', '2026-01', 80.0, 1),
 ('p-gupta', 'svc-middleware', '2026-02', 80.0, 1),
 ('p-gupta', 'svc-middleware', '2026-03', 80.0, 1),
@@ -17729,7 +17785,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-gupta', 'svc-middleware', '2029-04', 80.0, 1),
 ('p-gupta', 'svc-middleware', '2029-05', 80.0, 1),
 ('p-gupta', 'svc-middleware', '2029-06', 80.0, 1),
-('p-gupta', 'svc-middleware', '2029-07', 80.0, 1),
+('p-gupta', 'svc-middleware', '2029-07', 80.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-gupta', 'svc-middleware', '2029-08', 80.0, 1),
 ('p-gupta', 'svc-middleware', '2029-09', 80.0, 1),
 ('p-gupta', 'svc-middleware', '2029-10', 80.0, 1),
@@ -17786,8 +17843,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-hartmann', 'proj-sap', '2026-01', 120.0, 1),
 ('p-hartmann', 'proj-sap', '2026-02', 120.0, 1),
 ('p-hartmann', 'proj-sap', '2026-03', 120.0, 1),
-('p-hartmann', 'proj-sap', '2026-04', 120.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-hartmann', 'proj-sap', '2026-04', 120.0, 1),
 ('p-hartmann', 'proj-sap', '2026-05', 120.0, 1),
 ('p-hartmann', 'proj-sap', '2026-06', 120.0, 1),
 ('p-hoffmann', 'svc-euc', '2024-01', 40.0, 1),
@@ -17830,7 +17886,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-hoffmann', 'svc-euc', '2027-02', 40.0, 1),
 ('p-hoffmann', 'svc-euc', '2027-03', 40.0, 1),
 ('p-hoffmann', 'svc-euc', '2027-04', 40.0, 1),
-('p-hoffmann', 'svc-euc', '2027-05', 40.0, 1),
+('p-hoffmann', 'svc-euc', '2027-05', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-hoffmann', 'svc-euc', '2027-06', 40.0, 1),
 ('p-hoffmann', 'svc-euc', '2027-07', 40.0, 1),
 ('p-hoffmann', 'svc-euc', '2027-08', 40.0, 1),
@@ -17862,6 +17919,25 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-hoffmann', 'svc-euc', '2029-10', 40.0, 1),
 ('p-hoffmann', 'svc-euc', '2029-11', 40.0, 1),
 ('p-hoffmann', 'svc-euc', '2029-12', 40.0, 1),
+('p-horvath', 'proj-autobrake', '2026-06', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2026-07', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2026-08', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2026-09', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2026-10', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2026-11', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2026-12', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2027-01', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2027-02', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2027-03', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2027-04', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2027-05', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2027-06', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2027-07', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2027-08', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2027-09', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2027-10', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2027-11', 80.0, 1),
+('p-horvath', 'proj-autobrake', '2027-12', 80.0, 1),
 ('p-horvath', 'proj-raildiag', '2024-06', 40.0, 1),
 ('p-horvath', 'proj-raildiag', '2024-07', 40.0, 1),
 ('p-horvath', 'proj-raildiag', '2024-08', 40.0, 1),
@@ -17887,8 +17963,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-horvath', 'proj-raildiag', '2026-04', 40.0, 1),
 ('p-horvath', 'proj-raildiag', '2026-05', 40.0, 1),
 ('p-horvath', 'proj-raildiag', '2026-06', 40.0, 1),
-('p-horvath', 'proj-raildiag', '2026-07', 40.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-horvath', 'proj-raildiag', '2026-07', 40.0, 1),
 ('p-horvath', 'proj-raildiag', '2026-08', 40.0, 1),
 ('p-horvath', 'proj-raildiag', '2026-09', 40.0, 1),
 ('p-horvath', 'proj-raildiag', '2026-10', 40.0, 1),
@@ -17912,7 +17987,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-jung', 'proj-brake', '2025-12', 30.0, 1),
 ('p-jung', 'proj-brake', '2026-01', 30.0, 1),
 ('p-jung', 'proj-brake', '2026-02', 30.0, 1),
-('p-jung', 'proj-brake', '2026-03', 30.0, 1),
+('p-jung', 'proj-brake', '2026-03', 30.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-keller', 'proj-connveh', '2026-10', 60.0, 1),
 ('p-keller', 'proj-connveh', '2026-11', 60.0, 1),
 ('p-keller', 'proj-connveh', '2026-12', 60.0, 1),
@@ -17988,8 +18064,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-kovacs', 'proj-raildiag', '2024-07', 60.0, 1),
 ('p-kovacs', 'proj-raildiag', '2024-08', 60.0, 1),
 ('p-kovacs', 'proj-raildiag', '2024-09', 60.0, 1),
-('p-kovacs', 'proj-raildiag', '2024-10', 60.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-kovacs', 'proj-raildiag', '2024-10', 60.0, 1),
 ('p-kovacs', 'proj-raildiag', '2024-11', 60.0, 1),
 ('p-kovacs', 'proj-raildiag', '2024-12', 60.0, 1),
 ('p-kovacs', 'proj-raildiag', '2025-01', 60.0, 1),
@@ -18013,7 +18088,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-kovacs', 'proj-raildiag', '2026-07', 60.0, 1),
 ('p-kovacs', 'proj-raildiag', '2026-08', 60.0, 1),
 ('p-kovacs', 'proj-raildiag', '2026-09', 60.0, 1),
-('p-kovacs', 'proj-raildiag', '2026-10', 60.0, 1),
+('p-kovacs', 'proj-raildiag', '2026-10', 60.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-kovacs', 'proj-raildiag', '2026-11', 60.0, 1),
 ('p-kovacs', 'proj-raildiag', '2026-12', 60.0, 1),
 ('p-kovacs', 'proj-raildiag', '2027-01', 60.0, 1),
@@ -18047,6 +18123,25 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-lorenz', 'proj-dwh', '2027-07', 30.0, 1),
 ('p-lorenz', 'proj-dwh', '2027-08', 30.0, 1),
 ('p-lorenz', 'proj-dwh', '2027-09', 30.0, 1),
+('p-lukacs', 'proj-autobrake', '2026-06', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2026-07', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2026-08', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2026-09', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2026-10', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2026-11', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2026-12', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2027-01', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2027-02', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2027-03', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2027-04', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2027-05', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2027-06', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2027-07', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2027-08', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2027-09', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2027-10', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2027-11', 40.0, 1),
+('p-lukacs', 'proj-autobrake', '2027-12', 40.0, 1),
 ('p-lukacs', 'proj-fleet', '2025-01', 20.0, 1),
 ('p-lukacs', 'proj-fleet', '2025-02', 20.0, 1),
 ('p-lukacs', 'proj-fleet', '2025-03', 20.0, 1),
@@ -18089,13 +18184,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-lukacs', 'proj-predmaint', '2027-03', 20.0, 1),
 ('p-lukacs', 'proj-raildiag', '2024-06', 20.0, 1),
 ('p-lukacs', 'proj-raildiag', '2024-07', 20.0, 1),
-('p-lukacs', 'proj-raildiag', '2024-08', 20.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-lukacs', 'proj-raildiag', '2024-08', 20.0, 1),
 ('p-lukacs', 'proj-raildiag', '2024-09', 20.0, 1),
 ('p-lukacs', 'proj-raildiag', '2024-10', 20.0, 1),
 ('p-lukacs', 'proj-raildiag', '2024-11', 20.0, 1),
 ('p-lukacs', 'proj-raildiag', '2024-12', 20.0, 1),
-('p-lukacs', 'proj-raildiag', '2025-01', 20.0, 1),
+('p-lukacs', 'proj-raildiag', '2025-01', 20.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-lukacs', 'proj-raildiag', '2025-02', 20.0, 1),
 ('p-lukacs', 'proj-raildiag', '2025-03', 20.0, 1),
 ('p-lukacs', 'proj-raildiag', '2025-04', 20.0, 1),
@@ -18190,13 +18285,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-lukacs', 'proj-workshop', '2023-09', 20.0, 1),
 ('p-lukacs', 'proj-workshop', '2023-10', 20.0, 1),
 ('p-lukacs', 'proj-workshop', '2023-11', 20.0, 1),
-('p-lukacs', 'proj-workshop', '2023-12', 20.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-lukacs', 'proj-workshop', '2023-12', 20.0, 1),
 ('p-lukacs', 'proj-workshop', '2024-01', 20.0, 1),
 ('p-lukacs', 'proj-workshop', '2024-02', 20.0, 1),
 ('p-lukacs', 'proj-workshop', '2024-03', 20.0, 1),
 ('p-lukacs', 'proj-workshop', '2024-04', 20.0, 1),
-('p-lukacs', 'proj-workshop', '2024-05', 20.0, 1),
+('p-lukacs', 'proj-workshop', '2024-05', 20.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-lukacs', 'proj-workshop', '2024-06', 20.0, 1),
 ('p-lukacs', 'proj-workshop', '2024-07', 20.0, 1),
 ('p-lukacs', 'proj-workshop', '2024-08', 20.0, 1),
@@ -18291,13 +18386,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-menon', 'proj-workplace', '2026-02', 40.0, 1),
 ('p-menon', 'proj-workplace', '2026-03', 40.0, 1),
 ('p-menon', 'proj-workplace', '2026-04', 40.0, 1),
-('p-menon', 'proj-workplace', '2026-05', 40.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-menon', 'proj-workplace', '2026-05', 40.0, 1),
 ('p-menon', 'proj-workplace', '2026-06', 40.0, 1),
 ('p-molnar', 'proj-dwh', '2026-07', 40.0, 1),
 ('p-molnar', 'proj-dwh', '2026-08', 40.0, 1),
 ('p-molnar', 'proj-dwh', '2026-09', 40.0, 1),
-('p-molnar', 'proj-dwh', '2026-10', 40.0, 1),
+('p-molnar', 'proj-dwh', '2026-10', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-molnar', 'proj-dwh', '2026-11', 40.0, 1),
 ('p-molnar', 'proj-dwh', '2026-12', 40.0, 1),
 ('p-molnar', 'proj-dwh', '2027-01', 40.0, 1),
@@ -18392,13 +18487,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-neumann', 'proj-workshop', '2024-04', 60.0, 1),
 ('p-neumann', 'proj-workshop', '2024-05', 60.0, 1),
 ('p-neumann', 'proj-workshop', '2024-06', 60.0, 1),
-('p-neumann', 'proj-workshop', '2024-07', 60.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-neumann', 'proj-workshop', '2024-07', 60.0, 1),
 ('p-neumann', 'proj-workshop', '2024-08', 60.0, 1),
 ('p-neumann', 'proj-workshop', '2024-09', 60.0, 1),
 ('p-neumann', 'proj-workshop', '2024-10', 60.0, 1),
 ('p-neumann', 'proj-workshop', '2024-11', 60.0, 1),
-('p-neumann', 'proj-workshop', '2024-12', 60.0, 1),
+('p-neumann', 'proj-workshop', '2024-12', 60.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-neumann', 'proj-workshop', '2025-01', 60.0, 1),
 ('p-neumann', 'proj-workshop', '2025-02', 60.0, 1),
 ('p-neumann', 'proj-workshop', '2025-03', 60.0, 1),
@@ -18493,13 +18588,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-neumann', 'svc-rail-desk', '2025-02', 40.0, 1),
 ('p-neumann', 'svc-rail-desk', '2025-03', 40.0, 1),
 ('p-neumann', 'svc-rail-desk', '2025-04', 40.0, 1),
-('p-neumann', 'svc-rail-desk', '2025-05', 40.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-neumann', 'svc-rail-desk', '2025-05', 40.0, 1),
 ('p-neumann', 'svc-rail-desk', '2025-06', 40.0, 1),
 ('p-neumann', 'svc-rail-desk', '2025-07', 40.0, 1),
 ('p-neumann', 'svc-rail-desk', '2025-08', 40.0, 1),
 ('p-neumann', 'svc-rail-desk', '2025-09', 40.0, 1),
-('p-neumann', 'svc-rail-desk', '2025-10', 40.0, 1),
+('p-neumann', 'svc-rail-desk', '2025-10', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-neumann', 'svc-rail-desk', '2025-11', 40.0, 1),
 ('p-neumann', 'svc-rail-desk', '2025-12', 40.0, 1),
 ('p-neumann', 'svc-rail-desk', '2026-01', 40.0, 1),
@@ -18594,13 +18689,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-papp', 'svc-rail-maint', '2025-03', 30.0, 1),
 ('p-papp', 'svc-rail-maint', '2025-04', 30.0, 1),
 ('p-papp', 'svc-rail-maint', '2025-05', 30.0, 1),
-('p-papp', 'svc-rail-maint', '2025-06', 30.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-papp', 'svc-rail-maint', '2025-06', 30.0, 1),
 ('p-papp', 'svc-rail-maint', '2025-07', 30.0, 1),
 ('p-papp', 'svc-rail-maint', '2025-08', 30.0, 1),
 ('p-papp', 'svc-rail-maint', '2025-09', 30.0, 1),
 ('p-papp', 'svc-rail-maint', '2025-10', 30.0, 1),
-('p-papp', 'svc-rail-maint', '2025-11', 30.0, 1),
+('p-papp', 'svc-rail-maint', '2025-11', 30.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-papp', 'svc-rail-maint', '2025-12', 30.0, 1),
 ('p-papp', 'svc-rail-maint', '2026-01', 30.0, 1),
 ('p-papp', 'svc-rail-maint', '2026-02', 30.0, 1),
@@ -18695,13 +18790,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-patel', 'proj-sap', '2023-04', 60.0, 1),
 ('p-patel', 'proj-sap', '2023-05', 60.0, 1),
 ('p-patel', 'proj-sap', '2023-06', 60.0, 1),
-('p-patel', 'proj-sap', '2023-07', 60.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-patel', 'proj-sap', '2023-07', 60.0, 1),
 ('p-patel', 'proj-sap', '2023-08', 60.0, 1),
 ('p-patel', 'proj-sap', '2023-09', 60.0, 1),
 ('p-patel', 'proj-sap', '2023-10', 60.0, 1),
 ('p-patel', 'proj-sap', '2023-11', 60.0, 1),
-('p-patel', 'proj-sap', '2023-12', 60.0, 1),
+('p-patel', 'proj-sap', '2023-12', 60.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-patel', 'proj-sap', '2024-01', 60.0, 1),
 ('p-patel', 'proj-sap', '2024-02', 60.0, 1),
 ('p-patel', 'proj-sap', '2024-03', 60.0, 1),
@@ -18796,13 +18891,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-pillai', 'svc-netsec', '2024-10', 40.0, 1),
 ('p-pillai', 'svc-netsec', '2024-11', 40.0, 1),
 ('p-pillai', 'svc-netsec', '2024-12', 40.0, 1),
-('p-pillai', 'svc-netsec', '2025-01', 40.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-pillai', 'svc-netsec', '2025-01', 40.0, 1),
 ('p-pillai', 'svc-netsec', '2025-02', 40.0, 1),
 ('p-pillai', 'svc-netsec', '2025-03', 40.0, 1),
 ('p-pillai', 'svc-netsec', '2025-04', 40.0, 1),
 ('p-pillai', 'svc-netsec', '2025-05', 40.0, 1),
-('p-pillai', 'svc-netsec', '2025-06', 40.0, 1),
+('p-pillai', 'svc-netsec', '2025-06', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-pillai', 'svc-netsec', '2025-07', 40.0, 1),
 ('p-pillai', 'svc-netsec', '2025-08', 40.0, 1),
 ('p-pillai', 'svc-netsec', '2025-09', 40.0, 1),
@@ -18897,13 +18992,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-rao', 'svc-sap-ops', '2024-11', 60.0, 1),
 ('p-rao', 'svc-sap-ops', '2024-12', 60.0, 1),
 ('p-rao', 'svc-sap-ops', '2025-01', 60.0, 1),
-('p-rao', 'svc-sap-ops', '2025-02', 60.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-rao', 'svc-sap-ops', '2025-02', 60.0, 1),
 ('p-rao', 'svc-sap-ops', '2025-03', 60.0, 1),
 ('p-rao', 'svc-sap-ops', '2025-04', 60.0, 1),
 ('p-rao', 'svc-sap-ops', '2025-05', 60.0, 1),
 ('p-rao', 'svc-sap-ops', '2025-06', 60.0, 1),
-('p-rao', 'svc-sap-ops', '2025-07', 60.0, 1),
+('p-rao', 'svc-sap-ops', '2025-07', 60.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-rao', 'svc-sap-ops', '2025-08', 60.0, 1),
 ('p-rao', 'svc-sap-ops', '2025-09', 60.0, 1),
 ('p-rao', 'svc-sap-ops', '2025-10', 60.0, 1),
@@ -18998,13 +19093,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-reddy', 'proj-railsafety', '2027-08', 30.0, 1),
 ('p-reddy', 'proj-railsafety', '2027-09', 30.0, 1),
 ('p-reddy', 'proj-railsafety', '2027-10', 30.0, 1),
-('p-reddy', 'proj-railsafety', '2027-11', 30.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-reddy', 'proj-railsafety', '2027-11', 30.0, 1),
 ('p-reddy', 'proj-railsafety', '2027-12', 30.0, 1),
 ('p-reddy', 'proj-railsafety', '2028-01', 30.0, 1),
 ('p-reddy', 'proj-railsafety', '2028-02', 30.0, 1),
 ('p-reddy', 'proj-railsafety', '2028-03', 30.0, 1),
-('p-reddy', 'proj-railsafety', '2028-04', 30.0, 1),
+('p-reddy', 'proj-railsafety', '2028-04', 30.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-reddy', 'proj-railsafety', '2028-05', 30.0, 1),
 ('p-reddy', 'proj-railsafety', '2028-06', 30.0, 1),
 ('p-reddy', 'proj-signal', '2023-01', 30.0, 1),
@@ -19099,13 +19194,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-reddy', 'svc-tbs-maint', '2027-12', 20.0, 1),
 ('p-reddy', 'svc-tbs-maint', '2028-01', 20.0, 1),
 ('p-reddy', 'svc-tbs-maint', '2028-02', 20.0, 1),
-('p-reddy', 'svc-tbs-maint', '2028-03', 20.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-reddy', 'svc-tbs-maint', '2028-03', 20.0, 1),
 ('p-reddy', 'svc-tbs-maint', '2028-04', 20.0, 1),
 ('p-reddy', 'svc-tbs-maint', '2028-05', 20.0, 1),
 ('p-reddy', 'svc-tbs-maint', '2028-06', 20.0, 1),
 ('p-reddy', 'svc-tbs-maint', '2028-07', 20.0, 1),
-('p-reddy', 'svc-tbs-maint', '2028-08', 20.0, 1),
+('p-reddy', 'svc-tbs-maint', '2028-08', 20.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-reddy', 'svc-tbs-maint', '2028-09', 20.0, 1),
 ('p-reddy', 'svc-tbs-maint', '2028-10', 20.0, 1),
 ('p-reddy', 'svc-tbs-maint', '2028-11', 20.0, 1),
@@ -19200,13 +19295,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-schmidt', 'proj-signal', '2024-02', 80.0, 1),
 ('p-schmidt', 'proj-signal', '2024-03', 80.0, 1),
 ('p-schmidt', 'proj-signal', '2024-04', 80.0, 1),
-('p-schmidt', 'proj-signal', '2024-05', 80.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-schmidt', 'proj-signal', '2024-05', 80.0, 1),
 ('p-schmidt', 'proj-signal', '2024-06', 80.0, 1),
 ('p-schmidt', 'proj-signal', '2024-07', 80.0, 1),
 ('p-schmidt', 'proj-signal', '2024-08', 80.0, 1),
 ('p-schmidt', 'proj-signal', '2024-09', 80.0, 1),
-('p-schmidt', 'proj-signal', '2024-10', 80.0, 1),
+('p-schmidt', 'proj-signal', '2024-10', 80.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-schmidt', 'proj-signal', '2024-11', 80.0, 1),
 ('p-schmidt', 'proj-signal', '2024-12', 80.0, 1),
 ('p-schmidt', 'proj-signal', '2025-01', 80.0, 1),
@@ -19301,13 +19396,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-szabo', 'proj-fleet', '2025-01', 40, 1),
 ('p-szabo', 'proj-fleet', '2025-02', 40, 1),
 ('p-szabo', 'proj-fleet', '2025-03', 40, 1),
-('p-szabo', 'proj-fleet', '2025-04', 40, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-szabo', 'proj-fleet', '2025-04', 40, 1),
 ('p-szabo', 'proj-fleet', '2025-05', 40, 1),
 ('p-szabo', 'proj-fleet', '2025-06', 40, 1),
 ('p-szabo', 'proj-fleet', '2025-07', 40, 1),
 ('p-szabo', 'proj-fleet', '2025-08', 40, 1),
-('p-szabo', 'proj-fleet', '2025-09', 40, 1),
+('p-szabo', 'proj-fleet', '2025-09', 40, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-szabo', 'proj-fleet', '2025-10', 40, 1),
 ('p-szabo', 'proj-fleet', '2025-11', 40, 1),
 ('p-szabo', 'proj-fleet', '2025-12', 40, 1),
@@ -19402,13 +19497,13 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-takacs', 'svc-signal-sup', '2029-01', 30.0, 1),
 ('p-takacs', 'svc-signal-sup', '2029-02', 30.0, 1),
 ('p-takacs', 'svc-signal-sup', '2029-03', 30.0, 1),
-('p-takacs', 'svc-signal-sup', '2029-04', 30.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-takacs', 'svc-signal-sup', '2029-04', 30.0, 1),
 ('p-takacs', 'svc-signal-sup', '2029-05', 30.0, 1),
 ('p-takacs', 'svc-signal-sup', '2029-06', 30.0, 1),
 ('p-takacs', 'svc-signal-sup', '2029-07', 30.0, 1),
 ('p-takacs', 'svc-signal-sup', '2029-08', 30.0, 1),
-('p-takacs', 'svc-signal-sup', '2029-09', 30.0, 1),
+('p-takacs', 'svc-signal-sup', '2029-09', 30.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-takacs', 'svc-signal-sup', '2029-10', 30.0, 1),
 ('p-takacs', 'svc-signal-sup', '2029-11', 30.0, 1),
 ('p-takacs', 'svc-signal-sup', '2029-12', 30.0, 1),
@@ -19434,6 +19529,25 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-toth', 'proj-sensor', '2026-10', 40.0, 1),
 ('p-toth', 'proj-sensor', '2026-11', 40.0, 1),
 ('p-toth', 'proj-sensor', '2026-12', 40.0, 1),
+('p-varga', 'proj-autobrake', '2026-06', 160.0, 1),
+('p-varga', 'proj-autobrake', '2026-07', 160.0, 1),
+('p-varga', 'proj-autobrake', '2026-08', 160.0, 1),
+('p-varga', 'proj-autobrake', '2026-09', 160.0, 1),
+('p-varga', 'proj-autobrake', '2026-10', 160.0, 1),
+('p-varga', 'proj-autobrake', '2026-11', 160.0, 1),
+('p-varga', 'proj-autobrake', '2026-12', 160.0, 1),
+('p-varga', 'proj-autobrake', '2027-01', 160.0, 1),
+('p-varga', 'proj-autobrake', '2027-02', 160.0, 1),
+('p-varga', 'proj-autobrake', '2027-03', 160.0, 1),
+('p-varga', 'proj-autobrake', '2027-04', 160.0, 1),
+('p-varga', 'proj-autobrake', '2027-05', 160.0, 1),
+('p-varga', 'proj-autobrake', '2027-06', 160.0, 1),
+('p-varga', 'proj-autobrake', '2027-07', 160.0, 1),
+('p-varga', 'proj-autobrake', '2027-08', 160.0, 1),
+('p-varga', 'proj-autobrake', '2027-09', 160.0, 1),
+('p-varga', 'proj-autobrake', '2027-10', 160.0, 1),
+('p-varga', 'proj-autobrake', '2027-11', 160.0, 1),
+('p-varga', 'proj-autobrake', '2027-12', 160.0, 1),
 ('p-wagner', 'proj-cloud3', '2025-01', 100.0, 1),
 ('p-wagner', 'proj-cloud3', '2025-02', 100.0, 1),
 ('p-wagner', 'proj-cloud3', '2025-03', 100.0, 1),
@@ -19489,7 +19603,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-winter', 'proj-predmaint', '2027-01', 30.0, 1),
 ('p-winter', 'proj-predmaint', '2027-02', 30.0, 1),
 ('p-winter', 'proj-predmaint', '2027-03', 30.0, 1),
-('p-winter', 'proj-sensor', '2025-03', 40.0, 1),
+('p-winter', 'proj-sensor', '2025-03', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-winter', 'proj-sensor', '2025-04', 40.0, 1),
 ('p-winter', 'proj-sensor', '2025-05', 40.0, 1),
 ('p-winter', 'proj-sensor', '2025-06', 40.0, 1),
@@ -19503,8 +19618,7 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-winter', 'proj-sensor', '2026-02', 40.0, 1),
 ('p-winter', 'proj-sensor', '2026-03', 40.0, 1),
 ('p-winter', 'proj-sensor', '2026-04', 40.0, 1),
-('p-winter', 'proj-sensor', '2026-05', 40.0, 1);
-INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
+('p-winter', 'proj-sensor', '2026-05', 40.0, 1),
 ('p-winter', 'proj-sensor', '2026-06', 40.0, 1),
 ('p-winter', 'proj-sensor', '2026-07', 40.0, 1),
 ('p-winter', 'proj-sensor', '2026-08', 40.0, 1),
@@ -19590,7 +19704,8 @@ INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALU
 ('p-wolf', 'proj-brake', '2025-06', 40.0, 1),
 ('p-wolf', 'proj-brake', '2025-07', 40.0, 1),
 ('p-wolf', 'proj-brake', '2025-08', 40.0, 1),
-('p-wolf', 'proj-brake', '2025-09', 40.0, 1),
+('p-wolf', 'proj-brake', '2025-09', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, month, hours, is_confirmed) VALUES
 ('p-wolf', 'proj-brake', '2025-10', 40.0, 1),
 ('p-wolf', 'proj-brake', '2025-11', 40.0, 1),
 ('p-wolf', 'proj-brake', '2025-12', 40.0, 1),
@@ -19603,6 +19718,60 @@ INSERT INTO resource_requests (project_id, cost_center_id, request_type, role_ty
 ('proj-predmaint', 'cc-bud-apd', 'resource', 'role-sr-dev', NULL, 60, '2026-04', '2027-03', 'high', 'pending', NULL, NULL, 'Production pilot phase requires dedicated Senior Developer from BUD/APD. Current team lacks capacity for the extended scope.', NULL, '2026-02-20 10:00:00', '2026-02-20 10:00:00'),
 ('proj-erp2', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 20, '2026-04', '2026-06', 'high', 'pending', NULL, NULL, 'Additional Sr Dev hours needed for final go-live sprint.', 9, '2026-03-05 09:00:00', '2026-03-05 09:00:00'),
 ('proj-sensor', 'cc-muc-dda', 'external_cost', NULL, 'ext-cloud', 5000, '2026-04', '2026-12', 'medium', 'pending', NULL, NULL, 'AWS production infrastructure scaling.', 15, '2026-03-08 09:30:00', '2026-03-08 09:30:00');
+
+-- Resource Requests for Autonomous Braking Prototype (pending CC confirmation)
+INSERT INTO resource_requests (id, project_id, cost_center_id, request_type, role_type_id, cost_type_id, hours_or_amount_per_month, period_start, period_end, priority, status, assigned_person_id, adjusted_value, explanation, change_request_id, created_at, modified_at) VALUES
+(100, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-arch', NULL, 40, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(101, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 80, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(102, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-dev', NULL, 100, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(103, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-qa', NULL, 40, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(104, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-ba', NULL, 20, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(105, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-consulting', 8000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(106, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-sw-licenses', 5000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(107, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-cloud', 6000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(108, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-other', 3000, '2026-06', '2027-12', 'low', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00');
+
+-- Resource Request Assignments for Autonomous Braking (partial — Sr Arch + Sr Dev pre-assigned)
+-- 38 assignment rows (2 roles x 19 months)
+INSERT INTO resource_request_assignments (resource_request_id, month, person_id, hours, created_at, modified_at) VALUES
+(100, '2026-06', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2026-06', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2026-07', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2026-07', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2026-08', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2026-08', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2026-09', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2026-09', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2026-10', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2026-10', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2026-11', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2026-11', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2026-12', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2026-12', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2027-01', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2027-01', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2027-02', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2027-02', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2027-03', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2027-03', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2027-04', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2027-04', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2027-05', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2027-05', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2027-06', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2027-06', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2027-07', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2027-07', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2027-08', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2027-08', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2027-09', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2027-09', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2027-10', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2027-10', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2027-11', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2027-11', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(100, '2027-12', 'p-brenner', 40, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(101, '2027-12', 'p-fischer', 80, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- Change Requests & CR Change Details & CR Submission Snapshots
@@ -19698,10 +19867,10 @@ INSERT INTO notifications (user_person_id, message, severity, deep_link_module, 
 ('p-brenner', 'CR pending confirmation: CR #9 for ERP Integration Phase 2 requires your review', 'action', 'portfolio', 'proj-erp2', 0, '2026-03-05 09:00:00'),
 ('p-brenner', 'CR pending confirmation: CR #15 for Sensor Data Pipeline requires your review', 'action', 'portfolio', 'proj-sensor', 0, '2026-03-08 09:30:00'),
 ('p-brenner', 'Resource request: Predictive Maintenance PoC is requesting a Senior Developer from your cost centre', 'action', 'capacity', 'proj-predmaint', 0, '2026-02-20 10:00:00'),
+('p-brenner', 'Project ''Autonomous Braking Prototype'' needs resource confirmation', 'action', 'capacity', 'proj-autobrake', 0, '2026-03-15 10:00:00'),
 -- Anna (Controller) notifications
 ('p-meier', 'CR pending approval: CR #12 for SAP S/4HANA Migration is ready for your review', 'action', 'portfolio', 'proj-sap', 0, '2026-03-02 11:00:00'),
 ('p-meier', 'CR pending approval: CR #19 for IAM Overhaul is ready for your review', 'action', 'portfolio', 'proj-iam', 0, '2026-03-04 11:00:00'),
-('p-meier', 'New project pending review: Autonomous Braking Prototype submitted for approval', 'action', 'portfolio', 'proj-autobrake', 0, '2026-02-28 10:00:00'),
 ('p-meier', 'Forecast overdue: ERP Integration Phase 2 — March 2026 forecast has not been submitted by Project Lead', 'info', 'workbench', 'proj-erp2', 0, '2026-04-01 08:00:00'),
 -- Thomas (Executive) notifications
 ('p-becker', 'Scenario published: Budget Pressure: 15% Reduction has been published by Anna Meier', 'info', 'whatif', NULL, 0, '2026-03-07 10:00:00'),
