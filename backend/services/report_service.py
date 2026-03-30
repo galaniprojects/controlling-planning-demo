@@ -860,64 +860,44 @@ def compute_year_over_year(
 
 
 # ---------------------------------------------------------------------------
-# Excel Export
+# CSV Export
 # ---------------------------------------------------------------------------
 
-def generate_excel_export(
+def generate_csv_export(
     report_name: str,
     headers: list[str],
     data_rows: list[list],
     summary_row: list | None = None,
     active_filters: dict | None = None,
 ) -> io.BytesIO:
-    """Generate an Excel workbook in-memory and return as BytesIO."""
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill
+    """Generate a CSV file in-memory and return as BytesIO."""
+    import csv
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Report"
+    sio = io.StringIO()
+    writer = csv.writer(sio)
 
-    # Header row (bold, blue background)
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="1E40AF", end_color="1E40AF", fill_type="solid")
-    for col_idx, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-
-    # Data rows
-    for row_idx, data_row in enumerate(data_rows, 2):
-        for col_idx, value in enumerate(data_row, 1):
-            ws.cell(row=row_idx, column=col_idx, value=value)
-
-    # Summary row (bold)
-    if summary_row:
-        summary_row_idx = len(data_rows) + 2
-        summary_font = Font(bold=True)
-        for col_idx, value in enumerate(summary_row, 1):
-            cell = ws.cell(row=summary_row_idx, column=col_idx, value=value)
-            cell.font = summary_font
-
-    # Auto-width columns
-    for col in ws.columns:
-        max_length = max(len(str(cell.value or "")) for cell in col)
-        ws.column_dimensions[col[0].column_letter].width = min(max_length + 2, 30)
-
-    # Metadata sheet
-    meta_ws = wb.create_sheet("Metadata")
-    meta_ws.cell(row=1, column=1, value="Report Name").font = Font(bold=True)
-    meta_ws.cell(row=1, column=2, value=report_name)
-    meta_ws.cell(row=2, column=1, value="Export Date").font = Font(bold=True)
-    meta_ws.cell(row=2, column=2, value=date.today().isoformat())
-    meta_ws.cell(row=3, column=1, value="Active Filters").font = Font(bold=True)
+    # Metadata preamble
+    writer.writerow([f"# Report: {report_name}"])
+    writer.writerow([f"# Exported: {date.today().isoformat()}"])
     if active_filters:
         filter_str = ", ".join(f"{k}={v}" for k, v in active_filters.items() if v)
-        meta_ws.cell(row=3, column=2, value=filter_str or "None")
+        writer.writerow([f"# Filters: {filter_str or 'None'}"])
     else:
-        meta_ws.cell(row=3, column=2, value="None")
+        writer.writerow(["# Filters: None"])
+    writer.writerow([])
 
-    buf = io.BytesIO()
-    wb.save(buf)
+    # Header row
+    writer.writerow(headers)
+
+    # Data rows
+    for data_row in data_rows:
+        writer.writerow(data_row)
+
+    # Summary row
+    if summary_row:
+        writer.writerow(summary_row)
+
+    # Convert to BytesIO with UTF-8 BOM for Excel compatibility
+    buf = io.BytesIO(b"\xef\xbb\xbf" + sio.getvalue().encode("utf-8"))
     buf.seek(0)
     return buf

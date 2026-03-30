@@ -21,7 +21,7 @@ from services.report_service import (
     compute_vendor_drilldown,
     compute_vendor_spend,
     compute_year_over_year,
-    generate_excel_export,
+    generate_csv_export,
 )
 
 router = APIRouter(prefix="/api/reports", tags=["Reporting"])
@@ -501,7 +501,7 @@ def export_report(
             kpis.get("overall_variance_pct", 0),
         ]
 
-    buf = generate_excel_export(
+    buf = generate_csv_export(
         report_name=config["name"],
         headers=config["headers"],
         data_rows=data_rows,
@@ -509,10 +509,10 @@ def export_report(
         active_filters=filters,
     )
 
-    filename = f"CRETA_{config['name'].replace(' ', '_')}_{date.today().isoformat()}.xlsx"
+    filename = f"CRETA_{config['name'].replace(' ', '_')}_{date.today().isoformat()}.csv"
 
     return StreamingResponse(
         buf,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

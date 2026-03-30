@@ -84,7 +84,7 @@ export function ReportViewer({
       a.href = blobUrl;
       const disposition = response.headers.get('Content-Disposition');
       const match = disposition?.match(/filename="(.+)"/);
-      a.download = match?.[1] ?? `CRETA_Export.xlsx`;
+      a.download = match?.[1] ?? `CRETA_Export.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

@@ -13,13 +13,13 @@ Branch: `feature/report-builder-session4`
 - **URL-based loading:** `?reportId=` parameter loads and auto-runs a saved report
 - **Share & publish:** Share dialog with user selection, permission levels (View only / Can edit), "Publish to Report Library" toggle
 - **Report Library integration:** Custom reports show in "My Saved Views" with "Custom" badge, shared/published reports in "Shared Reports" section
-- **Excel export:** Server-side cross-tab generation with openpyxl — merged headers, European formatting, subtotals, grand totals, conditional formatting colours
-- **Export metadata:** Second sheet with report name, date, user, dimensions, measures, filters, calculated measure formulas
+- **CSV export:** Server-side CSV generation with metadata preamble, subtotals, grand totals, cross-tab flattening
+- **Export metadata:** Comment rows with report name, date, user, and active filters
 - **Guide panel content:** 3 new manual sections (Saving, Sharing, Export) + 5 new FAQ entries
 
 ### Technical Details
 - **New models:** `SavedReport` (with `is_active` soft delete, `is_published` flag, JSON `definition` blob), `SavedReportShare` (report_id, shared_with, permission)
-- **New backend services:** `report_builder_saved.py` (CRUD + share), `report_builder_export.py` (Excel generation with cross-tab pivot)
+- **New backend services:** `report_builder_saved.py` (CRUD + share), `report_builder_export.py` (CSV generation with cross-tab flattening)
 - **8 new API endpoints:** CRUD for saved reports, share, list shared, export (saved + unsaved)
 - **New frontend components:** `SaveReportDialog`, `LoadReportDropdown`, `ShareReportDialog`
 - **Modified frontend:** `useReportBuilder.ts` (save/load/export state), `ReportBuilder.tsx` (toolbar buttons, URL params), `ReportLibrary.tsx` (custom + shared sections)
@@ -36,8 +36,8 @@ Branch: `feature/report-builder-session4`
 | DELETE | `/api/report-builder/saved/{id}` | Soft-delete saved report |
 | POST | `/api/report-builder/saved/{id}/share` | Share/publish report |
 | GET | `/api/report-builder/shared` | List shared/published reports |
-| POST | `/api/report-builder/export` | Export unsaved report to Excel |
-| GET | `/api/report-builder/export/{id}` | Export saved report to Excel |
+| POST | `/api/report-builder/export` | Export unsaved report to CSV |
+| GET | `/api/report-builder/export/{id}` | Export saved report to CSV |
 
 ---
 

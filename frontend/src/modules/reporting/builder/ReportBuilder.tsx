@@ -275,7 +275,7 @@ export function ReportBuilder() {
       a.href = blobUrl;
       const disposition = response.headers.get('Content-Disposition');
       const match = disposition?.match(/filename="(.+)"/);
-      a.download = match?.[1] ?? `CRETA_ReportBuilder_Export.xlsx`;
+      a.download = match?.[1] ?? `CRETA_ReportBuilder_Export.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -451,7 +451,7 @@ export function ReportBuilder() {
                   <span className="hidden sm:inline">Export</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Export to Excel</TooltipContent>
+              <TooltipContent>Export to CSV</TooltipContent>
             </Tooltip>
 
             {/* Save / Save As */}
