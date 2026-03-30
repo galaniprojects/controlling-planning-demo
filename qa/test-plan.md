@@ -2,7 +2,7 @@
 
 This is the **living test plan** for the CRETA application. It provides step-by-step instructions for a complete regression test covering all modules, personas, interactive features, data integrity checks, and cross-module integration. This document should be updated after every version to reflect new features, changed behavior, and retired scenarios.
 
-**Total scenarios:** ~138 across 10 test suites
+**Total scenarios:** 191 across 14 test suites
 **Tester:** Claude Code using preview tools (not human testers)
 **Execution rule:** No code fixes during testing — document issues only
 **Location:** All QA artifacts live in the `qa/` directory
@@ -12,10 +12,11 @@ This is the **living test plan** for the CRETA application. It provides step-by-
 ## 1. Introduction
 
 ### Scope
-- **Demo date:** March 2026
+- **Demo date:** April 2026
 - **Currency:** EUR with European formatting (dot thousands, comma decimals)
 - **Language:** English
-- **Modules covered:** Launchpad, Portfolio Overview, Project Workbench, Capacity Management, What-If Simulator, Reporting, Administration
+- **Modules covered:** Launchpad, Portfolio Overview, Project Workbench, Capacity Management, What-If Simulator, Reporting (Standard Reports, Report Builder, AI Report Builder), Administration, Documentation Hub
+- **Cross-cutting concerns:** Dark Mode / Theme Switching
 
 ### Maintenance
 This test plan is the single source of truth for regression testing. After each version/session cycle:
@@ -104,7 +105,10 @@ Run this before each testing session to ensure clean state.
 | Capacity Management | Full (CC selector) | Full (own CC) | No access | Read-only |
 | What-If Simulator | Full | No access | No access | Read-only |
 | Reporting | Full | Full | Full | Full |
+| Report Builder | Full | Full | Full | Full |
+| AI Report Builder | Full | Full | Full (scoped) | Full (scoped) |
 | Administration | Full | No access | No access | No access |
+| Assignment Grid | Read-only | Full (own CC) | No access | Read-only |
 
 ---
 
@@ -137,17 +141,21 @@ Run this before each testing session to ensure clean state.
 
 | Session | Suites | Focus | Est. Duration |
 |---------|--------|-------|---------------|
-| A | 1 + 2 + 3 | Global Shell + Portfolio Overview | ~2 hours |
-| B | 4 + 5 + 6 | Workbench + Forecast + Capacity | ~2.5 hours |
-| C | 7 + 8 | Simulator + Reporting | ~1.75 hours |
+| A | 1 + 2 + 3 | Global Shell + Portfolio Overview (incl. submission workflow) | ~2.5 hours |
+| B | 4 + 5 + 6 | Workbench (incl. new enhancements) + Forecast + Capacity | ~2.75 hours |
+| C | 7 + 8 | Simulator + Standard Reporting | ~1.75 hours |
 | D | 9 + 10 | Administration + Cross-Module | ~1.5 hours |
+| E | 11 + 12 | Dark Mode + Report Builder | ~2.5 hours |
+| F | 13 + 14 | AI Report Builder + Assignment Grid | ~1.5 hours |
 
 ### Execution Order
 1. Suite 1 must run first (validates app loads, role switching works)
 2. Suites 2-9 can run in any order after Suite 1
-3. Suite 10 should run last (final integration pass)
+3. Suite 10 should run last within Sessions A-D (final integration pass)
 4. Suite 9's Reset Demo scenario (ADM-18) must be the last scenario in Suite 9
 5. Each session starts with `curl -X POST http://localhost:8000/api/admin/reset-demo`
+6. Suites 11-14 can run in any order after Suite 1 (Sessions E-F)
+7. Suite 13 (AI Report Builder) requires `ANTHROPIC_API_KEY` to be configured
 
 ### State Dependencies
 - Suites 3 and 10 contain stateful workflows (approve/reject/send-back) — requires fresh demo data
@@ -601,12 +609,12 @@ Create at the start of Session A with this header:
 
 1. `preview_snapshot` — find the Forecast Trajectory chart
 2. Verify it's a line chart showing cumulative trajectory over time
-3. Verify a "TODAY" marker or label is visible at the March 2026 position
+3. Verify a "TODAY" marker or label is visible at the April 2026 position
 4. Verify historical data points are shown (actuals line) and future projections (forecast line)
 
 **Verify:**
 - [ ] Line chart renders
-- [ ] "TODAY" marker visible at March 2026
+- [ ] "TODAY" marker visible at April 2026
 - [ ] Historical actuals and future forecast lines distinguishable
 
 ---
@@ -886,6 +894,110 @@ Create at the start of Session A with this header:
 
 ---
 
+### INT-14: Submit New Project — Draft Creation
+**Goal:** Verify a Project Lead can create a new draft project via the Submit dialog.
+**Persona:** Priya Sharma (Project Lead)
+
+1. Switch to Priya Sharma
+2. On the Launchpad, click the "Submit New Project" dashed tile
+3. `preview_snapshot` — verify a SubmitProjectDialog opens with fields: project name, description, type, LoB, start/end dates
+4. Fill in project details (e.g., name: "Test Project Alpha", type: "Investment")
+5. Click "Submit" or "Create Draft"
+6. `preview_network` — verify a POST `/api/projects` call succeeds (201)
+7. `preview_snapshot` — verify navigation to the Resource Plan Editor page
+
+**Verify:**
+- [ ] Submit dialog opens with all required fields
+- [ ] Draft project created via API
+- [ ] Navigation to Resource Plan Editor after creation
+
+---
+
+### INT-15: Resource Plan Editor
+**Goal:** Verify the Resource Plan Editor allows configuring roles and monthly hours.
+**Persona:** Priya Sharma (Project Lead)
+
+1. On the Resource Plan page (`/workbench/submit/:projectId`), verify the editor layout
+2. `preview_snapshot` — verify an "Add Role" button, monthly hours grid, and EUR calculation section
+3. Click "Add Role" — verify a role dropdown/selector appears
+4. Select a role (e.g., "Senior Developer")
+5. Fill in monthly hours for several months (e.g., 160h for Jan-Mar 2027)
+6. `preview_snapshot` — verify EUR total updates based on rate table × hours
+7. Click "Remove" on a role row — verify it is removed
+8. Click "Submit for Approval" to finalize the resource plan
+
+**Verify:**
+- [ ] Add/Remove role buttons work
+- [ ] Monthly hours grid is editable
+- [ ] EUR totals auto-calculate from hours × rates
+- [ ] Submit for Approval button triggers submission
+
+---
+
+### INT-16: Controller Editable Intake Grid
+**Goal:** Verify the Controller can modify a submitted project's resource plan before approving.
+**Persona:** Anna Meier (Controller)
+
+1. Switch to Anna Meier
+2. Navigate to Portfolio Overview > Intake tab
+3. Select a pending submission
+4. `preview_snapshot` — verify the detail panel shows an editable grid (EditableIntakeGrid)
+5. Modify hours in one or more cells
+6. Verify the changes are reflected in the grid's total row
+7. `preview_network` — verify no errors on cell edit
+
+**Verify:**
+- [ ] Controller sees editable grid for submitted projects
+- [ ] Cell edits update totals
+- [ ] Hours and EUR values use European formatting
+
+---
+
+### INT-17: Controller Send Back with Edits
+**Goal:** Verify the Controller can send back a submission with their proposed edits and feedback.
+**Persona:** Anna Meier (Controller)
+
+1. After making edits in the intake grid (INT-16), click "Send Back with Edits"
+2. `preview_snapshot` — verify a textarea appears for feedback
+3. Enter feedback: "Adjusted Senior Developer hours — please review"
+4. Submit the send-back action
+5. `preview_snapshot` — verify the item status changes to "Changes Requested" (amber badge)
+6. Verify the item remains in the intake queue
+
+**Verify:**
+- [ ] "Send Back with Edits" button available after editing
+- [ ] Feedback textarea appears
+- [ ] Status changes to "Changes Requested"
+- [ ] Controller's edits are saved alongside feedback
+
+---
+
+### INT-18: PL Submission Diff View
+**Goal:** Verify the Project Lead sees the Controller's changes in a diff view and can accept or resubmit.
+**Persona:** Priya Sharma (Project Lead)
+
+1. Switch to Priya Sharma
+2. Navigate to Portfolio Overview > Intake tab
+3. Find the item with "Changes Requested" status
+4. Click to open the detail
+5. `preview_snapshot` — verify a SubmissionDiffView is displayed showing:
+   - Original submitted values vs Controller's proposed values
+   - Changed cells highlighted (delta highlighting)
+   - Controller's feedback text visible
+6. Verify an "Accept Changes" button is present
+7. Verify a "Resubmit" button is present
+8. Click "Accept Changes"
+9. `preview_snapshot` — verify the submission is updated and status changes
+
+**Verify:**
+- [ ] Diff view shows original vs controller-proposed values
+- [ ] Changed values are visually highlighted
+- [ ] Controller feedback text is displayed
+- [ ] "Accept Changes" and "Resubmit" buttons both available
+- [ ] Accepting changes updates the submission
+
+---
+
 # SUITE 4 — Project Workbench
 
 **Session:** B | **Est. time:** 60 min | **Default persona:** Priya Sharma (Project Lead)
@@ -942,14 +1054,15 @@ Create at the start of Session A with this header:
 
 ---
 
-### WB-04: Overview Tab — Project Metadata
-**Goal:** Verify the Overview tab shows correct project metadata.
+### WB-04: Overview Tab — Project Metadata and Hierarchy Breadcrumb
+**Goal:** Verify the Overview tab shows correct project metadata including hierarchy path.
 **Persona:** Anna Meier (Controller)
 
 1. Select "ERP Integration Phase 2" from the project list
 2. Verify Overview tab is active by default
 3. `preview_snapshot` — verify MetadataBar shows: project name, status badge, LoB name, project manager, timeline dates
 4. Verify LoB shows the resolved display name (e.g., "Truck & Bus Systems") NOT the raw ID ("lob-tbs")
+5. Verify a hierarchy breadcrumb is displayed showing the full entity path (e.g., "Truck & Bus Systems (TBS) > Digital Braking Platform") with ">" separators
 
 **Verify:**
 - [ ] Overview tab active by default
@@ -957,6 +1070,7 @@ Create at the start of Session A with this header:
 - [ ] Status badge visible
 - [ ] LoB shows display name (not raw ID)
 - [ ] PM name and timeline dates shown
+- [ ] Hierarchy breadcrumb with full path and ">" separators
 
 ---
 
@@ -966,13 +1080,13 @@ Create at the start of Session A with this header:
 
 1. On the Overview tab for an active project, find the timeline chart
 2. `preview_snapshot` — verify chart renders (not blank)
-3. Look for a "TODAY" label or vertical line marker at March 2026
-4. Verify the actuals line stops at approximately Feb/Mar 2026
-5. Verify the forecast line extends beyond March 2026
+3. Look for a "TODAY" label or vertical line marker at April 2026
+4. Verify the actuals line stops at approximately Mar/Apr 2026
+5. Verify the forecast line extends beyond April 2026
 
 **Verify:**
 - [ ] Chart renders
-- [ ] "TODAY" marker visible at March 2026
+- [ ] "TODAY" marker visible at April 2026
 - [ ] Actuals line stops at demo date boundary
 - [ ] Forecast extends into future
 
@@ -1166,6 +1280,82 @@ Create at the start of Session A with this header:
 - [ ] Button visible for PL and Controller
 - [ ] Button hidden/disabled for Executive
 - [ ] Button label is correct
+
+---
+
+### WB-18: Overview Tab — Cost Classification Display
+**Goal:** Verify CapEx/OpEx classification shows percentage split.
+**Persona:** Anna Meier (Controller)
+
+1. Select a project that is pure CapEx or OpEx (e.g., a project with 100% CapEx classification)
+2. `preview_snapshot` — find the cost classification display on the Overview tab
+3. Verify it shows a badge (e.g., "CapEx") with percentage (e.g., "100%")
+4. Select a mixed CapEx/OpEx project (if available)
+5. `preview_snapshot` — verify it shows both classifications with their respective percentages and a split bar
+
+**Verify:**
+- [ ] Cost classification badge visible on Overview tab
+- [ ] Pure projects show classification + "100%"
+- [ ] Mixed projects show both classifications with percentage split
+
+---
+
+### WB-19: Forecast Grid — Expandable Employee Assignments
+**Goal:** Verify internal resource rows can expand to show individual employee assignments.
+**Persona:** Anna Meier (Controller)
+
+1. Navigate to Forecast & Planning tab for a project with internal resources
+2. `preview_snapshot` — find internal resource line items (e.g., "Senior Developer")
+3. Verify role rows with employee assignments show an expand chevron
+4. Click the chevron on a role row
+5. `preview_snapshot` — verify sub-rows appear showing individual employee names with per-month hours
+6. Click the chevron again to collapse
+7. `preview_snapshot` — verify sub-rows are hidden
+
+**Verify:**
+- [ ] Expand chevron visible on role rows with assignments
+- [ ] Expanding shows employee name sub-rows
+- [ ] Sub-rows display per-month individual hours
+- [ ] Collapsing hides sub-rows
+
+---
+
+### WB-20: Forecast Grid — Expand/Collapse All Resources Toggle
+**Goal:** Verify the toggle button for expanding/collapsing all resource rows.
+**Persona:** Anna Meier (Controller)
+
+1. On the Forecast & Planning tab, find the "Expand All Resources" toggle button
+2. Click it
+3. `preview_snapshot` — verify all expandable role rows expand simultaneously, showing all employee sub-rows
+4. Verify the button label changes to "Collapse All Resources"
+5. Click it again
+6. `preview_snapshot` — verify all sub-rows collapse
+
+**Verify:**
+- [ ] "Expand All Resources" toggle button visible
+- [ ] Clicking expands all role rows at once
+- [ ] Button label toggles between "Expand All" and "Collapse All"
+- [ ] Clicking again collapses all rows
+
+---
+
+### WB-21: Forecast Locking on Pending CR
+**Goal:** Verify the forecast review is locked when a Change Request is pending.
+**Persona:** Priya Sharma (Project Lead)
+
+1. Switch to Priya Sharma
+2. Navigate to `/workbench`, select a project with a pending CR (e.g., "ERP Integration Phase 2")
+3. Go to Forecast & Planning tab
+4. `preview_snapshot` — verify the "Rolling Forecast Review" button is **disabled**
+5. Verify a CR status badge is displayed near the button (e.g., "CR-19 under review") with a Clock icon
+6. Verify the badge shows the CR status (e.g., "Awaiting Controller" or "Awaiting CC Owner") in amber styling
+7. Select a project without a pending CR — verify the button is **enabled**
+
+**Verify:**
+- [ ] Rolling Forecast Review button disabled when CR is pending
+- [ ] CR status badge visible with CR ID and status text
+- [ ] Badge uses amber styling with Clock icon
+- [ ] Button enabled for projects without pending CRs
 
 ---
 
@@ -1867,23 +2057,28 @@ Create at the start of Session A with this header:
 
 ---
 
-### RPT-01: Report Library
-**Goal:** Verify the report library shows all 5 reports.
+### RPT-01: Report Library — Full Layout
+**Goal:** Verify the Report Library shows all sections: Standard Reports, Build Your Own, Shared Reports, and My Saved Views.
 **Persona:** Anna Meier (Controller)
 
 1. Navigate to `/reporting`
-2. `preview_snapshot` — verify 5 report cards in a grid:
+2. `preview_snapshot` — verify "Standard Reports" section with 6 report cards in a 3-column grid:
    - Programme / Multi-Project Rollup
    - Cost Center Financial Summary
    - Vendor Spend Analysis
    - Forecast Accuracy
    - Year-over-Year Comparison
-3. Verify a "My Saved Views" section exists (may be empty)
+   - AI Report Builder (with indigo accent styling and "AI-powered" badge)
+3. Verify a "Build Your Own" section with a single Report Builder tile
+4. Verify a "Shared Reports" section exists (may be empty or populated with published Report Builder reports with "Custom" badges)
+5. Verify a "My Saved Views" section exists (contains saved standard report views and custom Report Builder reports)
 
 **Verify:**
-- [ ] 5 report cards displayed
-- [ ] Report names match expected list
-- [ ] Saved Views section present
+- [ ] 6 standard report cards displayed (5 original + AI Report Builder)
+- [ ] AI Report Builder card has distinct indigo accent styling
+- [ ] "Build Your Own" section with Report Builder tile
+- [ ] "Shared Reports" section present
+- [ ] "My Saved Views" section present
 
 ---
 
@@ -2658,32 +2853,888 @@ Create at the start of Session A with this header:
 
 ---
 
+# SUITE 11 — Dark Mode & Theme Switching
+
+**Session:** E | **Est. time:** 40 min | **Default persona:** Anna Meier (Controller)
+
+**Prerequisite:** Start in light mode (clear `creta-theme` from localStorage or set to `light`).
+
+---
+
+### DM-01: Theme Toggle in TopBar
+**Goal:** Verify the theme toggle button exists and cycles between modes.
+**Persona:** Anna Meier (Controller)
+
+1. Navigate to the Launchpad
+2. `preview_snapshot` — find the theme toggle button in the TopBar (circular button with Sun/Moon icon)
+3. Verify the button shows a Moon icon (indicating light mode, click to switch to dark)
+4. Verify the button has a title attribute: "Switch to dark mode"
+5. Click the toggle button
+6. `preview_snapshot` — verify the icon changes to Sun (indicating dark mode, click to switch to light)
+7. Verify the title changes to "Switch to light mode"
+
+**Verify:**
+- [ ] Theme toggle button visible in TopBar
+- [ ] Moon icon in light mode, Sun icon in dark mode
+- [ ] Title attribute updates on toggle
+
+---
+
+### DM-02: Dark Mode Activation
+**Goal:** Verify dark mode applies correct styling across the application.
+**Persona:** Anna Meier (Controller)
+
+1. Click the theme toggle to activate dark mode
+2. `preview_inspect` on `html` element — verify it has the `dark` class
+3. `preview_inspect` on the body/main background — verify dark background color (not white)
+4. `preview_inspect` on text elements — verify light foreground color (not dark)
+5. `preview_inspect` on card components — verify dark card backgrounds
+6. `preview_snapshot` — verify the overall UI is in dark theme
+
+**Verify:**
+- [ ] `html` element has `dark` class
+- [ ] Background colors are dark
+- [ ] Text colors are light
+- [ ] Card components have dark backgrounds
+
+---
+
+### DM-03: Light Mode Restoration
+**Goal:** Verify switching back to light mode restores standard styling.
+**Persona:** Anna Meier (Controller)
+
+1. While in dark mode, click the theme toggle
+2. `preview_inspect` on `html` element — verify `dark` class is removed
+3. `preview_inspect` on body/main background — verify light background color
+4. `preview_snapshot` — verify the UI is in light theme
+
+**Verify:**
+- [ ] `dark` class removed from `html`
+- [ ] Light background colors restored
+- [ ] Text colors are dark again
+
+---
+
+### DM-04: System Mode Follows OS Preference
+**Goal:** Verify system theme mode resolves correctly.
+**Persona:** Anna Meier (Controller)
+
+1. `preview_eval` — set `localStorage.setItem('creta-theme', 'system')`
+2. `preview_eval` — reload the page
+3. `preview_eval` — check `window.matchMedia('(prefers-color-scheme: dark)').matches` to determine OS preference
+4. `preview_inspect` on `html` — verify `dark` class matches the OS preference (dark class present if OS is dark, absent if light)
+
+**Verify:**
+- [ ] System mode resolves based on OS preference
+- [ ] Dark class matches OS setting
+
+---
+
+### DM-05: localStorage Persistence
+**Goal:** Verify theme selection persists across page reloads.
+**Persona:** Anna Meier (Controller)
+
+1. Switch to dark mode via the toggle
+2. `preview_eval` — verify `localStorage.getItem('creta-theme')` returns `'dark'`
+3. `preview_eval` — reload the page (`window.location.reload()`)
+4. `preview_snapshot` — verify the app loads in dark mode (no flash of light mode)
+5. `preview_inspect` on `html` — verify `dark` class is present after reload
+
+**Verify:**
+- [ ] localStorage stores `'dark'` after toggle
+- [ ] Dark mode persists after page reload
+- [ ] No flash of light mode on load (FOUC prevention)
+
+---
+
+### DM-06: Chart Dark Mode Compatibility
+**Goal:** Verify Recharts charts render with visible contrast in dark mode.
+**Persona:** Anna Meier (Controller)
+
+1. Ensure dark mode is active
+2. Navigate to Portfolio Overview Dashboard
+3. `preview_screenshot` — examine the "Forecast by Line of Business" bar chart
+4. Verify chart grid lines, axis labels, and bars have sufficient contrast against dark background
+5. Examine the Forecast Trajectory line chart — verify lines and labels are visible
+6. Examine the RAG Distribution donut — verify segments and labels are visible
+
+**Verify:**
+- [ ] Bar chart renders with visible contrast in dark mode
+- [ ] Line chart renders with visible elements
+- [ ] Donut chart renders with visible segments
+- [ ] Axis labels and grid lines readable
+
+---
+
+### DM-07: Status Colors Preserved
+**Goal:** Verify RAG badges and status indicators remain distinguishable in dark mode.
+**Persona:** Anna Meier (Controller)
+
+1. In dark mode, navigate to Portfolio Overview
+2. `preview_snapshot` — find RAG status badges (Red, Amber, Green)
+3. `preview_inspect` on each RAG badge — verify distinct colors with dark mode variants
+4. Navigate to Workbench — check status badges (Active, Completed, Pending)
+5. Verify all status badges have readable text against their background color
+
+**Verify:**
+- [ ] Red/Amber/Green RAG badges distinguishable in dark mode
+- [ ] Status badges (Active, Completed, Pending) readable
+- [ ] Dark mode variants applied (e.g., `dark:bg-amber-900/30 dark:text-amber-400`)
+
+---
+
+### DM-08: Semantic CSS Variables
+**Goal:** Verify semantic CSS custom properties resolve to dark-appropriate values.
+**Persona:** Anna Meier (Controller)
+
+1. In dark mode, `preview_inspect` on a card element — check `background-color` resolves from `--card`
+2. `preview_inspect` on main text — check `color` resolves from `--foreground`
+3. `preview_inspect` on a border — check `border-color` resolves from `--border`
+4. `preview_inspect` on muted text — check `color` resolves from `--muted-foreground`
+5. Verify no hardcoded colors like `bg-white`, `text-slate-700`, or `border-slate-200`
+
+**Verify:**
+- [ ] `--card` resolves to a dark value
+- [ ] `--foreground` resolves to a light value
+- [ ] `--border` resolves to a dark-appropriate value
+- [ ] No hardcoded light-only colors visible
+
+---
+
+### DM-09: Full Module Tour in Dark Mode
+**Goal:** Verify all modules render correctly in dark mode without visual artifacts.
+**Persona:** Anna Meier (Controller)
+
+1. Ensure dark mode is active
+2. Navigate to Launchpad — `preview_screenshot` — verify no white panels or unthemed areas
+3. Navigate to Portfolio Overview — `preview_screenshot` — verify dark theme applied to all sections
+4. Navigate to Workbench — `preview_screenshot` — verify project list and workspace panels are dark
+5. Navigate to Capacity Management — `preview_screenshot` — verify heatmap renders in dark mode
+6. Navigate to Simulator — `preview_screenshot` — verify scenario workspace is dark
+7. Navigate to Reporting — `preview_screenshot` — verify report cards and tables are dark
+8. Navigate to Administration — `preview_screenshot` — verify admin panels are dark
+
+**Verify:**
+- [ ] No white flash when navigating between modules
+- [ ] No unthemed panels or sections
+- [ ] No invisible text (light text on light background)
+- [ ] All 7+ modules fully themed
+
+---
+
+### DM-10: Form Elements in Dark Mode
+**Goal:** Verify form inputs, dropdowns, and buttons are styled correctly in dark mode.
+**Persona:** Anna Meier (Controller)
+
+1. In dark mode, navigate to Administration
+2. Click "Edit" on a cost center — `preview_snapshot` — verify form inputs have dark backgrounds and light text
+3. Verify dropdown selects have dark backgrounds
+4. Navigate to Workbench, start the Forecast Wizard — verify wizard step inputs are dark-themed
+5. Navigate to Reporting, open any report — verify filter dropdowns are dark-themed
+6. `preview_inspect` on an input field — verify `background-color` is dark, `color` is light
+
+**Verify:**
+- [ ] Form inputs have dark backgrounds
+- [ ] Dropdown selects are dark-themed
+- [ ] Buttons have appropriate dark mode styling
+- [ ] Placeholder text is visible (muted but readable)
+
+---
+
+# SUITE 12 — Report Builder
+
+**Session:** E | **Est. time:** 70 min | **Default persona:** Anna Meier (Controller)
+
+**Prerequisite:** Navigate from the Report Library via the "Build Your Own" tile.
+
+---
+
+### RB-01: Report Builder Loads
+**Goal:** Verify the Report Builder loads with catalog and workspace panels.
+**Persona:** Anna Meier (Controller)
+
+1. Navigate to `/reporting`
+2. Click the "Build Your Own" Report Builder tile
+3. `preview_snapshot` — verify navigation to `/reporting/builder`
+4. Verify three-panel layout:
+   - Left: CatalogPanel (Data Catalog) with expandable dimension/measure categories
+   - Center-top: DropZones panel (Rows, Columns, Filters, Values)
+   - Center-bottom: Empty results area with placeholder text
+5. Verify a toolbar is visible with view toggle buttons and action buttons
+
+**Verify:**
+- [ ] Report Builder loads at `/reporting/builder`
+- [ ] CatalogPanel on left with categories
+- [ ] DropZones panel visible (4 zones)
+- [ ] Empty results area with placeholder
+- [ ] Toolbar with action buttons
+
+---
+
+### RB-02: Data Catalog Contents
+**Goal:** Verify the catalog shows 18 dimensions and 16 measures.
+**Persona:** Anna Meier (Controller)
+
+1. `preview_snapshot` — examine the CatalogPanel
+2. Verify dimension categories are expandable (click to reveal items)
+3. Count dimensions — should total 18 across categories (Project, Organization, Time, Resource, Financial)
+4. Count measures — should total 16 across categories (Budget, Actuals, Variance, Capacity)
+5. Verify each item shows a label and optional description
+
+**Verify:**
+- [ ] 18 dimensions available across 5 categories
+- [ ] 16 measures available across 4 categories
+- [ ] Categories expandable/collapsible
+- [ ] Items show labels
+
+---
+
+### RB-03: Click-to-Add UX
+**Goal:** Verify clicking catalog items adds them to the appropriate drop zone.
+**Persona:** Anna Meier (Controller)
+
+1. Click a dimension in the catalog (e.g., "Project Name")
+2. `preview_snapshot` — verify it appears as a chip/tag in the Rows drop zone
+3. Click a measure in the catalog (e.g., "Forecast")
+4. `preview_snapshot` — verify it appears in the Values drop zone
+5. Click another dimension — verify it also appears in Rows
+6. Verify each chip has a remove (X) button
+
+**Verify:**
+- [ ] Clicking a dimension adds it to Rows zone
+- [ ] Clicking a measure adds it to Values zone
+- [ ] Items show as chips/tags in the zone
+- [ ] Remove (X) button on each chip
+
+---
+
+### RB-04: Drop Zones — Reorganize and Remove
+**Goal:** Verify items can be moved between zones and removed.
+**Persona:** Anna Meier (Controller)
+
+1. With items in Rows zone, find a way to move an item to Columns zone (drag or click target zone)
+2. `preview_snapshot` — verify the item moves to the Columns zone
+3. Click the X button on an item in any zone
+4. `preview_snapshot` — verify the item is removed from the zone
+5. Verify the "Run Report" button shows a stale-data indicator when zones change
+
+**Verify:**
+- [ ] Items can be reorganized between zones
+- [ ] X button removes items from zones
+- [ ] Run Report button indicates stale data after changes
+
+---
+
+### RB-05: Run Report — Flat Table
+**Goal:** Verify running a report with a single dimension and measure produces a flat table.
+**Persona:** Anna Meier (Controller)
+
+1. Add "Project Name" to Rows and "Forecast" to Values
+2. Click "Run Report"
+3. `preview_snapshot` — verify a flat results table appears with:
+   - Column headers: Project Name, Forecast
+   - Data rows with project names and EUR-formatted values
+4. Verify table columns are sortable (click header to sort)
+
+**Verify:**
+- [ ] Flat table renders after Run Report
+- [ ] Column headers match selected dimensions/measures
+- [ ] EUR values use European formatting
+- [ ] Columns are sortable
+
+---
+
+### RB-06: Cross-Tabulation
+**Goal:** Verify cross-tabulation with nested row and column headers.
+**Persona:** Anna Meier (Controller)
+
+1. Clear zones, then add: "Line of Business" to Rows, "Status" to Columns, "Forecast" to Values
+2. Click "Run Report"
+3. `preview_snapshot` — verify an OLAP-style cross-tab table renders with:
+   - Row headers: LoB names
+   - Column headers: Status values (Active, Completed, Planned, etc.)
+   - Cell values: EUR-formatted Forecast amounts
+4. Verify nested column headers if multiple dimensions in Columns
+
+**Verify:**
+- [ ] Cross-tabulation renders with row and column headers
+- [ ] Cell values at row/column intersections
+- [ ] EUR formatting on all values
+
+---
+
+### RB-07: Collapsible Row Groups
+**Goal:** Verify row groups can be collapsed and expanded.
+**Persona:** Anna Meier (Controller)
+
+1. Add a second dimension to Rows (e.g., "Line of Business" + "Project Name")
+2. Run Report
+3. `preview_snapshot` — verify LoB grouping rows with chevron toggles
+4. Click a chevron to collapse a group
+5. `preview_snapshot` — verify project rows under that group are hidden
+6. Click again to expand — verify rows reappear
+
+**Verify:**
+- [ ] Chevron toggles on group rows
+- [ ] Collapsing hides child rows
+- [ ] Expanding shows child rows
+
+---
+
+### RB-08: Subtotals and Grand Totals
+**Goal:** Verify subtotals per group and grand total row.
+**Persona:** Anna Meier (Controller)
+
+1. With grouped cross-tab from RB-07, examine subtotal rows
+2. `preview_snapshot` — verify each group has a subtotal row
+3. Verify a grand total row at the bottom
+4. Verify subtotals sum correctly for child rows
+5. Verify EUR formatting on all totals
+
+**Verify:**
+- [ ] Subtotal row per group
+- [ ] Grand total row at bottom
+- [ ] Totals use EUR formatting
+
+---
+
+### RB-09: Sticky Headers on Scroll
+**Goal:** Verify column headers remain visible when scrolling vertically.
+**Persona:** Anna Meier (Controller)
+
+1. Generate a report with many rows (use a dimension with many values)
+2. Scroll down in the results area
+3. `preview_snapshot` — verify column headers remain pinned at the top
+4. If the table is wide, scroll right — verify the first column (row headers) remains pinned on the left
+
+**Verify:**
+- [ ] Column headers stay visible on vertical scroll
+- [ ] Row headers stay visible on horizontal scroll (sticky left)
+
+---
+
+### RB-10: Conditional Formatting — RAG Presets
+**Goal:** Verify applying a RAG preset adds color coding to cells.
+**Persona:** Anna Meier (Controller)
+
+1. Generate a report with a measure (e.g., Variance %)
+2. Click the formatting button in the toolbar
+3. `preview_snapshot` — verify the ConditionalFormatSheet opens (right panel)
+4. Select a preset: "Budget Variance" (green/amber/red thresholds)
+5. Apply the preset
+6. `preview_snapshot` — verify cells in the table are color-coded (green for good, amber for moderate, red for poor)
+7. Verify a format legend appears showing active rules
+
+**Verify:**
+- [ ] Formatting sheet opens
+- [ ] RAG preset selectable ("Budget Variance")
+- [ ] Cells color-coded after applying
+- [ ] Format legend visible
+
+---
+
+### RB-11: Conditional Formatting — Custom Rules
+**Goal:** Verify creating a custom conditional formatting rule.
+**Persona:** Anna Meier (Controller)
+
+1. In the formatting sheet, click "Add Rule" (or similar)
+2. Configure a custom rule: e.g., measure = "Forecast", condition = "> 1000000", color = red
+3. Apply the rule
+4. `preview_snapshot` — verify cells meeting the condition are highlighted
+5. Delete the rule — verify cells return to normal
+
+**Verify:**
+- [ ] Custom rule creation works
+- [ ] Cells matching condition are highlighted
+- [ ] Deleting rule removes formatting
+
+---
+
+### RB-12: Calculated Measures
+**Goal:** Verify creating a calculated measure from two existing measures.
+**Persona:** Anna Meier (Controller)
+
+1. Click the "Calculated" button in the toolbar
+2. `preview_snapshot` — verify the CalculatedMeasureDialog opens
+3. Create a formula: e.g., "Variance" = Forecast - Baseline (select two measures, operator: minus)
+4. Save the calculated measure
+5. `preview_snapshot` — verify a new measure appears in the Values zone with an "fx" badge
+6. Run Report — verify the calculated values appear in the table
+7. Verify circular reference protection (cannot use a calculated measure in its own formula)
+
+**Verify:**
+- [ ] Calculated measure dialog opens
+- [ ] Formula creation with two operands and operator
+- [ ] "fx" badge on calculated measures in Values zone
+- [ ] Calculated values render in table
+
+---
+
+### RB-13: Chart View — Bar
+**Goal:** Verify switching to bar chart view.
+**Persona:** Anna Meier (Controller)
+
+1. With a cross-tab report loaded, click the "Bar" view toggle in the toolbar
+2. `preview_snapshot` — verify a grouped bar chart renders
+3. Verify bars are grouped by the first row dimension
+4. Verify legend shows measure labels
+5. Verify chart respects active filters
+
+**Verify:**
+- [ ] Bar chart renders on view toggle
+- [ ] Bars grouped by row dimension
+- [ ] Legend visible
+- [ ] Chart reflects filtered data
+
+---
+
+### RB-14: Chart Views — Line and Pie
+**Goal:** Verify line and pie chart views with auto-fallback.
+**Persona:** Anna Meier (Controller)
+
+1. Click the "Line" view toggle
+2. `preview_snapshot` — if a time dimension is in Rows/Columns, verify a line chart renders with time on X-axis
+3. If no time dimension, verify a fallback message or automatic switch to a supported view
+4. Click the "Pie" view toggle
+5. `preview_snapshot` — verify a donut/pie chart renders with segment labels and percentages
+6. Verify the center of the pie shows total value
+
+**Verify:**
+- [ ] Line chart renders with time dimension (or graceful fallback without)
+- [ ] Pie chart renders with segment labels and percentages
+- [ ] Charts respect filters and selected data
+
+---
+
+### RB-15: Save Report
+**Goal:** Verify saving a report with name and description.
+**Persona:** Anna Meier (Controller)
+
+1. Configure a report (dimensions, measures, filters)
+2. Click the "Save" button in the toolbar
+3. `preview_snapshot` — verify a SaveReportDialog opens with name and description fields
+4. Enter name: "My Test Report" and description: "Testing save functionality"
+5. Click Save
+6. `preview_network` — verify the save API call succeeds
+7. Navigate back to Report Library
+8. `preview_snapshot` — verify "My Test Report" appears in "My Saved Views" with a "Custom" badge
+
+**Verify:**
+- [ ] Save dialog opens with name/description fields
+- [ ] Save API call succeeds
+- [ ] Report appears in "My Saved Views" in Report Library
+- [ ] "Custom" badge on saved Report Builder reports
+
+---
+
+### RB-16: Load Report
+**Goal:** Verify loading a saved report restores all configuration.
+**Persona:** Anna Meier (Controller)
+
+1. In the Report Builder, click the "Load" dropdown in the toolbar
+2. `preview_snapshot` — verify saved reports are listed with names and modified dates
+3. Select "My Test Report"
+4. `preview_snapshot` — verify all drop zones populate with the saved configuration
+5. Verify results table renders with the saved query
+6. Test URL loading: `preview_eval` — navigate to `/reporting/builder?reportId=<id>`
+7. `preview_snapshot` — verify the report loads directly from URL
+
+**Verify:**
+- [ ] Load dropdown shows saved reports
+- [ ] Loading restores drop zone configuration
+- [ ] Results table renders from saved query
+- [ ] `?reportId=` URL parameter loading works
+
+---
+
+### RB-17: Share and Publish
+**Goal:** Verify sharing reports with users and publishing to the Report Library.
+**Persona:** Anna Meier (Controller)
+
+1. With a saved report loaded, click the "Share" button
+2. `preview_snapshot` — verify a ShareReportDialog opens
+3. Verify user selection dropdown and permission levels (View only / Can edit)
+4. Select a user and permission, then share
+5. Find the "Publish to Report Library" toggle in the share dialog
+6. Enable it
+7. `preview_network` — verify API calls succeed
+8. Navigate to Report Library
+9. `preview_snapshot` — verify the report appears in the "Shared Reports" section
+
+**Verify:**
+- [ ] Share dialog opens with user selection and permissions
+- [ ] Can share with "View only" or "Can edit" permissions
+- [ ] "Publish to Report Library" toggle available
+- [ ] Published report appears in "Shared Reports" section
+
+---
+
+### RB-18: Excel Export
+**Goal:** Verify exporting a report to Excel (.xlsx).
+**Persona:** Anna Meier (Controller)
+
+1. With a report loaded (preferably with conditional formatting applied), click the "Export" button
+2. `preview_network` — verify a request to the export endpoint succeeds
+3. Verify the download initiates (or check network response content-type is spreadsheet)
+
+**Verify:**
+- [ ] Export button triggers download
+- [ ] Network request to export endpoint succeeds (200)
+- [ ] Response content-type indicates Excel file
+
+---
+
+# SUITE 13 — AI Report Builder
+
+**Session:** F | **Est. time:** 35 min | **Default persona:** Anna Meier (Controller)
+
+**Prerequisite:** `ANTHROPIC_API_KEY` must be configured in Administration > Planning Parameters > Integrations. If not configured, AI-03 tests the guard and remaining scenarios are blocked.
+
+**Reference prompts:** Use test prompts from `qa/ai-report-builder-prompts.md`.
+
+---
+
+### AI-01: AI Builder Tile in Report Library
+**Goal:** Verify the AI Report Builder tile appears with correct styling.
+**Persona:** Anna Meier (Controller)
+
+1. Navigate to `/reporting`
+2. `preview_snapshot` — find the AI Report Builder card in "Standard Reports"
+3. Verify it has a Sparkles icon and indigo accent border/styling
+4. Verify an "AI-powered" badge is visible on the card
+5. Click the tile
+6. `preview_snapshot` — verify navigation to `/reporting/ai-builder`
+
+**Verify:**
+- [ ] AI Report Builder tile present in Standard Reports
+- [ ] Sparkles icon and indigo accent styling
+- [ ] "AI-powered" badge visible
+- [ ] Clicking navigates to `/reporting/ai-builder`
+
+---
+
+### AI-02: Two-Panel Layout
+**Goal:** Verify the AI Report Builder loads with chat and preview panels.
+**Persona:** Anna Meier (Controller)
+
+1. On `/reporting/ai-builder`, verify the layout
+2. `preview_snapshot` — verify:
+   - Left panel: ChatPanel (fixed width ~380px) with message input area
+   - Right panel: ReportPreview area showing "Your report will appear here" placeholder
+3. Verify the header shows Sparkles icon + "AI Report Builder" title + "AI-powered" badge
+4. Verify a "Back to Reports" link is visible
+
+**Verify:**
+- [ ] Two-panel layout: chat left, preview right
+- [ ] ChatPanel with input area
+- [ ] Preview placeholder visible
+- [ ] Header with Sparkles icon, title, and badge
+- [ ] "Back to Reports" link present
+
+---
+
+### AI-03: Setup Required Guard
+**Goal:** Verify the guard screen when no API key is configured.
+**Persona:** Anna Meier (Controller)
+
+1. If API key is NOT configured, navigate to `/reporting/ai-builder`
+2. `preview_snapshot` — verify a "Setup Required" card is displayed
+3. Verify it shows a Settings icon and message about API key requirement
+4. Verify a "Go to Administration" button is present
+5. Click it — verify navigation to the Administration module
+
+**Verify:**
+- [ ] "Setup Required" card shown without API key
+- [ ] Settings icon and explanatory message
+- [ ] "Go to Administration" button navigates to Admin
+
+---
+
+### AI-04: Generate Report via Chat
+**Goal:** Verify natural language report generation works.
+**Persona:** Anna Meier (Controller)
+
+1. In the ChatPanel, type a prompt: "Show me total forecast by line of business for FY 2026"
+2. Submit the message
+3. `preview_snapshot` — verify a loading indicator appears while processing
+4. Wait for the response
+5. `preview_snapshot` — verify the ReportPreview panel updates with:
+   - A data table or chart showing forecast by LoB
+   - Values in EUR formatting
+6. Verify the chat history shows both the user message and the assistant response
+
+**Verify:**
+- [ ] Message submission triggers processing
+- [ ] Loading indicator visible during generation
+- [ ] Preview updates with report content (table/chart)
+- [ ] EUR formatting on values
+- [ ] Chat history shows user and assistant messages
+
+---
+
+### AI-05: Iterative Refinement
+**Goal:** Verify follow-up messages refine the generated report.
+**Persona:** Anna Meier (Controller)
+
+1. After generating a report (AI-04), type a follow-up: "Add a column for variance percentage"
+2. Submit the message
+3. `preview_snapshot` — verify the preview updates with the additional column
+4. Send another follow-up: "Sort by forecast descending"
+5. `preview_snapshot` — verify the data reorders
+6. Verify all previous chat messages remain visible in history
+
+**Verify:**
+- [ ] Follow-up messages modify the existing report
+- [ ] Preview updates incrementally
+- [ ] Chat history preserves all messages
+- [ ] Multiple refinements accumulate correctly
+
+---
+
+### AI-06: Role-Scoped Data
+**Goal:** Verify the AI Report Builder respects role-based data access.
+**Persona:** Anna Meier (Controller) → Priya Sharma (Project Lead)
+
+1. As Anna Meier (Controller), generate a report: "List all projects with their forecasts"
+2. `preview_snapshot` — note the total number of projects returned (should be ~32, full portfolio)
+3. Switch to Priya Sharma (Project Lead)
+4. Navigate to `/reporting/ai-builder`
+5. Enter the same prompt: "List all projects with their forecasts"
+6. `preview_snapshot` — verify fewer projects are returned (only PL's projects, ~5)
+
+**Verify:**
+- [ ] Controller sees all projects (~32)
+- [ ] Project Lead sees only their projects (~5)
+- [ ] Data scoping applied server-side
+
+---
+
+### AI-07: Chat History Display
+**Goal:** Verify chat messages display correctly without raw JSON.
+**Persona:** Anna Meier (Controller)
+
+1. Generate a report and send 2-3 follow-up messages
+2. `preview_snapshot` — examine the chat panel
+3. Verify user messages appear on the right side with user styling
+4. Verify assistant messages appear on the left side with assistant styling
+5. Verify no raw JSON or tool-call artifacts are shown in the chat
+6. Verify messages are displayed chronologically
+
+**Verify:**
+- [ ] User and assistant messages visually distinct
+- [ ] No raw JSON or technical artifacts visible
+- [ ] Messages in chronological order
+- [ ] Clean, readable formatting
+
+---
+
+### AI-08: API Key Management in Admin
+**Goal:** Verify the API key can be configured in Administration.
+**Persona:** Anna Meier (Controller)
+
+1. Navigate to `/admin`
+2. Select "Planning Parameters" in the sidebar
+3. `preview_snapshot` — find an "Integrations" section (or similar)
+4. Verify an API key field is present (masked/secret type input)
+5. Verify the field allows entry of a new key
+6. Verify a save button is available
+
+**Verify:**
+- [ ] Integrations section in Planning Parameters
+- [ ] API key field present (masked input)
+- [ ] Field accepts new key input
+- [ ] Save functionality available
+
+---
+
+# SUITE 14 — CC Owner Assignment Grid
+
+**Session:** F | **Est. time:** 30 min | **Default persona:** Thomas Brenner (CC Owner)
+
+**Prerequisite:** Navigate to Capacity Management > Resource Requests, then select a request with an assignment grid.
+
+---
+
+### AG-01: Assignment Grid Loads
+**Goal:** Verify the Assignment Grid renders with roles and monthly columns.
+**Persona:** Thomas Brenner (CC Owner)
+
+1. Switch to Thomas Brenner (CC Owner)
+2. Navigate to `/capacity`, click "Resource Requests"
+3. Select a pending resource request
+4. `preview_snapshot` — verify the AssignmentGrid renders with:
+   - Sticky "Role" column on the left (220px)
+   - "Internal Resources" section header
+   - Month columns with year grouping headers
+   - "All" column for bulk assignment
+   - "Status" column on the right
+
+**Verify:**
+- [ ] AssignmentGrid renders
+- [ ] Role column sticky on left
+- [ ] Month columns with year headers
+- [ ] "All" and "Status" columns present
+
+---
+
+### AG-02: Collapsible Year Columns
+**Goal:** Verify year column headers collapse and expand.
+**Persona:** Thomas Brenner (CC Owner)
+
+1. `preview_snapshot` — verify year headers with expand/collapse chevrons (▲▼)
+2. Verify 2026 is expanded by default showing individual month columns
+3. Click a year header to collapse it
+4. `preview_snapshot` — verify month columns hide and a year summary column appears
+5. Click again to expand — verify months reappear
+
+**Verify:**
+- [ ] Year headers have collapse/expand chevrons
+- [ ] 2026 expanded by default
+- [ ] Collapsing hides months, shows summary
+- [ ] Expanding restores month columns
+
+---
+
+### AG-03: Cell Assignment — Person Dropdown
+**Goal:** Verify clicking a cell opens a person dropdown for assignment.
+**Persona:** Thomas Brenner (CC Owner)
+
+1. Click an unassigned cell (amber colored, within a valid month range)
+2. `preview_snapshot` — verify an inline Select dropdown appears
+3. Verify the dropdown groups people by: matching role (top) vs. other roles (bottom)
+4. Verify each person option shows utilization percentage
+5. Select a person
+6. `preview_snapshot` — verify the cell updates to show the person's name with green background
+7. `preview_network` — verify no API errors
+
+**Verify:**
+- [ ] Clicking cell opens person dropdown
+- [ ] People grouped by matching role vs. others
+- [ ] Utilization percentage shown per person
+- [ ] Cell updates with person name and green background
+
+---
+
+### AG-04: Assign All — Bulk Assignment
+**Goal:** Verify the "All" column assigns a person to all valid months in a row.
+**Persona:** Thomas Brenner (CC Owner)
+
+1. Click the "All" cell in a request row
+2. `preview_snapshot` — verify a person dropdown appears
+3. Select a person
+4. `preview_snapshot` — verify all in-range month cells for that row fill with the selected person
+5. Verify out-of-range cells remain muted/disabled
+
+**Verify:**
+- [ ] "All" column dropdown works
+- [ ] Selecting a person fills all valid month cells
+- [ ] Out-of-range months remain unaffected
+
+---
+
+### AG-05: Year Summary Column
+**Goal:** Verify the year summary column when a year is collapsed.
+**Persona:** Thomas Brenner (CC Owner)
+
+1. Assign a person to all months in a year for one row
+2. Collapse that year
+3. `preview_snapshot` — verify the year summary column shows the person's name
+4. Assign different people to different months in another row
+5. Collapse that year
+6. `preview_snapshot` — verify the summary shows "Mixed" (or similar indicator)
+
+**Verify:**
+- [ ] Collapsed year shows person name if all months same person
+- [ ] Shows "Mixed" if different people assigned
+- [ ] Shows "--" if no assignments
+
+---
+
+### AG-06: Status Badge Per Row
+**Goal:** Verify each row shows an assignment completion status badge.
+**Persona:** Thomas Brenner (CC Owner)
+
+1. `preview_snapshot` — examine the "Status" column
+2. Verify each row shows a badge like "X/Y" (e.g., "3/6 months assigned")
+3. Assign more months for a row
+4. `preview_snapshot` — verify the badge count updates (e.g., "4/6")
+5. Assign all months — verify badge shows full completion (e.g., "6/6")
+
+**Verify:**
+- [ ] Status badge shows "X/Y months assigned" format
+- [ ] Badge updates when assignments change
+- [ ] Full completion clearly indicated
+
+---
+
+### AG-07: Delta-Based Resource Requests
+**Goal:** Verify the grid shows delta information for CR-modified resource requests.
+**Persona:** Thomas Brenner (CC Owner)
+
+1. Find a resource request that originated from a Change Request (delta-based)
+2. `preview_snapshot` — verify the row shows:
+   - Original hours per month
+   - Change direction indicator ("increase" or "decrease" badge)
+   - Delta hours (the difference)
+3. Verify the direction badge is color-coded (e.g., green for increase, red for decrease)
+
+**Verify:**
+- [ ] Original hours displayed
+- [ ] Direction badge visible (increase/decrease)
+- [ ] Delta hours shown
+- [ ] Color coding on direction badge
+
+---
+
+### AG-08: Save Assignments and Persistence
+**Goal:** Verify saving assignments persists after navigation.
+**Persona:** Thomas Brenner (CC Owner)
+
+1. Make several assignments across different rows and months
+2. Click "Save" or "Confirm Assignments" button
+3. `preview_network` — verify the save API call succeeds (no 4xx/5xx)
+4. Navigate away (e.g., to Launchpad)
+5. Navigate back to Capacity > Resource Requests, select the same request
+6. `preview_snapshot` — verify all saved assignments are still present
+
+**Verify:**
+- [ ] Save button triggers API call
+- [ ] API call succeeds
+- [ ] Assignments persist after navigation
+- [ ] All previously saved assignments visible on return
+
+---
+
 # KNOWN ISSUES REGISTER
 
 These issues were identified in previous testing rounds. If encountered during testing, reference the known issue ID rather than creating a new entry. Update this register after each fix session: remove fixed issues, add newly discovered ones.
 
-| ID | Severity | Description | Module |
-|----|----------|-------------|--------|
-| KNOWN-01 | P2 | Pending Actions badge counts only urgent items, not total actions | Launchpad |
-| KNOWN-02 | P3 | Role selection not persisted across page refresh (resets to Anna Meier) | Global |
-| KNOWN-03 | P0 | Forecast Wizard Phase 3 may crash with duplicate key errors (BUG-4) | Workbench |
-| KNOWN-04 | P1 | Submit New Project sends POST to wrong endpoint (404) (BUG-5) | Workbench |
-| KNOWN-05 | P3 | CR category badge may show snake_case (e.g., "External_cost") | Portfolio |
-| KNOWN-06 | P3 | CR changes table may show raw numbers without EUR formatting | Portfolio |
-| KNOWN-07 | P3 | CapEx casing inconsistent (Capex/CAPEX/CapEx) across views | Multiple |
-| KNOWN-08 | P3 | "Send Back" vs "Request Changes" label inconsistency | Portfolio |
-| KNOWN-09 | P2 | Reporting table EUR format may use suffix (€) instead of prefix | Reporting |
-| KNOWN-10 | P3 | Reporting breadcrumb may show URL slug instead of friendly name | Reporting |
-| KNOWN-11 | P3 | AI Advisor panel may be partially off-viewport | Simulator |
-| KNOWN-12 | P3 | Vendor Spend "Ordered" column shows all zeros | Reporting |
-| KNOWN-13 | P3 | Scenario headline impact shows "--" for user-created scenarios | Simulator |
-| KNOWN-14 | P3 | RAG donut may show 31 projects vs 32 in KPI tile (pending project excluded) | Portfolio |
-| KNOWN-15 | P3 | Active People count may show 52 vs expected 50 | Admin |
-| KNOWN-16 | P2 | Forecast Accuracy report may return empty data for some filter combinations | Reporting |
-| KNOWN-17 | P2 | Lena Fischer may not appear in heatmap despite over-allocation | Capacity |
-| KNOWN-18 | P3 | Heatmap color coding may lack variation (all same shade) | Capacity |
-| KNOWN-19 | P3 | FAQ/Guide panels overlay content instead of shrinking main area | Global |
-| KNOWN-20 | P3 | Launchpad "Submit New Project" tile navigates to Workbench instead of dialog | Launchpad |
+| ID | Severity | Description | Module | Status |
+|----|----------|-------------|--------|--------|
+| KNOWN-01 | P2 | Pending Actions badge counts only urgent items, not total actions | Launchpad | Open |
+| KNOWN-02 | P3 | Role selection not persisted across page refresh (resets to Anna Meier) | Global | Open |
+| ~~KNOWN-03~~ | ~~P0~~ | ~~Forecast Wizard Phase 3 crash with duplicate key errors~~ | ~~Workbench~~ | Fixed |
+| ~~KNOWN-04~~ | ~~P1~~ | ~~Submit New Project sends POST to wrong endpoint (404)~~ | ~~Workbench~~ | Fixed |
+| KNOWN-05 | P3 | CR category badge may show snake_case (e.g., "External_cost") | Portfolio | Open |
+| KNOWN-06 | P3 | CR changes table may show raw numbers without EUR formatting | Portfolio | Open |
+| KNOWN-07 | P3 | CapEx casing inconsistent (Capex/CAPEX/CapEx) across views | Multiple | Open |
+| ~~KNOWN-08~~ | ~~P3~~ | ~~"Send Back" vs "Request Changes" label inconsistency~~ | ~~Portfolio~~ | Fixed |
+| KNOWN-09 | P2 | Reporting table EUR format may use suffix (€) instead of prefix | Reporting | Open |
+| KNOWN-10 | P3 | Reporting breadcrumb may show URL slug instead of friendly name | Reporting | Open |
+| KNOWN-11 | P3 | AI Advisor panel may be partially off-viewport | Simulator | Open |
+| KNOWN-12 | P3 | Vendor Spend "Ordered" column shows all zeros | Reporting | Open |
+| KNOWN-13 | P3 | Scenario headline impact shows "--" for user-created scenarios | Simulator | Open |
+| KNOWN-14 | P3 | RAG donut may show 31 projects vs 32 in KPI tile (pending project excluded) | Portfolio | Open |
+| KNOWN-15 | P3 | Active People count may show 52 vs expected 50 | Admin | Open |
+| KNOWN-16 | P2 | Forecast Accuracy report may return empty data for some filter combinations | Reporting | Open |
+| KNOWN-17 | P2 | Lena Fischer may not appear in heatmap despite over-allocation | Capacity | Open |
+| KNOWN-18 | P3 | Heatmap color coding may lack variation (all same shade) | Capacity | Open |
+| KNOWN-19 | P3 | FAQ/Guide panels overlay content instead of shrinking main area | Global | Open |
+| KNOWN-20 | P3 | Launchpad "Submit New Project" tile navigates to Workbench instead of dialog | Launchpad | Open |
+| KNOWN-21 | P3 | Dark mode may have unthemed third-party components (date pickers, toasts) | Global | Open |
+| KNOWN-22 | P2 | Report Builder Excel export may not preserve conditional formatting in all edge cases | Reporting | Open |
+| KNOWN-23 | P2 | AI Report Builder depends on external API availability; may timeout or produce unexpected results | Reporting | Open |
+| KNOWN-24 | P3 | Assignment Grid "Assign All" may not respect partial month ranges for shortened requests | Capacity | Open |
 
 ---
 
@@ -2708,15 +3759,19 @@ Create `qa/bug-report.md` at session start with this template:
 |-------|------|-----------|------|------|---------|---------|
 | 1 | Global Shell & Launchpad | 12 | | | | |
 | 2 | Portfolio Dashboard | 13 | | | | |
-| 3 | Intake & CR Approvals | 13 | | | | |
-| 4 | Project Workbench | 17 | | | | |
+| 3 | Intake & CR Approvals | 18 | | | | |
+| 4 | Project Workbench | 21 | | | | |
 | 5 | Forecast Wizard | 10 | | | | |
 | 6 | Capacity Management | 14 | | | | |
 | 7 | What-If Simulator | 16 | | | | |
 | 8 | Reporting | 13 | | | | |
 | 9 | Administration | 18 | | | | |
 | 10 | Cross-Module Integration | 12 | | | | |
-| **Total** | | **138** | | | | |
+| 11 | Dark Mode & Theme Switching | 10 | | | | |
+| 12 | Report Builder | 18 | | | | |
+| 13 | AI Report Builder | 8 | | | | |
+| 14 | CC Owner Assignment Grid | 8 | | | | |
+| **Total** | | **191** | | | | |
 
 ### Issue Counts
 - **Functional Bugs (BUG):** 0
