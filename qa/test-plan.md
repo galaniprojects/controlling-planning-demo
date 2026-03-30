@@ -283,19 +283,19 @@ Create at the start of Session A with this header:
 ---
 
 ### GLB-04: Launchpad — Module Tiles (Project Lead)
-**Goal:** Verify Project Lead sees appropriate tiles including "Submit New Project".
+**Goal:** Verify Project Lead sees appropriate tiles (no Submit tile on Launchpad).
 **Persona:** Priya Sharma (Project Lead)
 
 1. Switch to Priya Sharma via role switcher
 2. `preview_snapshot` — count module tiles
-3. Verify PL sees: Portfolio Overview, Project Workbench, Reporting (and possibly others per role config)
+3. Verify PL sees: Portfolio Overview, Project Workbench, Reporting, Documentation
 4. Verify PL does NOT see: Administration, What-If Simulator
-5. Verify a "Submit New Project" dashed tile is visible
+5. Verify there is NO "Submit New Project" tile on the Launchpad (project creation is done inside Project Workbench)
 6. Verify Capacity Management is NOT visible for PL
 
 **Verify:**
-- [ ] Correct module tiles for PL role
-- [ ] "Submit New Project" tile present
+- [ ] Correct module tiles for PL role (4 tiles)
+- [ ] No "Submit New Project" tile on Launchpad (by design)
 - [ ] Admin and Simulator tiles hidden
 - [ ] Capacity Management hidden
 
@@ -895,18 +895,20 @@ Create at the start of Session A with this header:
 ---
 
 ### INT-14: Submit New Project — Draft Creation
-**Goal:** Verify a Project Lead can create a new draft project via the Submit dialog.
+**Goal:** Verify a Project Lead can create a new draft project via the Submit dialog in Project Workbench.
 **Persona:** Priya Sharma (Project Lead)
 
 1. Switch to Priya Sharma
-2. On the Launchpad, click the "Submit New Project" dashed tile
-3. `preview_snapshot` — verify a SubmitProjectDialog opens with fields: project name, description, type, LoB, start/end dates
-4. Fill in project details (e.g., name: "Test Project Alpha", type: "Investment")
-5. Click "Submit" or "Create Draft"
-6. `preview_network` — verify a POST `/api/projects` call succeeds (201)
-7. `preview_snapshot` — verify navigation to the Resource Plan Editor page
+2. Navigate to Project Workbench (`/workbench`)
+3. Find and click the "Submit New Project" button (in the project list header area)
+4. `preview_snapshot` — verify a SubmitProjectDialog opens with fields: project name, description, type, LoB, start/end dates
+5. Fill in project details (e.g., name: "Test Project Alpha", type: "Investment")
+6. Click "Submit" or "Create Draft"
+7. `preview_network` — verify a POST `/api/projects` call succeeds (201)
+8. `preview_snapshot` — verify navigation to the Resource Plan Editor page
 
 **Verify:**
+- [ ] Submit button available in Project Workbench for PL
 - [ ] Submit dialog opens with all required fields
 - [ ] Draft project created via API
 - [ ] Navigation to Resource Plan Editor after creation
@@ -3730,7 +3732,7 @@ These issues were identified in previous testing rounds. If encountered during t
 | KNOWN-17 | P2 | Lena Fischer may not appear in heatmap despite over-allocation | Capacity | Open |
 | KNOWN-18 | P3 | Heatmap color coding may lack variation (all same shade) | Capacity | Open |
 | KNOWN-19 | P3 | FAQ/Guide panels overlay content instead of shrinking main area | Global | Open |
-| KNOWN-20 | P3 | Launchpad "Submit New Project" tile navigates to Workbench instead of dialog | Launchpad | Open |
+| ~~KNOWN-20~~ | ~~P3~~ | ~~Launchpad "Submit New Project" tile navigates to Workbench instead of dialog~~ | ~~Launchpad~~ | Closed (By Design — tile removed; project creation is via "+ New" in Workbench) |
 | KNOWN-21 | P3 | Dark mode may have unthemed third-party components (date pickers, toasts) | Global | Open |
 | KNOWN-22 | P2 | Report Builder Excel export may not preserve conditional formatting in all edge cases | Reporting | Open |
 | KNOWN-23 | P2 | AI Report Builder depends on external API availability; may timeout or produce unexpected results | Reporting | Open |
