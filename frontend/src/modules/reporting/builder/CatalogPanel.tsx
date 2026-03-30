@@ -9,9 +9,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { CatalogResponse, DimensionItem, MeasureItem, ZoneName } from '@/types/reportBuilder';
+import { isCalculatedMeasure } from './calculatedMeasures';
 
 interface CatalogPanelProps {
   catalog: CatalogResponse;
+  calculatedMeasures?: MeasureItem[];
   findItemZone: (id: string) => ZoneName | null;
   onAddDimension: (dim: DimensionItem, zone: 'rows' | 'columns' | 'filters') => void;
   onAddMeasure: (measure: MeasureItem) => void;
@@ -27,6 +29,7 @@ const ZONE_LABELS: Record<string, string> = {
 
 export function CatalogPanel({
   catalog,
+  calculatedMeasures = [],
   findItemZone,
   onAddDimension,
   onAddMeasure,
@@ -66,12 +69,21 @@ export function CatalogPanel({
     }))
     .filter((g) => g.items.length > 0);
 
-  const measuresByCategory = catalog.measure_categories
-    .map((cat) => ({
+  const filteredCalcMeasures = calculatedMeasures.filter(
+    (m) =>
+      m.display_name.toLowerCase().includes(searchLower) ||
+      'calculated'.includes(searchLower),
+  );
+
+  const measuresByCategory = [
+    ...catalog.measure_categories.map((cat) => ({
       category: cat,
       items: filteredMeasures.filter((m) => m.category === cat),
-    }))
-    .filter((g) => g.items.length > 0);
+    })),
+    ...(filteredCalcMeasures.length > 0
+      ? [{ category: 'Calculated', items: filteredCalcMeasures }]
+      : []),
+  ].filter((g) => g.items.length > 0);
 
   return (
     <div className="w-[250px] flex-shrink-0 border-r border-border bg-muted/30 flex flex-col h-full">
@@ -274,12 +286,18 @@ function MeasureRow({
 }) {
   const isInValues = zone === 'values';
 
+  const isCalc = isCalculatedMeasure(measure);
+
   return (
     <button
       onClick={() => (isInValues ? onRemove(measure.id) : onAdd(measure))}
       className="w-full flex items-center gap-2 px-7 py-1.5 text-xs hover:bg-accent/30 transition-colors text-left"
     >
-      <Sigma className={`h-3 w-3 flex-shrink-0 ${isInValues ? 'text-primary' : 'text-muted-foreground'}`} />
+      {isCalc ? (
+        <span className="text-[9px] font-mono font-semibold text-primary flex-shrink-0">fx</span>
+      ) : (
+        <Sigma className={`h-3 w-3 flex-shrink-0 ${isInValues ? 'text-primary' : 'text-muted-foreground'}`} />
+      )}
       <span className="flex-1 truncate text-foreground">{measure.display_name}</span>
       {isInValues && (
         <Badge variant="secondary" className="text-[9px] px-1.5 py-0">

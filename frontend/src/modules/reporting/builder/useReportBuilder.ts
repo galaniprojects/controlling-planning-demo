@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { reportBuilderApi } from '@/api/endpoints';
 import type {
   CatalogResponse,
+  ColumnMeta,
   ConditionalFormatRule,
   DimensionItem,
   FormatPresetId,
@@ -10,6 +11,11 @@ import type {
   ZoneName,
 } from '@/types/reportBuilder';
 import { generateRuleId, getPresetRules } from './conditionalFormat';
+import {
+  computeCalculatedValues,
+  getRequiredBaseMeasures,
+  isCalculatedMeasure,
+} from './calculatedMeasures';
 
 export interface ZoneState {
   rows: DimensionItem[];
@@ -37,6 +43,7 @@ export function useReportBuilder() {
   const [isStale, setIsStale] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formatRules, setFormatRules] = useState<ConditionalFormatRule[]>([]);
+  const [calculatedMeasures, setCalculatedMeasures] = useState<MeasureItem[]>([]);
   const hasRun = useRef(false);
 
   // Load catalog on mount
@@ -195,19 +202,85 @@ export function useReportBuilder() {
     setFormatRules([]);
   }, []);
 
+  // Calculated measure handlers
+  const addCalculatedMeasure = useCallback((measure: MeasureItem) => {
+    setCalculatedMeasures((prev) => [...prev, measure]);
+    // Also add to values zone
+    setZones((prev) => {
+      if (prev.values.some((m) => m.id === measure.id)) return prev;
+      return { ...prev, values: [...prev.values, measure] };
+    });
+  }, []);
+
+  const updateCalculatedMeasure = useCallback((id: string, measure: MeasureItem) => {
+    setCalculatedMeasures((prev) => prev.map((m) => (m.id === id ? measure : m)));
+    setZones((prev) => ({
+      ...prev,
+      values: prev.values.map((m) => (m.id === id ? measure : m)),
+    }));
+  }, []);
+
+  const removeCalculatedMeasure = useCallback((id: string) => {
+    // Also remove any calc measures that depend on this one
+    setCalculatedMeasures((prev) => {
+      const dependents = prev.filter(
+        (m) => m.calculated && (m.calculated.operandA === id || m.calculated.operandB === id),
+      );
+      const removeIds = new Set([id, ...dependents.map((d) => d.id)]);
+      return prev.filter((m) => !removeIds.has(m.id));
+    });
+    setZones((prev) => {
+      const calcToRemove = calculatedMeasures.filter(
+        (m) => m.calculated && (m.calculated.operandA === id || m.calculated.operandB === id),
+      );
+      const removeIds = new Set([id, ...calcToRemove.map((d) => d.id)]);
+      return {
+        ...prev,
+        values: prev.values.filter((m) => !removeIds.has(m.id)),
+      };
+    });
+  }, [calculatedMeasures]);
+
   // Run report
   const runReport = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
+      // Collect catalog (non-calculated) measure IDs to send to the backend.
+      // Include operands of calculated measures even if not explicitly in Values.
+      const calcInValues = zones.values.filter(isCalculatedMeasure);
+      const catalogValueIds = zones.values.filter((m) => !isCalculatedMeasure(m)).map((m) => m.id);
+      const requiredBaseIds = getRequiredBaseMeasures(calcInValues);
+      const allValueIds = [...new Set([...catalogValueIds, ...requiredBaseIds])];
+
       const res = await reportBuilderApi.execute({
         rows: zones.rows.map((d) => d.id),
         columns: zones.columns.map((d) => d.id),
         filters: Object.fromEntries(
           Object.entries(filterSelections).filter(([, v]) => v.length > 0),
         ),
-        values: zones.values.map((m) => m.id),
+        values: allValueIds,
       });
+
+      // Compute calculated measure values client-side
+      if (calcInValues.length > 0) {
+        computeCalculatedValues(res.rows, calcInValues);
+        // Add column metadata for calculated measures
+        for (const cm of calcInValues) {
+          res.columns.push({
+            id: cm.id,
+            name: cm.display_name,
+            type: 'measure',
+            format: cm.format,
+          } as ColumnMeta);
+        }
+        // Remove implicit operand columns that were fetched but not in the user's values zone
+        const userValueIds = new Set(zones.values.map((m) => m.id));
+        res.columns = res.columns.filter(
+          (col) => col.type === 'dimension' || userValueIds.has(col.id),
+        );
+      }
+
       setResults(res);
       setIsStale(false);
       hasRun.current = true;
@@ -231,6 +304,7 @@ export function useReportBuilder() {
     error,
     canRun,
     formatRules,
+    calculatedMeasures,
     addDimensionToZone,
     addMeasureToValues,
     removeFromZone,
@@ -244,5 +318,8 @@ export function useReportBuilder() {
     updateFormatRule,
     applyPreset,
     clearFormatRules,
+    addCalculatedMeasure,
+    updateCalculatedMeasure,
+    removeCalculatedMeasure,
   };
 }

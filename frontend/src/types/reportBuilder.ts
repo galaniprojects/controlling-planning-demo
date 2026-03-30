@@ -15,6 +15,7 @@ export interface MeasureItem {
   aggregation: string;
   format: string; // currency | percent | number | hours
   compatibility_note: string | null;
+  calculated?: CalculatedMeasureDef;
 }
 
 export interface CatalogResponse {
@@ -101,3 +102,17 @@ export interface ConditionalFormatRule {
 }
 
 export type FormatPresetId = 'budget_variance_rag' | 'utilisation_rag' | 'spend_threshold';
+
+/* ── Calculated measure types ── */
+
+export type CalcOperator = '+' | '-' | '*' | '/';
+
+export interface CalculatedMeasureDef {
+  operandA: string;       // measure ID (M01-M16 or CALC_*)
+  operator: CalcOperator;
+  operandB: string;       // measure ID
+}
+
+/* ── Chart view types ── */
+
+export type ChartViewType = 'table' | 'bar' | 'line' | 'pie';

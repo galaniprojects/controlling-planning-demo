@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronDown, Filter, Rows3, Columns3, Sigma, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, Filter, Rows3, Columns3, Sigma, X, Pencil, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -6,10 +6,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { DimensionItem, MeasureItem, ZoneName } from '@/types/reportBuilder';
 import type { FilterSelections, ZoneState } from './useReportBuilder';
+import { isCalculatedMeasure } from './calculatedMeasures';
 
 interface DropZonesProps {
   zones: ZoneState;
@@ -19,6 +21,8 @@ interface DropZonesProps {
   onMoveDimension: (dimId: string, zone: 'rows' | 'columns' | 'filters') => void;
   onReorder: (zone: ZoneName, itemId: string, direction: 'up' | 'down') => void;
   onFilterChange: (dimensionId: string, values: string[]) => void;
+  onEditCalcMeasure?: (measureId: string) => void;
+  onDeleteCalcMeasure?: (measureId: string) => void;
 }
 
 export function DropZones({
@@ -29,6 +33,8 @@ export function DropZones({
   onMoveDimension,
   onReorder,
   onFilterChange,
+  onEditCalcMeasure,
+  onDeleteCalcMeasure,
 }: DropZonesProps) {
   return (
     <div className="space-y-3">
@@ -113,6 +119,8 @@ export function DropZones({
             total={zones.values.length}
             onRemove={() => onRemove(measure.id)}
             onReorder={(dir) => onReorder('values', measure.id, dir)}
+            onEdit={isCalculatedMeasure(measure) && onEditCalcMeasure ? () => onEditCalcMeasure(measure.id) : undefined}
+            onDelete={isCalculatedMeasure(measure) && onDeleteCalcMeasure ? () => onDeleteCalcMeasure(measure.id) : undefined}
           />
         ))}
       </ZoneArea>
@@ -305,16 +313,28 @@ function MeasureChip({
   total,
   onRemove,
   onReorder,
+  onEdit,
+  onDelete,
 }: {
   measure: MeasureItem;
   index: number;
   total: number;
   onRemove: () => void;
   onReorder: (dir: 'up' | 'down') => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
+  const isCalc = isCalculatedMeasure(measure);
+
   return (
     <div className="flex items-center gap-1 rounded bg-primary/10 px-2 py-1 text-xs">
-      <Sigma className="h-3 w-3 text-primary flex-shrink-0" />
+      {isCalc ? (
+        <Badge variant="outline" className="text-[9px] px-1 py-0 font-mono leading-tight flex-shrink-0">
+          fx
+        </Badge>
+      ) : (
+        <Sigma className="h-3 w-3 text-primary flex-shrink-0" />
+      )}
       <span className="text-foreground font-medium truncate">{measure.display_name}</span>
       {total > 1 && (
         <div className="flex gap-0.5">
@@ -334,9 +354,30 @@ function MeasureChip({
           </button>
         </div>
       )}
-      <button onClick={onRemove} className="p-0.5 hover:bg-accent rounded text-muted-foreground hover:text-foreground">
-        <X className="h-3 w-3" />
-      </button>
+      {isCalc && onEdit && onDelete ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="p-0.5 hover:bg-accent rounded text-muted-foreground hover:text-foreground">
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-32">
+            <DropdownMenuItem onClick={onEdit}>
+              <Pencil className="h-3 w-3 mr-1.5" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onDelete} className="text-destructive">
+              <Trash2 className="h-3 w-3 mr-1.5" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <button onClick={onRemove} className="p-0.5 hover:bg-accent rounded text-muted-foreground hover:text-foreground">
+          <X className="h-3 w-3" />
+        </button>
+      )}
     </div>
   );
 }
