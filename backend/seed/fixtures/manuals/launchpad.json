@@ -11,8 +11,12 @@
       "body": "The top section displays role-aware alerts. **Controllers** see pending change requests awaiting approval and new project submissions in the intake queue. **Cost Center Owners** see incoming resource requests and CR-linked confirmations (the final stage of the CR workflow). **Project Leads** see forecast review deadlines, CR approval notifications, and sent-back CRs requiring action (with controller feedback). **Executives** see portfolio health summaries and published scenarios. Click any notification to navigate directly to the relevant screen."
     },
     {
+      "title": "Pending Actions",
+      "body": "Below the notifications, the Pending Actions panel lists specific workflow items that require your attention. Each action shows a summary, the related module, and a timestamp. **Urgent items** are highlighted with a red bar on the left edge so you can prioritize them at a glance. Clicking any action deep-links directly to the relevant module, tab, and entity — for example, clicking a pending CR approval navigates to Portfolio Overview > CR Approvals with that specific CR selected. When all actions are resolved, the panel shows an 'All caught up' message."
+    },
+    {
       "title": "Module Tiles",
-      "body": "The middle section shows module cards ordered by relevance to your role. Each tile displays the module name, a brief description, and a contextual metric (e.g., 'Your 4 projects, 1 forecast overdue'). Click a tile to open that module full-screen. Modules you don't have access to are hidden."
+      "body": "The middle section shows module cards ordered by relevance to your role. Each tile displays the module name, a brief description, and a contextual metric (e.g., 'Your 4 projects, 1 forecast overdue'). Click a tile to open that module full-screen. Modules you don't have access to are hidden. The **Reporting** tile provides access to five standard reports, the **Report Builder** (OLAP-style custom report composition), and the **AI Report Builder** (natural language report generation)."
     },
     {
       "title": "Submit New Project",
@@ -21,6 +25,10 @@
     {
       "title": "Role Switcher",
       "body": "The role switcher dropdown in the top-right corner lets you switch between demo personas. Each persona has different module access, data visibility, and write permissions. Switching roles immediately updates all views to reflect that role's perspective."
+    },
+    {
+      "title": "Dark Mode Toggle",
+      "body": "Next to the role switcher in the top-right corner, the **Sun/Moon** icon button lets you switch between display themes. Click it to cycle through three modes: **Light** (default, sun icon), **Dark** (moon icon), and **System** (follows your operating system's preference). The selected theme applies immediately across all modules, charts, dialogs, and data visualizations. Your preference is saved to the browser and persists across sessions."
     }
   ]
 }

@@ -112,7 +112,7 @@
     "steps": [
       {"step_number": 1, "instruction": "Open **Capacity Management** from the Launchpad.", "target_module": "capacity"},
       {"step_number": 2, "instruction": "Click the **Organization Overview** tab at the top."},
-      {"step_number": 3, "instruction": "The heatmap shows utilization across all cost centers. Use the pivot selector to view **by LoB**, **by Role**, or **by Cost Center**."},
+      {"step_number": 3, "instruction": "The heatmap shows utilization across all cost centers. Use the pivot selector to view by organizational hierarchy level (e.g., **by Line of Business**), **by Role**, or **by Cost Center**. Labels adapt to the active portfolio hierarchy."},
       {"step_number": 4, "instruction": "Click any cell or row to open a bottom drawer showing project-level consumption detail for that dimension."}
     ]
   },
@@ -131,7 +131,7 @@
     ]
   },
   {
-    "id": "faq-13",
+    "id": "faq-10",
     "question": "What happens when a CR involves reducing hours for a role?",
     "summary": "The system creates a decrease resource request showing the delta, the original allocation, and the currently assigned person. The CC Owner confirms the reduction.",
     "applicable_roles": ["project_lead", "cost_center_owner"],
@@ -144,7 +144,7 @@
     ]
   },
   {
-    "id": "faq-10",
+    "id": "faq-11",
     "question": "How do I switch between personas in the demo?",
     "summary": "Use the persona switcher in the top-right corner of the Launchpad to switch between the four demo personas.",
     "applicable_roles": ["controller", "cost_center_owner", "project_lead", "executive"],
@@ -152,26 +152,26 @@
     "steps": [
       {"step_number": 1, "instruction": "Look for the **persona avatar** in the top-right corner of the application header."},
       {"step_number": 2, "instruction": "Click the avatar to open the **Persona Switcher** dropdown."},
-      {"step_number": 3, "instruction": "Select one of the four personas: Anna Meier (Controller), Thomas Brenner (CC Owner), Priya Sharma (Project Lead), or Dr. Klaus Weber (Executive)."},
+      {"step_number": 3, "instruction": "Select one of the four personas: Anna Meier (Controller), Thomas Brenner (CC Owner), Priya Sharma (Project Lead), or Thomas Becker (Executive)."},
       {"step_number": 4, "instruction": "The application will reload with the selected persona's view, showing role-appropriate modules, data, and actions."}
     ]
   },
   {
-    "id": "faq-11",
+    "id": "faq-12",
     "question": "How do I manage planning parameters?",
     "summary": "As a Controller, open the Administration module and navigate to Planning Parameters to view and edit system-wide settings.",
     "applicable_roles": ["controller"],
     "modules_involved": ["administration"],
     "steps": [
       {"step_number": 1, "instruction": "Open the **Administration** module from the Launchpad or sidebar.", "target_module": "administration"},
-      {"step_number": 2, "instruction": "In the left panel, select **Planning Parameters** from the entity type list."},
-      {"step_number": 3, "instruction": "Review the current parameters: Fiscal Year Start, Planning Horizon, RAG thresholds, Target Utilization, and Scenario Cap."},
-      {"step_number": 4, "instruction": "Click a parameter row to edit its current value."},
-      {"step_number": 5, "instruction": "Use the **Reset** button to restore any parameter to its default value."}
+      {"step_number": 2, "instruction": "In the left panel, select **Planning Parameters** from the System section."},
+      {"step_number": 3, "instruction": "Review the six parameter groups: Fiscal Settings, Planning Horizon, Thresholds, Limits, Capacity Settings, and Integrations."},
+      {"step_number": 4, "instruction": "Click a parameter row to edit its current value. For secret parameters (e.g., API keys in Integrations), use the eye icon to toggle visibility."},
+      {"step_number": 5, "instruction": "Use the **Save** button to persist changes, or **Reset to Defaults** to restore default values for a group."}
     ]
   },
   {
-    "id": "faq-12",
+    "id": "faq-13",
     "question": "How do I view the audit trail for administrative changes?",
     "summary": "Open the Administration module and scroll to the Audit Trail section at the bottom to see all logged changes.",
     "applicable_roles": ["controller"],
@@ -184,7 +184,7 @@
     ]
   },
   {
-    "id": "faq-11",
+    "id": "faq-14",
     "question": "How do I use the AI Report Builder?",
     "summary": "Configure an API key in Administration, then navigate to Reporting and click the AI Report Builder tile to create custom reports using natural language.",
     "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
@@ -199,7 +199,7 @@
     ]
   },
   {
-    "id": "faq-11",
+    "id": "faq-15",
     "question": "How do I build a custom report?",
     "summary": "Use the Report Builder to compose OLAP-style reports by selecting dimensions and measures from the data catalog.",
     "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
@@ -213,7 +213,7 @@
     ]
   },
   {
-    "id": "faq-12",
+    "id": "faq-16",
     "question": "What is the difference between rows and columns in Report Builder?",
     "summary": "Row dimensions appear as row headers on the left, column dimensions create a cross-tabulation with nested column headers across the top.",
     "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
@@ -222,11 +222,11 @@
       {"step_number": 1, "instruction": "**Rows** place dimension values as row labels on the left side of the table. Multiple row dimensions create hierarchical groupings."},
       {"step_number": 2, "instruction": "**Columns** pivot dimension values across the top, creating a cross-tabulation. Each column combination is paired with every measure in Values."},
       {"step_number": 3, "instruction": "**Filters** restrict the data without adding visual structure. Drop a dimension into Filters and select specific values to narrow results."},
-      {"step_number": 4, "instruction": "Tip: Use Rows for the entity you want to compare (e.g., projects), Columns for time periods (e.g., months), and Filters for scope restrictions (e.g., a specific LoB)."}
+      {"step_number": 4, "instruction": "Tip: Use Rows for the entity you want to compare (e.g., projects), Columns for time periods (e.g., months), and Filters for scope restrictions (e.g., a specific organizational hierarchy level)."}
     ]
   },
   {
-    "id": "faq-13",
+    "id": "faq-17",
     "question": "How do I create a calculated measure?",
     "summary": "Use the Calculated Measures dialog to define custom formulas combining two existing measures.",
     "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
@@ -240,7 +240,7 @@
     ]
   },
   {
-    "id": "faq-14",
+    "id": "faq-18",
     "question": "How do I share a report with my team?",
     "summary": "Save a Report Builder report, then use the Share button to send it to specific users or publish it to the Report Library.",
     "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
@@ -254,7 +254,7 @@
     ]
   },
   {
-    "id": "faq-15",
+    "id": "faq-19",
     "question": "Why does my Report Builder report show no data?",
     "summary": "Common causes include incompatible dimension-measure combinations, overly restrictive filters, or role-based data scoping.",
     "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
@@ -264,6 +264,46 @@
       {"step_number": 2, "instruction": "Review your **Filters** zone. If filters are too restrictive (e.g., a specific month with no data), try broadening them or clearing all filters."},
       {"step_number": 3, "instruction": "Verify your **role** — Project Leads only see their assigned projects, CC Owners see their cost center. Switch to Controller or Executive role for full data access."},
       {"step_number": 4, "instruction": "Try a simpler query first (one row dimension + one measure) to confirm data exists, then add complexity incrementally."}
+    ]
+  },
+  {
+    "id": "faq-20",
+    "question": "How do I enable dark mode?",
+    "summary": "Click the Sun/Moon icon in the top-right corner of the application header to toggle between light, dark, and system themes.",
+    "applicable_roles": ["controller", "cost_center_owner", "project_lead", "executive"],
+    "modules_involved": ["launchpad"],
+    "steps": [
+      {"step_number": 1, "instruction": "Look for the **Sun** or **Moon** icon button in the top-right area of the application header (TopBar), next to the persona switcher."},
+      {"step_number": 2, "instruction": "Click the icon to cycle through three modes: **Light** (sun icon visible), **Dark** (moon icon visible), and **System** (follows your operating system preference)."},
+      {"step_number": 3, "instruction": "The theme applies immediately across all modules, charts, and dialogs. Your preference is saved automatically and persists across sessions."}
+    ]
+  },
+  {
+    "id": "faq-21",
+    "question": "How do I configure the portfolio hierarchy?",
+    "summary": "As a Controller, open the Administration module and use the Portfolio Hierarchy panel to define entity types, hierarchy levels, and project assignments.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["administration"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open the **Administration** module and select **Portfolio Hierarchy** from the Portfolio Structure section in the left panel.", "target_module": "administration"},
+      {"step_number": 2, "instruction": "Use the **Entity Types** tab to create or manage grouping categories (e.g., Line of Business, Programme, Division)."},
+      {"step_number": 3, "instruction": "Use the **Hierarchies** tab to define the level ordering of entity types into a tree structure. Mark one hierarchy as **Active** — this determines the grouping used across all modules."},
+      {"step_number": 4, "instruction": "Use the **Grouping Entities** tab to create actual entities within each type (e.g., 'Truck & Bus Systems' under Line of Business) and set parent-child relationships."},
+      {"step_number": 5, "instruction": "Use the **Hierarchy Assignment** tab to view the tree and assign projects to entities."},
+      {"step_number": 6, "instruction": "The active hierarchy's labels propagate across **Portfolio Overview** (tree grouping), **Capacity Management** (pivot dimensions), and **Project Workbench** (entity fields)."}
+    ]
+  },
+  {
+    "id": "faq-22",
+    "question": "How do I export a Report Builder report to Excel?",
+    "summary": "Click the Export button in the Report Builder toolbar to download the current report as an Excel file with full formatting.",
+    "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
+    "modules_involved": ["reporting"],
+    "steps": [
+      {"step_number": 1, "instruction": "Build or load your report in the **Report Builder** and ensure results are displayed."},
+      {"step_number": 2, "instruction": "Click the **Export** button in the toolbar."},
+      {"step_number": 3, "instruction": "The system generates an Excel file (.xlsx) with two sheets: **Report Data** (full cross-tabulation with merged headers, subtotals, grand totals, and conditional formatting colours preserved) and **Report Info** (metadata including report name, export date, dimensions, measures, filters, and calculated measure formulas)."},
+      {"step_number": 4, "instruction": "The file downloads automatically with the naming pattern **CRETA_ReportBuilder_[Name]_[Date].xlsx**. Values use European number formatting (dot for thousands, comma for decimals)."}
     ]
   }
 ]

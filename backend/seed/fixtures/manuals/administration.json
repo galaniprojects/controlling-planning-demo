@@ -4,11 +4,11 @@
   "sections": [
     {
       "title": "Overview",
-      "body": "The Administration module is accessible only to Controllers. It provides CRUD operations for organizational master data (Tier 1) and planning parameter management (Tier 2). All changes are logged in the audit trail."
+      "body": "The Administration module is accessible only to Controllers. It provides CRUD operations for organizational master data (Tier 1), portfolio hierarchy configuration, and planning parameter management (Tier 2). All changes are logged in the audit trail."
     },
     {
       "title": "Entity Type Selector",
-      "body": "The left panel lists all manageable entity types: Cost Centers, Competence Centers, Lines of Business, Locations, People, and Rate Tables. Select an entity type to see its data table on the right."
+      "body": "The left panel organizes manageable items into three categories. **Entities** includes: Cost Centers, Competence Centers, Lines of Business, Locations, People, and Rate Tables. **Portfolio Structure** provides access to the Portfolio Hierarchy configuration panel. **System** contains Planning Parameters and the Audit Log. Select any item to see its management view on the right."
     },
     {
       "title": "CRUD Operations",
@@ -27,8 +27,12 @@
       "body": "View and update hourly rates per role per competence center. When updating a rate, set the new effective date. The system preserves the previous rate and effective date for audit purposes. Historical cost calculations always use the rate that was in effect at the time."
     },
     {
+      "title": "Portfolio Hierarchy Management",
+      "body": "The Portfolio Hierarchy panel (under Portfolio Structure) lets you configure how projects are grouped across the application. It has four sub-tabs:\n\n**Entity Types** — Define grouping categories such as Line of Business, Programme, or Division. Each type has a name and optional description.\n\n**Hierarchies** — Arrange entity types into ordered levels to form a tree structure. One hierarchy can be marked as **Active** — this determines the grouping used across all modules. Only one hierarchy can be active at a time.\n\n**Grouping Entities** — Create and manage the actual entities within each type (e.g., 'Truck & Bus Systems' under Line of Business, 'Rail Signalling' under Programme). Set parent-child relationships between entities of different types.\n\n**Hierarchy Assignment** — View the active hierarchy as a tree and see which projects are assigned to which entities. Drag or reassign projects between entities.\n\nThe active hierarchy's labels propagate across **Portfolio Overview** (tree grouping and filters), **Capacity Management** (pivot dimensions), **Project Workbench** (entity selector fields), and **Reporting** (filter and dimension labels)."
+    },
+    {
       "title": "Planning Parameters",
-      "body": "Configure system-wide settings: Fiscal Year Start Month, Planning Horizon, RAG thresholds (Amber and Red percentages), Target Utilization, and Maximum Scenarios per User. Each parameter shows its current value, default value, and data type. Use the Reset button to restore defaults."
+      "body": "Configure system-wide settings organized into six groups:\n\n**Fiscal Settings** — Fiscal Year Start Month.\n**Planning Horizon** — Number of planning years ahead.\n**Thresholds** — RAG thresholds (Amber and Red percentages for variance-based status calculations).\n**Limits** — Maximum Scenarios per User and other system caps.\n**Capacity Settings** — Target Utilization percentage for capacity planning.\n**Integrations** — API key management for external services. The Anthropic API key (used by the AI Report Builder) is stored here as a secret parameter with masked display. Use the **eye icon** to temporarily reveal the key value. Each group has its own **Save** and **Reset to Defaults** controls."
     },
     {
       "title": "Audit Trail",

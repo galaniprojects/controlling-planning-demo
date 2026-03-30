@@ -2,11 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 const MODULES = [
+  { name: 'Launchpad', route: '/launchpad', description: 'Home screen with role-aware notifications, pending actions with deep-linking, module tiles, dark mode toggle, project submission' },
   { name: 'Portfolio Overview', route: '/portfolio', description: 'KPI dashboard, project tree, intake queue with editable grid and diff view, change request approvals' },
   { name: 'Project Workbench', route: '/workbench', description: 'Master-detail project view, forecast grid, rolling forecast wizard, project submission workflow, change history' },
   { name: 'Capacity Management', route: '/capacity', description: 'Team utilization heatmaps, cell drill-down, org overview, resource requests' },
   { name: 'What-If Simulator', route: '/simulator', description: 'Scenario planning with 12 action types, impact dashboard, AI Advisor' },
-  { name: 'Reporting', route: '/reporting', description: 'Programme rollup, CC financial, vendor spend, forecast accuracy, YoY comparison' },
+  { name: 'Reporting', route: '/reporting', description: 'Report Library (5 standard reports), Report Builder (OLAP-style custom reports), AI Report Builder (natural language), sharing & publishing' },
   { name: 'Administration', route: '/admin', description: 'Entity management, portfolio hierarchy, rate tables, planning parameters, audit log' },
 ];
 
