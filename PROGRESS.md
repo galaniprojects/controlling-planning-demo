@@ -2,8 +2,31 @@
 
 ## Current Status
 Phase: Report Builder
-Last completed: Report Builder Session 2 — Cross-Tabulation & Conditional Formatting
-Branch: `feature/report-builder`
+Last completed: Report Builder Session 3 — Calculated Measures & Chart Views
+Branch: `feature/report-builder-session3`
+
+## Report Builder Session 3: Calculated Measures & Chart Views (2026-03-30)
+
+### Feature Overview
+- **Calculated measures:** User-defined two-operand formulas (A op B with +, −, ×, ÷), computed client-side on fetched result rows
+- **Formula dialog:** Name field, measure A/B dropdowns, operator selector, format picker (€/%/#/h), live preview from first data row
+- **Circular reference protection:** Validates against self-reference and >1 nesting depth
+- **fx badge:** Calculated measures show "fx" badge in Values zone chips with edit/delete dropdown
+- **Catalog integration:** Calculated measures appear under dynamic "Calculated" category in the data catalog
+- **View toggle:** Table | Bar | Line | Pie buttons in toolbar with enable/disable logic
+- **Bar chart:** Grouped bars per first row dimension, series by column dim values or multiple measures (Recharts)
+- **Line chart:** Time-series lines, enabled only when column dimension is a time dim (D16/D17/D18)
+- **Pie chart:** Donut with segment labels + percentages, center total, note for multi-dim/measure
+- **Chart behaviour:** Respect filters, stale-data opacity, auto-fallback when view becomes unavailable
+
+### Technical Details
+- **7 new files:** `calculatedMeasures.ts`, `chartTransform.ts`, `CalculatedMeasureDialog.tsx`, `ReportBarChart.tsx`, `ReportLineChart.tsx`, `ReportPieChart.tsx`, plus type extensions
+- **4 modified files:** `useReportBuilder.ts` (calc state + computation), `DropZones.tsx` (fx badge), `CatalogPanel.tsx` (Calculated category), `ReportBuilder.tsx` (view toggle + dialog wiring)
+- **No backend changes** — calculated measures are client-side only, charts reuse existing query results
+- **Operand data fetching:** Hook transparently includes operand measure IDs in API request even if not in Values zone
+- **Chart color palette:** Reuses CSS custom properties `--chart-1` through `--chart-5` for dark/light mode compatibility
+
+---
 
 ## Report Builder Session 2: Cross-Tabulation & Conditional Formatting (2026-03-30)
 
