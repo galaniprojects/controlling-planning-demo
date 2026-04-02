@@ -4,6 +4,7 @@ import { Breadcrumb } from './Breadcrumb';
 import { RoleSwitcher } from './RoleSwitcher';
 import { HelpButton } from './HelpButton';
 import { useTheme } from '@/contexts/ThemeContext';
+import { BRANDING } from '@/config/branding';
 
 export function TopBar() {
   const navigate = useNavigate();
@@ -16,7 +17,7 @@ export function TopBar() {
           onClick={() => navigate('/')}
           className="text-lg font-semibold text-primary hover:text-primary/90"
         >
-          CRETA
+          {BRANDING.appName}
         </button>
         <Breadcrumb />
       </div>

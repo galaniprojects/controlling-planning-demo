@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import date
 
+import config as app_config
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -509,7 +510,7 @@ def export_report(
         active_filters=filters,
     )
 
-    filename = f"CRETA_{config['name'].replace(' ', '_')}_{date.today().isoformat()}.csv"
+    filename = f"{app_config.BRANDING['csv_export_prefix']}_{config['name'].replace(' ', '_')}_{date.today().isoformat()}.csv"
 
     return StreamingResponse(
         buf,

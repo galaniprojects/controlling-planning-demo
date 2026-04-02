@@ -52,7 +52,7 @@
     },
     {
       "title": "Report Builder Export",
-      "body": "Click **Export** in the Report Builder toolbar to download the current report as a CSV file. The export includes metadata comment rows (report name, export date, user, active filters) followed by column headers and data rows with subtotals and grand totals. Cross-tabulated reports are flattened into columns named by dimension value and measure (e.g. 'Q1 2026 - Forecast'). File naming follows the pattern CRETA_ReportBuilder_[Name]_[Date].csv."
+      "body": "Click **Export** in the Report Builder toolbar to download the current report as a CSV file. The export includes metadata comment rows (report name, export date, user, active filters) followed by column headers and data rows with subtotals and grand totals. Cross-tabulated reports are flattened into columns named by dimension value and measure (e.g. 'Q1 2026 - Forecast'). File naming follows the pattern {app_name}_ReportBuilder_[Name]_[Date].csv."
     },
     {
       "title": "AI Report Builder",

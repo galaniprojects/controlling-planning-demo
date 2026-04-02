@@ -8,6 +8,7 @@ import { ReportConfigurator } from './ReportConfigurator';
 import { SaveViewDialog } from './SaveViewDialog';
 import { getCurrentUserId } from '@/api/client';
 import { reportsApi } from '@/api/endpoints';
+import { BRANDING } from '@/config/branding';
 
 export interface ColumnDef {
   key: string;
@@ -84,7 +85,7 @@ export function ReportViewer({
       a.href = blobUrl;
       const disposition = response.headers.get('Content-Disposition');
       const match = disposition?.match(/filename="(.+)"/);
-      a.download = match?.[1] ?? `CRETA_Export.csv`;
+      a.download = match?.[1] ?? `${BRANDING.csvExportPrefix}_Export.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

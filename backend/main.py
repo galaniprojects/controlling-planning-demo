@@ -2,11 +2,12 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import config
 from database import Base, engine
 
 app = FastAPI(
-    title="CRETA Demo API",
-    description="Controlling, Reporting, Estimation, Tracking & Allocations — Demo Application",
+    title=f"{config.BRANDING['app_name']} Demo API",
+    description=f"{config.BRANDING['app_full_name']} — Demo Application",
     version="0.1.0",
 )
 

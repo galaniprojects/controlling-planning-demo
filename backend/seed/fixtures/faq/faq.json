@@ -152,7 +152,7 @@
     "steps": [
       {"step_number": 1, "instruction": "Look for the **persona avatar** in the top-right corner of the application header."},
       {"step_number": 2, "instruction": "Click the avatar to open the **Persona Switcher** dropdown."},
-      {"step_number": 3, "instruction": "Select one of the four personas: Anna Meier (Controller), Thomas Brenner (CC Owner), Priya Sharma (Project Lead), or Thomas Becker (Executive)."},
+      {"step_number": 3, "instruction": "Select one of the four personas: {controller_name} (Controller), {cc_owner_name} (CC Owner), {pl_name} (Project Lead), or {executive_name} (Executive)."},
       {"step_number": 4, "instruction": "The application will reload with the selected persona's view, showing role-appropriate modules, data, and actions."}
     ]
   },
@@ -303,7 +303,7 @@
       {"step_number": 1, "instruction": "Build or load your report in the **Report Builder** and ensure results are displayed."},
       {"step_number": 2, "instruction": "Click the **Export** button in the toolbar."},
       {"step_number": 3, "instruction": "The system generates a CSV file with metadata comment rows (report name, export date, user, filters), column headers, data rows with subtotals and grand totals. Cross-tabulated reports are flattened into columns named by dimension value and measure."},
-      {"step_number": 4, "instruction": "The file downloads automatically with the naming pattern **CRETA_ReportBuilder_[Name]_[Date].csv**. The CSV includes a UTF-8 BOM for correct Excel compatibility."}
+      {"step_number": 4, "instruction": "The file downloads automatically with the naming pattern **{app_name}_ReportBuilder_[Name]_[Date].csv**. The CSV includes a UTF-8 BOM for correct Excel compatibility."}
     ]
   }
 ]

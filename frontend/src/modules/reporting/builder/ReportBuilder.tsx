@@ -48,6 +48,7 @@ import {
 } from './chartTransform';
 import { reportBuilderApi } from '@/api/endpoints';
 import { getCurrentUserId } from '@/api/client';
+import { BRANDING } from '@/config/branding';
 import type { ChartViewType, MeasureItem } from '@/types/reportBuilder';
 
 export function ReportBuilder() {
@@ -275,7 +276,7 @@ export function ReportBuilder() {
       a.href = blobUrl;
       const disposition = response.headers.get('Content-Disposition');
       const match = disposition?.match(/filename="(.+)"/);
-      a.download = match?.[1] ?? `CRETA_ReportBuilder_Export.csv`;
+      a.download = match?.[1] ?? `${BRANDING.csvExportPrefix}_ReportBuilder_Export.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

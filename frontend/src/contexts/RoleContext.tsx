@@ -9,6 +9,7 @@ import {
 import type { RoleInfo, RoleContext as RoleContextType } from '@/types/api';
 import { rolesApi } from '@/api/endpoints';
 import { setCurrentUser } from '@/api/client';
+import { BRANDING } from '@/config/branding';
 
 interface RoleState {
   roles: RoleInfo[];
@@ -23,7 +24,7 @@ const RoleCtx = createContext<RoleState | null>(null);
 export function RoleProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<RoleInfo[]>([]);
   const [currentRoleId, setCurrentRoleId] = useState(
-    () => localStorage.getItem('creta-persona') || 'persona-controller',
+    () => localStorage.getItem(`${BRANDING.localStoragePrefix}-persona`) || 'persona-controller',
   );
   const [context, setContext] = useState<RoleContextType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,7 +43,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     rolesApi.getAll().then((res) => setRoles(res.items));
-    switchRole(localStorage.getItem('creta-persona') || 'persona-controller');
+    switchRole(localStorage.getItem(`${BRANDING.localStoragePrefix}-persona`) || 'persona-controller');
   }, [switchRole]);
 
   return (

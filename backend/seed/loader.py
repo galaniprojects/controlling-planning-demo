@@ -4,7 +4,23 @@ import json
 import os
 import sqlite3
 
+import config
 from config import DATABASE_URL, SEED_DIR, FIXTURES_DIR
+
+
+def apply_branding(text: str) -> str:
+    """Replace {placeholder} tokens in fixture text with branding values."""
+    replacements = {
+        "{app_name}": config.BRANDING["app_name"],
+        "{company_name}": config.BRANDING["company_name"],
+        "{controller_name}": config.BRANDING["controller_name"],
+        "{cc_owner_name}": config.BRANDING["cc_owner_name"],
+        "{pl_name}": config.BRANDING["pl_name"],
+        "{executive_name}": config.BRANDING["executive_name"],
+    }
+    for token, value in replacements.items():
+        text = text.replace(token, value)
+    return text
 
 
 def get_db_path() -> str:
@@ -47,21 +63,24 @@ def load_fixtures() -> dict:
         for fname in sorted(os.listdir(manuals_dir)):
             if fname.endswith(".json"):
                 with open(os.path.join(manuals_dir, fname), "r") as f:
-                    fixtures["manuals"].append(json.load(f))
+                    raw = f.read()
+                fixtures["manuals"].append(json.loads(apply_branding(raw)))
         print(f"[seed] Loaded {len(fixtures['manuals'])} module manuals")
 
     # Load FAQ
     faq_path = os.path.join(FIXTURES_DIR, "faq", "faq.json")
     if os.path.exists(faq_path):
         with open(faq_path, "r") as f:
-            fixtures["faq"] = json.load(f)
+            raw = f.read()
+        fixtures["faq"] = json.loads(apply_branding(raw))
         print(f"[seed] Loaded {len(fixtures['faq'])} FAQ entries")
 
     # Load AI Advisor goals
     advisor_path = os.path.join(FIXTURES_DIR, "advisor", "goals.json")
     if os.path.exists(advisor_path):
         with open(advisor_path, "r") as f:
-            fixtures["advisor_goals"] = json.load(f)
+            raw = f.read()
+        fixtures["advisor_goals"] = json.loads(apply_branding(raw))
         print(f"[seed] Loaded {len(fixtures['advisor_goals'])} AI Advisor goals")
 
     return fixtures

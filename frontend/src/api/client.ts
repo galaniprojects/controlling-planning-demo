@@ -1,4 +1,6 @@
-const STORAGE_KEY = 'creta-persona';
+import { BRANDING } from '@/config/branding';
+
+const STORAGE_KEY = `${BRANDING.localStoragePrefix}-persona`;
 let currentUserId = localStorage.getItem(STORAGE_KEY) || 'persona-controller';
 
 export function setCurrentUser(userId: string) {

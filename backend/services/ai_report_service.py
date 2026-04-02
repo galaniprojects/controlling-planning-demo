@@ -13,6 +13,7 @@ import anthropic
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
+import config
 from config import BASE_DIR, DEMO_DATE
 from models.system import PlanningParameter
 from schemas.common import CurrentUser
@@ -148,7 +149,7 @@ def build_scoping_context(user: CurrentUser, db: Session | None = None) -> str:
 # System prompt
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """You are an AI report builder for CRETA, a financial planning and project portfolio management application for Knorr-Bremse IT. You help users create custom reports by querying the database.
+SYSTEM_PROMPT = """You are an AI report builder for {app_name}, a financial planning and project portfolio management application for {company_name} IT. You help users create custom reports by querying the database.
 
 ## Demo Context
 - Current date: {demo_date} (April 2026)
@@ -316,7 +317,7 @@ TOOLS = [
     {
         "name": "execute_sql",
         "description": (
-            "Execute a read-only SQL SELECT query against the CRETA SQLite database. "
+            f"Execute a read-only SQL SELECT query against the {config.BRANDING['app_name']} SQLite database. "
             "Returns column names and rows as JSON. Maximum 500 rows returned."
         ),
         "input_schema": {
@@ -403,6 +404,8 @@ def process_conversation(
     client = anthropic.Anthropic(api_key=api_key)
 
     system = SYSTEM_PROMPT.format(
+        app_name=config.BRANDING["app_name"],
+        company_name=config.BRANDING["company_name"],
         demo_date=DEMO_DATE,
         scoping_context=build_scoping_context(conv.user, db),
     )

@@ -6,6 +6,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
+import { BRANDING } from '@/config/branding';
 
 type Theme = 'light' | 'dark' | 'system';
 type ResolvedTheme = 'light' | 'dark';
@@ -16,7 +17,7 @@ interface ThemeState {
   setTheme: (theme: Theme) => void;
 }
 
-const STORAGE_KEY = 'creta-theme';
+const STORAGE_KEY = `${BRANDING.localStoragePrefix}-theme`;
 
 const ThemeCtx = createContext<ThemeState | null>(null);
 

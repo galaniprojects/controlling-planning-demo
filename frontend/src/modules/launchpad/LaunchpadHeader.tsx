@@ -1,17 +1,15 @@
 import { Badge } from '@/components/ui/badge';
+import { BRANDING } from '@/config/branding';
 
 interface Props {
   userName: string;
   role: string;
 }
 
-const CRETA_WORDS = [
-  { letter: 'C', rest: 'ontrolling' },
-  { letter: 'R', rest: 'eporting' },
-  { letter: 'E', rest: 'stimation' },
-  { letter: 'T', rest: 'racking' },
-  { letter: 'A', rest: 'llocations' },
-];
+const ACRONYM_WORDS = BRANDING.appAcronymWords.map((w) => ({
+  letter: w.letter,
+  rest: w.word.slice(1),
+}));
 
 const ROLE_LABELS: Record<string, string> = {
   controller: 'Controller',
@@ -34,9 +32,9 @@ function getFirstName(fullName: string): string {
 export function LaunchpadHeader({ userName, role }: Props) {
   return (
     <div className="text-center py-6">
-      {/* CRETA Acronym */}
+      {/* App Acronym */}
       <div className="flex items-center justify-center gap-0 text-base tracking-wide mb-3 flex-wrap">
-        {CRETA_WORDS.map((word, i) => (
+        {ACRONYM_WORDS.map((word, i) => (
           <span key={word.letter} className="inline-flex items-center">
             {i > 0 && <span className="mx-1.5 text-muted-foreground/40">·</span>}
             <span className="text-primary font-bold">{word.letter}</span>

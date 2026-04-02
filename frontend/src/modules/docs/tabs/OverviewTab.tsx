@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { BRANDING } from '@/config/branding';
 
 const MODULES = [
   { name: 'Launchpad', route: '/launchpad', description: 'Home screen with role-aware notifications, pending actions with deep-linking, module tiles, dark mode toggle, project submission' },
@@ -25,11 +26,11 @@ export function OverviewTab() {
       {/* About */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">About CRETA</CardTitle>
+          <CardTitle className="text-lg">About {BRANDING.appName}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-foreground">
           <p>
-            <strong>CRETA</strong> (Controlling, Reporting, Estimation, Tracking & Allocations) is an IT financial
+            <strong>{BRANDING.appName}</strong> ({BRANDING.appFullName}) is an IT financial
             planning and portfolio management application. It provides end-to-end project portfolio
             visibility, capacity management, what-if scenario planning, and multi-dimensional reporting.
           </p>

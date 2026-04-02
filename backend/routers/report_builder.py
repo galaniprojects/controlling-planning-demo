@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+import config
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -227,7 +228,7 @@ def export_unsaved(
 ):
     """Export the current (unsaved) report composition to CSV."""
     buf = export_report_to_csv(db, user, body, report_name="Custom Report")
-    filename = f"CRETA_ReportBuilder_Custom_{__import__('datetime').date.today().isoformat()}.csv"
+    filename = f"{config.BRANDING['csv_export_prefix']}_ReportBuilder_Custom_{__import__('datetime').date.today().isoformat()}.csv"
     return StreamingResponse(
         buf,
         media_type="text/csv; charset=utf-8",
@@ -248,7 +249,7 @@ def export_saved(
     definition = json.loads(report.definition) if isinstance(report.definition, str) else report.definition
     buf = export_report_to_csv(db, user, definition, report_name=report.name)
     safe_name = report.name.replace(" ", "_").replace("/", "-")
-    filename = f"CRETA_ReportBuilder_{safe_name}_{__import__('datetime').date.today().isoformat()}.csv"
+    filename = f"{config.BRANDING['csv_export_prefix']}_ReportBuilder_{safe_name}_{__import__('datetime').date.today().isoformat()}.csv"
     return StreamingResponse(
         buf,
         media_type="text/csv; charset=utf-8",
