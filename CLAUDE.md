@@ -170,7 +170,7 @@ Keep this section updated whenever models or schema change.
 ## Testing Requirements
 - **Unit tests:** Every new backend function must have corresponding tests in `backend/tests/` — run with `python -m pytest tests/ -v`
 - **Manual testing:** Before creating a PR, suggest the user manually test the new feature in the browser
-- **QA test plan:** `qa/test-plan.md` — living E2E regression test plan (191 scenarios across 14 suites). Update scenario counts when adding new test suites or scenarios.
+- **QA test plan:** `qa/test-plan.md` — living E2E regression test plan (198 scenarios across 15 suites). Update scenario counts when adding new test suites or scenarios.
 - **Bug tracking:** `qa/bug-report.md` — created during testing sessions to track issues found
 - **Testing sessions are read-only:** do not fix code during testing, only document issues in `qa/bug-report.md`
 - After testing, a separate fix session addresses issues from the bug report

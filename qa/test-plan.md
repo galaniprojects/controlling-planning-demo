@@ -2,7 +2,7 @@
 
 This is the **living test plan** for the CRETA application. It provides step-by-step instructions for a complete regression test covering all modules, personas, interactive features, data integrity checks, and cross-module integration. This document should be updated after every version to reflect new features, changed behavior, and retired scenarios.
 
-**Total scenarios:** 191 across 14 test suites
+**Total scenarios:** 198 across 15 test suites
 **Tester:** Claude Code using preview tools (not human testers)
 **Execution rule:** No code fixes during testing — document issues only
 **Location:** All QA artifacts live in the `qa/` directory
@@ -147,6 +147,7 @@ Run this before each testing session to ensure clean state.
 | D | 9 + 10 | Administration + Cross-Module | ~1.5 hours |
 | E | 11 + 12 | Dark Mode + Report Builder | ~2.5 hours |
 | F | 13 + 14 | AI Report Builder + Assignment Grid | ~1.5 hours |
+| G | 15 | E2E Workflow Lifecycles | ~75 min |
 
 ### Execution Order
 1. Suite 1 must run first (validates app loads, role switching works)
@@ -156,10 +157,12 @@ Run this before each testing session to ensure clean state.
 5. Each session starts with `curl -X POST http://localhost:8000/api/admin/reset-demo`
 6. Suites 11-14 can run in any order after Suite 1 (Sessions E-F)
 7. Suite 13 (AI Report Builder) requires `ANTHROPIC_API_KEY` to be configured
+8. Suite 15 (Session G) requires a fresh demo reset and should run as a standalone session
 
 ### State Dependencies
 - Suites 3 and 10 contain stateful workflows (approve/reject/send-back) — requires fresh demo data
 - Suite 9 creates/edits admin entities — run before Suite 10 or after a reset
+- Suite 15 is heavily stateful — run with fresh demo data, do not interleave with other suites
 - If re-running a single suite, reset demo data first unless noted otherwise
 
 ---
@@ -3707,6 +3710,269 @@ Create at the start of Session A with this header:
 
 ---
 
+# SUITE 15 — E2E Workflow Lifecycles
+
+**Session:** G | **Est. time:** 75 min | **Default persona:** Priya Sharma (Project Lead)
+
+**Prerequisite:** Run `POST /api/admin/reset-demo` immediately before this suite. These scenarios are stateful and destructive — they create, modify, and approve entities across multiple roles. Run this suite as a standalone session, or run a reset afterward.
+
+**Coverage note:** These scenarios exercise the same domain logic tested at the unit level in `test_forecast_cycle.py` (state machine), `test_allocation_service.py` (resource assignments), `test_scenario_engine.py` (scenario actions), and `test_report_builder_saved.py` (save/load/share). Where unit tests verify calculation correctness, these scenarios verify the full UI-to-API-to-DB round trip across role boundaries.
+
+---
+
+### WFL-01: Full Project Submission Lifecycle (Draft to Baseline)
+**Goal:** Verify the complete new-project submission workflow end-to-end: PL creates draft, fills resource plan via wizard, submits for approval, CC Owner confirms resources, Controller reviews with inline edits, approves, and a baseline is created.
+**Persona chain:** Priya Sharma → Thomas Brenner → Anna Meier → Priya Sharma (verification)
+**Unit test backdrop:** `test_forecast_cycle.py`, `test_allocation_service.py`
+
+1. As Priya Sharma, navigate to Workbench
+2. Click "New" to create a project draft — fill in name, description, LoB, CapEx/OpEx, start/end months
+3. On the Resource Plan Editor, add at least 2 roles with monthly hour allocations
+4. Click "Submit" to send for review
+5. `preview_network` — verify POST succeeds, project status becomes `pending_cc_confirmation`
+6. Switch to Thomas Brenner (CC Owner)
+7. Navigate to Capacity Management — verify the Project Confirmation banner shows the new project
+8. Click "Review & Assign Resources" to open the Assignment Grid
+9. Assign employees to each requested role (use "Assign All" for efficiency)
+10. Click "Confirm All & Send to Controller"
+11. `preview_network` — verify confirmation API succeeds
+12. Switch to Anna Meier (Controller)
+13. Navigate to Portfolio Overview → Intake Queue tab
+14. Find the new submission — click to review
+15. Make one inline edit in the editable forecast grid (adjust hours in a month cell)
+16. Click "Approve"
+17. `preview_network` — verify approval API succeeds
+18. Navigate to Workbench, select the newly approved project
+19. Verify status is "Active" and Forecast & Planning tab shows baseline data
+20. Switch to Priya Sharma — verify the project appears in her Workbench project list
+
+**Verify:**
+- [ ] Draft created with resource plan
+- [ ] Project appears in CC Owner's confirmation banner
+- [ ] Assignment Grid allows assigning employees to all months
+- [ ] "Confirm All & Send to Controller" completes the CC step
+- [ ] Project appears in Controller's Intake Queue
+- [ ] Controller can make inline edits before approving
+- [ ] Approval changes status to Active
+- [ ] Baseline row(s) created and visible in Forecast & Planning
+- [ ] PL sees the project in their scoped Workbench list
+
+---
+
+### WFL-02: CR Lifecycle with CC Owner Resource Confirmation
+**Goal:** Verify the full CR workflow including the CC Owner delta-based resource confirmation step that XM-10 does not cover.
+**Persona chain:** Priya Sharma → Anna Meier → Thomas Brenner → (verify forecast)
+**Unit test backdrop:** `test_forecast_cycle.py`, `test_allocation_service.py`, `test_router_capacity.py`
+
+1. As Priya Sharma, navigate to Workbench, select an active project with roles from Thomas Brenner's cost center
+2. Go to Forecast & Planning, click "Rolling Forecast Review"
+3. Complete the forecast wizard — in Phase 3, increase hours for an internal resource role in future months
+4. In Phase 5, submit the changes (creates a CR)
+5. `preview_network` — verify CR creation succeeds
+6. Switch to Anna Meier (Controller)
+7. Navigate to Portfolio Overview → CR Approvals tab
+8. Find the new CR — click to open detail
+9. Click "Approve" — since it has internal resource changes, it should route to CC Owner
+10. `preview_network` — verify the CR status changes to `pending_cc_confirmation` (or similar)
+11. Switch to Thomas Brenner (CC Owner)
+12. Navigate to Capacity Management → Resource Requests
+13. Find the delta-based resource request — verify display shows:
+    - Change direction badge (Increase/Decrease)
+    - Delta hours (e.g., +15h)
+    - Original allocation before the change
+    - Resulting total after the change
+    - Currently allocated person
+14. Confirm the resource request
+15. `preview_network` — verify confirmation succeeds
+16. Navigate to Workbench (as any role with access), select the project
+17. Verify forecast data reflects the approved CR changes
+
+**Verify:**
+- [ ] CR created through forecast wizard
+- [ ] Controller approval routes to CC Owner for resource changes
+- [ ] Delta-based request display shows direction, delta, original, resulting total
+- [ ] CC Owner confirmation completes the CR
+- [ ] Forecast data updated after full approval chain
+- [ ] No console or network errors through the entire flow
+
+---
+
+### WFL-03: CR Send-Back with Diff View and Resolution
+**Goal:** Verify the complete CR send-back flow: Controller sends back with edits, PL sees amber highlighting and color-coded diff view, PL accepts or declines changes.
+**Persona chain:** Anna Meier → Priya Sharma → Anna Meier (verify)
+**Unit test backdrop:** `test_forecast_cycle.py`
+
+1. As Anna Meier, navigate to Portfolio Overview → CR Approvals
+2. Select a pending CR
+3. Click "Request Changes" — verify an editable forecast grid opens
+4. Modify 2-3 cells (adjust hours or amounts)
+5. Enter feedback text explaining the changes
+6. Click "Send Back"
+7. `preview_network` — verify send-back API succeeds
+8. Switch to Priya Sharma (Project Lead)
+9. Navigate to Workbench, select the affected project
+10. Go to Change History tab
+11. `preview_snapshot` — verify the sent-back CR shows:
+    - Amber border and background
+    - Warning icon
+    - "Action Required" badge
+12. Click to expand the sent-back CR
+13. `preview_snapshot` — verify the diff view shows:
+    - Controller Feedback banner (amber) with the controller's comments
+    - KPI Strip (Affected Lines Current, Affected Lines Proposed, Total Impact)
+    - Color-coded comparison grid: green cells for reductions, red for increases, blue for other changes
+    - Each changed cell shows original value (strikethrough) above proposed value
+    - Legend explaining color coding
+14. Click "Accept Changes"
+15. `preview_network` — verify acceptance API succeeds (CR advances to CC Owner if resource changes, or to approved)
+16. Switch to Anna Meier, verify the CR outcome in CR Approvals or Change History
+
+**Verify:**
+- [ ] Controller can open editable grid, modify cells, and send back with feedback
+- [ ] PL sees amber border, warning icon, "Action Required" badge on sent-back CR
+- [ ] Diff view shows controller feedback banner
+- [ ] KPI strip shows affected lines and impact totals
+- [ ] Color-coded grid: green = reduction, red = increase, blue = other
+- [ ] Changed cells show strikethrough original above proposed value
+- [ ] Legend present and accurate
+- [ ] "Accept Changes" advances the CR correctly
+- [ ] "Decline and Resubmit" button also visible (do not click — just verify presence)
+
+---
+
+### WFL-04: Resource Request Confirmation → Heatmap Propagation
+**Goal:** Verify that confirming a resource request creates allocation records visible in the capacity heatmap, and declining does not affect allocations.
+**Persona chain:** Thomas Brenner (CC Owner)
+**Unit test backdrop:** `test_allocation_service.py`, `test_router_capacity.py`
+
+1. As Thomas Brenner, navigate to Capacity Management → My Team tab
+2. `preview_snapshot` — note current heatmap utilization values for 2-3 specific people in upcoming months
+3. Navigate to Resource Requests
+4. Select a pending resource request — note the requested role, person candidates, and month range
+5. Open the Assignment Grid
+6. Assign a specific person to all months
+7. Save/Confirm the assignment
+8. `preview_network` — verify confirmation API succeeds
+9. Navigate back to Capacity → My Team tab
+10. `preview_snapshot` — verify the assigned person's utilization values increased for the relevant months
+11. Compare with the snapshot from step 2 — values should be higher
+12. Navigate back to Resource Requests
+13. Select a different pending request
+14. Click "Decline" with a reason
+15. `preview_network` — verify decline API succeeds
+16. Verify request status changes to declined
+17. Navigate to My Team tab — verify heatmap values are NOT affected by the declined request
+
+**Verify:**
+- [ ] Confirming a request creates visible allocation changes in heatmap
+- [ ] Assigned person's utilization percentage increases for relevant months
+- [ ] Declining a request changes its status but does NOT affect heatmap values
+- [ ] Color coding updates if utilization crosses a threshold (e.g., green → amber)
+
+---
+
+### WFL-05: Scenario Comparison and Publish → Executive View
+**Goal:** Verify the complete scenario lifecycle: create two scenarios with different actions, compare them side-by-side, publish one, and verify an Executive can view it read-only.
+**Persona chain:** Anna Meier → Thomas Becker
+**Unit test backdrop:** `test_scenario_engine.py`, `test_router_scenarios.py`
+
+1. As Anna Meier (Controller), navigate to the What-If Simulator
+2. Click "Create New Scenario" — name it "Budget Cut Scenario"
+3. Add 2-3 project-level actions (e.g., Delay a project by 3 months, Reduce budget on another by 15%)
+4. `preview_snapshot` — verify the KPI comparison strip updates after each action (budget delta, affected projects)
+5. Return to Scenario Manager
+6. Create a second scenario: "Growth Scenario"
+7. Add 2-3 different actions (e.g., Accelerate a project, Increase budget on another)
+8. `preview_snapshot` — verify KPI strip reflects the growth-oriented changes
+9. Return to Scenario Manager
+10. Click "Compare Scenarios" — select both "Budget Cut" and "Growth" scenarios
+11. `preview_snapshot` — verify side-by-side comparison with:
+    - Budget deltas for each scenario
+    - Number of affected projects
+    - RAG status changes (if any)
+12. Return to Scenario Manager
+13. Click "Publish" on "Budget Cut Scenario"
+14. `preview_snapshot` — verify it moves to the "Published Scenarios" section
+15. Switch to Thomas Becker (Executive)
+16. Navigate to the What-If Simulator
+17. `preview_snapshot` — verify "Budget Cut Scenario" appears in Published Scenarios
+18. Click to open it
+19. Verify read-only mode: no "Add Action" button, no edit/delete controls on existing actions
+20. Verify KPI impact data is visible
+
+**Verify:**
+- [ ] Two scenarios created with distinct action sets
+- [ ] KPI strip updates after each action
+- [ ] Comparison view shows both scenarios side-by-side with budget deltas
+- [ ] Publishing moves scenario to Published section
+- [ ] Executive can see published scenario in Simulator
+- [ ] Executive view is strictly read-only (no create/edit/delete controls)
+- [ ] KPI impact data visible to Executive
+
+---
+
+### WFL-06: Report Builder Cross-User Lifecycle
+**Goal:** Verify the full Report Builder lifecycle across users: build a report, save it, share with another user, that user loads it, and exports to CSV.
+**Persona chain:** Anna Meier → Priya Sharma
+**Unit test backdrop:** `test_report_builder_saved.py`, `test_csv_export.py`
+
+1. As Anna Meier (Controller), navigate to Reporting → Report Builder
+2. From the Data Catalog, add 2 dimensions to Rows (e.g., LoB, Project Name)
+3. Add 1 measure to Values (e.g., Forecast Total)
+4. Click "Run Report" — verify results table renders with data
+5. Click "Save" — enter name "Cross-LoB Forecast Summary", add a description
+6. `preview_network` — verify save API succeeds
+7. Click "Share" — select Priya Sharma as recipient with "View only" permission
+8. `preview_network` — verify share API succeeds
+9. Toggle "Publish to Report Library"
+10. Navigate to Report Library — verify "Cross-LoB Forecast Summary" appears in the Shared Reports section
+11. Switch to Priya Sharma (Project Lead)
+12. Navigate to Reporting → Report Builder
+13. Click "Load" (folder icon) — verify "Cross-LoB Forecast Summary" appears in the list
+14. Select it — verify all drop zones and results restore correctly
+15. Click "Export" — verify CSV download triggers
+16. `preview_network` — verify export API call succeeds (200, correct content-type header)
+
+**Verify:**
+- [ ] Report configured with dimensions and measures, results render
+- [ ] Save persists the report (API success)
+- [ ] Share with another user succeeds
+- [ ] Published report visible in Report Library Shared Reports
+- [ ] Recipient can load the shared report
+- [ ] Loaded report restores full configuration (zones, results, view mode)
+- [ ] CSV export succeeds with correct content-type
+
+---
+
+### WFL-07: Forecast Locking Round-Trip
+**Goal:** Verify that the forecast wizard locks while a CR is pending and unlocks after the CR is resolved.
+**Persona chain:** Priya Sharma → Anna Meier → Priya Sharma
+**Unit test backdrop:** `test_forecast_cycle.py`
+
+1. As Priya Sharma, navigate to Workbench, select an active project
+2. Verify the "Rolling Forecast Review" button is enabled
+3. Click it and complete the forecast wizard through all phases — submit CR in Phase 5
+4. `preview_network` — verify CR submission succeeds
+5. Return to the same project's Forecast & Planning tab
+6. `preview_snapshot` — verify the "Rolling Forecast Review" button is now disabled
+7. Verify a status indicator shows the pending CR number and its current approval stage
+8. Switch to Anna Meier (Controller)
+9. Navigate to Portfolio Overview → CR Approvals
+10. Find and approve the pending CR (complete CC Owner step if needed)
+11. `preview_network` — verify approval succeeds
+12. Switch to Priya Sharma
+13. Navigate to Workbench, select the same project
+14. `preview_snapshot` — verify the "Rolling Forecast Review" button is re-enabled
+
+**Verify:**
+- [ ] Wizard button enabled before CR submission
+- [ ] Wizard button disabled after CR submission
+- [ ] Status indicator shows CR number and approval stage
+- [ ] Wizard button re-enabled after CR is approved
+- [ ] No way to start a second forecast review while CR is pending
+
+---
+
 # KNOWN ISSUES REGISTER
 
 These issues were identified in previous testing rounds. If encountered during testing, reference the known issue ID rather than creating a new entry. Update this register after each fix session: remove fixed issues, add newly discovered ones.
@@ -3773,7 +4039,8 @@ Create `qa/bug-report.md` at session start with this template:
 | 12 | Report Builder | 18 | | | | |
 | 13 | AI Report Builder | 8 | | | | |
 | 14 | CC Owner Assignment Grid | 8 | | | | |
-| **Total** | | **191** | | | | |
+| 15 | E2E Workflow Lifecycles | 7 | | | | |
+| **Total** | | **198** | | | | |
 
 ### Issue Counts
 - **Functional Bugs (BUG):** 0
