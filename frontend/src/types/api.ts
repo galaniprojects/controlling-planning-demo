@@ -664,6 +664,11 @@ export interface ProjectAssignmentDetail {
   cost_center_id: string | null;
   requests: ProjectAssignmentRequestItem[];
   all_resource_requests_assigned: boolean;
+  change_request?: {
+    id: number;
+    summary: string;
+    status: string;
+  } | null;
 }
 
 export interface OrgSummary {

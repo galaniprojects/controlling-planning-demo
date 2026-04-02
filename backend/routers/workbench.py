@@ -42,9 +42,10 @@ def get_project_list(
     user: CurrentUser = Depends(get_current_user),
 ):
     """Get project list (role-filtered)."""
+    from dependencies import pl_project_filter
     query = db.query(Project).filter(Project.is_active.is_(True))
-    if user.role == "project_lead" and user.project_ids:
-        query = query.filter(Project.id.in_(user.project_ids))
+    if user.role == "project_lead":
+        query = query.filter(pl_project_filter(user))
     projects = query.order_by(Project.name).all()
     items = [
         ProjectListItem(

@@ -1,9 +1,40 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: Report Builder
-Last completed: Report Builder Session 4 — Save, Share, Export & Polish
-Branch: `feature/report-builder-session4`
+Phase: Bug Fixes
+Last completed: Fix project/CR visibility bugs
+Branch: `fix/project-cr-visibility-bugs`
+
+## Bug Fix: Project & CR Visibility (2026-04-02)
+
+### Bug 1: Newly Created Projects Invisible After Approval
+**Root cause:** Project Lead's workbench and launchpad filtered by `DemoPersona.owned_project_ids_json` — a static seed-time list never updated when new projects are created. The creation endpoint correctly sets `Project.pl_person_id`, but no query used that field.
+
+**Fix:** Added `pl_project_filter(user)` helper in `dependencies.py` that matches by `pl_person_id == user.person_id` OR `id IN user.project_ids`. Applied across 7 locations in 5 files:
+- `backend/dependencies.py` — new helper
+- `backend/routers/workbench.py` — project list filter
+- `backend/routers/global_launchpad.py` — 5 locations (subtitle, forecast due/overdue, changes requested, CC pending, intake queue)
+- `backend/services/report_service.py` — report project scoping
+- `backend/services/ai_report_service.py` — AI report scoping (added `db` param for dynamic query)
+
+### Bug 2: Change Requests Not Visible in CC Owner's Capacity Module
+**Root cause:** Notification deep-linked to `/capacity/requests?cr={id}`, but: (1) `RequestManagement` ignored the `?cr=` param, (2) `ProjectConfirmationBanner` only queried `Project.status == "pending_cc_confirmation"` — never the `ChangeRequest` table, (3) `GET /project-assignment/{id}` didn't support CR-scoped resource request filtering.
+
+**Fix:** Extended capacity module end-to-end:
+- `backend/routers/capacity.py` — `GET /project-confirmation/pending` now returns both projects and CRs with `type` field; `GET /project-assignment/{id}` accepts `?cr=` param to filter resource requests by CR and returns CR metadata
+- `frontend/src/api/endpoints.ts` — updated types and API calls
+- `frontend/src/types/api.ts` — added `change_request` field to `ProjectAssignmentDetail`
+- `frontend/src/modules/capacity/requests/ProjectConfirmationBanner.tsx` — handles project + CR items, shows CR badge/summary, navigates with CR context
+- `frontend/src/modules/capacity/requests/RequestManagement.tsx` — reads `?cr=` param, passes to banner
+- `frontend/src/modules/capacity/requests/ProjectAssignmentPage.tsx` — reads `?cr=` param, passes to API, shows CR context banner
+
+### API Changes
+| Method | Path | Change |
+|--------|------|--------|
+| GET | `/api/capacity/project-confirmation/pending` | Now returns CRs alongside projects; added `type`, `cr_id`, `cr_summary` fields |
+| GET | `/api/capacity/project-assignment/{id}` | Added optional `?cr=` query param; added `change_request` in response |
+
+---
 
 ## Report Builder Session 4: Save, Share, Export & Polish (2026-03-30)
 

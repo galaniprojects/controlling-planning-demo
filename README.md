@@ -206,7 +206,8 @@ The CC Owner assigns specific employees to resource requests before confirming t
 | `GET` | `/api/capacity/requests/{cc_id}/{req_id}/monthly-hours` | Per-month forecast hours for a resource request |
 | `GET` | `/api/capacity/requests/{cc_id}/{req_id}/assignments` | Current per-month person assignments |
 | `PUT` | `/api/capacity/requests/{cc_id}/{req_id}/assignments` | Save per-month person assignments |
-| `GET` | `/api/capacity/project-assignment/{project_id}` | Project details with all requests and assignment status |
+| `GET` | `/api/capacity/project-assignment/{project_id}` | Project details with all requests and assignment status (optional `?cr=` to scope to a CR) |
+| `GET` | `/api/capacity/project-confirmation/pending` | Projects and change requests awaiting CC resource confirmation |
 
 ---
 
