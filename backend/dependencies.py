@@ -35,6 +35,22 @@ def get_current_user(
     )
 
 
+def pl_project_filter(user: CurrentUser):
+    """Return a SQLAlchemy filter for projects visible to a project-lead user.
+
+    Matches projects where the user is the assigned PL (``pl_person_id``) **or**
+    the project ID is in the user's static seed-data list.  This ensures both
+    dynamically-created projects and pre-seeded projects are included.
+    """
+    from sqlalchemy import or_
+    from models.projects import Project
+
+    conditions = [Project.pl_person_id == user.person_id]
+    if user.project_ids:
+        conditions.append(Project.id.in_(user.project_ids))
+    return or_(*conditions)
+
+
 def require_role(*allowed_roles: str):
     """Return a FastAPI dependency that checks the current user has one of the allowed roles.
 

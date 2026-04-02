@@ -670,18 +670,19 @@ def get_pending_project_confirmations(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("cost_center_owner", "controller")),
 ):
-    """List projects awaiting CC resource confirmation."""
+    """List projects and change requests awaiting CC resource confirmation."""
+    items = []
+    top_type = get_top_level_entity_type_id(db)
+
+    # --- Projects awaiting CC confirmation ---
     projects = (
         db.query(Project)
         .filter(Project.status == "pending_cc_confirmation")
         .all()
     )
-    items = []
-    top_type = get_top_level_entity_type_id(db)
     for p in projects:
         entity_info = get_project_entity_info(db, p.id, top_type)
         pl = db.query(Person).filter(Person.id == p.pl_person_id).first() if p.pl_person_id else None
-        # Count resource requests for this project
         req_count = (
             db.query(func.count(ResourceRequest.id))
             .filter(ResourceRequest.project_id == p.id, ResourceRequest.status == "pending")
@@ -689,6 +690,7 @@ def get_pending_project_confirmations(
         )
         items.append({
             "id": p.id,
+            "type": "project",
             "name": p.name,
             "lob_name": entity_info["name"] if entity_info else "Unknown",
             "pl_name": pl.name if pl else None,
@@ -697,16 +699,56 @@ def get_pending_project_confirmations(
             "resource_request_count": req_count,
             "submitted_at": p.modified_at.isoformat() if p.modified_at else None,
         })
+
+    # --- Change Requests awaiting CC confirmation ---
+    pending_crs = (
+        db.query(ChangeRequest)
+        .filter(ChangeRequest.status == "pending_cc_confirmation")
+        .all()
+    )
+    for cr in pending_crs:
+        project = db.query(Project).filter(Project.id == cr.project_id).first()
+        if not project:
+            continue
+        entity_info = get_project_entity_info(db, project.id, top_type)
+        pl = db.query(Person).filter(Person.id == project.pl_person_id).first() if project.pl_person_id else None
+        req_count = (
+            db.query(func.count(ResourceRequest.id))
+            .filter(
+                ResourceRequest.change_request_id == cr.id,
+                ResourceRequest.status == "pending",
+            )
+            .scalar()
+        )
+        items.append({
+            "id": project.id,
+            "type": "change_request",
+            "cr_id": cr.id,
+            "name": project.name,
+            "cr_summary": cr.summary or f"CR #{cr.id}",
+            "lob_name": entity_info["name"] if entity_info else "Unknown",
+            "pl_name": pl.name if pl else None,
+            "start_month": project.start_month,
+            "end_month": project.end_month,
+            "resource_request_count": req_count,
+            "submitted_at": cr.submission_timestamp.isoformat() if cr.submission_timestamp else None,
+        })
+
     return {"items": items, "total": len(items)}
 
 
 @router.get("/project-assignment/{project_id}")
 def get_project_assignment_detail(
     project_id: str,
+    cr: int | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("cost_center_owner", "controller")),
 ):
-    """Get project detail with all resource requests and their assignments for the assignment page."""
+    """Get project detail with all resource requests and their assignments for the assignment page.
+
+    When *cr* query param is provided, only resource requests linked to that
+    change request are returned.
+    """
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
@@ -714,13 +756,11 @@ def get_project_assignment_detail(
     entity_info = get_project_entity_info(db, project.id, get_top_level_entity_type_id(db))
     pl = db.query(Person).filter(Person.id == project.pl_person_id).first() if project.pl_person_id else None
 
-    # Get all resource requests for this project
-    requests = (
-        db.query(ResourceRequest)
-        .filter(ResourceRequest.project_id == project_id)
-        .order_by(ResourceRequest.request_type, ResourceRequest.created_at)
-        .all()
-    )
+    # Get resource requests — optionally scoped to a specific CR
+    rr_query = db.query(ResourceRequest).filter(ResourceRequest.project_id == project_id)
+    if cr is not None:
+        rr_query = rr_query.filter(ResourceRequest.change_request_id == cr)
+    requests = rr_query.order_by(ResourceRequest.request_type, ResourceRequest.created_at).all()
 
     request_items = []
     for r in requests:
@@ -745,6 +785,17 @@ def get_project_assignment_detail(
     # Determine cost center ID from the requests
     cc_id = requests[0].cost_center_id if requests else None
 
+    # Include CR metadata when scoped to a change request
+    cr_info = None
+    if cr is not None:
+        cr_obj = db.query(ChangeRequest).filter(ChangeRequest.id == cr).first()
+        if cr_obj:
+            cr_info = {
+                "id": cr_obj.id,
+                "summary": cr_obj.summary,
+                "status": cr_obj.status,
+            }
+
     return {
         "project": {
             "id": project.id,
@@ -759,6 +810,7 @@ def get_project_assignment_detail(
         "cost_center_id": cc_id,
         "requests": request_items,
         "all_resource_requests_assigned": all_fully_assigned,
+        "change_request": cr_info,
     }
 
 

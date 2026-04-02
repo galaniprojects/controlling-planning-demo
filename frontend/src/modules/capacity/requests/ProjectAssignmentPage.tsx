@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,10 +14,13 @@ import type {
   RoleHeatmapRow,
   PersonHeatmapRow,
 } from '@/types/api';
+import { FileText } from 'lucide-react';
 
 export function ProjectAssignmentPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const crId = searchParams.get('cr') ? Number(searchParams.get('cr')) : undefined;
 
   const [detail, setDetail] = useState<ProjectAssignmentDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,11 +43,11 @@ export function ProjectAssignmentPage() {
     if (!projectId) return;
     setLoading(true);
     capacityApi
-      .getProjectAssignmentDetail(projectId)
+      .getProjectAssignmentDetail(projectId, crId)
       .then(setDetail)
       .catch(() => setDetail(null))
       .finally(() => setLoading(false));
-  }, [projectId]);
+  }, [projectId, crId]);
 
   useEffect(() => {
     fetchDetail();
@@ -242,6 +245,21 @@ export function ProjectAssignmentPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* CR context banner */}
+      {detail.change_request && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm dark:border-blue-800 dark:bg-blue-950/30">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <span className="font-medium text-foreground">
+              Change Request #{detail.change_request.id}
+            </span>
+          </div>
+          <p className="text-muted-foreground mt-1">
+            {detail.change_request.summary}
+          </p>
+        </div>
+      )}
 
       {/* Re-confirmation banner (shown when project was resubmitted with changes) */}
       {resourceRequests.some((r) => r.change_direction) && (

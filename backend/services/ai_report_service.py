@@ -107,12 +107,27 @@ def execute_sql(sql: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def build_scoping_context(user: CurrentUser) -> str:
-    """Build a scoping instruction for the system prompt based on user role."""
+def build_scoping_context(user: CurrentUser, db: Session | None = None) -> str:
+    """Build a scoping instruction for the system prompt based on user role.
+
+    When *db* is provided the function queries for the actual set of visible
+    project IDs (including dynamically created projects).  Without *db* it
+    falls back to the static ``user.project_ids`` list.
+    """
     if user.role in ("controller", "executive"):
         return "This user has full access to all projects and data."
     if user.role == "project_lead":
-        ids = ", ".join(f"'{pid}'" for pid in user.project_ids)
+        if db is not None:
+            from dependencies import pl_project_filter
+            from models.projects import Project
+            visible_ids = [
+                r[0] for r in db.query(Project.id).filter(
+                    Project.is_active.is_(True), pl_project_filter(user)
+                ).all()
+            ]
+        else:
+            visible_ids = list(user.project_ids)
+        ids = ", ".join(f"'{pid}'" for pid in visible_ids)
         return (
             f"IMPORTANT: This user is a Project Lead and can only see their own projects. "
             f"You MUST filter all queries to include only these project IDs: {ids}. "
@@ -389,7 +404,7 @@ def process_conversation(
 
     system = SYSTEM_PROMPT.format(
         demo_date=DEMO_DATE,
-        scoping_context=build_scoping_context(conv.user),
+        scoping_context=build_scoping_context(conv.user, db),
     )
 
     messages = list(conv.messages)

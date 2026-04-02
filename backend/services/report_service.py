@@ -81,7 +81,8 @@ def _get_scoped_project_ids(
 
     # Role scoping
     if user.role == "project_lead":
-        q = q.filter(Project.id.in_(user.project_ids))
+        from dependencies import pl_project_filter
+        q = q.filter(pl_project_filter(user))
     elif user.role == "cost_center_owner" and user.cost_center_id:
         # Projects that have allocations from this user's cost center
         cc_person_ids = [

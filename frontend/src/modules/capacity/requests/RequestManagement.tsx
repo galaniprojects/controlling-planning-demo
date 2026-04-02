@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { ProjectConfirmationBanner } from './ProjectConfirmationBanner';
 
@@ -8,6 +8,8 @@ interface RequestManagementProps {
 
 export function RequestManagement({ ccId }: RequestManagementProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const highlightCrId = searchParams.get('cr') ? Number(searchParams.get('cr')) : undefined;
 
   if (!ccId) {
     return (
@@ -28,7 +30,10 @@ export function RequestManagement({ ccId }: RequestManagementProps) {
         Back to Capacity Management
       </button>
 
-      <ProjectConfirmationBanner onConfirmComplete={() => {}} />
+      <ProjectConfirmationBanner
+        onConfirmComplete={() => {}}
+        highlightCrId={highlightCrId}
+      />
     </div>
   );
 }

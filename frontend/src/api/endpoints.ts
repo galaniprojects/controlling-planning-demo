@@ -471,17 +471,19 @@ export const capacityApi = {
     ),
 
   // Project Assignment Detail
-  getProjectAssignmentDetail: (projectId: string) =>
+  getProjectAssignmentDetail: (projectId: string, crId?: number) =>
     api.get<ProjectAssignmentDetail>(
-      `/api/capacity/project-assignment/${projectId}`,
+      `/api/capacity/project-assignment/${projectId}${crId != null ? `?cr=${crId}` : ''}`,
     ),
 
-  // Project-Level Confirmation
+  // Project-Level Confirmation (includes both projects and change requests)
   getPendingProjectConfirmations: () =>
     api.get<ListResponse<{
-      id: string; name: string; lob_name: string; pl_name: string | null;
+      id: string; type: 'project' | 'change_request'; name: string;
+      lob_name: string; pl_name: string | null;
       start_month: string; end_month: string | null;
       resource_request_count: number; submitted_at: string | null;
+      cr_id?: number; cr_summary?: string;
     }>>('/api/capacity/project-confirmation/pending'),
   confirmProject: (projectId: string) =>
     api.put<{ id: string; name: string; status: string }>(

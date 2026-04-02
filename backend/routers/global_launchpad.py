@@ -199,8 +199,12 @@ def _compute_module_metric(db: Session, module_id: str, user: CurrentUser) -> st
         return f"{count} active projects"
 
     elif module_id == "workbench":
-        if user.role == "project_lead" and user.project_ids:
-            return f"Your {len(user.project_ids)} projects"
+        if user.role == "project_lead":
+            from dependencies import pl_project_filter
+            count = db.query(func.count(Project.id)).filter(
+                Project.is_active.is_(True), pl_project_filter(user)
+            ).scalar()
+            return f"Your {count} projects"
         count = db.query(func.count(Project.id)).filter(Project.is_active.is_(True), Project.is_service.is_(False)).scalar()
         return f"{count} projects"
 
@@ -239,11 +243,12 @@ def get_pending_actions(
     prev_month = add_months(DEMO_DATE, -1)
 
     if user.role == "project_lead":
+        from dependencies import pl_project_filter
         # Action #1: Forecast Due — active owned projects where current month not yet submitted
         owned_projects = (
             db.query(Project)
             .filter(
-                Project.id.in_(user.project_ids),
+                pl_project_filter(user),
                 Project.status == "active",
                 Project.is_service.is_(False),
             )
@@ -330,7 +335,7 @@ def get_pending_actions(
         changes_requested_projects = (
             db.query(Project)
             .filter(
-                Project.id.in_(user.project_ids),
+                pl_project_filter(user),
                 Project.status == "changes_requested",
             )
             .all()
@@ -352,7 +357,7 @@ def get_pending_actions(
         cc_pending_projects = (
             db.query(Project)
             .filter(
-                Project.id.in_(user.project_ids),
+                pl_project_filter(user),
                 Project.status == "pending_cc_confirmation",
             )
             .all()
@@ -373,7 +378,7 @@ def get_pending_actions(
         intake_projects = (
             db.query(Project)
             .filter(
-                Project.id.in_(user.project_ids),
+                pl_project_filter(user),
                 Project.status == "pending_approval",
             )
             .all()
