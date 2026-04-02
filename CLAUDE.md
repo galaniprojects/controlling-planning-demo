@@ -183,6 +183,42 @@ Keep this section updated whenever models or schema change.
 - Do not squash — preserve build history
 - Update `PROGRESS.md` as the final commit of each session
 
+## Agent Infrastructure
+This project uses two tiers of agent parallelization. All agent role definitions live in `.claude/agents/`.
+
+### Sub-agents (lightweight, hub-and-spoke)
+- Spawned within a session, report results back to the lead only
+- No inter-agent communication
+- Best for: parallel searches, independent bug fixes, background test runs, focused single-file tasks
+- **Use automatically** for low-risk parallel work (searches, tests, independent fixes)
+- **Suggest first** for judgment calls (feature splits, pre-PR reviews, large refactors)
+
+### Agent Teams (heavyweight, full coordination)
+- Multiple Claude Code instances with shared task list and peer-to-peer messaging
+- Teammates can discuss, challenge findings, and coordinate directly
+- Best for: multi-layer features (backend + frontend + tests), competing-hypothesis debugging, parallel code reviews
+- Display: split panes in iTerm2 (Shift+Down to cycle in-process mode)
+- Aim for 3-5 teammates, 5-6 tasks per teammate, different file ownership per teammate
+
+### When to use which
+| Sub-agents | Agent Teams |
+|---|---|
+| Workers don't need to talk to each other | Workers need to discuss/coordinate |
+| Quick, focused tasks (<5 min) | Complex multi-step work |
+| Same-file or small scope | Cross-layer (backend + frontend + tests) |
+| Lower token cost | Thoroughness matters more than cost |
+
+### Installed Agent Roles (`.claude/agents/`)
+**Opus model** (complex reasoning): `fastapi-developer`, `react-specialist`, `typescript-pro`, `debugger`, `refactoring-specialist`, `code-reviewer`
+**Sonnet model** (structured tasks): `qa-expert`, `sql-pro`, `api-documenter`, `accessibility-tester`, `performance-engineer`, `documentation-engineer`, `ui-designer`
+
+### Agent Team Usage
+- Reference agent roles by name when spawning teammates: "Spawn a teammate using the **fastapi-developer** agent type"
+- Teammates load CLAUDE.md automatically — they follow all project rules
+- Teammates do NOT inherit conversation history — include task-specific context in spawn prompts
+- Each teammate should own different files to avoid conflicts
+- Always clean up teams via the lead when done
+
 ## Critical File Paths
 
 ### Project Documentation
@@ -190,6 +226,9 @@ Keep this section updated whenever models or schema change.
 - `PROGRESS.md` — build progress tracker (update every session)
 - `README.md` — feature overview, API docs, setup instructions
 - `SETUP.md` — detailed setup guide
+
+### Agent Definitions
+- `.claude/agents/` — 13 sub-agent/teammate role definitions (fastapi-developer, react-specialist, etc.)
 
 ### Specs & Guides
 - `guides/` — active spec documents and session guides for current/upcoming work
