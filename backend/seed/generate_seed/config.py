@@ -58,14 +58,14 @@ LOC_HOURS_PER_MONTH = {k: round(v / 12) for k, v in LOC_HOURS_PER_YEAR.items()}
 FTE_HOURS = 160
 
 # ---------------------------------------------------------------------------
-# Lines of Business
+# Business Units (portfolio hierarchy level 1)
 # ---------------------------------------------------------------------------
 
 LOBS = [
-    {"id": "lob-tbs", "name": "Truck & Bus Systems (TBS)", "description": "Largest LoB by budget. Maps to KB CVS division."},
-    {"id": "lob-rvs", "name": "Rail Vehicle Systems (RVS)", "description": "Second division. Fewer but bigger projects."},
-    {"id": "lob-cit", "name": "Corporate IT",              "description": "Shared/cross-divisional IT. Infrastructure, platforms, security."},
-    {"id": "lob-dnd", "name": "Digital & Data",             "description": "Emerging LoB. Analytics, AI, IoT initiatives."},
+    {"id": "lob-tbs", "name": "Manufacturing Systems",       "description": "Largest business unit by budget. Factory and production line IT."},
+    {"id": "lob-rvs", "name": "Supply Chain & Logistics",    "description": "Second business unit. Fewer but bigger projects."},
+    {"id": "lob-cit", "name": "Enterprise Services",         "description": "Shared/cross-divisional IT. Infrastructure, platforms, security."},
+    {"id": "lob-dnd", "name": "Digital & Innovation",        "description": "Emerging business unit. Analytics, AI, IoT initiatives."},
 ]
 
 # ---------------------------------------------------------------------------
@@ -170,10 +170,10 @@ EXTERNAL_COST_TYPES = [
 # ---------------------------------------------------------------------------
 
 PROGRAMMES = [
-    {"id": "prog-dbp",  "name": "Digital Braking Platform",      "lob_id": "lob-tbs"},
-    {"id": "prog-rail", "name": "Rail Modernization",            "lob_id": "lob-rvs"},
-    {"id": "prog-infra","name": "Infrastructure Optimization",   "lob_id": "lob-cit"},
-    {"id": "prog-fleet","name": "Fleet Intelligence",            "lob_id": "lob-dnd"},
+    {"id": "prog-dbp",  "name": "Smart Factory Platform",        "lob_id": "lob-tbs"},
+    {"id": "prog-rail", "name": "Logistics Optimization",        "lob_id": "lob-rvs"},
+    {"id": "prog-infra","name": "Infrastructure Modernization",  "lob_id": "lob-cit"},
+    {"id": "prog-fleet","name": "Data Intelligence",             "lob_id": "lob-dnd"},
 ]
 
 # ---------------------------------------------------------------------------
@@ -181,45 +181,45 @@ PROGRAMMES = [
 # ---------------------------------------------------------------------------
 
 PROJECTS = [
-    # --- TBS (9) ---
-    {"id": "proj-erp2",      "name": "ERP Integration Phase 2",       "lob": "lob-tbs", "prog": "prog-dbp",  "type": "project", "status": "active",           "rag": "red",   "capex_opex": "capex", "start": "2024-07", "end": "2026-09", "budget": 1200000, "narrative": "troubled",           "pl": "p-sharma"},
-    {"id": "proj-sap",       "name": "SAP S/4HANA Migration",         "lob": "lob-tbs", "prog": None,        "type": "project", "status": "active",           "rag": "green", "capex_opex": "capex", "start": "2022-01", "end": "2026-06", "budget": 4500000, "narrative": "well_managed",       "pl": None},
-    {"id": "proj-brake",     "name": "Brake Control Unit Refresh",    "lob": "lob-tbs", "prog": "prog-dbp",  "type": "project", "status": "active",           "rag": "green", "capex_opex": "capex", "start": "2025-03", "end": "2026-03", "budget": 250000,  "narrative": "nearing_completion", "pl": None},
-    {"id": "proj-autobrake", "name": "Autonomous Braking Prototype",  "lob": "lob-tbs", "prog": None,        "type": "project", "status": "pending_cc_confirmation", "rag": None, "capex_opex": "capex", "start": "2026-06", "end": "2027-12", "budget": 900000, "narrative": "intake",            "pl": "p-sharma"},
-    {"id": "proj-legacy",    "name": "Legacy System Decommission",    "lob": "lob-tbs", "prog": None,        "type": "project", "status": "completed",        "rag": "green", "capex_opex": "opex",  "start": "2022-06", "end": "2024-03", "budget": 180000,  "narrative": "completed",         "pl": None},
-    {"id": "proj-connveh",   "name": "Connected Vehicle Platform",    "lob": "lob-tbs", "prog": None,        "type": "project", "status": "planned",          "rag": "green", "capex_opex": "capex", "start": "2026-10", "end": "2028-12", "budget": 1800000, "narrative": "future",            "pl": None},
-    {"id": "svc-sap-ops",    "name": "SAP Basis Operations",          "lob": "lob-tbs", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 400000,  "narrative": "steady_service",    "pl": None},
-    {"id": "svc-euc",        "name": "End User Computing Support",    "lob": "lob-tbs", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 200000,  "narrative": "steady_service",    "pl": None},
-    {"id": "svc-tbs-maint",  "name": "TBS Application Maintenance",   "lob": "lob-tbs", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 280000,  "narrative": "steady_service",    "pl": None},
+    # --- Manufacturing Systems (9) ---
+    {"id": "proj-erp2",      "name": "ERP Integration Phase 2",            "lob": "lob-tbs", "prog": "prog-dbp",  "type": "project", "status": "active",           "rag": "red",   "capex_opex": "capex", "start": "2024-07", "end": "2026-09", "budget": 1200000, "narrative": "troubled",           "pl": "p-sharma"},
+    {"id": "proj-sap",       "name": "MES Platform Migration",             "lob": "lob-tbs", "prog": None,        "type": "project", "status": "active",           "rag": "green", "capex_opex": "capex", "start": "2022-01", "end": "2026-06", "budget": 4500000, "narrative": "well_managed",       "pl": None},
+    {"id": "proj-brake",     "name": "Production Line Controller Upgrade", "lob": "lob-tbs", "prog": "prog-dbp",  "type": "project", "status": "active",           "rag": "green", "capex_opex": "capex", "start": "2025-03", "end": "2026-03", "budget": 250000,  "narrative": "nearing_completion", "pl": None},
+    {"id": "proj-autobrake", "name": "Automated Assembly Prototype",       "lob": "lob-tbs", "prog": None,        "type": "project", "status": "pending_cc_confirmation", "rag": None, "capex_opex": "capex", "start": "2026-06", "end": "2027-12", "budget": 900000, "narrative": "intake",            "pl": "p-sharma"},
+    {"id": "proj-legacy",    "name": "Legacy System Decommission",         "lob": "lob-tbs", "prog": None,        "type": "project", "status": "completed",        "rag": "green", "capex_opex": "opex",  "start": "2022-06", "end": "2024-03", "budget": 180000,  "narrative": "completed",         "pl": None},
+    {"id": "proj-connveh",   "name": "Digital Twin Platform",              "lob": "lob-tbs", "prog": None,        "type": "project", "status": "planned",          "rag": "green", "capex_opex": "capex", "start": "2026-10", "end": "2028-12", "budget": 1800000, "narrative": "future",            "pl": None},
+    {"id": "svc-sap-ops",    "name": "MES Operations",                     "lob": "lob-tbs", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 400000,  "narrative": "steady_service",    "pl": None},
+    {"id": "svc-euc",        "name": "End User Computing Support",         "lob": "lob-tbs", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 200000,  "narrative": "steady_service",    "pl": None},
+    {"id": "svc-tbs-maint",  "name": "Factory Application Maintenance",    "lob": "lob-tbs", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 280000,  "narrative": "steady_service",    "pl": None},
 
-    # --- RVS (8) ---
-    {"id": "proj-signal",    "name": "Signaling System Upgrade",      "lob": "lob-rvs", "prog": "prog-rail", "type": "project", "status": "active",           "rag": "green", "capex_opex": "capex", "start": "2023-01", "end": "2026-06", "budget": 1500000, "narrative": "nearing_completion", "pl": None},
-    {"id": "proj-raildiag",  "name": "Rail Diagnostics Platform",     "lob": "lob-rvs", "prog": "prog-rail", "type": "project", "status": "active",           "rag": "green", "capex_opex": "capex", "start": "2024-06", "end": "2027-06", "budget": 700000,  "narrative": "well_managed",       "pl": None},
-    {"id": "proj-predmaint", "name": "Predictive Maintenance PoC",    "lob": "lob-rvs", "prog": None,        "type": "project", "status": "active",           "rag": "amber", "capex_opex": "capex", "start": "2025-06", "end": "2027-03", "budget": 500000,  "narrative": "scope_change",       "pl": "p-sharma"},
-    {"id": "proj-workshop",  "name": "Workshop Management Tool",      "lob": "lob-rvs", "prog": None,        "type": "project", "status": "completed",        "rag": "green", "capex_opex": "capex", "start": "2023-01", "end": "2025-06", "budget": 220000,  "narrative": "completed",         "pl": None},
-    {"id": "proj-railsafety","name": "Rail Safety Compliance System",  "lob": "lob-rvs", "prog": None,        "type": "project", "status": "planned",          "rag": "green", "capex_opex": "capex", "start": "2026-09", "end": "2028-06", "budget": 650000,  "narrative": "future",            "pl": None},
-    {"id": "svc-rail-desk",  "name": "Rail IT Service Desk",          "lob": "lob-rvs", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 250000,  "narrative": "steady_service",    "pl": None},
-    {"id": "svc-rail-maint", "name": "Rail Application Maintenance",  "lob": "lob-rvs", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 300000,  "narrative": "steady_service",    "pl": None},
-    {"id": "svc-signal-sup", "name": "Signaling Systems Support",     "lob": "lob-rvs", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 180000,  "narrative": "steady_service",    "pl": None},
+    # --- Supply Chain & Logistics (8) ---
+    {"id": "proj-signal",    "name": "Warehouse Management Upgrade",       "lob": "lob-rvs", "prog": "prog-rail", "type": "project", "status": "active",           "rag": "green", "capex_opex": "capex", "start": "2023-01", "end": "2026-06", "budget": 1500000, "narrative": "nearing_completion", "pl": None},
+    {"id": "proj-raildiag",  "name": "Supplier Portal v2",                 "lob": "lob-rvs", "prog": "prog-rail", "type": "project", "status": "active",           "rag": "green", "capex_opex": "capex", "start": "2024-06", "end": "2027-06", "budget": 700000,  "narrative": "well_managed",       "pl": None},
+    {"id": "proj-predmaint", "name": "Predictive Inventory System",        "lob": "lob-rvs", "prog": None,        "type": "project", "status": "active",           "rag": "amber", "capex_opex": "capex", "start": "2025-06", "end": "2027-03", "budget": 500000,  "narrative": "scope_change",       "pl": "p-sharma"},
+    {"id": "proj-workshop",  "name": "Returns Processing Tool",            "lob": "lob-rvs", "prog": None,        "type": "project", "status": "completed",        "rag": "green", "capex_opex": "capex", "start": "2023-01", "end": "2025-06", "budget": 220000,  "narrative": "completed",         "pl": None},
+    {"id": "proj-railsafety","name": "Supply Chain Compliance System",     "lob": "lob-rvs", "prog": None,        "type": "project", "status": "planned",          "rag": "green", "capex_opex": "capex", "start": "2026-09", "end": "2028-06", "budget": 650000,  "narrative": "future",            "pl": None},
+    {"id": "svc-rail-desk",  "name": "Logistics IT Service Desk",          "lob": "lob-rvs", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 250000,  "narrative": "steady_service",    "pl": None},
+    {"id": "svc-rail-maint", "name": "Supply Chain App Maintenance",       "lob": "lob-rvs", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 300000,  "narrative": "steady_service",    "pl": None},
+    {"id": "svc-signal-sup", "name": "Warehouse Systems Support",          "lob": "lob-rvs", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 180000,  "narrative": "steady_service",    "pl": None},
 
-    # --- Corporate IT (8) ---
-    {"id": "proj-cloud3",    "name": "Cloud Migration Wave 3",        "lob": "lob-cit", "prog": "prog-infra","type": "project", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2025-01", "end": "2026-06", "budget": 400000,  "narrative": "well_managed",       "pl": None},
+    # --- Enterprise Services (8) ---
+    {"id": "proj-cloud3",    "name": "Cloud Migration Wave 3",             "lob": "lob-cit", "prog": "prog-infra","type": "project", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2025-01", "end": "2026-06", "budget": 400000,  "narrative": "well_managed",       "pl": None},
     {"id": "proj-iam",       "name": "Identity & Access Management Overhaul", "lob": "lob-cit", "prog": None, "type": "project", "status": "active",          "rag": "amber", "capex_opex": "capex", "start": "2025-01", "end": "2026-09", "budget": 350000,  "narrative": "troubled",          "pl": None},
-    {"id": "proj-workplace", "name": "Workplace Modernization",       "lob": "lob-cit", "prog": "prog-infra","type": "project", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2025-06", "end": "2026-06", "budget": 300000,  "narrative": "well_managed",       "pl": None},
-    {"id": "proj-datacenter","name": "Data Center Consolidation",     "lob": "lob-cit", "prog": None,        "type": "project", "status": "completed",        "rag": "green", "capex_opex": "opex",  "start": "2021-06", "end": "2023-12", "budget": 800000,  "narrative": "completed",         "pl": None},
-    {"id": "proj-wan",       "name": "Global WAN Refresh",            "lob": "lob-cit", "prog": None,        "type": "project", "status": "completed",        "rag": "green", "capex_opex": "capex", "start": "2022-01", "end": "2024-06", "budget": 600000,  "narrative": "completed",         "pl": None},
-    {"id": "svc-netsec",     "name": "Network & Security Operations", "lob": "lob-cit", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 350000,  "narrative": "steady_service",    "pl": None},
-    {"id": "svc-middleware", "name": "Enterprise Middleware",          "lob": "lob-cit", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 280000,  "narrative": "steady_service",    "pl": None},
-    {"id": "svc-dba",        "name": "Database Administration",       "lob": "lob-cit", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 180000,  "narrative": "steady_service",    "pl": None},
+    {"id": "proj-workplace", "name": "Workplace Modernization",            "lob": "lob-cit", "prog": "prog-infra","type": "project", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2025-06", "end": "2026-06", "budget": 300000,  "narrative": "well_managed",       "pl": None},
+    {"id": "proj-datacenter","name": "Data Center Consolidation",          "lob": "lob-cit", "prog": None,        "type": "project", "status": "completed",        "rag": "green", "capex_opex": "opex",  "start": "2021-06", "end": "2023-12", "budget": 800000,  "narrative": "completed",         "pl": None},
+    {"id": "proj-wan",       "name": "Global WAN Refresh",                 "lob": "lob-cit", "prog": None,        "type": "project", "status": "completed",        "rag": "green", "capex_opex": "capex", "start": "2022-01", "end": "2024-06", "budget": 600000,  "narrative": "completed",         "pl": None},
+    {"id": "svc-netsec",     "name": "Network & Security Operations",      "lob": "lob-cit", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 350000,  "narrative": "steady_service",    "pl": None},
+    {"id": "svc-middleware", "name": "Enterprise Middleware",               "lob": "lob-cit", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 280000,  "narrative": "steady_service",    "pl": None},
+    {"id": "svc-dba",        "name": "Database Administration",            "lob": "lob-cit", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 180000,  "narrative": "steady_service",    "pl": None},
 
-    # --- Digital & Data (7) ---
-    {"id": "proj-sensor",    "name": "Sensor Data Pipeline",          "lob": "lob-dnd", "prog": "prog-fleet","type": "project", "status": "active",           "rag": "amber", "capex_opex": "capex", "start": "2025-03", "end": "2026-12", "budget": 600000,  "narrative": "troubled",          "pl": "p-sharma"},
-    {"id": "proj-fleet",     "name": "Fleet Portal v2",               "lob": "lob-dnd", "prog": "prog-fleet","type": "project", "status": "active",           "rag": "green", "capex_opex": "capex", "start": "2025-01", "end": "2026-06", "budget": 450000,  "narrative": "well_managed",       "pl": "p-sharma"},
-    {"id": "proj-telematics","name": "Telematics Dashboard",          "lob": "lob-dnd", "prog": "prog-fleet","type": "project", "status": "active",           "rag": "amber", "capex_opex": "capex", "start": "2025-06", "end": "2026-09", "budget": 300000,  "narrative": "troubled",          "pl": None},
-    {"id": "proj-dwh",       "name": "Data Warehouse Consolidation",  "lob": "lob-dnd", "prog": None,        "type": "project", "status": "planned",          "rag": "green", "capex_opex": "capex", "start": "2026-07", "end": "2027-09", "budget": 550000,  "narrative": "future",            "pl": None},
-    {"id": "proj-aiml",      "name": "AI/ML Experimentation Lab",     "lob": "lob-dnd", "prog": None,        "type": "project", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2025-09", "end": "2026-06", "budget": 200000,  "narrative": "well_managed",       "pl": None},
-    {"id": "svc-dataplatform","name": "Data Platform Operations",     "lob": "lob-dnd", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 220000,  "narrative": "steady_service",    "pl": None},
-    {"id": "svc-iot",        "name": "IoT Infrastructure Support",    "lob": "lob-dnd", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 150000,  "narrative": "steady_service",    "pl": None},
+    # --- Digital & Innovation (7) ---
+    {"id": "proj-sensor",    "name": "IoT Sensor Data Pipeline",           "lob": "lob-dnd", "prog": "prog-fleet","type": "project", "status": "active",           "rag": "amber", "capex_opex": "capex", "start": "2025-03", "end": "2026-12", "budget": 600000,  "narrative": "troubled",          "pl": "p-sharma"},
+    {"id": "proj-fleet",     "name": "Asset Tracking Portal v2",           "lob": "lob-dnd", "prog": "prog-fleet","type": "project", "status": "active",           "rag": "green", "capex_opex": "capex", "start": "2025-01", "end": "2026-06", "budget": 450000,  "narrative": "well_managed",       "pl": "p-sharma"},
+    {"id": "proj-telematics","name": "Operations Analytics Dashboard",     "lob": "lob-dnd", "prog": "prog-fleet","type": "project", "status": "active",           "rag": "amber", "capex_opex": "capex", "start": "2025-06", "end": "2026-09", "budget": 300000,  "narrative": "troubled",          "pl": None},
+    {"id": "proj-dwh",       "name": "Data Warehouse Consolidation",       "lob": "lob-dnd", "prog": None,        "type": "project", "status": "planned",          "rag": "green", "capex_opex": "capex", "start": "2026-07", "end": "2027-09", "budget": 550000,  "narrative": "future",            "pl": None},
+    {"id": "proj-aiml",      "name": "AI/ML Experimentation Lab",          "lob": "lob-dnd", "prog": None,        "type": "project", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2025-09", "end": "2026-06", "budget": 200000,  "narrative": "well_managed",       "pl": None},
+    {"id": "svc-dataplatform","name": "Data Platform Operations",          "lob": "lob-dnd", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 220000,  "narrative": "steady_service",    "pl": None},
+    {"id": "svc-iot",        "name": "IoT Infrastructure Support",         "lob": "lob-dnd", "prog": None,        "type": "service", "status": "active",           "rag": "green", "capex_opex": "opex",  "start": "2024-01", "end": None,      "budget": 150000,  "narrative": "steady_service",    "pl": None},
 ]
 
 # ---------------------------------------------------------------------------
@@ -319,7 +319,7 @@ DEMO_PERSONAS = [
 # ---------------------------------------------------------------------------
 
 PROJECT_STAFFING = {
-    # --- TBS ---
+    # --- Manufacturing Systems ---
     "proj-erp2": [
         {"role": "role-sr-dev",  "loc": "loc-muc", "hours": 80,  "co": "capex"},
         {"role": "role-sr-dev",  "loc": "loc-pun", "hours": 40,  "co": "capex"},
@@ -376,7 +376,7 @@ PROJECT_STAFFING = {
         {"role": "role-qa",      "loc": "loc-muc", "hours": 20,  "co": "opex"},
     ],
 
-    # --- RVS ---
+    # --- Supply Chain & Logistics ---
     "proj-signal": [
         {"role": "role-sr-dev",  "loc": "loc-bud", "hours": 60,  "co": "capex"},
         {"role": "role-dev",     "loc": "loc-bud", "hours": 80,  "co": "capex"},
@@ -419,7 +419,7 @@ PROJECT_STAFFING = {
         {"role": "role-network", "loc": "loc-bud", "hours": 30,  "co": "opex"},
     ],
 
-    # --- Corporate IT ---
+    # --- Enterprise Services ---
     "proj-cloud3": [
         {"role": "role-cloud",   "loc": "loc-muc", "hours": 60,  "co": "opex"},
         {"role": "role-cloud",   "loc": "loc-pun", "hours": 40,  "co": "opex"},
@@ -461,7 +461,7 @@ PROJECT_STAFFING = {
         {"role": "role-dev",     "loc": "loc-pun", "hours": 30,  "co": "opex"},
     ],
 
-    # --- Digital & Data ---
+    # --- Digital & Innovation ---
     "proj-sensor": [
         {"role": "role-data-eng","loc": "loc-muc", "hours": 40,  "co": "capex"},
         {"role": "role-sr-dev",  "loc": "loc-muc", "hours": 40,  "co": "capex"},
@@ -557,7 +557,7 @@ PROJECT_EXTERNALS = {
         {"desc": "Vendor Support Contracts",          "cat": "ext-sw-maint",     "vendor": "Various",          "co": "opex",  "base": 3000},
     ],
 
-    # --- RVS ---
+    # --- Supply Chain & Logistics ---
     "proj-signal": [
         {"desc": "Signaling Consulting",              "cat": "ext-consulting",   "vendor": "Siemens Mobility", "co": "capex", "base": 10000},
         {"desc": "Safety Certification",              "cat": "ext-other",        "vendor": "TUV Rheinland",    "co": "capex", "base": 4000},
@@ -596,7 +596,7 @@ PROJECT_EXTERNALS = {
         {"desc": "Remote Monitoring License",         "cat": "ext-sw-licenses",  "vendor": "Siemens",          "co": "opex",  "base": 2000},
     ],
 
-    # --- Corporate IT ---
+    # --- Enterprise Services ---
     "proj-cloud3": [
         {"desc": "AWS EC2 Reserved Instances",        "cat": "ext-cloud",        "vendor": "AWS",              "co": "opex",  "base": 10000},
         {"desc": "AWS S3 Storage",                    "cat": "ext-cloud",        "vendor": "AWS",              "co": "opex",  "base": 4000},
@@ -639,7 +639,7 @@ PROJECT_EXTERNALS = {
         {"desc": "Database Support Contract",         "cat": "ext-sw-maint",     "vendor": "Oracle",           "co": "opex",  "base": 2000},
     ],
 
-    # --- Digital & Data ---
+    # --- Digital & Innovation ---
     "proj-sensor": [
         {"desc": "Data Engineering Consulting",       "cat": "ext-consulting",   "vendor": "Thoughtworks",     "co": "capex", "base": 10000},
         {"desc": "AWS Kinesis + S3 Pipeline",         "cat": "ext-cloud",        "vendor": "AWS",              "co": "capex", "base": 6000},

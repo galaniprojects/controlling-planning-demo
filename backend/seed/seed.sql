@@ -5,29 +5,29 @@
 -- =============================================================================
 
 -- =============================================================================
--- 1. Grouping Entity Types (replaces Lines of Business)
+-- 1. Grouping Entity Types (portfolio hierarchy levels)
 -- =============================================================================
 
 INSERT INTO grouping_entity_types (id, name, is_active, created_at) VALUES
-('get-lob', 'Line of Business', 1, '2026-01-15 10:00:00'),
-('get-prog', 'Program', 1, '2026-01-15 10:00:00');
+('get-lob', 'Business Unit', 1, '2026-01-15 10:00:00'),
+('get-prog', 'Initiative', 1, '2026-01-15 10:00:00');
 
 -- =============================================================================
--- 1b. Grouping Entities (LoB + Program entities)
+-- 1b. Grouping Entities (Business Unit + Initiative entities)
 -- =============================================================================
 
 INSERT INTO grouping_entities (id, entity_type_id, name, parent_entity_id, is_active, created_at) VALUES
-('lob-tbs', 'get-lob', 'Truck & Bus Systems (TBS)', NULL, 1, '2026-01-15 10:00:00'),
-('lob-rvs', 'get-lob', 'Rail Vehicle Systems (RVS)', NULL, 1, '2026-01-15 10:00:00'),
-('lob-cit', 'get-lob', 'Corporate IT', NULL, 1, '2026-01-15 10:00:00'),
-('lob-dnd', 'get-lob', 'Digital & Data', NULL, 1, '2026-01-15 10:00:00'),
-('prog-dbp', 'get-prog', 'Digital Braking Platform', 'lob-tbs', 1, '2026-01-15 10:00:00'),
-('prog-rail', 'get-prog', 'Rail Modernization', 'lob-rvs', 1, '2026-01-15 10:00:00'),
-('prog-infra', 'get-prog', 'Infrastructure Optimization', 'lob-cit', 1, '2026-01-15 10:00:00'),
-('prog-fleet', 'get-prog', 'Fleet Intelligence', 'lob-dnd', 1, '2026-01-15 10:00:00');
+('lob-tbs', 'get-lob', 'Manufacturing Systems', NULL, 1, '2026-01-15 10:00:00'),
+('lob-rvs', 'get-lob', 'Supply Chain & Logistics', NULL, 1, '2026-01-15 10:00:00'),
+('lob-cit', 'get-lob', 'Enterprise Services', NULL, 1, '2026-01-15 10:00:00'),
+('lob-dnd', 'get-lob', 'Digital & Innovation', NULL, 1, '2026-01-15 10:00:00'),
+('prog-dbp', 'get-prog', 'Smart Factory Platform', 'lob-tbs', 1, '2026-01-15 10:00:00'),
+('prog-rail', 'get-prog', 'Logistics Optimization', 'lob-rvs', 1, '2026-01-15 10:00:00'),
+('prog-infra', 'get-prog', 'Infrastructure Modernization', 'lob-cit', 1, '2026-01-15 10:00:00'),
+('prog-fleet', 'get-prog', 'Data Intelligence', 'lob-dnd', 1, '2026-01-15 10:00:00');
 
 -- =============================================================================
--- 1c. Grouping Hierarchy (Standard: LoB -> Program)
+-- 1c. Grouping Hierarchy (Standard: Business Unit -> Initiative)
 -- =============================================================================
 
 INSERT INTO grouping_hierarchies (id, name, is_active_hierarchy, created_at) VALUES
@@ -232,25 +232,25 @@ INSERT INTO demo_personas (id, person_id, role, display_name, title, default_mod
 -- lob-tbs
 INSERT INTO projects (id, name, description, status, rag_status, capex_opex, start_month, end_month, projected_end_month, pl_person_id, is_service, annual_budget, total_budget, last_forecast_submitted_month, is_active, created_at, modified_at) VALUES
 ('proj-erp2', 'ERP Integration Phase 2', NULL, 'active', 'red', 'capex', '2024-07', '2026-09', '2026-09', 'p-sharma', 0, NULL, 1200000, '2026-02', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-sap', 'SAP S/4HANA Migration', NULL, 'active', 'green', 'capex', '2022-01', '2026-06', '2026-06', NULL, 0, NULL, 4500000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-brake', 'Brake Control Unit Refresh', NULL, 'active', 'green', 'capex', '2025-03', '2026-03', '2026-03', NULL, 0, NULL, 250000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-autobrake', 'Autonomous Braking Prototype', NULL, 'pending_cc_confirmation', NULL, 'capex', '2026-06', '2027-12', '2027-12', 'p-sharma', 0, NULL, 900000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-sap', 'MES Platform Migration', NULL, 'active', 'green', 'capex', '2022-01', '2026-06', '2026-06', NULL, 0, NULL, 4500000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-brake', 'Production Line Controller Upgrade', NULL, 'active', 'green', 'capex', '2025-03', '2026-03', '2026-03', NULL, 0, NULL, 250000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-autobrake', 'Automated Assembly Prototype', NULL, 'pending_cc_confirmation', NULL, 'capex', '2026-06', '2027-12', '2027-12', 'p-sharma', 0, NULL, 900000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-legacy', 'Legacy System Decommission', NULL, 'completed', 'green', 'opex', '2022-06', '2024-03', '2024-03', NULL, 0, NULL, 180000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-connveh', 'Connected Vehicle Platform', NULL, 'planned', 'green', 'capex', '2026-10', '2028-12', '2028-12', NULL, 0, NULL, 1800000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-sap-ops', 'SAP Basis Operations', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 400000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-connveh', 'Digital Twin Platform', NULL, 'planned', 'green', 'capex', '2026-10', '2028-12', '2028-12', NULL, 0, NULL, 1800000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-sap-ops', 'MES Operations', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 400000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('svc-euc', 'End User Computing Support', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 200000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-tbs-maint', 'TBS Application Maintenance', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 280000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('svc-tbs-maint', 'Factory Application Maintenance', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 280000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- lob-rvs
 INSERT INTO projects (id, name, description, status, rag_status, capex_opex, start_month, end_month, projected_end_month, pl_person_id, is_service, annual_budget, total_budget, last_forecast_submitted_month, is_active, created_at, modified_at) VALUES
-('proj-signal', 'Signaling System Upgrade', NULL, 'active', 'green', 'capex', '2023-01', '2026-06', '2026-06', NULL, 0, NULL, 1500000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-raildiag', 'Rail Diagnostics Platform', NULL, 'active', 'green', 'capex', '2024-06', '2027-06', '2027-06', NULL, 0, NULL, 700000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-predmaint', 'Predictive Maintenance PoC', NULL, 'active', 'amber', 'capex', '2025-06', '2027-03', '2027-03', 'p-sharma', 0, NULL, 500000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-workshop', 'Workshop Management Tool', NULL, 'completed', 'green', 'capex', '2023-01', '2025-06', '2025-06', NULL, 0, NULL, 220000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-railsafety', 'Rail Safety Compliance System', NULL, 'planned', 'green', 'capex', '2026-09', '2028-06', '2028-06', NULL, 0, NULL, 650000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-rail-desk', 'Rail IT Service Desk', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 250000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-rail-maint', 'Rail Application Maintenance', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 300000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-signal-sup', 'Signaling Systems Support', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 180000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('proj-signal', 'Warehouse Management Upgrade', NULL, 'active', 'green', 'capex', '2023-01', '2026-06', '2026-06', NULL, 0, NULL, 1500000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-raildiag', 'Supplier Portal v2', NULL, 'active', 'green', 'capex', '2024-06', '2027-06', '2027-06', NULL, 0, NULL, 700000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-predmaint', 'Predictive Inventory System', NULL, 'active', 'amber', 'capex', '2025-06', '2027-03', '2027-03', 'p-sharma', 0, NULL, 500000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-workshop', 'Returns Processing Tool', NULL, 'completed', 'green', 'capex', '2023-01', '2025-06', '2025-06', NULL, 0, NULL, 220000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-railsafety', 'Supply Chain Compliance System', NULL, 'planned', 'green', 'capex', '2026-09', '2028-06', '2028-06', NULL, 0, NULL, 650000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-rail-desk', 'Logistics IT Service Desk', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 250000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-rail-maint', 'Supply Chain App Maintenance', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 300000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-signal-sup', 'Warehouse Systems Support', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 180000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- lob-cit
 INSERT INTO projects (id, name, description, status, rag_status, capex_opex, start_month, end_month, projected_end_month, pl_person_id, is_service, annual_budget, total_budget, last_forecast_submitted_month, is_active, created_at, modified_at) VALUES
@@ -265,9 +265,9 @@ INSERT INTO projects (id, name, description, status, rag_status, capex_opex, sta
 
 -- lob-dnd
 INSERT INTO projects (id, name, description, status, rag_status, capex_opex, start_month, end_month, projected_end_month, pl_person_id, is_service, annual_budget, total_budget, last_forecast_submitted_month, is_active, created_at, modified_at) VALUES
-('proj-sensor', 'Sensor Data Pipeline', NULL, 'active', 'amber', 'capex', '2025-03', '2026-12', '2026-12', 'p-sharma', 0, NULL, 600000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-fleet', 'Fleet Portal v2', NULL, 'active', 'green', 'capex', '2025-01', '2026-06', '2026-06', 'p-sharma', 0, NULL, 450000, '2026-03', 1, '2026-01-15 10:00:00', '2026-02-15 09:00:00'),
-('proj-telematics', 'Telematics Dashboard', NULL, 'active', 'amber', 'capex', '2025-06', '2026-09', '2026-09', NULL, 0, NULL, 300000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-sensor', 'IoT Sensor Data Pipeline', NULL, 'active', 'amber', 'capex', '2025-03', '2026-12', '2026-12', 'p-sharma', 0, NULL, 600000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-fleet', 'Asset Tracking Portal v2', NULL, 'active', 'green', 'capex', '2025-01', '2026-06', '2026-06', 'p-sharma', 0, NULL, 450000, '2026-03', 1, '2026-01-15 10:00:00', '2026-02-15 09:00:00'),
+('proj-telematics', 'Operations Analytics Dashboard', NULL, 'active', 'amber', 'capex', '2025-06', '2026-09', '2026-09', NULL, 0, NULL, 300000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-dwh', 'Data Warehouse Consolidation', NULL, 'planned', 'green', 'capex', '2026-07', '2027-09', '2027-09', NULL, 0, NULL, 550000, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-aiml', 'AI/ML Experimentation Lab', NULL, 'active', 'green', 'opex', '2025-09', '2026-06', '2026-06', NULL, 0, NULL, 200000, '2026-03', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('svc-dataplatform', 'Data Platform Operations', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, NULL, 1, 220000, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
