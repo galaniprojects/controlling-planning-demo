@@ -8,8 +8,8 @@ import {
 } from 'react';
 import { BRANDING } from '@/config/branding';
 
-type Theme = 'light' | 'dark' | 'system';
-type ResolvedTheme = 'light' | 'dark';
+type Theme = 'light' | 'dark' | 'liquid-glass' | 'system';
+type ResolvedTheme = 'light' | 'dark' | 'liquid-glass';
 
 interface ThemeState {
   theme: Theme;
@@ -26,11 +26,15 @@ function getSystemTheme(): ResolvedTheme {
 }
 
 function resolveTheme(theme: Theme): ResolvedTheme {
-  return theme === 'system' ? getSystemTheme() : theme;
+  if (theme === 'system') return getSystemTheme();
+  return theme;
 }
 
 function applyTheme(resolved: ResolvedTheme) {
-  document.documentElement.classList.toggle('dark', resolved === 'dark');
+  const el = document.documentElement.classList;
+  el.remove('dark', 'liquid-glass');
+  if (resolved === 'dark') el.add('dark');
+  if (resolved === 'liquid-glass') el.add('liquid-glass');
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
