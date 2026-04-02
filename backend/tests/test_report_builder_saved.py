@@ -1,17 +1,9 @@
 """Unit tests for Report Builder saved reports CRUD service."""
 
-import os
-import sys
 import json
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from database import Base
 from models.reporting import SavedReport, SavedReportShare
 from services.report_builder_saved import (
     create_saved_report,
@@ -23,26 +15,7 @@ from services.report_builder_saved import (
     update_saved_report,
 )
 
-# Use in-memory SQLite for tests
-engine = create_engine("sqlite:///:memory:")
-SessionLocal = sessionmaker(bind=engine)
-
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    """Create tables before each test and drop after."""
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
+# DB engine, setup_db, and db fixtures are provided by conftest.py
 
 
 SAMPLE_DEFINITION = {
