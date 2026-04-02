@@ -38,7 +38,7 @@ All phases are complete. The application is fully built with 8 modules:
 7. **Administration** — entity CRUD, rate tables, hierarchy configuration, audit logging, planning parameters
 8. **Documentation Hub** — module guides, FAQ, API reference, data model overview
 
-Current focus: enhancements, bug fixes, and demo preparation.
+Current focus: enhancements, bug fixes, and demo preparation — see `PROGRESS.md` for specifics.
 
 ## Established Components & Patterns
 
@@ -59,7 +59,7 @@ Current focus: enhancements, bug fixes, and demo preparation.
 ### Layout Components (`components/layout/`)
 - `AppLayout`, `BottomDrawer`, `Breadcrumb`, `HelpButton`, `RoleSwitcher`, `SidePanel`, `TopBar`
 
-### shadcn/ui Components (14 installed)
+### shadcn/ui Components
 badge, button, card, checkbox, dialog, dropdown-menu, input, select, separator, sheet, table, tabs, textarea, tooltip
 
 ### Contexts (`contexts/`)
@@ -86,6 +86,69 @@ badge, button, card, checkbox, dialog, dropdown-menu, input, select, separator, 
 - **Tab pattern:** Use controlled `value` + `useEffect` to reset on role change (NOT `defaultValue`)
 - **Action pattern:** idle → mode → textarea → submit → result → `onActionComplete` callback
 - **Heatmap pattern:** CSS grid (not Recharts)
+- **CR workflow:** PL submits CR → CC Owner confirms/declines resource requests → Controller approves/rejects/sends back → forecast updated on approval
+- **Submission workflow:** PL creates draft → submits via 5-phase wizard → Controller reviews with inline edits → approve/reject/send back → baseline created on approval
+- **Demo reset:** `POST /api/admin/reset-demo` re-seeds the entire database — use after testing destructive flows to restore clean state
+
+## Demo Roles
+Four personas, each with different access and capabilities:
+| Role | Persona | Key Capabilities |
+|------|---------|-----------------|
+| **Controller** | Anna Meier | Full access. Approves/rejects intakes and CRs, manages admin settings, creates scenarios |
+| **CC Owner** | Thomas Brenner | Confirms/declines resource requests for their cost center, proposes counter-offers |
+| **Project Lead** | Priya Sharma | Creates projects, submits forecasts via wizard, requests resources. Sees only own projects |
+| **Executive** | Thomas Becker | Read-only portfolio and reports, creates/compares what-if scenarios |
+
+Role is resolved from `X-Current-User` header → `DemoPersona` table → `CurrentUser` context. Access enforced via `require_role()` dependency.
+
+## API Conventions
+- **Auth:** `X-Current-User` header with persona ID on every request → `get_current_user` dependency
+- **Authorization:** `require_role("controller", "executive")` dependency — returns 403 if role not in allowed list
+- **PL filtering:** `pl_project_filter` dependency restricts Project Leads to their own projects
+- **Error responses:** `HTTPException` with status codes: 401 (unknown persona), 403 (insufficient role), 404 (not found), 409 (state conflict)
+- **Frontend errors:** `client.ts` catches non-2xx, throws `Error(detail)` — components handle via try/catch
+- **DB sessions:** `get_db` dependency with try/finally cleanup — session-per-request pattern
+
+## Data Model Overview
+Keep this section updated whenever models or schema change.
+
+### Organization & People
+- `Location` — offices (Munich, Budapest, Pune)
+- `CompetenceCenter` — cost pools (APD, INF, BSO, DDA)
+- `CostCenter` — org units → location + competence center
+- `Person` — team members → cost center + role type
+- `RoleType` — job roles with `RateTable` hourly rates (effective dates for historical accuracy)
+- `GroupingEntityType` / `GroupingEntity` / `GroupingHierarchy` — flexible multi-level portfolio hierarchy
+
+### Projects & Financials
+- `Project` — core entity (draft → pending_approval → active → completed), CAPEX/OPEX, assigned PL
+- `ProjectPhase` — phases with baseline + forecast date ranges
+- `Baseline` — immutable approved plan (project × month × line item)
+- `Forecast` — living plan updated via approved CRs (hours/costs per month)
+- `Actuals` — read-only historical spend
+- `ExternalCostType` — cost categories (hardware, consulting, licenses)
+
+### Change Management
+- `ChangeRequest` — two-stage approval (CC Owner confirmation → Controller approval)
+- `CRChangeDetail` — line-item deltas (field, old_value, new_value)
+- `CRSubmissionSnapshot` — original forecast + proposed edits for diff
+
+### Capacity & Allocations
+- `Allocation` — person × project × month (hours, is_confirmed)
+- `ResourceRequest` — resource/external cost requests directed to CC Owners
+- `ResourceRequestAssignment` — per-month person assignments
+
+### Scenarios
+- `Scenario` — what-if container (private/published)
+- `ScenarioAction` — ordered actions (delay, remove, reduce, accelerate, etc.)
+- `ScenarioState` / `ScenarioCapacityImpact` — pre-calculated snapshots
+
+### Submissions & System
+- `ProjectSubmissionSnapshot` — PL's original plan + controller edits for diff
+- `ForecastSnapshot` — point-in-time capture for forecast accuracy reports
+- `SavedReport` / `SavedReportShare` / `SavedView` — Report Builder persistence
+- `PlanningParameter` — system config (fiscal month, thresholds)
+- `Notification` — in-app alerts, `AuditLog` — entity audit trail
 
 ## Session Protocol
 1. **Start:** Read `CLAUDE.md` and `PROGRESS.md` to understand current state
@@ -99,20 +162,22 @@ badge, button, card, checkbox, dialog, dropdown-menu, input, select, separator, 
 ## Documentation Updates (Non-Negotiable)
 - **Any time API endpoints are added, changed, or removed**, update `README.md` (API tables) and `PROGRESS.md`
 - **Any time software features change significantly**, update `README.md` (Features section) and `PROGRESS.md`
-- **Any time new models or schema changes are made**, update `PROGRESS.md`
+- **Any time new models or schema changes are made**, update `PROGRESS.md` and the **Data Model Overview** section in this file
 - **Any time module behavior changes**, update the in-app documentation module content (`backend/seed/fixtures/` manuals)
+- **Any time backend files are added or removed** (models, routers, services), update the **Backend** file listings in Critical File Paths
 - Documentation updates are part of the definition of done — do not consider a task complete until docs are updated
 
 ## Testing Requirements
 - **Unit tests:** Every new backend function must have corresponding tests in `backend/tests/` — run with `python -m pytest tests/ -v`
 - **Manual testing:** Before creating a PR, suggest the user manually test the new feature in the browser
-- **QA test plan:** `qa/test-plan.md` — living E2E regression test plan (138 scenarios across 10 suites)
+- **QA test plan:** `qa/test-plan.md` — living E2E regression test plan (191 scenarios across 14 suites). Update scenario counts when adding new test suites or scenarios.
 - **Bug tracking:** `qa/bug-report.md` — created during testing sessions to track issues found
 - **Testing sessions are read-only:** do not fix code during testing, only document issues in `qa/bug-report.md`
 - After testing, a separate fix session addresses issues from the bug report
 
 ## Git Discipline
-- Create a new branch for each feature/session with a descriptive name
+- **Always create a new branch off `main`** before starting any new task, feature, or bug fix — never work directly on `main`
+- Branch naming convention: `feature/<name>`, `fix/<name>`, or `session/<name>` (e.g., `feature/report-builder-session2`, `fix/cr-visibility-bugs`)
 - Commit after every meaningful milestone
 - Descriptive commit messages: `"Feature-name: description of what was done"`
 - Do not squash — preserve build history
@@ -144,10 +209,10 @@ badge, button, card, checkbox, dialog, dropdown-menu, input, select, separator, 
 ### Backend
 - `backend/seed/seed.sql` — all relational seed data
 - `backend/seed/fixtures/` — JSON fixtures (manuals, FAQ, AI Advisor goals)
-- `backend/models/` — SQLAlchemy ORM models
-- `backend/routers/` — FastAPI route handlers
-- `backend/services/` — business logic services
-- `backend/tests/` — unit tests
+- `backend/models/` — `capacity.py`, `change_requests.py`, `financial.py`, `organization.py`, `people.py`, `projects.py`, `reporting.py`, `scenarios.py`, `submissions.py`, `system.py`, `users.py`
+- `backend/routers/` — `admin.py`, `ai_reports.py`, `capacity.py`, `documentation.py`, `global_launchpad.py`, `portfolio.py`, `reference.py`, `report_builder.py`, `reports.py`, `scenarios.py`, `workbench.py`
+- `backend/services/` — `advisor.py`, `ai_report_service.py`, `allocation_service.py`, `calculations.py`, `forecast_cycle.py`, `portfolio_service.py`, `report_builder_catalog.py`, `report_builder_engine.py`, `report_builder_export.py`, `report_builder_saved.py`, `report_service.py`, `scenario_engine.py`
+- `backend/tests/` — unit tests (260 tests across 17 test files)
 
 ### Frontend
 - `frontend/src/modules/` — 8 module UIs (launchpad, portfolio, workbench, capacity, simulator, reporting, admin, docs)
@@ -155,25 +220,41 @@ badge, button, card, checkbox, dialog, dropdown-menu, input, select, separator, 
 - `frontend/src/contexts/` — React contexts (Theme, Role, SidePanel, BottomDrawer)
 - `frontend/src/hooks/` — custom hooks
 - `frontend/src/lib/` — utilities and helpers
-- `frontend/src/api/` — API client and endpoint definitions
+- `frontend/src/api/` — `client.ts` (HTTP abstraction + X-Current-User injection), `endpoints.ts` (all API calls), `api.ts`, `reportBuilder.ts`
 - `frontend/src/types/` — TypeScript type definitions
 
 ## Commands
 ```bash
-# Backend
-cd backend && python3.12 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python main.py  # Runs on http://localhost:8000, Swagger at /docs
+# First-time setup
+cd backend && python3.12 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+cd frontend && npm install
 
-# Frontend
-cd frontend && npm install && npm run dev  # Runs on http://localhost:5173
+# Daily start
+cd backend && source .venv/bin/activate && python main.py  # http://localhost:8000, Swagger at /docs
+cd frontend && npm run dev  # http://localhost:5173
 
 # Unit tests
 cd backend && python -m pytest tests/ -v
 
-# Reset demo data
+# Reset demo data (re-seeds database to clean state)
 curl -X POST http://localhost:8000/api/admin/reset-demo
 ```
+
+## Frontend Routes
+| Route | Module | Notes |
+|-------|--------|-------|
+| `/` | Launchpad | Home / pending actions hub |
+| `/portfolio` | Portfolio Overview | KPI dashboard, project tree |
+| `/portfolio/intake` | Intake Queue | Project intake approvals |
+| `/portfolio/approvals` | Approvals | CR approval queue |
+| `/workbench` | Project Workbench | Master-detail workspace |
+| `/capacity` | Capacity Management | Heatmaps, utilization |
+| `/capacity/requests` | Resource Requests | Resource request management |
+| `/simulator` | What-If Simulator | Scenario builder |
+| `/reporting` | Reporting | Standard reports |
+| `/reporting/builder` | Report Builder | AI-powered custom reports |
+| `/admin` | Administration | System config, CRUD |
+| `/docs` | Documentation | Guides, FAQ, API reference |
 
 ## Cross-Module Navigation
 - All modules are built — links should navigate directly to the target module/view
