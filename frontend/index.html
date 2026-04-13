@@ -11,11 +11,8 @@
     <script>
       (function() {
         var t = localStorage.getItem('creta-theme');
-        if (t === 'liquid-glass') { document.documentElement.classList.add('liquid-glass'); }
-        else {
-          var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (dark) document.documentElement.classList.add('dark');
-        }
+        var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
       })();
     </script>
   </head>
