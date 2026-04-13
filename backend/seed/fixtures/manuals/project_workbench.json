@@ -8,7 +8,7 @@
     },
     {
       "title": "Project List",
-      "body": "The left panel shows projects filtered by your role. Project Leads see their assigned projects; Controllers see all. Each entry shows the project name, RAG indicator, type badge (Project/Service), and a status badge. Status badges are color-coded: amber for workflow statuses (Draft, Pending, CC Review, Changes Req.) and neutral for lifecycle statuses (Active, Completed, Planned).\n\nUse the **New** button at the top to create a new project draft. The creation form collects project name, description, organizational entity (e.g., Business Unit), CapEx/OpEx classification, start/end months, and optional resource plan allocation."
+      "body": "The left panel shows projects filtered by your role. Project Leads see their assigned projects; Controllers see all. Each entry shows the project name, RAG indicator, type badge (Project/Service), and a status badge. Status badges are color-coded: amber for workflow statuses (Draft, Pending, CC Review, Changes Req.) and neutral for lifecycle statuses (Active, Completed, Planned).\n\nUse the **New** button at the top to create a new project draft. The creation form collects project name, description, organizational entity (e.g., Line of Business), CapEx/OpEx classification, start/end months, and optional resource plan allocation."
     },
     {
       "title": "Overview Tab",

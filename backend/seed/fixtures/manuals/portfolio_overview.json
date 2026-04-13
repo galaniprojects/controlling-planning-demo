@@ -8,7 +8,7 @@
     },
     {
       "title": "Dashboard Tab",
-      "body": "The Dashboard shows a KPI summary row at the top (total budget, YTD spend, forecast-at-completion, variance, CapEx/OpEx split, Run/Change ratio), followed by a filter bar and the portfolio tree table. The tree is expandable following the active organizational hierarchy (e.g., Business Unit → Program → Project/Service). Each row shows RAG status, budget figures, and timeline. Click any project row to open a summary panel on the right."
+      "body": "The Dashboard shows a KPI summary row at the top (total budget, YTD spend, forecast-at-completion, variance, CapEx/OpEx split, Run/Change ratio), followed by a filter bar and the portfolio tree table. The tree is expandable following the active organizational hierarchy (e.g., Line of Business → Program → Project/Service). Each row shows RAG status, budget figures, and timeline. Click any project row to open a summary panel on the right."
     },
     {
       "title": "Portfolio Tree Navigation",

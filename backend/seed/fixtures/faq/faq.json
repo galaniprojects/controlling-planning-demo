@@ -112,7 +112,7 @@
     "steps": [
       {"step_number": 1, "instruction": "Open **Capacity Management** from the Launchpad.", "target_module": "capacity"},
       {"step_number": 2, "instruction": "Click the **Organization Overview** tab at the top."},
-      {"step_number": 3, "instruction": "The heatmap shows utilization across all cost centers. Use the pivot selector to view by organizational hierarchy level (e.g., **by Business Unit**), **by Role**, or **by Cost Center**. Labels adapt to the active portfolio hierarchy."},
+      {"step_number": 3, "instruction": "The heatmap shows utilization across all cost centers. Use the pivot selector to view by organizational hierarchy level (e.g., **by Line of Business**), **by Role**, or **by Cost Center**. Labels adapt to the active portfolio hierarchy."},
       {"step_number": 4, "instruction": "Click any cell or row to open a bottom drawer showing project-level consumption detail for that dimension."}
     ]
   },
@@ -286,9 +286,9 @@
     "modules_involved": ["administration"],
     "steps": [
       {"step_number": 1, "instruction": "Open the **Administration** module and select **Portfolio Hierarchy** from the Portfolio Structure section in the left panel.", "target_module": "administration"},
-      {"step_number": 2, "instruction": "Use the **Entity Types** tab to create or manage grouping categories (e.g., Business Unit, Initiative, Division)."},
+      {"step_number": 2, "instruction": "Use the **Entity Types** tab to create or manage grouping categories (e.g., Line of Business, Programme, Division)."},
       {"step_number": 3, "instruction": "Use the **Hierarchies** tab to define the level ordering of entity types into a tree structure. Mark one hierarchy as **Active** — this determines the grouping used across all modules."},
-      {"step_number": 4, "instruction": "Use the **Grouping Entities** tab to create actual entities within each type (e.g., 'Manufacturing Systems' under Business Unit) and set parent-child relationships."},
+      {"step_number": 4, "instruction": "Use the **Grouping Entities** tab to create actual entities within each type (e.g., 'Truck & Bus Systems' under Line of Business) and set parent-child relationships."},
       {"step_number": 5, "instruction": "Use the **Hierarchy Assignment** tab to view the tree and assign projects to entities."},
       {"step_number": 6, "instruction": "The active hierarchy's labels propagate across **Portfolio Overview** (tree grouping), **Capacity Management** (pivot dimensions), and **Project Workbench** (entity fields)."}
     ]

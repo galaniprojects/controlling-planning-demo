@@ -48,7 +48,7 @@
     },
     {
       "title": "Organization Overview Tab",
-      "body": "Shows utilization across all cost centers in a single heatmap. Supports three pivot dimensions: by the active portfolio hierarchy level (e.g., Business Unit if that is the configured hierarchy), by Role, and by Cost Center. Pivot labels adapt dynamically to the active hierarchy configuration set in Administration. Click any cell or row to open a bottom drawer showing project-level consumption detail for that dimension."
+      "body": "Shows utilization across all cost centers in a single heatmap. Supports three pivot dimensions: by the active portfolio hierarchy level (e.g., Line of Business if that is the configured hierarchy), by Role, and by Cost Center. Pivot labels adapt dynamically to the active hierarchy configuration set in Administration. Click any cell or row to open a bottom drawer showing project-level consumption detail for that dimension."
     }
   ]
 }

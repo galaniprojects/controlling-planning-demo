@@ -8,17 +8,17 @@ def generate() -> str:
 
     # --- Grouping Entity Types ---
     lines.append("-- =============================================================================")
-    lines.append("-- 1. Grouping Entity Types (portfolio hierarchy levels)")
+    lines.append("-- 1. Grouping Entity Types (replaces Lines of Business)")
     lines.append("-- =============================================================================")
     lines.append("")
     lines.append("INSERT INTO grouping_entity_types (id, name, is_active, created_at) VALUES")
-    lines.append(f"('get-lob', 'Business Unit', 1, '{CREATED_AT}'),")
-    lines.append(f"('get-prog', 'Initiative', 1, '{CREATED_AT}');")
+    lines.append(f"('get-lob', 'Line of Business', 1, '{CREATED_AT}'),")
+    lines.append(f"('get-prog', 'Program', 1, '{CREATED_AT}');")
     lines.append("")
 
-    # --- Grouping Entities (Business Unit + Initiative) ---
+    # --- Grouping Entities (LoB + Program) ---
     lines.append("-- =============================================================================")
-    lines.append("-- 1b. Grouping Entities (Business Unit + Initiative entities)")
+    lines.append("-- 1b. Grouping Entities (LoB + Program entities)")
     lines.append("-- =============================================================================")
     lines.append("")
     lines.append("INSERT INTO grouping_entities (id, entity_type_id, name, parent_entity_id, is_active, created_at) VALUES")
@@ -34,7 +34,7 @@ def generate() -> str:
 
     # --- Grouping Hierarchy ---
     lines.append("-- =============================================================================")
-    lines.append("-- 1c. Grouping Hierarchy (Standard: Business Unit -> Initiative)")
+    lines.append("-- 1c. Grouping Hierarchy (Standard: LoB -> Program)")
     lines.append("-- =============================================================================")
     lines.append("")
     lines.append(f"INSERT INTO grouping_hierarchies (id, name, is_active_hierarchy, created_at) VALUES")
