@@ -238,5 +238,3 @@ Or use the "Reset Demo" button in the Administration module.
 A comprehensive regression test plan lives in [`qa/test-plan.md`](qa/test-plan.md) — 138 scenarios across 10 test suites covering all modules, personas, and features.
 
 ---
-
-*Private repository — Knorr-Bremse IT*
