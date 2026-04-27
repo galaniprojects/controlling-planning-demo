@@ -32,10 +32,11 @@ def generate() -> str:
     for mt in MILESTONE_TYPES:
         rows.append(
             f"({sql_str(mt['id'])}, {sql_str(mt['name'])}, "
-            f"{sql_str(mt['color'])}, {mt['ordering']}, 1)"
+            f"{sql_str(mt['color'])}, {mt['ordering']}, 1, "
+            f"'2026-01-15 10:00:00')"
         )
 
-    cols = "(id, name, default_color, suggested_ordering, is_active)"
+    cols = "(id, name, default_color, suggested_ordering, is_active, created_at)"
     parts.append(f"\nINSERT INTO milestone_types {cols} VALUES\n" + ",\n".join(rows) + ";")
 
     return "\n".join(parts)

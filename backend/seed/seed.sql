@@ -19903,17 +19903,17 @@ INSERT INTO audit_log (timestamp, user_person_id, entity_type, entity_id, entity
 -- Milestone Types [A-BK-34]
 -- =============================================================================
 
-INSERT INTO milestone_types (id, name, default_color, suggested_ordering, is_active) VALUES
-('mt-planning', 'Planning', 'blue', 1, 1),
-('mt-requirements', 'Requirements & Analysis', 'teal', 2, 1),
-('mt-development', 'Development', 'emerald', 3, 1),
-('mt-testing', 'Testing/QA', 'amber', 4, 1),
-('mt-uat', 'UAT', 'violet', 5, 1),
-('mt-pilot', 'Pilot', 'indigo', 6, 1),
-('mt-rollout', 'Rollout', 'sky', 7, 1),
-('mt-data-migration', 'Data Migration', 'cyan', 8, 1),
-('mt-training', 'Training/Change Management', 'rose', 9, 1),
-('mt-hypermaint', 'Hyper-maintenance', 'slate', 10, 1);
+INSERT INTO milestone_types (id, name, default_color, suggested_ordering, is_active, created_at) VALUES
+('mt-planning', 'Planning', 'blue', 1, 1, '2026-01-15 10:00:00'),
+('mt-requirements', 'Requirements & Analysis', 'teal', 2, 1, '2026-01-15 10:00:00'),
+('mt-development', 'Development', 'emerald', 3, 1, '2026-01-15 10:00:00'),
+('mt-testing', 'Testing/QA', 'amber', 4, 1, '2026-01-15 10:00:00'),
+('mt-uat', 'UAT', 'violet', 5, 1, '2026-01-15 10:00:00'),
+('mt-pilot', 'Pilot', 'indigo', 6, 1, '2026-01-15 10:00:00'),
+('mt-rollout', 'Rollout', 'sky', 7, 1, '2026-01-15 10:00:00'),
+('mt-data-migration', 'Data Migration', 'cyan', 8, 1, '2026-01-15 10:00:00'),
+('mt-training', 'Training/Change Management', 'rose', 9, 1, '2026-01-15 10:00:00'),
+('mt-hypermaint', 'Hyper-maintenance', 'slate', 10, 1, '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- Project Milestones [A-MS-01]
