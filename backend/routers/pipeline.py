@@ -217,10 +217,14 @@ def transition_pipeline(
     else:
         target_doi = doi_for_stage(body.target_stage)
 
-    # 3. DoI gate validation. Skipped for off-path moves and controller
-    #    overrides. Required-field misses without an override -> 409.
+    # 3. DoI gate validation. The gate represents a forward maturity bar, so
+    #    we enforce it only when the move advances DoI (target > current).
+    #    Backwards moves per [A-PS-11] do not require gate fields to be met.
+    #    Off-path moves and controller overrides also skip the check.
+    current_doi = project.doi if project.doi is not None else -1
+    is_forward = target_doi is not None and target_doi > current_doi
     if (
-        target_doi is not None
+        is_forward
         and body.target_stage not in OFF_PATH_STAGES
         and not body.override_reason
     ):
