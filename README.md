@@ -159,12 +159,13 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Workbench** | `/api/projects` | 13 | Project list, overview, timeline, forecast grid, 5-phase forecast cycle, CR diff/accept-changes/resubmit |
 | **Tech Navigator** | `/api/projects` | 2 | Project Tech Navigator profile (read + partial update with score recompute) |
 | **Pipeline** | `/api/projects` | 4 | Pipeline stage + DoI gate state (read, transition with optional override, AI Council flag, manual within_cutoff setter) |
+| **Project Milestones** | `/api/projects` | 4 | Milestone CRUD (list, create, update, delete) per project; baseline-date edits require controller + override reason per [A-MS-03] |
 | **Capacity** | `/api/capacity` | 14 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation |
 | **Scenarios** | `/api/scenarios` | 8 | CRUD, actions, comparison, AI advisor |
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
 | **Report Builder** | `/api/report-builder` | 12 | Data catalog, filter options, query execution, saved reports CRUD, share/publish, CSV export |
 | **AI Report Builder** | `/api/reports/ai-builder` | 4 | Status check, conversation start, message, cleanup |
-| **Admin** | `/api/admin` | 19 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset, Tech Navigator score recompute |
+| **Admin** | `/api/admin` | 20 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset, Tech Navigator score recompute, milestone-types catalogue |
 | **Docs** | `/api/docs` | 3 | Module manuals, FAQ |
 | **Reference** | `/api/reference` | 4 | Roles, cost types, grouping entities, cost centers |
 
@@ -223,6 +224,20 @@ Each project carries a working pipeline stage (`Proposed`, `Under Evaluation`, `
 | `PUT` | `/api/projects/{id}/pipeline/within-cutoff` | Controller-only manual setter; A3 replaces with the computed value driven by the envelope walk |
 
 Stage transitions are permissive on backwards moves per `[A-PS-11]`. Cancelled → anything requires `override_reason` per `[A-PS-10]`. DoI gate validation skips backward DoI moves and off-path transitions.
+
+### Project Milestones Endpoints (v5 Cluster A — Session A4)
+
+Project milestones (renamed from `ProjectPhase` in v5 per `[A-MS-01]`) carry baseline + forecast date ranges, an optional `MilestoneType` reference, an optional per-milestone `color` override, and a `baseline_locked_at` timestamp set on first save. Baseline-date edits are controller-only and require an `override_reason` per `[A-MS-03]`.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/projects/{id}/milestones` | List milestones for a project (any authenticated). Empty list valid per `[A-MS-04]`. |
+| `POST` | `/api/projects/{id}/milestones` | Create a milestone (controller, or PL on own project). Sets `baseline_locked_at = now`. 409 on `sequence_number` collision. |
+| `PUT` | `/api/projects/{pid}/milestones/{mid}` | Partial update. Forecast-only edits open to controller / PL on own project; baseline-date edits require controller AND `override_reason` (audit-logged). |
+| `DELETE` | `/api/projects/{pid}/milestones/{mid}` | Delete a milestone (controller, or PL on own project). |
+| `GET` | `/api/admin/milestone-types` | Read-only catalogue of the 10 default milestone types per `[A-BK-34]`. |
+
+The catalogue exposes `{id, name, default_color, suggested_ordering, is_active}` rows. The resolved `color` returned on milestone responses is the per-milestone override when set, otherwise `MilestoneType.default_color` for the linked type.
 
 ### Resource Assignment Endpoints (CC Owner)
 

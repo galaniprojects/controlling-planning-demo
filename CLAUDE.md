@@ -122,7 +122,8 @@ Keep this section updated whenever models or schema change.
 
 ### Projects & Financials
 - `Project` — core entity (draft → pending_approval → active → completed), CAPEX/OPEX, assigned PL. v5 Tech Navigator profile: `project_type` (1/2/3), `transformation_level` (T0/T1/T2), 3 Complexity sub-criteria + 3 Value Creation sub-criteria + 2 reserved slots (all `Integer` 1–5), denormalized `complexity_score` / `value_creation_score` / `composite_score` (`Numeric(4,2)`), and `tshirt_size` (XS/S/M/L/XL derived from `total_budget`). All Tech Navigator fields are nullable. Sub-criterion weights, ranking weights, and t-shirt thresholds live in `PlanningParameter` rows under `param_group='tech_navigator'`. v5 Session A2 lifecycle: `pipeline_stage` (working names per `[A-PS-02]`), `doi` (0–5 per `[A-DOI-01]`), `frozen_doi` for off-path stages, `ai_council_approved` flag with `ai_council_doc_url`, and `within_cutoff` (settable in A2, recomputed in A3). Stage and DoI live alongside the v4 `status` field; v4 intake retires in A5.
-- `ProjectPhase` — phases with baseline + forecast date ranges
+- `ProjectMilestone` — project milestones with baseline + forecast date ranges per [A-MS-01]. `sequence_number` ordering, optional FK `milestone_type_id` to the `MilestoneType` catalogue, optional per-milestone `color` override, `baseline_locked_at` set on first save (baseline dates immutable thereafter except via controller override with audit log per [A-MS-03]).
+- `MilestoneType` — global catalogue for the milestone picker per [A-BK-34]. Fields: `id`, `name`, `default_color`, `suggested_ordering`, `is_active`. Read-only via `GET /api/admin/milestone-types`.
 - `Baseline` — immutable approved plan (project × month × line item)
 - `Forecast` — living plan updated via approved CRs (hours/costs per month)
 - `Actuals` — read-only historical spend
@@ -289,9 +290,9 @@ This project uses two tiers of agent parallelization. All agent role definitions
 - `backend/seed/seed.sql` — all relational seed data
 - `backend/seed/fixtures/` — JSON fixtures (manuals, FAQ, AI Advisor goals)
 - `backend/models/` — `capacity.py`, `change_requests.py`, `financial.py`, `organization.py`, `people.py`, `projects.py`, `reporting.py`, `scenarios.py`, `submissions.py`, `system.py`, `users.py`
-- `backend/routers/` — `admin.py`, `ai_reports.py`, `capacity.py`, `documentation.py`, `global_launchpad.py`, `pipeline.py`, `portfolio.py`, `reference.py`, `report_builder.py`, `reports.py`, `scenarios.py`, `tech_navigator.py`, `workbench.py`
+- `backend/routers/` — `admin.py`, `ai_reports.py`, `capacity.py`, `documentation.py`, `global_launchpad.py`, `milestones.py`, `pipeline.py`, `portfolio.py`, `reference.py`, `report_builder.py`, `reports.py`, `scenarios.py`, `tech_navigator.py`, `workbench.py`
 - `backend/services/` — `advisor.py`, `ai_report_service.py`, `allocation_service.py`, `calculations.py`, `forecast_cycle.py`, `pipeline.py`, `portfolio_service.py`, `report_builder_catalog.py`, `report_builder_engine.py`, `report_builder_export.py`, `report_builder_saved.py`, `report_service.py`, `scenario_engine.py`, `tech_navigator.py`
-- `backend/tests/` — unit tests (376 tests across 19 test files)
+- `backend/tests/` — unit tests (406 tests across 20 test files)
 
 ### Frontend
 - `frontend/src/modules/` — 8 module UIs (launchpad, portfolio, workbench, capacity, simulator, reporting, admin, docs)

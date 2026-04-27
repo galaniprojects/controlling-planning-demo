@@ -375,9 +375,9 @@ export interface TimelineCumulativePoint {
   actuals: number | null;
 }
 
-export interface TimelinePhase {
+export interface TimelineMilestone {
   name: string;
-  phase_number: number;
+  sequence_number: number;
   baseline_start: string;
   baseline_end: string;
   forecast_start: string;
@@ -397,7 +397,7 @@ export interface TimelineSummary {
 export interface TimelineData {
   monthly_data: TimelineMonthPoint[];
   cumulative_data: TimelineCumulativePoint[];
-  phases: TimelinePhase[];
+  milestones: TimelineMilestone[];
   summary: TimelineSummary;
   budget_ceiling: number;
   today_month: string;

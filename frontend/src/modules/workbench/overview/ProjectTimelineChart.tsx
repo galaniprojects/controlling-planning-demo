@@ -17,7 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { BarChart3, TrendingUp } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatters';
-import { PhaseStrip } from './PhaseStrip';
+import { MilestoneStrip } from './MilestoneStrip';
 import { TimelineSummaryStrip } from './TimelineSummaryStrip';
 import type { TimelineData, TimelineMonthPoint } from '@/types/api';
 
@@ -208,10 +208,10 @@ export function ProjectTimelineChart({ data }: Props) {
                   </BarChart>
                 </ResponsiveContainer>
 
-                {/* Phase strip aligned with chart months */}
-                {data.phases.length > 0 && (
+                {/* Milestone strip aligned with chart months */}
+                {data.milestones.length > 0 && (
                   <div style={{ paddingLeft: 0, paddingRight: 16 }}>
-                    <PhaseStrip phases={data.phases} months={months} />
+                    <MilestoneStrip milestones={data.milestones} months={months} />
                   </div>
                 )}
               </div>

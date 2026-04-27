@@ -7,7 +7,7 @@ from models.organization import (
     GroupingHierarchyLevel, ProjectGroupingAssignment,
 )
 from models.people import RoleType, Person, RateTable
-from models.projects import Project, ProjectPhase
+from models.projects import Project, ProjectMilestone, MilestoneType
 from models.financial import ExternalCostType, Baseline, Forecast, Actuals
 from models.capacity import Allocation, ResourceRequest, ResourceRequestAssignment
 from models.change_requests import ChangeRequest, CRChangeDetail, CRSubmissionSnapshot
@@ -22,7 +22,7 @@ __all__ = [
     "GroupingEntityType", "GroupingEntity", "GroupingHierarchy",
     "GroupingHierarchyLevel", "ProjectGroupingAssignment",
     "RoleType", "Person", "RateTable",
-    "Project", "ProjectPhase",
+    "Project", "ProjectMilestone", "MilestoneType",
     "ExternalCostType", "Baseline", "Forecast", "Actuals",
     "Allocation", "ResourceRequest", "ResourceRequestAssignment",
     "ChangeRequest", "CRChangeDetail", "CRSubmissionSnapshot",

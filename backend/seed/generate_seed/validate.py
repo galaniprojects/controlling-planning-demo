@@ -391,30 +391,30 @@ def check_entity_counts(db) -> tuple[bool, list[str]]:
     return len(issues) == 0, issues
 
 
-def check_phase_data(db) -> tuple[bool, list[str]]:
-    """Verify phase data: 4 projects with full phases, 3 with partial."""
+def check_milestone_data(db) -> tuple[bool, list[str]]:
+    """Verify milestone data: 4 projects with full sets, 3 with partial."""
     issues = []
 
-    phase_counts = db.execute("""
-        SELECT project_id, COUNT(*) as phase_count
-        FROM project_phases
+    milestone_counts = db.execute("""
+        SELECT project_id, COUNT(*) as milestone_count
+        FROM project_milestones
         GROUP BY project_id
-        ORDER BY phase_count DESC
+        ORDER BY milestone_count DESC
     """).fetchall()
 
-    full = [r for r in phase_counts if r["phase_count"] >= 4]
-    partial = [r for r in phase_counts if 2 <= r["phase_count"] <= 3]
+    full = [r for r in milestone_counts if r["milestone_count"] >= 4]
+    partial = [r for r in milestone_counts if 2 <= r["milestone_count"] <= 3]
 
     if len(full) != 4:
-        issues.append(f"  Expected 4 projects with full phases (4+), got {len(full)}: "
+        issues.append(f"  Expected 4 projects with full milestones (4+), got {len(full)}: "
                        f"{[r['project_id'] for r in full]}")
     if len(partial) != 3:
-        issues.append(f"  Expected 3 projects with partial phases (2-3), got {len(partial)}: "
+        issues.append(f"  Expected 3 projects with partial milestones (2-3), got {len(partial)}: "
                        f"{[r['project_id'] for r in partial]}")
 
-    total_projects_with_phases = len(phase_counts)
-    if total_projects_with_phases != 7:
-        issues.append(f"  Expected 7 total projects with phases, got {total_projects_with_phases}")
+    total_projects_with_milestones = len(milestone_counts)
+    if total_projects_with_milestones != 7:
+        issues.append(f"  Expected 7 total projects with milestones, got {total_projects_with_milestones}")
 
     return len(issues) == 0, issues
 
@@ -432,7 +432,7 @@ CHECKS = [
     ("7. Rate Consistency", check_rate_consistency),
     ("8. CapEx/OpEx Consistency", check_capex_opex_consistency),
     ("9. Entity Counts", check_entity_counts),
-    ("10. Phase Data", check_phase_data),
+    ("10. Milestone Data", check_milestone_data),
 ]
 
 

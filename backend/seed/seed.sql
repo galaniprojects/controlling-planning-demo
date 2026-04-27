@@ -321,22 +321,7 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('forecast_deadline', 'Forecast Deadline', 'Day of month when forecast is due', '15', '15', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_amber_threshold', 'RAG Amber Threshold', 'Budget variance % for amber status', '5', '5', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_red_threshold', 'RAG Red Threshold', 'Budget variance % for red status', '10', '10', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
--- Tech Navigator weights and thresholds [A-TN-02]. Sub-criterion weights are
--- global at KB level (per [A-TN-06]); ranking weights default to 70/30
--- ([A-OQ-06] working assumption); t-shirt thresholds per [A-OQ-09].
-('tn_complexity_weight_standardization', 'TN Complexity: Standardization Weight', 'Weight of Standardization sub-criterion in Complexity score', '40', '40', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_complexity_weight_usage', 'TN Complexity: Usage Weight', 'Weight of Usage sub-criterion in Complexity score', '40', '40', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_complexity_weight_maintenance', 'TN Complexity: Maintenance Weight', 'Weight of Maintenance & Support sub-criterion in Complexity score', '20', '20', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_value_weight_financial', 'TN Value: Financial Benefit Weight', 'Weight of Financial Benefit sub-criterion in Value Creation score', '50', '50', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_value_weight_payback', 'TN Value: Payback Weight', 'Weight of Payback sub-criterion in Value Creation score', '40', '40', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_value_weight_competitive', 'TN Value: Competitive Advantage Weight', 'Weight of Competitive Advantage sub-criterion in Value Creation score', '10', '10', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_w_value', 'TN Ranking: Value Creation Weight', 'Composite ranking weight for Value Creation axis', '70', '70', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_w_complexity', 'TN Ranking: Complexity Weight', 'Composite ranking weight for Complexity axis', '30', '30', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_tshirt_xs_max', 'TN T-shirt: XS Max Budget', 'Upper bound for XS budget t-shirt size (EUR)', '100000', '100000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_tshirt_s_max', 'TN T-shirt: S Max Budget', 'Upper bound for S budget t-shirt size (EUR)', '250000', '250000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_tshirt_m_max', 'TN T-shirt: M Max Budget', 'Upper bound for M budget t-shirt size (EUR)', '500000', '500000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_tshirt_l_max', 'TN T-shirt: L Max Budget', 'Upper bound for L budget t-shirt size (EUR); above L is XL', '1000000', '1000000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- 13. KPI Definitions
@@ -19915,38 +19900,54 @@ INSERT INTO audit_log (timestamp, user_person_id, entity_type, entity_id, entity
 ('2026-03-10 11:00:00', 'p-meier', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'update', 'controller_status', 'pending', 'approved');
 
 -- =============================================================================
--- Project Phases
+-- Milestone Types [A-BK-34]
 -- =============================================================================
 
-INSERT INTO project_phases (project_id, phase_number, name, baseline_start, baseline_end, forecast_start, forecast_end, color) VALUES
-('proj-erp2', 1, 'Discovery', '2024-07', '2024-10', '2024-07', '2024-10', 'blue'),
-('proj-erp2', 2, 'Design', '2024-11', '2025-03', '2024-11', '2025-04', 'teal'),
-('proj-erp2', 3, 'Build', '2025-04', '2025-12', '2025-05', '2026-02', 'amber'),
-('proj-erp2', 4, 'Test', '2026-01', '2026-04', '2026-03', '2026-06', 'emerald'),
-('proj-erp2', 5, 'Rollout', '2026-05', '2026-06', '2026-07', '2026-09', 'violet'),
-('proj-sap', 1, 'Assessment', '2022-01', '2022-06', '2022-01', '2022-06', 'blue'),
-('proj-sap', 2, 'Design', '2022-07', '2023-06', '2022-07', '2023-06', 'teal'),
-('proj-sap', 3, 'Migration', '2023-07', '2025-06', '2023-07', '2025-06', 'amber'),
-('proj-sap', 4, 'Validation', '2025-07', '2026-03', '2025-07', '2026-03', 'emerald'),
-('proj-sap', 5, 'Go-Live', '2026-04', '2026-06', '2026-04', '2026-06', 'violet'),
-('proj-signal', 1, 'Requirements', '2023-01', '2023-06', '2023-01', '2023-06', 'blue'),
-('proj-signal', 2, 'Engineering', '2023-07', '2024-12', '2023-07', '2024-12', 'teal'),
-('proj-signal', 3, 'Integration', '2025-01', '2025-09', '2025-01', '2025-10', 'amber'),
-('proj-signal', 4, 'Commissioning', '2025-10', '2026-06', '2025-11', '2026-06', 'emerald'),
-('proj-connveh', 1, 'Concept', '2026-10', '2027-03', '2026-10', '2027-03', 'blue'),
-('proj-connveh', 2, 'Architecture', '2027-04', '2027-09', '2027-04', '2027-09', 'teal'),
-('proj-connveh', 3, 'Development', '2027-10', '2028-06', '2027-10', '2028-06', 'amber'),
-('proj-connveh', 4, 'Integration', '2028-07', '2028-09', '2028-07', '2028-09', 'emerald'),
-('proj-connveh', 5, 'Launch', '2028-10', '2028-12', '2028-10', '2028-12', 'violet'),
-('proj-raildiag', 1, 'Planning', '2024-06', '2024-12', '2024-06', '2024-12', 'blue'),
-('proj-raildiag', 2, 'Implementation', '2025-01', '2026-09', '2025-01', '2026-10', 'teal'),
-('proj-raildiag', 3, 'Go-Live', '2026-10', '2027-06', '2026-11', '2027-06', 'emerald'),
-('proj-fleet', 1, 'Development', '2025-01', '2025-09', '2025-01', '2025-09', 'blue'),
-('proj-fleet', 2, 'Testing', '2025-10', '2026-02', '2025-10', '2026-03', 'teal'),
-('proj-fleet', 3, 'Deployment', '2026-03', '2026-06', '2026-04', '2026-06', 'emerald'),
-('proj-iam', 1, 'Assessment', '2025-01', '2025-06', '2025-01', '2025-06', 'blue'),
-('proj-iam', 2, 'Implementation', '2025-07', '2026-06', '2025-07', '2026-07', 'teal'),
-('proj-iam', 3, 'Rollout', '2026-07', '2026-09', '2026-08', '2026-09', 'emerald');
+INSERT INTO milestone_types (id, name, default_color, suggested_ordering, is_active, created_at) VALUES
+('mt-planning', 'Planning', 'blue', 1, 1, '2026-01-15 10:00:00'),
+('mt-requirements', 'Requirements & Analysis', 'teal', 2, 1, '2026-01-15 10:00:00'),
+('mt-development', 'Development', 'emerald', 3, 1, '2026-01-15 10:00:00'),
+('mt-testing', 'Testing/QA', 'amber', 4, 1, '2026-01-15 10:00:00'),
+('mt-uat', 'UAT', 'violet', 5, 1, '2026-01-15 10:00:00'),
+('mt-pilot', 'Pilot', 'indigo', 6, 1, '2026-01-15 10:00:00'),
+('mt-rollout', 'Rollout', 'sky', 7, 1, '2026-01-15 10:00:00'),
+('mt-data-migration', 'Data Migration', 'cyan', 8, 1, '2026-01-15 10:00:00'),
+('mt-training', 'Training/Change Management', 'rose', 9, 1, '2026-01-15 10:00:00'),
+('mt-hypermaint', 'Hyper-maintenance', 'slate', 10, 1, '2026-01-15 10:00:00');
+
+-- =============================================================================
+-- Project Milestones [A-MS-01]
+-- =============================================================================
+
+INSERT INTO project_milestones (project_id, sequence_number, name, milestone_type_id, baseline_start, baseline_end, forecast_start, forecast_end, color, baseline_locked_at) VALUES
+('proj-erp2', 1, 'Discovery', 'mt-requirements', '2024-07', '2024-10', '2024-07', '2024-10', 'blue', '2024-01-01 00:00:00'),
+('proj-erp2', 2, 'Design', 'mt-planning', '2024-11', '2025-03', '2024-11', '2025-04', 'teal', '2024-01-01 00:00:00'),
+('proj-erp2', 3, 'Build', 'mt-development', '2025-04', '2025-12', '2025-05', '2026-02', 'amber', '2024-01-01 00:00:00'),
+('proj-erp2', 4, 'Test', 'mt-testing', '2026-01', '2026-04', '2026-03', '2026-06', 'emerald', '2024-01-01 00:00:00'),
+('proj-erp2', 5, 'Rollout', 'mt-rollout', '2026-05', '2026-06', '2026-07', '2026-09', 'violet', '2024-01-01 00:00:00'),
+('proj-sap', 1, 'Assessment', 'mt-requirements', '2022-01', '2022-06', '2022-01', '2022-06', 'blue', '2024-01-01 00:00:00'),
+('proj-sap', 2, 'Design', 'mt-planning', '2022-07', '2023-06', '2022-07', '2023-06', 'teal', '2024-01-01 00:00:00'),
+('proj-sap', 3, 'Migration', 'mt-data-migration', '2023-07', '2025-06', '2023-07', '2025-06', 'amber', '2024-01-01 00:00:00'),
+('proj-sap', 4, 'Validation', 'mt-testing', '2025-07', '2026-03', '2025-07', '2026-03', 'emerald', '2024-01-01 00:00:00'),
+('proj-sap', 5, 'Go-Live', 'mt-rollout', '2026-04', '2026-06', '2026-04', '2026-06', 'violet', '2024-01-01 00:00:00'),
+('proj-signal', 1, 'Requirements', 'mt-requirements', '2023-01', '2023-06', '2023-01', '2023-06', 'blue', '2024-01-01 00:00:00'),
+('proj-signal', 2, 'Engineering', 'mt-development', '2023-07', '2024-12', '2023-07', '2024-12', 'teal', '2024-01-01 00:00:00'),
+('proj-signal', 3, 'Integration', 'mt-development', '2025-01', '2025-09', '2025-01', '2025-10', 'amber', '2024-01-01 00:00:00'),
+('proj-signal', 4, 'Commissioning', 'mt-testing', '2025-10', '2026-06', '2025-11', '2026-06', 'emerald', '2024-01-01 00:00:00'),
+('proj-connveh', 1, 'Concept', 'mt-planning', '2026-10', '2027-03', '2026-10', '2027-03', 'blue', '2024-01-01 00:00:00'),
+('proj-connveh', 2, 'Architecture', 'mt-planning', '2027-04', '2027-09', '2027-04', '2027-09', 'teal', '2024-01-01 00:00:00'),
+('proj-connveh', 3, 'Development', 'mt-development', '2027-10', '2028-06', '2027-10', '2028-06', 'amber', '2024-01-01 00:00:00'),
+('proj-connveh', 4, 'Integration', 'mt-development', '2028-07', '2028-09', '2028-07', '2028-09', 'emerald', '2024-01-01 00:00:00'),
+('proj-connveh', 5, 'Launch', 'mt-rollout', '2028-10', '2028-12', '2028-10', '2028-12', 'violet', '2024-01-01 00:00:00'),
+('proj-raildiag', 1, 'Planning', 'mt-planning', '2024-06', '2024-12', '2024-06', '2024-12', 'blue', '2024-01-01 00:00:00'),
+('proj-raildiag', 2, 'Implementation', 'mt-development', '2025-01', '2026-09', '2025-01', '2026-10', 'teal', '2024-01-01 00:00:00'),
+('proj-raildiag', 3, 'Go-Live', 'mt-rollout', '2026-10', '2027-06', '2026-11', '2027-06', 'emerald', '2024-01-01 00:00:00'),
+('proj-fleet', 1, 'Development', 'mt-development', '2025-01', '2025-09', '2025-01', '2025-09', 'blue', '2024-01-01 00:00:00'),
+('proj-fleet', 2, 'Testing', 'mt-testing', '2025-10', '2026-02', '2025-10', '2026-03', 'teal', '2024-01-01 00:00:00'),
+('proj-fleet', 3, 'Deployment', 'mt-rollout', '2026-03', '2026-06', '2026-04', '2026-06', 'emerald', '2024-01-01 00:00:00'),
+('proj-iam', 1, 'Assessment', 'mt-requirements', '2025-01', '2025-06', '2025-01', '2025-06', 'blue', '2024-01-01 00:00:00'),
+('proj-iam', 2, 'Implementation', 'mt-development', '2025-07', '2026-06', '2025-07', '2026-07', 'teal', '2024-01-01 00:00:00'),
+('proj-iam', 3, 'Rollout', 'mt-rollout', '2026-07', '2026-09', '2026-08', '2026-09', 'emerald', '2024-01-01 00:00:00');
 
 -- =============================================================================
 -- What-If Scenarios

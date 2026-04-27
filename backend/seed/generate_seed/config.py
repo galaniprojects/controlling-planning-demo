@@ -918,7 +918,7 @@ CHANGE_REQUESTS = [
 # Project Phases
 # ---------------------------------------------------------------------------
 
-PROJECT_PHASES = {
+PROJECT_MILESTONES = {
     # Full phases (4-5)
     "proj-erp2": [
         {"n": 1, "name": "Discovery",  "bs": "2024-07", "be": "2024-10", "fs": "2024-07", "fe": "2024-10", "color": "blue"},
