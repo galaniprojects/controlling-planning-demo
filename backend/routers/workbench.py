@@ -13,7 +13,7 @@ from models.organization import CostCenter
 from models.change_requests import ChangeRequest, CRChangeDetail, CRSubmissionSnapshot
 from models.financial import Actuals, Baseline, Forecast
 from models.people import Person, RateTable, RoleType
-from models.projects import Project, ProjectPhase
+from models.projects import MilestoneType, Project, ProjectMilestone
 from models.system import SystemSuggestion
 from schemas.common import CurrentUser
 from schemas.workbench import (
@@ -269,25 +269,35 @@ def get_project_timeline(
             "actuals": round(cum_actuals, 2) if m <= today_month and m in ac_map else None,
         })
 
-    # Phases
-    phases = (
-        db.query(ProjectPhase)
-        .filter(ProjectPhase.project_id == project_id)
-        .order_by(ProjectPhase.phase_number)
+    # Milestones [A-MS-01]
+    milestones = (
+        db.query(ProjectMilestone)
+        .filter(ProjectMilestone.project_id == project_id)
+        .order_by(ProjectMilestone.sequence_number)
         .all()
     )
-    phases_data = [
+    type_lookup = {mt.id: mt for mt in db.query(MilestoneType).all()}
+    milestones_data = [
         {
-            "name": p.name,
-            "phase_number": p.phase_number,
-            "baseline_start": p.baseline_start,
-            "baseline_end": p.baseline_end,
-            "forecast_start": p.forecast_start,
-            "forecast_end": p.forecast_end,
-            "color": p.color,
-            "slip_months": _month_diff(p.forecast_end, p.baseline_end),
+            "name": m.name,
+            "sequence_number": m.sequence_number,
+            "baseline_start": m.baseline_start,
+            "baseline_end": m.baseline_end,
+            "forecast_start": m.forecast_start,
+            "forecast_end": m.forecast_end,
+            # Resolved colour: own override else type default
+            "color": (
+                m.color
+                if m.color
+                else (
+                    type_lookup[m.milestone_type_id].default_color
+                    if m.milestone_type_id and m.milestone_type_id in type_lookup
+                    else None
+                )
+            ),
+            "slip_months": _month_diff(m.forecast_end, m.baseline_end),
         }
-        for p in phases
+        for m in milestones
     ]
 
     # Summary
@@ -304,7 +314,7 @@ def get_project_timeline(
     return {
         "monthly_data": monthly_data,
         "cumulative_data": cumulative_data,
-        "phases": phases_data,
+        "milestones": milestones_data,
         "summary": {
             "baseline_total": baseline_total,
             "forecast_total": forecast_total,

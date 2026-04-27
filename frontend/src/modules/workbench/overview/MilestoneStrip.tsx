@@ -1,4 +1,4 @@
-import type { TimelinePhase } from '@/types/api';
+import type { TimelineMilestone } from '@/types/api';
 import {
   Tooltip,
   TooltipContent,
@@ -7,12 +7,12 @@ import {
 } from '@/components/ui/tooltip';
 
 interface Props {
-  phases: TimelinePhase[];
+  milestones: TimelineMilestone[];
   months: string[];
 }
 
-export function PhaseStrip({ phases, months }: Props) {
-  if (phases.length === 0) return null;
+export function MilestoneStrip({ milestones, months }: Props) {
+  if (milestones.length === 0) return null;
 
   // Build a month-to-index map for positioning
   const monthIndex = new Map(months.map((m, i) => [m, i]));
@@ -27,20 +27,20 @@ export function PhaseStrip({ phases, months }: Props) {
           gridTemplateColumns: `repeat(${totalCols}, 1fr)`,
         }}
       >
-        {phases.map((phase) => {
-          const startIdx = monthIndex.get(phase.forecast_start);
-          const endIdx = monthIndex.get(phase.forecast_end);
+        {milestones.map((milestone) => {
+          const startIdx = monthIndex.get(milestone.forecast_start);
+          const endIdx = monthIndex.get(milestone.forecast_end);
           if (startIdx === undefined || endIdx === undefined) return null;
 
           const colStart = startIdx + 1;
           const colEnd = endIdx + 2; // grid is 1-based, end is exclusive
 
           // Check for baseline slip
-          const baselineEndIdx = monthIndex.get(phase.baseline_end);
-          const hasSlip = phase.slip_months > 0;
+          const baselineEndIdx = monthIndex.get(milestone.baseline_end);
+          const hasSlip = milestone.slip_months > 0;
 
           return (
-            <TooltipProvider key={phase.phase_number} delayDuration={200}>
+            <TooltipProvider key={milestone.sequence_number} delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div
@@ -48,34 +48,34 @@ export function PhaseStrip({ phases, months }: Props) {
                     style={{
                       gridColumn: `${colStart} / ${colEnd}`,
                       gridRow: 1,
-                      backgroundColor: phase.color,
+                      backgroundColor: milestone.color,
                       opacity: 0.85,
                     }}
                   >
-                    <span className="truncate px-1">{phase.name}</span>
+                    <span className="truncate px-1">{milestone.name}</span>
                     {hasSlip && baselineEndIdx !== undefined && (
                       <div
                         className="absolute top-0 h-full w-0.5 bg-muted-foreground"
                         style={{
                           left: `${((baselineEndIdx - startIdx + 1) / (endIdx - startIdx + 1)) * 100}%`,
                         }}
-                        title={`Baseline end: ${phase.baseline_end}`}
+                        title={`Baseline end: ${milestone.baseline_end}`}
                       />
                     )}
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">
                   <div className="space-y-1">
-                    <div className="font-medium">{phase.name}</div>
+                    <div className="font-medium">{milestone.name}</div>
                     <div className="text-muted-foreground">
-                      Baseline: {phase.baseline_start} to {phase.baseline_end}
+                      Baseline: {milestone.baseline_start} to {milestone.baseline_end}
                     </div>
                     <div className="text-muted-foreground">
-                      Forecast: {phase.forecast_start} to {phase.forecast_end}
+                      Forecast: {milestone.forecast_start} to {milestone.forecast_end}
                     </div>
                     {hasSlip && (
                       <div className="text-red-500">
-                        Slip: +{phase.slip_months} month{phase.slip_months > 1 ? 's' : ''}
+                        Slip: +{milestone.slip_months} month{milestone.slip_months > 1 ? 's' : ''}
                       </div>
                     )}
                   </div>

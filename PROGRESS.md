@@ -2,9 +2,149 @@
 
 ## Current Status
 Phase: v5 Cluster A — Portfolio Pipeline & Backlog
-Last completed: Session A1 — Tech Navigator backend (data model + API)
-Branch: `v5/cluster-a/tech-navigator-backend` (off `main`)
-Next: A2 (Pipeline stages & DoI), A3 (Ranking engine), A4 (Milestones rename), A5 (Intake workflow). A1/A2/A4 can run in parallel.
+Last completed: Sessions A2 + A4 — Pipeline / DoI lifecycle backend AND Project Milestones backend (rename + Type Library + CRUD), implemented in parallel on separate branches and combined here.
+Branch: `v5/cluster-a/pipeline-and-milestones-backend` (off `main`, post-PR-#60). Carries A2's 8 atomic commits and A4's 11 atomic commits + merge-conflict resolution. Ready to PR.
+Next: A3 (Ranking engine — depends on both A2 and A4), A5 (Intake workflow — depends on A2 and A3), then A6/A7/A8 frontend.
+
+## v5 Session A2: Pipeline Stages, DoI, Project Lifecycle Backend (2026-04-27)
+
+### Feature Overview
+- Each project carries a v5 lifecycle alongside the existing v4 `status` field: working pipeline stage (one of 9 names per `[A-PS-02]`), DoI level 0–5 per `[A-DOI-01]`, frozen DoI for off-path stages (`Paused`, `Cancelled`), AI Council screening flag + OneDrive document URL, and a settable `within_cutoff` boolean.
+- New `/api/projects/{id}/pipeline*` router with four endpoints: GET full state (any role), POST stage transition with optional `override_reason` (controller anywhere; PL on own project for forward DoI 0→1 / 1→2), PUT AI Council flag + URL (controller-only), PUT manual within_cutoff (controller-only; A3 replaces with computed value).
+- Stage-transition graph permits backwards moves per `[A-PS-11]`; Cancelled→anything requires `override_reason` per `[A-PS-10]`. Off-path entry freezes the live DoI into `frozen_doi`; leaving an off-path stage restores it.
+- DoI gate validation runs only on forward DoI moves, returns 409 with the missing-fields list, and is bypassable via controller `override_reason` (audited as `action='override'`).
+
+### Spec references implemented
+`[A-PS-01]`–`[A-PS-04]`, `[A-PS-06]`, `[A-PS-10]`, `[A-PS-11]`, `[A-DOI-01]`–`[A-DOI-10]`, `[A-DA-01]`. Out of scope per plan: `[A-PS-12]` Operate Portfolio view (frontend), `[A-PS-13]` v4 intake retirement (A5), `[A-PS-07]`/`[A-PS-08]` auto-activation rules (A3), `[A-DA-02]` structured description sections, `[A-DA-03]` new project fields (requesting BU, demand type, value stream, Wave ID — deferred to a follow-up session because the schema additions cross-cut intake forms).
+
+### Technical Details
+- **Model:** 6 new columns on `Project` in `backend/models/projects.py`: `pipeline_stage` (`String(30)`), `doi`/`frozen_doi` (`Integer`), `ai_council_approved` (`Boolean NOT NULL DEFAULT 0`), `ai_council_doc_url` (`Text`), `within_cutoff` (`Boolean`). All others nullable so existing rows survive re-seed.
+- **Service:** `backend/services/pipeline.py` — `STAGES` ordered tuple, `BACKLOG_STAGES`/`OPERATE_STAGES`/`OFF_PATH_STAGES` frozensets, `VALID_TRANSITIONS` graph, `is_transition_allowed`, `doi_for_stage`, `WORKING_DOI_GATES` dict + `FieldRequirement` dataclass, `validate_doi_gate`, `compute_pipeline_state`. Pure functions; no DB writes.
+- **Schemas:** `backend/schemas/pipeline.py` — `GateStatus`, `PipelineStateResponse`, `StageTransitionRequest`, `AICouncilUpdate`, `WithinCutoffSet`.
+- **Router:** new `backend/routers/pipeline.py` mounted at `/api/projects`. Authorisation via `_can_modify_pipeline` helper mirroring A1's `_can_edit_tn`. Audit log entries under `entity_type='pipeline'` (stage/DoI/frozen_doi changes + override action), `'ai_council'`, and `'within_cutoff'`.
+- **Seed:** column list in `backend/seed/seed.sql` projects INSERT block extended; all 32 existing rows now carry stage / DoI / AI Council values per the status→stage mapping below. Hand-edited via a one-shot Python regex script (the `seed/generate_seed/` generator is not used for v5 columns yet — same convention as A1).
+- **Tests:** 56 new tests across `tests/test_pipeline_service.py` (28) and `tests/test_router_pipeline.py` (28). Standalone A2 suite: 376 passed (320 baseline + 56 new). After merging with A4: 406 passed.
+
+### API Endpoints Added
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/projects/{id}/pipeline` | Full pipeline state + available transitions + gate status |
+| POST | `/api/projects/{id}/pipeline/transition` | Move stage / DoI; `override_reason` bypasses gate fields |
+| PUT | `/api/projects/{id}/pipeline/ai-council` | Set AI Council flag + OneDrive doc URL |
+| PUT | `/api/projects/{id}/pipeline/within-cutoff` | Manual within_cutoff setter (A3 replaces with computed) |
+
+### Data Model Changes
+6 new columns on `projects` table. As with A1, **no Alembic** — the existing `backend/creta_demo.db` will fail with `no such column: projects.pipeline_stage` on the next startup. Delete the file before running `python main.py`; the startup hook re-creates the schema and re-runs `seed.sql`.
+
+### Working assumptions
+- **DoI gate field choices** — gate definitions are working assumptions per `[A-OQ-04]`/`[A-BK-30]`. We require only fields that already exist on `Project`. Notable choices:
+  - DoI 0 minimum: project name, description (treated as the structured description until `[A-DA-02]` lands), `pl_person_id`, `project_type`. New fields `requesting_business_unit`, `demand_type`, `value_stream`, `wave_id` per `[A-DA-03]` are deferred.
+  - DoI 1: composite_score not null, tshirt_size not null, transformation_level not null, ai_council_approved truthy, ai_council_doc_url not null.
+  - DoI 2: all six TN sub-criteria not null + total_budget + capex_opex.
+  - DoI 3: `len(project.phases) >= 1` (A4 will rename `phases` → `milestones`; service code reads whichever attribute exists) + `start_month`.
+  - DoI 4: at least one baseline row (heuristic for "named resource assignments").
+  - DoI 5: `end_month` not null (heuristic for "termination date set or explicit").
+- **Status → stage seed mapping** — the table below is the working assumption used by `seed.sql`. KB can refine; the model holds whatever the seed says.
+  | v4 status | pipeline_stage | doi | frozen_doi | ai_council_approved | ai_council_doc_url | within_cutoff |
+  |---|---|---|---|---|---|---|
+  | active | Active | 3 | NULL | true | https://onedrive/active-default | true |
+  | pending_approval | Under Evaluation | 2 | NULL | true | https://onedrive/eval-default | NULL |
+  | pending_cc_confirmation | Under Evaluation | 2 | NULL | true | https://onedrive/eval-default | NULL |
+  | changes_requested | Proposed | 1 | NULL | false | NULL | NULL |
+  | draft | Proposed | 0 | NULL | false | NULL | NULL |
+  | planned | Approved | 3 | NULL | true | https://onedrive/planned-default | true |
+  | completed | Operate | 5 | NULL | true | https://onedrive/legacy-doc | NULL |
+  | rejected | Cancelled | NULL | 2 | false | NULL | NULL |
+- **Backwards DoI move** — the gate is enforced only on forward moves (`target_doi > current_doi`). Backwards moves per `[A-PS-11]` need only structural transition validity; this matches the spec's framing of gates as forward maturity bars.
+
+### Verification
+- `python -m pytest backend/tests/ -v` → 376 passed (320 baseline + 56 new).
+- Standalone executable test of `seed.sql` against a fresh schema: all 32 project rows insert cleanly with the new columns populated; status/stage mapping matches the table above.
+- Live `python main.py` smoke test against the dev server (with the existing `backend/creta_demo.db` deleted to force re-seed) confirmed the GET endpoint returns expected JSON.
+
+### Refactoring opportunities (noted, not acted on)
+- `Project.status` is now redundant for v5-aware code paths but still drives the v4 intake / CR flow. Removal lands in A5 (intake workflow rewrite).
+- Frontend hardcodes 19+ `status` string comparisons across modules — cleanup belongs to A8 (frontend pipeline UI), not here.
+- `seed/generate_seed/s04_programs_projects.py` does not yet emit the v5 pipeline columns (matches A1's pattern — seed.sql is the source of truth for new columns until the next generator regen). When the generator is updated, also fold in A1's `tech_navigator` columns.
+
+### Out-of-scope notes
+- `[A-DA-03]` new project fields (`requesting_business_unit`, `demand_type`, `value_stream`, `wave_id`) deferred to a follow-up session — the schema additions cross-cut intake forms and warrant their own session.
+- `[A-DA-02]` structured description sections — schema unchanged; current `description` text column is treated as the proxy.
+- `[A-PS-07]`/`[A-PS-08]` auto-activation logic deferred to A3.
+- `within_cutoff` recomputation deferred to A3 (replaces the manual PUT).
+
+### Notes for follow-on sessions
+- **A3 ranking engine** consumes `pipeline_stage` (filter `BACKLOG_STAGES`), `doi` (tie-breaker per `[A-BK-06]`), and writes `within_cutoff` per `[A-PS-06]`. The manual setter endpoint stays in place for now; A3 keeps the column writable from the engine and from controller override.
+- **A4 milestones (parallel)** will rename `phases` → `milestones`. Pipeline service's DoI 3 gate reads `getattr(project, "milestones", None) or getattr(project, "phases", [])` so the rename is mechanical.
+- **A5 intake workflow** retires the v4 `status` enum and the existing intake queue endpoints. Pipeline state replaces them; the controller actions Approve / Send Back / Reject map to `pipeline_stage` transitions Approved / Proposed (with `submission_feedback`) / Cancelled.
+- **A7 frontend** wires the four endpoints into the project Master Data tab and the new Pipeline section of the Backlog detail view.
+
+### Ready to PR
+A2 + A4 merged into branch `v5/cluster-a/pipeline-and-milestones-backend`. After combined verification: 406 tests pass (320 baseline + 56 A2 + 30 A4).
+
+---
+
+## v5 Session A4: Project Milestones Backend (2026-04-27)
+
+### Feature Overview
+- Renames `ProjectPhase` model + `project_phases` table → `ProjectMilestone` / `project_milestones`. Renames `phase_number` column → `sequence_number` per `[A-MS-01]`.
+- Adds `MilestoneType` global catalogue (10 default types) per `[A-BK-34]`. Read-only via `GET /api/admin/milestone-types`.
+- Adds optional `milestone_type_id` FK and `baseline_locked_at` timestamp on `ProjectMilestone`. Per-milestone `color` is now nullable; resolved server-side as own override else `MilestoneType.default_color`.
+- Per-project milestone CRUD endpoints (list / create / update / delete).
+- Baseline-date edits enforce `[A-MS-03]`: controller-only AND require `override_reason` (else 403). Override path emits one `audit_log` entry per changed field with the reason embedded in `new_value`. PL is restricted to forecast-only edits.
+- Frontend rename only (terminology, no behaviour change): `TimelinePhase` → `TimelineMilestone`, `PhaseStrip` → `MilestoneStrip`, `phase_number` → `sequence_number`, `data.phases` → `data.milestones`.
+
+### Spec references implemented
+`[A-MS-01]` — `[A-MS-04]`, `[A-BK-31]`, `[A-BK-34]` — `[A-BK-36]`, `[E-01]`. The forecast-vs-baseline-end slip computation already exists in the timeline endpoint (`_month_diff`); it is reused for the new list endpoint.
+
+### Technical Details
+- **Models:** `backend/models/projects.py`
+  - `ProjectPhase` renamed to `ProjectMilestone`. New columns: `sequence_number`, `milestone_type_id` (FK to `milestone_types`, nullable), `baseline_locked_at` (DateTime, nullable). `color` column is now nullable.
+  - New `MilestoneType` class: `id`, `name`, `default_color`, `suggested_ordering`, `is_active`, `created_at`. Pattern mirrors `RoleType` and `ExternalCostType`.
+- **Schemas:** new `backend/schemas/milestones.py` with `MilestoneTypeResponse`, `MilestoneTypeListResponse`, `MilestoneResponse`, `MilestoneListResponse`, `MilestoneCreate`, `MilestoneUpdate`. Update body carries optional `override_reason` per `[A-MS-03]`.
+- **Router:** new `backend/routers/milestones.py` with two router prefixes: `project_router` at `/api/projects` and `admin_router` at `/api/admin`. Both mounted in `main.py`. Mirrors the Tech Navigator authorization gate (`_can_edit_milestones`).
+- **Workbench wiring:** `routers/workbench.py` timeline endpoint switched from `ProjectPhase` to `ProjectMilestone`. Response key `phases` renamed to `milestones`; row field `phase_number` renamed to `sequence_number`. Resolved colour computed server-side.
+- **Seed:**
+  - New `s08b_milestone_types.py` generates the 10 default rows (Planning, Requirements & Analysis, Development, Testing/QA, UAT, Pilot, Rollout, Data Migration, Training/Change Management, Hyper-maintenance).
+  - `s09_phases.py` renamed to `s09_milestones.py`. INSERT targets `project_milestones` with the new column list. Legacy phase names mapped to default types via case-insensitive substring match.
+  - `config.PROJECT_PHASES` renamed to `PROJECT_MILESTONES`. `validate.check_phase_data` renamed to `check_milestone_data`.
+  - `runner.py` wires `s08b` before `s09`.
+- **Frontend:** `TimelinePhase` → `TimelineMilestone`, `phase_number` → `sequence_number` (in `frontend/src/types/api.ts`). `PhaseStrip.tsx` renamed to `MilestoneStrip.tsx` with internal renames. `ProjectTimelineChart.tsx` updated import + JSX usage. No styling or behaviour change.
+- **Tests:** new `backend/tests/test_router_milestones.py` with 30 tests across 5 classes (List, Create, Update, Delete, ListMilestoneTypes). Standalone A4 suite: 350 passed (320 baseline + 30 new). After merging with A2: 406 passed.
+
+### API Endpoints Added
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET    | `/api/projects/{id}/milestones`              | List milestones (any authenticated). Empty list valid `[A-MS-04]`. |
+| POST   | `/api/projects/{id}/milestones`              | Create milestone (controller, or PL on own project). |
+| PUT    | `/api/projects/{pid}/milestones/{mid}`       | Partial update. Baseline edits gated per `[A-MS-03]`. |
+| DELETE | `/api/projects/{pid}/milestones/{mid}`       | Delete (controller, or PL on own project). |
+| GET    | `/api/admin/milestone-types`                 | Read-only catalogue per `[A-BK-34]`. |
+
+### Data Model Changes
+- Renames table `project_phases` → `project_milestones`.
+- Adds new table `milestone_types` with 10 seeded rows.
+- New column `project_milestones.milestone_type_id` (FK, nullable).
+- New column `project_milestones.baseline_locked_at` (DateTime, nullable).
+- Renamed column `phase_number` → `sequence_number`.
+- `color` column on `project_milestones` is now nullable.
+
+**No migration tooling exists in this project (no Alembic).** Existing `creta_demo.db` files will fail at startup against the new schema. **Resolution:** delete `backend/creta_demo.db` and restart the server; the seed loader recreates schema + data automatically.
+
+### Working assumptions
+- Column name `phase_number` → `sequence_number` (spec is silent; chosen as the cleaner name under the new `ProjectMilestone` entity).
+- A4 ships only the **read-only** Type Library API (`GET /api/admin/milestone-types`). Admin CRUD UI for milestone types is deferred to D1/D3 frontend sessions.
+- `DELETE` is allowed regardless of `baseline_locked_at` for now. The lock guards baseline-date *edits* via `[A-MS-03]`, not row removal. Will be revisited when the milestones admin UI ships.
+- Override-reason audit format: `f"{new_value} (override: {override_reason})"` written to `new_value`. Avoids any `AuditLog` schema change.
+
+### Refactoring opportunities (noted, not acted on)
+- **Pre-existing bug surfaced during pre-merge visual verification:** the milestone strip applies `phase.color` directly via inline `style={{ backgroundColor }}`. The seed uses Tailwind palette names ("amber", "emerald") for several phases, but those are not valid CSS color keywords, so the browser renders those bands transparent. Bug exists identically on `main` (seed values are unchanged by A4 — verified via `git show main:backend/seed/seed.sql`). Fix path: either (a) translate Tailwind names to hex/rgb in the seed/migration, (b) add a frontend lookup that maps Tailwind names → CSS values, or (c) tighten the API to return only valid CSS colors. Not in A4 scope; flag for a follow-up cleanup or fold into the new `MilestoneType` catalogue alongside D1/D3.
+
+### Notes for follow-on sessions
+- A7 frontend can wire CRUD UI for milestones using the new `/api/admin/milestone-types` catalogue for the picker dropdown.
+- The override-reason audit format is intentionally simple. If KB requests a structured representation later, AuditLog will need a new column (or an ancillary `audit_log_meta` table).
+
+---
 
 ## v5 Session A1: Tech Navigator Backend (2026-04-27)
 

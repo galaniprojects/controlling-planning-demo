@@ -158,12 +158,14 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Portfolio** | `/api/portfolio` | 18 | Dashboard KPIs, project tree, intake queue (approve/reject/send-back/diff/accept-changes), CR approvals (approve/reject/send-back/editable-grid) |
 | **Workbench** | `/api/projects` | 13 | Project list, overview, timeline, forecast grid, 5-phase forecast cycle, CR diff/accept-changes/resubmit |
 | **Tech Navigator** | `/api/projects` | 2 | Project Tech Navigator profile (read + partial update with score recompute) |
+| **Pipeline** | `/api/projects` | 4 | Pipeline stage + DoI gate state (read, transition with optional override, AI Council flag, manual within_cutoff setter) |
+| **Project Milestones** | `/api/projects` | 4 | Milestone CRUD (list, create, update, delete) per project; baseline-date edits require controller + override reason per [A-MS-03] |
 | **Capacity** | `/api/capacity` | 14 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation |
 | **Scenarios** | `/api/scenarios` | 8 | CRUD, actions, comparison, AI advisor |
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
 | **Report Builder** | `/api/report-builder` | 12 | Data catalog, filter options, query execution, saved reports CRUD, share/publish, CSV export |
 | **AI Report Builder** | `/api/reports/ai-builder` | 4 | Status check, conversation start, message, cleanup |
-| **Admin** | `/api/admin` | 19 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset, Tech Navigator score recompute |
+| **Admin** | `/api/admin` | 20 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset, Tech Navigator score recompute, milestone-types catalogue |
 | **Docs** | `/api/docs` | 3 | Module manuals, FAQ |
 | **Reference** | `/api/reference` | 4 | Roles, cost types, grouping entities, cost centers |
 
@@ -209,6 +211,33 @@ The Tech Navigator scoring profile (Complexity sub-criteria, Value Creation sub-
 | `POST` | `/api/admin/recompute-scores` | Recompute Tech Navigator scores across the entire portfolio (controller-only) |
 
 Admin-configurable parameters (12 rows in `param_group='tech_navigator'`): sub-criterion weights (Complexity 40/40/20, Value 50/40/10), composite ranking weights (Value 70 / Complexity 30), and t-shirt size thresholds (XS ≤100k, S ≤250k, M ≤500k, L ≤1M, XL >1M). Editing any `tn_*` key via `PUT /api/admin/parameters` automatically triggers `recompute_all_scores`.
+
+### Pipeline Stage / DoI Endpoints (v5 Cluster A — Session A2)
+
+Each project carries a working pipeline stage (`Proposed`, `Under Evaluation`, `Approved`, `Active`, `Hyper-maintenance`, `Operate`, `Retired`, `Paused`, `Cancelled` per `[A-PS-02]`) and a DoI level (0–5 per `[A-DOI-01]`). Off-path stages (`Paused`, `Cancelled`) carry `frozen_doi`. The AI Council screening flag and OneDrive document URL gate the DoI 0→1 transition; `within_cutoff` is settable here in A2 and recomputed by the ranking engine in A3.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/projects/{id}/pipeline` | Read full pipeline state — stage, DoI, frozen DoI, AI Council flag/URL, within_cutoff, available transitions, and gate status (missing fields for the next DoI) |
+| `POST` | `/api/projects/{id}/pipeline/transition` | Move to a new stage / DoI. Controller anywhere; PL on own project for forward DoI 0→1 / 1→2. Missing gate fields → 409 unless `override_reason` is supplied (audited) |
+| `PUT` | `/api/projects/{id}/pipeline/ai-council` | Controller-only setter for `ai_council_approved` + `ai_council_doc_url` (per `[A-DOI-03]`) |
+| `PUT` | `/api/projects/{id}/pipeline/within-cutoff` | Controller-only manual setter; A3 replaces with the computed value driven by the envelope walk |
+
+Stage transitions are permissive on backwards moves per `[A-PS-11]`. Cancelled → anything requires `override_reason` per `[A-PS-10]`. DoI gate validation skips backward DoI moves and off-path transitions.
+
+### Project Milestones Endpoints (v5 Cluster A — Session A4)
+
+Project milestones (renamed from `ProjectPhase` in v5 per `[A-MS-01]`) carry baseline + forecast date ranges, an optional `MilestoneType` reference, an optional per-milestone `color` override, and a `baseline_locked_at` timestamp set on first save. Baseline-date edits are controller-only and require an `override_reason` per `[A-MS-03]`.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/projects/{id}/milestones` | List milestones for a project (any authenticated). Empty list valid per `[A-MS-04]`. |
+| `POST` | `/api/projects/{id}/milestones` | Create a milestone (controller, or PL on own project). Sets `baseline_locked_at = now`. 409 on `sequence_number` collision. |
+| `PUT` | `/api/projects/{pid}/milestones/{mid}` | Partial update. Forecast-only edits open to controller / PL on own project; baseline-date edits require controller AND `override_reason` (audit-logged). |
+| `DELETE` | `/api/projects/{pid}/milestones/{mid}` | Delete a milestone (controller, or PL on own project). |
+| `GET` | `/api/admin/milestone-types` | Read-only catalogue of the 10 default milestone types per `[A-BK-34]`. |
+
+The catalogue exposes `{id, name, default_color, suggested_ordering, is_active}` rows. The resolved `color` returned on milestone responses is the per-milestone override when set, otherwise `MilestoneType.default_color` for the linked type.
 
 ### Resource Assignment Endpoints (CC Owner)
 

@@ -17,7 +17,8 @@ MODULES = [
     "s06_allocations",
     "s07_change_requests",
     "s08_workflow",
-    "s09_phases",
+    "s08b_milestone_types",
+    "s09_milestones",
     "s10_scenarios",
 ]
 
