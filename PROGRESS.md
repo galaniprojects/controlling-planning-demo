@@ -138,7 +138,7 @@ A2 + A4 merged into branch `v5/cluster-a/pipeline-and-milestones-backend`. After
 - Override-reason audit format: `f"{new_value} (override: {override_reason})"` written to `new_value`. Avoids any `AuditLog` schema change.
 
 ### Refactoring opportunities (noted, not acted on)
-None identified during this session.
+- **Pre-existing bug surfaced during pre-merge visual verification:** the milestone strip applies `phase.color` directly via inline `style={{ backgroundColor }}`. The seed uses Tailwind palette names ("amber", "emerald") for several phases, but those are not valid CSS color keywords, so the browser renders those bands transparent. Bug exists identically on `main` (seed values are unchanged by A4 — verified via `git show main:backend/seed/seed.sql`). Fix path: either (a) translate Tailwind names to hex/rgb in the seed/migration, (b) add a frontend lookup that maps Tailwind names → CSS values, or (c) tighten the API to return only valid CSS colors. Not in A4 scope; flag for a follow-up cleanup or fold into the new `MilestoneType` catalogue alongside D1/D3.
 
 ### Notes for follow-on sessions
 - A7 frontend can wire CRUD UI for milestones using the new `/api/admin/milestone-types` catalogue for the picker dropdown.
