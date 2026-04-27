@@ -132,12 +132,12 @@ class TestTransitionForward:
 
     def test_controller_advances_under_evaluation_to_approved(self, test_client, db, alpha):
         _set_pipeline(db, alpha, stage="Under Evaluation", doi=2)
-        # Pre-fill DoI 3 gate: at least one milestone (phase) and start_month.
-        from models.projects import ProjectPhase
+        # Pre-fill DoI 3 gate: at least one milestone and start_month.
+        from models.projects import ProjectMilestone
         proj = db.query(Project).filter(Project.id == alpha).first()
         proj.start_month = "2026-04"
-        db.add(ProjectPhase(
-            project_id=alpha, phase_number=1, name="P1",
+        db.add(ProjectMilestone(
+            project_id=alpha, sequence_number=1, name="P1",
             baseline_start="2026-04", baseline_end="2026-06",
             forecast_start="2026-04", forecast_end="2026-06", color="blue",
         ))
