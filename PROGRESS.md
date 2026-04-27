@@ -1,9 +1,60 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: Bug Fixes
-Last completed: Fix project/CR visibility bugs
-Branch: `fix/project-cr-visibility-bugs`
+Phase: v5 Cluster A — Portfolio Pipeline & Backlog
+Last completed: Session A1 — Tech Navigator backend (data model + API)
+Branch: `v5/cluster-a/tech-navigator-backend` (off `main`)
+Next: A2 (Pipeline stages & DoI), A3 (Ranking engine), A4 (Milestones rename), A5 (Intake workflow). A1/A2/A4 can run in parallel.
+
+## v5 Session A1: Tech Navigator Backend (2026-04-27)
+
+### Feature Overview
+- Per-project Tech Navigator profile: 8 sub-criteria (3 Complexity + 3 Value Creation + 2 reserved data-only slots), Transformation level (T0/T1/T2), Project Type (1/2/3), and computed scores (complexity, value creation, composite ranking) plus t-shirt size derived from `total_budget`.
+- Single GET + single PUT endpoints. PUT accepts a partial body and recomputes all derived fields in one transaction; each changed field emits an `audit_log` entry.
+- Authorization: GET open to all roles; PUT for controllers (any project) or PLs on their own projects only.
+- Admin-configurable global weights and t-shirt thresholds stored as 12 `PlanningParameter` rows under `param_group='tech_navigator'`. Editing any `tn_*` key via `PUT /api/admin/parameters` automatically triggers a portfolio-wide recompute. Dedicated `POST /api/admin/recompute-scores` for explicit invocation.
+
+### Spec references implemented
+`[A-TN-01]` — `[A-TN-09]`, `[A-PRI-01]` — `[A-PRI-04]`. Default weights from `[A-OQ-06]` (70/30 Value/Complexity); t-shirt thresholds from `[A-OQ-09]` (XS ≤100k, S ≤250k, M ≤500k, L ≤1M, XL >1M). Both remain working assumptions pending KB confirmation.
+
+### Technical Details
+- **Model:** 14 new nullable columns on `Project` in `backend/models/projects.py` (8 sub-criteria as `Integer`, 2 categorical, 3 computed `Numeric(4,2)`, 1 derived `String(2)`).
+- **Service:** `backend/services/tech_navigator.py` with `WeightsSnapshot` dataclass + 7 pure helpers + `recompute_all_scores`. Spec defaults baked in so a fresh DB behaves correctly even before seeding.
+- **Schemas:** `backend/schemas/tech_navigator.py` — partial update body with `Field(ge=1, le=5)` sub-criteria and `Literal` enums for `project_type`/`transformation_level`.
+- **Router:** new `backend/routers/tech_navigator.py` mounted at `/api/projects` prefix.
+- **Admin wiring:** `update_parameters` and `reset_parameters` invoke `recompute_all_scores` when any `tn_*` key changes; new `POST /api/admin/recompute-scores` endpoint.
+- **Seed:** 12 rows added to `backend/seed/seed.sql` section 12 in `param_group='tech_navigator'`.
+- **Tests:** 60 new tests across `test_tech_navigator_service.py` (31) and `test_router_tech_navigator.py` (29). Full suite: 320 passed.
+
+### API Endpoints Added
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/projects/{id}/tech-navigator` | Read full profile + computed scores + active weights snapshot |
+| PUT | `/api/projects/{id}/tech-navigator` | Partial update; recomputes complexity / value / composite / tshirt |
+| POST | `/api/admin/recompute-scores` | Recompute Tech Navigator scores across the entire portfolio |
+
+### Data Model Changes
+14 new nullable columns on `projects` table. **No migration tooling exists in this project (no Alembic).** The next time the dev server starts against the existing `backend/creta_demo.db`, queries on `projects` will fail with `no such column: projects.project_type`. **Resolution:** delete `backend/creta_demo.db` (or move it aside) before running `python main.py`; the startup hook will re-create the schema and re-run `seed.sql` automatically.
+
+### Verification
+- `python -m pytest backend/tests/ -v` → 320 passed (60 new + 260 existing).
+- Live curl smoke test against the dev server was deferred because `creta_demo.db` is locked in the working tree (schema-incompatible without a manual delete). The integration tests cover the same router → service → DB → audit chain end-to-end.
+
+### Ambiguities (working assumptions in place)
+- `[A-OQ-06]` default ranking weights (70/30) — seeded as defaults; KB to confirm.
+- `[A-OQ-09]` t-shirt thresholds — seeded as defaults; KB to confirm.
+- Spec restriction "controller should not free-edit other people's TN scores; use Send Back instead" is **not** enforced in the API (controller writes are permitted everywhere with audit log). Will be enforced at UI level in A7 and via Send Back workflow in A5.
+
+### Refactoring opportunities (noted, not acted on)
+None identified during this session.
+
+### Notes for follow-on sessions
+- A3 ranking engine will `ORDER BY composite_score DESC` and consume `services.tech_navigator.load_weights()`.
+- A7 frontend will call the GET/PUT pair; the response embeds the active `WeightsSnapshot` so the scoring UI does not need a second admin call.
+- D3 admin UI will render the 12 `tech_navigator`-group `PlanningParameter` rows with no extra backend work.
+- S1 (seed data) needs to populate realistic Tech Navigator scores for all demo projects so the ranking engine produces a meaningful ordered list.
+
+---
 
 ## Bug Fix: Project & CR Visibility (2026-04-02)
 

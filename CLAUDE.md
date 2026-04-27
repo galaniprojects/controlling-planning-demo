@@ -121,7 +121,7 @@ Keep this section updated whenever models or schema change.
 - `GroupingEntityType` / `GroupingEntity` / `GroupingHierarchy` — flexible multi-level portfolio hierarchy
 
 ### Projects & Financials
-- `Project` — core entity (draft → pending_approval → active → completed), CAPEX/OPEX, assigned PL
+- `Project` — core entity (draft → pending_approval → active → completed), CAPEX/OPEX, assigned PL. v5 Tech Navigator profile: `project_type` (1/2/3), `transformation_level` (T0/T1/T2), 3 Complexity sub-criteria + 3 Value Creation sub-criteria + 2 reserved slots (all `Integer` 1–5), denormalized `complexity_score` / `value_creation_score` / `composite_score` (`Numeric(4,2)`), and `tshirt_size` (XS/S/M/L/XL derived from `total_budget`). All Tech Navigator fields are nullable. Sub-criterion weights, ranking weights, and t-shirt thresholds live in `PlanningParameter` rows under `param_group='tech_navigator'`.
 - `ProjectPhase` — phases with baseline + forecast date ranges
 - `Baseline` — immutable approved plan (project × month × line item)
 - `Forecast` — living plan updated via approved CRs (hours/costs per month)
