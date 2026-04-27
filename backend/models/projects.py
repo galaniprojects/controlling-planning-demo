@@ -60,22 +60,39 @@ class Project(Base):
     actuals: Mapped[list["Actuals"]] = relationship(back_populates="project")
     allocations: Mapped[list["Allocation"]] = relationship(back_populates="project")
     change_requests: Mapped[list["ChangeRequest"]] = relationship(back_populates="project")
-    phases: Mapped[list["ProjectPhase"]] = relationship(back_populates="project", order_by="ProjectPhase.phase_number")
+    milestones: Mapped[list["ProjectMilestone"]] = relationship(
+        back_populates="project",
+        order_by="ProjectMilestone.sequence_number",
+    )
     entity_assignments: Mapped[list["ProjectGroupingAssignment"]] = relationship(back_populates="project")
 
 
-class ProjectPhase(Base):
-    __tablename__ = "project_phases"
+class ProjectMilestone(Base):
+    """Project milestones with baseline + forecast date ranges per [A-MS-01].
+
+    Renamed from ``ProjectPhase`` (table ``project_phases``) for consistency
+    with KB workshop terminology. ``baseline_locked_at`` is set on first save;
+    baseline dates are immutable thereafter except via controller override
+    with audit log entry per [A-MS-03].
+    """
+
+    __tablename__ = "project_milestones"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    phase_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    milestone_type_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("milestone_types.id"), nullable=True,
+    )
     baseline_start: Mapped[str] = mapped_column(String(7), nullable=False)  # YYYY-MM
     baseline_end: Mapped[str] = mapped_column(String(7), nullable=False)
     forecast_start: Mapped[str] = mapped_column(String(7), nullable=False)
     forecast_end: Mapped[str] = mapped_column(String(7), nullable=False)
-    color: Mapped[str] = mapped_column(String(20), nullable=False)
+    color: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Per-milestone override; falls back to MilestoneType.default_color when null.
+    baseline_locked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Set on first save; baseline dates immutable thereafter except via controller override.
 
     # Relationships
-    project: Mapped["Project"] = relationship(back_populates="phases")
+    project: Mapped["Project"] = relationship(back_populates="milestones")
