@@ -159,6 +159,46 @@ Keep this section updated whenever models or schema change.
 6. **Document:** Update `PROGRESS.md`, `README.md`, and in-app documentation module (`backend/seed/fixtures/` manuals) if features changed
 7. **End:** Commit all changes with descriptive messages
 
+## v5 Implementation Protocol
+CRETA v5 is implemented using a session-based approach. Two documents govern the work:
+
+- **Spec:** `guides/CRETA_v5_Workshop_Spec.md` — the source of truth for what to build and why
+- **Implementation guide:** `guides/CRETA_v5_Implementation_Guide.md` — the operational guide for how and when. Contains session definitions, dependency graph, and protocol rules
+
+Before starting any v5 session, read the implementation guide's session protocol section in full. The protocol is: **orient → plan (with extended thinking) → implement → verify → update PROGRESS.md**. No code before the plan is complete.
+
+### Pull requests
+- Do NOT create a PR at the end of implementation without first asking about it
+
+### Commit discipline
+- Atomic commits — one logical change per commit
+- Reference the decision tag in commit messages, e.g. `Add progress tracker model [E-04c]`
+
+(Branch naming follows the existing `## Git Discipline` section — no v5-specific override.)
+
+### No unsolicited refactoring
+- If you spot a refactoring opportunity, note it in `PROGRESS.md` under "Refactoring opportunities"
+- Do not refactor unless the session explicitly calls for it
+
+### Agent team coordination
+- Work should be split across agent teams wherever possible — see the dependency graph in the implementation guide for parallelizable sessions
+- The team merging second resolves conflicts. Conflict resolution must be reviewed before continuing
+
+### Visual verification (frontend sessions)
+Playwright MCP and Chrome DevTools MCP are available. Use them.
+
+After implementing any UI changes, you MUST visually verify your work:
+1. Start the dev server if not already running
+2. Use the Playwright MCP tools to navigate to the affected page(s) at localhost
+3. Take a screenshot at desktop viewport (1440px width)
+4. Describe what you see in the screenshot before declaring the work complete
+5. Compare what you see against the spec requirements for the session
+6. If something looks wrong, fix it and screenshot again
+
+Do NOT declare a frontend session complete without having taken and reviewed at least one screenshot. "It should look correct" is not verification — you must actually look at the page.
+
+For backend-only sessions, verification means confirming endpoints return expected responses via curl or the test client. Visual verification is not required.
+
 ## Documentation Updates (Non-Negotiable)
 - **Any time API endpoints are added, changed, or removed**, update `README.md` (API tables) and `PROGRESS.md`
 - **Any time software features change significantly**, update `README.md` (Features section) and `PROGRESS.md`
