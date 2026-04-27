@@ -67,6 +67,25 @@ class Project(Base):
     entity_assignments: Mapped[list["ProjectGroupingAssignment"]] = relationship(back_populates="project")
 
 
+class MilestoneType(Base):
+    """Global catalogue of milestone types per [A-BK-34].
+
+    Provides a default colour and a suggested display ordering used by the
+    milestone picker UI. Per-milestone colour overrides on
+    ``ProjectMilestone.color`` take precedence; when null the router falls
+    back to ``MilestoneType.default_color``.
+    """
+
+    __tablename__ = "milestone_types"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    default_color: Mapped[str] = mapped_column(String(20), nullable=False)
+    suggested_ordering: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class ProjectMilestone(Base):
     """Project milestones with baseline + forecast date ranges per [A-MS-01].
 
@@ -96,3 +115,4 @@ class ProjectMilestone(Base):
 
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="milestones")
+    milestone_type: Mapped[Optional["MilestoneType"]] = relationship()
