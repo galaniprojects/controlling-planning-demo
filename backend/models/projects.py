@@ -48,6 +48,22 @@ class Project(Base):
     composite_score: Mapped[Optional[float]] = mapped_column(Numeric(4, 2), nullable=True)  # Computed ranking score
     tshirt_size: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)  # XS/S/M/L/XL, derived from total_budget
 
+    # v5 Session A2 lifecycle: pipeline stage + DoI gate columns [A-PS-01] [A-DOI-01].
+    # All nullable so existing rows survive re-seed; defaults set in seed.sql.
+    pipeline_stage: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    # Working stage names per [A-PS-02]: Proposed, Under Evaluation, Approved, Active,
+    # Hyper-maintenance, Operate, Retired, Paused, Cancelled.
+    doi: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 0-5 per [A-DOI-01]
+    frozen_doi: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Preserved DoI for off-path stages (Paused/Cancelled) per [A-PS-03].
+    ai_council_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # AI Council screening flag for the DoI 0->1 gate per [A-DOI-03].
+    ai_council_doc_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # OneDrive link for the AI Council confirmation document per [A-DA-01].
+    within_cutoff: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    # Settable in A2; A3 replaces with computed value driven by the ranking
+    # engine's envelope walk per [A-PS-06].
+
     last_forecast_submitted_month: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)  # YYYY-MM — last month PL submitted forecast
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
