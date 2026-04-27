@@ -28,6 +28,26 @@ class Project(Base):
     is_service: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     annual_budget: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)  # For services
     total_budget: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)  # Total baseline budget
+
+    # Tech Navigator profile [A-TN-01..09]. All fields nullable; populated via
+    # PUT /api/projects/{id}/tech-navigator. Composite scores are denormalized
+    # for ORDER BY in the ranking engine (Session A3) and recomputed on every
+    # write or admin weight change.
+    project_type: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 1=business case, 2=strategic, 3=legal/compliance
+    transformation_level: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)  # T0, T1, T2
+    tn_standardization: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Complexity sub-criterion 1-5
+    tn_usage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Complexity sub-criterion 1-5
+    tn_maintenance: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Complexity sub-criterion 1-5
+    tn_financial_benefit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Value Creation sub-criterion 1-5
+    tn_payback: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Value Creation sub-criterion 1-5
+    tn_competitive_advantage: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Value Creation sub-criterion 1-5
+    tn_value_reserved_1: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Reserved sub-criterion slot, not surfaced in UI
+    tn_value_reserved_2: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Reserved sub-criterion slot, not surfaced in UI
+    complexity_score: Mapped[Optional[float]] = mapped_column(Numeric(4, 2), nullable=True)  # Computed weighted composite
+    value_creation_score: Mapped[Optional[float]] = mapped_column(Numeric(4, 2), nullable=True)  # Computed weighted composite
+    composite_score: Mapped[Optional[float]] = mapped_column(Numeric(4, 2), nullable=True)  # Computed ranking score
+    tshirt_size: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)  # XS/S/M/L/XL, derived from total_budget
+
     last_forecast_submitted_month: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)  # YYYY-MM — last month PL submitted forecast
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

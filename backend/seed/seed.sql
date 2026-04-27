@@ -321,7 +321,22 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('forecast_deadline', 'Forecast Deadline', 'Day of month when forecast is due', '15', '15', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_amber_threshold', 'RAG Amber Threshold', 'Budget variance % for amber status', '5', '5', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_red_threshold', 'RAG Red Threshold', 'Budget variance % for red status', '10', '10', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+-- Tech Navigator weights and thresholds [A-TN-02]. Sub-criterion weights are
+-- global at KB level (per [A-TN-06]); ranking weights default to 70/30
+-- ([A-OQ-06] working assumption); t-shirt thresholds per [A-OQ-09].
+('tn_complexity_weight_standardization', 'TN Complexity: Standardization Weight', 'Weight of Standardization sub-criterion in Complexity score', '40', '40', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_complexity_weight_usage', 'TN Complexity: Usage Weight', 'Weight of Usage sub-criterion in Complexity score', '40', '40', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_complexity_weight_maintenance', 'TN Complexity: Maintenance Weight', 'Weight of Maintenance & Support sub-criterion in Complexity score', '20', '20', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_value_weight_financial', 'TN Value: Financial Benefit Weight', 'Weight of Financial Benefit sub-criterion in Value Creation score', '50', '50', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_value_weight_payback', 'TN Value: Payback Weight', 'Weight of Payback sub-criterion in Value Creation score', '40', '40', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_value_weight_competitive', 'TN Value: Competitive Advantage Weight', 'Weight of Competitive Advantage sub-criterion in Value Creation score', '10', '10', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_w_value', 'TN Ranking: Value Creation Weight', 'Composite ranking weight for Value Creation axis', '70', '70', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_w_complexity', 'TN Ranking: Complexity Weight', 'Composite ranking weight for Complexity axis', '30', '30', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_tshirt_xs_max', 'TN T-shirt: XS Max Budget', 'Upper bound for XS budget t-shirt size (EUR)', '100000', '100000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_tshirt_s_max', 'TN T-shirt: S Max Budget', 'Upper bound for S budget t-shirt size (EUR)', '250000', '250000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_tshirt_m_max', 'TN T-shirt: M Max Budget', 'Upper bound for M budget t-shirt size (EUR)', '500000', '500000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_tshirt_l_max', 'TN T-shirt: L Max Budget', 'Upper bound for L budget t-shirt size (EUR); above L is XL', '1000000', '1000000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- 13. KPI Definitions

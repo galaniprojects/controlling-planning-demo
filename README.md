@@ -157,12 +157,13 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Launchpad** | `/api` | 8 | Roles, modules, KPIs, pending actions, project create/submit |
 | **Portfolio** | `/api/portfolio` | 18 | Dashboard KPIs, project tree, intake queue (approve/reject/send-back/diff/accept-changes), CR approvals (approve/reject/send-back/editable-grid) |
 | **Workbench** | `/api/projects` | 13 | Project list, overview, timeline, forecast grid, 5-phase forecast cycle, CR diff/accept-changes/resubmit |
+| **Tech Navigator** | `/api/projects` | 2 | Project Tech Navigator profile (read + partial update with score recompute) |
 | **Capacity** | `/api/capacity` | 14 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation |
 | **Scenarios** | `/api/scenarios` | 8 | CRUD, actions, comparison, AI advisor |
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
 | **Report Builder** | `/api/report-builder` | 12 | Data catalog, filter options, query execution, saved reports CRUD, share/publish, CSV export |
 | **AI Report Builder** | `/api/reports/ai-builder` | 4 | Status check, conversation start, message, cleanup |
-| **Admin** | `/api/admin` | 18 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset |
+| **Admin** | `/api/admin` | 19 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset, Tech Navigator score recompute |
 | **Docs** | `/api/docs` | 3 | Module manuals, FAQ |
 | **Reference** | `/api/reference` | 4 | Roles, cost types, grouping entities, cost centers |
 
@@ -196,6 +197,18 @@ The CR lifecycle (`pending_controller_approval` -> `sent_back_by_controller` -> 
 | `GET` | `/api/projects/{pid}/change-requests/{cr_id}/diff` | PL views original vs controller-proposed comparison |
 | `PUT` | `/api/projects/{pid}/change-requests/{cr_id}/accept-changes` | PL accepts controller's proposed changes |
 | `PUT` | `/api/projects/{pid}/change-requests/{cr_id}/resubmit` | PL resubmits CR to controller |
+
+### Tech Navigator Endpoints (v5 Cluster A)
+
+The Tech Navigator scoring profile (Complexity sub-criteria, Value Creation sub-criteria, Transformation level, Project Type, t-shirt size derived from budget) is editable per project; sub-criterion weights and t-shirt thresholds are admin-configurable.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/projects/{id}/tech-navigator` | Read full profile + computed scores + active weights snapshot |
+| `PUT` | `/api/projects/{id}/tech-navigator` | Partial update; recomputes complexity/value/composite/tshirt in one transaction (controller or PL on own project) |
+| `POST` | `/api/admin/recompute-scores` | Recompute Tech Navigator scores across the entire portfolio (controller-only) |
+
+Admin-configurable parameters (12 rows in `param_group='tech_navigator'`): sub-criterion weights (Complexity 40/40/20, Value 50/40/10), composite ranking weights (Value 70 / Complexity 30), and t-shirt size thresholds (XS ≤100k, S ≤250k, M ≤500k, L ≤1M, XL >1M). Editing any `tn_*` key via `PUT /api/admin/parameters` automatically triggers `recompute_all_scores`.
 
 ### Resource Assignment Endpoints (CC Owner)
 

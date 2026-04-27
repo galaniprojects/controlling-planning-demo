@@ -558,8 +558,16 @@ def update_parameters(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("controller")),
 ):
-    """Update planning parameter values."""
+    """Update planning parameter values.
+
+    [A-TN-07] If any changed key is in the tech_navigator group (tn_*),
+    recompute denormalized Tech Navigator scores across the portfolio so
+    composite_score and tshirt_size stay consistent with the new weights.
+    """
+    from services.tech_navigator import recompute_all_scores
+
     updated = []
+    tn_changed = False
     for change in body.changes:
         param = db.query(PlanningParameter).filter(PlanningParameter.key == change.key).first()
         if not param:
@@ -568,7 +576,11 @@ def update_parameters(
         param.current_value = change.new_value
         _log_audit(db, user, "planning_parameter", param.key, param.name, "update", "current_value", old_value, change.new_value)
         updated.append({"key": param.key, "name": param.name, "current_value": param.current_value})
+        if param.key.startswith("tn_"):
+            tn_changed = True
     db.commit()
+    if tn_changed:
+        recompute_all_scores(db)
     return {"items": updated, "total": len(updated)}
 
 
@@ -579,18 +591,41 @@ def reset_parameters(
     user: CurrentUser = Depends(require_role("controller")),
 ):
     """Reset planning parameters to default values."""
+    from services.tech_navigator import recompute_all_scores
+
     query = db.query(PlanningParameter)
     if body.keys:
         query = query.filter(PlanningParameter.key.in_(body.keys))
     params = query.all()
     updated = []
+    tn_changed = False
     for param in params:
         if param.current_value != param.default_value:
             _log_audit(db, user, "planning_parameter", param.key, param.name, "update", "current_value", param.current_value, param.default_value)
             param.current_value = param.default_value
+            if param.key.startswith("tn_"):
+                tn_changed = True
         updated.append({"key": param.key, "name": param.name, "current_value": param.current_value})
     db.commit()
+    if tn_changed:
+        recompute_all_scores(db)
     return {"items": updated, "total": len(updated)}
+
+
+@router.post("/recompute-scores")
+def recompute_scores(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """Recompute Tech Navigator scores across the entire portfolio [A-TN-07].
+
+    Useful after a bulk seed import or to repair drift; the same logic runs
+    automatically when a controller edits any tn_* planning parameter.
+    """
+    from services.tech_navigator import recompute_all_scores
+
+    count = recompute_all_scores(db)
+    return {"recomputed": count}
 
 
 # ---------------------------------------------------------------------------
