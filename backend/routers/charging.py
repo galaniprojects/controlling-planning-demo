@@ -14,9 +14,18 @@ from sqlalchemy.orm import Session
 from database import get_db
 from dependencies import require_role
 from models.charging import (
-    ChargingLocation, Country, LegalEntity, Region, UserMeasurement,
+    CHARGEABLE_ENTITY_TYPES, ChargeableEntity, ChargingLocation, Country,
+    Distribution, LegalEntity, Region, UserMeasurement,
 )
+from models.organization import GroupingEntity
+from models.people import Person
+from models.projects import Project
 from models.system import AuditLog
+from schemas.chargeable_entity import (
+    ChargeableEntityCreate, ChargeableEntityListResponse,
+    ChargeableEntityResponse, ChargeableEntityUpdate,
+    validate_identifier_for_type,
+)
 from schemas.charging import (
     ChargingLocationCreate, ChargingLocationResponse, ChargingLocationUpdate,
     CountryCreate, CountryResponse, CountryUpdate,
@@ -24,8 +33,23 @@ from schemas.charging import (
     RegionCreate, RegionResponse, RegionUpdate,
 )
 from schemas.common import CurrentUser
+from schemas.distribution import (
+    DistributionCreate, DistributionListResponse, DistributionResponse,
+    DistributionUpdate, DistributionEffectiveCost, DistributionInflow,
+    EntityDistributionSummary, WBSElementResponse,
+)
+from services.dag_resolver import (
+    compute_effective_cost, get_upstream_chain,
+)
+from services.distribution_service import (
+    DistributionValidationError, compute_sum_validation,
+    create_distribution_edge, delete_distribution_edge,
+    is_known_version, update_distribution_edge, update_to_business_pct,
+)
+from services.wbs_generator import build_wbs_element
 
 router = APIRouter(prefix="/api/admin", tags=["Administration: Charging"])
+charging_router = APIRouter(prefix="/api/charging", tags=["Charging & Allocations"])
 
 
 def _gen_id(prefix: str) -> str:
@@ -42,13 +66,15 @@ def _audit(
     field_changed: str | None = None,
     old_value: str | None = None,
     new_value: str | None = None,
+    *,
+    category: str = "master_data",
 ) -> None:
     """Local audit-log helper.
 
-    Mirrors ``routers.admin._log_audit`` with the same call signature and the
-    same SQL columns. Kept independent of D2's pending category-field rollout
-    per the team-lead's instruction "do not add a category parameter — D2 will
-    add that field to AuditLog and update all callers in their commit".
+    Mirrors ``routers.admin._log_audit`` and writes an AuditLog row with the
+    correct ``category`` per Session D2's contract (default ``master_data``
+    for D1's existing call sites; F2 callers pass ``category='master_data'``
+    explicitly for ChargeableEntity and Distribution writes).
     """
     db.add(
         AuditLog(
@@ -60,6 +86,7 @@ def _audit(
             field_changed=field_changed,
             old_value=old_value,
             new_value=new_value,
+            category=category,
         )
     )
 
@@ -434,3 +461,611 @@ def deactivate_legal_entity(
     db.commit()
     db.refresh(le)
     return _serialize_legal_entity(le)
+
+
+# ===========================================================================
+# v5 Session F2 — ChargeableEntity polymorphic root [F-DM-01..04]
+# ===========================================================================
+
+def _serialize_chargeable_entity(ce: ChargeableEntity) -> ChargeableEntityResponse:
+    """Convert a ChargeableEntity ORM row to its response shape.
+
+    The ``is_change_or_run`` derived classification is read off the model
+    property — it consults the linked Project (for Project subtype) so the
+    response stays consistent with pipeline state without a column on the
+    chargeable_entities table.
+    """
+    return ChargeableEntityResponse(
+        id=ce.id,
+        entity_type=ce.entity_type,
+        identifier=ce.identifier,
+        name=ce.name,
+        description=ce.description,
+        hierarchy_node_id=ce.hierarchy_node_id,
+        responsible_person_id=ce.responsible_person_id,
+        to_business_pct=float(ce.to_business_pct or 0),
+        project_id=ce.project_id,
+        termination_month=ce.termination_month,
+        is_active=ce.is_active,
+        is_change_or_run=ce.is_change_or_run,
+    )
+
+
+@router.get("/chargeable-entities", response_model=ChargeableEntityListResponse)
+def list_chargeable_entities(
+    entity_type: str | None = None,
+    hierarchy_node_id: str | None = None,
+    is_active: bool | None = True,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+) -> ChargeableEntityListResponse:
+    """List chargeable entities with optional filters per [F-DM-01].
+
+    Default filter is ``is_active=True`` — pass ``is_active=null`` (literal
+    ``null`` in querystring) to include deactivated rows. ``entity_type`` and
+    ``hierarchy_node_id`` filter on the dimensions surfaced in the F4 module
+    sidebar.
+    """
+    if entity_type is not None and entity_type not in CHARGEABLE_ENTITY_TYPES:
+        raise HTTPException(
+            422,
+            f"entity_type must be one of {CHARGEABLE_ENTITY_TYPES}, got '{entity_type}'",
+        )
+
+    q = db.query(ChargeableEntity)
+    if entity_type is not None:
+        q = q.filter(ChargeableEntity.entity_type == entity_type)
+    if hierarchy_node_id is not None:
+        q = q.filter(ChargeableEntity.hierarchy_node_id == hierarchy_node_id)
+    if is_active is not None:
+        q = q.filter(ChargeableEntity.is_active == is_active)
+
+    rows = q.order_by(ChargeableEntity.entity_type, ChargeableEntity.name).all()
+    items = [_serialize_chargeable_entity(r) for r in rows]
+    return ChargeableEntityListResponse(items=items, total=len(items))
+
+
+@router.get(
+    "/chargeable-entities/{entity_id}", response_model=ChargeableEntityResponse,
+)
+def get_chargeable_entity(
+    entity_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+) -> ChargeableEntityResponse:
+    ce = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if ce is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+    return _serialize_chargeable_entity(ce)
+
+
+@router.post(
+    "/chargeable-entities", response_model=ChargeableEntityResponse, status_code=201,
+)
+def create_chargeable_entity(
+    body: ChargeableEntityCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> ChargeableEntityResponse:
+    """Create a new ChargeableEntity per [F-DM-01].
+
+    For ``entity_type='Project'`` the request must reference an existing
+    project_id. For Offering and InternalService no underlying entity exists —
+    the row is created here and nowhere else.
+    """
+    # Validate identifier shape per the type's pattern.
+    try:
+        validate_identifier_for_type(body.entity_type, body.identifier)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+    if body.entity_type == "Project":
+        if not body.project_id:
+            raise HTTPException(
+                422, "project_id is required for entity_type='Project'",
+            )
+        proj = db.query(Project).filter_by(id=body.project_id).first()
+        if proj is None:
+            raise HTTPException(404, f"Project '{body.project_id}' not found")
+        # Reject duplicate ChargeableEntity for the same project.
+        existing = (
+            db.query(ChargeableEntity).filter_by(project_id=body.project_id).first()
+        )
+        if existing is not None:
+            raise HTTPException(
+                409,
+                f"Project '{body.project_id}' is already linked to "
+                f"ChargeableEntity '{existing.id}'",
+            )
+    else:
+        if body.project_id:
+            raise HTTPException(
+                422,
+                f"project_id must be NULL for entity_type='{body.entity_type}'",
+            )
+
+    if body.hierarchy_node_id is not None:
+        if not db.query(GroupingEntity).filter_by(id=body.hierarchy_node_id).first():
+            raise HTTPException(
+                404,
+                f"GroupingEntity '{body.hierarchy_node_id}' not found",
+            )
+    if body.responsible_person_id is not None:
+        if not db.query(Person).filter_by(id=body.responsible_person_id).first():
+            raise HTTPException(
+                404,
+                f"Person '{body.responsible_person_id}' not found",
+            )
+
+    # Reject duplicate identifier (also enforced at the DB layer; surface a
+    # friendly 409 here).
+    if db.query(ChargeableEntity).filter_by(identifier=body.identifier).first():
+        raise HTTPException(
+            409, f"Identifier '{body.identifier}' already exists",
+        )
+
+    ce_id = body.identifier  # Use the identifier as the primary key — keeps URLs clean.
+    ce = ChargeableEntity(
+        id=ce_id,
+        entity_type=body.entity_type,
+        identifier=body.identifier,
+        name=body.name,
+        description=body.description,
+        hierarchy_node_id=body.hierarchy_node_id,
+        responsible_person_id=body.responsible_person_id,
+        to_business_pct=body.to_business_pct,
+        project_id=body.project_id,
+        termination_month=body.termination_month,
+    )
+    db.add(ce)
+    _audit(
+        db, user, "chargeable_entity", ce.id, ce.name, "create",
+        category="master_data",
+    )
+    db.commit()
+    db.refresh(ce)
+    return _serialize_chargeable_entity(ce)
+
+
+@router.put(
+    "/chargeable-entities/{entity_id}", response_model=ChargeableEntityResponse,
+)
+def update_chargeable_entity(
+    entity_id: str,
+    body: ChargeableEntityUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> ChargeableEntityResponse:
+    ce = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if ce is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+
+    if body.hierarchy_node_id is not None and body.hierarchy_node_id != ce.hierarchy_node_id:
+        if not db.query(GroupingEntity).filter_by(id=body.hierarchy_node_id).first():
+            raise HTTPException(
+                404, f"GroupingEntity '{body.hierarchy_node_id}' not found",
+            )
+        _audit(
+            db, user, "chargeable_entity", ce.id, ce.name, "update",
+            "hierarchy_node_id", ce.hierarchy_node_id, body.hierarchy_node_id,
+            category="master_data",
+        )
+        ce.hierarchy_node_id = body.hierarchy_node_id
+    if body.responsible_person_id is not None and body.responsible_person_id != ce.responsible_person_id:
+        if not db.query(Person).filter_by(id=body.responsible_person_id).first():
+            raise HTTPException(
+                404, f"Person '{body.responsible_person_id}' not found",
+            )
+        _audit(
+            db, user, "chargeable_entity", ce.id, ce.name, "update",
+            "responsible_person_id", ce.responsible_person_id,
+            body.responsible_person_id, category="master_data",
+        )
+        ce.responsible_person_id = body.responsible_person_id
+    if body.name is not None and body.name != ce.name:
+        _audit(
+            db, user, "chargeable_entity", ce.id, ce.name, "update",
+            "name", ce.name, body.name, category="master_data",
+        )
+        ce.name = body.name
+    if body.description is not None and body.description != ce.description:
+        ce.description = body.description
+    if body.to_business_pct is not None and float(ce.to_business_pct or 0) != body.to_business_pct:
+        _audit(
+            db, user, "chargeable_entity", ce.id, ce.name, "update",
+            "to_business_pct",
+            str(ce.to_business_pct), str(body.to_business_pct),
+            category="master_data",
+        )
+        ce.to_business_pct = body.to_business_pct
+    if body.termination_month is not None and body.termination_month != ce.termination_month:
+        _audit(
+            db, user, "chargeable_entity", ce.id, ce.name, "update",
+            "termination_month", ce.termination_month, body.termination_month,
+            category="master_data",
+        )
+        ce.termination_month = body.termination_month
+
+    db.commit()
+    db.refresh(ce)
+    return _serialize_chargeable_entity(ce)
+
+
+@router.put(
+    "/chargeable-entities/{entity_id}/deactivate",
+    response_model=ChargeableEntityResponse,
+)
+def deactivate_chargeable_entity(
+    entity_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> ChargeableEntityResponse:
+    ce = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if ce is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+    _audit(
+        db, user, "chargeable_entity", ce.id, ce.name, "deactivate",
+        category="master_data",
+    )
+    ce.is_active = False
+    db.commit()
+    db.refresh(ce)
+    return _serialize_chargeable_entity(ce)
+
+
+# ===========================================================================
+# v5 Session F2 — Stage 1 Distribution edges [F-S1-01..05]
+# Mounted under /api/charging so the consumer-facing surfaces (F4 frontend,
+# Cluster B simulator) have a separate prefix from /api/admin master data.
+# ===========================================================================
+
+def _serialize_distribution(d: Distribution) -> DistributionResponse:
+    return DistributionResponse(
+        id=d.id,
+        year=d.year,
+        version=d.version,
+        source_entity_id=d.source_entity_id,
+        destination_entity_id=d.destination_entity_id,
+        percentage=float(d.percentage),
+        source_entity_name=(d.source_entity.name if d.source_entity else None),
+        destination_entity_name=(d.destination_entity.name if d.destination_entity else None),
+    )
+
+
+def _validation_error_to_http(e: DistributionValidationError) -> HTTPException:
+    """Translate a service-level validation error to HTTP 409 with cycle chain."""
+    payload: dict[str, object] = {"detail": e.message}
+    if e.cycle_chain is not None:
+        payload["cycle_chain"] = e.cycle_chain
+    return HTTPException(409, payload)
+
+
+@charging_router.get("/distributions", response_model=DistributionListResponse)
+def list_distributions(
+    year: int | None = None,
+    version: str | None = None,
+    source_entity_id: str | None = None,
+    destination_entity_id: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> DistributionListResponse:
+    """List distribution edges with optional filters per [F-S1-01].
+
+    Open to all authenticated roles for read — Cluster F's data is
+    read-visible per [F-UM-04] / [F-AC-01]. Writes require controller (the
+    spec's responsible-owner edit path lands once F4 implements
+    RolePermissionGrant enforcement).
+    """
+    q = db.query(Distribution)
+    if year is not None:
+        q = q.filter(Distribution.year == year)
+    if version is not None:
+        q = q.filter(Distribution.version == version)
+    if source_entity_id is not None:
+        q = q.filter(Distribution.source_entity_id == source_entity_id)
+    if destination_entity_id is not None:
+        q = q.filter(Distribution.destination_entity_id == destination_entity_id)
+    rows = q.order_by(
+        Distribution.year, Distribution.version, Distribution.source_entity_id,
+    ).all()
+    items = [_serialize_distribution(r) for r in rows]
+    return DistributionListResponse(items=items, total=len(items))
+
+
+@charging_router.get(
+    "/distributions/{edge_id}", response_model=DistributionResponse,
+)
+def get_distribution(
+    edge_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> DistributionResponse:
+    edge = db.query(Distribution).filter_by(id=edge_id).first()
+    if edge is None:
+        raise HTTPException(404, f"Distribution edge {edge_id} not found")
+    return _serialize_distribution(edge)
+
+
+@charging_router.post(
+    "/distributions", response_model=DistributionResponse, status_code=201,
+)
+def create_distribution(
+    body: DistributionCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> DistributionResponse:
+    """Create a Stage 1 distribution edge per [F-S1-01..05].
+
+    Validates the sum-rule per [F-S1-02] (≤100% across to_business_pct +
+    distributions) and detects cycles per [F-S1-05]. On cycle, returns
+    HTTP 409 with a structured body containing ``cycle_chain``.
+    """
+    if not is_known_version(body.version):
+        # Soft warning — accept the version but note that it is non-builtin.
+        # Audit category will reveal the typo trail if relevant.
+        pass
+
+    try:
+        edge = create_distribution_edge(
+            db,
+            year=body.year,
+            version=body.version,
+            source_entity_id=body.source_entity_id,
+            destination_entity_id=body.destination_entity_id,
+            percentage=body.percentage,
+        )
+    except DistributionValidationError as e:
+        raise _validation_error_to_http(e)
+
+    _audit(
+        db, user, "distribution", str(edge.id),
+        f"{edge.source_entity_id} -> {edge.destination_entity_id}",
+        "create",
+        new_value=f"{body.year}/{body.version}: {body.percentage}%",
+        category="master_data",
+    )
+    db.commit()
+    db.refresh(edge)
+    return _serialize_distribution(edge)
+
+
+@charging_router.put(
+    "/distributions/{edge_id}", response_model=DistributionResponse,
+)
+def update_distribution(
+    edge_id: int,
+    body: DistributionUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> DistributionResponse:
+    edge = db.query(Distribution).filter_by(id=edge_id).first()
+    if edge is None:
+        raise HTTPException(404, f"Distribution edge {edge_id} not found")
+
+    old_pct = float(edge.percentage)
+    try:
+        edge = update_distribution_edge(db, edge_id, percentage=body.percentage)
+    except DistributionValidationError as e:
+        raise _validation_error_to_http(e)
+
+    _audit(
+        db, user, "distribution", str(edge.id),
+        f"{edge.source_entity_id} -> {edge.destination_entity_id}",
+        "update", "percentage", str(old_pct), str(body.percentage),
+        category="master_data",
+    )
+    db.commit()
+    db.refresh(edge)
+    return _serialize_distribution(edge)
+
+
+@charging_router.delete("/distributions/{edge_id}")
+def delete_distribution(
+    edge_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> dict:
+    edge = db.query(Distribution).filter_by(id=edge_id).first()
+    if edge is None:
+        raise HTTPException(404, f"Distribution edge {edge_id} not found")
+    edge_label = f"{edge.source_entity_id} -> {edge.destination_entity_id}"
+    edge_year_version = f"{edge.year}/{edge.version}"
+    edge_pct = float(edge.percentage)
+    try:
+        delete_distribution_edge(db, edge_id)
+    except DistributionValidationError as e:
+        raise _validation_error_to_http(e)
+    _audit(
+        db, user, "distribution", str(edge_id), edge_label, "delete",
+        old_value=f"{edge_year_version}: {edge_pct}%",
+        category="master_data",
+    )
+    db.commit()
+    return {"id": edge_id, "deleted": True}
+
+
+@charging_router.get(
+    "/entities/{entity_id}/distribution-summary",
+    response_model=EntityDistributionSummary,
+)
+def get_entity_distribution_summary(
+    entity_id: str,
+    year: int,
+    version: str = "forecast",
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> EntityDistributionSummary:
+    """Single-entity Stage 1 profile per [F-S1-03].
+
+    Returns the entity's ``to_business_pct``, all outgoing edges for the
+    given (year, version), and the derived self-retained percentage so the
+    F4 editor can render the edges-as-list view in one round trip.
+    """
+    entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if entity is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+
+    result = compute_sum_validation(db, entity_id, year, version)
+
+    edges = db.query(Distribution).filter(
+        Distribution.source_entity_id == entity_id,
+        Distribution.year == year,
+        Distribution.version == version,
+    ).order_by(Distribution.destination_entity_id).all()
+
+    return EntityDistributionSummary(
+        entity_id=entity.id,
+        entity_name=entity.name,
+        year=year,
+        version=version,
+        to_business_pct=result.to_business_pct,
+        distributions=[_serialize_distribution(e) for e in edges],
+        self_retained_pct=result.self_retained_pct,
+        sums_within_100=result.is_valid,
+    )
+
+
+@charging_router.put(
+    "/entities/{entity_id}/to-business-pct",
+    response_model=EntityDistributionSummary,
+)
+def update_entity_to_business_pct(
+    entity_id: str,
+    new_pct: float,
+    year: int,
+    version: str = "forecast",
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> EntityDistributionSummary:
+    """Update the entity's ``to_business_pct`` after validating the sum cap."""
+    entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if entity is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+    old_value = float(entity.to_business_pct or 0)
+    try:
+        update_to_business_pct(
+            db, entity_id, new_pct=new_pct, year=year, version=version,
+        )
+    except DistributionValidationError as e:
+        raise _validation_error_to_http(e)
+
+    _audit(
+        db, user, "chargeable_entity", entity.id, entity.name, "update",
+        "to_business_pct", str(old_value), str(new_pct),
+        category="master_data",
+    )
+    db.commit()
+    return get_entity_distribution_summary(entity_id, year, version, db, user)
+
+
+@charging_router.get(
+    "/entities/{entity_id}/effective-cost",
+    response_model=DistributionEffectiveCost,
+)
+def get_entity_effective_cost(
+    entity_id: str,
+    year: int,
+    version: str = "forecast",
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> DistributionEffectiveCost:
+    """DAG-resolved effective cost per [F-S1-02].
+
+    Returns own_cost + sum of inflows through the upstream chain. Inflows
+    list each immediate upstream contribution (entity, %, amount) so the
+    rollup drill-down can render the chain.
+    """
+    entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if entity is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+    result = compute_effective_cost(db, year, version, entity_id)
+    return DistributionEffectiveCost(
+        entity_id=result.entity_id,
+        entity_name=result.entity_name,
+        year=result.year,
+        version=result.version,
+        own_cost=round(result.own_cost, 2),
+        inflows=[
+            DistributionInflow(
+                source_entity_id=c.source_entity_id,
+                source_entity_name=c.source_entity_name,
+                percentage=c.percentage,
+                amount=c.amount,
+            )
+            for c in result.inflows
+        ],
+        inflow_total=round(result.inflow_total, 2),
+        effective_cost=round(result.effective_cost, 2),
+    )
+
+
+@charging_router.get("/entities/{entity_id}/upstream-chain")
+def get_entity_upstream_chain(
+    entity_id: str,
+    year: int,
+    version: str = "forecast",
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> dict:
+    """Return all upstream paths that terminate at the given entity per [F-RV-04].
+
+    Each path is an ordered list of entity ids from a source (no incoming
+    edges) down to the target. Used by the rollup drill-down panel to render
+    contributing chains; F2 ships the data layer, F5 will consume it visually.
+    """
+    entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if entity is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+    paths = get_upstream_chain(db, year, version, entity_id)
+    return {
+        "entity_id": entity.id,
+        "entity_name": entity.name,
+        "year": year,
+        "version": version,
+        "paths": paths,
+        "total": len(paths),
+    }
+
+
+@charging_router.get(
+    "/entities/{entity_id}/wbs/{charging_location_id}",
+    response_model=WBSElementResponse,
+)
+def get_entity_wbs_element(
+    entity_id: str,
+    charging_location_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> WBSElementResponse:
+    """Algorithmic WBS element preview per [F-DM-03].
+
+    Format: ``<entity.identifier>-64-99-<charging_location.code>``.
+    Generated; never stored. Used by F3's SAP export and the F4 editor's
+    preview row.
+    """
+    entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if entity is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+    cl = db.query(ChargingLocation).filter_by(id=charging_location_id).first()
+    if cl is None:
+        raise HTTPException(
+            404, f"ChargingLocation '{charging_location_id}' not found",
+        )
+    wbs = build_wbs_element(entity.identifier, cl.code)
+    return WBSElementResponse(
+        entity_id=entity.id,
+        charging_location_id=cl.id,
+        wbs_element=wbs,
+    )

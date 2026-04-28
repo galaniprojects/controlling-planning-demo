@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D — Wave 1 parallel sessions in flight on top of merged D1/D2/A3.
-Last completed: Session A5 (intake workflow + backlog integration backend) implemented in agent-team worktree `v5/cluster-a/a5-intake-backlog-backend`, awaiting team-lead merge. Sessions A7/D3/F2 still in flight in their own worktrees.
-Next: After A5 merge, the remaining Wave 1 sessions (A7, D3, F2) merge in dependency order; then Wave 2 picks up A6/A8/F1/F3/C1.
+Phase: v5 Cluster A/D/F — Wave 1 sessions merging in order (A5 → F2 → D3 → A7).
+Last completed: A5 (intake workflow + backlog integration backend, +68 tests) and F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) both merged onto the wave-1 merge branch. D3 (admin frontend) and A7 (Tech Navigator UI) merge next; no PR yet — single PR for the whole wave per project lead's preference.
+Next: Merge D3 → A7, then re-seed DB and curl-smoke the new endpoints, then continue critical path with C1 / B1.
 
 ## v5 Session A5: Intake Workflow + Backlog Integration Backend (2026-04-28)
 
@@ -34,7 +34,142 @@ Out of scope per session brief and aligned with A2 boundaries:
 - **v4 deprecation:** `routers/portfolio.py` had ~750 lines of legacy intake code. All nine handlers were collapsed to one-liner stubs that raise `HTTPException(410, _V4_INTAKE_REMOVED_DETAIL)` with a structured `replacements` dict pointing to the new endpoints. `deprecated=True` on every decorator so OpenAPI surfaces the deprecation cleanly. The legacy bodies live in git history (commits `af4881a` and earlier).
 - **No model changes.** All new state lives on existing columns: `Project.pipeline_stage`, `doi`, `frozen_doi`, `submission_feedback`, plus the existing `ProjectSubmissionSnapshot` rows.
 
-### API Endpoints Added
+## v5 Session F2: ChargeableEntity Polymorphic + Stage 1 Distribution Backend (2026-04-28)
+
+### Feature Overview
+- **Polymorphic ChargeableEntity root per `[F-DM-01..04]`** — single table with
+  three subtypes (`Project`, `Offering`, `InternalService`). Project subtype
+  carries a nullable `project_id` FK back to the existing v4 `Project` model so
+  capacity allocations and pipeline state stay anchored on the v4 entity per the
+  file-ownership boundary with A5. Offerings and InternalServices have no
+  underlying row — the ChargeableEntity row IS the entity. `is_change_or_run`
+  is a Python property derived from runtime state (Project DoI 0–4 = Change;
+  DoI 5 / Offerings / InternalServices = Run) per `[F-DM-01]`.
+- **Identifier-format enforcement at the schema layer per `[F-DM-01]`** —
+  Project: `IT0<PPM>` (5–6 digits); Offering: `IT00<S-code>` (2–8 alphanumerics);
+  InternalService: `ITF<NNNNN>` (5 digits). Centralised in
+  `schemas/chargeable_entity.py::validate_identifier_for_type` so the seed,
+  router, and future F3 code share the same rules.
+- **Stage 1 Distribution edges per `[F-S1-01..05]`** — sparse storage (one row
+  per actually-flowing edge). Versioned per `[F-S1-04]` using CRETA's standard
+  baseline/forecast/actuals model with scenario forks identified by
+  `scenario-<id>`. Sum-rule per `[F-S1-02]`: `to_business_pct + Σ(distribute %)
+  ≤ 100`; residual is derived. Cycle detection per `[F-S1-05]` is hard-block on
+  save with the cycle chain returned in the 409 body for UI rendering.
+- **DAG resolution endpoint per `[F-S1-02]`** — `compute_effective_cost`
+  recursively walks incoming edges and returns `own_cost + sum(inflows)` plus
+  per-source contributions for the rollup drill-down. Defensive `_seen` guard
+  protects against malformed cycles; recursion capped at depth 8.
+- **WBS Element generator per `[F-DM-03]`** — algorithmic, never stored.
+  Format: `<prefix>-64-99-<location_code>` where prefix is the entity's
+  identifier (already in subtype shape) and `64`/`99` are the spec-mandated
+  KB IT-area marker / separator constants per `[F-OQ-05]`.
+- **Polymorphic refactor of A2's Allocation table** — adds a nullable
+  `chargeable_entity_id` FK alongside the existing `project_id` so
+  Person × Project × Month allocations can target any chargeable entity once
+  F-cluster code paths land. v4-shape callers continue to use `project_id`;
+  new code paths use `chargeable_entity_id` and fall back to project-lookup
+  when NULL. Backfilled in seed.sql for all existing rows.
+
+### Spec references implemented
+`[F-DM-01]`, `[F-DM-02]`, `[F-DM-03]`, `[F-DM-04]`, `[F-S1-01]`, `[F-S1-02]`,
+`[F-S1-03]`, `[F-S1-04]` (data layer; live forecast-version mutation is F3),
+`[F-S1-05]`, `[A-PL-05]` (multi-type chargeable post-launch tracking),
+`[A-PL-06]` (BTC requirement at DoI 2→3 — the schema is in place; gate
+enforcement is F3 territory), `[A-PL-07]` (Run/Change classification surfaces
+on the entity).
+
+Out of scope per session brief / impl-guide partitioning:
+- BTC profile, BTC profile lines, year rollover, automatic-mode UM snapshot,
+  WBS export 90-row matrix — F3.
+- Two-layer rollup cache (Stage 1 + Stage 2 totals) — F3.
+- ChargeableEntity `annual_cost` column for non-Project subtypes — F3.
+  Currently `own_cost` is sourced from `Project.annual_budget` (or
+  `total_budget`) for Project subtypes; reported as 0 for Offerings and
+  InternalServices.
+- RolePermissionGrant enforcement on distribution edits — F4 frontend or a
+  follow-on backend session. F2 enforces controller-only writes.
+
+### Technical Details
+- **Models (extended `models/charging.py`):**
+  - `ChargeableEntity` — id (str PK), entity_type (Check constraint enum),
+    identifier (UniqueConstraint), name, description, hierarchy_node_id (FK to
+    grouping_entities), responsible_person_id (FK to people),
+    to_business_pct (Numeric 5,2 default 0), project_id (FK to projects,
+    nullable; UniqueConstraint so each project links 1:1 to at most one
+    ChargeableEntity), termination_month, is_active, created/modified_at.
+    Relationships kept passive (no `back_populates` on `Project` per F2's
+    read-only constraint on `projects.py`).
+  - `Distribution` — id (autoincr PK), year, version, source_entity_id (FK),
+    destination_entity_id (FK), percentage (Numeric 5,2). Constraints:
+    UniqueConstraint(year, version, source, destination); CheckConstraints
+    rejecting self-loops and out-of-range percentages; indexes on
+    (source, year, version) and (destination, year, version).
+  - `Allocation` — added `chargeable_entity_id` (nullable FK to
+    chargeable_entities) alongside the existing `project_id`. No breaking
+    change to v4 capacity-router callers.
+  - Module-level constants: `CHARGEABLE_ENTITY_TYPES`,
+    `DISTRIBUTION_VERSION_BASELINE/FORECAST/ACTUALS`,
+    `DISTRIBUTION_BUILTIN_VERSIONS`.
+- **Schemas:**
+  - `schemas/chargeable_entity.py` — `ChargeableEntityBase/Create/Update/Response/ListResponse`
+    plus `validate_identifier_for_type` and `PROJECT_ID_PATTERN /
+    OFFERING_ID_PATTERN / INTERNAL_SERVICE_ID_PATTERN`.
+  - `schemas/distribution.py` — `DistributionBase/Create/Update/Response/ListResponse`,
+    `EntityDistributionSummary` (single-entity profile per `[F-S1-03]`),
+    `DistributionEffectiveCost` + `DistributionInflow`, `CycleError`,
+    `WBSElementResponse`.
+- **Services:**
+  - `services/wbs_generator.py` — `build_wbs_element`,
+    `build_wbs_components`, `WBSComponents` dataclass. Pure functions.
+  - `services/dag_resolver.py` — `EdgeKey`, `detect_cycle` (pure),
+    `detect_cycle_db` (DB-backed with `exclude_edge_id` for updates),
+    `compute_effective_cost`, `get_own_cost`, `get_upstream_chain`.
+    Defensive `_seen` cycle guard; depth cap=8.
+  - `services/distribution_service.py` —
+    `DistributionValidationError(message, cycle_chain=)`, `SumValidationResult`,
+    `compute_sum_validation` (with optional candidate args for create/update
+    simulation), `assert_sum_within_100`, `assert_no_cycle`,
+    `create/update/delete_distribution_edge`, `update_to_business_pct`,
+    `is_known_version`. SUM_TOLERANCE=0.01.
+- **Router (extended `routers/charging.py`):** two router instances now exist
+  — the existing `router` under `/api/admin` carries D1's master data plus the
+  new `/chargeable-entities` admin CRUD (5 endpoints), and a new
+  `charging_router` under `/api/charging` carries Distribution + DAG queries
+  (10 endpoints). Both wired into `main.py` (`charging_consumer_router`).
+  Local `_audit` extended with optional `category=` keyword (default
+  `master_data`) so existing D1 callsites stay unchanged while new F2
+  callsites declare `category='master_data'` explicitly per the D2 contract.
+- **Tests (5 new files, 116 tests):**
+  - `tests/test_wbs_generator.py` (10) — format, whitespace, empty inputs.
+  - `tests/test_dag_resolver.py` (36) — pure cycle detection, DB-backed cycle
+    detection, effective cost recursion, own-cost resolution, upstream chain.
+  - `tests/test_distribution_service.py` (29) — sum validation paths,
+    create/update/delete orchestration, to-business updates.
+  - `tests/test_router_chargeable_entity.py` (26) — list/filter/get/create/
+    update/deactivate, identifier-pattern enforcement, role checks,
+    is_change_or_run runtime derivation.
+  - `tests/test_router_distribution.py` (25) — distribution CRUD, summary,
+    to-business update, effective-cost, upstream-chain, WBS preview, role
+    checks, structured 409 cycle/sum errors.
+- **Seed (appended to `backend/seed/seed.sql`):**
+  - **Section 0f — ChargeableEntity rows.** 32 Project (one per existing
+    project, PPM `IT012001..IT012032`) + 3 Offering (PDM/PLM Author
+    `IT00S321`, SAP Maintenance `IT00S412`, Collaboration Suite `IT00S556`) + 5
+    InternalService (Cloud Platform `ITF13001`, IAM Platform `ITF13002`,
+    Observability `ITF13003`, Data Platform `ITF13004`, Service Desk
+    `ITF13005`) = **40 rows total**.
+  - **Section 0g — Distribution edges.** 12 edges for `year=2026,
+    version='forecast'`. Includes a multi-step chain
+    (Cloud Platform → Data Platform → PDM Offering) so the upstream-chain
+    feature has data to drill into per `[F-RV-04]`. All sums per source
+    ≤ 100% (5%/10%/10%/30% self-retained on the 4 distributing
+    InternalServices).
+  - **Section 0h — Allocation backfill.** Idempotent UPDATE that fills
+    `allocations.chargeable_entity_id` from the corresponding ChargeableEntity
+    row keyed by `project_id` for `entity_type='Project'`.
+
+### A5 — API Endpoints Added
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | POST | `/api/intake/projects` | PL/Controller/Exec | Create project at DoI 0 (Proposed) per [A-BK-26]/[A-DOI-04]. |
@@ -139,7 +274,197 @@ curl -s -X POST -H "X-Current-User: persona-pl" -H "Content-Type: application/js
 ```
 
 ### Ready for merge
-Branch `v5/cluster-a/a5-intake-backlog-backend` carries 7 atomic commits and 672 passing tests. Awaiting team-lead's PR / merge-order coordination. Per the brief the team merging second resolves conflicts; A5's likely conflict surface is `main.py` (router import + include — confined to lex-sort order), the deprecated bodies in `routers/portfolio.py` (replaced wholesale, conflict only if a parallel session edited the same lines), and `PROGRESS.md` (this block).
+Branch `v5/cluster-a/a5-intake-backlog-backend` carries 7 atomic commits and 672 passing tests. Merged onto the wave-1 branch as the first wave-1 merger.
+
+### F2 — API Endpoints Added
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| GET    | `/api/admin/chargeable-entities` | controller | List with optional filters (entity_type, hierarchy_node_id, is_active) |
+| GET    | `/api/admin/chargeable-entities/{id}` | controller | Detail |
+| POST   | `/api/admin/chargeable-entities` | controller | Create (Offering / InternalService / link existing Project) |
+| PUT    | `/api/admin/chargeable-entities/{id}` | controller | Partial update |
+| PUT    | `/api/admin/chargeable-entities/{id}/deactivate` | controller | Soft delete |
+| GET    | `/api/charging/distributions` | any role | List edges (filter year, version, source, destination) |
+| GET    | `/api/charging/distributions/{edge_id}` | any role | Edge detail |
+| POST   | `/api/charging/distributions` | controller | Create with sum-rule + cycle validation |
+| PUT    | `/api/charging/distributions/{edge_id}` | controller | Update percentage only |
+| DELETE | `/api/charging/distributions/{edge_id}` | controller | Delete |
+| GET    | `/api/charging/entities/{id}/distribution-summary` | any role | Single-entity profile per `[F-S1-03]` |
+| PUT    | `/api/charging/entities/{id}/to-business-pct` | controller | Update with sum-rule validation |
+| GET    | `/api/charging/entities/{id}/effective-cost` | any role | DAG-resolved own + inflows per `[F-S1-02]` |
+| GET    | `/api/charging/entities/{id}/upstream-chain` | any role | Drill-down paths per `[F-RV-04]` |
+| GET    | `/api/charging/entities/{id}/wbs/{loc_id}` | any role | Algorithmic WBS preview per `[F-DM-03]` |
+
+### Data Model Changes
+- New tables: `chargeable_entities`, `distributions`.
+- New columns: `allocations.chargeable_entity_id` (nullable FK).
+- **No Alembic.** Existing `creta_demo.db` will fail to read the new tables /
+  column on the next startup. Resolution: delete (or move aside)
+  `backend/creta_demo.db` and restart — the seed loader recreates schema and
+  re-runs `seed.sql` to populate all the F2 rows.
+
+### Working assumptions (flagged for KB confirmation)
+- **`64-99-` are constants** per `[F-OQ-05]` working assumption. The WBS
+  generator has them as named module constants (`COMPANY_CODE_MARKER`,
+  `SEPARATOR`) so a future session can promote them to admin parameters if
+  KB confirms they vary by region/division/year.
+- **`own_cost = 0` for non-Project subtypes** because `ChargeableEntity` does
+  not yet carry an `annual_cost` column. F3 will land it. Tests cover the
+  Project subtype path (sources from `Project.annual_budget`); Offering and
+  InternalService subtypes will need the column for F3's rollup data layer.
+- **Versions are free-form strings** beyond the three builtins. The router
+  accepts unknown version strings (e.g. typos) without rejection — it just
+  marks them as non-builtin via `is_known_version()`. Audit log entries make
+  the typo trail discoverable. Strict whitelist enforcement could land in F3
+  or B1 once the simulator's scenario versions are operational.
+- **Project subtype owns own_cost annualisation.** When `Project.annual_budget`
+  is set we use it as-is; otherwise we fall back to `total_budget` without
+  spreading across the project's duration. For F2's demo data this works
+  because the seed populates `annual_budget` for service-y projects (which is
+  where Run-stage own_cost matters). F3's annual_cost column on
+  ChargeableEntity will replace this heuristic for all subtypes.
+- **Allocation polymorphism is non-breaking.** F2 ships
+  `chargeable_entity_id` as nullable + a backfill UPDATE; existing capacity
+  router code paths continue to use `project_id` and are unaware of the new
+  column. New code (F3+) prefers `chargeable_entity_id` with a fallback path.
+- **Distribution edge identifier shape is autoincrement int.** Other v5 tables
+  use string PKs (`grouping_entities`, `chargeable_entities`, etc.); for the
+  high-churn distribution edges the autoincrement int matches the existing
+  Allocation pattern in `models/capacity.py`. Cleaner for `DELETE
+  /distributions/{id}` URLs and lighter for the simulator (Cluster B) when it
+  forks scenario versions.
+
+### Refactoring opportunities (noted, not acted on)
+- **`_audit` helpers are still duplicated** across `routers/admin.py` and
+  `routers/charging.py` (now extended for F2). After D2 landed `category=` as
+  a required keyword on `routers.admin._log_audit`, the local `_audit` in
+  `routers/charging.py` could be migrated to call `_log_audit` directly. F2
+  preserves the local helper to keep the file self-contained but the
+  consolidation flagged in D1's "Refactoring opportunities" still applies.
+- **`Project.is_service` becomes redundant** once Cluster F's polymorphic
+  model fully replaces the v4 project/service distinction per `[F-DG-01]`.
+  The seed retires the distinction in S1; until then the field stays on
+  Project for back-compat with v4 reporting and capacity logic.
+- **`Allocation.project_id` will eventually be dropped** in favour of
+  `chargeable_entity_id` once all callers migrate. F2 keeps both for
+  back-compat. Touches `routers/capacity.py`,
+  `services/allocation_service.py`, `services/calculations.py` — not in F2
+  scope, deliberate.
+- **`compute_effective_cost`'s recursion bottoms out the cache-miss tree
+  every call.** Acceptable for v5 data volumes (≤50 distribution edges,
+  ≤30 entities) but F3 will introduce the two-layer cache per `[F-RV-02]`
+  to keep the rollup queries fast.
+- **`get_upstream_chain` returns `[entity_id]` for sources with no inflows.**
+  The frontend (F4/F5) may want to suppress single-element paths. Easier to
+  filter at the consumer than reshape the API.
+
+### Notes for follow-on sessions
+- **F3 (BTCProfile + Stage 2 + rollup cache)** consumes:
+  - `ChargeableEntity` directly (BTCProfile FK).
+  - `Distribution` via the rollup cache (Stage 1 effective costs feed into
+    Stage 2 location totals).
+  - `services/dag_resolver.compute_effective_cost` as the canonical
+    own+inflows resolver — cache around it rather than re-implement.
+  - `services/wbs_generator.build_wbs_element` for SAP-export 90-row matrix.
+  - The `annual_cost` column on `ChargeableEntity` is F3's to add. Once
+    landed, `services/dag_resolver.get_own_cost` should prefer it over
+    `Project.annual_budget` (the existing fallback stays for back-compat).
+- **F4 (Distribution editor frontend)** consumes:
+  - `GET /api/charging/distributions` for the cross-entity list view.
+  - `GET /api/charging/entities/{id}/distribution-summary` for the
+    edges-as-list editor surface.
+  - `PUT /api/charging/entities/{id}/to-business-pct` for the to_business
+    field.
+  - `POST/PUT/DELETE /api/charging/distributions[/{id}]` for the row-level
+    add/edit/remove. The 409 body's `cycle_chain` is what to render in the
+    inline error banner.
+- **F5 (Location Cost Rollup map + table)** consumes:
+  - `GET /api/charging/entities/{id}/effective-cost` for per-entity rollups
+    (until F3's cache lands).
+  - `GET /api/charging/entities/{id}/upstream-chain` for the cell drill-down
+    panel.
+- **F7 (Run Portfolio sub-module)** consumes:
+  - `GET /api/admin/chargeable-entities?entity_type=Project|Offering|InternalService`
+    plus a future filter for `is_change_or_run=Run`.
+- **B1 (Simulator backend)** consumes:
+  - `Distribution.version` accepts `scenario-<id>` strings. Sandbox mutations
+    fork by inserting new rows under the scenario version; promoting a
+    scenario copies them back to `forecast`.
+- **A5 (Intake workflow)** does not need any F2 hooks — F2's polymorphic
+  refactor leaves Project model untouched so A5's intake/lifecycle work can
+  proceed against the same Project model. New projects created at DoI 0 by
+  A5 will need a corresponding ChargeableEntity row at some point; F2
+  recommends a one-line creation hook in A5's "create project" handler that
+  inserts a Project-subtype ChargeableEntity with synthesized PPM identifier.
+  Not a blocker for A5 — can land in a follow-up.
+
+### Verification
+- `python -m pytest backend/tests/ -v` → **720 passed** (604 baseline + 116
+  new F2 tests). 0 failures, 8.5k DeprecationWarnings (existing
+  `datetime.utcnow()` calls; pre-existing in the codebase).
+- Live `python main.py` smoke test against a fresh `creta_demo.db`:
+  - `GET /health` → 200.
+  - `GET /api/admin/chargeable-entities` → 200, 40 items
+    (Project: 32, Offering: 3, InternalService: 5).
+  - `GET /api/charging/distributions` → 200, 12 items.
+  - `GET /api/charging/entities/ce-off-pdm/effective-cost?year=2026&version=forecast`
+    → 200, 3 inflows, own_cost=0 (Offering), inflow_total=0 (upstream
+    Internal Services have own_cost=0 in v5).
+  - `GET /api/charging/entities/ce-svc-cloud-pf/distribution-summary?year=2026&version=forecast`
+    → 200, 4 outgoing edges, to_business=0, self_retained=5%.
+  - `GET /api/charging/entities/ce-off-pdm/upstream-chain?year=2026&version=forecast`
+    → 200, 4 paths including the 3-hop multi-step chain.
+  - `GET /api/charging/entities/ce-off-pdm/wbs/cl-de-muc` → 200,
+    `IT00S321-64-99-DE-MUC-001`.
+  - `POST /api/charging/distributions` with cycle (PDM → CloudPF) → 409 with
+    `cycle_chain: ["ce-off-pdm", "ce-svc-cloud-pf", "ce-off-pdm"]`.
+  - `POST /api/charging/distributions` with sum overflow (CloudPF → IAMPF
+    50%, would push grand to 145%) → 409 with `[F-S1-02]` message.
+  - `POST /api/charging/distributions` with valid 3% edge → 201.
+  - `POST /api/charging/distributions` as PL → 403.
+
+### Curl examples (capture for F4 frontend integration)
+```
+H="X-Current-User: persona-controller"
+
+# List chargeable entities
+curl -s -H "$H" http://localhost:8000/api/admin/chargeable-entities
+
+# Filter offerings
+curl -s -H "$H" "http://localhost:8000/api/admin/chargeable-entities?entity_type=Offering"
+
+# Single-entity profile
+curl -s -H "$H" "http://localhost:8000/api/charging/entities/ce-svc-cloud-pf/distribution-summary?year=2026&version=forecast"
+
+# Effective cost
+curl -s -H "$H" "http://localhost:8000/api/charging/entities/ce-off-pdm/effective-cost?year=2026&version=forecast"
+
+# Upstream chain
+curl -s -H "$H" "http://localhost:8000/api/charging/entities/ce-off-pdm/upstream-chain?year=2026&version=forecast"
+
+# WBS preview
+curl -s -H "$H" http://localhost:8000/api/charging/entities/ce-off-pdm/wbs/cl-de-muc
+
+# Create distribution edge
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"year":2026,"version":"forecast","source_entity_id":"ce-svc-cloud-pf","destination_entity_id":"ce-svc-helpdesk","percentage":3.0}' \
+  http://localhost:8000/api/charging/distributions
+
+# Update edge
+curl -s -X PUT -H "$H" -H "Content-Type: application/json" -d '{"percentage":4.5}' \
+  http://localhost:8000/api/charging/distributions/12
+
+# Cycle attempt (rejected)
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"year":2026,"version":"forecast","source_entity_id":"ce-off-pdm","destination_entity_id":"ce-svc-cloud-pf","percentage":10.0}' \
+  http://localhost:8000/api/charging/distributions
+```
+
+### Ready for merge
+Branch `v5/cluster-f/f2-chargeable-entity-distribution` carries 6 atomic
+commits (model, schemas+services, router, seed, tests, plus this PROGRESS +
+CLAUDE update commit) and 720 passing tests. Merged onto the wave-1 branch as
+the second wave-1 merger after A5; resolved PROGRESS.md + main.py conflicts.
 
 ---
 
