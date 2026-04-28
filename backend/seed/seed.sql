@@ -5,6 +5,131 @@
 -- =============================================================================
 
 -- =============================================================================
+-- 0. Countries (Cluster F lookup) [F-MD-02]
+-- Hand-edited for v5 Session D1; the seed generator does not yet emit these.
+-- =============================================================================
+
+INSERT INTO countries (id, iso_code, name, is_active, created_at, modified_at) VALUES
+('ctry-de', 'DEU', 'Germany',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-hu', 'HUN', 'Hungary',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-in', 'IND', 'India',          1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-us', 'USA', 'United States',  1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-cn', 'CHN', 'China',          1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-fr', 'FRA', 'France',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-it', 'ITA', 'Italy',          1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-uk', 'GBR', 'United Kingdom', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-pl', 'POL', 'Poland',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-cz', 'CZE', 'Czech Republic', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-jp', 'JPN', 'Japan',          1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-br', 'BRA', 'Brazil',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-mx', 'MEX', 'Mexico',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-au', 'AUS', 'Australia',      1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-tr', 'TUR', 'Turkey',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-ro', 'ROU', 'Romania',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-es', 'ESP', 'Spain',          1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-nl', 'NLD', 'Netherlands',    1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-be', 'BEL', 'Belgium',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-at', 'AUT', 'Austria',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-ch', 'CHE', 'Switzerland',    1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-se', 'SWE', 'Sweden',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-no', 'NOR', 'Norway',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-fi', 'FIN', 'Finland',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-dk', 'DNK', 'Denmark',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-pt', 'PRT', 'Portugal',       1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-kr', 'KOR', 'South Korea',    1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-sg', 'SGP', 'Singapore',      1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-ca', 'CAN', 'Canada',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-za', 'ZAF', 'South Africa',   1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+
+-- =============================================================================
+-- 0a. Regions (Cluster F lookup) [F-MD-02]
+-- =============================================================================
+
+INSERT INTO regions (id, code, name, is_active, created_at, modified_at) VALUES
+('rgn-emea',     'EMEA',     'Europe, Middle East, Africa', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('rgn-apac',     'APAC',     'Asia-Pacific',                 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('rgn-americas', 'AMERICAS', 'Americas',                     1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('rgn-india',    'INDIA',    'India',                        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('rgn-china',    'CHINA',    'Greater China',                1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+
+-- =============================================================================
+-- 0b. Charging Locations (Cluster F master data) [F-MD-01] [F-MD-02]
+-- Demo subset (15 of ~90 KB charging codes per [F-DG-03]: full coverage in S1).
+-- division is free-text per the working assumption captured in PROGRESS.md.
+-- =============================================================================
+
+INSERT INTO charging_locations (id, code, name, division, region_id, country_id, is_active, created_at, modified_at) VALUES
+('cl-de-muc',   'DE-MUC-001', 'Munich HQ',              'Corporate IT',     'rgn-emea',     'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-de-bln',   'DE-BLN-001', 'Berlin Office',          'Corporate IT',     'rgn-emea',     'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-de-nbg',   'DE-NBG-001', 'Nuremberg Plant',        'Truck & Bus',      'rgn-emea',     'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-de-frz',   'DE-FRZ-001', 'Aldersbach',             'Rail Vehicle',     'rgn-emea',     'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-hu-bud',   'HU-BUD-001', 'Budapest Service Centre','Shared Services',  'rgn-emea',     'ctry-hu', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-in-pun',   'IN-PUN-001', 'Pune R&D Centre',        'Engineering',      'rgn-india',    'ctry-in', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-in-blr',   'IN-BLR-001', 'Bangalore Software Hub', 'Digital & Data',   'rgn-india',    'ctry-in', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-us-chi',   'US-CHI-001', 'Chicago Sales Office',   'Truck & Bus',      'rgn-americas', 'ctry-us', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-us-pit',   'US-PIT-001', 'Pittsburgh Plant',       'Rail Vehicle',     'rgn-americas', 'ctry-us', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-cn-sha',   'CN-SHA-001', 'Shanghai Office',        'Corporate IT',     'rgn-china',    'ctry-cn', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-cn-szx',   'CN-SZX-001', 'Suzhou Plant',           'Truck & Bus',      'rgn-china',    'ctry-cn', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-fr-par',   'FR-PAR-001', 'Paris Office',           'Rail Vehicle',     'rgn-emea',     'ctry-fr', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-uk-lon',   'UK-LON-001', 'London Office',          'Corporate IT',     'rgn-emea',     'ctry-uk', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-pl-wro',   'PL-WRO-001', 'Wroclaw Plant',          'Truck & Bus',      'rgn-emea',     'ctry-pl', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-mx-mxl',   'MX-MXL-001', 'Mexicali Plant',         'Truck & Bus',      'rgn-americas', 'ctry-mx', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+
+-- =============================================================================
+-- 0c. Legal Entities (Cluster F master data) [F-MD-01] [F-MD-02]
+-- Demo subset (15 of ~120 KB legal entities per [F-DG-03]: full coverage in S1).
+-- =============================================================================
+
+INSERT INTO legal_entities (id, code, name, charging_location_id, country_id, is_active, created_at, modified_at) VALUES
+('le-de-001', 'KB-DE-001', 'Knorr-Bremse AG',                              'cl-de-muc', 'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-de-002', 'KB-DE-002', 'Knorr-Bremse Systeme f. Schienenfahrzeuge GmbH','cl-de-muc', 'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-de-003', 'KB-DE-003', 'Knorr-Bremse Systeme f. Nutzfahrzeuge GmbH',   'cl-de-muc', 'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-de-004', 'KB-DE-004', 'Knorr-Bremse Berlin GmbH',                     'cl-de-bln', 'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-de-005', 'KB-DE-005', 'Knorr-Bremse Nuremberg GmbH',                  'cl-de-nbg', 'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-hu-001', 'KB-HU-001', 'Knorr-Bremse Magyarország Kft.',                'cl-hu-bud', 'ctry-hu', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-in-001', 'KB-IN-001', 'Knorr-Bremse Technology Center India Pvt Ltd', 'cl-in-pun', 'ctry-in', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-in-002', 'KB-IN-002', 'Knorr-Bremse Bangalore Pvt Ltd',                'cl-in-blr', 'ctry-in', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-us-001', 'KB-US-001', 'Knorr Brake Holding Corporation',               'cl-us-chi', 'ctry-us', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-us-002', 'KB-US-002', 'New York Air Brake LLC',                        'cl-us-pit', 'ctry-us', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-cn-001', 'KB-CN-001', 'Knorr-Bremse (Shanghai) Trading Co. Ltd.',      'cl-cn-sha', 'ctry-cn', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-cn-002', 'KB-CN-002', 'Knorr-Bremse (Suzhou) Brake Systems Co. Ltd.',  'cl-cn-szx', 'ctry-cn', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-fr-001', 'KB-FR-001', 'Knorr-Bremse SAS',                              'cl-fr-par', 'ctry-fr', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-uk-001', 'KB-UK-001', 'Knorr-Bremse Rail Systems (UK) Ltd.',           'cl-uk-lon', 'ctry-uk', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-pl-001', 'KB-PL-001', 'Knorr-Bremse Polska Sp. z o.o.',                'cl-pl-wro', 'ctry-pl', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+
+-- =============================================================================
+-- 0d. UserMeasurement — one demo flagship version per [F-DG-03]
+-- 2026 Q1 snapshot: 12 sparse cells across 4 S-codes and 6 charging locations.
+-- Full ~99 × 90 matrix coverage waits for S1 per the seed-volume targets.
+-- =============================================================================
+
+INSERT INTO user_measurements (year, quarter, s_code, charging_location_id, value, source, imported_at, imported_by_person_id) VALUES
+(2026, 1, 'S0001', 'cl-de-muc', 45.5, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0001', 'cl-de-bln', 12.0, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0001', 'cl-hu-bud', 8.5,  'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0002', 'cl-de-muc', 22.0, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0002', 'cl-in-pun', 15.5, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0002', 'cl-in-blr', 10.0, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0003', 'cl-de-muc', 30.0, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0003', 'cl-us-chi', 18.0, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0003', 'cl-us-pit', 7.5,  'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0004', 'cl-cn-sha', 25.5, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0004', 'cl-cn-szx', 14.0, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0004', 'cl-de-muc', 6.0,  'seed', '2026-01-15 10:00:00.000000', NULL);
+
+-- =============================================================================
+-- 0e. Default RolePermissionGrants per [F-AC-01]
+-- Encodes the workshop-confirmed defaults: responsible owns + controller
+-- override (audit-trailed). Other roles need explicit grants.
+-- =============================================================================
+
+INSERT INTO role_permission_grants (role, entity_type, can_edit, notes, created_at, modified_at) VALUES
+('controller', 'btc_profile',         1, 'Default override per [F-AC-01]', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('controller', 'distribution',        1, 'Default override per [F-AC-01]', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('controller', 'charging_location',   1, 'Master data ownership',          '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('controller', 'legal_entity',        1, 'Master data ownership',          '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+
+-- =============================================================================
 -- 1. Grouping Entity Types (replaces Lines of Business)
 -- =============================================================================
 
@@ -321,7 +446,15 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('forecast_deadline', 'Forecast Deadline', 'Day of month when forecast is due', '15', '15', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_amber_threshold', 'RAG Amber Threshold', 'Budget variance % for amber status', '5', '5', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_red_threshold', 'RAG Red Threshold', 'Budget variance % for red status', '10', '10', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+-- v5 Session D1 additions per [D-PRC-02], [D-PRC-03], [D-PRC-04]
+('granularity_boundary_months', 'Granularity Boundary (months)', 'Months from today before forecast granularity changes from monthly to quarterly', '12', '12', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('forecast_cycle_cadence_months', 'Forecast Cycle Cadence (months)', 'Rolling forecast cadence per [D-PRC-03]: 1=monthly, 3=quarterly, N=every N months', '3', '3', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cycle_due_day', 'Cycle Due Day', 'Calendar day each cadence period for forecast submission per [D-PRC-04]', '15', '15', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('standard_available_hours_default', 'Standard Available Hours (default)', 'Default monthly available hours per person; per-location overrides via standard_available_hours_<location_id>', '160', '160', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('standard_available_hours_loc-muc', 'Standard Available Hours — Munich', 'Munich monthly available hours override', '155', '155', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('standard_available_hours_loc-bud', 'Standard Available Hours — Budapest', 'Budapest monthly available hours override', '160', '160', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('standard_available_hours_loc-pun', 'Standard Available Hours — Pune', 'Pune monthly available hours override', '170', '170', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- 13. KPI Definitions

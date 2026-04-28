@@ -112,3 +112,124 @@ class AuditLogEntry(BaseModel):
     field_changed: str | None
     old_value: str | None
     new_value: str | None
+
+
+# ---------------------------------------------------------------------------
+# v5 Session D1 — RoleType, ExternalCostType, ProjectDependency, User,
+# RolePermissionGrant. Appended at end-of-file to minimise merge conflicts.
+# ---------------------------------------------------------------------------
+
+# --- RoleType ---
+class RoleTypeCreate(BaseModel):
+    name: str
+
+
+class RoleTypeUpdate(BaseModel):
+    name: str | None = None
+
+
+class RoleTypeResponse(BaseModel):
+    id: str
+    name: str
+
+
+# --- ExternalCostType ---
+class ExternalCostTypeCreate(BaseModel):
+    name: str
+
+
+class ExternalCostTypeUpdate(BaseModel):
+    name: str | None = None
+
+
+class ExternalCostTypeResponse(BaseModel):
+    id: str
+    name: str
+
+
+# --- ProjectDependency ---
+class ProjectDependencyCreate(BaseModel):
+    predecessor_project_id: str
+    successor_project_id: str
+    dependency_type: str
+    # finish_to_start, start_to_start, finish_to_finish, start_to_finish
+    lag_days: int | None = None
+    notes: str | None = None
+
+
+class ProjectDependencyUpdate(BaseModel):
+    dependency_type: str | None = None
+    lag_days: int | None = None
+    notes: str | None = None
+
+
+class ProjectDependencyResponse(BaseModel):
+    id: int
+    predecessor_project_id: str
+    predecessor_project_name: str | None
+    successor_project_id: str
+    successor_project_name: str | None
+    dependency_type: str
+    lag_days: int | None
+    notes: str | None
+
+
+# --- User ---
+class UserCreate(BaseModel):
+    username: str
+    display_name: str
+    email: str | None = None
+    role: str
+    person_id: str | None = None
+    tier3_flag: bool = False
+    change_reviewer_flag: bool = False
+
+
+class UserUpdate(BaseModel):
+    username: str | None = None
+    display_name: str | None = None
+    email: str | None = None
+    role: str | None = None
+    person_id: str | None = None
+    tier3_flag: bool | None = None
+    change_reviewer_flag: bool | None = None
+
+
+class UserResponse(BaseModel):
+    id: str
+    username: str
+    display_name: str
+    email: str | None
+    role: str
+    person_id: str | None
+    person_name: str | None
+    tier3_flag: bool
+    change_reviewer_flag: bool
+    is_active: bool
+
+
+# --- RolePermissionGrant ---
+class RolePermissionGrantCreate(BaseModel):
+    role: str
+    entity_type: str
+    can_edit: bool = True
+    notes: str | None = None
+
+
+class RolePermissionGrantUpdate(BaseModel):
+    can_edit: bool | None = None
+    notes: str | None = None
+
+
+class RolePermissionGrantResponse(BaseModel):
+    id: int
+    role: str
+    entity_type: str
+    can_edit: bool
+    notes: str | None
+
+
+class RolePermissionGrantBulkUpdate(BaseModel):
+    """Bulk replace grants — convenient for Section 5 admin grid UI."""
+
+    grants: list[RolePermissionGrantCreate]

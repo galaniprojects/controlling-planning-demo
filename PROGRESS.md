@@ -1,6 +1,185 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
+Phase: v5 Cluster D — Admin & Master Data (D1)
+Last completed: Session D1 — Admin entities & CRUD (incl. Cluster F master data) backend.
+Branch: `v5/cluster-d/admin-entities-backend` (off `main`, post-PR-#61). Carries 5 atomic commits (~40 endpoints, 5 new models, 74 new tests).
+Next: D2 (workflow templates + audit categories) merges after D1; A3 (ranking engine) merges last.
+
+## v5 Session D1: Admin Entities + CRUD (incl. Cluster F master data) Backend (2026-04-28)
+
+### Feature Overview
+- **Cluster D extensions** to the existing admin module: full CRUD for `RoleType` and `ExternalCostType` (models existed but had no admin endpoints), CRUD for the new `ProjectDependency` data model per `[D-AC-05]`, CRUD for the new `User` entity (separate from `Person` per spec §1584) with Tier-3 and change-reviewer flags per `[D-AC-01..03]`, and CRUD for the new `RolePermissionGrant` per-role-per-entity-type permission grid per `[F-AC-01]` (covers BTC profile + inter-service distribution edits, plus generic master-data entities).
+- **Cluster F master data** — complete suite of new entities and CRUD per `[F-MD-01..03]`, `[F-UM-01..04]`, `[F-DG-03]`:
+  - `Country` (~30 ISO rows lookup), `Region` (5 regions), `ChargingLocation` (15 KB charging codes with `division` as free-text + Region + Country FKs), `LegalEntity` (15 entities with many-to-one rollup to ChargingLocation + own Country FK for divergence cases), `UserMeasurement` (sparse versioned matrix; one demo flagship version seeded for 2026 Q1 across 4 S-codes × 6 charging locations).
+  - `POST /api/admin/user-measurement/import` accepts a CSV upload, validates schema, skips zero-value rows for sparse storage, and creates a NEW version each time per `[F-UM-03]` (no overwrite — versioning keyed by `(year, quarter, imported_at)` triple).
+  - `GET /api/admin/user-measurement/refresh-status` returns 200 with `{"status": "not_connected", "message": "..."}` instead of 501 so the frontend can render an explanatory dialog rather than a generic network error.
+- **Configurable parameters** added to Section 12 of seed.sql per `[D-PRC-02..04]`: granularity boundary (12 months), forecast cycle cadence (3 months), cycle due day (15), default standard available hours (160), per-location overrides for Munich (155), Budapest (160), and Pune (170). Per-location capacity hours stored as keyed `PlanningParameter` rows so the existing admin UI surfaces them without a Location-schema change.
+
+### Spec references implemented
+`[D-AC-01]`, `[D-AC-02]`, `[D-AC-03]`, `[D-AC-05]`, `[D-AC-09]` (audit-log categorisation handled by D2; this session preserves all existing audit calls), `[D-PRC-02]`, `[D-PRC-03]`, `[D-PRC-04]`, `[D-CAT-07]` (workflow templates land in D2 — D1 surfaces the User/permission scaffolding the templates need), `[F-MD-01]`, `[F-MD-02]`, `[F-MD-03]`, `[F-AC-01]`, `[F-UM-01]`, `[F-UM-02]`, `[F-UM-03]`, `[F-UM-04]`, `[F-DG-03]` (one demo flagship version seeded; full ~99 × 90 matrix waits for S1).
+
+Out of scope for D1, deferred per the team-lead's plan:
+- `[D-CAT-07]` Workflow Template Editor backend — D2.
+- `[D-AC-09]` Audit-log category column + 8-category enum + export — D2.
+- `[D-AC-08]` Inter-project dependency cycle detection — surfaces in the consuming portfolio map; not a hard save-time block in D1 per the team-lead's note.
+- Scheduled-change activation engine — D2.
+
+### Technical Details
+- **Models (5 new + 2 modified):**
+  - `backend/models/charging.py` (NEW) — `Country`, `Region`, `ChargingLocation`, `LegalEntity`, `UserMeasurement`. UM has a unique constraint on `(year, quarter, imported_at, s_code, charging_location_id)` to prevent duplicate cells within a single import batch.
+  - `backend/models/users.py` — appended `User` class. Separate from `Person`; FK to `people.id` is nullable per spec §1584. Carries `tier3_flag` and `change_reviewer_flag`.
+  - `backend/models/projects.py` — appended `ProjectDependency` class. Soft-constraint edge with predecessor/successor FKs, dependency_type catalogue string, optional lag_days, notes, created_by audit.
+  - `backend/models/system.py` — appended `RolePermissionGrant` at end-of-file (no edits to existing classes; D2 owns AuditLog modifications).
+  - `backend/models/__init__.py` — registers all new models so `Base.metadata.create_all()` discovers them.
+- **Schemas:**
+  - `backend/schemas/charging.py` (NEW) — `Country{Create,Update,Response}`, `Region{Create,Update,Response}`, `ChargingLocation{Create,Update,Response}`, `LegalEntity{Create,Update,Response}`.
+  - `backend/schemas/user_measurement.py` (NEW) — `UserMeasurementCellResponse`, `UserMeasurementListResponse`, `UserMeasurementVersionResponse`, `UserMeasurementVersionsResponse`, `UserMeasurementImportResponse`, `UserMeasurementRefreshStatusResponse`.
+  - `backend/schemas/admin.py` — appended `RoleType*`, `ExternalCostType*`, `ProjectDependency*`, `User*`, `RolePermissionGrant*` schemas.
+- **Routers (2 new + 1 extended):**
+  - `backend/routers/charging.py` (NEW) — 16 endpoints across Country / Region / ChargingLocation / LegalEntity. List endpoints return the standard `{items, total}` shape with rolled-up names (e.g. `country_iso_code`, `charging_location_code`).
+  - `backend/routers/user_measurement.py` (NEW) — 4 endpoints: `/refresh-status`, `/versions`, `/` (read by year/quarter, optionally by `imported_at`), `/import` (multipart file upload).
+  - `backend/routers/admin.py` — appended new sections BEFORE the audit-log block to preserve existing endpoint ordering: 3 RoleType endpoints, 3 ExternalCostType endpoints, 4 ProjectDependency endpoints, 5 User endpoints, 5 RolePermissionGrant endpoints (incl. `/bulk` upsert).
+- **Service:** `backend/services/user_measurement_import.py` (NEW) — pure CSV-parsing service that validates the header, looks up `charging_location_code` against the master, skips zero-value rows, and returns an `ImportResult` dataclass that the router wraps as JSON.
+- **Wiring:** `backend/main.py` imports + `include_router`s the 2 new routers in lex-sort order so the merge with D2 has zero overlap.
+- **Requirements:** `backend/requirements.txt` adds `python-multipart>=0.0.20` for `UploadFile`.
+- **Tests:** 4 new test files, 74 new tests total — full suite 480 passed (406 baseline + 74 new), exceeding the 455 target.
+- **Seed:** New sections at the TOP of `backend/seed/seed.sql` (so FKs resolve): Section 0 Countries (30), 0a Regions (5), 0b ChargingLocations (15), 0c LegalEntities (15), 0d UserMeasurement flagship version (12 cells), 0e Default RolePermissionGrants (4 controller defaults). Section 12 (planning parameters) extended with 7 new keys.
+
+### API Endpoints Added
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/admin/role-types` | List role types |
+| POST | `/api/admin/role-types` | Create role type |
+| PUT | `/api/admin/role-types/{id}` | Update role type |
+| GET | `/api/admin/external-cost-types` | List external cost types |
+| POST | `/api/admin/external-cost-types` | Create external cost type |
+| PUT | `/api/admin/external-cost-types/{id}` | Update external cost type |
+| GET | `/api/admin/project-dependencies` | List dependencies (optional `?project_id=`) |
+| POST | `/api/admin/project-dependencies` | Create dependency edge |
+| PUT | `/api/admin/project-dependencies/{id}` | Update dependency type / lag / notes |
+| DELETE | `/api/admin/project-dependencies/{id}` | Remove dependency |
+| GET | `/api/admin/users` | List users |
+| GET | `/api/admin/users/{id}` | Get user detail |
+| POST | `/api/admin/users` | Create user |
+| PUT | `/api/admin/users/{id}` | Update user (incl. tier3 + change_reviewer) |
+| PUT | `/api/admin/users/{id}/deactivate` | Deactivate user |
+| GET | `/api/admin/role-permissions` | List grants (optional `?role=`, `?entity_type=`) |
+| POST | `/api/admin/role-permissions` | Create grant |
+| PUT | `/api/admin/role-permissions/bulk` | Bulk upsert grants from grid UI |
+| PUT | `/api/admin/role-permissions/{id}` | Update grant |
+| DELETE | `/api/admin/role-permissions/{id}` | Remove grant |
+| GET | `/api/admin/countries` | List countries |
+| POST | `/api/admin/countries` | Create country |
+| PUT | `/api/admin/countries/{id}` | Update country |
+| PUT | `/api/admin/countries/{id}/deactivate` | Deactivate country |
+| GET | `/api/admin/regions` | List regions |
+| POST | `/api/admin/regions` | Create region |
+| PUT | `/api/admin/regions/{id}` | Update region |
+| PUT | `/api/admin/regions/{id}/deactivate` | Deactivate region |
+| GET | `/api/admin/charging-locations` | List charging locations (with rollups) |
+| POST | `/api/admin/charging-locations` | Create charging location |
+| PUT | `/api/admin/charging-locations/{id}` | Update charging location |
+| PUT | `/api/admin/charging-locations/{id}/deactivate` | Deactivate |
+| GET | `/api/admin/legal-entities` | List (optional `?charging_location_id=`) |
+| POST | `/api/admin/legal-entities` | Create legal entity |
+| PUT | `/api/admin/legal-entities/{id}` | Update legal entity |
+| PUT | `/api/admin/legal-entities/{id}/deactivate` | Deactivate |
+| GET | `/api/admin/user-measurement/refresh-status` | Stub auto-refresh status (200 not_connected) |
+| GET | `/api/admin/user-measurement/versions` | List import versions |
+| GET | `/api/admin/user-measurement` | Read cells for a (year, quarter) version |
+| POST | `/api/admin/user-measurement/import` | CSV upload — creates a new version |
+
+### Data Model Changes
+- New tables: `countries`, `regions`, `charging_locations`, `legal_entities`, `user_measurements` (with the unique constraint above), `users`, `project_dependencies`, `role_permission_grants`.
+- No migrations system (no Alembic). Existing `backend/creta_demo.db` will fail at startup against the new schema. Resolution: delete `backend/creta_demo.db` and restart — the seed loader recreates the schema and runs `seed.sql` to populate the new tables.
+
+### Working Assumptions (flagged for KB confirmation)
+- **RoleType is admin-managed** — D1 ships create + update endpoints. Deactivation deferred because RoleType has no `is_active` column today; adding it would ripple to seed.sql + the rate-table joins. Refactoring opportunity flagged below.
+- **ExternalCostType ships full create + update.** Same caveat as RoleType for deactivation.
+- **`ChargingLocation.division` is free-text** per `[F-MD-02]`'s explicit "no Division lookup" clause. Refactorable to a Division entity later if KB requests one.
+- **UM CSV schema:** 6 columns `year, quarter, s_code, charging_location_code, value, source` with a header row. The `source` column is optional in the row payload — when absent or empty, the import endpoint uses the import-level default `csv_upload`.
+- **UM "automatic refresh" returns 200 with `{"status": "not_connected", ...}`** rather than 501, so the frontend renders an explanatory dialog rather than a generic network error.
+- **Inter-project dependency** cycle detection deferred. D1 ships data model + CRUD; the portfolio dependency map (frontend) surfaces cycles as warnings per `[D-AC-08]`.
+- **User entity** is admin-created. There is no auto-create on login — that workflow is deferred. `DemoPersona` continues to drive the demo's role-resolution flow until a future session unifies them.
+- **Standard available hours** stored as keyed `PlanningParameter` rows (`standard_available_hours_default`, `standard_available_hours_loc-muc`, …). The spec note in `[D-PRC-02]` says capacity hours stay on master-data entities — this design hits both spec letters: the value is admin-editable AND lives in the existing parameter table without changing the Location schema. Refactor to a Location column if KB requests a per-location editor inside the Location detail view.
+
+### Refactoring Opportunities (noted, not acted on)
+- `RoleType` and `ExternalCostType` lack `is_active` columns. Adding them would enable proper deactivation semantics consistent with CLAUDE.md's "deactivation, not deletion" rule. Touches the people / financial models, the seed.sql sections (5 + 6), the rate-table joins, and a frontend filter or two.
+- `ChargingLocation.division` could be promoted to a `Division` lookup entity if KB introduces a controlled list.
+- The `_audit()` helper in `routers/charging.py` and `routers/user_measurement.py` is a copy of `routers/admin._log_audit`. Once D2 lands the `category` parameter on `_log_audit`, dedupe these into a shared helper module.
+- The seed UM block uses Python's `datetime.utcnow().isoformat()`-style format with `.000000` microseconds in seed.sql. Cleaner: extend the seed generator to emit ISO-format timestamps consistently across all DateTime columns. The other tables use `'YYYY-MM-DD HH:MM:SS'` (no microseconds) and rely on the loader's text→datetime coercion at read time, which works for queries that don't equality-compare datetimes — UM is the first table that does.
+- Sub-criterion weights remain in `PlanningParameter` rows (`tn_*`). At the v5 admin-UI ramp-up this might warrant a dedicated table; flag for D3 frontend session.
+
+### Notes for follow-on sessions
+- **D2 (workflow templates + audit)** must add the `category` field to `AuditLog` and update ALL `_log_audit` call sites (including the new ones in this session: `routers/charging.py::_audit`, `routers/user_measurement.py::_audit`, plus the dozen new sites in `routers/admin.py`). The team-lead's instruction was that D1 makes no changes that conflict with D2's category rollout.
+- **D3 (admin frontend)** can wire the entire D1 surface into the Section 1 (master data) browser, Section 2 (reference catalogues — RoleType, ExternalCostType), Section 3 (planning parameters — granularity / cadence / hours), Section 4 (hierarchy / inter-project dependencies), and Section 5 (User + RolePermissionGrant grid).
+- **F1/F2/F3 (Cluster F)** consume `ChargingLocation` (FK target for distribution endpoints), `LegalEntity` (rollup display), `UserMeasurement` (Stage 2 BTC automatic-mode snapshot source), and `RolePermissionGrant` (BTC profile + distribution edit gates).
+- **S1 (seed data)** needs to expand:
+  - Charging locations from 15 to ~90 (full KB charging code list).
+  - Legal entities from 15 to ~120.
+  - UserMeasurement from 12 cells to the full ~99 × 90 sparse matrix per `[F-DG-03]`.
+
+### Verification
+- `python -m pytest backend/tests/ -v` → 480 passed (406 baseline + 74 new). Exceeds the team-lead's 455 target.
+- Live `python main.py` smoke test against a freshly re-seeded DB confirmed:
+  - 30 / 5 / 15 / 15 / 12 / 4 / 13 rows for Countries / Regions / ChargingLocations / LegalEntities / UserMeasurements / RolePermissionGrants / PlanningParameters.
+  - `GET /api/admin/countries` returns the seeded ISO list.
+  - `GET /api/admin/charging-locations` returns 15 items with rolled-up region/country names.
+  - `GET /api/admin/legal-entities` returns 15 items rolled up to charging locations.
+  - `GET /api/admin/user-measurement?year=2026&quarter=1` returns 12 cells; `GET /versions` returns the single seeded version with `row_count: 12`.
+  - `GET /api/admin/user-measurement/refresh-status` returns 200 with `{"status": "not_connected", ...}`.
+  - `POST /api/admin/user-measurement/import` with a 3-row CSV returns `inserted: 3, parse_errors: []` and creates a new version (visible in `/versions`).
+  - `POST /api/admin/role-permissions` creates a project_lead btc_profile grant and `GET /role-permissions` lists 5 rows (4 seeded + 1 new).
+  - `POST /api/admin/users` creates a Tier-3 user and the response carries `tier3_flag: true`.
+
+### Curl examples (capture for D3 frontend integration)
+```
+H="X-Current-User: persona-controller"
+
+# Master data
+curl -s -H "$H" http://localhost:8000/api/admin/countries
+curl -s -H "$H" http://localhost:8000/api/admin/regions
+curl -s -H "$H" http://localhost:8000/api/admin/charging-locations
+curl -s -H "$H" http://localhost:8000/api/admin/legal-entities
+
+# Filter legal entities by charging location
+curl -s -H "$H" "http://localhost:8000/api/admin/legal-entities?charging_location_id=cl-de-muc"
+
+# UM viewer
+curl -s -H "$H" http://localhost:8000/api/admin/user-measurement/refresh-status
+curl -s -H "$H" http://localhost:8000/api/admin/user-measurement/versions
+curl -s -H "$H" "http://localhost:8000/api/admin/user-measurement?year=2026&quarter=1"
+
+# UM import
+curl -s -H "$H" -F "file=@um.csv" http://localhost:8000/api/admin/user-measurement/import
+
+# Permissions
+curl -s -H "$H" http://localhost:8000/api/admin/role-permissions
+curl -s -X PUT -H "$H" -H "Content-Type: application/json" \
+  -d '{"grants":[{"role":"project_lead","entity_type":"btc_profile","can_edit":true}]}' \
+  http://localhost:8000/api/admin/role-permissions/bulk
+
+# Users
+curl -s -H "$H" http://localhost:8000/api/admin/users
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"username":"alice","display_name":"Alice","role":"project_lead","tier3_flag":true}' \
+  http://localhost:8000/api/admin/users
+
+# Inter-project dependencies
+curl -s -H "$H" http://localhost:8000/api/admin/project-dependencies
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"predecessor_project_id":"proj-erp2","successor_project_id":"proj-sap","dependency_type":"finish_to_start"}' \
+  http://localhost:8000/api/admin/project-dependencies
+```
+
+### Ready for merge
+Branch `v5/cluster-d/admin-entities-backend` carries 5 atomic commits and is ready to push. Per the team-lead's merge order, D1 merges first; D2 follows; A3 last. D2's pending changes to `models/system.py::AuditLog` and `routers/admin.py::_log_audit` (the `category` parameter) are confined to a non-overlapping hunk — D1's `RolePermissionGrant` is appended at end-of-file in `system.py`, and D1's new admin endpoints land BEFORE the audit-log block while keeping the existing ordering.
+
+---
+
+## v5 Session A2 + A4 (legacy entry retained for reference)
+
 Phase: v5 Cluster A — Portfolio Pipeline & Backlog
 Last completed: Sessions A2 + A4 — Pipeline / DoI lifecycle backend AND Project Milestones backend (rename + Type Library + CRUD), implemented in parallel on separate branches and combined here.
 Branch: `v5/cluster-a/pipeline-and-milestones-backend` (off `main`, post-PR-#60). Carries A2's 8 atomic commits and A4's 11 atomic commits + merge-conflict resolution. Ready to PR.

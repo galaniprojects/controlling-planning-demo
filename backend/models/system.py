@@ -92,3 +92,42 @@ class SystemSuggestion(Base):
 
     # Relationships
     project: Mapped["Project"] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# v5 Session D1 — Per-role-per-entity-type permission grid [F-AC-01].
+# Appended at end-of-file per the team's file-ownership rules so that the
+# three-way merge with D2 (which edits AuditLog above) and A3 (which does
+# not touch this file) has zero overlap. Do NOT edit any existing class above.
+# ---------------------------------------------------------------------------
+
+class RolePermissionGrant(Base):
+    """Per-role-per-entity-type edit permission grant per [F-AC-01].
+
+    Captures admin-configurable role grants for entity types whose default is
+    "responsible owns + controller override". The two motivating cases from
+    Cluster F are BTC profile edits and inter-service distribution edits, but
+    the model is generic so additional entity types can opt in without a
+    schema change.
+
+    A row in this table grants ``role`` edit access to ``entity_type``.
+    Absence of a row means default-only access (responsible-owner edits +
+    controller override). The ``can_edit`` boolean lets the same row be used
+    to *revoke* a default-granted permission (e.g. set ``can_edit=False`` for
+    ``role='controller'`` to remove the override path on a sensitive entity
+    type), although the prototype seeds only the additive case.
+    """
+
+    __tablename__ = "role_permission_grants"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    role: Mapped[str] = mapped_column(String(30), nullable=False)
+    # controller, project_lead, cost_center_owner, executive
+    entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # btc_profile, distribution, charging_location, legal_entity, ...
+    can_edit: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    modified_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow,
+    )

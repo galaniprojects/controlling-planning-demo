@@ -992,6 +992,536 @@ def get_entity_projects(
 
 
 # ---------------------------------------------------------------------------
+# v5 Session D1 — Master data extensions: RoleType / ExternalCostType /
+# ProjectDependency / User / RolePermissionGrant. Added BEFORE the audit-log
+# endpoint so the audit-log block remains the last router-decorated section.
+# ---------------------------------------------------------------------------
+
+# --- RoleType CRUD ---
+from models.financial import ExternalCostType  # noqa: E402
+from models.projects import ProjectDependency  # noqa: E402
+from models.system import RolePermissionGrant  # noqa: E402
+from models.users import User  # noqa: E402
+from schemas.admin import (  # noqa: E402
+    ExternalCostTypeCreate, ExternalCostTypeResponse, ExternalCostTypeUpdate,
+    ProjectDependencyCreate, ProjectDependencyResponse, ProjectDependencyUpdate,
+    RolePermissionGrantBulkUpdate, RolePermissionGrantCreate,
+    RolePermissionGrantResponse, RolePermissionGrantUpdate,
+    RoleTypeCreate, RoleTypeResponse, RoleTypeUpdate,
+    UserCreate, UserResponse, UserUpdate,
+)
+
+
+@router.get("/role-types")
+def list_role_types(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """List role types (admin-managed catalogue)."""
+    rows = db.query(RoleType).order_by(RoleType.name).all()
+    items = [{"id": r.id, "name": r.name} for r in rows]
+    return {"items": items, "total": len(items)}
+
+
+@router.post("/role-types", response_model=RoleTypeResponse)
+def create_role_type(
+    body: RoleTypeCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    if db.query(RoleType).filter(RoleType.name == body.name).first():
+        raise HTTPException(409, f"Role type '{body.name}' already exists")
+    r = RoleType(id=_gen_id("role"), name=body.name)
+    db.add(r)
+    _log_audit(db, user, "role_type", r.id, r.name, "create")
+    db.commit()
+    db.refresh(r)
+    return RoleTypeResponse(id=r.id, name=r.name)
+
+
+@router.put("/role-types/{role_type_id}", response_model=RoleTypeResponse)
+def update_role_type(
+    role_type_id: str,
+    body: RoleTypeUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    r = db.query(RoleType).filter(RoleType.id == role_type_id).first()
+    if not r:
+        raise HTTPException(404, "Role type not found")
+    if body.name is not None and body.name != r.name:
+        if db.query(RoleType).filter(RoleType.name == body.name, RoleType.id != role_type_id).first():
+            raise HTTPException(409, f"Role type name '{body.name}' already in use")
+        _log_audit(db, user, "role_type", r.id, r.name, "update", "name", r.name, body.name)
+        r.name = body.name
+    db.commit()
+    db.refresh(r)
+    return RoleTypeResponse(id=r.id, name=r.name)
+
+
+# --- ExternalCostType CRUD [E-08e] [E-08f] ---
+
+@router.get("/external-cost-types")
+def list_external_cost_types(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    rows = db.query(ExternalCostType).order_by(ExternalCostType.name).all()
+    items = [{"id": e.id, "name": e.name} for e in rows]
+    return {"items": items, "total": len(items)}
+
+
+@router.post("/external-cost-types", response_model=ExternalCostTypeResponse)
+def create_external_cost_type(
+    body: ExternalCostTypeCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    if db.query(ExternalCostType).filter(ExternalCostType.name == body.name).first():
+        raise HTTPException(409, f"External cost type '{body.name}' already exists")
+    e = ExternalCostType(id=_gen_id("ext"), name=body.name)
+    db.add(e)
+    _log_audit(db, user, "external_cost_type", e.id, e.name, "create")
+    db.commit()
+    db.refresh(e)
+    return ExternalCostTypeResponse(id=e.id, name=e.name)
+
+
+@router.put("/external-cost-types/{ect_id}", response_model=ExternalCostTypeResponse)
+def update_external_cost_type(
+    ect_id: str,
+    body: ExternalCostTypeUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    e = db.query(ExternalCostType).filter(ExternalCostType.id == ect_id).first()
+    if not e:
+        raise HTTPException(404, "External cost type not found")
+    if body.name is not None and body.name != e.name:
+        if db.query(ExternalCostType).filter(
+            ExternalCostType.name == body.name, ExternalCostType.id != ect_id,
+        ).first():
+            raise HTTPException(409, f"External cost type '{body.name}' already in use")
+        _log_audit(db, user, "external_cost_type", e.id, e.name, "update", "name", e.name, body.name)
+        e.name = body.name
+    db.commit()
+    db.refresh(e)
+    return ExternalCostTypeResponse(id=e.id, name=e.name)
+
+
+# --- ProjectDependency CRUD [D-AC-05] ---
+
+def _serialize_dependency(d: ProjectDependency) -> ProjectDependencyResponse:
+    return ProjectDependencyResponse(
+        id=d.id,
+        predecessor_project_id=d.predecessor_project_id,
+        predecessor_project_name=d.predecessor.name if d.predecessor else None,
+        successor_project_id=d.successor_project_id,
+        successor_project_name=d.successor.name if d.successor else None,
+        dependency_type=d.dependency_type,
+        lag_days=d.lag_days,
+        notes=d.notes,
+    )
+
+
+@router.get("/project-dependencies")
+def list_project_dependencies(
+    project_id: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """List inter-project dependencies; optionally filter by project (either side)."""
+    from sqlalchemy import or_
+    query = db.query(ProjectDependency)
+    if project_id:
+        query = query.filter(or_(
+            ProjectDependency.predecessor_project_id == project_id,
+            ProjectDependency.successor_project_id == project_id,
+        ))
+    rows = query.order_by(ProjectDependency.id).all()
+    items = [_serialize_dependency(d).model_dump() for d in rows]
+    return {"items": items, "total": len(items)}
+
+
+@router.post("/project-dependencies", response_model=ProjectDependencyResponse)
+def create_project_dependency(
+    body: ProjectDependencyCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Create an inter-project dependency edge.
+
+    Soft-constraint per [D-AC-05]: cycles are NOT detected here in D1; the
+    constraint surfaces as a warning in the portfolio dependency map per
+    [D-AC-08]. Cycle detection is added by the backlog/portfolio modules
+    that consume this data.
+    """
+    if body.predecessor_project_id == body.successor_project_id:
+        raise HTTPException(400, "predecessor and successor must differ")
+    pred = db.query(Project).filter(Project.id == body.predecessor_project_id).first()
+    if not pred:
+        raise HTTPException(404, f"Predecessor project '{body.predecessor_project_id}' not found")
+    succ = db.query(Project).filter(Project.id == body.successor_project_id).first()
+    if not succ:
+        raise HTTPException(404, f"Successor project '{body.successor_project_id}' not found")
+    # Idempotency: reject duplicate edges
+    existing = db.query(ProjectDependency).filter(
+        ProjectDependency.predecessor_project_id == body.predecessor_project_id,
+        ProjectDependency.successor_project_id == body.successor_project_id,
+    ).first()
+    if existing:
+        raise HTTPException(409, "Dependency between these projects already exists")
+    d = ProjectDependency(
+        predecessor_project_id=body.predecessor_project_id,
+        successor_project_id=body.successor_project_id,
+        dependency_type=body.dependency_type,
+        lag_days=body.lag_days,
+        notes=body.notes,
+        created_by_person_id=user.person_id,
+    )
+    db.add(d)
+    _log_audit(
+        db, user, "project_dependency",
+        f"{body.predecessor_project_id}->{body.successor_project_id}",
+        f"{pred.name} -> {succ.name}", "create",
+    )
+    db.commit()
+    db.refresh(d)
+    return _serialize_dependency(d)
+
+
+@router.put("/project-dependencies/{dep_id}", response_model=ProjectDependencyResponse)
+def update_project_dependency(
+    dep_id: int,
+    body: ProjectDependencyUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    d = db.query(ProjectDependency).filter(ProjectDependency.id == dep_id).first()
+    if not d:
+        raise HTTPException(404, "Dependency not found")
+    if body.dependency_type is not None and body.dependency_type != d.dependency_type:
+        _log_audit(
+            db, user, "project_dependency",
+            f"{d.predecessor_project_id}->{d.successor_project_id}", None, "update",
+            "dependency_type", d.dependency_type, body.dependency_type,
+        )
+        d.dependency_type = body.dependency_type
+    if body.lag_days is not None and body.lag_days != d.lag_days:
+        _log_audit(
+            db, user, "project_dependency",
+            f"{d.predecessor_project_id}->{d.successor_project_id}", None, "update",
+            "lag_days", str(d.lag_days), str(body.lag_days),
+        )
+        d.lag_days = body.lag_days
+    if body.notes is not None and body.notes != d.notes:
+        d.notes = body.notes
+    db.commit()
+    db.refresh(d)
+    return _serialize_dependency(d)
+
+
+@router.delete("/project-dependencies/{dep_id}")
+def delete_project_dependency(
+    dep_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    d = db.query(ProjectDependency).filter(ProjectDependency.id == dep_id).first()
+    if not d:
+        raise HTTPException(404, "Dependency not found")
+    _log_audit(
+        db, user, "project_dependency",
+        f"{d.predecessor_project_id}->{d.successor_project_id}", None, "delete",
+    )
+    db.delete(d)
+    db.commit()
+    return {"status": "deleted", "id": dep_id}
+
+
+# --- User CRUD [D-AC-01..03] ---
+
+def _serialize_user(u: User) -> UserResponse:
+    return UserResponse(
+        id=u.id,
+        username=u.username,
+        display_name=u.display_name,
+        email=u.email,
+        role=u.role,
+        person_id=u.person_id,
+        person_name=u.person.name if u.person else None,
+        tier3_flag=u.tier3_flag,
+        change_reviewer_flag=u.change_reviewer_flag,
+        is_active=u.is_active,
+    )
+
+
+VALID_USER_ROLES = ("controller", "cost_center_owner", "project_lead", "executive")
+
+
+@router.get("/users")
+def list_users(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    rows = db.query(User).order_by(User.username).all()
+    items = [_serialize_user(u).model_dump() for u in rows]
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/users/{user_id}", response_model=UserResponse)
+def get_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    u = db.query(User).filter(User.id == user_id).first()
+    if not u:
+        raise HTTPException(404, "User not found")
+    return _serialize_user(u)
+
+
+@router.post("/users", response_model=UserResponse)
+def create_user(
+    body: UserCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    if body.role not in VALID_USER_ROLES:
+        raise HTTPException(400, f"Invalid role '{body.role}'. Must be one of: {', '.join(VALID_USER_ROLES)}")
+    if db.query(User).filter(User.username == body.username).first():
+        raise HTTPException(409, f"Username '{body.username}' already exists")
+    if body.person_id and not db.query(Person).filter(Person.id == body.person_id).first():
+        raise HTTPException(404, f"Person '{body.person_id}' not found")
+    u = User(
+        id=_gen_id("user"),
+        username=body.username,
+        display_name=body.display_name,
+        email=body.email,
+        role=body.role,
+        person_id=body.person_id,
+        tier3_flag=body.tier3_flag,
+        change_reviewer_flag=body.change_reviewer_flag,
+    )
+    db.add(u)
+    _log_audit(db, user, "user", u.id, u.display_name, "create")
+    db.commit()
+    db.refresh(u)
+    return _serialize_user(u)
+
+
+@router.put("/users/{user_id}", response_model=UserResponse)
+def update_user(
+    user_id: str,
+    body: UserUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    u = db.query(User).filter(User.id == user_id).first()
+    if not u:
+        raise HTTPException(404, "User not found")
+    if body.role is not None and body.role != u.role:
+        if body.role not in VALID_USER_ROLES:
+            raise HTTPException(400, f"Invalid role '{body.role}'")
+        _log_audit(db, user, "user", u.id, u.display_name, "update", "role", u.role, body.role)
+        u.role = body.role
+    if body.username is not None and body.username != u.username:
+        if db.query(User).filter(User.username == body.username, User.id != user_id).first():
+            raise HTTPException(409, f"Username '{body.username}' already in use")
+        _log_audit(db, user, "user", u.id, u.display_name, "update", "username", u.username, body.username)
+        u.username = body.username
+    if body.display_name is not None and body.display_name != u.display_name:
+        u.display_name = body.display_name
+    if body.email is not None and body.email != u.email:
+        u.email = body.email
+    if body.person_id is not None and body.person_id != u.person_id:
+        if body.person_id and not db.query(Person).filter(Person.id == body.person_id).first():
+            raise HTTPException(404, f"Person '{body.person_id}' not found")
+        u.person_id = body.person_id
+    if body.tier3_flag is not None and body.tier3_flag != u.tier3_flag:
+        _log_audit(
+            db, user, "user", u.id, u.display_name, "update",
+            "tier3_flag", str(u.tier3_flag), str(body.tier3_flag),
+        )
+        u.tier3_flag = body.tier3_flag
+    if body.change_reviewer_flag is not None and body.change_reviewer_flag != u.change_reviewer_flag:
+        _log_audit(
+            db, user, "user", u.id, u.display_name, "update",
+            "change_reviewer_flag", str(u.change_reviewer_flag), str(body.change_reviewer_flag),
+        )
+        u.change_reviewer_flag = body.change_reviewer_flag
+    db.commit()
+    db.refresh(u)
+    return _serialize_user(u)
+
+
+@router.put("/users/{user_id}/deactivate", response_model=UserResponse)
+def deactivate_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    u = db.query(User).filter(User.id == user_id).first()
+    if not u:
+        raise HTTPException(404, "User not found")
+    _log_audit(db, user, "user", u.id, u.display_name, "deactivate")
+    u.is_active = False
+    db.commit()
+    db.refresh(u)
+    return _serialize_user(u)
+
+
+# --- RolePermissionGrant CRUD [F-AC-01] ---
+
+def _serialize_grant(g: RolePermissionGrant) -> RolePermissionGrantResponse:
+    return RolePermissionGrantResponse(
+        id=g.id,
+        role=g.role,
+        entity_type=g.entity_type,
+        can_edit=g.can_edit,
+        notes=g.notes,
+    )
+
+
+@router.get("/role-permissions")
+def list_role_permissions(
+    role: str | None = None,
+    entity_type: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    query = db.query(RolePermissionGrant)
+    if role:
+        query = query.filter(RolePermissionGrant.role == role)
+    if entity_type:
+        query = query.filter(RolePermissionGrant.entity_type == entity_type)
+    rows = query.order_by(RolePermissionGrant.entity_type, RolePermissionGrant.role).all()
+    items = [_serialize_grant(g).model_dump() for g in rows]
+    return {"items": items, "total": len(items)}
+
+
+@router.post("/role-permissions", response_model=RolePermissionGrantResponse)
+def create_role_permission(
+    body: RolePermissionGrantCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    if body.role not in VALID_USER_ROLES:
+        raise HTTPException(400, f"Invalid role '{body.role}'")
+    existing = db.query(RolePermissionGrant).filter(
+        RolePermissionGrant.role == body.role,
+        RolePermissionGrant.entity_type == body.entity_type,
+    ).first()
+    if existing:
+        raise HTTPException(
+            409, f"Grant for role='{body.role}' entity_type='{body.entity_type}' already exists",
+        )
+    g = RolePermissionGrant(
+        role=body.role,
+        entity_type=body.entity_type,
+        can_edit=body.can_edit,
+        notes=body.notes,
+    )
+    db.add(g)
+    _log_audit(
+        db, user, "role_permission_grant",
+        f"{body.role}/{body.entity_type}", None, "create",
+        "can_edit", None, str(body.can_edit),
+    )
+    db.commit()
+    db.refresh(g)
+    return _serialize_grant(g)
+
+
+# IMPORTANT: ``/bulk`` MUST be registered BEFORE ``/{grant_id}`` so FastAPI's
+# path-resolution does not try to coerce the literal "bulk" segment into an
+# int parameter.
+@router.put("/role-permissions/bulk")
+def bulk_update_role_permissions(
+    body: RolePermissionGrantBulkUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Bulk replace grants for ``(role, entity_type)`` pairs supplied in body.
+
+    Convenient for the Section 5 admin grid UI: the frontend ships the full
+    desired grid; this endpoint upserts each cell. Existing grants for pairs
+    NOT in the payload are left intact (use the DELETE endpoint to revoke).
+    """
+    upserted: list[dict] = []
+    for grant in body.grants:
+        if grant.role not in VALID_USER_ROLES:
+            raise HTTPException(400, f"Invalid role '{grant.role}'")
+        existing = db.query(RolePermissionGrant).filter(
+            RolePermissionGrant.role == grant.role,
+            RolePermissionGrant.entity_type == grant.entity_type,
+        ).first()
+        if existing:
+            existing.can_edit = grant.can_edit
+            existing.notes = grant.notes
+            db.flush()
+            upserted.append(_serialize_grant(existing).model_dump())
+        else:
+            g = RolePermissionGrant(
+                role=grant.role,
+                entity_type=grant.entity_type,
+                can_edit=grant.can_edit,
+                notes=grant.notes,
+            )
+            db.add(g)
+            db.flush()
+            upserted.append(_serialize_grant(g).model_dump())
+    _log_audit(
+        db, user, "role_permission_grant", "bulk", None, "update",
+        "row_count", None, str(len(upserted)),
+    )
+    db.commit()
+    return {"items": upserted, "total": len(upserted)}
+
+
+@router.put("/role-permissions/{grant_id}", response_model=RolePermissionGrantResponse)
+def update_role_permission(
+    grant_id: int,
+    body: RolePermissionGrantUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    g = db.query(RolePermissionGrant).filter(RolePermissionGrant.id == grant_id).first()
+    if not g:
+        raise HTTPException(404, "Permission grant not found")
+    if body.can_edit is not None and body.can_edit != g.can_edit:
+        _log_audit(
+            db, user, "role_permission_grant",
+            f"{g.role}/{g.entity_type}", None, "update",
+            "can_edit", str(g.can_edit), str(body.can_edit),
+        )
+        g.can_edit = body.can_edit
+    if body.notes is not None and body.notes != g.notes:
+        g.notes = body.notes
+    db.commit()
+    db.refresh(g)
+    return _serialize_grant(g)
+
+
+@router.delete("/role-permissions/{grant_id}")
+def delete_role_permission(
+    grant_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    g = db.query(RolePermissionGrant).filter(RolePermissionGrant.id == grant_id).first()
+    if not g:
+        raise HTTPException(404, "Permission grant not found")
+    _log_audit(
+        db, user, "role_permission_grant",
+        f"{g.role}/{g.entity_type}", None, "delete",
+    )
+    db.delete(g)
+    db.commit()
+    return {"status": "deleted", "id": grant_id}
+
+
+# ---------------------------------------------------------------------------
 # Admin Context + Audit Log (2 endpoints)
 # ---------------------------------------------------------------------------
 
