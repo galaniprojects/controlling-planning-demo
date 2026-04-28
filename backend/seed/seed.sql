@@ -5,6 +5,131 @@
 -- =============================================================================
 
 -- =============================================================================
+-- 0. Countries (Cluster F lookup) [F-MD-02]
+-- Hand-edited for v5 Session D1; the seed generator does not yet emit these.
+-- =============================================================================
+
+INSERT INTO countries (id, iso_code, name, is_active, created_at, modified_at) VALUES
+('ctry-de', 'DEU', 'Germany',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-hu', 'HUN', 'Hungary',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-in', 'IND', 'India',          1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-us', 'USA', 'United States',  1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-cn', 'CHN', 'China',          1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-fr', 'FRA', 'France',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-it', 'ITA', 'Italy',          1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-uk', 'GBR', 'United Kingdom', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-pl', 'POL', 'Poland',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-cz', 'CZE', 'Czech Republic', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-jp', 'JPN', 'Japan',          1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-br', 'BRA', 'Brazil',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-mx', 'MEX', 'Mexico',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-au', 'AUS', 'Australia',      1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-tr', 'TUR', 'Turkey',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-ro', 'ROU', 'Romania',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-es', 'ESP', 'Spain',          1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-nl', 'NLD', 'Netherlands',    1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-be', 'BEL', 'Belgium',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-at', 'AUT', 'Austria',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-ch', 'CHE', 'Switzerland',    1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-se', 'SWE', 'Sweden',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-no', 'NOR', 'Norway',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-fi', 'FIN', 'Finland',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-dk', 'DNK', 'Denmark',        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-pt', 'PRT', 'Portugal',       1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-kr', 'KOR', 'South Korea',    1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-sg', 'SGP', 'Singapore',      1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-ca', 'CAN', 'Canada',         1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ctry-za', 'ZAF', 'South Africa',   1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+
+-- =============================================================================
+-- 0a. Regions (Cluster F lookup) [F-MD-02]
+-- =============================================================================
+
+INSERT INTO regions (id, code, name, is_active, created_at, modified_at) VALUES
+('rgn-emea',     'EMEA',     'Europe, Middle East, Africa', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('rgn-apac',     'APAC',     'Asia-Pacific',                 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('rgn-americas', 'AMERICAS', 'Americas',                     1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('rgn-india',    'INDIA',    'India',                        1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('rgn-china',    'CHINA',    'Greater China',                1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+
+-- =============================================================================
+-- 0b. Charging Locations (Cluster F master data) [F-MD-01] [F-MD-02]
+-- Demo subset (15 of ~90 KB charging codes per [F-DG-03]: full coverage in S1).
+-- division is free-text per the working assumption captured in PROGRESS.md.
+-- =============================================================================
+
+INSERT INTO charging_locations (id, code, name, division, region_id, country_id, is_active, created_at, modified_at) VALUES
+('cl-de-muc',   'DE-MUC-001', 'Munich HQ',              'Corporate IT',     'rgn-emea',     'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-de-bln',   'DE-BLN-001', 'Berlin Office',          'Corporate IT',     'rgn-emea',     'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-de-nbg',   'DE-NBG-001', 'Nuremberg Plant',        'Truck & Bus',      'rgn-emea',     'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-de-frz',   'DE-FRZ-001', 'Aldersbach',             'Rail Vehicle',     'rgn-emea',     'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-hu-bud',   'HU-BUD-001', 'Budapest Service Centre','Shared Services',  'rgn-emea',     'ctry-hu', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-in-pun',   'IN-PUN-001', 'Pune R&D Centre',        'Engineering',      'rgn-india',    'ctry-in', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-in-blr',   'IN-BLR-001', 'Bangalore Software Hub', 'Digital & Data',   'rgn-india',    'ctry-in', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-us-chi',   'US-CHI-001', 'Chicago Sales Office',   'Truck & Bus',      'rgn-americas', 'ctry-us', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-us-pit',   'US-PIT-001', 'Pittsburgh Plant',       'Rail Vehicle',     'rgn-americas', 'ctry-us', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-cn-sha',   'CN-SHA-001', 'Shanghai Office',        'Corporate IT',     'rgn-china',    'ctry-cn', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-cn-szx',   'CN-SZX-001', 'Suzhou Plant',           'Truck & Bus',      'rgn-china',    'ctry-cn', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-fr-par',   'FR-PAR-001', 'Paris Office',           'Rail Vehicle',     'rgn-emea',     'ctry-fr', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-uk-lon',   'UK-LON-001', 'London Office',          'Corporate IT',     'rgn-emea',     'ctry-uk', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-pl-wro',   'PL-WRO-001', 'Wroclaw Plant',          'Truck & Bus',      'rgn-emea',     'ctry-pl', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cl-mx-mxl',   'MX-MXL-001', 'Mexicali Plant',         'Truck & Bus',      'rgn-americas', 'ctry-mx', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+
+-- =============================================================================
+-- 0c. Legal Entities (Cluster F master data) [F-MD-01] [F-MD-02]
+-- Demo subset (15 of ~120 KB legal entities per [F-DG-03]: full coverage in S1).
+-- =============================================================================
+
+INSERT INTO legal_entities (id, code, name, charging_location_id, country_id, is_active, created_at, modified_at) VALUES
+('le-de-001', 'KB-DE-001', 'Knorr-Bremse AG',                              'cl-de-muc', 'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-de-002', 'KB-DE-002', 'Knorr-Bremse Systeme f. Schienenfahrzeuge GmbH','cl-de-muc', 'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-de-003', 'KB-DE-003', 'Knorr-Bremse Systeme f. Nutzfahrzeuge GmbH',   'cl-de-muc', 'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-de-004', 'KB-DE-004', 'Knorr-Bremse Berlin GmbH',                     'cl-de-bln', 'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-de-005', 'KB-DE-005', 'Knorr-Bremse Nuremberg GmbH',                  'cl-de-nbg', 'ctry-de', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-hu-001', 'KB-HU-001', 'Knorr-Bremse Magyarország Kft.',                'cl-hu-bud', 'ctry-hu', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-in-001', 'KB-IN-001', 'Knorr-Bremse Technology Center India Pvt Ltd', 'cl-in-pun', 'ctry-in', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-in-002', 'KB-IN-002', 'Knorr-Bremse Bangalore Pvt Ltd',                'cl-in-blr', 'ctry-in', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-us-001', 'KB-US-001', 'Knorr Brake Holding Corporation',               'cl-us-chi', 'ctry-us', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-us-002', 'KB-US-002', 'New York Air Brake LLC',                        'cl-us-pit', 'ctry-us', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-cn-001', 'KB-CN-001', 'Knorr-Bremse (Shanghai) Trading Co. Ltd.',      'cl-cn-sha', 'ctry-cn', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-cn-002', 'KB-CN-002', 'Knorr-Bremse (Suzhou) Brake Systems Co. Ltd.',  'cl-cn-szx', 'ctry-cn', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-fr-001', 'KB-FR-001', 'Knorr-Bremse SAS',                              'cl-fr-par', 'ctry-fr', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-uk-001', 'KB-UK-001', 'Knorr-Bremse Rail Systems (UK) Ltd.',           'cl-uk-lon', 'ctry-uk', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('le-pl-001', 'KB-PL-001', 'Knorr-Bremse Polska Sp. z o.o.',                'cl-pl-wro', 'ctry-pl', 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+
+-- =============================================================================
+-- 0d. UserMeasurement — one demo flagship version per [F-DG-03]
+-- 2026 Q1 snapshot: 12 sparse cells across 4 S-codes and 6 charging locations.
+-- Full ~99 × 90 matrix coverage waits for S1 per the seed-volume targets.
+-- =============================================================================
+
+INSERT INTO user_measurements (year, quarter, s_code, charging_location_id, value, source, imported_at, imported_by_person_id) VALUES
+(2026, 1, 'S0001', 'cl-de-muc', 45.5, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0001', 'cl-de-bln', 12.0, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0001', 'cl-hu-bud', 8.5,  'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0002', 'cl-de-muc', 22.0, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0002', 'cl-in-pun', 15.5, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0002', 'cl-in-blr', 10.0, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0003', 'cl-de-muc', 30.0, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0003', 'cl-us-chi', 18.0, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0003', 'cl-us-pit', 7.5,  'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0004', 'cl-cn-sha', 25.5, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0004', 'cl-cn-szx', 14.0, 'seed', '2026-01-15 10:00:00.000000', NULL),
+(2026, 1, 'S0004', 'cl-de-muc', 6.0,  'seed', '2026-01-15 10:00:00.000000', NULL);
+
+-- =============================================================================
+-- 0e. Default RolePermissionGrants per [F-AC-01]
+-- Encodes the workshop-confirmed defaults: responsible owns + controller
+-- override (audit-trailed). Other roles need explicit grants.
+-- =============================================================================
+
+INSERT INTO role_permission_grants (role, entity_type, can_edit, notes, created_at, modified_at) VALUES
+('controller', 'btc_profile',         1, 'Default override per [F-AC-01]', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('controller', 'distribution',        1, 'Default override per [F-AC-01]', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('controller', 'charging_location',   1, 'Master data ownership',          '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('controller', 'legal_entity',        1, 'Master data ownership',          '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+
+-- =============================================================================
 -- 1. Grouping Entity Types (replaces Lines of Business)
 -- =============================================================================
 
@@ -321,7 +446,20 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('forecast_deadline', 'Forecast Deadline', 'Day of month when forecast is due', '15', '15', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_amber_threshold', 'RAG Amber Threshold', 'Budget variance % for amber status', '5', '5', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_red_threshold', 'RAG Red Threshold', 'Budget variance % for red status', '10', '10', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+-- v5 Session D1 additions per [D-PRC-02], [D-PRC-03], [D-PRC-04]
+('granularity_boundary_months', 'Granularity Boundary (months)', 'Months from today before forecast granularity changes from monthly to quarterly', '12', '12', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('forecast_cycle_cadence_months', 'Forecast Cycle Cadence (months)', 'Rolling forecast cadence per [D-PRC-03]: 1=monthly, 3=quarterly, N=every N months', '3', '3', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('cycle_due_day', 'Cycle Due Day', 'Calendar day each cadence period for forecast submission per [D-PRC-04]', '15', '15', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('standard_available_hours_default', 'Standard Available Hours (default)', 'Default monthly available hours per person; per-location overrides via standard_available_hours_<location_id>', '160', '160', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('standard_available_hours_loc-muc', 'Standard Available Hours — Munich', 'Munich monthly available hours override', '155', '155', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('standard_available_hours_loc-bud', 'Standard Available Hours — Budapest', 'Budapest monthly available hours override', '160', '160', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('standard_available_hours_loc-pun', 'Standard Available Hours — Pune', 'Pune monthly available hours override', '170', '170', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+-- v5 Session A3 — Backlog & Ranking Configuration [A-BK-09] [A-BK-12].
+-- Working assumptions pending KB confirmation: 50M EUR envelope is a placeholder;
+-- tie-breaker default ASC on DoI surfaces earlier-stage projects first per [A-BK-06].
+('ranking_total_available_budget', 'Total Available Budget', 'Annual portfolio budget envelope used for cutoff line calculation [A-BK-09]', '50000000', '50000000', 'integer', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ranking_tiebreakers', 'Backlog Tie-Breaker Order', 'Comma-separated tie-breaker fields applied after composite_score DESC [A-BK-06]', 'composite_score:desc,doi:asc,total_budget:desc', 'composite_score:desc,doi:asc,total_budget:desc', 'string', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- 13. KPI Definitions
@@ -19883,21 +20021,21 @@ INSERT INTO system_suggestions (project_id, suggestion_type, observation, recomm
 ('proj-iam', 'actuals_correction', 'ServiceNow licensing costs increased 40% after vendor pricing change. Current forecast may not fully reflect the compounding impact over remaining months.', 'Review forecast for ServiceNow ITSM Licenses line item and ensure all remaining months reflect the updated pricing.', 'Forecast accuracy improvement: ensures remaining 6 months correctly reflect EUR 5,600/month vs potential underestimate.', '{"changes": [{"type": "external", "line": "ServiceNow ITSM Licenses", "action": "update_forecast", "amount": 5600}]}', '2026-03-01 08:00:00'),
 ('proj-telematics', 'burn_rate', 'Project is behind schedule by approximately 1 month. Current resource allocation may not be sufficient to recover the timeline slip.', 'Consider increasing developer allocation for Q2 2026 or further reducing scope to meet the revised delivery date.', 'Additional 20 developer hours/month for 3 months could recover 2-3 weeks of schedule slip.', '{"changes": [{"type": "internal", "role": "role-dev", "action": "increase_hours", "delta": 20}]}', '2026-03-01 08:00:00');
 
--- Audit Log
-INSERT INTO audit_log (timestamp, user_person_id, entity_type, entity_id, entity_name, action, field_changed, old_value, new_value) VALUES
-('2026-02-15 10:00:00', 'p-meier', 'project', 'proj-fleet', 'Fleet Portal v2', 'update', 'status', 'pending_approval', 'active'),
-('2026-02-20 10:00:00', 'p-sharma', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'create', NULL, NULL, NULL),
-('2026-02-25 14:00:00', 'p-meier', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'update', 'status', 'pending_controller_approval', 'sent_back_by_controller'),
-('2026-02-28 10:00:00', 'p-sharma', 'project', 'proj-autobrake', 'Autonomous Braking Prototype', 'create', NULL, NULL, NULL),
-('2026-03-01 09:00:00', 'p-becker', 'scenario', '3', 'Conservative: Freeze New Starts', 'update', 'status', 'private', 'published'),
-('2026-03-02 11:00:00', 'p-brenner', 'change_request', '12', 'CR #12 - SAP S/4HANA Migration', 'update', 'cc_status', 'pending', 'confirmed'),
-('2026-03-04 11:00:00', 'p-brenner', 'change_request', '19', 'CR #19 - IAM Overhaul', 'update', 'cc_status', 'pending', 'confirmed'),
-('2026-03-05 09:00:00', 'p-sharma', 'change_request', '9', 'CR #9 - ERP Integration Phase 2', 'create', NULL, NULL, NULL),
-('2026-03-07 09:00:00', 'p-sharma', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'create', NULL, NULL, NULL),
-('2026-03-07 10:00:00', 'p-meier', 'scenario', '1', 'Budget Pressure: 15% Reduction', 'update', 'status', 'private', 'published'),
-('2026-03-08 09:30:00', 'p-sharma', 'change_request', '15', 'CR #15 - Sensor Data Pipeline', 'create', NULL, NULL, NULL),
-('2026-03-08 10:00:00', 'p-brenner', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'update', 'cc_status', 'pending', 'confirmed'),
-('2026-03-10 11:00:00', 'p-meier', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'update', 'controller_status', 'pending', 'approved');
+-- Audit Log (Cluster D Session D2: category column tagged at write time)
+INSERT INTO audit_log (timestamp, user_person_id, entity_type, entity_id, entity_name, action, field_changed, old_value, new_value, category) VALUES
+('2026-02-15 10:00:00', 'p-meier', 'project', 'proj-fleet', 'Fleet Portal v2', 'update', 'status', 'pending_approval', 'active', 'forecast_actions'),
+('2026-02-20 10:00:00', 'p-sharma', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'create', NULL, NULL, NULL, 'forecast_actions'),
+('2026-02-25 14:00:00', 'p-meier', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'update', 'status', 'pending_controller_approval', 'sent_back_by_controller', 'forecast_actions'),
+('2026-02-28 10:00:00', 'p-sharma', 'project', 'proj-autobrake', 'Autonomous Braking Prototype', 'create', NULL, NULL, NULL, 'master_data'),
+('2026-03-01 09:00:00', 'p-becker', 'scenario', '3', 'Conservative: Freeze New Starts', 'update', 'status', 'private', 'published', 'simulator'),
+('2026-03-02 11:00:00', 'p-brenner', 'change_request', '12', 'CR #12 - SAP S/4HANA Migration', 'update', 'cc_status', 'pending', 'confirmed', 'forecast_actions'),
+('2026-03-04 11:00:00', 'p-brenner', 'change_request', '19', 'CR #19 - IAM Overhaul', 'update', 'cc_status', 'pending', 'confirmed', 'forecast_actions'),
+('2026-03-05 09:00:00', 'p-sharma', 'change_request', '9', 'CR #9 - ERP Integration Phase 2', 'create', NULL, NULL, NULL, 'forecast_actions'),
+('2026-03-07 09:00:00', 'p-sharma', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'create', NULL, NULL, NULL, 'forecast_actions'),
+('2026-03-07 10:00:00', 'p-meier', 'scenario', '1', 'Budget Pressure: 15% Reduction', 'update', 'status', 'private', 'published', 'simulator'),
+('2026-03-08 09:30:00', 'p-sharma', 'change_request', '15', 'CR #15 - Sensor Data Pipeline', 'create', NULL, NULL, NULL, 'forecast_actions'),
+('2026-03-08 10:00:00', 'p-brenner', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'update', 'cc_status', 'pending', 'confirmed', 'forecast_actions'),
+('2026-03-10 11:00:00', 'p-meier', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'update', 'controller_status', 'pending', 'approved', 'forecast_actions');
 
 -- =============================================================================
 -- Milestone Types [A-BK-34]
@@ -20073,3 +20211,113 @@ INSERT INTO scenario_capacity_impacts (scenario_id, cost_center_id, month, origi
 (3, 'cc-pun-apd', '2026-08', 82.0, 72.0, -0.40),
 (3, 'cc-pun-apd', '2026-09', 82.0, 72.0, -0.40),
 (3, 'cc-pun-apd', '2026-10', 82.0, 72.0, -0.40);
+
+-- =============================================================================
+-- Workflow Templates [D-CAT-07] (Cluster D Session D2)
+-- Six configurable workflows with fixed step sets. Steps are not reorderable
+-- through the admin API; touchpoints (required, role, gates, notifications,
+-- time, escalation) are editable.
+-- =============================================================================
+
+INSERT INTO workflow_templates (id, key, name, description, is_active, created_at, modified_at) VALUES
+(1, 'forecast_cycle', 'Forecast Cycle', 'Five-phase rolling forecast cycle: cycle opens, retrospective acknowledgment, forecast editing, review, acceptance.', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+(2, 'intake', 'Intake / Pipeline Progression', 'Intake workflow: Proposed -> Under Evaluation -> Approved, including AI Council and Pitch Board governance gates.', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+(3, 'change_request', 'Change Request', 'Change Request lifecycle: submission -> CC Owner confirmation -> Controller approval / rejection.', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+(4, 'send_back', 'Send Back', 'Controller requests changes from PL and routes the submission back for revision.', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+(5, 'milestone_baseline_override', 'Milestone Baseline Override', 'Audited override of a milestone baseline date after the baseline is locked.', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+(6, 'scheduled_master_data_activation', 'Scheduled Master Data Activation', 'Lifecycle for future-dated master data changes: pending review -> approved -> activated.', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00');
+
+INSERT INTO workflow_steps (id, template_id, step_order, name, description, step_type, required, skippable, assigned_role, data_gates_json, notifications_json, time_constraint_days, escalation_action) VALUES
+-- Forecast Cycle (template 1)
+(1, 1, 1, 'Cycle opens', 'Controller opens the forecast cycle for the period.', 'action', 1, 0, 'controller', NULL, '{"on_start": ["all_pls"]}', NULL, NULL),
+(2, 1, 2, 'Retrospective acknowledgment', 'PLs acknowledge the prior period actuals before editing.', 'review', 1, 0, 'project_lead', '["actuals_loaded"]', NULL, 5, 'reminder'),
+(3, 1, 3, 'Forecast editing', 'PLs edit forecast lines via the wizard.', 'action', 1, 0, 'project_lead', NULL, '{"on_overdue": ["controller"]}', 10, 'reminder'),
+(4, 1, 4, 'Review', 'Controller reviews submitted forecasts with inline-edit capability.', 'review', 1, 0, 'controller', NULL, NULL, 5, 'escalate_to_manager'),
+(5, 1, 5, 'Acceptance', 'Controller approves; baseline is updated.', 'gate', 1, 0, 'controller', NULL, '{"on_completion": ["pl", "cc_owner"]}', NULL, NULL),
+-- Intake (template 2)
+(6, 2, 1, 'Submit project intake', 'PL submits a new project for intake review.', 'action', 1, 0, 'project_lead', '["title", "description", "estimated_budget"]', NULL, NULL, NULL),
+(7, 2, 2, 'AI Council screening', 'AI Council screens AI-related intakes per [A-DOI-03].', 'gate', 0, 1, 'controller', NULL, NULL, 14, 'reminder'),
+(8, 2, 3, 'Under evaluation', 'Controller and stakeholders evaluate; Tech Navigator scoring captured.', 'review', 1, 0, 'controller', '["complexity_scores", "value_creation_scores"]', NULL, 21, 'escalate_to_manager'),
+(9, 2, 4, 'Pitch Board gate', 'Pitch Board governance gate for projects with To-Business cost share.', 'gate', 0, 1, 'controller', '["btc_profile_complete"]', NULL, NULL, NULL),
+(10, 2, 5, 'Approve to backlog', 'Controller approves; project enters the active backlog.', 'gate', 1, 0, 'controller', NULL, '{"on_completion": ["pl"]}', NULL, NULL),
+-- Change Request (template 3)
+(11, 3, 1, 'PL submits CR', 'Project Lead drafts and submits a change request.', 'action', 1, 0, 'project_lead', '["delta_summary"]', NULL, NULL, NULL),
+(12, 3, 2, 'CC Owner confirmation', 'CC Owner confirms or declines the resource impact.', 'review', 1, 0, 'cost_center_owner', NULL, '{"on_start": ["cc_owner"]}', 5, 'reminder'),
+(13, 3, 3, 'Controller decision', 'Controller approves, rejects, or sends back the CR.', 'review', 1, 0, 'controller', NULL, NULL, 7, 'escalate_to_manager'),
+(14, 3, 4, 'Forecast update', 'On approval, forecast lines are updated automatically.', 'action', 1, 0, 'controller', NULL, '{"on_completion": ["pl", "cc_owner"]}', NULL, NULL),
+-- Send Back (template 4)
+(15, 4, 1, 'Controller requests changes', 'Controller annotates the submission and routes it back.', 'action', 1, 0, 'controller', '["change_notes"]', '{"on_start": ["pl"]}', NULL, NULL),
+(16, 4, 2, 'PL revises', 'Project Lead addresses the controllers feedback.', 'action', 1, 0, 'project_lead', NULL, NULL, 7, 'reminder'),
+(17, 4, 3, 'Resubmit', 'PL resubmits; the original review workflow resumes.', 'action', 1, 0, 'project_lead', NULL, NULL, NULL, NULL),
+-- Milestone Baseline Override (template 5)
+(18, 5, 1, 'Override request', 'Controller submits a request to change a locked baseline date.', 'action', 1, 0, 'controller', '["override_reason"]', NULL, NULL, NULL),
+(19, 5, 2, 'Second-controller review', 'A second controller reviews the override request.', 'review', 1, 1, 'controller', NULL, '{"on_start": ["controllers"]}', 3, 'reminder'),
+(20, 5, 3, 'Apply or reject', 'On approval, baseline date is updated and audit-logged.', 'gate', 1, 0, 'controller', NULL, '{"on_completion": ["pl"]}', NULL, NULL),
+-- Scheduled Master Data Activation (template 6)
+(21, 6, 1, 'Create scheduled change', 'First admin creates the change with an activation date.', 'action', 1, 0, 'controller', '["pending_values"]', NULL, NULL, NULL),
+(22, 6, 2, 'Second-admin review', 'Change reviewer permission required.', 'review', 1, 0, 'controller', NULL, '{"on_start": ["change_reviewers"]}', 5, 'reminder'),
+(23, 6, 3, 'Activation', 'Daily job applies approved changes whose date has arrived.', 'action', 1, 0, 'controller', NULL, '{"on_completion": ["all_admins"]}', NULL, NULL);
+
+INSERT INTO workflow_step_actions (step_id, action_order, action_type, label, config_json) VALUES
+-- Forecast cycle review actions
+(4, 1, 'approve', 'Approve forecast', '{"updates_baseline": true}'),
+(4, 2, 'send_back', 'Send back to PL', '{"target_workflow": "send_back"}'),
+-- Intake evaluation actions
+(8, 1, 'approve', 'Approve to backlog', '{}'),
+(8, 2, 'reject', 'Reject', '{}'),
+(8, 3, 'send_back', 'Send back to PL', '{"target_workflow": "send_back"}'),
+-- CR controller actions
+(13, 1, 'approve', 'Approve CR', '{"updates_forecast": true}'),
+(13, 2, 'reject', 'Reject CR', '{}'),
+(13, 3, 'send_back', 'Send back to PL', '{"target_workflow": "send_back"}'),
+-- Milestone override review
+(19, 1, 'approve', 'Approve override', '{"requires_audit_log": true}'),
+(19, 2, 'reject', 'Reject override', '{}'),
+-- Scheduled change review
+(22, 1, 'approve', 'Approve scheduled change', '{}'),
+(22, 2, 'reject', 'Reject scheduled change', '{}');
+
+-- =============================================================================
+-- Sample Scheduled Changes — demonstrates lifecycle states (Cluster D Session D2)
+-- =============================================================================
+
+INSERT INTO scheduled_changes (
+  id, entity_type, entity_id, description, pending_values_json,
+  activation_date, review_status,
+  created_by_person_id, created_at,
+  reviewed_by_person_id, reviewed_at, review_comments,
+  activated_at, activation_error
+) VALUES
+(1, 'planning_parameter', 'standard_hours_global',
+ 'Reduce standard hours from 160 to 156 effective May 2026',
+ '{"current_value": "156"}',
+ '2026-05-01', 'pending_review',
+ 'p-meier', '2026-04-25 10:00:00',
+ NULL, NULL, NULL, NULL, NULL),
+(2, 'planning_parameter', 'fiscal_year_start',
+ 'Confirm fiscal year start month for 2027 cycle',
+ '{"current_value": "1"}',
+ '2026-12-01', 'approved',
+ 'p-meier', '2026-04-15 09:00:00',
+ 'p-meier', '2026-04-20 14:30:00', 'Approved per finance steering commitee minutes 2026-04-20',
+ NULL, NULL),
+(3, 'cost_center', 'cc-muc-bso',
+ 'Rename Munich BSO cost center per HR realignment',
+ '{"name": "Munich BSO Strategic"}',
+ '2026-06-01', 'pending_review',
+ 'p-meier', '2026-04-22 11:00:00',
+ NULL, NULL, NULL, NULL, NULL),
+(4, 'planning_parameter', 'rag_budget_red_threshold',
+ 'Tighten RAG red threshold from 110 to 105',
+ '{"current_value": "105"}',
+ '2026-04-01', 'rejected',
+ 'p-meier', '2026-03-20 09:00:00',
+ 'p-meier', '2026-03-25 16:00:00', 'Rejected — too aggressive without portfolio rebaseline.',
+ NULL, NULL),
+(5, 'planning_parameter', 'standard_hours_global',
+ 'Initial fiscal-year reset (already activated; demo example)',
+ '{"current_value": "160"}',
+ '2026-01-15', 'activated',
+ 'p-meier', '2025-12-15 10:00:00',
+ 'p-meier', '2025-12-18 11:00:00', 'Approved as part of 2026 planning configuration.',
+ '2026-01-15 06:00:00', NULL);

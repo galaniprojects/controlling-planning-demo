@@ -57,6 +57,20 @@ class Notification(Base):
     user: Mapped["Person"] = relationship()
 
 
+# Audit categories per CRETA v5 spec line ~1849. The 8 categories surfaced in
+# the audit log filter UI. Tagged at write time at each ``_log_audit`` call site.
+AUDIT_CATEGORIES = (
+    "master_data",                # Cost centres, people, roles, locations, rate tables, project metadata
+    "configuration",              # Planning parameters, system settings
+    "hierarchy",                  # Grouping entities, hierarchies, project assignments
+    "forecast_actions",           # Milestones, forecast edits, baseline overrides
+    "pipeline_transitions",       # Pipeline stage / DoI / AI Council / within_cutoff
+    "simulator",                  # Scenario actions, promotions, applies-to-forecast
+    "access_control",             # User permissions, role grants, change-reviewer flag
+    "scheduled_change_lifecycle", # ScheduledChange create / approve / reject / cancel / activate
+)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
@@ -67,10 +81,17 @@ class AuditLog(Base):
     entity_id: Mapped[str] = mapped_column(String(50), nullable=False)
     entity_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     action: Mapped[str] = mapped_column(String(20), nullable=False)
-    # action: create, update, deactivate
+    # action: create, update, deactivate, override, activate
     field_changed: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     old_value: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     new_value: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # category — one of AUDIT_CATEGORIES. Required at write time per [D-CAT-07].
+    # ``server_default`` makes raw-SQL inserts (seed.sql) work without ORM defaults;
+    # legacy rows that pre-date Session D2 land in 'master_data' which is the
+    # safest neutral category for back-fill.
+    category: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="master_data", server_default="master_data",
+    )
 
     # Relationships
     user: Mapped["Person"] = relationship()
@@ -92,3 +113,42 @@ class SystemSuggestion(Base):
 
     # Relationships
     project: Mapped["Project"] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# v5 Session D1 — Per-role-per-entity-type permission grid [F-AC-01].
+# Appended at end-of-file per the team's file-ownership rules so that the
+# three-way merge with D2 (which edits AuditLog above) and A3 (which does
+# not touch this file) has zero overlap. Do NOT edit any existing class above.
+# ---------------------------------------------------------------------------
+
+class RolePermissionGrant(Base):
+    """Per-role-per-entity-type edit permission grant per [F-AC-01].
+
+    Captures admin-configurable role grants for entity types whose default is
+    "responsible owns + controller override". The two motivating cases from
+    Cluster F are BTC profile edits and inter-service distribution edits, but
+    the model is generic so additional entity types can opt in without a
+    schema change.
+
+    A row in this table grants ``role`` edit access to ``entity_type``.
+    Absence of a row means default-only access (responsible-owner edits +
+    controller override). The ``can_edit`` boolean lets the same row be used
+    to *revoke* a default-granted permission (e.g. set ``can_edit=False`` for
+    ``role='controller'`` to remove the override path on a sensitive entity
+    type), although the prototype seeds only the additive case.
+    """
+
+    __tablename__ = "role_permission_grants"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    role: Mapped[str] = mapped_column(String(30), nullable=False)
+    # controller, project_lead, cost_center_owner, executive
+    entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # btc_profile, distribution, charging_location, legal_entity, ...
+    can_edit: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    modified_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow,
+    )

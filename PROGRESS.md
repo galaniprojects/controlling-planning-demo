@@ -1,10 +1,430 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A — Portfolio Pipeline & Backlog
-Last completed: Sessions A2 + A4 — Pipeline / DoI lifecycle backend AND Project Milestones backend (rename + Type Library + CRUD), implemented in parallel on separate branches and combined here.
-Branch: `v5/cluster-a/pipeline-and-milestones-backend` (off `main`, post-PR-#60). Carries A2's 8 atomic commits and A4's 11 atomic commits + merge-conflict resolution. Ready to PR.
-Next: A3 (Ranking engine — depends on both A2 and A4), A5 (Intake workflow — depends on A2 and A3), then A6/A7/A8 frontend.
+Phase: v5 Cluster A/D — Three sessions merged in parallel onto `main` (D1 → D2 → A3).
+Last completed: Sessions D1 (admin entities + Cluster F master data), D2 (workflow templates + audit query/export), and A3 (ranking engine + cutoff line backend). All three implemented in parallel agent-team worktrees, verified independently green, merged onto `main` in order with conflicts resolved on `main.py`, `models/__init__.py`, `seed.sql`, `routers/admin.py` (audit category tagging for D1's new endpoints), and PROGRESS.md.
+Next: A5 (Intake workflow + backlog integration) — depends on A2 + A3, both now merged.
+
+## v5 Session D1: Admin Entities + CRUD (incl. Cluster F master data) Backend (2026-04-28)
+
+### Feature Overview
+- **Cluster D extensions** to the existing admin module: full CRUD for `RoleType` and `ExternalCostType` (models existed but had no admin endpoints), CRUD for the new `ProjectDependency` data model per `[D-AC-05]`, CRUD for the new `User` entity (separate from `Person` per spec §1584) with Tier-3 and change-reviewer flags per `[D-AC-01..03]`, and CRUD for the new `RolePermissionGrant` per-role-per-entity-type permission grid per `[F-AC-01]` (covers BTC profile + inter-service distribution edits, plus generic master-data entities).
+- **Cluster F master data** — complete suite of new entities and CRUD per `[F-MD-01..03]`, `[F-UM-01..04]`, `[F-DG-03]`:
+  - `Country` (~30 ISO rows lookup), `Region` (5 regions), `ChargingLocation` (15 KB charging codes with `division` as free-text + Region + Country FKs), `LegalEntity` (15 entities with many-to-one rollup to ChargingLocation + own Country FK for divergence cases), `UserMeasurement` (sparse versioned matrix; one demo flagship version seeded for 2026 Q1 across 4 S-codes × 6 charging locations).
+  - `POST /api/admin/user-measurement/import` accepts a CSV upload, validates schema, skips zero-value rows for sparse storage, and creates a NEW version each time per `[F-UM-03]` (no overwrite — versioning keyed by `(year, quarter, imported_at)` triple).
+  - `GET /api/admin/user-measurement/refresh-status` returns 200 with `{"status": "not_connected", "message": "..."}` instead of 501 so the frontend can render an explanatory dialog rather than a generic network error.
+- **Configurable parameters** added to Section 12 of seed.sql per `[D-PRC-02..04]`: granularity boundary (12 months), forecast cycle cadence (3 months), cycle due day (15), default standard available hours (160), per-location overrides for Munich (155), Budapest (160), and Pune (170). Per-location capacity hours stored as keyed `PlanningParameter` rows so the existing admin UI surfaces them without a Location-schema change.
+
+### Spec references implemented
+`[D-AC-01]`, `[D-AC-02]`, `[D-AC-03]`, `[D-AC-05]`, `[D-AC-09]` (audit-log categorisation handled by D2; this session preserves all existing audit calls), `[D-PRC-02]`, `[D-PRC-03]`, `[D-PRC-04]`, `[D-CAT-07]` (workflow templates land in D2 — D1 surfaces the User/permission scaffolding the templates need), `[F-MD-01]`, `[F-MD-02]`, `[F-MD-03]`, `[F-AC-01]`, `[F-UM-01]`, `[F-UM-02]`, `[F-UM-03]`, `[F-UM-04]`, `[F-DG-03]` (one demo flagship version seeded; full ~99 × 90 matrix waits for S1).
+
+Out of scope for D1, deferred per the team-lead's plan:
+- `[D-CAT-07]` Workflow Template Editor backend — D2.
+- `[D-AC-09]` Audit-log category column + 8-category enum + export — D2.
+- `[D-AC-08]` Inter-project dependency cycle detection — surfaces in the consuming portfolio map; not a hard save-time block in D1 per the team-lead's note.
+- Scheduled-change activation engine — D2.
+
+### Technical Details
+- **Models (5 new + 2 modified):**
+  - `backend/models/charging.py` (NEW) — `Country`, `Region`, `ChargingLocation`, `LegalEntity`, `UserMeasurement`. UM has a unique constraint on `(year, quarter, imported_at, s_code, charging_location_id)` to prevent duplicate cells within a single import batch.
+  - `backend/models/users.py` — appended `User` class. Separate from `Person`; FK to `people.id` is nullable per spec §1584. Carries `tier3_flag` and `change_reviewer_flag`.
+  - `backend/models/projects.py` — appended `ProjectDependency` class. Soft-constraint edge with predecessor/successor FKs, dependency_type catalogue string, optional lag_days, notes, created_by audit.
+  - `backend/models/system.py` — appended `RolePermissionGrant` at end-of-file (no edits to existing classes; D2 owns AuditLog modifications).
+  - `backend/models/__init__.py` — registers all new models so `Base.metadata.create_all()` discovers them.
+- **Schemas:**
+  - `backend/schemas/charging.py` (NEW) — `Country{Create,Update,Response}`, `Region{Create,Update,Response}`, `ChargingLocation{Create,Update,Response}`, `LegalEntity{Create,Update,Response}`.
+  - `backend/schemas/user_measurement.py` (NEW) — `UserMeasurementCellResponse`, `UserMeasurementListResponse`, `UserMeasurementVersionResponse`, `UserMeasurementVersionsResponse`, `UserMeasurementImportResponse`, `UserMeasurementRefreshStatusResponse`.
+  - `backend/schemas/admin.py` — appended `RoleType*`, `ExternalCostType*`, `ProjectDependency*`, `User*`, `RolePermissionGrant*` schemas.
+- **Routers (2 new + 1 extended):**
+  - `backend/routers/charging.py` (NEW) — 16 endpoints across Country / Region / ChargingLocation / LegalEntity. List endpoints return the standard `{items, total}` shape with rolled-up names (e.g. `country_iso_code`, `charging_location_code`).
+  - `backend/routers/user_measurement.py` (NEW) — 4 endpoints: `/refresh-status`, `/versions`, `/` (read by year/quarter, optionally by `imported_at`), `/import` (multipart file upload).
+  - `backend/routers/admin.py` — appended new sections BEFORE the audit-log block to preserve existing endpoint ordering: 3 RoleType endpoints, 3 ExternalCostType endpoints, 4 ProjectDependency endpoints, 5 User endpoints, 5 RolePermissionGrant endpoints (incl. `/bulk` upsert).
+- **Service:** `backend/services/user_measurement_import.py` (NEW) — pure CSV-parsing service that validates the header, looks up `charging_location_code` against the master, skips zero-value rows, and returns an `ImportResult` dataclass that the router wraps as JSON.
+- **Wiring:** `backend/main.py` imports + `include_router`s the 2 new routers in lex-sort order so the merge with D2 has zero overlap.
+- **Requirements:** `backend/requirements.txt` adds `python-multipart>=0.0.20` for `UploadFile`.
+- **Tests:** 4 new test files, 74 new tests total — full suite 480 passed (406 baseline + 74 new), exceeding the 455 target.
+- **Seed:** New sections at the TOP of `backend/seed/seed.sql` (so FKs resolve): Section 0 Countries (30), 0a Regions (5), 0b ChargingLocations (15), 0c LegalEntities (15), 0d UserMeasurement flagship version (12 cells), 0e Default RolePermissionGrants (4 controller defaults). Section 12 (planning parameters) extended with 7 new keys.
+
+### API Endpoints Added
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/admin/role-types` | List role types |
+| POST | `/api/admin/role-types` | Create role type |
+| PUT | `/api/admin/role-types/{id}` | Update role type |
+| GET | `/api/admin/external-cost-types` | List external cost types |
+| POST | `/api/admin/external-cost-types` | Create external cost type |
+| PUT | `/api/admin/external-cost-types/{id}` | Update external cost type |
+| GET | `/api/admin/project-dependencies` | List dependencies (optional `?project_id=`) |
+| POST | `/api/admin/project-dependencies` | Create dependency edge |
+| PUT | `/api/admin/project-dependencies/{id}` | Update dependency type / lag / notes |
+| DELETE | `/api/admin/project-dependencies/{id}` | Remove dependency |
+| GET | `/api/admin/users` | List users |
+| GET | `/api/admin/users/{id}` | Get user detail |
+| POST | `/api/admin/users` | Create user |
+| PUT | `/api/admin/users/{id}` | Update user (incl. tier3 + change_reviewer) |
+| PUT | `/api/admin/users/{id}/deactivate` | Deactivate user |
+| GET | `/api/admin/role-permissions` | List grants (optional `?role=`, `?entity_type=`) |
+| POST | `/api/admin/role-permissions` | Create grant |
+| PUT | `/api/admin/role-permissions/bulk` | Bulk upsert grants from grid UI |
+| PUT | `/api/admin/role-permissions/{id}` | Update grant |
+| DELETE | `/api/admin/role-permissions/{id}` | Remove grant |
+| GET | `/api/admin/countries` | List countries |
+| POST | `/api/admin/countries` | Create country |
+| PUT | `/api/admin/countries/{id}` | Update country |
+| PUT | `/api/admin/countries/{id}/deactivate` | Deactivate country |
+| GET | `/api/admin/regions` | List regions |
+| POST | `/api/admin/regions` | Create region |
+| PUT | `/api/admin/regions/{id}` | Update region |
+| PUT | `/api/admin/regions/{id}/deactivate` | Deactivate region |
+| GET | `/api/admin/charging-locations` | List charging locations (with rollups) |
+| POST | `/api/admin/charging-locations` | Create charging location |
+| PUT | `/api/admin/charging-locations/{id}` | Update charging location |
+| PUT | `/api/admin/charging-locations/{id}/deactivate` | Deactivate |
+| GET | `/api/admin/legal-entities` | List (optional `?charging_location_id=`) |
+| POST | `/api/admin/legal-entities` | Create legal entity |
+| PUT | `/api/admin/legal-entities/{id}` | Update legal entity |
+| PUT | `/api/admin/legal-entities/{id}/deactivate` | Deactivate |
+| GET | `/api/admin/user-measurement/refresh-status` | Stub auto-refresh status (200 not_connected) |
+| GET | `/api/admin/user-measurement/versions` | List import versions |
+| GET | `/api/admin/user-measurement` | Read cells for a (year, quarter) version |
+| POST | `/api/admin/user-measurement/import` | CSV upload — creates a new version |
+
+### Data Model Changes
+- New tables: `countries`, `regions`, `charging_locations`, `legal_entities`, `user_measurements` (with the unique constraint above), `users`, `project_dependencies`, `role_permission_grants`.
+- No migrations system (no Alembic). Existing `backend/creta_demo.db` will fail at startup against the new schema. Resolution: delete `backend/creta_demo.db` and restart — the seed loader recreates the schema and runs `seed.sql` to populate the new tables.
+
+### Working Assumptions (flagged for KB confirmation)
+- **RoleType is admin-managed** — D1 ships create + update endpoints. Deactivation deferred because RoleType has no `is_active` column today; adding it would ripple to seed.sql + the rate-table joins. Refactoring opportunity flagged below.
+- **ExternalCostType ships full create + update.** Same caveat as RoleType for deactivation.
+- **`ChargingLocation.division` is free-text** per `[F-MD-02]`'s explicit "no Division lookup" clause. Refactorable to a Division entity later if KB requests one.
+- **UM CSV schema:** 6 columns `year, quarter, s_code, charging_location_code, value, source` with a header row. The `source` column is optional in the row payload — when absent or empty, the import endpoint uses the import-level default `csv_upload`.
+- **UM "automatic refresh" returns 200 with `{"status": "not_connected", ...}`** rather than 501, so the frontend renders an explanatory dialog rather than a generic network error.
+- **Inter-project dependency** cycle detection deferred. D1 ships data model + CRUD; the portfolio dependency map (frontend) surfaces cycles as warnings per `[D-AC-08]`.
+- **User entity** is admin-created. There is no auto-create on login — that workflow is deferred. `DemoPersona` continues to drive the demo's role-resolution flow until a future session unifies them.
+- **Standard available hours** stored as keyed `PlanningParameter` rows (`standard_available_hours_default`, `standard_available_hours_loc-muc`, …). The spec note in `[D-PRC-02]` says capacity hours stay on master-data entities — this design hits both spec letters: the value is admin-editable AND lives in the existing parameter table without changing the Location schema. Refactor to a Location column if KB requests a per-location editor inside the Location detail view.
+
+### Refactoring Opportunities (noted, not acted on)
+- `RoleType` and `ExternalCostType` lack `is_active` columns. Adding them would enable proper deactivation semantics consistent with CLAUDE.md's "deactivation, not deletion" rule. Touches the people / financial models, the seed.sql sections (5 + 6), the rate-table joins, and a frontend filter or two.
+- `ChargingLocation.division` could be promoted to a `Division` lookup entity if KB introduces a controlled list.
+- The `_audit()` helper in `routers/charging.py` and `routers/user_measurement.py` is a copy of `routers/admin._log_audit`. Once D2 lands the `category` parameter on `_log_audit`, dedupe these into a shared helper module.
+- The seed UM block uses Python's `datetime.utcnow().isoformat()`-style format with `.000000` microseconds in seed.sql. Cleaner: extend the seed generator to emit ISO-format timestamps consistently across all DateTime columns. The other tables use `'YYYY-MM-DD HH:MM:SS'` (no microseconds) and rely on the loader's text→datetime coercion at read time, which works for queries that don't equality-compare datetimes — UM is the first table that does.
+- Sub-criterion weights remain in `PlanningParameter` rows (`tn_*`). At the v5 admin-UI ramp-up this might warrant a dedicated table; flag for D3 frontend session.
+
+### Notes for follow-on sessions
+- **D2 (workflow templates + audit)** must add the `category` field to `AuditLog` and update ALL `_log_audit` call sites (including the new ones in this session: `routers/charging.py::_audit`, `routers/user_measurement.py::_audit`, plus the dozen new sites in `routers/admin.py`). The team-lead's instruction was that D1 makes no changes that conflict with D2's category rollout.
+- **D3 (admin frontend)** can wire the entire D1 surface into the Section 1 (master data) browser, Section 2 (reference catalogues — RoleType, ExternalCostType), Section 3 (planning parameters — granularity / cadence / hours), Section 4 (hierarchy / inter-project dependencies), and Section 5 (User + RolePermissionGrant grid).
+- **F1/F2/F3 (Cluster F)** consume `ChargingLocation` (FK target for distribution endpoints), `LegalEntity` (rollup display), `UserMeasurement` (Stage 2 BTC automatic-mode snapshot source), and `RolePermissionGrant` (BTC profile + distribution edit gates).
+- **S1 (seed data)** needs to expand:
+  - Charging locations from 15 to ~90 (full KB charging code list).
+  - Legal entities from 15 to ~120.
+  - UserMeasurement from 12 cells to the full ~99 × 90 sparse matrix per `[F-DG-03]`.
+
+### Verification
+- `python -m pytest backend/tests/ -v` → 480 passed (406 baseline + 74 new). Exceeds the team-lead's 455 target.
+- Live `python main.py` smoke test against a freshly re-seeded DB confirmed:
+  - 30 / 5 / 15 / 15 / 12 / 4 / 13 rows for Countries / Regions / ChargingLocations / LegalEntities / UserMeasurements / RolePermissionGrants / PlanningParameters.
+  - `GET /api/admin/countries` returns the seeded ISO list.
+  - `GET /api/admin/charging-locations` returns 15 items with rolled-up region/country names.
+  - `GET /api/admin/legal-entities` returns 15 items rolled up to charging locations.
+  - `GET /api/admin/user-measurement?year=2026&quarter=1` returns 12 cells; `GET /versions` returns the single seeded version with `row_count: 12`.
+  - `GET /api/admin/user-measurement/refresh-status` returns 200 with `{"status": "not_connected", ...}`.
+  - `POST /api/admin/user-measurement/import` with a 3-row CSV returns `inserted: 3, parse_errors: []` and creates a new version (visible in `/versions`).
+  - `POST /api/admin/role-permissions` creates a project_lead btc_profile grant and `GET /role-permissions` lists 5 rows (4 seeded + 1 new).
+  - `POST /api/admin/users` creates a Tier-3 user and the response carries `tier3_flag: true`.
+
+### Curl examples (capture for D3 frontend integration)
+```
+H="X-Current-User: persona-controller"
+
+# Master data
+curl -s -H "$H" http://localhost:8000/api/admin/countries
+curl -s -H "$H" http://localhost:8000/api/admin/regions
+curl -s -H "$H" http://localhost:8000/api/admin/charging-locations
+curl -s -H "$H" http://localhost:8000/api/admin/legal-entities
+
+# Filter legal entities by charging location
+curl -s -H "$H" "http://localhost:8000/api/admin/legal-entities?charging_location_id=cl-de-muc"
+
+# UM viewer
+curl -s -H "$H" http://localhost:8000/api/admin/user-measurement/refresh-status
+curl -s -H "$H" http://localhost:8000/api/admin/user-measurement/versions
+curl -s -H "$H" "http://localhost:8000/api/admin/user-measurement?year=2026&quarter=1"
+
+# UM import
+curl -s -H "$H" -F "file=@um.csv" http://localhost:8000/api/admin/user-measurement/import
+
+# Permissions
+curl -s -H "$H" http://localhost:8000/api/admin/role-permissions
+curl -s -X PUT -H "$H" -H "Content-Type: application/json" \
+  -d '{"grants":[{"role":"project_lead","entity_type":"btc_profile","can_edit":true}]}' \
+  http://localhost:8000/api/admin/role-permissions/bulk
+
+# Users
+curl -s -H "$H" http://localhost:8000/api/admin/users
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"username":"alice","display_name":"Alice","role":"project_lead","tier3_flag":true}' \
+  http://localhost:8000/api/admin/users
+
+# Inter-project dependencies
+curl -s -H "$H" http://localhost:8000/api/admin/project-dependencies
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"predecessor_project_id":"proj-erp2","successor_project_id":"proj-sap","dependency_type":"finish_to_start"}' \
+  http://localhost:8000/api/admin/project-dependencies
+```
+
+### Ready for merge
+Branch `v5/cluster-d/admin-entities-backend` carries 5 atomic commits and is ready to push. Per the team-lead's merge order, D1 merges first; D2 follows; A3 last. D2's pending changes to `models/system.py::AuditLog` and `routers/admin.py::_log_audit` (the `category` parameter) are confined to a non-overlapping hunk — D1's `RolePermissionGrant` is appended at end-of-file in `system.py`, and D1's new admin endpoints land BEFORE the audit-log block while keeping the existing ordering.
+
+---
+
+## v5 Session D2: Workflow Templates + Audit Query/Export Backend (2026-04-28)
+
+### Feature Overview
+- **Audit log enhancement** — added 8-category enum `AUDIT_CATEGORIES` to `AuditLog` (master_data, configuration, hierarchy, forecast_actions, pipeline_transitions, simulator, access_control, scheduled_change_lifecycle). Updated `_log_audit()` to require `category=` keyword-only; tagged all 44 existing call sites with the appropriate category. Server-side default `'master_data'` covers raw-SQL inserts in `seed.sql`.
+- **Workflow templates** — new data model (`WorkflowTemplate`, `WorkflowStep`, `StepAction`) for the six configurable workflows per `[D-CAT-07]`: forecast_cycle, intake, change_request, send_back, milestone_baseline_override, scheduled_master_data_activation. Steps are not reorderable through the API; touchpoints (required/skippable, role, data gates, notifications, time constraint, escalation) are editable.
+- **Scheduled changes** — `ScheduledChange` model with the 5-state lifecycle (`pending_review` → `approved` → `activated` / `rejected` / `cancelled`). CRUD endpoints + manual-trigger activation engine (`POST /api/admin/apply-scheduled-changes`).
+- **Audit query and export** — `services/audit_query.py` for filtered + paginated queries; `services/audit_export.py` for CSV (stdlib) and XLSX (best-effort openpyxl). New router `/api/audit` with `/log`, `/log/entity/{type}/{id}`, `/categories`, `/export`.
+- **Templates ship as configurable data only** — wiring them into live CR / intake / submission flows is deferred to a follow-on session.
+
+### Spec references implemented
+- `[D-CAT-07]` Workflow Template Editor (data model + step-touchpoint API).
+- Audit log enhancements per spec line ~1849: categorised entries (8 categories), entity-scoped trails, CSV/XLSX export.
+- Scheduled-change lifecycle and activation per spec lines ~1592–1610 and ~2456.
+
+Out of scope (working data only — wiring deferred):
+- Hooking workflow templates into the live CR / intake / submission flows.
+- Cron-based daily activation job (manual-trigger endpoint provided; production wiring is a deployment concern).
+- Approval UI for scheduled changes (D3 frontend).
+
+### Technical Details
+- **Models added:**
+  - `backend/models/workflow_templates.py` — `WorkflowTemplate`, `WorkflowStep` (with `data_gates_json`, `notifications_json` JSON columns + scalar touchpoints), `StepAction` (multi-action steps for review/gate types). Module-level constants `STEP_TYPES`, `SHIPPED_TEMPLATE_KEYS`, `ESCALATION_ACTIONS`.
+  - `backend/models/scheduled_changes.py` — `ScheduledChange` with `entity_type`/`entity_id` target, `pending_values_json`, `activation_date`, `review_status`, audit columns (`reviewed_by`, `reviewed_at`, `review_comments`, `activated_at`, `activation_error`). Constant `SCHEDULED_CHANGE_STATES`.
+  - Both registered in `models/__init__.py`.
+- **Models modified:**
+  - `backend/models/system.py` — `AuditLog` gains `category: Mapped[str]` (`String(40)`, NOT NULL, `default='master_data'`, `server_default='master_data'`). Added `AUDIT_CATEGORIES` constant.
+- **Services added:**
+  - `backend/services/audit_query.py` — `query_audit_log`, `query_entity_trail`, `list_categories`. Returns `AuditEntry` DTOs (easier to serialise than ORM rows).
+  - `backend/services/audit_export.py` — `export_csv` (UTF-8 BOM, preamble + 12-column rows), `export_xlsx` (raises `RuntimeError` if openpyxl missing — router falls back to CSV with `X-Audit-Export-Fallback` header).
+  - `backend/services/scheduled_change_activation.py` — `apply_due_changes` engine + `APPLY_HANDLERS` dispatcher. Ships with `planning_parameter` handler only; other entity types log an "activation no-op" so the lifecycle still completes.
+- **Routers added:**
+  - `backend/routers/workflow_templates.py` — `/api/admin/workflow-templates` (controller-only).
+  - `backend/routers/scheduled_changes.py` — `/api/admin/scheduled-changes*` + `/api/admin/apply-scheduled-changes` (controller-only).
+  - `backend/routers/audit.py` — `/api/audit/*` (controller-only). Existing `/api/admin/audit-log` in `routers/admin.py` stays put for back-compat.
+  - All three wired into `main.py` in lexicographic order.
+- **Routers modified (audit category tagging only):**
+  - `backend/routers/admin.py` — `_log_audit` signature gains keyword-only `category: str`. 32 call sites updated:
+    - `cost_center`, `competence_center`, `person`, `location`, `rate_table` → `master_data`
+    - `planning_parameter` → `configuration`
+    - `lob`, `project` (lob assign), `grouping_entity_type`, `grouping_entity`, `grouping_hierarchy`, `project_grouping` → `hierarchy`
+  - `backend/routers/tech_navigator.py` — Tech Navigator score edits → `master_data` (closest fit; see Working assumptions).
+  - `backend/routers/milestones.py` — milestone create / update / override / delete → `forecast_actions`.
+  - `backend/routers/pipeline.py` — pipeline stage / DoI / frozen_doi / AI Council / within_cutoff → `pipeline_transitions`.
+- **Tests added (53 new):**
+  - `backend/tests/test_workflow_template_router.py` — 14 tests covering list / detail / step update (incl. JSON columns, validation, audit logging) / active toggle / role-based access.
+  - `backend/tests/test_scheduled_change_activation.py` — 11 tests covering create / approve / reject / cancel / engine activation / unsupported-type skip / future-date guard / pending-review-skip.
+  - `backend/tests/test_audit_query.py` — 21 tests covering query filters (category, entity, user, date range), pagination, ordering, router endpoints, error paths.
+  - `backend/tests/test_audit_export.py` — 7 tests covering CSV BOM + headers + data rows, XLSX content, router CSV/XLSX endpoints, filter pass-through.
+- **Seed:** appended at end of `backend/seed/seed.sql` (D1 owns top-of-file sections):
+  - 6 workflow templates, 23 steps, 12 step actions matching spec line ~1673.
+  - 5 sample scheduled changes spanning 4 lifecycle states (pending_review × 2, approved × 1, rejected × 1, activated × 1).
+  - Updated existing audit_log INSERTs to include `category` column (forecast_actions for CRs/projects, simulator for scenarios, master_data for project create).
+
+### API Endpoints Added
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/audit/log` | Global audit log with category / entity / user / date filters + pagination |
+| GET | `/api/audit/log/entity/{entity_type}/{entity_id}` | Entity-scoped audit trail |
+| GET | `/api/audit/categories` | Reference list of the 8 audit categories |
+| GET | `/api/audit/export` | CSV / XLSX export with the same filters as `/log` |
+| GET | `/api/admin/workflow-templates` | List configurable workflow templates with step counts |
+| GET | `/api/admin/workflow-templates/{id_or_key}` | Full template detail with steps + actions |
+| PUT | `/api/admin/workflow-templates/{id_or_key}/steps/{step_id}` | Update step touchpoints (required, role, gates, notifications, time, escalation) |
+| PUT | `/api/admin/workflow-templates/{id_or_key}/active` | Toggle whole-template active flag |
+| GET | `/api/admin/scheduled-changes` | List pending/approved/activated/rejected/cancelled changes |
+| GET | `/api/admin/scheduled-changes/{id}` | Detail for a single scheduled change |
+| POST | `/api/admin/scheduled-changes` | Create a scheduled change in `pending_review` |
+| POST | `/api/admin/scheduled-changes/{id}/approve` | Second-admin approval |
+| POST | `/api/admin/scheduled-changes/{id}/reject` | Reject with comments |
+| POST | `/api/admin/scheduled-changes/{id}/cancel` | Withdraw before activation |
+| POST | `/api/admin/apply-scheduled-changes` | Manually run the activation engine |
+
+### Data Model Changes
+- New tables: `workflow_templates`, `workflow_steps`, `workflow_step_actions`, `scheduled_changes`.
+- `audit_log` gains `category VARCHAR(40) NOT NULL DEFAULT 'master_data'`.
+- **No Alembic** — the existing `backend/creta_demo.db` will fail to read the new column and tables on the next startup. Move the file aside (`mv backend/creta_demo.db backend/creta_demo.db.bak`) before running `python main.py`; the startup hook re-creates the schema and re-runs `seed.sql`.
+
+### Working assumptions
+- **Audit category mapping for Tech Navigator scores** — Tech Navigator score edits live on the project entity but are conceptually project-level qualitative metadata, not v5 master data (which is reference catalogues). I tagged them `master_data` as the closest fit. If a follow-on session adds a `project_metadata` category we can reclassify.
+- **Audit category for milestones** — I tagged milestone CRUD + baseline override under `forecast_actions` since milestone planning is part of the project's forecast view. The baseline-override row could alternatively live in `configuration` if KB prefers — the audit table is queryable by both category and entity_type so the distinction is cosmetic.
+- **Default audit category for legacy rows** — `server_default='master_data'`. Any row inserted by raw SQL without an explicit category lands here. Acceptable for the v4 demo data; new code should always pass `category=` explicitly.
+- **Workflow template wiring is deferred** — D2 ships templates as configurable data only. Live CR / intake / submission flows still hard-code their step sequences; reading config from `WorkflowTemplate` is a follow-on session (likely after D3 frontend lands).
+- **Scheduled-change activation engine is manual-trigger only** — D2 exposes `POST /api/admin/apply-scheduled-changes`. Cron wiring is a deployment concern. The endpoint is idempotent and safe to call repeatedly; nothing happens for changes whose activation date has not arrived.
+- **Activation dispatcher is partial** — only `planning_parameter` is wired through to its live entity. Other entity types (`cost_center`, `person`, etc.) accept create/approve/cancel just fine but the activation step records as a "no-op" with the change still flipped to `activated`. Wiring additional handlers is part of D3+ follow-on work; the dispatcher (`APPLY_HANDLERS`) in `services/scheduled_change_activation.py` is the single extension point.
+- **CSV is the primary export** — XLSX is best-effort via openpyxl. `requirements.txt` does not pin openpyxl; if it is unavailable at runtime the router serves CSV with an `X-Audit-Export-Fallback` header documenting the substitution. The XLSX path is exercised in tests but the test asserts either a real XLSX or the fallback header.
+
+### Refactoring opportunities (noted, not acted on)
+- `_log_audit` lives in `routers/admin.py` and is imported by 4 other routers (`tech_navigator`, `milestones`, `pipeline`, plus my new `workflow_templates`, `scheduled_changes`, and `services/scheduled_change_activation`). It is not a router concern — it should move to a service module (e.g. `services/audit_log.py`) so the router doesn't act as a utility import hub. Out of scope for D2; flagged here for a future cleanup.
+- The four routers that currently import `_log_audit` from admin.py create circular-import risk if admin.py ever needs to import from them. Untangling belongs with the move above.
+- The audit log filter UI on the frontend (D3) will likely need a stable ordering for categories. The reference list in `services/audit_query.list_categories()` returns them in `AUDIT_CATEGORIES` definition order; a future session may want to make ordering admin-configurable.
+- Existing routes for audit log are split: legacy `/api/admin/audit-log` in admin.py (kept for back-compat) and new `/api/audit/*` in audit.py. Once D3 ships, consider deprecating the legacy route. Out of scope here.
+
+### Notes for follow-on sessions
+- **D3 frontend** consumes:
+  - `GET /api/admin/workflow-templates` for the editor sidebar.
+  - `GET /api/admin/workflow-templates/{id_or_key}` for the vertical step-card stack visualisation.
+  - `PUT .../steps/{step_id}` for the inline-edit pattern (touchpoints fold open).
+  - `GET /api/admin/scheduled-changes` for the global Scheduled Changes panel.
+  - The five action endpoints (create / approve / reject / cancel / apply) for the approval UI.
+  - `GET /api/audit/log`, `/categories`, `/export` for the audit log viewer.
+- **Activation cron** — production wiring runs `POST /api/admin/apply-scheduled-changes` daily (configurable time per spec line ~1610). The endpoint is idempotent and safe to call from any scheduler.
+- **Workflow template enforcement** — when a follow-on session wires templates into live flows, it should read `WorkflowTemplate` by stable `key` (not numeric `id`), respect the `is_active` flag (skip inactive templates' steps), and short-circuit disabled steps (`required=False AND skippable=True`).
+- **D1 conflict resolution** — D1 adds new `_log_audit()` callers and a `RolePermissionGrant` class at the end of `system.py`. After D1 merges into main, this branch must rebase, add `category=` to D1's new callers, and re-run the test suite. The `system.py` 3-way merge should be conflict-free (D1 writes at end-of-file; D2 writes at the AuditLog block).
+
+### Verification
+- `python -m pytest backend/tests/ -v` → **459 passed** (406 baseline + 53 new D2 tests). 0 failures.
+- Live `python main.py` smoke (with the db moved aside to force re-seed) confirmed:
+  - `GET /api/audit/categories` returns the 8 categories.
+  - `GET /api/audit/log?category=forecast_actions&limit=3` returns 3 rows from seeded change-request audit history.
+  - `GET /api/admin/workflow-templates` returns the 6 seeded templates with correct step counts.
+  - `GET /api/admin/workflow-templates/forecast_cycle` returns the full step list with JSON-decoded `data_gates` and `notifications`.
+  - `POST /api/admin/scheduled-changes` creates a new change in `pending_review`.
+  - `POST /api/admin/apply-scheduled-changes` returns the engine summary.
+  - `GET /api/audit/export?format=csv` produces a UTF-8 BOM CSV with metadata preamble.
+  - `GET /api/audit/export?format=xlsx` produces a real `.xlsx` file (`Microsoft Excel 2007+` per `file(1)`).
+
+### Curl examples
+
+```bash
+# List the 8 audit categories
+curl -H "X-Current-User: persona-controller" http://localhost:8000/api/audit/categories
+
+# Filter audit log by category (repeat param to OR)
+curl -H "X-Current-User: persona-controller" \
+  "http://localhost:8000/api/audit/log?category=forecast_actions&category=hierarchy&limit=20"
+
+# Entity-scoped trail
+curl -H "X-Current-User: persona-controller" \
+  http://localhost:8000/api/audit/log/entity/change_request/28
+
+# CSV export
+curl -H "X-Current-User: persona-controller" \
+  -OJ "http://localhost:8000/api/audit/export?format=csv&category=master_data"
+
+# List workflow templates
+curl -H "X-Current-User: persona-controller" http://localhost:8000/api/admin/workflow-templates
+
+# Get a single template by key
+curl -H "X-Current-User: persona-controller" \
+  http://localhost:8000/api/admin/workflow-templates/forecast_cycle
+
+# Update a step's touchpoints
+curl -X PUT -H "X-Current-User: persona-controller" -H "Content-Type: application/json" \
+  -d '{"required": false, "time_constraint_days": 14, "escalation_action": "reminder"}' \
+  http://localhost:8000/api/admin/workflow-templates/forecast_cycle/steps/3
+
+# Create a scheduled change
+curl -X POST -H "X-Current-User: persona-controller" -H "Content-Type: application/json" \
+  -d '{"entity_type":"planning_parameter","entity_id":"standard_hours_global","description":"Lower hours","pending_values":{"current_value":"156"},"activation_date":"2026-12-01"}' \
+  http://localhost:8000/api/admin/scheduled-changes
+
+# Approve and activate
+curl -X POST -H "X-Current-User: persona-controller" \
+  http://localhost:8000/api/admin/scheduled-changes/1/approve
+curl -X POST -H "X-Current-User: persona-controller" \
+  http://localhost:8000/api/admin/apply-scheduled-changes
+```
+
+---
+
+## v5 Session A3: Ranking Engine + Cutoff Lines Backend (2026-04-28)
+
+### Feature Overview
+- New `services/ranking.py` plus `routers/ranking.py` mounted at `/api/portfolio` deliver the v5 backlog ranking and cutoff-line computation per `[A-PRI-01..04]` and `[A-BK-09..14]`. The ranked list orders backlog-eligible projects (`pipeline_stage IN BACKLOG_STAGES, project_type != 3, is_active=True`) by composite score with admin-configurable tie-breakers; Type 3 projects ride in a separate "Pre-funded" section.
+- Two cutoff lines are computed in a single walk per `[A-BK-10]`/`[A-BK-11]`: **should-be** (cumulative budget of every ranked project) and **reality** (cumulative budget of currently-committed projects only — `Active` plus `Approved` rows whose `within_cutoff` was already True). The misalignment zone bounds (start/end ranks) are returned in the same payload.
+- The contestable envelope = `ranking_total_available_budget − Σ(Type 3 in BACKLOG ∪ OPERATE) − Σ(OPERATE_STAGES)` per `[A-BK-09]` and `[A-TN-08]`.
+- `recompute_within_cutoff_for_backlog()` writes the per-project `within_cutoff` flag for Approved-stage projects per `[A-PS-06]` and clears it for non-Approved backlog rows. The function is the single DB-mutating entry point in `services/ranking.py`; pure helpers do not touch state.
+- Admin-configurable parameters (group `ranking`): `ranking_total_available_budget` (placeholder 50M EUR) and `ranking_tiebreakers` (default `composite_score:desc,doi:asc,total_budget:desc` per `[A-BK-06]`).
+- Three new endpoints (`/api/portfolio/backlog`, `/backlog/cutoff`, `/backlog/rebalance`) plus 6 trigger hooks fan out the recompute on every event listed in `[A-BK-14]`.
+
+### Spec references implemented
+`[A-PRI-01]`–`[A-PRI-04]`, `[A-PS-05]`–`[A-PS-06]`, `[A-PS-08]` (manual override path preserved via the existing manual `within_cutoff` PUT), `[A-BK-06]`, `[A-BK-09]`–`[A-BK-14]`, `[A-TN-08]`.
+
+Out of scope per session brief:
+- `[A-PS-07]` auto-activation on launch date — A3 keeps the flag accurate; the scheduler-driven Approved → Active transition belongs to a future job/cron session.
+- `[A-BK-15]` "estimated/requested budget" field for pre-approval projects — pre-approval rows currently use `total_budget` as the walk input. Tracked as a follow-up.
+- `[A-BK-13]` long-term sustainability KPI/banner — not implemented in A3; primary 12-month walk only per `[A-BK-12]`.
+
+### Technical Details
+- **Service:** `backend/services/ranking.py`. `RankingConfig` dataclass + `load_config(db)` mirrors A1's `WeightsSnapshot` pattern. Pure helpers: `_parse_tiebreakers`, `_project_walk_budget`, `_project_sort_key`, `compute_pre_funded_total`, `compute_hyper_maintenance_total`, `compute_contestable_envelope`. Orchestrators: `compute_ranked_backlog`, `compute_cutoff_lines`, `recompute_within_cutoff_for_backlog`. Trigger key set `RANKING_RELEVANT_PREFIXES = ("ranking_", "tn_")` exposed via `parameter_key_triggers_recompute(key)`.
+- **Schemas:** `backend/schemas/ranking.py` — six Pydantic models: `RankedProjectItem`, `CutoffLines`, `RankingConfigSnapshot`, `RankedBacklogResponse`, `CutoffLinesResponse`, `RebalanceResponse`.
+- **Router:** `backend/routers/ranking.py` mounted at `/api/portfolio`. GET endpoints open to any authenticated role per the spec's "Full backlog, all projects" row; POST `/rebalance` requires controller via `require_role`. Filters (`pipeline_stage`, `project_type`, `tshirt_size`) apply post-walk to the items list only — cutoff line positions reflect the full portfolio reality regardless of filter.
+- **Trigger hooks (best-effort, try/except wrapped):**
+  1. `routers/portfolio.py::approve_project` — project entering Approved.
+  2. `routers/portfolio.py::approve_cr` — CR controller approval applies forecast deltas.
+  3. `routers/workbench.py::accept_cr_changes` — PL acceptance auto-applies changes when there's no resource impact.
+  4. `routers/workbench.py::submit_forecast_cycle` — rolling-forecast cadence.
+  5. `routers/admin.py::recompute_scores` — chains after the existing `recompute_all_scores`.
+  6. `routers/admin.py::update_parameters` — extended to fire when any changed key matches `parameter_key_triggers_recompute` (ranking_* or tn_*).
+  7. `routers/pipeline.py::transition_pipeline` — stage move in/out of backlog.
+  Each hook swallows exceptions and rolls back so a recompute failure cannot surface as a 500 on the parent endpoint.
+- **Seed:** appended two rows to `backend/seed/seed.sql` section 12 under `param_group='ranking'`.
+- **Audit logging:** the manual `POST /rebalance` writes one summary row (`entity_type='within_cutoff', action='rebalance', entity_id='portfolio'`). System-driven recomputes (the 6 trigger hooks) do not emit audit rows because there is no `CurrentUser` in scope; per-project flag flips are intentionally deterministic given inputs and so don't need individual audit trails. Re-evaluate if KB requires a "system" pseudo-user pattern.
+- **Tests:** 71 new tests across `tests/test_ranking_service.py` (50) and `tests/test_router_ranking.py` (21). Full suite: 477 passed (406 baseline + 71 new).
+
+### API Endpoints Added
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| GET    | `/api/portfolio/backlog`           | any role | Full ranked list + pre-funded section + cutoff lines + config snapshot |
+| GET    | `/api/portfolio/backlog/cutoff`    | any role | Slim cutoff summary for KPI strips |
+| POST   | `/api/portfolio/backlog/rebalance` | controller | Force a within_cutoff recompute; emits one summary audit row |
+
+GET `/backlog` accepts optional `pipeline_stage` (multi), `project_type`, and `tshirt_size` (multi) query params for visibility-only filtering.
+
+### Data Model Changes
+None. A3 is a pure read/compute layer; the `within_cutoff` column on `Project` was added in A2. Two new `planning_parameters` rows are seed-only.
+
+### Working assumptions
+- `ranking_total_available_budget` default of **€50M** is a placeholder pending KB confirmation per `[A-BK-09]`.
+- 12-month horizon hard-coded per `[A-BK-12]`. Not exposed as an admin parameter in v5.
+- Hyper-maintenance committed spend = `Σ(total_budget) WHERE pipeline_stage IN OPERATE_STAGES` (Hyper-maintenance + Operate + Retired). Whole-project totals rather than 12-month-slice forecast aggregation. Refines when monthly forecast aggregation lands.
+- Pre-approval projects (DoI 0–2) use `total_budget` as the walk input. Will switch to a dedicated estimated-budget field when `[A-BK-15]` lands in a follow-up session.
+- Default tie-breaker order: `composite_score:desc, doi:asc, total_budget:desc`. DoI ASC follows spec text in `[A-BK-06]` ("earlier-stage projects surface first because they need decisions sooner"). The session brief mentioned `doi DESC`; the spec was treated as authoritative — flip via `ranking_tiebreakers` PlanningParameter if KB confirms otherwise.
+- The reality-line walk uses the *previously persisted* `within_cutoff` value to identify committed Approved rows. When called pre-recompute it gives "current state"; when called post-recompute it gives "post-rebalance state". Document the timing in any UI copy.
+- Audit rows for system-driven recomputes are intentionally suppressed; only the manual `POST /rebalance` emits a high-level audit summary.
+- Type 3 projects whose `within_cutoff` was previously set get cleared on recompute — Type 3 doesn't compete in the ranked list, so it has no cumulative rank.
+
+### Verification
+- `python -m pytest backend/tests/ -v` → **477 passed** (406 baseline + 50 new service + 21 new router).
+- Live `python main.py` smoke test against a freshly seeded DB:
+  - `GET /api/portfolio/backlog -H "X-Current-User: persona-controller"` → 200, returned 28 ranked items + cutoff payload + config snapshot.
+  - `GET /api/portfolio/backlog/cutoff -H "X-Current-User: persona-exec"` → 200, contestable envelope = €47,615,240 (€50M − €2,384,760 of OPERATE_STAGES), `should_be_cutoff_rank=null` (envelope not exhausted by demo data).
+  - `POST /api/portfolio/backlog/rebalance -H "X-Current-User: persona-controller"` → 200, `recomputed=28, changed=0` (idempotent against the seeded state).
+  - `POST /api/portfolio/backlog/rebalance -H "X-Current-User: persona-pl"` → **403** "Role 'project_lead' not permitted. Required: controller".
+
+### Refactoring opportunities (noted, not acted on)
+- **`_log_audit` is duplicated** across `routers/admin.py`, `routers/milestones.py`, `routers/pipeline.py`, and now imported into `routers/ranking.py`. After D2 lands the new `category=` parameter, this duplication will multiply. Worth lifting to `services/audit.py` in a follow-up.
+- **CR budget-mutation paths are scattered.** `_apply_cr_changes_to_forecast` lives in `routers/portfolio.py` while `_apply_cr_to_forecast` lives in `routers/workbench.py` — near-identical bodies. Worth consolidating into `services/cr_apply.py`.
+- **Seed data lacks Tech Navigator scores.** All 28 backlog projects currently have `composite_score=null` so the ranking falls back to the secondary tie-breaker (DoI ASC). The ranked list order will only become meaningful once S1 populates realistic TN profiles.
+
+### Notes for follow-on sessions
+- **A5 intake workflow** consumes `compute_ranked_backlog` to render the controller's review queue inside the backlog view (filter to `Under Evaluation`). When new projects are created at DoI 0, the existing `transition_pipeline` hook fires on the implicit `Proposed` move and recomputes within_cutoff automatically — no extra wiring needed.
+- **A6 frontend backlog module** consumes the `RankedBacklogResponse` shape directly; `cumulative_budget_should_be` and `cumulative_budget_reality` per item enable the UI to render the cutoff bands without re-running the walk.
+- **A7 Tech Navigator UI** PUT to `/api/projects/{id}/tech-navigator` already runs `recompute_all_scores` indirectly via PlanningParameter changes; A3 does NOT yet hook the per-project Tech Navigator PUT into the within_cutoff recompute. If that becomes desired, add the hook to `routers/tech_navigator.py::update_tech_navigator` after `db.commit()`. Flagged as "follow-up if KB wants the cutoff to update on every per-project score edit".
+- **`[A-PS-07]` auto-activation on launch date** is a scheduler concern; recompute will pick up the new state automatically once a job flips Approved → Active.
+- **D2 `_log_audit` rebase** — A3's calls use the current main signature without `category=`. After D2 merges, my single audit call site in `routers/ranking.py::rebalance_backlog` and any new ones in the trigger hooks (currently none — all hooks run audit-free) will need a one-line update to add `category="pipeline_transitions"` (the rebalance is a pipeline-level event).
+
+### Out-of-scope notes
+- `[A-PS-07]` auto-activation logic deferred to a scheduler/cron session.
+- `[A-BK-13]` long-term sustainability KPI/banner deferred — primary 12-month walk only.
+- `[A-BK-15]` estimated/requested budget field for pre-approval projects deferred.
+- Per-project Tech Navigator PUT does NOT trigger within_cutoff recompute. Admin parameter PUT and `recompute-scores` POST cover the bulk recompute paths; per-project edits flow through next time another trigger fires.
+- Filters on GET `/backlog` are server-side; pagination is not implemented (the v5 backlog is expected to fit in a single page given KB's portfolio size).
+
+### Ready for review
+Branch `v5/cluster-a/ranking-engine-backend` carries 9 atomic commits and 477 passing tests. Awaiting team-lead's PR / merge-order coordination — D1 → D2 → A3 per the brief.
+
+---
 
 ## v5 Session A2: Pipeline Stages, DoI, Project Lifecycle Backend (2026-04-27)
 

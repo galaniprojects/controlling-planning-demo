@@ -889,6 +889,16 @@ def submit_forecast_cycle(
 
     db.commit()
     clear_cycle(project_id)
+
+    # [A-BK-14] Forecast-cycle completion (rolling forecast cadence) — fan out
+    # to the backlog within_cutoff recompute. Best-effort to avoid surfacing a
+    # 500 on the cycle submission itself if the recompute path errors.
+    try:
+        from services.ranking import recompute_within_cutoff_for_backlog
+        recompute_within_cutoff_for_backlog(db)
+    except Exception:  # noqa: BLE001 — defensive: trigger best-effort.
+        db.rollback()
+
     return {"items": created_crs, "total": len(created_crs)}
 
 
@@ -1326,6 +1336,15 @@ def accept_cr_changes(
 
     cr.controller_feedback = None
     db.commit()
+
+    # [A-BK-14] CR acceptance may have applied forecast deltas (no-resource
+    # path auto-approves and runs _apply_cr_to_forecast) → recompute the
+    # backlog within_cutoff flags so envelope consumption stays current.
+    try:
+        from services.ranking import recompute_within_cutoff_for_backlog
+        recompute_within_cutoff_for_backlog(db)
+    except Exception:  # noqa: BLE001 — defensive: trigger best-effort.
+        db.rollback()
 
     return {"status": cr.status, "message": "Changes accepted successfully."}
 
