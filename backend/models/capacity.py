@@ -8,12 +8,33 @@ from database import Base
 
 
 class Allocation(Base):
-    """Person x Project x Month allocation hours."""
+    """Person × ChargeableEntity × Month allocation hours.
+
+    Originally introduced in v5 Session A2 as a project-only allocation table
+    (``project_id`` FK to ``projects.id``). v5 Session F2 (Cluster F) extends
+    the model to be polymorphic per [F-DM-01]: an allocation can be made
+    against any ``ChargeableEntity`` (Project, Offering, or InternalService).
+
+    The ``project_id`` column is retained for backward compatibility with the
+    capacity router and CR-allocation code paths that still address allocations
+    by project. The new ``chargeable_entity_id`` column is populated alongside
+    it for entity_type='Project' rows (1:1 with the project's ChargeableEntity)
+    and is the canonical FK for new code paths consuming Cluster F semantics.
+    A future session may drop ``project_id`` once all callers migrate.
+    """
     __tablename__ = "allocations"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     person_id: Mapped[str] = mapped_column(ForeignKey("people.id"), nullable=False)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    chargeable_entity_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("chargeable_entities.id"), nullable=True,
+    )
+    # NULL on legacy rows; backfilled by seed.sql for all v5 rows. Nullable so
+    # existing v4 capacity-router paths that insert allocations without a
+    # ChargeableEntity reference continue to work — F-cluster code paths that
+    # need polymorphic semantics fall back to looking up the ChargeableEntity
+    # by project_id when this column is NULL.
     month: Mapped[str] = mapped_column(String(7), nullable=False)  # YYYY-MM
     hours: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     is_confirmed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -21,6 +42,9 @@ class Allocation(Base):
     # Relationships
     person: Mapped["Person"] = relationship(back_populates="allocations")
     project: Mapped["Project"] = relationship(back_populates="allocations")
+    chargeable_entity = relationship(
+        "ChargeableEntity", foreign_keys=[chargeable_entity_id],
+    )
 
 
 class ResourceRequest(Base):

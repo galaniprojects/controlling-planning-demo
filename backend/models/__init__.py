@@ -21,6 +21,7 @@ from models.reporting import ForecastSnapshot, SavedReport, SavedReportShare, Sa
 from models.submissions import ProjectSubmissionSnapshot
 from models.charging import (
     Country, Region, ChargingLocation, LegalEntity, UserMeasurement,
+    ChargeableEntity, Distribution,
 )
 from models.workflow_templates import WorkflowTemplate, WorkflowStep, StepAction
 from models.scheduled_changes import ScheduledChange
@@ -41,6 +42,7 @@ __all__ = [
     "ForecastSnapshot", "SavedReport", "SavedReportShare", "SavedView",
     "ProjectSubmissionSnapshot",
     "Country", "Region", "ChargingLocation", "LegalEntity", "UserMeasurement",
+    "ChargeableEntity", "Distribution",
     "WorkflowTemplate", "WorkflowStep", "StepAction",
     "ScheduledChange",
 ]

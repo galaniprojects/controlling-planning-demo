@@ -26,11 +26,14 @@ from typing import Optional
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -181,3 +184,216 @@ class UserMeasurement(Base):
 
     # Relationships
     charging_location: Mapped["ChargingLocation"] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# v5 Session F2 — ChargeableEntity polymorphic root + Stage 1 Distribution.
+# Per [F-DM-01..04] and [F-S1-01..05]. Appended at end-of-file so the merge
+# with D1 (top-of-file additions) and any concurrent F-cluster work has zero
+# overlap.
+# ---------------------------------------------------------------------------
+
+# Subtype identifiers per [F-DM-01]. Stored as plain strings to match the
+# rest of the codebase's enum-as-string convention; values referenced by
+# the schemas, services, and seed.sql.
+CHARGEABLE_ENTITY_TYPES = ("Project", "Offering", "InternalService")
+
+# Distribution version model per [F-S1-04]. Distribution rules participate
+# in CRETA's standard baseline/forecast/actuals lifecycle. Scenario versions
+# use the scenario id (e.g. "scenario-42") so the engine can fork without
+# touching live data.
+DISTRIBUTION_VERSION_BASELINE = "baseline"
+DISTRIBUTION_VERSION_FORECAST = "forecast"
+DISTRIBUTION_VERSION_ACTUALS = "actuals"
+DISTRIBUTION_BUILTIN_VERSIONS = (
+    DISTRIBUTION_VERSION_BASELINE,
+    DISTRIBUTION_VERSION_FORECAST,
+    DISTRIBUTION_VERSION_ACTUALS,
+)
+
+
+class ChargeableEntity(Base):
+    """Polymorphic cost-allocation root per [F-DM-01].
+
+    Three subtypes share a single table: Project (existing v4 entity),
+    Offering (new in v5), InternalService (new in v5). Cost allocation
+    logic is identical across types per the design principles in
+    `[F-DM-01]`; only the WBS prefix differs (`IT0<PPM>`, `IT00<S-code>`,
+    `ITF<NNNNN>`) and that prefix is generated algorithmically by the
+    services/wbs_generator.py module — never stored on the row per
+    [F-DM-03].
+
+    For ``entity_type='Project'`` rows, ``project_id`` FKs back to the
+    existing ``projects`` table so capacity allocations, tech-navigator
+    scores, and pipeline state remain anchored on the v4 ``Project``
+    model. Offerings and InternalServices have no separate underlying
+    row — the ChargeableEntity row is the entity.
+
+    ``is_change_or_run`` is intentionally not a column. The classification
+    derives from runtime state (Project DoI for projects; always 'Run'
+    for Offerings and InternalServices) and changes whenever a project's
+    DoI advances. Computing it as a property keeps the model
+    de-normalized-but-correct.
+    """
+
+    __tablename__ = "chargeable_entities"
+    __table_args__ = (
+        # Each project maps to at most one ChargeableEntity row. Allows
+        # rapid lookup-by-project from the workbench / portfolio modules.
+        UniqueConstraint("project_id", name="uq_chargeable_entity_project"),
+        # Identifier is globally unique across all subtypes — PPM numbers,
+        # S-codes, and ITF numbers do not collide.
+        UniqueConstraint("identifier", name="uq_chargeable_entity_identifier"),
+        CheckConstraint(
+            "entity_type IN ('Project', 'Offering', 'InternalService')",
+            name="ck_chargeable_entity_type",
+        ),
+        Index("ix_chargeable_entities_entity_type", "entity_type"),
+        Index("ix_chargeable_entities_hierarchy_node", "hierarchy_node_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    entity_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    identifier: Mapped[str] = mapped_column(String(40), nullable=False)
+    # PPM (e.g. IT012345), S-code (IT00S321), or ITF (ITF12345) per [F-DM-01].
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Hierarchy attachment per [F-DM-04] — Cluster F entities use Cluster D's
+    # configurable hierarchy via the same FK existing projects use.
+    hierarchy_node_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("grouping_entities.id"), nullable=True,
+    )
+    responsible_person_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("people.id"), nullable=True,
+    )
+
+    # Stage 2 input per [F-DM-02] — the percentage of rolled-up cost that
+    # releases to KB business via BTC. Stored on the entity (not as a
+    # distribution row) so the sum rule (sum(distribution %) + to_business_pct
+    # ≤ 100) is a single-row read on the source side.
+    to_business_pct: Mapped[float] = mapped_column(
+        Numeric(5, 2), nullable=False, default=0,
+    )
+
+    # Project link — populated only for entity_type='Project'. NULL for
+    # Offering and InternalService. Read-only relationship (no back_populates
+    # on Project per F2 file-ownership rules — projects.py is owned by A5).
+    project_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("projects.id"), nullable=True,
+    )
+
+    # Optional termination date for steady-state entities (Run-stage projects,
+    # offerings, internal services). Empty means runs indefinitely until
+    # explicit retirement per [A-PL-04]. YYYY-MM matches the rest of the
+    # codebase's month-string convention.
+    termination_month: Mapped[Optional[str]] = mapped_column(
+        String(7), nullable=True,
+    )
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    modified_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow,
+    )
+
+    # Relationships — kept passive (no back_populates on Project) per F2's
+    # read-only constraint on projects.py.
+    project = relationship("Project", foreign_keys=[project_id])
+    responsible = relationship("Person", foreign_keys=[responsible_person_id])
+    hierarchy_node = relationship(
+        "GroupingEntity", foreign_keys=[hierarchy_node_id],
+    )
+    outgoing_edges: Mapped[list["Distribution"]] = relationship(
+        "Distribution",
+        foreign_keys="Distribution.source_entity_id",
+        back_populates="source_entity",
+        cascade="all, delete-orphan",
+    )
+    incoming_edges: Mapped[list["Distribution"]] = relationship(
+        "Distribution",
+        foreign_keys="Distribution.destination_entity_id",
+        back_populates="destination_entity",
+    )
+
+    @property
+    def is_change_or_run(self) -> str:
+        """Derive Change/Run classification per [F-DM-01].
+
+        Projects in DoI 0–4 are Change; DoI 5 is Run. Offerings and
+        InternalServices are always Run. Returns ``'Change'`` or ``'Run'``.
+        Falls back to ``'Run'`` for projects with NULL DoI (operating
+        steady-state legacy projects whose v5 lifecycle was not seeded).
+        """
+        if self.entity_type == "Project":
+            if self.project is not None:
+                doi = self.project.doi
+                if doi is not None and doi < 5:
+                    return "Change"
+            return "Run"
+        return "Run"
+
+
+class Distribution(Base):
+    """Stage 1 inter-service distribution edge per [F-S1-01..05].
+
+    One row per actually-flowing edge between two ChargeableEntities for a
+    given (year, version) pair. Sparse storage per [F-S1-01] — entities with
+    no outgoing distributions have no rows. The "To Business" share is
+    *not* an edge: it lives on ``ChargeableEntity.to_business_pct`` per
+    [F-DM-02]. Self-retained percentage is derived per [F-S1-02]:
+    ``100 − to_business_pct − sum(distribution %)``.
+
+    Versioning per [F-S1-04]: ``version`` participates in CRETA's standard
+    baseline/forecast/actuals lifecycle. Scenario versions use the scenario
+    id so the simulator (Cluster B lever 12) can fork without touching live
+    data. The unique constraint covers the version dimension so the same
+    edge can carry different percentages across versions.
+    """
+
+    __tablename__ = "distributions"
+    __table_args__ = (
+        UniqueConstraint(
+            "year", "version", "source_entity_id", "destination_entity_id",
+            name="uq_distribution_edge",
+        ),
+        CheckConstraint(
+            "source_entity_id <> destination_entity_id",
+            name="ck_distribution_no_self_loop",
+        ),
+        CheckConstraint(
+            "percentage >= 0 AND percentage <= 100",
+            name="ck_distribution_pct_range",
+        ),
+        Index("ix_distributions_source", "source_entity_id", "year", "version"),
+        Index("ix_distributions_dest", "destination_entity_id", "year", "version"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    version: Mapped[str] = mapped_column(String(40), nullable=False)
+    # baseline / forecast / actuals / scenario-<id>
+    source_entity_id: Mapped[str] = mapped_column(
+        ForeignKey("chargeable_entities.id"), nullable=False,
+    )
+    destination_entity_id: Mapped[str] = mapped_column(
+        ForeignKey("chargeable_entities.id"), nullable=False,
+    )
+    percentage: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    modified_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow,
+    )
+
+    # Relationships
+    source_entity: Mapped["ChargeableEntity"] = relationship(
+        "ChargeableEntity",
+        foreign_keys=[source_entity_id],
+        back_populates="outgoing_edges",
+    )
+    destination_entity: Mapped["ChargeableEntity"] = relationship(
+        "ChargeableEntity",
+        foreign_keys=[destination_entity_id],
+        back_populates="incoming_edges",
+    )
