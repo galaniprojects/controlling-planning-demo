@@ -16,6 +16,8 @@ from models.system import PlanningParameter, KPIDefinition, Notification, AuditL
 from models.users import DemoPersona
 from models.reporting import ForecastSnapshot, SavedReport, SavedReportShare, SavedView
 from models.submissions import ProjectSubmissionSnapshot
+from models.workflow_templates import WorkflowTemplate, WorkflowStep, StepAction
+from models.scheduled_changes import ScheduledChange
 
 __all__ = [
     "Location", "CompetenceCenter", "CostCenter",
@@ -31,4 +33,6 @@ __all__ = [
     "DemoPersona",
     "ForecastSnapshot", "SavedReport", "SavedReportShare", "SavedView",
     "ProjectSubmissionSnapshot",
+    "WorkflowTemplate", "WorkflowStep", "StepAction",
+    "ScheduledChange",
 ]
