@@ -25,8 +25,21 @@ import { LocationsPanel } from './entities/LocationsPanel';
 import { PeoplePanel } from './entities/PeoplePanel';
 import { RateTablePanel } from './entities/RateTablePanel';
 import { PlanningParameters } from './parameters/PlanningParameters';
-import { AuditLogPanel } from './audit/AuditLogPanel';
+import { AuditLogV2Panel } from './audit/AuditLogV2Panel';
 import { PortfolioHierarchyPanel } from './hierarchy/PortfolioHierarchyPanel';
+// === D3 panels ===
+import { RoleTypesPanel } from './entities/RoleTypesPanel';
+import { ExternalCostTypesPanel } from './entities/ExternalCostTypesPanel';
+import { CountriesPanel } from './entities/CountriesPanel';
+import { RegionsPanel } from './entities/RegionsPanel';
+import { ChargingLocationsPanel } from './entities/ChargingLocationsPanel';
+import { LegalEntitiesPanel } from './entities/LegalEntitiesPanel';
+import { UserMeasurementPanel } from './entities/UserMeasurementPanel';
+import { UsersPanel } from './entities/UsersPanel';
+import { ProjectDependenciesPanel } from './entities/ProjectDependenciesPanel';
+import { RolePermissionsGrid } from './system/RolePermissionsGrid';
+import { WorkflowTemplateEditor } from './workflow/WorkflowTemplateEditor';
+import { ScheduledChangesPanel } from './scheduled/ScheduledChangesPanel';
 
 export function Administration() {
   const { context, currentRoleId } = useRole();
@@ -108,6 +121,7 @@ export function Administration() {
 
   const renderPanel = () => {
     switch (selectedSection) {
+      // Section 1 — Master Data
       case 'cost_centers':
         return <CostCentersPanel onDataChanged={fetchContext} />;
       case 'competence_centers':
@@ -118,14 +132,47 @@ export function Administration() {
         return <LocationsPanel onDataChanged={fetchContext} />;
       case 'people':
         return <PeoplePanel onDataChanged={fetchContext} />;
-      case 'rate_tables':
-        return <RateTablePanel />;
+      case 'charging_locations':
+        return <ChargingLocationsPanel />;
+      case 'legal_entities':
+        return <LegalEntitiesPanel />;
+      case 'regions':
+        return <RegionsPanel />;
+      case 'countries':
+        return <CountriesPanel />;
+      case 'user_measurement':
+        return <UserMeasurementPanel />;
+
+      // Section 2 — Reference Catalogues
+      case 'role_types':
+        return <RoleTypesPanel />;
+      case 'external_cost_types':
+        return <ExternalCostTypesPanel />;
+      case 'project_dependencies':
+        return <ProjectDependenciesPanel />;
+
+      // Section 3 — Planning & Ranking
       case 'parameters':
         return <PlanningParameters />;
-      case 'audit_log':
-        return <AuditLogPanel />;
+
+      // Section 4 — Portfolio Hierarchy
       case 'portfolio_hierarchy':
         return <PortfolioHierarchyPanel onDataChanged={fetchContext} />;
+
+      // Section 5 — System
+      case 'users':
+        return <UsersPanel />;
+      case 'role_permissions':
+        return <RolePermissionsGrid />;
+      case 'rate_tables':
+        return <RateTablePanel />;
+      case 'workflow_templates':
+        return <WorkflowTemplateEditor />;
+      case 'scheduled_changes':
+        return <ScheduledChangesPanel />;
+      case 'audit_log':
+        return <AuditLogV2Panel />;
+
       default:
         return null;
     }
@@ -140,7 +187,7 @@ export function Administration() {
           <Button
             variant="outline"
             size="sm"
-            className="text-red-600 border-red-200 hover:bg-red-50"
+            className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-900/20"
             onClick={() => setResetOpen(true)}
           >
             <RotateCcw className="h-4 w-4 mr-1.5" />
@@ -180,7 +227,7 @@ export function Administration() {
       </div>
 
       {/* Main content: selector + panel */}
-      <div className="flex gap-6">
+      <div className="flex gap-6 items-start">
         <EntitySelector selected={selectedSection} onSelect={setSelectedSection} />
         <div className="flex-1 min-w-0">{renderPanel()}</div>
       </div>

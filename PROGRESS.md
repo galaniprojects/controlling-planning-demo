@@ -2,8 +2,8 @@
 
 ## Current Status
 Phase: v5 Cluster A/D/F — Wave 1 sessions merging in order (A5 → F2 → D3 → A7).
-Last completed: A5 (intake workflow + backlog integration backend, +68 tests) and F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) both merged onto the wave-1 merge branch. D3 (admin frontend) and A7 (Tech Navigator UI) merge next; no PR yet — single PR for the whole wave per project lead's preference.
-Next: Merge D3 → A7, then re-seed DB and curl-smoke the new endpoints, then continue critical path with C1 / B1.
+Last completed: A5 (intake workflow + backlog integration backend, +68 tests), F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests), and D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) all merged onto the wave-1 merge branch. A7 (Tech Navigator UI) merges next; no PR yet — single PR for the whole wave per project lead's preference.
+Next: Merge A7, then re-seed DB and curl-smoke the new endpoints, then continue critical path with C1 / B1.
 
 ## v5 Session A5: Intake Workflow + Backlog Integration Backend (2026-04-28)
 
@@ -465,6 +465,99 @@ Branch `v5/cluster-f/f2-chargeable-entity-distribution` carries 6 atomic
 commits (model, schemas+services, router, seed, tests, plus this PROGRESS +
 CLAUDE update commit) and 720 passing tests. Merged onto the wave-1 branch as
 the second wave-1 merger after A5; resolved PROGRESS.md + main.py conflicts.
+
+---
+
+## v5 Session D3: Admin Frontend (2026-04-28)
+
+### Feature Overview
+- **5-section admin module rewrite** of `frontend/src/modules/admin/` per `[D-NAV-01..05]`. Sidebar groups all 24 admin sub-surfaces into Master Data / Reference Catalogues / Planning & Ranking / Portfolio Hierarchy / System sections with separators and section labels. Implementation extends the v4 admin module rather than replacing it (existing v4 panels — Cost Centers, People, LoBs, Locations, Hierarchy, Planning Parameters, Rate Tables — are reused unchanged).
+- **Cluster F master-data panels** per `[F-MD-01..03]`, `[F-UM-01..04]`: ChargingLocations list (~90 KB charging codes with Code / Name / Division / Region / Country columns + edit dialog), LegalEntities list (~120 entities with charging-location rollup + country code/name + filter dropdown), Regions / Countries lookup editors, and the **User Measurement matrix viewer** — sparse `99×90` S-code × charging-code grid with Σ-row / Σ-column totals, period (year/quarter) + version selectors, "imported_at" badge on hover, CSV upload form, and **stubbed Automatic-refresh button** that displays the `not_connected` 200 response as an explanatory dialog instead of a network error.
+- **Hover tooltip helpers** per `[F-MD-01]`: `shared/LocationLabel.tsx` renders the master-data-label info-icon tooltip ("Charging Location — Knorr-Bremse charging code (~90 codes) used for inter-service distribution and SAP cost flows. Carries division, region and country attributes.") inline next to the Charging Locations / Legal Entities / Regions panel headers.
+- **Reference catalogue panels** per `[D-CAT-01..03]`: RoleTypes editor (12 seeded roles), ExternalCostTypes editor (10 categories), ProjectDependencies editor (predecessor / successor edges, soft warn-only per spec — empty in seed but panel ready).
+- **System administration panels** per `[D-AC-01..03]`, `[D-AC-09..10]`, `[F-AC-01]`, `[D-CAT-07..10]`, `[D-NAV-06..07]`:
+  - Users editor with Tier-3 + change-reviewer flag columns (User table empty in current seed — see Working assumptions below).
+  - RolePermissionGrid: per-entity-type × role checkbox grid for BTC Profile + Inter-service Distribution + master-data overrides; saves audit `category=access_control`.
+  - **Workflow Template Editor** — consumes D2's `/api/admin/workflow-templates` endpoints. Six-template tab strip (Forecast Cycle 5 steps, Intake / Pipeline Progression 5, Change Request 4, Send Back 3, Milestone Baseline Override 3, Scheduled Master Data Activation 3). Per-step expandable touchpoint editor: required / skippable, assigned role (Controller / CC Owner / PL / Executive / System), data gates (comma-separated), notifications (JSON object — trigger ➜ recipients), time-constraint days, escalation action. Step sequence intentionally non-reorderable (matches D2's contract).
+  - **Scheduled Changes Panel** — full 5-state lifecycle UI (pending_review / approved / activated / rejected / cancelled). Per-row Approve / Reject / Cancel actions plus a single **"Apply due changes"** button that calls `POST /api/admin/apply-scheduled-changes` (manual-trigger activation engine).
+  - **Audit Log V2** consumes D2's `/api/audit` endpoints — 8-category filter dropdown (`master_data`, `configuration`, `hierarchy`, `forecast_actions`, `pipeline_transitions`, `simulator`, `access_control`, `scheduled_change_lifecycle`), entity-type filter, date range, color-coded category badges, old-→-new diff column, **CSV + Excel export** buttons via `/api/audit/export?format=csv|xlsx`.
+- **Demo Reset button** per `[D-AC-10]` — top-right header destructive-styled button with confirmation dialog calling `POST /api/admin/reset-demo`.
+
+### Spec Tags Implemented
+`[D-NAV-01]` `[D-NAV-02]` `[D-NAV-03]` `[D-NAV-04]` `[D-NAV-05]` `[D-NAV-06]` `[D-NAV-07]` `[D-AC-01]` `[D-AC-02]` `[D-AC-03]` `[D-AC-09]` `[D-AC-10]` `[D-CAT-01]` `[D-CAT-02]` `[D-CAT-03]` `[D-CAT-07]` `[D-CAT-08]` `[D-CAT-09]` `[D-CAT-10]` `[F-MD-01]` `[F-MD-02]` `[F-MD-03]` `[F-UM-01]` `[F-UM-02]` `[F-UM-03]` `[F-UM-04]` `[F-AC-01]`.
+
+### Components Added
+- `frontend/src/modules/admin/Administration.tsx` — extended to switch across 24 panels via `selectedSection`.
+- `frontend/src/modules/admin/EntitySelector.tsx` — extended sidebar with 5 sections (1 · Master Data → 5 · System).
+- `frontend/src/modules/admin/entities/ChargingLocationsPanel.tsx` (282 LoC), `LegalEntitiesPanel.tsx` (290 LoC), `RegionsPanel.tsx` (172 LoC), `CountriesPanel.tsx` (208 LoC), `UserMeasurementPanel.tsx` (334 LoC), `RoleTypesPanel.tsx` (141 LoC), `ExternalCostTypesPanel.tsx` (132 LoC), `ProjectDependenciesPanel.tsx` (298 LoC), `UsersPanel.tsx` (339 LoC).
+- `frontend/src/modules/admin/audit/AuditLogV2Panel.tsx` (277 LoC).
+- `frontend/src/modules/admin/scheduled/ScheduledChangesPanel.tsx` (333 LoC).
+- `frontend/src/modules/admin/system/RolePermissionsGrid.tsx` (183 LoC).
+- `frontend/src/modules/admin/workflow/WorkflowTemplateEditor.tsx` (~370 LoC).
+- `frontend/src/modules/admin/shared/LocationLabel.tsx` — F-MD-01 hover tooltip helper (68 LoC).
+
+### Endpoints Consumed
+All ~50 endpoints land via D1 + D2 — see those sessions above for the canonical list. New `adminD3Api` namespace in `frontend/src/api/endpoints.ts` exposes them grouped by panel:
+- Charging master data: `chargingLocations`, `legalEntities`, `regions`, `countries`
+- User Measurement: `getUMMatrix`, `uploadUMCsv`, `triggerUMRefresh`
+- Reference catalogues: `roleTypes`, `externalCostTypes`, `projectDependencies`
+- System: `users`, `rolePermissions`, `workflowTemplates`, `scheduledChanges` (incl. `applyScheduledChanges`)
+- Audit: `getAuditEntries`, `getAuditCategories`, `exportAuditCsv`, `exportAuditXlsx`
+
+### Visual Verification (1440px, light + dark)
+Both themes verified via Playwright MCP at 1440 × 900 viewport. Screenshots captured at repo root:
+
+| # | File | Surface |
+|---|---|---|
+| 01 | `d3-01-admin-cost-centers-light.png` | Default Cost Centers panel + 5 KPI cards + 5-section nav + Reset Demo header |
+| 02 | `d3-02-charging-locations-light.png` | ChargingLocations list (12 rows, Code/Name/Division/Region/Country/Status) |
+| 03 | `d3-03-charging-locations-tooltip-light.png` | Hover tooltip on `Charging Locations` heading per `[F-MD-01]` |
+| 04b | `d3-04b-legal-entities-light-fixed.png` | LegalEntities with rollup column "CN-SHA-001 — Shanghai Office" + Country "CHN — China" (after country_name fix) |
+| 05 | `d3-05-user-measurement-light.png` | UM matrix viewer with stubbed not_connected banner + Σ-row / Σ-col |
+| 06 | `d3-06-regions-light.png` | Regions lookup |
+| 07 | `d3-07-countries-light.png` | Countries lookup |
+| 08 | `d3-08-people-light.png` | People panel (existing v4 panel reused) |
+| 09 | `d3-09-role-types-light.png` | Role Types catalogue |
+| 10 | `d3-10-external-cost-types-light.png` | External Cost Types catalogue |
+| 11 | `d3-11-project-deps-light.png` | Project Dependencies (empty state) |
+| 12 | `d3-12-planning-params-light.png` | Planning Parameters settings cards |
+| 13 | `d3-13-hierarchy-light.png` | Portfolio Hierarchy (existing v4 panel reused) |
+| 14b | `d3-14b-users-light.png` | Users panel with Tier 3 + Change Reviewer columns (empty seed) |
+| 15 | `d3-15-role-permissions-light.png` | RolePermissionGrid for BTC + Distribution edits |
+| 17 | `d3-17-workflow-forecast-cycle-light.png` | Workflow editor showing all 5 Forecast Cycle steps with touchpoints |
+| 19 | `d3-19-workflow-fixed-light.png` | Workflow editor (post-D2-contract-alignment fix) |
+| 20 | `d3-20-scheduled-changes-light.png` | Scheduled Changes 5-state lifecycle + Apply due changes |
+| 21 | `d3-21-audit-log-light.png` | Audit Log V2 with category badges + diff column |
+| 22 | `d3-22-charging-edit-dialog-light.png` | Edit-modal dialog for Charging Location (modal-edit pattern, see [D-NAV-05] note) |
+| 23 | `d3-23-charging-locations-dark.png` | Dark mode — Charging Locations |
+| 24 | `d3-24-workflow-dark.png` | Dark mode — Workflow editor full step list |
+| 25 | `d3-25-audit-log-dark.png` | Dark mode — Audit Log V2 |
+| 26 | `d3-26-um-matrix-dark.png` | Dark mode — UM matrix with adapted yellow alert banner |
+
+### Issues Found and Fixed During Verification
+1. **`country_name` missing from `LegalEntityResponse`** (D1 backend gap surfaced via D3 Legal Entities panel). Frontend rendered "CHN — undefined" because the API returned `country_iso_code` only. ChargingLocation already exposed both fields; aligned LegalEntity to match. Fix: 2 lines in `backend/schemas/charging.py` + `backend/routers/charging.py` (commit `Add country_name to LegalEntityResponse [F-MD-01]`).
+2. **WorkflowTemplateEditor silent fetch-failure** — frontend types mismatched D2's authoritative `WorkflowStep` schema. Editor expected `participant_role` / `ordering` / `step_key` / `notifications: string[]`; backend emits `assigned_role` / `step_order` / no key field / `notifications: Record<string,string[]>`. The mismatch silently threw inside `.then()` (calling `.join()` on a dict), fell through to `.catch(setDetail(null))`, and the rubric stuck on the "Select a template" empty state. Fix: realigned `WorkflowStepItem` + `WorkflowStepActionItem` types, `StepEditState` JSON-encodes notifications now, dropped phantom `is_active` checkbox (only WorkflowTemplate has it, not WorkflowStep), updated PUT payload field names. Commit `Align WorkflowTemplateEditor with D2 backend contract [D-CAT-07]`.
+
+### Working Assumptions
+- **Users seed is empty.** D1 created the `User` model but did not seed any rows (DemoPersona handles auth in v5). The Users panel renders correctly but shows the empty state. Seeding sample users (with controller / cc_owner / pl / executive role + Tier 3 + change-reviewer flags exercised) belongs in **S1 seed reconstruction**.
+- **Country `name` was always populated** in the underlying `Country` table — only the LegalEntity serializer was missing the field. Fixed in this session.
+- **Modal-dialog edit vs full-page detail** — `[D-NAV-05]` reads "breadcrumb drill-down". For master-data entities with 4–6 fields each (ChargingLocation, LegalEntity, Region, Country, RoleType, ExternalCostType), D3 chose modal-dialog edit instead of routing to a per-entity detail page. Trade-off: faster + lighter for small entity edits; gives up the "back to list with breadcrumb" pattern. UM matrix viewer + Workflow Template Editor still use single-surface designs but with intra-page selection (template tabs / period selectors). Flagged below for discussion.
+
+### Refactoring Opportunities
+- **TS strict-mode pre-existing failures.** `npm run build` shows 78 errors across `workbench/`, `reporting/`, `portfolio/`, `capacity/`, `components/charts/`, and `api/endpoints.ts`. Counts identical between this branch and `main` (af4881a) — D3 added zero new strict-mode errors. Existing failures predate the wave; a dedicated `fix/typescript-strict` session would clean them up before they pile higher.
+- **Pre-existing `LoBsPanel` React-key warning** (one duplicate-key warning on tbody children, untouched by D3) — fold into the same TS-strict cleanup.
+- **Detail-page-with-breadcrumb pattern** — if `[D-NAV-05]` is read strictly, route the heavier system entities (Workflow Templates, RolePermissionGrid, Audit Log V2, Scheduled Changes) onto their own admin sub-routes with a breadcrumb (`Admin / Workflow Templates / Forecast Cycle`). Master-data modal edits can stay as-is. Estimated 1–2 hours.
+- **Settings-card empty default** — Fiscal Year Start dropdown loads with no selected value; small UX fix to default to the current `01` value.
+
+### Verification (manual + automated)
+- `npm run build` (post-D3) — 78 errors, all pre-existing on `main`. No new D3-introduced TS errors (verified by running build on `main` too).
+- Backend smoke (verifying D1 fix + D2 alignment): `curl /api/admin/legal-entities` now returns `country_name: "China"`; `curl /api/admin/workflow-templates/forecast_cycle` returns 5 steps with `assigned_role` / `step_order` / dict `notifications`.
+- Browser walk: 24 sub-surfaces, both themes, captured screenshots above. Console: 0 errors triggered by D3 panels (one pre-existing `LoBsPanel` key-prop warning unrelated).
+
+### Ready for merge
+- Branch: `v5/cluster-d/d3-admin-frontend`
+- Commits ahead of `main` (`af4881a`): 7 atomic (5 from initial implementation + 1 country_name fix + 1 D2-contract alignment).
+- Per the wave-1 merge order (A5 → F2 → D3 → A7) D3 is the third merger; expects no conflicts with A5 (different layer) or F2 (different layer) since D3 only touches `frontend/src/modules/admin/`, `frontend/src/api/endpoints.ts` (in a clearly-marked `// === Admin (D3) ===` section per spawn-prompt contract), and `frontend/src/types/api.ts`. A7 is the second frontend merger and rebases on D3.
 
 ---
 

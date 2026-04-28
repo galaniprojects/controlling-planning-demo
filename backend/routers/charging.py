@@ -362,6 +362,7 @@ def _serialize_legal_entity(le: LegalEntity) -> LegalEntityResponse:
         charging_location_name=le.charging_location.name if le.charging_location else None,
         country_id=le.country_id,
         country_iso_code=le.country.iso_code if le.country else None,
+        country_name=le.country.name if le.country else None,
         is_active=le.is_active,
     )
 
