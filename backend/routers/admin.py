@@ -1043,7 +1043,7 @@ def create_role_type(
         raise HTTPException(409, f"Role type '{body.name}' already exists")
     r = RoleType(id=_gen_id("role"), name=body.name)
     db.add(r)
-    _log_audit(db, user, "role_type", r.id, r.name, "create")
+    _log_audit(db, user, "role_type", r.id, r.name, "create", category="master_data")
     db.commit()
     db.refresh(r)
     return RoleTypeResponse(id=r.id, name=r.name)
@@ -1062,7 +1062,7 @@ def update_role_type(
     if body.name is not None and body.name != r.name:
         if db.query(RoleType).filter(RoleType.name == body.name, RoleType.id != role_type_id).first():
             raise HTTPException(409, f"Role type name '{body.name}' already in use")
-        _log_audit(db, user, "role_type", r.id, r.name, "update", "name", r.name, body.name)
+        _log_audit(db, user, "role_type", r.id, r.name, "update", "name", r.name, body.name, category="master_data")
         r.name = body.name
     db.commit()
     db.refresh(r)
@@ -1091,7 +1091,7 @@ def create_external_cost_type(
         raise HTTPException(409, f"External cost type '{body.name}' already exists")
     e = ExternalCostType(id=_gen_id("ext"), name=body.name)
     db.add(e)
-    _log_audit(db, user, "external_cost_type", e.id, e.name, "create")
+    _log_audit(db, user, "external_cost_type", e.id, e.name, "create", category="master_data")
     db.commit()
     db.refresh(e)
     return ExternalCostTypeResponse(id=e.id, name=e.name)
@@ -1112,7 +1112,7 @@ def update_external_cost_type(
             ExternalCostType.name == body.name, ExternalCostType.id != ect_id,
         ).first():
             raise HTTPException(409, f"External cost type '{body.name}' already in use")
-        _log_audit(db, user, "external_cost_type", e.id, e.name, "update", "name", e.name, body.name)
+        _log_audit(db, user, "external_cost_type", e.id, e.name, "update", "name", e.name, body.name, category="master_data")
         e.name = body.name
     db.commit()
     db.refresh(e)
@@ -1194,6 +1194,7 @@ def create_project_dependency(
         db, user, "project_dependency",
         f"{body.predecessor_project_id}->{body.successor_project_id}",
         f"{pred.name} -> {succ.name}", "create",
+    category="hierarchy",
     )
     db.commit()
     db.refresh(d)
@@ -1215,6 +1216,7 @@ def update_project_dependency(
             db, user, "project_dependency",
             f"{d.predecessor_project_id}->{d.successor_project_id}", None, "update",
             "dependency_type", d.dependency_type, body.dependency_type,
+        category="hierarchy",
         )
         d.dependency_type = body.dependency_type
     if body.lag_days is not None and body.lag_days != d.lag_days:
@@ -1222,6 +1224,7 @@ def update_project_dependency(
             db, user, "project_dependency",
             f"{d.predecessor_project_id}->{d.successor_project_id}", None, "update",
             "lag_days", str(d.lag_days), str(body.lag_days),
+        category="hierarchy",
         )
         d.lag_days = body.lag_days
     if body.notes is not None and body.notes != d.notes:
@@ -1243,6 +1246,7 @@ def delete_project_dependency(
     _log_audit(
         db, user, "project_dependency",
         f"{d.predecessor_project_id}->{d.successor_project_id}", None, "delete",
+    category="hierarchy",
     )
     db.delete(d)
     db.commit()
@@ -1314,7 +1318,7 @@ def create_user(
         change_reviewer_flag=body.change_reviewer_flag,
     )
     db.add(u)
-    _log_audit(db, user, "user", u.id, u.display_name, "create")
+    _log_audit(db, user, "user", u.id, u.display_name, "create", category="access_control")
     db.commit()
     db.refresh(u)
     return _serialize_user(u)
@@ -1333,12 +1337,12 @@ def update_user(
     if body.role is not None and body.role != u.role:
         if body.role not in VALID_USER_ROLES:
             raise HTTPException(400, f"Invalid role '{body.role}'")
-        _log_audit(db, user, "user", u.id, u.display_name, "update", "role", u.role, body.role)
+        _log_audit(db, user, "user", u.id, u.display_name, "update", "role", u.role, body.role, category="access_control")
         u.role = body.role
     if body.username is not None and body.username != u.username:
         if db.query(User).filter(User.username == body.username, User.id != user_id).first():
             raise HTTPException(409, f"Username '{body.username}' already in use")
-        _log_audit(db, user, "user", u.id, u.display_name, "update", "username", u.username, body.username)
+        _log_audit(db, user, "user", u.id, u.display_name, "update", "username", u.username, body.username, category="access_control")
         u.username = body.username
     if body.display_name is not None and body.display_name != u.display_name:
         u.display_name = body.display_name
@@ -1352,12 +1356,14 @@ def update_user(
         _log_audit(
             db, user, "user", u.id, u.display_name, "update",
             "tier3_flag", str(u.tier3_flag), str(body.tier3_flag),
+        category="access_control",
         )
         u.tier3_flag = body.tier3_flag
     if body.change_reviewer_flag is not None and body.change_reviewer_flag != u.change_reviewer_flag:
         _log_audit(
             db, user, "user", u.id, u.display_name, "update",
             "change_reviewer_flag", str(u.change_reviewer_flag), str(body.change_reviewer_flag),
+        category="access_control",
         )
         u.change_reviewer_flag = body.change_reviewer_flag
     db.commit()
@@ -1374,7 +1380,7 @@ def deactivate_user(
     u = db.query(User).filter(User.id == user_id).first()
     if not u:
         raise HTTPException(404, "User not found")
-    _log_audit(db, user, "user", u.id, u.display_name, "deactivate")
+    _log_audit(db, user, "user", u.id, u.display_name, "deactivate", category="access_control")
     u.is_active = False
     db.commit()
     db.refresh(u)
@@ -1437,6 +1443,7 @@ def create_role_permission(
         db, user, "role_permission_grant",
         f"{body.role}/{body.entity_type}", None, "create",
         "can_edit", None, str(body.can_edit),
+    category="access_control",
     )
     db.commit()
     db.refresh(g)
@@ -1484,6 +1491,7 @@ def bulk_update_role_permissions(
     _log_audit(
         db, user, "role_permission_grant", "bulk", None, "update",
         "row_count", None, str(len(upserted)),
+    category="access_control",
     )
     db.commit()
     return {"items": upserted, "total": len(upserted)}
@@ -1504,6 +1512,7 @@ def update_role_permission(
             db, user, "role_permission_grant",
             f"{g.role}/{g.entity_type}", None, "update",
             "can_edit", str(g.can_edit), str(body.can_edit),
+        category="access_control",
         )
         g.can_edit = body.can_edit
     if body.notes is not None and body.notes != g.notes:
@@ -1525,6 +1534,7 @@ def delete_role_permission(
     _log_audit(
         db, user, "role_permission_grant",
         f"{g.role}/{g.entity_type}", None, "delete",
+    category="access_control",
     )
     db.delete(g)
     db.commit()
