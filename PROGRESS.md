@@ -1,10 +1,172 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A — Portfolio Pipeline & Backlog
-Last completed: Sessions A2 + A4 — Pipeline / DoI lifecycle backend AND Project Milestones backend (rename + Type Library + CRUD), implemented in parallel on separate branches and combined here.
-Branch: `v5/cluster-a/pipeline-and-milestones-backend` (off `main`, post-PR-#60). Carries A2's 8 atomic commits and A4's 11 atomic commits + merge-conflict resolution. Ready to PR.
-Next: A3 (Ranking engine — depends on both A2 and A4), A5 (Intake workflow — depends on A2 and A3), then A6/A7/A8 frontend.
+Phase: v5 Cluster D — Admin module backend
+Last completed: Session D2 — Workflow templates + audit query/export.
+Branch: `v5/cluster-d/workflow-and-audit-backend` (off `main`, ahead of D1). Will rebase onto D1 once it lands and reconcile any new `_log_audit()` callers introduced by D1.
+Next: D3 (Frontend admin module — depends on D1 + D2), and the merge order D1 → D2 → A3.
+
+## v5 Session D2: Workflow Templates + Audit Query/Export Backend (2026-04-28)
+
+### Feature Overview
+- **Audit log enhancement** — added 8-category enum `AUDIT_CATEGORIES` to `AuditLog` (master_data, configuration, hierarchy, forecast_actions, pipeline_transitions, simulator, access_control, scheduled_change_lifecycle). Updated `_log_audit()` to require `category=` keyword-only; tagged all 44 existing call sites with the appropriate category. Server-side default `'master_data'` covers raw-SQL inserts in `seed.sql`.
+- **Workflow templates** — new data model (`WorkflowTemplate`, `WorkflowStep`, `StepAction`) for the six configurable workflows per `[D-CAT-07]`: forecast_cycle, intake, change_request, send_back, milestone_baseline_override, scheduled_master_data_activation. Steps are not reorderable through the API; touchpoints (required/skippable, role, data gates, notifications, time constraint, escalation) are editable.
+- **Scheduled changes** — `ScheduledChange` model with the 5-state lifecycle (`pending_review` → `approved` → `activated` / `rejected` / `cancelled`). CRUD endpoints + manual-trigger activation engine (`POST /api/admin/apply-scheduled-changes`).
+- **Audit query and export** — `services/audit_query.py` for filtered + paginated queries; `services/audit_export.py` for CSV (stdlib) and XLSX (best-effort openpyxl). New router `/api/audit` with `/log`, `/log/entity/{type}/{id}`, `/categories`, `/export`.
+- **Templates ship as configurable data only** — wiring them into live CR / intake / submission flows is deferred to a follow-on session.
+
+### Spec references implemented
+- `[D-CAT-07]` Workflow Template Editor (data model + step-touchpoint API).
+- Audit log enhancements per spec line ~1849: categorised entries (8 categories), entity-scoped trails, CSV/XLSX export.
+- Scheduled-change lifecycle and activation per spec lines ~1592–1610 and ~2456.
+
+Out of scope (working data only — wiring deferred):
+- Hooking workflow templates into the live CR / intake / submission flows.
+- Cron-based daily activation job (manual-trigger endpoint provided; production wiring is a deployment concern).
+- Approval UI for scheduled changes (D3 frontend).
+
+### Technical Details
+- **Models added:**
+  - `backend/models/workflow_templates.py` — `WorkflowTemplate`, `WorkflowStep` (with `data_gates_json`, `notifications_json` JSON columns + scalar touchpoints), `StepAction` (multi-action steps for review/gate types). Module-level constants `STEP_TYPES`, `SHIPPED_TEMPLATE_KEYS`, `ESCALATION_ACTIONS`.
+  - `backend/models/scheduled_changes.py` — `ScheduledChange` with `entity_type`/`entity_id` target, `pending_values_json`, `activation_date`, `review_status`, audit columns (`reviewed_by`, `reviewed_at`, `review_comments`, `activated_at`, `activation_error`). Constant `SCHEDULED_CHANGE_STATES`.
+  - Both registered in `models/__init__.py`.
+- **Models modified:**
+  - `backend/models/system.py` — `AuditLog` gains `category: Mapped[str]` (`String(40)`, NOT NULL, `default='master_data'`, `server_default='master_data'`). Added `AUDIT_CATEGORIES` constant.
+- **Services added:**
+  - `backend/services/audit_query.py` — `query_audit_log`, `query_entity_trail`, `list_categories`. Returns `AuditEntry` DTOs (easier to serialise than ORM rows).
+  - `backend/services/audit_export.py` — `export_csv` (UTF-8 BOM, preamble + 12-column rows), `export_xlsx` (raises `RuntimeError` if openpyxl missing — router falls back to CSV with `X-Audit-Export-Fallback` header).
+  - `backend/services/scheduled_change_activation.py` — `apply_due_changes` engine + `APPLY_HANDLERS` dispatcher. Ships with `planning_parameter` handler only; other entity types log an "activation no-op" so the lifecycle still completes.
+- **Routers added:**
+  - `backend/routers/workflow_templates.py` — `/api/admin/workflow-templates` (controller-only).
+  - `backend/routers/scheduled_changes.py` — `/api/admin/scheduled-changes*` + `/api/admin/apply-scheduled-changes` (controller-only).
+  - `backend/routers/audit.py` — `/api/audit/*` (controller-only). Existing `/api/admin/audit-log` in `routers/admin.py` stays put for back-compat.
+  - All three wired into `main.py` in lexicographic order.
+- **Routers modified (audit category tagging only):**
+  - `backend/routers/admin.py` — `_log_audit` signature gains keyword-only `category: str`. 32 call sites updated:
+    - `cost_center`, `competence_center`, `person`, `location`, `rate_table` → `master_data`
+    - `planning_parameter` → `configuration`
+    - `lob`, `project` (lob assign), `grouping_entity_type`, `grouping_entity`, `grouping_hierarchy`, `project_grouping` → `hierarchy`
+  - `backend/routers/tech_navigator.py` — Tech Navigator score edits → `master_data` (closest fit; see Working assumptions).
+  - `backend/routers/milestones.py` — milestone create / update / override / delete → `forecast_actions`.
+  - `backend/routers/pipeline.py` — pipeline stage / DoI / frozen_doi / AI Council / within_cutoff → `pipeline_transitions`.
+- **Tests added (53 new):**
+  - `backend/tests/test_workflow_template_router.py` — 14 tests covering list / detail / step update (incl. JSON columns, validation, audit logging) / active toggle / role-based access.
+  - `backend/tests/test_scheduled_change_activation.py` — 11 tests covering create / approve / reject / cancel / engine activation / unsupported-type skip / future-date guard / pending-review-skip.
+  - `backend/tests/test_audit_query.py` — 21 tests covering query filters (category, entity, user, date range), pagination, ordering, router endpoints, error paths.
+  - `backend/tests/test_audit_export.py` — 7 tests covering CSV BOM + headers + data rows, XLSX content, router CSV/XLSX endpoints, filter pass-through.
+- **Seed:** appended at end of `backend/seed/seed.sql` (D1 owns top-of-file sections):
+  - 6 workflow templates, 23 steps, 12 step actions matching spec line ~1673.
+  - 5 sample scheduled changes spanning 4 lifecycle states (pending_review × 2, approved × 1, rejected × 1, activated × 1).
+  - Updated existing audit_log INSERTs to include `category` column (forecast_actions for CRs/projects, simulator for scenarios, master_data for project create).
+
+### API Endpoints Added
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/audit/log` | Global audit log with category / entity / user / date filters + pagination |
+| GET | `/api/audit/log/entity/{entity_type}/{entity_id}` | Entity-scoped audit trail |
+| GET | `/api/audit/categories` | Reference list of the 8 audit categories |
+| GET | `/api/audit/export` | CSV / XLSX export with the same filters as `/log` |
+| GET | `/api/admin/workflow-templates` | List configurable workflow templates with step counts |
+| GET | `/api/admin/workflow-templates/{id_or_key}` | Full template detail with steps + actions |
+| PUT | `/api/admin/workflow-templates/{id_or_key}/steps/{step_id}` | Update step touchpoints (required, role, gates, notifications, time, escalation) |
+| PUT | `/api/admin/workflow-templates/{id_or_key}/active` | Toggle whole-template active flag |
+| GET | `/api/admin/scheduled-changes` | List pending/approved/activated/rejected/cancelled changes |
+| GET | `/api/admin/scheduled-changes/{id}` | Detail for a single scheduled change |
+| POST | `/api/admin/scheduled-changes` | Create a scheduled change in `pending_review` |
+| POST | `/api/admin/scheduled-changes/{id}/approve` | Second-admin approval |
+| POST | `/api/admin/scheduled-changes/{id}/reject` | Reject with comments |
+| POST | `/api/admin/scheduled-changes/{id}/cancel` | Withdraw before activation |
+| POST | `/api/admin/apply-scheduled-changes` | Manually run the activation engine |
+
+### Data Model Changes
+- New tables: `workflow_templates`, `workflow_steps`, `workflow_step_actions`, `scheduled_changes`.
+- `audit_log` gains `category VARCHAR(40) NOT NULL DEFAULT 'master_data'`.
+- **No Alembic** — the existing `backend/creta_demo.db` will fail to read the new column and tables on the next startup. Move the file aside (`mv backend/creta_demo.db backend/creta_demo.db.bak`) before running `python main.py`; the startup hook re-creates the schema and re-runs `seed.sql`.
+
+### Working assumptions
+- **Audit category mapping for Tech Navigator scores** — Tech Navigator score edits live on the project entity but are conceptually project-level qualitative metadata, not v5 master data (which is reference catalogues). I tagged them `master_data` as the closest fit. If a follow-on session adds a `project_metadata` category we can reclassify.
+- **Audit category for milestones** — I tagged milestone CRUD + baseline override under `forecast_actions` since milestone planning is part of the project's forecast view. The baseline-override row could alternatively live in `configuration` if KB prefers — the audit table is queryable by both category and entity_type so the distinction is cosmetic.
+- **Default audit category for legacy rows** — `server_default='master_data'`. Any row inserted by raw SQL without an explicit category lands here. Acceptable for the v4 demo data; new code should always pass `category=` explicitly.
+- **Workflow template wiring is deferred** — D2 ships templates as configurable data only. Live CR / intake / submission flows still hard-code their step sequences; reading config from `WorkflowTemplate` is a follow-on session (likely after D3 frontend lands).
+- **Scheduled-change activation engine is manual-trigger only** — D2 exposes `POST /api/admin/apply-scheduled-changes`. Cron wiring is a deployment concern. The endpoint is idempotent and safe to call repeatedly; nothing happens for changes whose activation date has not arrived.
+- **Activation dispatcher is partial** — only `planning_parameter` is wired through to its live entity. Other entity types (`cost_center`, `person`, etc.) accept create/approve/cancel just fine but the activation step records as a "no-op" with the change still flipped to `activated`. Wiring additional handlers is part of D3+ follow-on work; the dispatcher (`APPLY_HANDLERS`) in `services/scheduled_change_activation.py` is the single extension point.
+- **CSV is the primary export** — XLSX is best-effort via openpyxl. `requirements.txt` does not pin openpyxl; if it is unavailable at runtime the router serves CSV with an `X-Audit-Export-Fallback` header documenting the substitution. The XLSX path is exercised in tests but the test asserts either a real XLSX or the fallback header.
+
+### Refactoring opportunities (noted, not acted on)
+- `_log_audit` lives in `routers/admin.py` and is imported by 4 other routers (`tech_navigator`, `milestones`, `pipeline`, plus my new `workflow_templates`, `scheduled_changes`, and `services/scheduled_change_activation`). It is not a router concern — it should move to a service module (e.g. `services/audit_log.py`) so the router doesn't act as a utility import hub. Out of scope for D2; flagged here for a future cleanup.
+- The four routers that currently import `_log_audit` from admin.py create circular-import risk if admin.py ever needs to import from them. Untangling belongs with the move above.
+- The audit log filter UI on the frontend (D3) will likely need a stable ordering for categories. The reference list in `services/audit_query.list_categories()` returns them in `AUDIT_CATEGORIES` definition order; a future session may want to make ordering admin-configurable.
+- Existing routes for audit log are split: legacy `/api/admin/audit-log` in admin.py (kept for back-compat) and new `/api/audit/*` in audit.py. Once D3 ships, consider deprecating the legacy route. Out of scope here.
+
+### Notes for follow-on sessions
+- **D3 frontend** consumes:
+  - `GET /api/admin/workflow-templates` for the editor sidebar.
+  - `GET /api/admin/workflow-templates/{id_or_key}` for the vertical step-card stack visualisation.
+  - `PUT .../steps/{step_id}` for the inline-edit pattern (touchpoints fold open).
+  - `GET /api/admin/scheduled-changes` for the global Scheduled Changes panel.
+  - The five action endpoints (create / approve / reject / cancel / apply) for the approval UI.
+  - `GET /api/audit/log`, `/categories`, `/export` for the audit log viewer.
+- **Activation cron** — production wiring runs `POST /api/admin/apply-scheduled-changes` daily (configurable time per spec line ~1610). The endpoint is idempotent and safe to call from any scheduler.
+- **Workflow template enforcement** — when a follow-on session wires templates into live flows, it should read `WorkflowTemplate` by stable `key` (not numeric `id`), respect the `is_active` flag (skip inactive templates' steps), and short-circuit disabled steps (`required=False AND skippable=True`).
+- **D1 conflict resolution** — D1 adds new `_log_audit()` callers and a `RolePermissionGrant` class at the end of `system.py`. After D1 merges into main, this branch must rebase, add `category=` to D1's new callers, and re-run the test suite. The `system.py` 3-way merge should be conflict-free (D1 writes at end-of-file; D2 writes at the AuditLog block).
+
+### Verification
+- `python -m pytest backend/tests/ -v` → **459 passed** (406 baseline + 53 new D2 tests). 0 failures.
+- Live `python main.py` smoke (with the db moved aside to force re-seed) confirmed:
+  - `GET /api/audit/categories` returns the 8 categories.
+  - `GET /api/audit/log?category=forecast_actions&limit=3` returns 3 rows from seeded change-request audit history.
+  - `GET /api/admin/workflow-templates` returns the 6 seeded templates with correct step counts.
+  - `GET /api/admin/workflow-templates/forecast_cycle` returns the full step list with JSON-decoded `data_gates` and `notifications`.
+  - `POST /api/admin/scheduled-changes` creates a new change in `pending_review`.
+  - `POST /api/admin/apply-scheduled-changes` returns the engine summary.
+  - `GET /api/audit/export?format=csv` produces a UTF-8 BOM CSV with metadata preamble.
+  - `GET /api/audit/export?format=xlsx` produces a real `.xlsx` file (`Microsoft Excel 2007+` per `file(1)`).
+
+### Curl examples
+
+```bash
+# List the 8 audit categories
+curl -H "X-Current-User: persona-controller" http://localhost:8000/api/audit/categories
+
+# Filter audit log by category (repeat param to OR)
+curl -H "X-Current-User: persona-controller" \
+  "http://localhost:8000/api/audit/log?category=forecast_actions&category=hierarchy&limit=20"
+
+# Entity-scoped trail
+curl -H "X-Current-User: persona-controller" \
+  http://localhost:8000/api/audit/log/entity/change_request/28
+
+# CSV export
+curl -H "X-Current-User: persona-controller" \
+  -OJ "http://localhost:8000/api/audit/export?format=csv&category=master_data"
+
+# List workflow templates
+curl -H "X-Current-User: persona-controller" http://localhost:8000/api/admin/workflow-templates
+
+# Get a single template by key
+curl -H "X-Current-User: persona-controller" \
+  http://localhost:8000/api/admin/workflow-templates/forecast_cycle
+
+# Update a step's touchpoints
+curl -X PUT -H "X-Current-User: persona-controller" -H "Content-Type: application/json" \
+  -d '{"required": false, "time_constraint_days": 14, "escalation_action": "reminder"}' \
+  http://localhost:8000/api/admin/workflow-templates/forecast_cycle/steps/3
+
+# Create a scheduled change
+curl -X POST -H "X-Current-User: persona-controller" -H "Content-Type: application/json" \
+  -d '{"entity_type":"planning_parameter","entity_id":"standard_hours_global","description":"Lower hours","pending_values":{"current_value":"156"},"activation_date":"2026-12-01"}' \
+  http://localhost:8000/api/admin/scheduled-changes
+
+# Approve and activate
+curl -X POST -H "X-Current-User: persona-controller" \
+  http://localhost:8000/api/admin/scheduled-changes/1/approve
+curl -X POST -H "X-Current-User: persona-controller" \
+  http://localhost:8000/api/admin/apply-scheduled-changes
+```
+
+---
+
+## v5 Session A2: Pipeline Stages, DoI, Project Lifecycle Backend (2026-04-27)
 
 ## v5 Session A2: Pipeline Stages, DoI, Project Lifecycle Backend (2026-04-27)
 

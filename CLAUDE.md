@@ -149,7 +149,11 @@ Keep this section updated whenever models or schema change.
 - `ForecastSnapshot` — point-in-time capture for forecast accuracy reports
 - `SavedReport` / `SavedReportShare` / `SavedView` — Report Builder persistence
 - `PlanningParameter` — system config (fiscal month, thresholds)
-- `Notification` — in-app alerts, `AuditLog` — entity audit trail
+- `Notification` — in-app alerts, `AuditLog` — entity audit trail. Per Cluster D Session D2, `AuditLog.category` is one of 8 categories (`AUDIT_CATEGORIES` in `models/system.py`): `master_data`, `configuration`, `hierarchy`, `forecast_actions`, `pipeline_transitions`, `simulator`, `access_control`, `scheduled_change_lifecycle`. `_log_audit()` requires `category=` keyword-only at every call site.
+
+### Workflow Templates & Scheduled Changes (Cluster D Session D2)
+- `WorkflowTemplate` / `WorkflowStep` / `StepAction` — configurable backing store for the six workflows in `[D-CAT-07]` (forecast cycle, intake, change request, send back, milestone baseline override, scheduled master data activation). Steps are not reorderable through the API; touchpoints (required, role, gates, notifications, time, escalation) are editable. Templates ship as configurable data only; live workflow enforcement is a follow-on session.
+- `ScheduledChange` — pending master-data change with 5-state lifecycle (`pending_review` → `approved` → `activated` / `rejected` / `cancelled`). Activation engine in `services/scheduled_change_activation.py` is manual-trigger via `POST /api/admin/apply-scheduled-changes`; only `planning_parameter` activation is wired through to the live entity in v5 (other entity types record activation as a no-op).
 
 ## Session Protocol
 1. **Start:** Read `CLAUDE.md` and `PROGRESS.md` to understand current state
@@ -289,10 +293,10 @@ This project uses two tiers of agent parallelization. All agent role definitions
 ### Backend
 - `backend/seed/seed.sql` — all relational seed data
 - `backend/seed/fixtures/` — JSON fixtures (manuals, FAQ, AI Advisor goals)
-- `backend/models/` — `capacity.py`, `change_requests.py`, `financial.py`, `organization.py`, `people.py`, `projects.py`, `reporting.py`, `scenarios.py`, `submissions.py`, `system.py`, `users.py`
-- `backend/routers/` — `admin.py`, `ai_reports.py`, `capacity.py`, `documentation.py`, `global_launchpad.py`, `milestones.py`, `pipeline.py`, `portfolio.py`, `reference.py`, `report_builder.py`, `reports.py`, `scenarios.py`, `tech_navigator.py`, `workbench.py`
-- `backend/services/` — `advisor.py`, `ai_report_service.py`, `allocation_service.py`, `calculations.py`, `forecast_cycle.py`, `pipeline.py`, `portfolio_service.py`, `report_builder_catalog.py`, `report_builder_engine.py`, `report_builder_export.py`, `report_builder_saved.py`, `report_service.py`, `scenario_engine.py`, `tech_navigator.py`
-- `backend/tests/` — unit tests (406 tests across 20 test files)
+- `backend/models/` — `capacity.py`, `change_requests.py`, `financial.py`, `organization.py`, `people.py`, `projects.py`, `reporting.py`, `scenarios.py`, `scheduled_changes.py`, `submissions.py`, `system.py`, `users.py`, `workflow_templates.py`
+- `backend/routers/` — `admin.py`, `ai_reports.py`, `audit.py`, `capacity.py`, `documentation.py`, `global_launchpad.py`, `milestones.py`, `pipeline.py`, `portfolio.py`, `reference.py`, `report_builder.py`, `reports.py`, `scenarios.py`, `scheduled_changes.py`, `tech_navigator.py`, `workbench.py`, `workflow_templates.py`
+- `backend/services/` — `advisor.py`, `ai_report_service.py`, `allocation_service.py`, `audit_export.py`, `audit_query.py`, `calculations.py`, `forecast_cycle.py`, `pipeline.py`, `portfolio_service.py`, `report_builder_catalog.py`, `report_builder_engine.py`, `report_builder_export.py`, `report_builder_saved.py`, `report_service.py`, `scenario_engine.py`, `scheduled_change_activation.py`, `tech_navigator.py`
+- `backend/tests/` — unit tests (459 tests across 24 test files)
 
 ### Frontend
 - `frontend/src/modules/` — 8 module UIs (launchpad, portfolio, workbench, capacity, simulator, reporting, admin, docs)
