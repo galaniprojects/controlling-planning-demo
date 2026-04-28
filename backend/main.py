@@ -38,6 +38,7 @@ def startup():
 
 # --- Routers ---
 from routers.admin import router as admin_router  # noqa: E402
+from routers.audit import router as audit_router  # noqa: E402
 from routers.reference import router as reference_router  # noqa: E402
 from routers.documentation import router as docs_router  # noqa: E402
 from routers.global_launchpad import router as launchpad_router  # noqa: E402
@@ -45,6 +46,7 @@ from routers.portfolio import router as portfolio_router  # noqa: E402
 from routers.workbench import router as workbench_router  # noqa: E402
 from routers.capacity import router as capacity_router  # noqa: E402
 from routers.scenarios import router as scenarios_router  # noqa: E402
+from routers.scheduled_changes import router as scheduled_changes_router  # noqa: E402
 from routers.reports import router as reports_router  # noqa: E402
 from routers.ai_reports import router as ai_reports_router  # noqa: E402
 from routers.report_builder import router as report_builder_router  # noqa: E402
@@ -54,8 +56,10 @@ from routers.milestones import (  # noqa: E402
     project_router as milestones_project_router,
     admin_router as milestones_admin_router,
 )
+from routers.workflow_templates import router as workflow_templates_router  # noqa: E402
 
 app.include_router(admin_router)
+app.include_router(audit_router)
 app.include_router(reference_router)
 app.include_router(docs_router)
 app.include_router(launchpad_router)
@@ -63,6 +67,7 @@ app.include_router(portfolio_router)
 app.include_router(workbench_router)
 app.include_router(capacity_router)
 app.include_router(scenarios_router)
+app.include_router(scheduled_changes_router)
 app.include_router(reports_router)
 app.include_router(ai_reports_router)
 app.include_router(report_builder_router)
@@ -70,6 +75,7 @@ app.include_router(tech_navigator_router)
 app.include_router(pipeline_router)
 app.include_router(milestones_project_router)
 app.include_router(milestones_admin_router)
+app.include_router(workflow_templates_router)
 
 
 @app.get("/health")
