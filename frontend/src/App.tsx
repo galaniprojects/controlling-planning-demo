@@ -13,6 +13,8 @@ import { Reporting } from '@/modules/reporting/Reporting';
 import { Administration } from '@/modules/admin/Administration';
 import { DocumentationHub } from '@/modules/docs/DocumentationHub';
 import { ResourcePlanPage } from '@/modules/workbench/submission/ResourcePlanPage';
+// === Tech Navigator (A7) ===
+import { BacklogDetailStub } from '@/modules/backlog/BacklogDetailStub';
 
 export default function App() {
   return (
@@ -32,6 +34,8 @@ export default function App() {
                 <Route path="/reporting/*" element={<Reporting />} />
                 <Route path="/admin/*" element={<Administration />} />
                 <Route path="/docs/*" element={<DocumentationHub />} />
+                {/* === Tech Navigator (A7) === scaffold harness; A6 will replace */}
+                <Route path="/backlog-detail-stub/:projectId" element={<BacklogDetailStub />} />
               </Routes>
             </AppLayout>
           </BottomDrawerProvider>
