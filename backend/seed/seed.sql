@@ -321,7 +321,12 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('forecast_deadline', 'Forecast Deadline', 'Day of month when forecast is due', '15', '15', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_amber_threshold', 'RAG Amber Threshold', 'Budget variance % for amber status', '5', '5', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_red_threshold', 'RAG Red Threshold', 'Budget variance % for red status', '10', '10', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+-- v5 Session A3 — Backlog & Ranking Configuration [A-BK-09] [A-BK-12].
+-- Working assumptions pending KB confirmation: 50M EUR envelope is a placeholder;
+-- tie-breaker default ASC on DoI surfaces earlier-stage projects first per [A-BK-06].
+('ranking_total_available_budget', 'Total Available Budget', 'Annual portfolio budget envelope used for cutoff line calculation [A-BK-09]', '50000000', '50000000', 'integer', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ranking_tiebreakers', 'Backlog Tie-Breaker Order', 'Comma-separated tie-breaker fields applied after composite_score DESC [A-BK-06]', 'composite_score:desc,doi:asc,total_budget:desc', 'composite_score:desc,doi:asc,total_budget:desc', 'string', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- 13. KPI Definitions
