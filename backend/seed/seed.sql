@@ -20016,21 +20016,21 @@ INSERT INTO system_suggestions (project_id, suggestion_type, observation, recomm
 ('proj-iam', 'actuals_correction', 'ServiceNow licensing costs increased 40% after vendor pricing change. Current forecast may not fully reflect the compounding impact over remaining months.', 'Review forecast for ServiceNow ITSM Licenses line item and ensure all remaining months reflect the updated pricing.', 'Forecast accuracy improvement: ensures remaining 6 months correctly reflect EUR 5,600/month vs potential underestimate.', '{"changes": [{"type": "external", "line": "ServiceNow ITSM Licenses", "action": "update_forecast", "amount": 5600}]}', '2026-03-01 08:00:00'),
 ('proj-telematics', 'burn_rate', 'Project is behind schedule by approximately 1 month. Current resource allocation may not be sufficient to recover the timeline slip.', 'Consider increasing developer allocation for Q2 2026 or further reducing scope to meet the revised delivery date.', 'Additional 20 developer hours/month for 3 months could recover 2-3 weeks of schedule slip.', '{"changes": [{"type": "internal", "role": "role-dev", "action": "increase_hours", "delta": 20}]}', '2026-03-01 08:00:00');
 
--- Audit Log
-INSERT INTO audit_log (timestamp, user_person_id, entity_type, entity_id, entity_name, action, field_changed, old_value, new_value) VALUES
-('2026-02-15 10:00:00', 'p-meier', 'project', 'proj-fleet', 'Fleet Portal v2', 'update', 'status', 'pending_approval', 'active'),
-('2026-02-20 10:00:00', 'p-sharma', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'create', NULL, NULL, NULL),
-('2026-02-25 14:00:00', 'p-meier', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'update', 'status', 'pending_controller_approval', 'sent_back_by_controller'),
-('2026-02-28 10:00:00', 'p-sharma', 'project', 'proj-autobrake', 'Autonomous Braking Prototype', 'create', NULL, NULL, NULL),
-('2026-03-01 09:00:00', 'p-becker', 'scenario', '3', 'Conservative: Freeze New Starts', 'update', 'status', 'private', 'published'),
-('2026-03-02 11:00:00', 'p-brenner', 'change_request', '12', 'CR #12 - SAP S/4HANA Migration', 'update', 'cc_status', 'pending', 'confirmed'),
-('2026-03-04 11:00:00', 'p-brenner', 'change_request', '19', 'CR #19 - IAM Overhaul', 'update', 'cc_status', 'pending', 'confirmed'),
-('2026-03-05 09:00:00', 'p-sharma', 'change_request', '9', 'CR #9 - ERP Integration Phase 2', 'create', NULL, NULL, NULL),
-('2026-03-07 09:00:00', 'p-sharma', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'create', NULL, NULL, NULL),
-('2026-03-07 10:00:00', 'p-meier', 'scenario', '1', 'Budget Pressure: 15% Reduction', 'update', 'status', 'private', 'published'),
-('2026-03-08 09:30:00', 'p-sharma', 'change_request', '15', 'CR #15 - Sensor Data Pipeline', 'create', NULL, NULL, NULL),
-('2026-03-08 10:00:00', 'p-brenner', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'update', 'cc_status', 'pending', 'confirmed'),
-('2026-03-10 11:00:00', 'p-meier', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'update', 'controller_status', 'pending', 'approved');
+-- Audit Log (Cluster D Session D2: category column tagged at write time)
+INSERT INTO audit_log (timestamp, user_person_id, entity_type, entity_id, entity_name, action, field_changed, old_value, new_value, category) VALUES
+('2026-02-15 10:00:00', 'p-meier', 'project', 'proj-fleet', 'Fleet Portal v2', 'update', 'status', 'pending_approval', 'active', 'forecast_actions'),
+('2026-02-20 10:00:00', 'p-sharma', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'create', NULL, NULL, NULL, 'forecast_actions'),
+('2026-02-25 14:00:00', 'p-meier', 'change_request', '27', 'CR #27 - Predictive Maintenance PoC', 'update', 'status', 'pending_controller_approval', 'sent_back_by_controller', 'forecast_actions'),
+('2026-02-28 10:00:00', 'p-sharma', 'project', 'proj-autobrake', 'Autonomous Braking Prototype', 'create', NULL, NULL, NULL, 'master_data'),
+('2026-03-01 09:00:00', 'p-becker', 'scenario', '3', 'Conservative: Freeze New Starts', 'update', 'status', 'private', 'published', 'simulator'),
+('2026-03-02 11:00:00', 'p-brenner', 'change_request', '12', 'CR #12 - SAP S/4HANA Migration', 'update', 'cc_status', 'pending', 'confirmed', 'forecast_actions'),
+('2026-03-04 11:00:00', 'p-brenner', 'change_request', '19', 'CR #19 - IAM Overhaul', 'update', 'cc_status', 'pending', 'confirmed', 'forecast_actions'),
+('2026-03-05 09:00:00', 'p-sharma', 'change_request', '9', 'CR #9 - ERP Integration Phase 2', 'create', NULL, NULL, NULL, 'forecast_actions'),
+('2026-03-07 09:00:00', 'p-sharma', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'create', NULL, NULL, NULL, 'forecast_actions'),
+('2026-03-07 10:00:00', 'p-meier', 'scenario', '1', 'Budget Pressure: 15% Reduction', 'update', 'status', 'private', 'published', 'simulator'),
+('2026-03-08 09:30:00', 'p-sharma', 'change_request', '15', 'CR #15 - Sensor Data Pipeline', 'create', NULL, NULL, NULL, 'forecast_actions'),
+('2026-03-08 10:00:00', 'p-brenner', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'update', 'cc_status', 'pending', 'confirmed', 'forecast_actions'),
+('2026-03-10 11:00:00', 'p-meier', 'change_request', '28', 'CR #28 - Fleet Portal v2', 'update', 'controller_status', 'pending', 'approved', 'forecast_actions');
 
 -- =============================================================================
 -- Milestone Types [A-BK-34]
@@ -20206,3 +20206,113 @@ INSERT INTO scenario_capacity_impacts (scenario_id, cost_center_id, month, origi
 (3, 'cc-pun-apd', '2026-08', 82.0, 72.0, -0.40),
 (3, 'cc-pun-apd', '2026-09', 82.0, 72.0, -0.40),
 (3, 'cc-pun-apd', '2026-10', 82.0, 72.0, -0.40);
+
+-- =============================================================================
+-- Workflow Templates [D-CAT-07] (Cluster D Session D2)
+-- Six configurable workflows with fixed step sets. Steps are not reorderable
+-- through the admin API; touchpoints (required, role, gates, notifications,
+-- time, escalation) are editable.
+-- =============================================================================
+
+INSERT INTO workflow_templates (id, key, name, description, is_active, created_at, modified_at) VALUES
+(1, 'forecast_cycle', 'Forecast Cycle', 'Five-phase rolling forecast cycle: cycle opens, retrospective acknowledgment, forecast editing, review, acceptance.', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+(2, 'intake', 'Intake / Pipeline Progression', 'Intake workflow: Proposed -> Under Evaluation -> Approved, including AI Council and Pitch Board governance gates.', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+(3, 'change_request', 'Change Request', 'Change Request lifecycle: submission -> CC Owner confirmation -> Controller approval / rejection.', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+(4, 'send_back', 'Send Back', 'Controller requests changes from PL and routes the submission back for revision.', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+(5, 'milestone_baseline_override', 'Milestone Baseline Override', 'Audited override of a milestone baseline date after the baseline is locked.', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00'),
+(6, 'scheduled_master_data_activation', 'Scheduled Master Data Activation', 'Lifecycle for future-dated master data changes: pending review -> approved -> activated.', 1, '2026-01-01 00:00:00', '2026-01-01 00:00:00');
+
+INSERT INTO workflow_steps (id, template_id, step_order, name, description, step_type, required, skippable, assigned_role, data_gates_json, notifications_json, time_constraint_days, escalation_action) VALUES
+-- Forecast Cycle (template 1)
+(1, 1, 1, 'Cycle opens', 'Controller opens the forecast cycle for the period.', 'action', 1, 0, 'controller', NULL, '{"on_start": ["all_pls"]}', NULL, NULL),
+(2, 1, 2, 'Retrospective acknowledgment', 'PLs acknowledge the prior period actuals before editing.', 'review', 1, 0, 'project_lead', '["actuals_loaded"]', NULL, 5, 'reminder'),
+(3, 1, 3, 'Forecast editing', 'PLs edit forecast lines via the wizard.', 'action', 1, 0, 'project_lead', NULL, '{"on_overdue": ["controller"]}', 10, 'reminder'),
+(4, 1, 4, 'Review', 'Controller reviews submitted forecasts with inline-edit capability.', 'review', 1, 0, 'controller', NULL, NULL, 5, 'escalate_to_manager'),
+(5, 1, 5, 'Acceptance', 'Controller approves; baseline is updated.', 'gate', 1, 0, 'controller', NULL, '{"on_completion": ["pl", "cc_owner"]}', NULL, NULL),
+-- Intake (template 2)
+(6, 2, 1, 'Submit project intake', 'PL submits a new project for intake review.', 'action', 1, 0, 'project_lead', '["title", "description", "estimated_budget"]', NULL, NULL, NULL),
+(7, 2, 2, 'AI Council screening', 'AI Council screens AI-related intakes per [A-DOI-03].', 'gate', 0, 1, 'controller', NULL, NULL, 14, 'reminder'),
+(8, 2, 3, 'Under evaluation', 'Controller and stakeholders evaluate; Tech Navigator scoring captured.', 'review', 1, 0, 'controller', '["complexity_scores", "value_creation_scores"]', NULL, 21, 'escalate_to_manager'),
+(9, 2, 4, 'Pitch Board gate', 'Pitch Board governance gate for projects with To-Business cost share.', 'gate', 0, 1, 'controller', '["btc_profile_complete"]', NULL, NULL, NULL),
+(10, 2, 5, 'Approve to backlog', 'Controller approves; project enters the active backlog.', 'gate', 1, 0, 'controller', NULL, '{"on_completion": ["pl"]}', NULL, NULL),
+-- Change Request (template 3)
+(11, 3, 1, 'PL submits CR', 'Project Lead drafts and submits a change request.', 'action', 1, 0, 'project_lead', '["delta_summary"]', NULL, NULL, NULL),
+(12, 3, 2, 'CC Owner confirmation', 'CC Owner confirms or declines the resource impact.', 'review', 1, 0, 'cost_center_owner', NULL, '{"on_start": ["cc_owner"]}', 5, 'reminder'),
+(13, 3, 3, 'Controller decision', 'Controller approves, rejects, or sends back the CR.', 'review', 1, 0, 'controller', NULL, NULL, 7, 'escalate_to_manager'),
+(14, 3, 4, 'Forecast update', 'On approval, forecast lines are updated automatically.', 'action', 1, 0, 'controller', NULL, '{"on_completion": ["pl", "cc_owner"]}', NULL, NULL),
+-- Send Back (template 4)
+(15, 4, 1, 'Controller requests changes', 'Controller annotates the submission and routes it back.', 'action', 1, 0, 'controller', '["change_notes"]', '{"on_start": ["pl"]}', NULL, NULL),
+(16, 4, 2, 'PL revises', 'Project Lead addresses the controllers feedback.', 'action', 1, 0, 'project_lead', NULL, NULL, 7, 'reminder'),
+(17, 4, 3, 'Resubmit', 'PL resubmits; the original review workflow resumes.', 'action', 1, 0, 'project_lead', NULL, NULL, NULL, NULL),
+-- Milestone Baseline Override (template 5)
+(18, 5, 1, 'Override request', 'Controller submits a request to change a locked baseline date.', 'action', 1, 0, 'controller', '["override_reason"]', NULL, NULL, NULL),
+(19, 5, 2, 'Second-controller review', 'A second controller reviews the override request.', 'review', 1, 1, 'controller', NULL, '{"on_start": ["controllers"]}', 3, 'reminder'),
+(20, 5, 3, 'Apply or reject', 'On approval, baseline date is updated and audit-logged.', 'gate', 1, 0, 'controller', NULL, '{"on_completion": ["pl"]}', NULL, NULL),
+-- Scheduled Master Data Activation (template 6)
+(21, 6, 1, 'Create scheduled change', 'First admin creates the change with an activation date.', 'action', 1, 0, 'controller', '["pending_values"]', NULL, NULL, NULL),
+(22, 6, 2, 'Second-admin review', 'Change reviewer permission required.', 'review', 1, 0, 'controller', NULL, '{"on_start": ["change_reviewers"]}', 5, 'reminder'),
+(23, 6, 3, 'Activation', 'Daily job applies approved changes whose date has arrived.', 'action', 1, 0, 'controller', NULL, '{"on_completion": ["all_admins"]}', NULL, NULL);
+
+INSERT INTO workflow_step_actions (step_id, action_order, action_type, label, config_json) VALUES
+-- Forecast cycle review actions
+(4, 1, 'approve', 'Approve forecast', '{"updates_baseline": true}'),
+(4, 2, 'send_back', 'Send back to PL', '{"target_workflow": "send_back"}'),
+-- Intake evaluation actions
+(8, 1, 'approve', 'Approve to backlog', '{}'),
+(8, 2, 'reject', 'Reject', '{}'),
+(8, 3, 'send_back', 'Send back to PL', '{"target_workflow": "send_back"}'),
+-- CR controller actions
+(13, 1, 'approve', 'Approve CR', '{"updates_forecast": true}'),
+(13, 2, 'reject', 'Reject CR', '{}'),
+(13, 3, 'send_back', 'Send back to PL', '{"target_workflow": "send_back"}'),
+-- Milestone override review
+(19, 1, 'approve', 'Approve override', '{"requires_audit_log": true}'),
+(19, 2, 'reject', 'Reject override', '{}'),
+-- Scheduled change review
+(22, 1, 'approve', 'Approve scheduled change', '{}'),
+(22, 2, 'reject', 'Reject scheduled change', '{}');
+
+-- =============================================================================
+-- Sample Scheduled Changes — demonstrates lifecycle states (Cluster D Session D2)
+-- =============================================================================
+
+INSERT INTO scheduled_changes (
+  id, entity_type, entity_id, description, pending_values_json,
+  activation_date, review_status,
+  created_by_person_id, created_at,
+  reviewed_by_person_id, reviewed_at, review_comments,
+  activated_at, activation_error
+) VALUES
+(1, 'planning_parameter', 'standard_hours_global',
+ 'Reduce standard hours from 160 to 156 effective May 2026',
+ '{"current_value": "156"}',
+ '2026-05-01', 'pending_review',
+ 'p-meier', '2026-04-25 10:00:00',
+ NULL, NULL, NULL, NULL, NULL),
+(2, 'planning_parameter', 'fiscal_year_start',
+ 'Confirm fiscal year start month for 2027 cycle',
+ '{"current_value": "1"}',
+ '2026-12-01', 'approved',
+ 'p-meier', '2026-04-15 09:00:00',
+ 'p-meier', '2026-04-20 14:30:00', 'Approved per finance steering commitee minutes 2026-04-20',
+ NULL, NULL),
+(3, 'cost_center', 'cc-muc-bso',
+ 'Rename Munich BSO cost center per HR realignment',
+ '{"name": "Munich BSO Strategic"}',
+ '2026-06-01', 'pending_review',
+ 'p-meier', '2026-04-22 11:00:00',
+ NULL, NULL, NULL, NULL, NULL),
+(4, 'planning_parameter', 'rag_budget_red_threshold',
+ 'Tighten RAG red threshold from 110 to 105',
+ '{"current_value": "105"}',
+ '2026-04-01', 'rejected',
+ 'p-meier', '2026-03-20 09:00:00',
+ 'p-meier', '2026-03-25 16:00:00', 'Rejected — too aggressive without portfolio rebaseline.',
+ NULL, NULL),
+(5, 'planning_parameter', 'standard_hours_global',
+ 'Initial fiscal-year reset (already activated; demo example)',
+ '{"current_value": "160"}',
+ '2026-01-15', 'activated',
+ 'p-meier', '2025-12-15 10:00:00',
+ 'p-meier', '2025-12-18 11:00:00', 'Approved as part of 2026 planning configuration.',
+ '2026-01-15 06:00:00', NULL);

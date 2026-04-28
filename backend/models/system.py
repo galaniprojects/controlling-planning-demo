@@ -57,6 +57,20 @@ class Notification(Base):
     user: Mapped["Person"] = relationship()
 
 
+# Audit categories per CRETA v5 spec line ~1849. The 8 categories surfaced in
+# the audit log filter UI. Tagged at write time at each ``_log_audit`` call site.
+AUDIT_CATEGORIES = (
+    "master_data",                # Cost centres, people, roles, locations, rate tables, project metadata
+    "configuration",              # Planning parameters, system settings
+    "hierarchy",                  # Grouping entities, hierarchies, project assignments
+    "forecast_actions",           # Milestones, forecast edits, baseline overrides
+    "pipeline_transitions",       # Pipeline stage / DoI / AI Council / within_cutoff
+    "simulator",                  # Scenario actions, promotions, applies-to-forecast
+    "access_control",             # User permissions, role grants, change-reviewer flag
+    "scheduled_change_lifecycle", # ScheduledChange create / approve / reject / cancel / activate
+)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
@@ -67,10 +81,17 @@ class AuditLog(Base):
     entity_id: Mapped[str] = mapped_column(String(50), nullable=False)
     entity_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     action: Mapped[str] = mapped_column(String(20), nullable=False)
-    # action: create, update, deactivate
+    # action: create, update, deactivate, override, activate
     field_changed: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     old_value: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     new_value: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # category — one of AUDIT_CATEGORIES. Required at write time per [D-CAT-07].
+    # ``server_default`` makes raw-SQL inserts (seed.sql) work without ORM defaults;
+    # legacy rows that pre-date Session D2 land in 'master_data' which is the
+    # safest neutral category for back-fill.
+    category: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="master_data", server_default="master_data",
+    )
 
     # Relationships
     user: Mapped["Person"] = relationship()

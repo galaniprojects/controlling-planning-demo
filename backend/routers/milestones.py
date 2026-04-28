@@ -192,6 +192,7 @@ def create_milestone(
         entity_id=str(milestone.id),
         entity_name=milestone.name,
         action="create",
+        category="forecast_actions",
     )
     db.commit()
     db.refresh(milestone)
@@ -322,6 +323,7 @@ def update_milestone(
                 field_changed=field_name,
                 old_value=str(old_value) if old_value is not None else None,
                 new_value=audit_new,
+                category="forecast_actions",
             )
 
     db.commit()
@@ -368,6 +370,7 @@ def delete_milestone(
         entity_id=str(milestone.id),
         entity_name=milestone.name,
         action="delete",
+        category="forecast_actions",
     )
     db.delete(milestone)
     db.commit()
