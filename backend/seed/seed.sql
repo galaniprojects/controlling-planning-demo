@@ -20321,3 +20321,88 @@ INSERT INTO scheduled_changes (
  'p-meier', '2025-12-15 10:00:00',
  'p-meier', '2025-12-18 11:00:00', 'Approved as part of 2026 planning configuration.',
  '2026-01-15 06:00:00', NULL);
+
+-- =============================================================================
+-- v5 Session F2 — ChargeableEntity polymorphic root + Stage 1 Distribution
+-- [F-DM-01..04] [F-S1-01..05]. Appended at end-of-file per F2's append-only
+-- ownership rule for seed.sql.
+-- =============================================================================
+
+-- F2.a — ChargeableEntity rows. One per existing Project plus 3 Offerings and
+-- 5 InternalServices for end-to-end demo coverage. Identifiers per [F-DM-01]:
+-- Project   -> IT0<PPM>
+-- Offering  -> IT00<S-code>
+-- InternalService -> ITF<NNNNN>
+INSERT INTO chargeable_entities (id, entity_type, identifier, name, description, hierarchy_node_id, responsible_person_id, to_business_pct, project_id, termination_month, is_active, created_at, modified_at) VALUES
+('ce-proj-erp2', 'Project', 'IT012001', 'ERP Integration Phase 2', NULL, 'lob-tbs', 'p-sharma', 0.0, 'proj-erp2', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-sap', 'Project', 'IT012002', 'SAP S/4HANA Migration', NULL, 'lob-tbs', 'p-brenner', 0.0, 'proj-sap', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-brake', 'Project', 'IT012003', 'Brake Control Unit Refresh', NULL, 'lob-tbs', 'p-brenner', 0.0, 'proj-brake', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-autobrake', 'Project', 'IT012004', 'Autonomous Braking Prototype', NULL, 'lob-tbs', 'p-sharma', 0.0, 'proj-autobrake', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-legacy', 'Project', 'IT012005', 'Legacy System Decommission', NULL, 'lob-tbs', 'p-brenner', 0.0, 'proj-legacy', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-connveh', 'Project', 'IT012006', 'Connected Vehicle Platform', NULL, 'lob-tbs', 'p-brenner', 0.0, 'proj-connveh', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-sap-ops', 'Project', 'IT012007', 'SAP Basis Operations', NULL, 'lob-tbs', 'p-brenner', 50.0, 'svc-sap-ops', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-euc', 'Project', 'IT012008', 'End User Computing Support', NULL, 'lob-tbs', 'p-brenner', 50.0, 'svc-euc', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-tbs-maint', 'Project', 'IT012009', 'TBS Application Maintenance', NULL, 'lob-tbs', 'p-brenner', 50.0, 'svc-tbs-maint', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-signal', 'Project', 'IT012010', 'Signaling System Upgrade', NULL, 'lob-rvs', 'p-brenner', 0.0, 'proj-signal', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-raildiag', 'Project', 'IT012011', 'Rail Diagnostics Platform', NULL, 'lob-rvs', 'p-brenner', 0.0, 'proj-raildiag', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-predmaint', 'Project', 'IT012012', 'Predictive Maintenance PoC', NULL, 'lob-rvs', 'p-sharma', 0.0, 'proj-predmaint', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-workshop', 'Project', 'IT012013', 'Workshop Management Tool', NULL, 'lob-rvs', 'p-brenner', 0.0, 'proj-workshop', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-railsafety', 'Project', 'IT012014', 'Rail Safety Compliance System', NULL, 'lob-rvs', 'p-brenner', 0.0, 'proj-railsafety', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-rail-desk', 'Project', 'IT012015', 'Rail IT Service Desk', NULL, 'lob-rvs', 'p-brenner', 50.0, 'svc-rail-desk', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-rail-maint', 'Project', 'IT012016', 'Rail Application Maintenance', NULL, 'lob-rvs', 'p-brenner', 50.0, 'svc-rail-maint', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-signal-sup', 'Project', 'IT012017', 'Signaling Systems Support', NULL, 'lob-rvs', 'p-brenner', 50.0, 'svc-signal-sup', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-cloud3', 'Project', 'IT012018', 'Cloud Migration Wave 3', NULL, 'lob-cit', 'p-brenner', 0.0, 'proj-cloud3', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-iam', 'Project', 'IT012019', 'Identity & Access Management Overhaul', NULL, 'lob-cit', 'p-brenner', 0.0, 'proj-iam', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-workplace', 'Project', 'IT012020', 'Workplace Modernization', NULL, 'lob-cit', 'p-brenner', 0.0, 'proj-workplace', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-datacenter', 'Project', 'IT012021', 'Data Center Consolidation', NULL, 'lob-cit', 'p-brenner', 0.0, 'proj-datacenter', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-wan', 'Project', 'IT012022', 'Global WAN Refresh', NULL, 'lob-cit', 'p-brenner', 0.0, 'proj-wan', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-netsec', 'Project', 'IT012023', 'Network & Security Operations', NULL, 'lob-cit', 'p-brenner', 50.0, 'svc-netsec', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-middleware', 'Project', 'IT012024', 'Enterprise Middleware', NULL, 'lob-cit', 'p-brenner', 50.0, 'svc-middleware', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-dba', 'Project', 'IT012025', 'Database Administration', NULL, 'lob-cit', 'p-brenner', 50.0, 'svc-dba', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-sensor', 'Project', 'IT012026', 'Sensor Data Pipeline', NULL, 'lob-dnd', 'p-sharma', 0.0, 'proj-sensor', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-fleet', 'Project', 'IT012027', 'Fleet Portal v2', NULL, 'lob-dnd', 'p-sharma', 0.0, 'proj-fleet', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-telematics', 'Project', 'IT012028', 'Telematics Dashboard', NULL, 'lob-dnd', 'p-brenner', 0.0, 'proj-telematics', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-dwh', 'Project', 'IT012029', 'Data Warehouse Consolidation', NULL, 'lob-dnd', 'p-brenner', 0.0, 'proj-dwh', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-proj-aiml', 'Project', 'IT012030', 'AI/ML Experimentation Lab', NULL, 'lob-dnd', 'p-brenner', 0.0, 'proj-aiml', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-dataplatform', 'Project', 'IT012031', 'Data Platform Operations', NULL, 'lob-dnd', 'p-brenner', 50.0, 'svc-dataplatform', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-iot', 'Project', 'IT012032', 'IoT Infrastructure Support', NULL, 'lob-dnd', 'p-brenner', 50.0, 'svc-iot', NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-off-pdm', 'Offering', 'IT00S321', 'PDM/PLM Author Service', 'Authoring of product master data and lifecycle records, charged via UM by author headcount', 'lob-cit', 'p-brenner', 60.0, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-off-erp', 'Offering', 'IT00S412', 'SAP Maintenance & Licenses Service', 'Centralised SAP keep-the-lights-on coverage charged per active user across legal entities', 'lob-cit', 'p-brenner', 75.0, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-off-coll', 'Offering', 'IT00S556', 'Collaboration Suite Service', 'Microsoft 365 + collaboration tooling charged per active mailbox', 'lob-cit', 'p-keller', 90.0, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-cloud-pf', 'InternalService', 'ITF13001', 'Cloud Platform Service', 'Internal cloud platform that hosts other services; cost distributes across consumers', 'lob-cit', 'p-fischer', 0.0, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-iam-pf', 'InternalService', 'ITF13002', 'IAM Platform Service', 'Internal IAM that other services consume - cost distributes across consumers', 'lob-cit', 'p-keller', 0.0, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-monitor', 'InternalService', 'ITF13003', 'Observability & Monitoring Service', 'Cross-cutting observability tooling; small To-Business share, mostly distributed inward', 'lob-cit', 'p-fischer', 10.0, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-data-pf', 'InternalService', 'ITF13004', 'Data Platform Service', 'Shared data lakehouse; partial To-Business share, partial inward distribution', 'lob-dnd', 'p-wolf', 25.0, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ce-svc-helpdesk', 'InternalService', 'ITF13005', 'Service Desk', 'Tier-1 helpdesk charged across legal entities by ticket volume', 'lob-cit', 'p-keller', 80.0, NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+
+-- F2.b — Stage 1 distribution edges for the demo year (forecast version).
+-- Includes one multi-step path: Cloud Platform -> Data Platform -> PDM Offering
+-- so the upstream-chain feature has data to drill into per [F-RV-04].
+INSERT INTO distributions (year, version, source_entity_id, destination_entity_id, percentage, created_at, modified_at) VALUES
+(2026, 'forecast', 'ce-svc-cloud-pf', 'ce-off-pdm', 35.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'ce-svc-cloud-pf', 'ce-off-erp', 25.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'ce-svc-cloud-pf', 'ce-off-coll', 15.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'ce-svc-cloud-pf', 'ce-svc-data-pf', 20.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'ce-svc-iam-pf', 'ce-off-erp', 30.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'ce-svc-iam-pf', 'ce-off-coll', 40.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'ce-svc-iam-pf', 'ce-svc-helpdesk', 20.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'ce-svc-monitor', 'ce-off-erp', 25.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'ce-svc-monitor', 'ce-off-pdm', 20.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'ce-svc-monitor', 'ce-svc-data-pf', 35.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'ce-svc-data-pf', 'ce-off-pdm', 30.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'ce-svc-data-pf', 'ce-off-erp', 15.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+
+-- F2.c — Backfill allocations.chargeable_entity_id from project_id.
+-- Any existing Person x Project x Month allocation now also points at the
+-- ChargeableEntity row created above. Idempotent (only updates rows where
+-- the column is NULL). v4-shape callers continue to use project_id; F-cluster
+-- code paths use chargeable_entity_id as the canonical reference.
+UPDATE allocations
+SET chargeable_entity_id = (
+    SELECT ce.id FROM chargeable_entities ce
+    WHERE ce.project_id = allocations.project_id
+      AND ce.entity_type = 'Project'
+    LIMIT 1
+)
+WHERE chargeable_entity_id IS NULL;
+
