@@ -1173,3 +1173,25 @@ export const adminD3Api = {
 };
 // === End Admin (D3) ===
 
+// ---------------------------------------------------------------------------
+// === Tech Navigator (A7) ===
+// Backend: backend/routers/tech_navigator.py [A-TN-01..A-TN-09].
+// ---------------------------------------------------------------------------
+
+import type {
+  TechNavigatorProfile,
+  TechNavigatorUpdate,
+} from '@/types/techNavigator';
+
+export const techNavigatorApi = {
+  /** Read the full Tech Navigator profile + active admin weights snapshot. */
+  get: (projectId: string) =>
+    api.get<TechNavigatorProfile>(`/api/projects/${projectId}/tech-navigator`),
+
+  /** Partial update. Returns the full recomputed profile. */
+  update: (projectId: string, body: TechNavigatorUpdate) =>
+    api.put<TechNavigatorProfile>(
+      `/api/projects/${projectId}/tech-navigator`,
+      body,
+    ),
+};
