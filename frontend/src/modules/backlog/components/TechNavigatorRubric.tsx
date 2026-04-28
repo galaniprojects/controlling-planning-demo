@@ -71,9 +71,9 @@ function weightedAverage(
   weights: number[],
 ): number | null {
   if (values.some((v) => v === null || v === undefined)) return null;
-  const totalWeight = weights.reduce((s, w) => s + w, 0);
+  const totalWeight = weights.reduce<number>((s, w) => s + w, 0);
   if (totalWeight <= 0) return null;
-  const weighted = values.reduce(
+  const weighted = values.reduce<number>(
     (s, v, i) => s + (v as number) * weights[i],
     0,
   );
@@ -278,7 +278,7 @@ export function TechNavigatorRubric({ projectId, readOnly = false }: Props) {
           null
         }
         weightFor={(rubric) =>
-          (w.complexity as Record<string, number>)[rubric.weightKey] ?? 0
+          (w.complexity as unknown as Record<string, number>)[rubric.weightKey] ?? 0
         }
         onChange={(field, v) =>
           updateField(field as keyof TechNavigatorUpdate, v)
@@ -295,7 +295,7 @@ export function TechNavigatorRubric({ projectId, readOnly = false }: Props) {
           null
         }
         weightFor={(rubric) =>
-          (w.value_creation as Record<string, number>)[rubric.weightKey] ?? 0
+          (w.value_creation as unknown as Record<string, number>)[rubric.weightKey] ?? 0
         }
         onChange={(field, v) =>
           updateField(field as keyof TechNavigatorUpdate, v)
