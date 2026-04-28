@@ -5,6 +5,95 @@ Phase: v5 Cluster A/D — Three sessions merged in parallel onto `main` (D1 → 
 Last completed: Sessions D1 (admin entities + Cluster F master data), D2 (workflow templates + audit query/export), and A3 (ranking engine + cutoff line backend). All three implemented in parallel agent-team worktrees, verified independently green, merged onto `main` in order with conflicts resolved on `main.py`, `models/__init__.py`, `seed.sql`, `routers/admin.py` (audit category tagging for D1's new endpoints), and PROGRESS.md.
 Next: A5 (Intake workflow + backlog integration) — depends on A2 + A3, both now merged.
 
+## v5 Session A7: Frontend — Tech Navigator scoring rubric UI (2026-04-28)
+
+### Feature Overview
+Self-contained, reusable Tech Navigator scoring rubric component (`TechNavigatorRubric`) implementing the full Scores & Ranking experience for the Backlog project detail view. Ships with a minimal scaffold harness page (`BacklogDetailStub`) at `/backlog-detail-stub/:projectId` so the rubric can be visually verified inside a representative 4-tab project-detail layout. **A6 (Backlog frontend) will replace the stub with the real detail view** when it lands; A7 ships rubric + harness only — full backlog list / cube view comes in A6.
+
+### Spec references implemented
+- `[A-TN-01]` Tech Navigator profile applies to all projects (frontend reads/writes via the A1 backend API for any project).
+- `[A-TN-02]` Counterintuitive Complexity convention preserved — explicit "higher = simpler / better" sublabel on the Complexity score tile.
+- `[A-TN-03]` Complexity sub-criteria with weights: Standardization 40 %, Usage 40 %, Maintenance and support 20 %.
+- `[A-TN-04]` Value Creation sub-criteria with weights: Financial benefit 50 %, Payback 40 %, Competitive advantage 10 %.
+- `[A-TN-05]` Two reserved Value Creation slots not surfaced — explicit dashed-border note pointing to the (future) admin Tech Navigator weights editor.
+- `[A-TN-06]` Active weights displayed read-only in the rubric footer with note pointing to the admin module — weights themselves are admin-configurable globally (not per LoB).
+- `[A-TN-07]` Transformation level (T0/T1/T2) selector with descriptions ("just better", "paper to software", "new business").
+- `[A-TN-08]` Project Type (1/2/3) selector with ring-colour preview and per-type description, including the "Type 3 exempt from cutoff" note.
+- `[A-TN-09]` Budget t-shirt size displayed (read-only — derived server-side from `total_budget` against admin thresholds) with the active threshold band as the subline.
+
+### Acceptance criteria — all met
+- ✅ Scoring rubric renders with the correct sub-criteria and 1-5 scales.
+- ✅ Score entry updates the composite score in real time (client-side recompute mirrors backend `services/tech_navigator.py` formulas; debounced (300 ms) PUT to the backend keeps the persisted value authoritative).
+- ✅ Transformation level (T0/T1/T2) and Project Type (1/2/3) selectors work.
+- ✅ Weights displayed correctly from admin config (read from the `weights` snapshot embedded in the GET response).
+
+### Technical Details
+- **New module:** `frontend/src/modules/backlog/` created from scratch — minimal scaffold sufficient to host the rubric. Backlog list / cube view, sidebar nav entry, and full detail view defer to A6.
+- **Components added:**
+  - `frontend/src/types/techNavigator.ts` — TypeScript mirror of `backend/schemas/tech_navigator.py` (TechNavigatorProfile / Update / Weights / TshirtThresholds / etc.).
+  - `frontend/src/modules/backlog/data/rubricLabels.ts` — descriptive rubric label dictionary (6 sub-criteria × 5 levels), Transformation level options, Project Type options.
+  - `frontend/src/modules/backlog/components/ScoreSummaryCard.tsx` — Computed scores card (Complexity / Value Creation / Composite + budget t-shirt + threshold strip + saving / saved indicator).
+  - `frontend/src/modules/backlog/components/RubricSubCriterionRow.tsx` — Reusable single sub-criterion picker (1-5 buttons, hover-preview description, Clear affordance, weight badge).
+  - `frontend/src/modules/backlog/components/TechNavigatorRubric.tsx` — Main rubric. Owns local state, optimistic updates, debounced autosave (300 ms), client-side composite recompute. Exposes `projectId` and `readOnly` props.
+  - `frontend/src/modules/backlog/BacklogDetailStub.tsx` — 4-tab harness page (Scores & Ranking, Financial Overview, Master Data, Milestones). Only Scores & Ranking has full content; the other three render placeholder tiles.
+- **Append-only edits** (clearly marked `// === Tech Navigator (A7) ===` so the D3 frontend rebase is mechanical):
+  - `frontend/src/api/endpoints.ts` — appended `techNavigatorApi` block with `get(projectId)` and `update(projectId, body)`.
+  - `frontend/src/lib/routes.ts` — appended `'/backlog-detail-stub'` label entry.
+  - `frontend/src/App.tsx` — added `<Route path="/backlog-detail-stub/:projectId" element={<BacklogDetailStub />} />`.
+- **No sidebar / nav additions** — per team-lead guidance the Backlog top-level nav entry lands in A6.
+
+### API consumed (A1 backend)
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/projects/{id}/tech-navigator` | Read full profile + active weights snapshot |
+| PUT | `/api/projects/{id}/tech-navigator` | Partial update — returns recomputed profile |
+
+No new backend endpoints; A7 is pure frontend.
+
+### Real-time scoring strategy
+1. On mount, fetch the full profile (raw sub-criteria + computed scores + active admin weights) once.
+2. Every click on a sub-criterion / Type / Transformation level button optimistically updates local state.
+3. Computed scores (Complexity, Value Creation, Composite) are derived locally on every render using the same weighted-average formulas as `backend/services/tech_navigator.py` — verified by hand-calc during visual verification (5 / 4 / 3 → Complexity 4,20; 5 / 4 / 4 → Value 4,50; 70/30 → Composite 4,41).
+4. A pending update body accumulates in a ref; a 300 ms debounce timer schedules a single PUT carrying the merged patch.
+5. On PUT response, the authoritative server profile replaces local state (handles weight updates and rounding edge cases).
+6. UI shows "Saving…" while a PUT is in flight and a "Saved" flash for 1.5 s after success.
+
+### Verification (visual, real Playwright)
+Verified at 1440 × 900 viewport against the running backend at `localhost:8000` and the Vite worktree dev server at `localhost:5175`:
+1. **Initial empty profile** — clean, all "—" placeholders, all sub-criterion rows in their default state. Light mode rendered correctly.
+2. **Scored — light mode** — clicked Standardization=5, Usage=4, Maintenance=3 → Complexity tile displayed `4,20 / 5`. Clicked Financial=5, Payback=4, Competitive=4 → Value Creation displayed `4,50 / 5`. Composite (70 % value · 30 % complexity) displayed `4,41 / 5`. Project Type 1 + Transformation T1 selected. "Saved" indicator visible.
+3. **Scored — dark mode** — toggled `dark` theme; all semantic Tailwind tokens render correctly (no hardcoded `bg-white`, `text-slate-700`, etc.); status / scale colours all carry `dark:` variants per CLAUDE.md.
+4. **Partial-profile edge case** — cleared Payback; Complexity stayed at `4,20 / 5`; Value Creation and Composite collapsed to `—` (matches `[A-PRI-01]` "partial profiles do not contribute to the ranking").
+
+Screenshots saved to `/tmp/a7-screens/0{1..4}-*.png` during the verification run.
+
+### Working assumptions / Ambiguities (flagged for KB confirmation)
+- **Intermediate rubric labels (levels 2 / 3 / 4) are placeholders.** The spec only ships endpoint definitions for level 1 and level 5 ("Intermediate values of each sub-criterion are defined in the KB Tech Navigator reference slides and should be mirrored in the CRETA rubric UI"). A7 hard-codes a sensible interpolation in `frontend/src/modules/backlog/data/rubricLabels.ts` so the UI is verifiable today; the long-term home of these labels is the admin Tech Navigator rubric matrix editor (`[D-CAT-04]`), which lands in a future Cluster D session. Once that admin surface ships, the dictionary should be replaced with a fetch.
+- **Read-only mode in the stub harness** is driven only by current role (controller / project_lead → editable; executive / cc_owner → read-only). The backend's stricter PL-ownership check (`pl_person_id == user.person_id`) is enforced server-side; in the stub harness we do not pre-disable controls for non-owning PLs because the harness is for visual verification only. A6 will refine this by passing the host project's `pl_person_id` to the rubric.
+- **Stub harness layout** mimics the planned 4-tab detail view but is intentionally minimal. The 3 non-Scores tabs render placeholder tiles. A6's real detail view will replace the stub.
+
+### Refactoring opportunities (noted, not acted on)
+- The local recompute helpers in `TechNavigatorRubric.tsx` duplicate the backend's weighted-average / composite logic verbatim. Once a6 is built, consider extracting these into a shared `lib/techNavigator.ts` so other call sites (e.g. cube view bubble sizing, scenario diffs) can reuse them.
+- The hard-coded rubric label dictionary will move to a fetched admin-config endpoint when `[D-CAT-04]` lands. At that point, `data/rubricLabels.ts` becomes a fallback.
+
+### File ownership respected
+- **Owned (created):** `frontend/src/modules/backlog/**`, `frontend/src/types/techNavigator.ts`.
+- **Append-only (clearly-marked A7 sections so D3 rebase is mechanical):** `frontend/src/api/endpoints.ts`, `frontend/src/lib/routes.ts`, `frontend/src/App.tsx`.
+- **Untouched** (per team-lead instruction): `frontend/src/modules/admin/**`, all other module folders, sidebar / nav configuration.
+
+### Verification (build)
+- `npx tsc -b` — no errors in any A7 file (4 strict-TS errors in the initial revision were fixed: explicit `reduce<number>` generics on `weightedAverage` and `as unknown as Record<string, number>` for the dynamic weight lookup).
+- 78 pre-existing TS errors elsewhere on `main` HEAD (`SubmissionDiffView.tsx`, `ProjectTimelineChart.tsx`) are unchanged by A7.
+
+### Stop point
+Branch `v5/cluster-a/a7-tech-navigator-ui` carries 8 atomic commits and is ready for review. **No PR has been created** (per team-lead instruction). Awaiting team-lead direction on merge order with D3 (D3 merges first; A7 rebases on D3).
+
+### Next session readiness
+- A6 (Backlog frontend) will integrate `TechNavigatorRubric` directly into its real detail-view "Scores & Ranking" tab and remove the `BacklogDetailStub` stub page + `/backlog-detail-stub/:projectId` route.
+- A8 (Pipeline stage UI) can reuse `data/rubricLabels.ts` for any rubric strings it needs.
+
+---
+
 ## v5 Session D1: Admin Entities + CRUD (incl. Cluster F master data) Backend (2026-04-28)
 
 ### Feature Overview
