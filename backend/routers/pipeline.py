@@ -266,6 +266,7 @@ def transition_pipeline(
             field_changed="pipeline_stage",
             old_value=str(old_stage) if old_stage is not None else None,
             new_value=str(project.pipeline_stage),
+            category="pipeline_transitions",
         )
     if old_doi != project.doi:
         _log_audit(
@@ -277,6 +278,7 @@ def transition_pipeline(
             field_changed="doi",
             old_value=str(old_doi) if old_doi is not None else None,
             new_value=str(project.doi) if project.doi is not None else None,
+            category="pipeline_transitions",
         )
     if old_frozen != project.frozen_doi:
         _log_audit(
@@ -288,6 +290,7 @@ def transition_pipeline(
             field_changed="frozen_doi",
             old_value=str(old_frozen) if old_frozen is not None else None,
             new_value=str(project.frozen_doi) if project.frozen_doi is not None else None,
+            category="pipeline_transitions",
         )
 
     if body.override_reason:
@@ -300,6 +303,7 @@ def transition_pipeline(
             field_changed="pipeline_stage",
             old_value=str(old_stage) if old_stage is not None else None,
             new_value=f"{project.pipeline_stage} (reason: {body.override_reason})",
+            category="pipeline_transitions",
         )
 
     db.commit()
@@ -348,6 +352,7 @@ def set_ai_council(
             field_changed="ai_council_approved",
             old_value=str(old_flag),
             new_value=str(body.ai_council_approved),
+            category="pipeline_transitions",
         )
     if old_url != body.ai_council_doc_url:
         project.ai_council_doc_url = body.ai_council_doc_url
@@ -360,6 +365,7 @@ def set_ai_council(
             field_changed="ai_council_doc_url",
             old_value=old_url,
             new_value=body.ai_council_doc_url,
+            category="pipeline_transitions",
         )
 
     db.commit()
@@ -408,6 +414,7 @@ def set_within_cutoff(
             field_changed="within_cutoff",
             old_value=str(old_value) if old_value is not None else None,
             new_value=new_value_label,
+            category="pipeline_transitions",
         )
 
     db.commit()

@@ -154,6 +154,7 @@ def update_tech_navigator(
             field_changed=field_name,
             old_value=str(old_value) if old_value is not None else None,
             new_value=str(new_value) if new_value is not None else None,
+            category="master_data",
         )
 
     weights = load_weights(db)

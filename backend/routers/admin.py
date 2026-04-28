@@ -59,7 +59,15 @@ def _log_audit(
     field_changed: str | None = None,
     old_value: str | None = None,
     new_value: str | None = None,
+    *,
+    category: str,
 ) -> None:
+    """Write an entry to the audit log.
+
+    ``category`` is required (keyword-only) per Session D2 — the 8 categories
+    are defined in ``models.system.AUDIT_CATEGORIES`` and surface in the audit
+    log filter UI per spec line ~1849.
+    """
     entry = AuditLog(
         user_person_id=user.person_id,
         entity_type=entity_type,
@@ -69,6 +77,7 @@ def _log_audit(
         field_changed=field_changed,
         old_value=old_value,
         new_value=new_value,
+        category=category,
     )
     db.add(entry)
 
@@ -91,7 +100,7 @@ def create_cost_center(
         competence_center_id=body.competence_center_id,
     )
     db.add(cc)
-    _log_audit(db, user, "cost_center", cc.id, cc.name, "create")
+    _log_audit(db, user, "cost_center", cc.id, cc.name, "create", category="master_data")
     db.commit()
     db.refresh(cc)
     return {"id": cc.id, "name": cc.name, "is_active": cc.is_active}
@@ -109,13 +118,13 @@ def update_cost_center(
     if not cc:
         raise HTTPException(404, "Cost center not found")
     if body.name is not None:
-        _log_audit(db, user, "cost_center", cc.id, cc.name, "update", "name", cc.name, body.name)
+        _log_audit(db, user, "cost_center", cc.id, cc.name, "update", "name", cc.name, body.name, category="master_data")
         cc.name = body.name
     if body.location_id is not None:
-        _log_audit(db, user, "cost_center", cc.id, cc.name, "update", "location_id", cc.location_id, body.location_id)
+        _log_audit(db, user, "cost_center", cc.id, cc.name, "update", "location_id", cc.location_id, body.location_id, category="master_data")
         cc.location_id = body.location_id
     if body.competence_center_id is not None:
-        _log_audit(db, user, "cost_center", cc.id, cc.name, "update", "competence_center_id", cc.competence_center_id, body.competence_center_id)
+        _log_audit(db, user, "cost_center", cc.id, cc.name, "update", "competence_center_id", cc.competence_center_id, body.competence_center_id, category="master_data")
         cc.competence_center_id = body.competence_center_id
     db.commit()
     db.refresh(cc)
@@ -132,7 +141,7 @@ def deactivate_cost_center(
     cc = db.query(CostCenter).filter(CostCenter.id == cost_center_id).first()
     if not cc:
         raise HTTPException(404, "Cost center not found")
-    _log_audit(db, user, "cost_center", cc.id, cc.name, "deactivate")
+    _log_audit(db, user, "cost_center", cc.id, cc.name, "deactivate", category="master_data")
     cc.is_active = False
     db.commit()
     db.refresh(cc)
@@ -152,7 +161,7 @@ def create_competence_center(
     """Create a new competence center."""
     cc = CompetenceCenter(id=_gen_id("comp"), name=body.name)
     db.add(cc)
-    _log_audit(db, user, "competence_center", cc.id, cc.name, "create")
+    _log_audit(db, user, "competence_center", cc.id, cc.name, "create", category="master_data")
     db.commit()
     db.refresh(cc)
     return {"id": cc.id, "name": cc.name, "is_active": cc.is_active}
@@ -170,7 +179,7 @@ def update_competence_center(
     if not cc:
         raise HTTPException(404, "Competence center not found")
     if body.name is not None:
-        _log_audit(db, user, "competence_center", cc.id, cc.name, "update", "name", cc.name, body.name)
+        _log_audit(db, user, "competence_center", cc.id, cc.name, "update", "name", cc.name, body.name, category="master_data")
         cc.name = body.name
     db.commit()
     db.refresh(cc)
@@ -222,7 +231,7 @@ def assign_person_to_competence_center(
         raise HTTPException(404, "Person not found")
     old_cc_id = person.competence_center_id
     person.competence_center_id = competence_center_id
-    _log_audit(db, user, "person", person.id, person.name, "update", "competence_center_id", old_cc_id, competence_center_id)
+    _log_audit(db, user, "person", person.id, person.name, "update", "competence_center_id", old_cc_id, competence_center_id, category="master_data")
     db.commit()
     return {"status": "ok", "person_id": person.id, "competence_center_id": competence_center_id}
 
@@ -240,7 +249,7 @@ def unassign_person_from_competence_center(
         raise HTTPException(404, "Person not found")
     if person.competence_center_id != competence_center_id:
         raise HTTPException(400, "Person is not assigned to this competence center")
-    _log_audit(db, user, "person", person.id, person.name, "update", "competence_center_id", competence_center_id, None)
+    _log_audit(db, user, "person", person.id, person.name, "update", "competence_center_id", competence_center_id, None, category="master_data")
     person.competence_center_id = None
     db.commit()
     return {"status": "ok", "person_id": person.id}
@@ -263,7 +272,7 @@ def create_lob(
         raise HTTPException(400, "No active hierarchy configured")
     entity = GroupingEntity(id=_gen_id("lob"), name=body.name, entity_type_id=top_type)
     db.add(entity)
-    _log_audit(db, user, "lob", entity.id, entity.name, "create")
+    _log_audit(db, user, "lob", entity.id, entity.name, "create", category="hierarchy")
     db.commit()
     db.refresh(entity)
     return {"id": entity.id, "name": entity.name, "is_active": entity.is_active}
@@ -281,7 +290,7 @@ def update_lob(
     if not entity:
         raise HTTPException(404, "Entity not found")
     if body.name is not None:
-        _log_audit(db, user, "lob", entity.id, entity.name, "update", "name", entity.name, body.name)
+        _log_audit(db, user, "lob", entity.id, entity.name, "update", "name", entity.name, body.name, category="hierarchy")
         entity.name = body.name
     db.commit()
     db.refresh(entity)
@@ -346,7 +355,7 @@ def assign_project_to_lob(
     # Create new assignment
     new_assignment = ProjectGroupingAssignment(project_id=project_id, grouping_entity_id=lob_id)
     db.add(new_assignment)
-    _log_audit(db, user, "project", project.id, project.name, "update", "entity_id", old_entity_id, lob_id)
+    _log_audit(db, user, "project", project.id, project.name, "update", "entity_id", old_entity_id, lob_id, category="hierarchy")
     db.commit()
     return {"status": "ok", "project_id": project.id, "lob_id": lob_id, "old_lob_name": old_entity_name}
 
@@ -364,7 +373,7 @@ def create_location(
     """Create a new location."""
     loc = Location(id=_gen_id("loc"), city=body.city, country=body.country)
     db.add(loc)
-    _log_audit(db, user, "location", loc.id, f"{loc.city}, {loc.country}", "create")
+    _log_audit(db, user, "location", loc.id, f"{loc.city}, {loc.country}", "create", category="master_data")
     db.commit()
     db.refresh(loc)
     return {"id": loc.id, "city": loc.city, "country": loc.country, "is_active": loc.is_active}
@@ -382,7 +391,7 @@ def update_location(
     if not loc:
         raise HTTPException(404, "Location not found")
     if body.city is not None:
-        _log_audit(db, user, "location", loc.id, f"{loc.city}, {loc.country}", "update", "city", loc.city, body.city)
+        _log_audit(db, user, "location", loc.id, f"{loc.city}, {loc.country}", "update", "city", loc.city, body.city, category="master_data")
         loc.city = body.city
     if body.country is not None:
         loc.country = body.country
@@ -410,7 +419,7 @@ def create_person(
         competence_center_id=body.competence_center_id,
     )
     db.add(person)
-    _log_audit(db, user, "person", person.id, person.name, "create")
+    _log_audit(db, user, "person", person.id, person.name, "create", category="master_data")
     db.commit()
     db.refresh(person)
     return {"id": person.id, "name": person.name, "is_active": person.is_active}
@@ -428,15 +437,15 @@ def update_person(
     if not person:
         raise HTTPException(404, "Person not found")
     if body.name is not None:
-        _log_audit(db, user, "person", person.id, person.name, "update", "name", person.name, body.name)
+        _log_audit(db, user, "person", person.id, person.name, "update", "name", person.name, body.name, category="master_data")
         person.name = body.name
     if body.role_type_id is not None:
-        _log_audit(db, user, "person", person.id, person.name, "update", "role_type_id", person.role_type_id, body.role_type_id)
+        _log_audit(db, user, "person", person.id, person.name, "update", "role_type_id", person.role_type_id, body.role_type_id, category="master_data")
         person.role_type_id = body.role_type_id
     if body.cost_center_id is not None:
         person.cost_center_id = body.cost_center_id
     if body.competence_center_id is not None:
-        _log_audit(db, user, "person", person.id, person.name, "update", "competence_center_id", person.competence_center_id, body.competence_center_id)
+        _log_audit(db, user, "person", person.id, person.name, "update", "competence_center_id", person.competence_center_id, body.competence_center_id, category="master_data")
         person.competence_center_id = body.competence_center_id
     db.commit()
     db.refresh(person)
@@ -453,7 +462,7 @@ def deactivate_person(
     person = db.query(Person).filter(Person.id == person_id).first()
     if not person:
         raise HTTPException(404, "Person not found")
-    _log_audit(db, user, "person", person.id, person.name, "deactivate")
+    _log_audit(db, user, "person", person.id, person.name, "deactivate", category="master_data")
     person.is_active = False
     db.commit()
     db.refresh(person)
@@ -515,6 +524,7 @@ def update_rates(
             db, user, "rate_table", f"{rate.role_type_id}/{rate.competence_center_id}",
             f"{rate.role_type.name} @ {rate.competence_center.name}",
             "update", "hourly_rate", str(old_rate), str(change.new_rate),
+            category="master_data",
         )
         updated.append({
             "role_type_id": rate.role_type_id,
@@ -574,7 +584,7 @@ def update_parameters(
             raise HTTPException(404, f"Parameter not found: {change.key}")
         old_value = param.current_value
         param.current_value = change.new_value
-        _log_audit(db, user, "planning_parameter", param.key, param.name, "update", "current_value", old_value, change.new_value)
+        _log_audit(db, user, "planning_parameter", param.key, param.name, "update", "current_value", old_value, change.new_value, category="configuration")
         updated.append({"key": param.key, "name": param.name, "current_value": param.current_value})
         if param.key.startswith("tn_"):
             tn_changed = True
@@ -601,7 +611,7 @@ def reset_parameters(
     tn_changed = False
     for param in params:
         if param.current_value != param.default_value:
-            _log_audit(db, user, "planning_parameter", param.key, param.name, "update", "current_value", param.current_value, param.default_value)
+            _log_audit(db, user, "planning_parameter", param.key, param.name, "update", "current_value", param.current_value, param.default_value, category="configuration")
             param.current_value = param.default_value
             if param.key.startswith("tn_"):
                 tn_changed = True
@@ -655,7 +665,7 @@ def create_entity_type(
     """Create a new grouping entity type."""
     et = GroupingEntityType(id=_gen_id("get"), name=body["name"])
     db.add(et)
-    _log_audit(db, user, "grouping_entity_type", et.id, et.name, "create")
+    _log_audit(db, user, "grouping_entity_type", et.id, et.name, "create", category="hierarchy")
     db.commit()
     db.refresh(et)
     return {"id": et.id, "name": et.name, "is_active": et.is_active}
@@ -673,7 +683,7 @@ def update_entity_type(
     if not et:
         raise HTTPException(404, "Entity type not found")
     if "name" in body:
-        _log_audit(db, user, "grouping_entity_type", et.id, et.name, "update", "name", et.name, body["name"])
+        _log_audit(db, user, "grouping_entity_type", et.id, et.name, "update", "name", et.name, body["name"], category="hierarchy")
         et.name = body["name"]
     db.commit()
     db.refresh(et)
@@ -722,7 +732,7 @@ def create_grouping_entity(
         parent_entity_id=body.get("parent_entity_id"),
     )
     db.add(ge)
-    _log_audit(db, user, "grouping_entity", ge.id, ge.name, "create")
+    _log_audit(db, user, "grouping_entity", ge.id, ge.name, "create", category="hierarchy")
     db.commit()
     db.refresh(ge)
     return {"id": ge.id, "name": ge.name, "entity_type_id": ge.entity_type_id, "is_active": ge.is_active}
@@ -740,7 +750,7 @@ def update_grouping_entity(
     if not ge:
         raise HTTPException(404, "Entity not found")
     if "name" in body:
-        _log_audit(db, user, "grouping_entity", ge.id, ge.name, "update", "name", ge.name, body["name"])
+        _log_audit(db, user, "grouping_entity", ge.id, ge.name, "update", "name", ge.name, body["name"], category="hierarchy")
         ge.name = body["name"]
     if "parent_entity_id" in body:
         ge.parent_entity_id = body["parent_entity_id"]
@@ -784,7 +794,7 @@ def create_hierarchy(
     for i, et_id in enumerate(body.get("levels", [])):
         lvl = GroupingHierarchyLevel(hierarchy_id=h.id, level_order=i, entity_type_id=et_id)
         db.add(lvl)
-    _log_audit(db, user, "grouping_hierarchy", h.id, h.name, "create")
+    _log_audit(db, user, "grouping_hierarchy", h.id, h.name, "create", category="hierarchy")
     db.commit()
     db.refresh(h)
     return {"id": h.id, "name": h.name, "is_active_hierarchy": h.is_active_hierarchy}
@@ -808,7 +818,7 @@ def update_hierarchy(
         for i, et_id in enumerate(body["levels"]):
             lvl = GroupingHierarchyLevel(hierarchy_id=h.id, level_order=i, entity_type_id=et_id)
             db.add(lvl)
-    _log_audit(db, user, "grouping_hierarchy", h.id, h.name, "update")
+    _log_audit(db, user, "grouping_hierarchy", h.id, h.name, "update", category="hierarchy")
     db.commit()
     db.refresh(h)
     return {"id": h.id, "name": h.name, "is_active_hierarchy": h.is_active_hierarchy}
@@ -827,7 +837,7 @@ def activate_hierarchy(
     # Deactivate all
     db.query(GroupingHierarchy).update({GroupingHierarchy.is_active_hierarchy: False})
     h.is_active_hierarchy = True
-    _log_audit(db, user, "grouping_hierarchy", h.id, h.name, "activate")
+    _log_audit(db, user, "grouping_hierarchy", h.id, h.name, "activate", category="hierarchy")
     db.commit()
     return {"id": h.id, "name": h.name, "is_active_hierarchy": True}
 
@@ -925,7 +935,7 @@ def set_entity_parent(
     old_parent = entity.parent_entity_id
     new_parent = body.get("parent_entity_id")
     entity.parent_entity_id = new_parent
-    _log_audit(db, user, "grouping_entity", entity.id, entity.name, "update", "parent_entity_id", old_parent, new_parent)
+    _log_audit(db, user, "grouping_entity", entity.id, entity.name, "update", "parent_entity_id", old_parent, new_parent, category="hierarchy")
     db.commit()
     db.refresh(entity)
     return {"id": entity.id, "name": entity.name, "parent_entity_id": entity.parent_entity_id}
@@ -946,7 +956,7 @@ def assign_project_to_entity(
     ).delete()
     assignment = ProjectGroupingAssignment(project_id=project_id, grouping_entity_id=entity_id)
     db.add(assignment)
-    _log_audit(db, user, "project_grouping", project_id, None, "assign", "grouping_entity_id", None, entity_id)
+    _log_audit(db, user, "project_grouping", project_id, None, "assign", "grouping_entity_id", None, entity_id, category="hierarchy")
     db.commit()
     return {"status": "ok", "project_id": project_id, "grouping_entity_id": entity_id}
 
@@ -963,7 +973,7 @@ def unassign_project_from_entity(
     ).delete()
     if not deleted:
         raise HTTPException(404, "Assignment not found")
-    _log_audit(db, user, "project_grouping", project_id, None, "unassign")
+    _log_audit(db, user, "project_grouping", project_id, None, "unassign", category="hierarchy")
     db.commit()
     return {"status": "ok", "project_id": project_id}
 
