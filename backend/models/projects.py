@@ -132,3 +132,47 @@ class ProjectMilestone(Base):
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="milestones")
     milestone_type: Mapped[Optional["MilestoneType"]] = relationship()
+
+
+class ProjectDependency(Base):
+    """Inter-project dependency edge per [D-AC-05].
+
+    Soft constraint only — the graph is presented as a warning surface (cycle
+    detection per [D-AC-08] flags problems on save) but does not block
+    transitions or scheduling. Lag/lead is optional and stored in days. The
+    ``dependency_type`` column carries values from the catalogue described in
+    [D-CAT-03] (finish-to-start / start-to-start / finish-to-finish /
+    start-to-finish); the catalogue itself is admin-managed and lives in a
+    follow-on session — for D1 we accept any string and let the admin UI
+    constrain it.
+    """
+
+    __tablename__ = "project_dependencies"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    predecessor_project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id"), nullable=False,
+    )
+    successor_project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id"), nullable=False,
+    )
+    dependency_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    # finish_to_start, start_to_start, finish_to_finish, start_to_finish
+    lag_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    modified_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow,
+    )
+    created_by_person_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("people.id"), nullable=True,
+    )
+
+    # Relationships — disambiguated by foreign-key list because both FKs point
+    # at ``projects.id``.
+    predecessor: Mapped["Project"] = relationship(
+        foreign_keys="ProjectDependency.predecessor_project_id",
+    )
+    successor: Mapped["Project"] = relationship(
+        foreign_keys="ProjectDependency.successor_project_id",
+    )
