@@ -1085,28 +1085,25 @@ export interface WorkflowTemplateSummary {
 }
 export interface WorkflowStepActionItem {
   id: number;
-  step_id: number;
-  action_key: string;
+  action_order: number;
+  action_type: string;
   label: string;
-  description: string | null;
-  ordering: number;
+  config: Record<string, unknown> | null;
 }
 export interface WorkflowStepItem {
   id: number;
-  template_id: number;
-  ordering: number;
-  step_key: string;
+  step_order: number;
   name: string;
   description: string | null;
   step_type: string;
   required: boolean;
   skippable: boolean;
-  participant_role: string | null;
-  data_gates: string[];
-  notifications: string[];
+  assigned_role: string | null;
+  data_gates: string[] | null;
+  notifications: Record<string, string[]> | null;
   time_constraint_days: number | null;
   escalation_action: string | null;
-  is_active: boolean;
+  is_active?: boolean;
   actions: WorkflowStepActionItem[];
 }
 export interface WorkflowTemplateDetail extends WorkflowTemplateSummary {

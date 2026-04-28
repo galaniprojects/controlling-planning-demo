@@ -35,24 +35,22 @@ const ESCALATION_OPTIONS = [
 interface StepEditState {
   required: boolean;
   skippable: boolean;
-  participant_role: string;
+  assigned_role: string;
   data_gates: string;
   notifications: string;
   time_constraint_days: string;
   escalation_action: string;
-  is_active: boolean;
 }
 
 function stepToEdit(s: WorkflowStepItem): StepEditState {
   return {
     required: s.required,
     skippable: s.skippable,
-    participant_role: s.participant_role ?? '',
+    assigned_role: s.assigned_role ?? '',
     data_gates: (s.data_gates ?? []).join(', '),
-    notifications: (s.notifications ?? []).join(', '),
+    notifications: s.notifications ? JSON.stringify(s.notifications) : '',
     time_constraint_days: s.time_constraint_days != null ? String(s.time_constraint_days) : '',
     escalation_action: s.escalation_action ?? '',
-    is_active: s.is_active,
   };
 }
 
@@ -117,16 +115,23 @@ export function WorkflowTemplateEditor() {
     setFeedback(null);
     try {
       const dataGates = e.data_gates.split(',').map((s) => s.trim()).filter(Boolean);
-      const notifications = e.notifications.split(',').map((s) => s.trim()).filter(Boolean);
+      let notifications: Record<string, string[]> | null = null;
+      if (e.notifications.trim()) {
+        try {
+          const parsed = JSON.parse(e.notifications);
+          if (parsed && typeof parsed === 'object') notifications = parsed;
+        } catch {
+          throw new Error('Notifications must be valid JSON object, e.g. {"on_start": ["controller"]}');
+        }
+      }
       await adminD3Api.updateWorkflowStep(detail.key, step.id, {
         required: e.required,
         skippable: e.skippable,
-        participant_role: e.participant_role || null,
+        assigned_role: e.assigned_role || null,
         data_gates: dataGates,
         notifications,
         time_constraint_days: e.time_constraint_days.trim() ? Number(e.time_constraint_days.trim()) : null,
         escalation_action: e.escalation_action || null,
-        is_active: e.is_active,
       });
       setFeedback(`Saved step "${step.name}"`);
       fetchDetail(detail.key);
@@ -232,18 +237,17 @@ export function WorkflowTemplateEditor() {
                           <Badge variant="outline" className="text-[10px] px-1 py-0">{step.step_type}</Badge>
                           {!step.required && <Badge variant="outline" className="text-[10px] px-1 py-0">Optional</Badge>}
                           {step.skippable && <Badge variant="outline" className="text-[10px] px-1 py-0">Skippable</Badge>}
-                          {!step.is_active && <Badge variant="outline" className="text-[10px] px-1 py-0">Disabled</Badge>}
                           {dirty && <Badge className="text-[10px] px-1 py-0 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Unsaved</Badge>}
                         </div>
                         {step.description && (
                           <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
                         )}
                         <p className="text-[11px] text-muted-foreground mt-1">
-                          {step.participant_role ?? 'Any role'}
+                          {step.assigned_role ?? 'Any role'}
                           {step.time_constraint_days != null && ` · ${step.time_constraint_days}d window`}
                           {step.escalation_action && ` · ${step.escalation_action}`}
-                          {step.data_gates.length > 0 && ` · ${step.data_gates.length} gate(s)`}
-                          {step.notifications.length > 0 && ` · ${step.notifications.length} notification(s)`}
+                          {(step.data_gates?.length ?? 0) > 0 && ` · ${step.data_gates!.length} gate(s)`}
+                          {step.notifications && Object.keys(step.notifications).length > 0 && ` · ${Object.keys(step.notifications).length} notification trigger(s)`}
                         </p>
                       </div>
                     </div>
@@ -267,19 +271,12 @@ export function WorkflowTemplateEditor() {
                           />
                           Skippable
                         </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={e.is_active}
-                            onCheckedChange={(v) => updateEdit(step.id, { is_active: !!v })}
-                          />
-                          Step active
-                        </label>
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <label className="text-xs text-muted-foreground uppercase tracking-wide">Participant role</label>
-                          <Select value={e.participant_role || 'any'} onValueChange={(v) => updateEdit(step.id, { participant_role: v === 'any' ? '' : v })}>
+                          <label className="text-xs text-muted-foreground uppercase tracking-wide">Assigned role</label>
+                          <Select value={e.assigned_role || 'any'} onValueChange={(v) => updateEdit(step.id, { assigned_role: v === 'any' ? '' : v })}>
                             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="any">Any / Not set</SelectItem>
@@ -312,12 +309,12 @@ export function WorkflowTemplateEditor() {
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs text-muted-foreground uppercase tracking-wide">Notifications (comma-separated channels)</label>
+                        <label className="text-xs text-muted-foreground uppercase tracking-wide">Notifications (JSON object — trigger ➜ recipients)</label>
                         <Input
                           value={e.notifications}
                           onChange={(ev) => updateEdit(step.id, { notifications: ev.target.value })}
-                          placeholder="e.g. email_pl, in_app_controller"
-                          className="h-8 text-sm"
+                          placeholder='e.g. {"on_start": ["all_pls"], "on_overdue": ["controller"]}'
+                          className="h-8 text-sm font-mono"
                         />
                       </div>
 

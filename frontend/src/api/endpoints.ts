@@ -1072,9 +1072,9 @@ export const adminD3Api = {
     data: Partial<{
       required: boolean;
       skippable: boolean;
-      participant_role: string | null;
+      assigned_role: string | null;
       data_gates: string[];
-      notifications: string[];
+      notifications: Record<string, string[]> | null;
       time_constraint_days: number | null;
       escalation_action: string | null;
       is_active: boolean;
