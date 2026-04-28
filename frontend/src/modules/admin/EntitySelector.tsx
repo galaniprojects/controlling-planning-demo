@@ -12,7 +12,6 @@ import {
   Map,
   Coins,
   TableProperties,
-  ShieldCheck,
   GitBranch,
   Workflow,
   Calendar,

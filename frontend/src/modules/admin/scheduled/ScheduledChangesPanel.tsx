@@ -55,15 +55,6 @@ function fmtDate(s: string | null): string {
   }
 }
 
-function fmtDateTime(s: string | null): string {
-  if (!s) return '—';
-  try {
-    return new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return s;
-  }
-}
-
 export function ScheduledChangesPanel() {
   const [items, setItems] = useState<ScheduledChangeItem[]>([]);
   const [loading, setLoading] = useState(true);
