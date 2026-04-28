@@ -324,772 +324,97 @@ def get_dashboard_charts(
 
 
 # ---------------------------------------------------------------------------
-# Intake Queue (5 endpoints)
+# Intake Queue (5 endpoints) — DEPRECATED in v5 [A-PS-13] [A-BK-26]
 # ---------------------------------------------------------------------------
-
-@router.get("/intake")
-def get_intake_queue(
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-):
-    """Get pending project submissions (includes changes_requested)."""
-    query = db.query(Project).filter(
-        Project.status.in_(["pending_approval", "changes_requested"])
-    )
-
-    # PL sees only own submissions
-    if user.role == "project_lead":
-        query = query.filter(Project.pl_person_id == user.person_id)
-
-    projects = query.all()
-    from services.portfolio_service import get_project_entity_info, get_top_level_entity_type_id
-    top_type = get_top_level_entity_type_id(db)
-    items = []
-    for p in projects:
-        entity_info = get_project_entity_info(db, p.id, top_type)
-        lob_name = entity_info["name"] if entity_info else "Unassigned"
-        items.append(IntakeItem(
-            project_id=p.id,
-            name=p.name,
-            submitted_by=p.pl.name if p.pl else None,
-            lob=lob_name,
-            estimated_budget=float(p.total_budget) if p.total_budget else None,
-            submission_date=str(p.created_at) if p.created_at else None,
-            status=p.status,
-        ))
-    return {"items": items, "total": len(items)}
-
-
-@router.get("/intake/{project_id}")
-def get_intake_detail(
-    project_id: str,
-    db: Session = Depends(get_db),
-    _user: CurrentUser = Depends(get_current_user),
-):
-    """Get full detail of a pending submission including resource/cost plans."""
-    from models.people import RoleType
-    from models.financial import ExternalCostType
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(404, "Project not found")
-
-    # Resource plan: internal forecast rows grouped by role
-    internal_rows = (
-        db.query(Forecast.sub_category, Forecast.month, Forecast.hours, Forecast.amount_eur)
-        .filter(Forecast.project_id == project_id, Forecast.category == "internal")
-        .order_by(Forecast.sub_category, Forecast.month)
-        .all()
-    )
-    resource_plan: dict[str, dict] = {}
-    for row in internal_rows:
-        role = db.query(RoleType).filter(RoleType.id == row.sub_category).first()
-        role_name = role.name if role else row.sub_category
-        if row.sub_category not in resource_plan:
-            resource_plan[row.sub_category] = {
-                "role_id": row.sub_category, "role_name": role_name,
-                "months": [], "total_hours": 0, "total_amount": 0,
-            }
-        resource_plan[row.sub_category]["months"].append({
-            "month": row.month, "hours": float(row.hours or 0),
-            "amount": round(float(row.amount_eur), 2),
-        })
-        resource_plan[row.sub_category]["total_hours"] += float(row.hours or 0)
-        resource_plan[row.sub_category]["total_amount"] += float(row.amount_eur)
-    for rp in resource_plan.values():
-        rp["total_hours"] = round(rp["total_hours"], 1)
-        rp["total_amount"] = round(rp["total_amount"], 2)
-
-    # Enrich resource plan with assignment data from ResourceRequestAssignment
-    from models.capacity import ResourceRequest, ResourceRequestAssignment
-    from models.people import Person
-    for role_id, rp in resource_plan.items():
-        req = (
-            db.query(ResourceRequest)
-            .filter(
-                ResourceRequest.project_id == project_id,
-                ResourceRequest.role_type_id == role_id,
-                ResourceRequest.request_type == "resource",
-            )
-            .first()
-        )
-        if req:
-            assignments = (
-                db.query(ResourceRequestAssignment)
-                .filter(ResourceRequestAssignment.resource_request_id == req.id)
-                .order_by(ResourceRequestAssignment.month)
-                .all()
-            )
-            assignment_list = []
-            for a in assignments:
-                person = db.query(Person).filter(Person.id == a.person_id).first()
-                assignment_list.append({
-                    "month": a.month,
-                    "person_id": a.person_id,
-                    "person_name": person.name if person else a.person_id,
-                    "hours": float(a.hours),
-                })
-            rp["assignments"] = assignment_list
-        else:
-            rp["assignments"] = []
-
-    # External cost plan
-    external_rows = (
-        db.query(Forecast.sub_category, Forecast.month, Forecast.amount_eur)
-        .filter(Forecast.project_id == project_id, Forecast.category == "external")
-        .order_by(Forecast.sub_category, Forecast.month)
-        .all()
-    )
-    external_plan: dict[str, dict] = {}
-    for row in external_rows:
-        ct = db.query(ExternalCostType).filter(ExternalCostType.id == row.sub_category).first()
-        ct_name = ct.name if ct else row.sub_category
-        if row.sub_category not in external_plan:
-            external_plan[row.sub_category] = {
-                "cost_type_id": row.sub_category, "cost_type_name": ct_name,
-                "months": [], "total_amount": 0,
-            }
-        external_plan[row.sub_category]["months"].append({
-            "month": row.month, "amount": round(float(row.amount_eur), 2),
-        })
-        external_plan[row.sub_category]["total_amount"] += float(row.amount_eur)
-    for ep in external_plan.values():
-        ep["total_amount"] = round(ep["total_amount"], 2)
-
-    # Budget summary
-    internal_total = sum(rp["total_amount"] for rp in resource_plan.values())
-    external_total = sum(ep["total_amount"] for ep in external_plan.values())
-
-    # Build grid_data for detail view
-    all_grid_months: set[str] = set()
-    grid_line_items = []
-
-    for rp in resource_plan.values():
-        month_values = []
-        for m in rp["months"]:
-            all_grid_months.add(m["month"])
-            month_values.append(DetailViewMonthValue(
-                month=m["month"],
-                proposed=m["hours"],
-                proposed_eur=m["amount"],
-            ))
-        month_values.sort(key=lambda mv: mv.month)
-        grid_line_items.append(DetailViewLineItemSchema(
-            id=rp["role_id"],
-            name=rp["role_name"],
-            category="internal",
-            unit="hours",
-            months=month_values,
-            proposed_total=rp["total_hours"],
-            proposed_total_eur=rp["total_amount"],
-        ))
-
-    for ep in external_plan.values():
-        month_values = []
-        for m in ep["months"]:
-            all_grid_months.add(m["month"])
-            month_values.append(DetailViewMonthValue(
-                month=m["month"],
-                proposed=m["amount"],
-                proposed_eur=m["amount"],
-            ))
-        month_values.sort(key=lambda mv: mv.month)
-        grid_line_items.append(DetailViewLineItemSchema(
-            id=ep["cost_type_id"],
-            name=ep["cost_type_name"],
-            category="external",
-            unit="eur",
-            months=month_values,
-            proposed_total=ep["total_amount"],
-            proposed_total_eur=ep["total_amount"],
-        ))
-
-    grid_kpis = [
-        DetailViewKPISchema(label="Total Internal", value=round(internal_total, 2), format="currency", color="#334155"),
-        DetailViewKPISchema(label="Total External", value=round(external_total, 2), format="currency", color="#334155"),
-        DetailViewKPISchema(label="Grand Total", value=round(internal_total + external_total, 2), format="currency", color="#1e40af"),
-    ]
-
-    grid_data = DetailViewGridData(
-        months=sorted(all_grid_months),
-        line_items=grid_line_items,
-        kpis=grid_kpis,
-    )
-
-    from services.portfolio_service import get_project_entity_info, get_top_level_entity_type_id
-    top_type = get_top_level_entity_type_id(db)
-    entity_info = get_project_entity_info(db, project.id, top_type)
-
-    return {
-        "project_id": project.id,
-        "name": project.name,
-        "description": project.description,
-        "lob_id": entity_info["id"] if entity_info else "",
-        "lob_name": entity_info["name"] if entity_info else "",
-        "start_month": project.start_month,
-        "end_month": project.end_month,
-        "estimated_budget": float(project.total_budget) if project.total_budget else None,
-        "capex_opex": project.capex_opex,
-        "status": project.status,
-        "submission_feedback": project.submission_feedback,
-        "pl_name": project.pl.name if project.pl else None,
-        "resource_plan": list(resource_plan.values()),
-        "external_cost_plan": list(external_plan.values()),
-        "budget_summary": {
-            "internal_total": round(internal_total, 2),
-            "external_total": round(external_total, 2),
-            "grand_total": round(internal_total + external_total, 2),
-            "capex_opex": project.capex_opex,
-        },
-        "grid_data": grid_data.model_dump(),
-    }
-
-
-@router.put("/intake/{project_id}/approve")
-def approve_project(
-    project_id: str,
-    body: ApprovalAction | None = None,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller")),
-):
-    """Approve a pending project submission."""
-    from models.system import Notification
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(404, "Project not found")
-    if project.status != "pending_approval":
-        raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_approval'")
-
-    # 1. Change status to active
-    project.status = "active"
-    project.rag_status = "green"  # New projects start green
-
-    # 2. Generate baseline values from submitted forecast data
-    forecasts = db.query(Forecast).filter(Forecast.project_id == project_id).all()
-    for f in forecasts:
-        baseline = Baseline(
-            project_id=f.project_id,
-            month=f.month,
-            category=f.category,
-            sub_category=f.sub_category,
-            hours=f.hours,
-            amount_eur=f.amount_eur,
-            capex_opex=f.capex_opex,
-        )
-        db.add(baseline)
-
-    # Calculate total budget from baselines
-    total_budget = sum(float(f.amount_eur or 0) for f in forecasts)
-    if total_budget > 0:
-        project.total_budget = round(total_budget, 2)
-
-    # 3. Auto-generate allocations from forecast data
-    from services.allocation_service import ensure_project_allocations
-    ensure_project_allocations(project_id, db)
-
-    # 4. Create notification for the submitting PL (action type #8)
-    if project.pl_person_id:
-        notification = Notification(
-            user_person_id=project.pl_person_id,
-            message=f"Your project \"{project.name}\" has been approved and is now active.",
-            severity="info",
-            deep_link_module="project_workbench",
-            deep_link_entity_id=project.id,
-        )
-        db.add(notification)
-
-    db.commit()
-
-    # [A-BK-14] Project entered Approved/Active state → recompute the backlog
-    # within_cutoff flags so the cutoff line reflects the new commitment.
-    try:
-        from services.ranking import recompute_within_cutoff_for_backlog
-        recompute_within_cutoff_for_backlog(db)
-    except Exception:  # noqa: BLE001 — defensive: trigger best-effort.
-        db.rollback()
-
-    db.refresh(project)
-
-    return {"id": project.id, "name": project.name, "status": project.status}
-
-
-@router.put("/intake/{project_id}/reject")
-def reject_project(
-    project_id: str,
-    body: RejectAction,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller")),
-):
-    """Reject a pending project submission."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(404, "Project not found")
-    if project.status != "pending_approval":
-        raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_approval'")
-
-    project.status = "rejected"
-    db.commit()
-    db.refresh(project)
-
-    return {"id": project.id, "name": project.name, "status": project.status}
-
-
-@router.put("/intake/{project_id}/send-back")
-def send_back_project(
-    project_id: str,
-    body: RequestChangesAction,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller")),
-):
-    """Request changes on a pending project with optional controller edits."""
-    from models.system import Notification
-    from models.submissions import ProjectSubmissionSnapshot
-    import json
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(404, "Project not found")
-    if project.status not in ("pending_approval",):
-        raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_approval'")
-
-    project.status = "changes_requested"
-    project.submission_feedback = body.comments
-
-    # Ensure an "original" snapshot exists (captures current forecast before controller edits)
-    existing_original = (
-        db.query(ProjectSubmissionSnapshot)
-        .filter(
-            ProjectSubmissionSnapshot.project_id == project_id,
-            ProjectSubmissionSnapshot.snapshot_type == "original",
-            ProjectSubmissionSnapshot.is_active.is_(True),
-        )
-        .first()
-    )
-    if not existing_original:
-        from routers.global_launchpad import _save_forecast_snapshot
-        _save_forecast_snapshot(db, project, "original", user.person_id)
-
-    # If controller provided edited forecast data, save as controller_proposed snapshot
-    if body.changes:
-        # Deactivate previous controller_proposed snapshots
-        db.query(ProjectSubmissionSnapshot).filter(
-            ProjectSubmissionSnapshot.project_id == project_id,
-            ProjectSubmissionSnapshot.snapshot_type == "controller_proposed",
-            ProjectSubmissionSnapshot.is_active.is_(True),
-        ).update({"is_active": False})
-
-        # Build FULL proposed snapshot by merging delta with current forecast
-        from models.financial import Forecast as ForecastModel
-        forecasts = db.query(ForecastModel).filter(ForecastModel.project_id == project_id).all()
-        full_snapshot = {}
-        for f in forecasts:
-            key = (f.category, f.sub_category, f.month)
-            full_snapshot[key] = {
-                "category": f.category,
-                "sub_category": f.sub_category,
-                "month": f.month,
-                "hours": float(f.hours) if f.hours is not None else None,
-                "amount_eur": float(f.amount_eur) if f.amount_eur is not None else 0,
-            }
-        # Apply controller's delta on top
-        for c in body.changes:
-            key = (c.category, c.sub_category, c.month)
-            full_snapshot[key] = {
-                "category": c.category,
-                "sub_category": c.sub_category,
-                "month": c.month,
-                "hours": c.hours,
-                "amount_eur": c.amount_eur,
-            }
-        snapshot_data = list(full_snapshot.values())
-        snapshot = ProjectSubmissionSnapshot(
-            project_id=project_id,
-            snapshot_type="controller_proposed",
-            created_by_id=user.person_id,
-            forecast_data_json=json.dumps(snapshot_data),
-            comments=body.comments,
-        )
-        db.add(snapshot)
-
-    # Notify PL with deep link to diff view
-    if project.pl_person_id:
-        notification = Notification(
-            user_person_id=project.pl_person_id,
-            message=f"Controller requested changes on '{project.name}'",
-            severity="action",
-            deep_link_module="workbench",
-            deep_link_entity_id=project.id,
-            deep_link_tab="diff",
-        )
-        db.add(notification)
-
-    db.commit()
-    db.refresh(project)
-
-    return {"id": project.id, "name": project.name, "status": project.status}
-
-
-@router.put("/intake/{project_id}/resubmit")
-def resubmit_project(
-    project_id: str,
-    body: ResubmitAction | None = None,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-):
-    """PL resubmits a project after addressing feedback. Goes to pending_cc_confirmation."""
-    from models.system import Notification
-    from models.submissions import ProjectSubmissionSnapshot
-    from models.people import RateTable
-    from routers.global_launchpad import _reconcile_resource_requests_from_forecast, _save_forecast_snapshot
-    import json
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(404, "Project not found")
-    if project.status != "changes_requested":
-        raise HTTPException(409, f"Project status is '{project.status}', expected 'changes_requested'")
-
-    # If resource plan provided, update forecast rows
-    if body and (body.resource_plan or body.external_costs):
-        from services.calculations import month_diff, add_months as _add_months
-
-        # Delete existing forecast rows
-        db.query(Forecast).filter(Forecast.project_id == project_id).delete()
-
-        for item in body.resource_plan:
-            rates = db.query(RateTable).filter(RateTable.role_type_id == item.role_type_id).all()
-            avg_rate = (sum(float(r.hourly_rate) for r in rates) / len(rates)) if rates else 80.0
-            item_months = month_diff(item.period_start, item.period_end) + 1
-            for i in range(item_months):
-                m = _add_months(item.period_start, i)
-                db.add(Forecast(
-                    project_id=project_id, month=m, category="internal",
-                    sub_category=item.role_type_id,
-                    hours=item.hours_per_month,
-                    amount_eur=round(item.hours_per_month * avg_rate, 2),
-                    capex_opex=project.capex_opex,
-                ))
-
-        for item in body.external_costs:
-            item_months = month_diff(item.period_start, item.period_end) + 1
-            for i in range(item_months):
-                m = _add_months(item.period_start, i)
-                db.add(Forecast(
-                    project_id=project_id, month=m, category="external",
-                    sub_category=item.cost_type_id,
-                    hours=None,
-                    amount_eur=round(item.amount_per_month, 2),
-                    capex_opex=project.capex_opex,
-                ))
-        # Flush so rebuilt forecasts are visible to subsequent queries (autoflush=False)
-        db.flush()
-
-    # Save new original snapshot
-    _save_forecast_snapshot(db, project, "original", user.person_id)
-
-    # Clear feedback
-    project.submission_feedback = None
-    project.status = "pending_cc_confirmation"
-
-    # Reconcile resource requests (preserves previous CC assignments)
-    _reconcile_resource_requests_from_forecast(db, project)
-
-    # Notify CC Owner (Thomas Brenner = p-brenner)
-    notification = Notification(
-        user_person_id="p-brenner",
-        message=f"Project '{project.name}' resubmitted — needs resource confirmation",
-        severity="action",
-        deep_link_module="capacity",
-        deep_link_entity_id=project.id,
-        deep_link_tab="requests",
-    )
-    db.add(notification)
-
-    db.commit()
-    db.refresh(project)
-
-    return {"id": project.id, "name": project.name, "status": project.status}
-
-
-# ---------------------------------------------------------------------------
-# Submission Diff & Edit (3 endpoints)
-# ---------------------------------------------------------------------------
-
-@router.get("/intake/{project_id}/diff")
-def get_submission_diff(
-    project_id: str,
-    db: Session = Depends(get_db),
-    _user: CurrentUser = Depends(get_current_user),
-):
-    """Return original vs controller_proposed snapshots as a comparison grid."""
-    import json as _json
-    from collections import defaultdict
-    from models.submissions import ProjectSubmissionSnapshot
-    from models.people import RoleType, RateTable
-    from models.financial import ExternalCostType
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(404, "Project not found")
-
-    original_snap = (
-        db.query(ProjectSubmissionSnapshot)
-        .filter(
-            ProjectSubmissionSnapshot.project_id == project_id,
-            ProjectSubmissionSnapshot.snapshot_type == "original",
-            ProjectSubmissionSnapshot.is_active.is_(True),
-        )
-        .order_by(ProjectSubmissionSnapshot.created_at.desc())
-        .first()
-    )
-    proposed_snap = (
-        db.query(ProjectSubmissionSnapshot)
-        .filter(
-            ProjectSubmissionSnapshot.project_id == project_id,
-            ProjectSubmissionSnapshot.snapshot_type == "controller_proposed",
-            ProjectSubmissionSnapshot.is_active.is_(True),
-        )
-        .order_by(ProjectSubmissionSnapshot.created_at.desc())
-        .first()
-    )
-
-    if not original_snap:
-        raise HTTPException(404, "No original snapshot found")
-
-    original_data = _json.loads(original_snap.forecast_data_json)
-    proposed_data = _json.loads(proposed_snap.forecast_data_json) if proposed_snap else original_data
-
-    # Build lookup: (category, sub_category, month) -> value
-    def build_lookup(data):
-        lookup = {}
-        for entry in data:
-            key = (entry["category"], entry["sub_category"], entry["month"])
-            lookup[key] = entry
-        return lookup
-
-    orig_lookup = build_lookup(original_data)
-    prop_lookup = build_lookup(proposed_data)
-
-    # Collect all keys and months
-    all_keys = set(orig_lookup.keys()) | set(prop_lookup.keys())
-    all_months = sorted(set(k[2] for k in all_keys))
-
-    # Group by line item (category, sub_category)
-    line_item_keys = sorted(set((k[0], k[1]) for k in all_keys))
-
-    # Resolve names and rates
-    role_names = {r.id: r.name for r in db.query(RoleType).all()}
-    cost_type_names = {c.id: c.name for c in db.query(ExternalCostType).all()}
-    rate_cache: dict[str, float] = {}
-
-    line_items = []
-    total_current_eur = 0.0
-    total_proposed_eur = 0.0
-
-    for category, sub_cat in line_item_keys:
-        is_internal = category == "internal"
-        name = role_names.get(sub_cat, sub_cat) if is_internal else cost_type_names.get(sub_cat, sub_cat)
-
-        if is_internal and sub_cat not in rate_cache:
-            rates = db.query(RateTable).filter(RateTable.role_type_id == sub_cat).all()
-            rate_cache[sub_cat] = (sum(float(r.hourly_rate) for r in rates) / len(rates)) if rates else 80.0
-        rate = rate_cache.get(sub_cat, 1.0) if is_internal else 1.0
-
-        month_values = []
-        for m in all_months:
-            key = (category, sub_cat, m)
-            orig_entry = orig_lookup.get(key)
-            prop_entry = prop_lookup.get(key)
-
-            if is_internal:
-                curr_val = orig_entry["hours"] or 0 if orig_entry else 0
-                prop_val = prop_entry["hours"] or 0 if prop_entry else 0
-                curr_eur = curr_val * rate
-                prop_eur = prop_val * rate
-            else:
-                curr_val = orig_entry["amount_eur"] or 0 if orig_entry else 0
-                prop_val = prop_entry["amount_eur"] or 0 if prop_entry else 0
-                curr_eur = curr_val
-                prop_eur = prop_val
-
-            month_values.append(DetailViewMonthValue(
-                month=m,
-                proposed=prop_val,
-                proposed_eur=round(prop_eur, 2),
-                current=curr_val,
-                current_eur=round(curr_eur, 2),
-                is_changed=curr_val != prop_val,
-            ))
-
-        proposed_total = sum(mv.proposed for mv in month_values)
-        current_total = sum(mv.current or 0 for mv in month_values)
-        proposed_total_eur = sum(mv.proposed_eur for mv in month_values)
-        current_total_eur = sum(mv.current_eur or 0 for mv in month_values)
-
-        total_current_eur += current_total_eur
-        total_proposed_eur += proposed_total_eur
-
-        line_items.append(DetailViewLineItemSchema(
-            id=f"{category}:{sub_cat}",
-            name=name,
-            category=category,
-            unit="hours" if is_internal else "eur",
-            months=month_values,
-            proposed_total=round(proposed_total, 1),
-            proposed_total_eur=round(proposed_total_eur, 2),
-            current_total=round(current_total, 1),
-            current_total_eur=round(current_total_eur, 2),
-        ))
-
-    delta_eur = total_proposed_eur - total_current_eur
-    delta_color = "#059669" if delta_eur < 0 else "#dc2626" if delta_eur > 0 else "#334155"
-    kpis = [
-        DetailViewKPISchema(label="Original Plan", value=round(total_current_eur, 2), format="currency"),
-        DetailViewKPISchema(label="Proposed Changes", value=round(total_proposed_eur, 2), format="currency", color="#1e40af"),
-        DetailViewKPISchema(label="Impact", value=round(delta_eur, 2), format="currency_delta", color=delta_color),
-    ]
-
-    return {
-        "project_name": project.name,
-        "submission_feedback": project.submission_feedback,
-        "grid_data": DetailViewGridData(months=all_months, line_items=line_items, kpis=kpis).model_dump(),
-    }
-
-
-@router.put("/intake/{project_id}/accept-changes")
-def accept_changes(
-    project_id: str,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-):
-    """PL accepts controller's proposed changes. Updates forecast and resubmits to CC."""
-    import json as _json
-    from models.submissions import ProjectSubmissionSnapshot
-    from models.system import Notification
-    from routers.global_launchpad import _reconcile_resource_requests_from_forecast, _save_forecast_snapshot
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(404, "Project not found")
-    if project.status != "changes_requested":
-        raise HTTPException(409, f"Project status is '{project.status}', expected 'changes_requested'")
-
-    # Load controller_proposed snapshot
-    proposed_snap = (
-        db.query(ProjectSubmissionSnapshot)
-        .filter(
-            ProjectSubmissionSnapshot.project_id == project_id,
-            ProjectSubmissionSnapshot.snapshot_type == "controller_proposed",
-            ProjectSubmissionSnapshot.is_active.is_(True),
-        )
-        .order_by(ProjectSubmissionSnapshot.created_at.desc())
-        .first()
-    )
-
-    if proposed_snap:
-        # Update forecast rows to match proposed snapshot
-        proposed_data = _json.loads(proposed_snap.forecast_data_json)
-        db.query(Forecast).filter(Forecast.project_id == project_id).delete()
-
-        for entry in proposed_data:
-            db.add(Forecast(
-                project_id=project_id,
-                month=entry["month"],
-                category=entry["category"],
-                sub_category=entry["sub_category"],
-                hours=entry.get("hours"),
-                amount_eur=entry["amount_eur"],
-                capex_opex=project.capex_opex,
-            ))
-        # Flush so rebuilt forecasts are visible to subsequent queries (autoflush=False)
-        db.flush()
-
-    # Save accepted state as new original snapshot
-    _save_forecast_snapshot(db, project, "original", user.person_id)
-
-    # Clear feedback, move to CC confirmation
-    project.submission_feedback = None
-    project.status = "pending_cc_confirmation"
-
-    # Reconcile resource requests (preserves previous CC assignments)
-    _reconcile_resource_requests_from_forecast(db, project)
-
-    # Notify CC Owner (Thomas Brenner = p-brenner)
-    notification = Notification(
-        user_person_id="p-brenner",
-        message=f"Project '{project.name}' updated — needs resource confirmation",
-        severity="action",
-        deep_link_module="capacity",
-        deep_link_entity_id=project.id,
-        deep_link_tab="requests",
-    )
-    db.add(notification)
-
-    db.commit()
-    db.refresh(project)
-
-    return {"id": project.id, "name": project.name, "status": project.status}
-
-
-@router.get("/intake/{project_id}/editable-grid")
-def get_editable_grid(
-    project_id: str,
-    db: Session = Depends(get_db),
-    _user: CurrentUser = Depends(require_role("controller")),
-):
-    """Return current forecast data in editable format for the controller."""
-    from collections import defaultdict
-    from models.people import RoleType, RateTable
-    from models.financial import ExternalCostType
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(404, "Project not found")
-
-    forecasts = db.query(Forecast).filter(Forecast.project_id == project_id).all()
-    all_months = sorted(set(f.month for f in forecasts))
-
-    groups: dict[tuple[str, str], list] = defaultdict(list)
-    for f in forecasts:
-        groups[(f.category, f.sub_category)].append(f)
-
-    role_names = {r.id: r.name for r in db.query(RoleType).all()}
-    cost_type_names = {c.id: c.name for c in db.query(ExternalCostType).all()}
-
-    rows = []
-    for (category, sub_cat), items in groups.items():
-        is_internal = category == "internal"
-        name = role_names.get(sub_cat, sub_cat) if is_internal else cost_type_names.get(sub_cat, sub_cat)
-
-        month_map = {f.month: f for f in items}
-        months_data = []
-        total = 0.0
-        total_eur = 0.0
-        for m in all_months:
-            f = month_map.get(m)
-            if f:
-                val = float(f.hours or 0) if is_internal else float(f.amount_eur or 0)
-                val_eur = float(f.amount_eur or 0)
-            else:
-                val = 0.0
-                val_eur = 0.0
-            months_data.append({"month": m, "value": val, "value_eur": val_eur})
-            total += val
-            total_eur += val_eur
-
-        rows.append({
-            "id": f"{category}:{sub_cat}",
-            "name": name,
-            "category": category,
-            "sub_category": sub_cat,
-            "unit": "hours" if is_internal else "eur",
-            "months": months_data,
-            "total": round(total, 2),
-            "total_eur": round(total_eur, 2),
-        })
-
-    return {"months": all_months, "rows": rows}
+# All ``/api/portfolio/intake*`` endpoints below are 410 Gone in v5 per
+# [A-BK-26] / [A-PS-13]. The intake queue is replaced by the backlog filter
+# (``GET /api/portfolio/backlog?pipeline_stage=Under Evaluation``) and the
+# greenfield ``/api/intake/*`` API in ``routers/intake.py``. Bodies are
+# kept as stubs so OpenAPI surfaces the deprecation rather than dropping
+# the routes silently — a frontend running against an old client gets a
+# clear 410 with a pointer to the replacement endpoint.
+
+_V4_INTAKE_REMOVED_DETAIL = {
+    "error": "v4_intake_removed",
+    "message": (
+        "The v4 intake queue is removed in CRETA v5 per [A-BK-26]/[A-PS-13]. "
+        "Use the backlog filtered to 'Under Evaluation' for the review queue, "
+        "and the /api/intake/* endpoints for project creation and controller "
+        "actions."
+    ),
+    "replacements": {
+        "list_review_queue": "GET /api/intake/queue",
+        "create_project": "POST /api/intake/projects",
+        "approve": "POST /api/intake/projects/{id}/approve",
+        "send_back": "POST /api/intake/projects/{id}/send-back",
+        "reject": "POST /api/intake/projects/{id}/reject",
+        "resubmit": "POST /api/intake/projects/{id}/resubmit",
+        "diff": "GET /api/intake/projects/{id}/diff",
+    },
+}
+
+
+def _gone_v4_intake() -> "HTTPException":
+    """Build the standard 410 Gone response for the deprecated v4 routes."""
+    return HTTPException(status_code=410, detail=_V4_INTAKE_REMOVED_DETAIL)
+
+
+@router.get("/intake", deprecated=True)
+def get_intake_queue():
+    """[REMOVED in v5] Use GET /api/intake/queue per [A-BK-26]."""
+    raise _gone_v4_intake()
+
+
+@router.get("/intake/{project_id}", deprecated=True)
+def get_intake_detail(project_id: str):  # noqa: ARG001
+    """[REMOVED in v5] Use GET /api/intake/projects/{id}/diff or the
+    project's backlog detail view per [A-BK-19]."""
+    raise _gone_v4_intake()
+
+
+
+@router.put("/intake/{project_id}/approve", deprecated=True)
+def approve_intake_legacy(project_id: str):  # noqa: ARG001
+    """[REMOVED in v5] Use POST /api/intake/projects/{id}/approve per [A-BK-27]."""
+    raise _gone_v4_intake()
+
+
+@router.put("/intake/{project_id}/reject", deprecated=True)
+def reject_intake_legacy(project_id: str):  # noqa: ARG001
+    """[REMOVED in v5] Use POST /api/intake/projects/{id}/reject per [A-BK-27]."""
+    raise _gone_v4_intake()
+
+
+@router.put("/intake/{project_id}/send-back", deprecated=True)
+def send_back_intake_legacy(project_id: str):  # noqa: ARG001
+    """[REMOVED in v5] Use POST /api/intake/projects/{id}/send-back per [A-BK-27]."""
+    raise _gone_v4_intake()
+
+
+@router.put("/intake/{project_id}/resubmit", deprecated=True)
+def resubmit_intake_legacy(project_id: str):  # noqa: ARG001
+    """[REMOVED in v5] Use POST /api/intake/projects/{id}/resubmit per [A-BK-29]."""
+    raise _gone_v4_intake()
+
+
+@router.get("/intake/{project_id}/diff", deprecated=True)
+def diff_intake_legacy(project_id: str):  # noqa: ARG001
+    """[REMOVED in v5] Use GET /api/intake/projects/{id}/diff per [A-BK-29]."""
+    raise _gone_v4_intake()
+
+
+@router.put("/intake/{project_id}/accept-changes", deprecated=True)
+def accept_changes_legacy(project_id: str):  # noqa: ARG001
+    """[REMOVED in v5] Controller cannot edit forecasts on Send Back per
+    [A-BK-28]; PL revises and Resubmits via POST /api/intake/projects/{id}/resubmit."""
+    raise _gone_v4_intake()
+
+
+@router.get("/intake/{project_id}/editable-grid", deprecated=True)
+def editable_grid_legacy(project_id: str):  # noqa: ARG001
+    """[REMOVED in v5] Forecast editing happens in workbench / forecast cycle,
+    not in the controller's intake review surface per [A-BK-28]."""
+    raise _gone_v4_intake()
 
 
 # ---------------------------------------------------------------------------
