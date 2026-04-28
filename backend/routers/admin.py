@@ -1433,48 +1433,9 @@ def create_role_permission(
     return _serialize_grant(g)
 
 
-@router.put("/role-permissions/{grant_id}", response_model=RolePermissionGrantResponse)
-def update_role_permission(
-    grant_id: int,
-    body: RolePermissionGrantUpdate,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller")),
-):
-    g = db.query(RolePermissionGrant).filter(RolePermissionGrant.id == grant_id).first()
-    if not g:
-        raise HTTPException(404, "Permission grant not found")
-    if body.can_edit is not None and body.can_edit != g.can_edit:
-        _log_audit(
-            db, user, "role_permission_grant",
-            f"{g.role}/{g.entity_type}", None, "update",
-            "can_edit", str(g.can_edit), str(body.can_edit),
-        )
-        g.can_edit = body.can_edit
-    if body.notes is not None and body.notes != g.notes:
-        g.notes = body.notes
-    db.commit()
-    db.refresh(g)
-    return _serialize_grant(g)
-
-
-@router.delete("/role-permissions/{grant_id}")
-def delete_role_permission(
-    grant_id: int,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller")),
-):
-    g = db.query(RolePermissionGrant).filter(RolePermissionGrant.id == grant_id).first()
-    if not g:
-        raise HTTPException(404, "Permission grant not found")
-    _log_audit(
-        db, user, "role_permission_grant",
-        f"{g.role}/{g.entity_type}", None, "delete",
-    )
-    db.delete(g)
-    db.commit()
-    return {"status": "deleted", "id": grant_id}
-
-
+# IMPORTANT: ``/bulk`` MUST be registered BEFORE ``/{grant_id}`` so FastAPI's
+# path-resolution does not try to coerce the literal "bulk" segment into an
+# int parameter.
 @router.put("/role-permissions/bulk")
 def bulk_update_role_permissions(
     body: RolePermissionGrantBulkUpdate,
@@ -1516,6 +1477,48 @@ def bulk_update_role_permissions(
     )
     db.commit()
     return {"items": upserted, "total": len(upserted)}
+
+
+@router.put("/role-permissions/{grant_id}", response_model=RolePermissionGrantResponse)
+def update_role_permission(
+    grant_id: int,
+    body: RolePermissionGrantUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    g = db.query(RolePermissionGrant).filter(RolePermissionGrant.id == grant_id).first()
+    if not g:
+        raise HTTPException(404, "Permission grant not found")
+    if body.can_edit is not None and body.can_edit != g.can_edit:
+        _log_audit(
+            db, user, "role_permission_grant",
+            f"{g.role}/{g.entity_type}", None, "update",
+            "can_edit", str(g.can_edit), str(body.can_edit),
+        )
+        g.can_edit = body.can_edit
+    if body.notes is not None and body.notes != g.notes:
+        g.notes = body.notes
+    db.commit()
+    db.refresh(g)
+    return _serialize_grant(g)
+
+
+@router.delete("/role-permissions/{grant_id}")
+def delete_role_permission(
+    grant_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    g = db.query(RolePermissionGrant).filter(RolePermissionGrant.id == grant_id).first()
+    if not g:
+        raise HTTPException(404, "Permission grant not found")
+    _log_audit(
+        db, user, "role_permission_grant",
+        f"{g.role}/{g.entity_type}", None, "delete",
+    )
+    db.delete(g)
+    db.commit()
+    return {"status": "deleted", "id": grant_id}
 
 
 # ---------------------------------------------------------------------------
