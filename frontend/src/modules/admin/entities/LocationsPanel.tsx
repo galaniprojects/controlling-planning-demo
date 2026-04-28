@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { referenceApi, adminApi } from '@/api/endpoints';
 import type { RefLocation } from '@/types/api';
 import { EntityFormDialog } from './EntityFormDialog';
+import { LocationLabel } from '../shared/LocationLabel';
 
 interface LocationsPanelProps {
   onDataChanged: () => void;
@@ -67,7 +68,9 @@ export function LocationsPanel({ onDataChanged }: LocationsPanelProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-foreground">Locations</h2>
+        <h2 className="text-base font-semibold text-foreground">
+          <LocationLabel kind="workforce" />
+        </h2>
         <Button size="sm" onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-1" />
           Add New
