@@ -1,9 +1,147 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D — Three sessions merged in parallel onto `main` (D1 → D2 → A3).
-Last completed: Sessions D1 (admin entities + Cluster F master data), D2 (workflow templates + audit query/export), and A3 (ranking engine + cutoff line backend). All three implemented in parallel agent-team worktrees, verified independently green, merged onto `main` in order with conflicts resolved on `main.py`, `models/__init__.py`, `seed.sql`, `routers/admin.py` (audit category tagging for D1's new endpoints), and PROGRESS.md.
-Next: A5 (Intake workflow + backlog integration) — depends on A2 + A3, both now merged.
+Phase: v5 Cluster A/D — Wave 1 parallel sessions in flight on top of merged D1/D2/A3.
+Last completed: Session A5 (intake workflow + backlog integration backend) implemented in agent-team worktree `v5/cluster-a/a5-intake-backlog-backend`, awaiting team-lead merge. Sessions A7/D3/F2 still in flight in their own worktrees.
+Next: After A5 merge, the remaining Wave 1 sessions (A7, D3, F2) merge in dependency order; then Wave 2 picks up A6/A8/F1/F3/C1.
+
+## v5 Session A5: Intake Workflow + Backlog Integration Backend (2026-04-28)
+
+### Feature Overview
+- **Greenfield intake** per `[A-BK-26..A-BK-29]` / `[A-PS-13]` / `[A-DOI-04..A-DOI-05]`. New project creation lands at DoI 0 (Proposed) with the lightweight metadata required by `[A-DOI-04]`; the project appears immediately in the ranked backlog at the bottom (composite score null per A3 ranking) and never enters a separate intake queue.
+- **Three controller actions on Under Evaluation projects** per `[A-BK-27]`: Approve (→ Approved, DoI 3, baseline generation, status=active), Send Back (→ Proposed, DoI 1, snapshot capture, PL notified with deep link to diff view), Reject (→ Cancelled, DoI frozen, audit reason captured).
+- **Send Back ↔ Resubmit cycle** per `[A-BK-29]`: PL on own project (or controller anywhere) can resubmit after Send Back. The resubmission moves the project back to `Under Evaluation` (DoI 2) and captures a `pl_resubmitted` snapshot for the diff view. Diff endpoint returns the structured before/after across the diffable Tech Navigator + master-data + milestone-count subset.
+- **v4 intake surface fully removed**: nine `/api/portfolio/intake*` endpoints now return HTTP 410 Gone with structured replacement pointers — exactly per `[A-PS-13]`'s "v4 intake queue and CR Approvals flow will not be retrofitted onto the new pipeline model."
+- **CR approval workflow unchanged** per spec line 418 ("CR Approvals tab remains unchanged for now (change requests are a separate workflow from intake)"). The existing `routers/portfolio.py::approve_cr` / `reject_cr` / `send_back_cr` endpoints stay put. Audit category tagging for those is flagged as a refactoring opportunity below.
+
+### Spec references implemented
+`[A-BK-26]`, `[A-BK-27]`, `[A-BK-28]`, `[A-BK-29]`, `[A-PS-13]`, `[A-DOI-04]`, `[A-DOI-05]` (gate fields are advisory at the create-time endpoint; structural enforcement remains in `services/pipeline.py::validate_doi_gate`). `[A-BK-14]` is honoured via the existing within_cutoff recompute hook on every state-changing endpoint.
+
+Out of scope per session brief and aligned with A2 boundaries:
+- `[A-DA-02]` structured description sub-fields — stays as a single `description` text column. Schema additions cross-cut intake forms and are deferred.
+- `[A-DA-03]` new project columns (requesting BU, demand type, value stream, Wave ID) — deferred (same reason).
+- `[A-PS-07]` auto-activation Approved → Active scheduler — outside session scope.
+- `[A-BK-15]` separate `estimated_budget` column for pre-approval projects — Tech Navigator scores still drive the rank.
+- Workflow Template enforcement (`[D-CAT-07]`/`[D-CAT-08]`) — D2 ships templates as configurable data; live execution lands in a follow-on session.
+
+### Technical Details
+- **Schemas:** `backend/schemas/intake.py` — six Pydantic models. `IntakeProjectCreate` (lightweight create body), `IntakeProjectResponse` (creation + transition response), `IntakeApproveAction` / `IntakeSendBackAction` / `IntakeRejectAction` / `IntakeResubmitAction` (action bodies), and `IntakeDiffField` / `IntakeDiffResponse` (diff payload).
+- **Service:** `backend/services/intake_workflow.py` — 6 public functions plus a small set of helpers. `create_intake_project`, `approve_intake_project`, `send_back_intake_project`, `reject_intake_project`, `resubmit_intake_project`, `compute_intake_diff`. Side-effect helpers: `_capture_intake_snapshot` (re-uses `ProjectSubmissionSnapshot`), `_trigger_within_cutoff_recompute`, `_notify`. `DIFFABLE_FIELDS` constant defines the diffable subset (21 entries: master data + Tech Navigator + milestone count). Service does NOT commit — the router owns the transaction boundary.
+- **Router:** `backend/routers/intake.py` mounted at `/api/intake`. 7 endpoints: `POST /projects`, `POST /projects/{id}/approve`, `POST /projects/{id}/send-back`, `POST /projects/{id}/reject`, `POST /projects/{id}/resubmit`, `GET /projects/{id}/diff`, `GET /queue`. Authorisation via `require_role("controller")` on the three controller actions; resubmit + diff use a custom check (PL on own project or controller); create allows project_lead/controller/executive (CC owner forbidden 403).
+- **Snapshot reuse:** the existing `ProjectSubmissionSnapshot` table from v4 holds the new `controller_sent_back` and `pl_resubmitted` snapshot types. The `forecast_data_json` column carries the full project-state JSON (column name is a v4 vestige; we stuff the diffable subset there). Active flag respected — only the latest snapshot per type is surfaced by the diff endpoint.
+- **Audit logging:** every state-changing call writes `category='pipeline_transitions'` (stage / DoI / comments / reason / resubmission notes) or `category='master_data'` (project create). Per the D2 contract, `_log_audit` is called with `category=` keyword-only.
+- **within_cutoff recompute hooks (per `[A-BK-14]`):** triggered best-effort on create, approve, and reject (the three calls that change the contestable budget walk). Send Back / Resubmit do not change a project's budget so they skip the hook.
+- **v4 deprecation:** `routers/portfolio.py` had ~750 lines of legacy intake code. All nine handlers were collapsed to one-liner stubs that raise `HTTPException(410, _V4_INTAKE_REMOVED_DETAIL)` with a structured `replacements` dict pointing to the new endpoints. `deprecated=True` on every decorator so OpenAPI surfaces the deprecation cleanly. The legacy bodies live in git history (commits `af4881a` and earlier).
+- **No model changes.** All new state lives on existing columns: `Project.pipeline_stage`, `doi`, `frozen_doi`, `submission_feedback`, plus the existing `ProjectSubmissionSnapshot` rows.
+
+### API Endpoints Added
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | `/api/intake/projects` | PL/Controller/Exec | Create project at DoI 0 (Proposed) per [A-BK-26]/[A-DOI-04]. |
+| POST | `/api/intake/projects/{id}/approve` | controller | Approve from Under Evaluation → Approved (DoI 3) per [A-BK-27]. |
+| POST | `/api/intake/projects/{id}/send-back` | controller | Send back → Proposed (DoI 1) with comments + snapshot per [A-BK-27]/[A-BK-29]. |
+| POST | `/api/intake/projects/{id}/reject` | controller | Reject → Cancelled with reason; freezes DoI per [A-BK-27]/[A-PS-03]. |
+| POST | `/api/intake/projects/{id}/resubmit` | PL on own / controller | PL revises and resubmits → Under Evaluation (DoI 2); captures pl_resubmitted snapshot per [A-BK-29]. |
+| GET | `/api/intake/projects/{id}/diff` | any role | Structured before/after diff (sent_back vs resubmit/current) per [A-BK-29]. |
+| GET | `/api/intake/queue` | any role | List projects in Under Evaluation (controller review queue) per [A-BK-26]. |
+
+### Endpoints Deprecated (HTTP 410 Gone)
+All bodies replaced with a stub raising `_V4_INTAKE_REMOVED_DETAIL`. `deprecated=True` on every route so `/docs` flags them in OpenAPI.
+
+| Method | Path | Replacement |
+|--------|------|-------------|
+| GET | `/api/portfolio/intake` | `GET /api/intake/queue` |
+| GET | `/api/portfolio/intake/{id}` | Backlog detail view per [A-BK-19] |
+| PUT | `/api/portfolio/intake/{id}/approve` | `POST /api/intake/projects/{id}/approve` |
+| PUT | `/api/portfolio/intake/{id}/reject` | `POST /api/intake/projects/{id}/reject` |
+| PUT | `/api/portfolio/intake/{id}/send-back` | `POST /api/intake/projects/{id}/send-back` |
+| PUT | `/api/portfolio/intake/{id}/resubmit` | `POST /api/intake/projects/{id}/resubmit` |
+| GET | `/api/portfolio/intake/{id}/diff` | `GET /api/intake/projects/{id}/diff` |
+| PUT | `/api/portfolio/intake/{id}/accept-changes` | (removed — controller no longer free-edits per [A-BK-28]; PL revises + Resubmit) |
+| GET | `/api/portfolio/intake/{id}/editable-grid` | (removed — forecast editing happens in workbench, not intake review) |
+
+### Data Model Changes
+None. A5 reuses the A2 fields (`pipeline_stage`, `doi`, `frozen_doi`, `submission_feedback`) and the existing `ProjectSubmissionSnapshot` table from v4. Two new snapshot type strings are introduced (`controller_sent_back` and `pl_resubmitted`) but they are values, not schema.
+
+### Working assumptions (flagged for KB confirmation)
+- **`description` is the proxy for the structured DoI 0 sections** until `[A-DA-02]` adds dedicated columns. Frontend can prompt with the four sub-headings (Problem Statement / Business Driver / Expected Outcome / Current State) and concatenate.
+- **`start_month` is required at create time** per the existing model (`String(7)`, `nullable=False`). Spec `[A-DOI-04]` says no timeline at DoI 0; in this session we accept a placeholder month from the PL. Loosening the model to `nullable=True` is a 1-line schema change; flagged as a refactoring opportunity below.
+- **Controller "approve at Pitch Board" sets `status='active'`** for v4 back-compat. The two-step baseline flow per `[A-OQ-07]` (approve on macro data → PL enters detail → controller locks baseline) is collapsed into a single approve here. When `[A-OQ-07]` resolves, split this into two endpoints (`approve` and `lock-baseline`).
+- **Reject is one-shot.** Cancellation is "nearly one-way" per `[A-PS-10]`; un-cancel goes through the existing `POST /api/projects/{id}/pipeline/transition` with `override_reason` set.
+- **Resubmit notifies any controller persona** found in `DemoPersona`. Once D1/D2's `User`/`RolePermissionGrant` infrastructure unifies with personas (follow-on session), this lookup will switch to the new model.
+- **Diff scope is the master-data + Tech Navigator + milestone-count subset** (21 fields). Forecast-grid diff is a separate concern handled by the workbench's existing CR diff. KB can extend `DIFFABLE_FIELDS` in `services/intake_workflow.py` without touching the router.
+- **CR approval workflow remains unchanged** per spec line 418. The existing `routers/portfolio.py::approve_cr` / `reject_cr` / `send_back_cr` and `routers/workbench.py` CR helpers stay put. The v5 spec schedules CR rework into Cluster B / E follow-ons.
+- **`is_service` flag** is exposed on the create body so a PL can flag a service from day one. Defaults to `false`; the existing `Project.is_service` semantics (annual_budget vs total_budget) are unchanged.
+
+### Refactoring Opportunities (noted, not acted on)
+- **Loosen `Project.start_month` to `nullable=True`**, aligning with spec `[A-DOI-04]` ("no timeline at DoI 0"). 1-line model change + a seed.sql audit + a few NOT NULL guards in queries that read it. Out of A5 scope; flagged for the v5 column-additions session.
+- **`Project.status` and `pipeline_stage` are now redundant for v5-aware code paths.** A5 keeps both in lock-step (status='draft' / 'changes_requested' / 'pending_approval' / 'active' / 'rejected' alongside the pipeline_stage). When the v4 launchpad and workbench finally drop their `status`-based filters (A8 / E1 follow-ons), this redundancy can collapse.
+- **CR approval audit logging is missing.** `routers/portfolio.py::approve_cr` / `reject_cr` / `send_back_cr` and the workbench CR endpoints don't currently call `_log_audit()`. Per the D2 contract every state mutation should emit an audit row under `category='forecast_actions'`. Not in A5 scope; flag for the next CR-touching session.
+- **`_log_audit` import from `routers/admin.py` repeats the A1/A2/A3/D1 pattern.** A5 imports it from `routers.admin` like A2/A3 do. The duplicate-import problem will multiply with each new router. Lift `_log_audit` to `services/audit.py` once a future cleanup session takes the `routers/admin.py` reorganisation.
+- **`ProjectSubmissionSnapshot.forecast_data_json` is now polysemic** — v4 uses it for forecast-grid JSON; A5 stuffs project-state JSON into the same column for the v5 intake snapshots. Consider renaming to `state_json` (or splitting into a polymorphic snapshot table) when KB requests cleaner internals. Audit log captures the snapshot_type so the data is queryable today; only the column name is a smell.
+- **`/api/intake/queue` and `/api/portfolio/backlog?pipeline_stage=Under Evaluation`** return overlapping data. The queue endpoint is a thin convenience wrapper for the controller's review surface. Frontend D3/A6 can pick whichever fits — drop the one that's unused once both UIs ship.
+
+### Notes for follow-on sessions
+- **A6 Backlog frontend** consumes `GET /api/portfolio/backlog` (already returns Under-Evaluation projects in the ranked list) and uses `/api/intake/queue` only when the controller picks the "Under Evaluation only" filter shortcut.
+- **A8 Pipeline frontend** wires the four intake action endpoints into the project detail's action buttons (Approve / Send Back / Reject / Resubmit) and the diff view tab. Form state for `comments` / `reason` / `resubmission_notes` is required for Send Back and Reject (validated server-side as 422).
+- **Cluster F (charging / BTC profile) consumers** can call `POST /api/intake/projects` to admit new projects from the BTC sheet uploader. The `pl_person_id` defaults to `None` for controller-driven creation, leaving an "unassigned" project that a PL can adopt.
+- **D3 admin frontend** does NOT need to wire the v4 intake routes; the 410 deprecation surfaces a clear error and the new endpoints replace them in the backlog detail view.
+- **Live workflow enforcement (`[D-CAT-08]`)** — when a follow-on session wires the `WorkflowTemplate` rows into runtime, the four-step Send Back template (controller comments → PL revises → snapshot → resubmission) is the natural first candidate. Today the steps are encoded in `services/intake_workflow.py`; mapping them to template steps is mechanical.
+
+### Verification
+- **Tests:** `python -m pytest backend/tests/ -v` → **672 passed** (604 baseline + 30 new service tests + 38 new router tests). 0 failures. Standalone A5 suite: 68 new tests across `tests/test_service_intake_workflow.py` (30) and `tests/test_router_intake.py` (38).
+- **Live smoke** against the dev server (port 8765, freshly seeded DB) confirmed:
+  - `GET /api/intake/queue` returns the 1 Under-Evaluation project (proj-autobrake) seeded.
+  - `GET /api/portfolio/intake` returns HTTP 410 Gone with the structured `replacements` dict.
+  - `PUT /api/portfolio/intake/x/approve` returns HTTP 410 Gone.
+  - `POST /api/intake/projects` (controller, lightweight body) returns HTTP 201 with `pipeline_stage='Proposed'`, `doi=0`, `status='draft'`.
+  - `POST /api/intake/projects` (PL, no `pl_person_id`) defaults to the caller's person ID.
+  - `POST /api/intake/projects/proj-autobrake/send-back` (controller) returns 200 with `pipeline_stage='Proposed'`, `doi=1`, `status='changes_requested'` and writes a `controller_sent_back` snapshot.
+  - `POST /api/intake/projects/proj-autobrake/send-back` (PL) returns 403 "Role 'project_lead' not permitted. Required: controller".
+  - `GET /api/intake/projects/proj-autobrake/diff` returns the structured 21-field diff payload with `diff_type='current'` (PL has not yet pressed Resubmit).
+  - `POST /api/intake/projects/proj-autobrake/resubmit` (PL on own project) returns 200 with `pipeline_stage='Under Evaluation'`, `doi=2`, `status='pending_approval'`.
+
+### Curl examples (capture for A8 frontend integration)
+```bash
+H="X-Current-User: persona-controller"
+
+# Create at DoI 0 (Proposed)
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"name":"New IT Initiative","description":"Pitch text","lob_id":"lob-rail","project_type":1,"capex_opex":"capex","start_month":"2026-09"}' \
+  http://localhost:8000/api/intake/projects
+
+# Review queue (Under Evaluation only)
+curl -s -H "$H" http://localhost:8000/api/intake/queue
+
+# Approve
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"comments":"Approved at Pitch Board"}' \
+  http://localhost:8000/api/intake/projects/proj-autobrake/approve
+
+# Send Back
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"comments":"Need stronger TN scoring justification"}' \
+  http://localhost:8000/api/intake/projects/proj-autobrake/send-back
+
+# Diff (after Send Back)
+curl -s -H "$H" http://localhost:8000/api/intake/projects/proj-autobrake/diff
+curl -s -H "$H" "http://localhost:8000/api/intake/projects/proj-autobrake/diff?type=current"
+
+# Reject
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"reason":"Out of strategic scope"}' \
+  http://localhost:8000/api/intake/projects/proj-autobrake/reject
+
+# Resubmit (as PL)
+curl -s -X POST -H "X-Current-User: persona-pl" -H "Content-Type: application/json" \
+  -d '{"resubmission_notes":"Updated TN scores"}' \
+  http://localhost:8000/api/intake/projects/proj-autobrake/resubmit
+```
+
+### Ready for merge
+Branch `v5/cluster-a/a5-intake-backlog-backend` carries 7 atomic commits and 672 passing tests. Awaiting team-lead's PR / merge-order coordination. Per the brief the team merging second resolves conflicts; A5's likely conflict surface is `main.py` (router import + include — confined to lex-sort order), the deprecated bodies in `routers/portfolio.py` (replaced wholesale, conflict only if a parallel session edited the same lines), and `PROGRESS.md` (this block).
+
+---
 
 ## v5 Session D1: Admin Entities + CRUD (incl. Cluster F master data) Backend (2026-04-28)
 
