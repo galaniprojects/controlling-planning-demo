@@ -307,6 +307,17 @@ def transition_pipeline(
         )
 
     db.commit()
+
+    # [A-BK-14] Stage change → recompute within_cutoff across the backlog.
+    # Best-effort: a recompute failure must not surface as a 500 on the
+    # transition itself, so we swallow exceptions but let the project state
+    # already committed above stand.
+    try:
+        from services.ranking import recompute_within_cutoff_for_backlog
+        recompute_within_cutoff_for_backlog(db)
+    except Exception:  # noqa: BLE001 — defensive: trigger best-effort.
+        db.rollback()
+
     db.refresh(project)
     return _build_response(project, db)
 

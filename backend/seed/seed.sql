@@ -454,7 +454,12 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('standard_available_hours_default', 'Standard Available Hours (default)', 'Default monthly available hours per person; per-location overrides via standard_available_hours_<location_id>', '160', '160', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('standard_available_hours_loc-muc', 'Standard Available Hours — Munich', 'Munich monthly available hours override', '155', '155', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('standard_available_hours_loc-bud', 'Standard Available Hours — Budapest', 'Budapest monthly available hours override', '160', '160', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('standard_available_hours_loc-pun', 'Standard Available Hours — Pune', 'Pune monthly available hours override', '170', '170', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('standard_available_hours_loc-pun', 'Standard Available Hours — Pune', 'Pune monthly available hours override', '170', '170', 'integer', 'capacity', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+-- v5 Session A3 — Backlog & Ranking Configuration [A-BK-09] [A-BK-12].
+-- Working assumptions pending KB confirmation: 50M EUR envelope is a placeholder;
+-- tie-breaker default ASC on DoI surfaces earlier-stage projects first per [A-BK-06].
+('ranking_total_available_budget', 'Total Available Budget', 'Annual portfolio budget envelope used for cutoff line calculation [A-BK-09]', '50000000', '50000000', 'integer', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ranking_tiebreakers', 'Backlog Tie-Breaker Order', 'Comma-separated tie-breaker fields applied after composite_score DESC [A-BK-06]', 'composite_score:desc,doi:asc,total_budget:desc', 'composite_score:desc,doi:asc,total_budget:desc', 'string', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- 13. KPI Definitions

@@ -573,11 +573,20 @@ def update_parameters(
     [A-TN-07] If any changed key is in the tech_navigator group (tn_*),
     recompute denormalized Tech Navigator scores across the portfolio so
     composite_score and tshirt_size stay consistent with the new weights.
+
+    [A-BK-14] If any changed key is in the ranking group (ranking_*) OR
+    a tn_* key (which feeds composite_score), also recompute the
+    within_cutoff flag across the backlog.
     """
     from services.tech_navigator import recompute_all_scores
+    from services.ranking import (
+        parameter_key_triggers_recompute,
+        recompute_within_cutoff_for_backlog,
+    )
 
     updated = []
     tn_changed = False
+    ranking_recompute_needed = False
     for change in body.changes:
         param = db.query(PlanningParameter).filter(PlanningParameter.key == change.key).first()
         if not param:
@@ -588,9 +597,16 @@ def update_parameters(
         updated.append({"key": param.key, "name": param.name, "current_value": param.current_value})
         if param.key.startswith("tn_"):
             tn_changed = True
+        if parameter_key_triggers_recompute(param.key):
+            ranking_recompute_needed = True
     db.commit()
     if tn_changed:
         recompute_all_scores(db)
+    if ranking_recompute_needed:
+        try:
+            recompute_within_cutoff_for_backlog(db)
+        except Exception:  # noqa: BLE001 — defensive: trigger best-effort.
+            db.rollback()
     return {"items": updated, "total": len(updated)}
 
 
@@ -631,10 +647,18 @@ def recompute_scores(
 
     Useful after a bulk seed import or to repair drift; the same logic runs
     automatically when a controller edits any tn_* planning parameter.
+
+    [A-BK-14] After scores recompute, fan out to within_cutoff recompute so
+    composite_score-driven rank changes are reflected in the cutoff flag.
     """
     from services.tech_navigator import recompute_all_scores
+    from services.ranking import recompute_within_cutoff_for_backlog
 
     count = recompute_all_scores(db)
+    try:
+        recompute_within_cutoff_for_backlog(db)
+    except Exception:  # noqa: BLE001 — defensive: trigger best-effort.
+        db.rollback()
     return {"recomputed": count}
 
 

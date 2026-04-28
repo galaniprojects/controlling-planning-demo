@@ -50,6 +50,7 @@ from routers.milestones import (  # noqa: E402
 )
 from routers.pipeline import router as pipeline_router  # noqa: E402
 from routers.portfolio import router as portfolio_router  # noqa: E402
+from routers.ranking import router as ranking_router  # noqa: E402
 from routers.reference import router as reference_router  # noqa: E402
 from routers.report_builder import router as report_builder_router  # noqa: E402
 from routers.reports import router as reports_router  # noqa: E402
@@ -71,6 +72,7 @@ app.include_router(milestones_project_router)
 app.include_router(milestones_admin_router)
 app.include_router(pipeline_router)
 app.include_router(portfolio_router)
+app.include_router(ranking_router)
 app.include_router(reference_router)
 app.include_router(report_builder_router)
 app.include_router(reports_router)

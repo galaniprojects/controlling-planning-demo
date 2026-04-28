@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D — Three sessions in parallel; D1 + D2 merged onto `main`, A3 next.
-Last completed: Sessions D1 (admin entities + Cluster F master data) and D2 (workflow templates + audit query/export). Both sessions implemented in parallel agent-team worktrees, verified independently green (D1 480 tests, D2 459 tests), merged onto `main` in order with conflicts resolved on `main.py`, `models/__init__.py`, and PROGRESS.md.
-Next: A3 (Ranking engine + cutoff line backend) — branch `v5/cluster-a/ranking-engine-backend` carries 8 atomic commits and 477 passing tests; merge will resolve small surgical conflicts on the trigger-hook routers (`portfolio.py`, `workbench.py`, `admin.py`, `pipeline.py`) and seed.sql ranking parameters.
+Phase: v5 Cluster A/D — Three sessions merged in parallel onto `main` (D1 → D2 → A3).
+Last completed: Sessions D1 (admin entities + Cluster F master data), D2 (workflow templates + audit query/export), and A3 (ranking engine + cutoff line backend). All three implemented in parallel agent-team worktrees, verified independently green, merged onto `main` in order with conflicts resolved on `main.py`, `models/__init__.py`, `seed.sql`, `routers/admin.py` (audit category tagging for D1's new endpoints), and PROGRESS.md.
+Next: A5 (Intake workflow + backlog integration) — depends on A2 + A3, both now merged.
 
 ## v5 Session D1: Admin Entities + CRUD (incl. Cluster F master data) Backend (2026-04-28)
 
@@ -337,6 +337,94 @@ curl -X POST -H "X-Current-User: persona-controller" \
 
 ---
 
+## v5 Session A3: Ranking Engine + Cutoff Lines Backend (2026-04-28)
+
+### Feature Overview
+- New `services/ranking.py` plus `routers/ranking.py` mounted at `/api/portfolio` deliver the v5 backlog ranking and cutoff-line computation per `[A-PRI-01..04]` and `[A-BK-09..14]`. The ranked list orders backlog-eligible projects (`pipeline_stage IN BACKLOG_STAGES, project_type != 3, is_active=True`) by composite score with admin-configurable tie-breakers; Type 3 projects ride in a separate "Pre-funded" section.
+- Two cutoff lines are computed in a single walk per `[A-BK-10]`/`[A-BK-11]`: **should-be** (cumulative budget of every ranked project) and **reality** (cumulative budget of currently-committed projects only — `Active` plus `Approved` rows whose `within_cutoff` was already True). The misalignment zone bounds (start/end ranks) are returned in the same payload.
+- The contestable envelope = `ranking_total_available_budget − Σ(Type 3 in BACKLOG ∪ OPERATE) − Σ(OPERATE_STAGES)` per `[A-BK-09]` and `[A-TN-08]`.
+- `recompute_within_cutoff_for_backlog()` writes the per-project `within_cutoff` flag for Approved-stage projects per `[A-PS-06]` and clears it for non-Approved backlog rows. The function is the single DB-mutating entry point in `services/ranking.py`; pure helpers do not touch state.
+- Admin-configurable parameters (group `ranking`): `ranking_total_available_budget` (placeholder 50M EUR) and `ranking_tiebreakers` (default `composite_score:desc,doi:asc,total_budget:desc` per `[A-BK-06]`).
+- Three new endpoints (`/api/portfolio/backlog`, `/backlog/cutoff`, `/backlog/rebalance`) plus 6 trigger hooks fan out the recompute on every event listed in `[A-BK-14]`.
+
+### Spec references implemented
+`[A-PRI-01]`–`[A-PRI-04]`, `[A-PS-05]`–`[A-PS-06]`, `[A-PS-08]` (manual override path preserved via the existing manual `within_cutoff` PUT), `[A-BK-06]`, `[A-BK-09]`–`[A-BK-14]`, `[A-TN-08]`.
+
+Out of scope per session brief:
+- `[A-PS-07]` auto-activation on launch date — A3 keeps the flag accurate; the scheduler-driven Approved → Active transition belongs to a future job/cron session.
+- `[A-BK-15]` "estimated/requested budget" field for pre-approval projects — pre-approval rows currently use `total_budget` as the walk input. Tracked as a follow-up.
+- `[A-BK-13]` long-term sustainability KPI/banner — not implemented in A3; primary 12-month walk only per `[A-BK-12]`.
+
+### Technical Details
+- **Service:** `backend/services/ranking.py`. `RankingConfig` dataclass + `load_config(db)` mirrors A1's `WeightsSnapshot` pattern. Pure helpers: `_parse_tiebreakers`, `_project_walk_budget`, `_project_sort_key`, `compute_pre_funded_total`, `compute_hyper_maintenance_total`, `compute_contestable_envelope`. Orchestrators: `compute_ranked_backlog`, `compute_cutoff_lines`, `recompute_within_cutoff_for_backlog`. Trigger key set `RANKING_RELEVANT_PREFIXES = ("ranking_", "tn_")` exposed via `parameter_key_triggers_recompute(key)`.
+- **Schemas:** `backend/schemas/ranking.py` — six Pydantic models: `RankedProjectItem`, `CutoffLines`, `RankingConfigSnapshot`, `RankedBacklogResponse`, `CutoffLinesResponse`, `RebalanceResponse`.
+- **Router:** `backend/routers/ranking.py` mounted at `/api/portfolio`. GET endpoints open to any authenticated role per the spec's "Full backlog, all projects" row; POST `/rebalance` requires controller via `require_role`. Filters (`pipeline_stage`, `project_type`, `tshirt_size`) apply post-walk to the items list only — cutoff line positions reflect the full portfolio reality regardless of filter.
+- **Trigger hooks (best-effort, try/except wrapped):**
+  1. `routers/portfolio.py::approve_project` — project entering Approved.
+  2. `routers/portfolio.py::approve_cr` — CR controller approval applies forecast deltas.
+  3. `routers/workbench.py::accept_cr_changes` — PL acceptance auto-applies changes when there's no resource impact.
+  4. `routers/workbench.py::submit_forecast_cycle` — rolling-forecast cadence.
+  5. `routers/admin.py::recompute_scores` — chains after the existing `recompute_all_scores`.
+  6. `routers/admin.py::update_parameters` — extended to fire when any changed key matches `parameter_key_triggers_recompute` (ranking_* or tn_*).
+  7. `routers/pipeline.py::transition_pipeline` — stage move in/out of backlog.
+  Each hook swallows exceptions and rolls back so a recompute failure cannot surface as a 500 on the parent endpoint.
+- **Seed:** appended two rows to `backend/seed/seed.sql` section 12 under `param_group='ranking'`.
+- **Audit logging:** the manual `POST /rebalance` writes one summary row (`entity_type='within_cutoff', action='rebalance', entity_id='portfolio'`). System-driven recomputes (the 6 trigger hooks) do not emit audit rows because there is no `CurrentUser` in scope; per-project flag flips are intentionally deterministic given inputs and so don't need individual audit trails. Re-evaluate if KB requires a "system" pseudo-user pattern.
+- **Tests:** 71 new tests across `tests/test_ranking_service.py` (50) and `tests/test_router_ranking.py` (21). Full suite: 477 passed (406 baseline + 71 new).
+
+### API Endpoints Added
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| GET    | `/api/portfolio/backlog`           | any role | Full ranked list + pre-funded section + cutoff lines + config snapshot |
+| GET    | `/api/portfolio/backlog/cutoff`    | any role | Slim cutoff summary for KPI strips |
+| POST   | `/api/portfolio/backlog/rebalance` | controller | Force a within_cutoff recompute; emits one summary audit row |
+
+GET `/backlog` accepts optional `pipeline_stage` (multi), `project_type`, and `tshirt_size` (multi) query params for visibility-only filtering.
+
+### Data Model Changes
+None. A3 is a pure read/compute layer; the `within_cutoff` column on `Project` was added in A2. Two new `planning_parameters` rows are seed-only.
+
+### Working assumptions
+- `ranking_total_available_budget` default of **€50M** is a placeholder pending KB confirmation per `[A-BK-09]`.
+- 12-month horizon hard-coded per `[A-BK-12]`. Not exposed as an admin parameter in v5.
+- Hyper-maintenance committed spend = `Σ(total_budget) WHERE pipeline_stage IN OPERATE_STAGES` (Hyper-maintenance + Operate + Retired). Whole-project totals rather than 12-month-slice forecast aggregation. Refines when monthly forecast aggregation lands.
+- Pre-approval projects (DoI 0–2) use `total_budget` as the walk input. Will switch to a dedicated estimated-budget field when `[A-BK-15]` lands in a follow-up session.
+- Default tie-breaker order: `composite_score:desc, doi:asc, total_budget:desc`. DoI ASC follows spec text in `[A-BK-06]` ("earlier-stage projects surface first because they need decisions sooner"). The session brief mentioned `doi DESC`; the spec was treated as authoritative — flip via `ranking_tiebreakers` PlanningParameter if KB confirms otherwise.
+- The reality-line walk uses the *previously persisted* `within_cutoff` value to identify committed Approved rows. When called pre-recompute it gives "current state"; when called post-recompute it gives "post-rebalance state". Document the timing in any UI copy.
+- Audit rows for system-driven recomputes are intentionally suppressed; only the manual `POST /rebalance` emits a high-level audit summary.
+- Type 3 projects whose `within_cutoff` was previously set get cleared on recompute — Type 3 doesn't compete in the ranked list, so it has no cumulative rank.
+
+### Verification
+- `python -m pytest backend/tests/ -v` → **477 passed** (406 baseline + 50 new service + 21 new router).
+- Live `python main.py` smoke test against a freshly seeded DB:
+  - `GET /api/portfolio/backlog -H "X-Current-User: persona-controller"` → 200, returned 28 ranked items + cutoff payload + config snapshot.
+  - `GET /api/portfolio/backlog/cutoff -H "X-Current-User: persona-exec"` → 200, contestable envelope = €47,615,240 (€50M − €2,384,760 of OPERATE_STAGES), `should_be_cutoff_rank=null` (envelope not exhausted by demo data).
+  - `POST /api/portfolio/backlog/rebalance -H "X-Current-User: persona-controller"` → 200, `recomputed=28, changed=0` (idempotent against the seeded state).
+  - `POST /api/portfolio/backlog/rebalance -H "X-Current-User: persona-pl"` → **403** "Role 'project_lead' not permitted. Required: controller".
+
+### Refactoring opportunities (noted, not acted on)
+- **`_log_audit` is duplicated** across `routers/admin.py`, `routers/milestones.py`, `routers/pipeline.py`, and now imported into `routers/ranking.py`. After D2 lands the new `category=` parameter, this duplication will multiply. Worth lifting to `services/audit.py` in a follow-up.
+- **CR budget-mutation paths are scattered.** `_apply_cr_changes_to_forecast` lives in `routers/portfolio.py` while `_apply_cr_to_forecast` lives in `routers/workbench.py` — near-identical bodies. Worth consolidating into `services/cr_apply.py`.
+- **Seed data lacks Tech Navigator scores.** All 28 backlog projects currently have `composite_score=null` so the ranking falls back to the secondary tie-breaker (DoI ASC). The ranked list order will only become meaningful once S1 populates realistic TN profiles.
+
+### Notes for follow-on sessions
+- **A5 intake workflow** consumes `compute_ranked_backlog` to render the controller's review queue inside the backlog view (filter to `Under Evaluation`). When new projects are created at DoI 0, the existing `transition_pipeline` hook fires on the implicit `Proposed` move and recomputes within_cutoff automatically — no extra wiring needed.
+- **A6 frontend backlog module** consumes the `RankedBacklogResponse` shape directly; `cumulative_budget_should_be` and `cumulative_budget_reality` per item enable the UI to render the cutoff bands without re-running the walk.
+- **A7 Tech Navigator UI** PUT to `/api/projects/{id}/tech-navigator` already runs `recompute_all_scores` indirectly via PlanningParameter changes; A3 does NOT yet hook the per-project Tech Navigator PUT into the within_cutoff recompute. If that becomes desired, add the hook to `routers/tech_navigator.py::update_tech_navigator` after `db.commit()`. Flagged as "follow-up if KB wants the cutoff to update on every per-project score edit".
+- **`[A-PS-07]` auto-activation on launch date** is a scheduler concern; recompute will pick up the new state automatically once a job flips Approved → Active.
+- **D2 `_log_audit` rebase** — A3's calls use the current main signature without `category=`. After D2 merges, my single audit call site in `routers/ranking.py::rebalance_backlog` and any new ones in the trigger hooks (currently none — all hooks run audit-free) will need a one-line update to add `category="pipeline_transitions"` (the rebalance is a pipeline-level event).
+
+### Out-of-scope notes
+- `[A-PS-07]` auto-activation logic deferred to a scheduler/cron session.
+- `[A-BK-13]` long-term sustainability KPI/banner deferred — primary 12-month walk only.
+- `[A-BK-15]` estimated/requested budget field for pre-approval projects deferred.
+- Per-project Tech Navigator PUT does NOT trigger within_cutoff recompute. Admin parameter PUT and `recompute-scores` POST cover the bulk recompute paths; per-project edits flow through next time another trigger fires.
+- Filters on GET `/backlog` are server-side; pagination is not implemented (the v5 backlog is expected to fit in a single page given KB's portfolio size).
+
+### Ready for review
+Branch `v5/cluster-a/ranking-engine-backend` carries 9 atomic commits and 477 passing tests. Awaiting team-lead's PR / merge-order coordination — D1 → D2 → A3 per the brief.
+
+---
 
 ## v5 Session A2: Pipeline Stages, DoI, Project Lifecycle Backend (2026-04-27)
 

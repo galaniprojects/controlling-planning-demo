@@ -600,6 +600,15 @@ def approve_project(
         db.add(notification)
 
     db.commit()
+
+    # [A-BK-14] Project entered Approved/Active state → recompute the backlog
+    # within_cutoff flags so the cutoff line reflects the new commitment.
+    try:
+        from services.ranking import recompute_within_cutoff_for_backlog
+        recompute_within_cutoff_for_backlog(db)
+    except Exception:  # noqa: BLE001 — defensive: trigger best-effort.
+        db.rollback()
+
     db.refresh(project)
 
     return {"id": project.id, "name": project.name, "status": project.status}
@@ -1362,6 +1371,14 @@ def approve_cr(
     _apply_cr_changes_to_forecast(cr, db)
 
     db.commit()
+
+    # [A-BK-14] CR approval changes forecast/budget → recompute within_cutoff.
+    try:
+        from services.ranking import recompute_within_cutoff_for_backlog
+        recompute_within_cutoff_for_backlog(db)
+    except Exception:  # noqa: BLE001 — defensive: trigger best-effort.
+        db.rollback()
+
     return _build_cr_detail(cr, db)
 
 
