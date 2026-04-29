@@ -207,6 +207,51 @@ def list_scenario_edges(
 # Stage 1 — Distribution mutation API (exposed to router via scenarios)
 # ---------------------------------------------------------------------------
 
+def _check_cycle_across_versions(
+    db: Session, year: int, source_id: str, dest_id: str,
+    *, scenario_version_str: str, anchor_version: str,
+) -> Optional[list[str]]:
+    """Union-aware cycle detection.
+
+    The lazy-fork pattern means scenario-version edges are sparse — only
+    the entities the user has touched. To validate cycles correctly we
+    must consider the union of (anchor edges for entities not forked) +
+    (scenario edges for entities forked). Detect cycle iff the candidate
+    edge would create a cycle in this union graph.
+    """
+    from services.dag_resolver import EdgeKey, detect_cycle
+
+    # Fetch all edges in either version, dedup by (source, dest):
+    # scenario rows win (they're the post-fork state), anchor rows fill in
+    # for untouched entities.
+    scenario_edges = (
+        db.query(Distribution)
+        .filter(
+            Distribution.year == year,
+            Distribution.version == scenario_version_str,
+        )
+        .all()
+    )
+    forked_sources = {e.source_entity_id for e in scenario_edges}
+
+    anchor_edges = (
+        db.query(Distribution)
+        .filter(
+            Distribution.year == year,
+            Distribution.version == anchor_version,
+            ~Distribution.source_entity_id.in_(forked_sources)
+            if forked_sources else Distribution.source_entity_id.isnot(None),
+        )
+        .all()
+    )
+
+    keys = [
+        EdgeKey(source=e.source_entity_id, destination=e.destination_entity_id)
+        for e in [*scenario_edges, *anchor_edges]
+    ]
+    return detect_cycle(keys, source_id, dest_id)
+
+
 def apply_distribution_create(
     db: Session, scenario_id: int, *, year: int,
     source_entity_id: str, destination_entity_id: str, percentage: float,
@@ -221,6 +266,18 @@ def apply_distribution_create(
     _ensure_scenario(db, scenario_id)
     sv = scenario_version(scenario_id)
     fork_entity_edges(db, scenario_id, source_entity_id, year, anchor_version=anchor_version)
+
+    # Union-aware cycle check across anchor + scenario edges.
+    chain = _check_cycle_across_versions(
+        db, year, source_entity_id, destination_entity_id,
+        scenario_version_str=sv, anchor_version=anchor_version,
+    )
+    if chain is not None:
+        raise Lever12Error(
+            f"Cycle detected per [F-S1-05]: {' → '.join(chain)}",
+            cycle_chain=chain,
+        )
+
     try:
         edge = create_distribution_edge(
             db, year=year, version=sv,
