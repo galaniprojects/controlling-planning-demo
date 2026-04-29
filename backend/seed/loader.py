@@ -119,9 +119,144 @@ def seed_database() -> dict:
 
     print("[seed] Database empty — running full seed...")
     load_seed_sql()
+    _seed_forecast_versions()
     fixtures = load_fixtures()
     print("[seed] Seed complete.")
     return fixtures
+
+
+def _seed_forecast_versions() -> None:
+    """Python seed helper: create 2 ForecastVersions per project [C-FV-05].
+
+    v1: 'Q1 2026 Cycle' — payload = current forecast * 1.05 (prior-cycle estimate)
+    v2: 'Q2 2026 Cycle' — payload = current forecast (current state)
+
+    Uses SQLAlchemy ORM against the live database, matching the C1 schema.
+    Runs after load_seed_sql() so all tables and rows exist.
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from database import Base
+
+    engine = create_engine(
+        f"sqlite:///{get_db_path()}",
+        connect_args={"check_same_thread": False},
+    )
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
+
+    try:
+        import models  # noqa: F401 — registers all ORM classes
+        from models.financial import Forecast, ForecastVersion
+        from models.projects import Project
+        from schemas.common import CurrentUser
+        from services.forecast_versioning import (
+            build_mixed_grid, serialize_forecast_payload, _next_version_number
+        )
+        from decimal import Decimal
+        from datetime import datetime
+        import json
+
+        # Synthetic "seed" user (controller persona)
+        seed_user = CurrentUser(
+            user_id="persona-controller",
+            person_id="p-controller",
+            name="Anna Meier",
+            role="controller",
+            cost_center_id=None,
+            project_ids=[],
+        )
+
+        DEMO_DATE = "2026-04"
+        projects = db.query(Project).filter(Project.is_active.is_(True)).all()
+        count = 0
+
+        for project in projects:
+            has_forecast = db.query(Forecast).filter(
+                Forecast.project_id == project.id
+            ).limit(1).first()
+            if not has_forecast:
+                continue
+
+            # v1: 'Q1 2026 Cycle' — snapshot with a 5% uplift (prior-cycle estimate)
+            grid_v1 = build_mixed_grid(db, project.id, DEMO_DATE)
+            # Uplift amounts by 5%
+            for row in grid_v1["rows"]:
+                for cell in row["cells"]:
+                    cell["amount_eur"] = round(cell["amount_eur"] * 1.05, 2)
+                row["row_total"] = round(sum(c["amount_eur"] for c in row["cells"]), 2)
+            grid_v1["totals_by_column"] = {
+                k: round(v * 1.05, 2) for k, v in grid_v1["totals_by_column"].items()
+            }
+            grid_v1["grand_total"] = round(grid_v1["grand_total"] * 1.05, 2)
+
+            payload_v1 = serialize_forecast_payload(
+                project.id, grid_v1, "2026-01-15T10:00:00"
+            )
+            cell_count_v1 = sum(
+                1 for row in grid_v1["rows"]
+                for cell in row["cells"] if cell["amount_eur"] != 0.0
+            )
+
+            fv1 = ForecastVersion(
+                project_id=project.id,
+                version_number=_next_version_number(db, project.id),
+                version_type="cycle",
+                cycle_label="Q1 2026 Cycle",
+                cycle_id="seed-q1-2026",
+                change_request_id=None,
+                created_by_id="p-controller",
+                created_at=datetime(2026, 1, 15, 10, 0, 0),
+                granularity_boundary_months=grid_v1["granularity_boundary_months"],
+                planning_horizon_months=grid_v1["planning_horizon_months"],
+                payload_json=payload_v1,
+                cell_count=cell_count_v1,
+                total_amount_eur=Decimal(str(grid_v1["grand_total"])) if grid_v1["grand_total"] else None,
+            )
+            db.add(fv1)
+            db.flush()
+
+            # v2: 'Q2 2026 Cycle' — current state snapshot
+            grid_v2 = build_mixed_grid(db, project.id, DEMO_DATE)
+            payload_v2 = serialize_forecast_payload(
+                project.id, grid_v2, "2026-04-15T10:00:00"
+            )
+            cell_count_v2 = sum(
+                1 for row in grid_v2["rows"]
+                for cell in row["cells"] if cell["amount_eur"] != 0.0
+            )
+
+            fv2 = ForecastVersion(
+                project_id=project.id,
+                version_number=_next_version_number(db, project.id),
+                version_type="cycle",
+                cycle_label="Q2 2026 Cycle",
+                cycle_id="seed-q2-2026",
+                change_request_id=None,
+                created_by_id="p-controller",
+                created_at=datetime(2026, 4, 15, 10, 0, 0),
+                granularity_boundary_months=grid_v2["granularity_boundary_months"],
+                planning_horizon_months=grid_v2["planning_horizon_months"],
+                payload_json=payload_v2,
+                cell_count=cell_count_v2,
+                total_amount_eur=Decimal(str(grid_v2["grand_total"])) if grid_v2["grand_total"] else None,
+            )
+            db.add(fv2)
+            db.flush()
+
+            count += 1
+
+        db.commit()
+        print(f"[seed] Created 2 forecast versions for {count} projects (C1 [C-FV-05])")
+
+    except Exception as exc:
+        db.rollback()
+        print(f"[seed] WARNING: _seed_forecast_versions failed: {exc}")
+    finally:
+        db.close()
 
 
 def reset_database() -> dict:
@@ -156,6 +291,8 @@ def reset_database() -> dict:
 
     # Reload seed data and fixtures
     load_seed_sql()
+    # C1: generate 2 forecast versions per project [C-FV-05]
+    _seed_forecast_versions()
     fixtures = load_fixtures()
     print("[seed] Reset complete.")
     return fixtures

@@ -248,6 +248,58 @@ class TestGetOwnCost:
         db.commit()
         assert get_own_cost(ce) == 200000.0
 
+    def test_offering_uses_annual_cost_when_set(self, db):
+        """F3: Offering with annual_cost should return that value [F-DG-03]."""
+        from models.organization import GroupingEntityType, GroupingEntity
+        et = GroupingEntityType(id="get-lob2", name="LoB2")
+        n = GroupingEntity(id="lob-2", entity_type_id="get-lob2", name="LoB Two")
+        db.add_all([et, n])
+        db.flush()
+        ce = ChargeableEntity(
+            id="ce-off-ac", entity_type="Offering", identifier="IT00S099",
+            name="Offering With Annual Cost", to_business_pct=50.0,
+            hierarchy_node_id="lob-2", is_active=True,
+            annual_cost=1500000.0,
+        )
+        db.add(ce)
+        db.commit()
+        assert get_own_cost(ce) == 1500000.0
+
+    def test_internal_service_uses_annual_cost_when_set(self, db):
+        """F3: InternalService with annual_cost should return that value [F-DG-03]."""
+        from models.organization import GroupingEntityType, GroupingEntity
+        et = GroupingEntityType(id="get-lob3", name="LoB3")
+        n = GroupingEntity(id="lob-3", entity_type_id="get-lob3", name="LoB Three")
+        db.add_all([et, n])
+        db.flush()
+        ce = ChargeableEntity(
+            id="ce-is-ac", entity_type="InternalService", identifier="ITF09999",
+            name="IS With Annual Cost", to_business_pct=0.0,
+            hierarchy_node_id="lob-3", is_active=True,
+            annual_cost=750000.0,
+        )
+        db.add(ce)
+        db.commit()
+        assert get_own_cost(ce) == 750000.0
+
+    def test_project_falls_back_to_annual_cost_when_no_budget(self, db, seed_org_base):
+        """F3: Project CE with no annual_budget/total_budget falls back to annual_cost [F-DG-03]."""
+        p = Project(
+            id="proj-ac", name="AC", status="active", capex_opex="opex",
+            start_month="2026-01", is_service=True,
+            annual_budget=None, total_budget=None,
+        )
+        db.add(p)
+        db.flush()
+        ce = ChargeableEntity(
+            id="ce-proj-ac", entity_type="Project", identifier="IT099004",
+            name="Proj AC", project_id="proj-ac",
+            annual_cost=333000.0,
+        )
+        db.add(ce)
+        db.commit()
+        assert get_own_cost(ce) == 333000.0
+
 
 class TestUpstreamChain:
     def test_returns_self_for_isolated_entity(self, db, chargeable_graph):

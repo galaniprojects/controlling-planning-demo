@@ -32,6 +32,9 @@ A full-featured IT financial planning and portfolio management demo application 
 ### Portfolio Overview
 IT portfolio dashboard with KPI tiles (CY-scoped to current fiscal year), hierarchical project tree grouped by configurable organizational hierarchy (e.g., Line of Business → Program → Project), budget/forecast/actuals tracking, RAG status indicators, **v5 ranked backlog with cutoff-line walk** (compose budget envelope, project type 1/2/3 driving cutoff exemption, real-time within-cutoff flag), change request approvals, and controller review with editable grids and diff comparison views. **v5 intake replaces the v4 intake queue**: new projects land at DoI 0 in the ranked backlog; controller actions (approve / send back / reject) and PL Send-Back ↔ Resubmit cycle drive lifecycle transitions.
 
+### Backlog
+Ranked IT project backlog with composite scoring, cutoff analysis, and Tech Navigator cube view per `[A-BK-01..26]`. **Ranked List view** — sortable table (rank, project name, composite score, budget) with server-driven stage/type/size/T-level filters and within-cutoff toggle. Cutoff bands inserted at `should_be_cutoff_rank` and `reality_cutoff_rank`; misalignment-zone rows tinted amber. Sort override suppresses bands and shows a reset banner. **Cube view** — 3-column scatter chart grid (T0 Just better / T1 Paper to software / T2 New business) with bubble size proportional to budget, colored by project type. **CutoffSummaryStrip** — always-visible portfolio-wide budget envelope KPIs. **Project detail** (`/backlog/:projectId`) — 4-tab view: Scores & Ranking (Tech Navigator rubric + ranking context card), Financial Overview (embedded workbench overview), Master Data (DoI-aware completeness checklist), Milestones (read-only strip + table). URL search params persist all filter, sort, view-mode, and tab state.
+
 ### Tech Navigator Scoring
 Per-project scoring rubric (Complexity sub-criteria: Standardization 40 % / Usage 40 % / Maintenance 20 %; Value Creation sub-criteria: Financial benefit 50 % / Payback 40 % / Competitive advantage 10 %) with 1–5 scale and descriptive labels. Project Type (1/2/3) and Transformation Level (T0/T1/T2) selectors. Real-time computed Complexity / Value Creation / Composite Ranking (Value 70 % · Complexity 30 %) plus admin-configurable budget t-shirt size (XS/S/M/L/XL with editable thresholds). Ranking engine consumes composite score for the cutoff-line walk.
 
@@ -162,7 +165,8 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 |--------|--------|-----------|-------------|
 | **Launchpad** | `/api` | 8 | Roles, modules, KPIs, pending actions, project create/submit |
 | **Portfolio** | `/api/portfolio` | 18 | Dashboard KPIs, project tree, intake queue (approve/reject/send-back/diff/accept-changes), CR approvals (approve/reject/send-back/editable-grid) |
-| **Workbench** | `/api/projects` | 13 | Project list, overview, timeline, forecast grid, 5-phase forecast cycle, CR diff/accept-changes/resubmit |
+| **Workbench** | `/api/projects` | 18 | Project list, overview, timeline, forecast grid (v4), mixed-granularity grid (C1), 5-phase forecast cycle, CR diff/accept-changes/resubmit, forecast version history + diff |
+| **Forecast Versions** | `/api/forecast` | 1 | Cross-project version diff (C1) |
 | **Tech Navigator** | `/api/projects` | 2 | Project Tech Navigator profile (read + partial update with score recompute) |
 | **Pipeline** | `/api/projects` | 4 | Pipeline stage + DoI gate state (read, transition with optional override, AI Council flag, manual within_cutoff setter) |
 | **Project Milestones** | `/api/projects` | 4 | Milestone CRUD (list, create, update, delete) per project; baseline-date edits require controller + override reason per [A-MS-03] |
@@ -171,6 +175,7 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
 | **Report Builder** | `/api/report-builder` | 12 | Data catalog, filter options, query execution, saved reports CRUD, share/publish, CSV export |
 | **AI Report Builder** | `/api/reports/ai-builder` | 4 | Status check, conversation start, message, cleanup |
+| **BTC Profiles + Rollup** | `/api/charging`, `/api/admin` | 15 | BTCProfile CRUD, UM refresh, mode change, copy/year-rollover, WBS matrix, rollup query (11 dims), drill-down, cache invalidate/status |
 | **Admin** | `/api/admin` | 20 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset, Tech Navigator score recompute, milestone-types catalogue |
 | **Docs** | `/api/docs` | 3 | Module manuals, FAQ |
 | **Reference** | `/api/reference` | 4 | Roles, cost types, grouping entities, cost centers |
@@ -205,6 +210,18 @@ The CR lifecycle (`pending_controller_approval` -> `sent_back_by_controller` -> 
 | `GET` | `/api/projects/{pid}/change-requests/{cr_id}/diff` | PL views original vs controller-proposed comparison |
 | `PUT` | `/api/projects/{pid}/change-requests/{cr_id}/accept-changes` | PL accepts controller's proposed changes |
 | `PUT` | `/api/projects/{pid}/change-requests/{cr_id}/resubmit` | PL resubmits CR to controller |
+
+### Forecast Grid + Versioning Endpoints (v5 Session C1)
+
+Mixed-granularity forecast grid, immutable version snapshots, and cross-version diff. Backwards-compatible: v4 `GET /api/projects/{id}/forecast` is unchanged.
+
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/projects/{id}/forecast/grid` | all | Mixed-granularity grid (monthly+quarterly) [C-FG-02]. Params: `granularity`, `boundary_months`, `horizon_months` |
+| `GET` | `/api/projects/{id}/forecast/versions` | all | List forecast versions newest-first [C-RH-01]. PL-filtered |
+| `GET` | `/api/projects/{id}/forecast/versions/{vid}` | all | Version detail + full payload [C-RH-02] |
+| `POST` | `/api/projects/{id}/forecast/versions` | controller | Manual snapshot [C-FV-03] |
+| `GET` | `/api/forecast/versions/{a}/diff/{b}` | all | Diff two versions (cross-project valid) [C-RH-05] |
 
 ### Tech Navigator Endpoints (v5 Cluster A)
 
@@ -284,6 +301,30 @@ ChargeableEntity is the polymorphic cost-allocation root (Project / Offering / I
 | `GET` | `/api/charging/entities/{id}/wbs/{loc_id}` | any role | Algorithmic WBS preview per `[F-DM-03]` |
 
 Versioning per `[F-S1-04]`: edges are keyed by `(year, version, source_id, destination_id)`. `version` participates in the standard baseline / forecast / actuals lifecycle, with scenario forks identified by `scenario-<id>`. Cycle detection runs on every save and rejects with the cycle chain returned in the 409 body for UI rendering.
+
+### BTC Profile + Rollup Endpoints (v5 Cluster F — Session F3)
+
+BTCProfile (Business Transfer Charging) maps a chargeable entity's to-business cost across charging locations using percentage-based allocations per `[F-S2-01..08]`. The rollup data layer aggregates effective costs across 11 dimensions with a persistent two-layer cache per `[F-RV-01..06]`. DoI 2→3 approval is gated on an active BTC profile when `to_business_pct > 0` per `[A-PL-06]`.
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/charging/btc-profiles` | any role | List all BTC profiles (filter by `entity_id`, `year`, `status`) |
+| `GET` | `/api/charging/btc-profiles/{id}` | any role | Profile detail with lines + `sums_to_100` flag |
+| `GET` | `/api/charging/entities/{id}/btc-profile` | any role | Active profile for entity × year |
+| `POST` | `/api/charging/btc-profiles` | controller | Create manual or automatic profile (UM snapshot) per `[F-S2-02]` |
+| `PUT` | `/api/charging/btc-profiles/{id}` | controller | Replace lines on a draft manual profile per `[F-S2-04]` |
+| `DELETE` | `/api/charging/btc-profiles/{id}` | controller | Delete profile + lines (cascade) |
+| `POST` | `/api/charging/btc-profiles/{id}/refresh-um` | controller | Re-derive automatic profile lines from UM matrix; dry-run + commit per `[F-S2-06]` |
+| `POST` | `/api/charging/btc-profiles/{id}/change-mode` | controller | Switch manual↔automatic with confirmation gate per `[F-S2-03]` |
+| `POST` | `/api/charging/btc-profiles/{id}/copy-from` | controller | Clone profile to another entity/year per `[F-S2-07]` |
+| `GET` | `/api/charging/entities/{id}/wbs-matrix` | any role | Full charging-location matrix with WBS elements + BTC percentages per `[F-S2-08]` / `[F-DM-03]` |
+| `POST` | `/api/admin/btc-profiles/year-rollover` | controller | Bulk copy active profiles from `source_year` to `target_year` drafts per `[F-S2-05]` |
+| `GET` | `/api/charging/rollup` | any role | Aggregate effective costs by dimension (`group_by`: entity/entity_type/hierarchy_node/responsible/change_or_run/charging_location/legal_entity/region/division/country/stage) per `[F-RV-01..03]` |
+| `GET` | `/api/charging/rollup/charging-location/{cl_id}` | any role | Drill-down: upstream path chain for entity × charging-location with enriched labels per `[F-RV-04]` |
+| `POST` | `/api/admin/rollup-cache/invalidate` | controller | Flush entire rollup cache per `[F-RV-02]` (manual recovery path) |
+| `GET` | `/api/admin/rollup-cache/status` | controller | Diagnostic: entry counts per cache layer (stage1_effective / stage2_location) per `[F-RV-02]` |
+
+BTC validation rules: sum-to-100 tolerance 0.01%; manual profiles only editable in `draft` status; automatic profiles updated via `refresh-um` only; mode change requires explicit `confirm` flag; year rollover creates `draft` copies only. Cache invalidation is wired into all write paths: distribution writes invalidate (year, version), BTC writes invalidate stage2 for entity, annual_cost writes invalidate both layers for entity.
 
 ### Resource Assignment Endpoints (CC Owner)
 

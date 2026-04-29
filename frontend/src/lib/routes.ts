@@ -6,6 +6,7 @@ export const MODULE_ROUTES: Record<string, string> = {
   reporting: '/reporting',
   admin: '/admin',
   documentation: '/docs',
+  backlog: '/backlog',
 };
 
 export const ROUTE_LABELS: Record<string, string> = {
@@ -21,6 +22,6 @@ export const ROUTE_LABELS: Record<string, string> = {
   '/reporting/builder': 'Report Builder',
   '/admin': 'Administration',
   '/docs': 'Documentation',
-  // === Tech Navigator (A7) === scaffold harness route; A6 will replace.
-  '/backlog-detail-stub': 'Backlog Detail (stub)',
+  // === Backlog (A6) ===
+  '/backlog': 'Backlog',
 };

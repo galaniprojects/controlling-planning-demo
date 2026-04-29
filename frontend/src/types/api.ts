@@ -1423,3 +1423,69 @@ export interface AIChatMessage {
   content: string;
   report?: AIReportSpec | null;
 }
+
+// === Backlog / Ranking (A6) [A-BK-01..26] ===
+
+export interface RankedProjectItem {
+  rank: number | null;
+  project_id: string;
+  project_name: string;
+  pipeline_stage: string | null;
+  doi: number | null;
+  project_type: number | null;
+  composite_score: number | null;
+  complexity_score: number | null;
+  value_creation_score: number | null;
+  transformation_level: string | null;
+  tshirt_size: string | null;
+  total_budget: number | null;
+  within_cutoff: boolean | null;
+  cumulative_budget_should_be: number | null;
+  cumulative_budget_reality: number | null;
+}
+
+export interface CutoffLines {
+  total_available_budget: number;
+  type3_pre_funded_total: number;
+  hyper_maintenance_committed_total: number;
+  contestable_envelope: number;
+  should_be_cutoff_rank: number | null;
+  reality_cutoff_rank: number | null;
+  misalignment_zone_start: number | null;
+  misalignment_zone_end: number | null;
+}
+
+export interface RankingConfigSnapshot {
+  total_available_budget: number;
+  tiebreaker_order: string[];
+  horizon_months: number;
+}
+
+export interface RankedBacklogResponse {
+  items: RankedProjectItem[];
+  total: number;
+  pre_funded: RankedProjectItem[];
+  pre_funded_total: number;
+  cutoff: CutoffLines;
+  config: RankingConfigSnapshot;
+}
+
+export interface CutoffLinesResponse {
+  cutoff: CutoffLines;
+  config: RankingConfigSnapshot;
+}
+
+// Intake queue item (used by A6 backlog "Under Evaluation" check)
+export interface IntakeQueueItem {
+  id: string;
+  name: string;
+  pipeline_stage: string | null;
+  doi: number | null;
+  project_type: number | null;
+  composite_score: number | null;
+  total_budget: number | null;
+  tshirt_size: string | null;
+  pl_person_id: string | null;
+  submission_feedback: string | null;
+  ai_council_approved: boolean | null;
+}

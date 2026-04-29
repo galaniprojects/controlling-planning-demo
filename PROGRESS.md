@@ -1,9 +1,175 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D/F — Wave 1 merged via PR #63 (2026-04-29).
-Last completed: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests passing. Frontend TS error count unchanged at 78 pre-existing. Verified end-to-end via 5 live curl smokes + Chrome-DevTools visual walk (composite-ranking math 0.7 × 4.4 + 0.3 × 4.0 = 4.28 confirmed live).
-Next: **Wave 2 — F3 (BTCProfile + Stage 2 + rollup) + A6 (frontend backlog) + C1 (mixed-granularity forecast + versioning)** can run in parallel on three independent agent-team worktrees. F3 unblocks A8 + B1; A6 replaces A7's stub harness; C1 unblocks B1 + C2.
+Phase: v5 Cluster A/D/F — Wave 2 merged locally (2026-04-29). F3 + C1 + A6 all on main.
+Last completed: **A6** (frontend Backlog module — ranked list, cube view, 4-tab detail page, Launchpad tile). Verified end-to-end via Playwright walk in light + dark mode.
+Combined Wave 2: F3 (+125 tests) + C1 (+94 tests) brings backend test count to 1007. A6 frontend TS errors unchanged from baseline.
+Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
+Next: Wave 3 unblocked — A8 (Run Portfolio backend), B1 (simulator Lever 12), C2 (frontend mixed-grid + version history), F4–F7 (charging frontend).
+**Post-merge requirement:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables and C1's `is_provisional` column on `forecasts` break any existing DB until reseed.
+
+## v5 Session C1: Mixed-Granularity Forecast + Versioning (2026-04-29)
+
+### Feature Overview
+- **Mixed-granularity forecast grid** per `[C-FG-01..08]`: monthly columns within
+  the boundary window (default 12 months), quarterly columns beyond it. Three
+  `granularity` modes: `mixed` (default), `monthly`, `quarterly`. Boundary and
+  horizon configurable via query params or `planning_parameters` DB rows.
+- **`is_provisional` flag** per `[C-FG-07]`: `Boolean` column on `Forecast` with
+  `server_default="0"` (keeps all existing seed.sql `INSERT INTO forecasts` rows
+  valid). `True` for cells beyond the granularity boundary. Manual CR writes clear
+  the flag back to `False` via a 1-line tweak in `_apply_cr_changes_to_forecast`.
+- **Forecast versioning** per `[C-FV-01..07]`: new `ForecastVersion` table with
+  sequential `version_number` per project (UniqueConstraint), payload stored as
+  JSON (schema_version 1, ~70 KB/project). Three types: `cycle`, `cr_approval`,
+  `manual`.
+  - CR approval hook [C-FV-02]: 6 try-wrapped lines inserted in `approve_cr`
+    after the final `db.commit()`. Snapshot failure cannot break CR flow.
+  - Cycle hook [C-FV-05]: `capture_versions_for_cycle` fan-out called after
+    `clear_cycle` in `submit_forecast_cycle`. Creates one version per active
+    project with forecast rows.
+  - Manual snapshot [C-FV-03]: controller-only `POST /api/projects/{id}/forecast/versions`.
+- **Diff computation** per `[C-RH-05]`: pure-Python diff over decoded payloads.
+  Status enum: unchanged / added / removed / modified. Cross-project diffs valid
+  (version IDs are global PKs).
+- **Seed helper**: `_seed_forecast_versions()` Python function in `seed/loader.py`
+  creates 2 cycle versions per project: v1 = Q1 2026 Cycle (×1.05 uplift), v2 =
+  Q2 2026 Cycle (current state). Called from `reset_database()`.
+
+### Spec references implemented
+`[C-FG-01..08]` (mixed-granularity grid, quarter bucketing, cent-remainder
+distribution, provisional flag), `[C-FV-01..07]` (versioning lifecycle),
+`[C-RH-01..05]` (list, detail, diff), `[C-VC-01..03]` (version_number, created_at,
+created_by metadata).
+
+Out of scope per plan: C2 frontend, `[C-VC-04..06]` (portfolio dashboard + report
+builder dim + standard report 6), DoI 2 prepopulation (Cluster A), `is_provisional`
+UI marker (C2), replacing `ForecastSnapshot` (kept for accuracy report).
+
+### Technical Details
+- **New model:** `models/financial.py::ForecastVersion` (18 columns,
+  UniqueConstraint on `project_id × version_number`).
+- **Column addition:** `Forecast.is_provisional` Boolean `server_default="0"`.
+- **New service:** `services/forecast_versioning.py` — 14 public functions covering
+  boundary math, quarter bucketing, grid build, serialization, capture, list/get, diff,
+  and provisional marking.
+- **Service additions:** `calculations.py::month_to_quarter_key`,
+  `quarter_to_months`; `forecast_cycle.py::derive_cycle_label`.
+- **New schemas:** 9 Pydantic models appended to `schemas/workbench.py`.
+- **New endpoints (5):** `GET /api/projects/{id}/forecast/grid`,
+  `GET /api/projects/{id}/forecast/versions`,
+  `GET /api/projects/{id}/forecast/versions/{vid}`,
+  `POST /api/projects/{id}/forecast/versions`,
+  `GET /api/forecast/versions/{a}/diff/{b}`.
+- **Separate router:** `forecast_router = APIRouter(prefix='/api/forecast')` defined
+  in `workbench.py`, registered in `main.py` as `forecast_versions_router`.
+- **Backwards compat:** `GET /api/projects/{id}/forecast` unchanged, v4 shape preserved.
+- **Planning parameter:** `planning_horizon_months=60` added to `seed.sql`
+  (`granularity_boundary_months=12` was already seeded by D1).
+
+### API Endpoints Added
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| GET | `/api/projects/{id}/forecast/grid` | all | Mixed-granularity grid [C-FG-02] |
+| GET | `/api/projects/{id}/forecast/versions` | all | List versions newest first [C-RH-01] |
+| GET | `/api/projects/{id}/forecast/versions/{vid}` | all | Version detail + payload [C-RH-02] |
+| POST | `/api/projects/{id}/forecast/versions` | controller | Manual snapshot [C-FV-03] |
+| GET | `/api/forecast/versions/{a}/diff/{b}` | all | Diff two versions [C-RH-05] |
+
+### Test counts
+| File | Tests |
+|------|-------|
+| `test_forecast_versioning_service.py` | 58 |
+| `test_router_forecast_grid.py` | 12 |
+| `test_router_forecast_versions.py` | 10 |
+| `test_router_forecast_diff.py` | 5 |
+| `test_cr_approval_creates_version.py` | 3 |
+| `test_cycle_submit_creates_versions.py` | 3 |
+| **Total new** | **+94** |
+| **Grand total** | **882** |
+
+### Schema changes requiring reseed
+- `forecasts` table: `is_provisional` Boolean column (`server_default="0"` — existing
+  rows survive schema creation but the old DB file must be deleted for the column to
+  appear via SQLAlchemy `create_all`).
+- `forecast_versions` table: new table (populated by Python seed helper on reset).
+- `planning_parameters` table: 1 new row (`planning_horizon_months`).
+
+### Expected DB growth (forecast_versions)
+~70 KB/project × 30 projects × 5 cycles ≈ <40 MB. SQLite handles trivially per the
+plan. No pruning is applied (`payload_json` is not compressed per `[C-FV-07]`).
+
+### Refactoring opportunities
+- `_apply_cr_changes_to_forecast` in `routers/portfolio.py` now has a `row.is_provisional = False` line inside a try/except that does partial field mutation. This is a v4-era pattern; C2 or a future cleanup could centralise forecast mutations via a service function.
+- The `ForecastSnapshot` vs `ForecastVersion` dual-table setup is intentional (different consumers) but could be unified in a future data model simplification.
+
+## v5 Session A6: Frontend Backlog Module (2026-04-29)
+
+### Feature Overview
+Full frontend Backlog module per `[A-BK-01..26]` `[A-TN-08..09]`:
+
+- **Ranked List view** — paginated table with sort controls (rank / project name / composite score / budget), server-driven stage/type/size/T-level filters, within-cutoff toggle, `CutoffBand` rows inserted at `should_be_cutoff_rank` and `reality_cutoff_rank`, misalignment-zone tinting. Sort override suppresses bands and shows amber `ResetToRankingButton` banner.
+- **Cube view** — Recharts `ScatterChart` 3-column grid (T0/T1/T2) with CSS custom property colors, bubble-size ∝ budget, click navigates to detail page, empty-state when no projects have T-level assigned.
+- **`CutoffSummaryStrip`** — always shows portfolio-wide envelope metrics (Budget envelope, Contestable, Should-be cutoff, Reality cutoff, Horizon).
+- **`BandJumpRail`** — sticky left rail with scroll-to-band anchor links (hidden when no bands present).
+- **`BacklogProjectDetailPage`** (`/backlog/:projectId`) — 4-tab detail view (Scores & Ranking, Financial Overview, Master Data, Milestones). Tab state persisted via `?tab=` URL param.
+  - **Scores & Ranking tab**: reuses A7's `TechNavigatorRubric` plus new `RankingPositionCard`.
+  - **Financial Overview tab**: embeds workbench `OverviewTab` read-only.
+  - **Master Data tab**: DoI-aware completeness checklist (cumulative requirements for DoI 0–N from `DoIRequirementsRegistry`), per-section breakdown, progress bar.
+  - **Milestones tab**: read-only milestone strip (SVG timeline) + sortable milestone table.
+- **`DetailHeader`** — back-navigation, project name + status badge, rank / DoI / cutoff / budget metadata strip.
+- **Launchpad tile** — `backlog` module entry added to `global_launchpad.py` with metric "N projects above cutoff" (computed live from `Project.within_cutoff`), visible to all 4 roles.
+- **`BacklogContext`** — URL-param-persisted view mode, filters, sort, and cutoff toggle. `useBacklog()` hook for consumers.
+- **`BacklogFilterBar`** — stage / type / size / T-level dropdowns + within-cutoff toggle + Clear.
+
+### Files Created
+- `frontend/src/modules/backlog/BacklogContext.tsx` — context + provider + `useBacklog()` hook
+- `frontend/src/modules/backlog/BacklogPage.tsx` — route shell, wraps provider
+- `frontend/src/modules/backlog/BacklogProjectDetailPage.tsx` — `/backlog/:projectId` with 4-tab layout
+- `frontend/src/modules/backlog/components/BacklogFilterBar.tsx` — filter bar
+- `frontend/src/modules/backlog/components/CutoffSummaryStrip.tsx` — cutoff KPI strip
+- `frontend/src/modules/backlog/components/ranked/RankedListView.tsx` — ranked list container
+- `frontend/src/modules/backlog/components/ranked/RankedListTable.tsx` — table with band insertion + sort icons
+- `frontend/src/modules/backlog/components/ranked/RankedRow.tsx` — row with type-ring left border
+- `frontend/src/modules/backlog/components/ranked/CutoffBand.tsx` — full-width band row
+- `frontend/src/modules/backlog/components/ranked/BandJumpRail.tsx` — sticky scroll-to-band rail
+- `frontend/src/modules/backlog/components/ranked/ResetToRankingButton.tsx` — sort-override reset banner
+- `frontend/src/modules/backlog/components/cube/CubeView.tsx` — cube grid wrapper
+- `frontend/src/modules/backlog/components/cube/CubeScatterPanel.tsx` — Recharts ScatterChart per T-level
+- `frontend/src/modules/backlog/components/detail/DetailHeader.tsx` — project detail header + back link
+- `frontend/src/modules/backlog/components/detail/ScoresAndRankingTab.tsx` — scores tab with ranking card + rubric
+- `frontend/src/modules/backlog/components/detail/RankingPositionCard.tsx` — rank / score / cutoff / DoI card
+- `frontend/src/modules/backlog/components/detail/FinancialOverviewTab.tsx` — embeds workbench OverviewTab
+- `frontend/src/modules/backlog/components/detail/MasterDataTab.tsx` — DoI completeness checklist
+- `frontend/src/modules/backlog/components/detail/DoIRequirementsRegistry.ts` — static DoI→fields map
+- `frontend/src/modules/backlog/components/detail/MilestonesTab.tsx` — milestone strip + table
+- `frontend/src/modules/backlog/components/detail/MilestoneStrip.tsx` — SVG/CSS milestone timeline
+- `frontend/src/types/milestones.ts` — TypeScript types for milestone API responses
+
+### Files Modified
+- `frontend/src/types/api.ts` — added `RankedProjectItem`, `CutoffLines`, `RankedBacklogResponse`, `IntakeQueueItem`, `CutoffLinesResponse`
+- `frontend/src/api/endpoints.ts` — added `backlogApi`, `intakeApi`, `milestonesApi`
+- `frontend/src/App.tsx` — added `/backlog` and `/backlog/:projectId` routes; removed stub route
+- `frontend/src/lib/routes.ts` — added `backlog: '/backlog'` to `MODULE_ROUTES`; added `/backlog` label
+- `backend/routers/global_launchpad.py` — added `backlog` module entry with `within_cutoff` metric
+
+### Files Deleted
+- `frontend/src/modules/backlog/BacklogDetailStub.tsx` — replaced by real detail page
+
+### Key Design Decisions
+- **Filter data flow**: server-side `pipeline_stage` / `project_type` / `tshirt_size` params narrow `items[]`; `within_cutoff` is client-side toggle; cutoff strip always shows portfolio-wide values.
+- **Sort override semantics**: any column sort other than `rank` sets `hasSortOverride=true` which suppresses `CutoffBand` rows and misalignment tinting; `ResetToRankingButton` restores default order.
+- **`Fragment key` pattern**: `<Fragment key={item.project_id}>` wraps conditional band rows + `RankedRow` to satisfy React's list-key requirement.
+- **A8 collision avoidance**: `RankedRow` accepts an `actionCell?: React.ReactNode` prop slot (unused, reserved for A8 controller actions).
+- **Recharts colors**: all chart/SVG colors use CSS custom properties (`var(--chart-1)`, `var(--chart-grid, hsl(var(--border)))`) — never hex values.
+
+### Verification
+- TypeScript: 0 errors
+- Visual: 22 Playwright screenshots (11 light + 11 dark) covering launchpad tile, ranked list, filters, sort override, cube view, all 4 detail tabs, within-cutoff toggle, back navigation
+- Dark mode: all components use semantic Tailwind classes; no hardcoded colors; status colors have `dark:` variants
+
+### Branch
+`feature/v5-a6-backlog-frontend` — 5 atomic commits. Merged locally into `main` 2026-04-29.
 
 ## v5 Session A5: Intake Workflow + Backlog Integration Backend (2026-04-28)
 
@@ -33,6 +199,52 @@ Out of scope per session brief and aligned with A2 boundaries:
 - **within_cutoff recompute hooks (per `[A-BK-14]`):** triggered best-effort on create, approve, and reject (the three calls that change the contestable budget walk). Send Back / Resubmit do not change a project's budget so they skip the hook.
 - **v4 deprecation:** `routers/portfolio.py` had ~750 lines of legacy intake code. All nine handlers were collapsed to one-liner stubs that raise `HTTPException(410, _V4_INTAKE_REMOVED_DETAIL)` with a structured `replacements` dict pointing to the new endpoints. `deprecated=True` on every decorator so OpenAPI surfaces the deprecation cleanly. The legacy bodies live in git history (commits `af4881a` and earlier).
 - **No model changes.** All new state lives on existing columns: `Project.pipeline_stage`, `doi`, `frozen_doi`, `submission_feedback`, plus the existing `ProjectSubmissionSnapshot` rows.
+
+## v5 Session F3: BTCProfile + Stage 2 + Rollup Data Layer + Cache (2026-04-29)
+
+### Feature Overview
+- **BTCProfile + BTCProfileLine models per `[F-S2-01]`** — two modes: `manual` (controller sets percentages directly) and `automatic` (derived from UM matrix snapshot). `UniqueConstraint(entity_id, year)` enforces one profile per entity-year. Profile lines reference `ChargingLocation` (FK) with `Check(percentage > 0 AND <= 100)`. Cascade delete from profile to lines.
+- **`annual_cost` column on `ChargeableEntity` per `[F-DG-03]`** — `Numeric(14,2)`, nullable. F3 adds this to close the own-cost gap: Offerings and InternalServices now have a stored budget figure; the DAG resolver `get_own_cost` returns it as fallback for Project subtypes when `annual_budget` and `total_budget` are both null.
+- **RollupCache model per `[F-RV-01..02]`** — persistent two-layer cache (stage1_effective / stage2_location) keyed by `(cache_layer, year, version, key_id)`. JSON payload stores the computed dict. `UniqueConstraint` prevents duplicate entries.
+- **`btc_service.py` per `[F-S2-02..08]`** — full BTC lifecycle: `create_manual_profile`, `create_automatic_profile` (UM snapshot), `update_profile` (draft-only replace), `refresh_from_um` (dry-run + commit), `change_mode` (manual↔automatic with confirm gate), `copy_from_profile`, `year_rollover` (bulk copy of active profiles to next-year drafts), `assert_btc_required` (gate check), `build_wbs_matrix` (charging-location × entity matrix with WBS elements).
+- **`rollup_cache.py` per `[F-RV-01..06]`** — read-through cache for Stage 1 and Stage 2 costs. Four invalidation helpers: `invalidate_for_distribution_write` (all stage1+stage2 for year/version), `invalidate_for_btc_write` (stage2 for entity+year), `invalidate_for_entity_cost_write` (both layers for entity), `invalidate_all` (full flush). Cache entries committed immediately on write (survives across requests).
+- **`rollup_query.py` per `[F-RV-01..06]`** — `query_rollup` aggregates effective costs across 11 group-by dimensions (entity, entity_type, hierarchy_node, responsible, change_or_run, charging_location, legal_entity, region, division, country, stage). `drill_down_charging_location` returns the full upstream path chain for a given entity × charging-location pair with enriched labels.
+- **15 new endpoints in `routers/charging.py`** — BTC CRUD (list, get, get-by-entity, create, update, delete), UM refresh (dry-run + commit), mode change, copy-from, WBS matrix, year-rollover, rollup query, drill-down, cache invalidate, cache status.
+- **DoI 2→3 BTC gate per `[A-PL-06]`** — 8-line hook in `services/intake_workflow.py::approve_intake_project` (local imports; zero import-block diff). Blocks with HTTP 409 when `to_business_pct > 0` and no active BTCProfile exists for the demo year.
+- **Seed data** — `annual_cost` backfilled for 11 seeded CEs; 5 manual + 5 automatic BTCProfile rows with lines summing to 100%; profile 10 is an empty 2027 draft for year-rollover demo.
+
+### Spec references implemented
+`[F-S2-01]`, `[F-S2-02]`, `[F-S2-03]`, `[F-S2-04]`, `[F-S2-05]`, `[F-S2-06]`, `[F-S2-07]`, `[F-S2-08]` — BTCProfile CRUD, UM snapshot, mode change, copy, rollover, sum-to-100 validation, WBS matrix.
+`[F-RV-01]`, `[F-RV-02]`, `[F-RV-03]`, `[F-RV-04]`, `[F-RV-05]`, `[F-RV-06]` — rollup cache (two layers), query (11 dimensions), drill-down (upstream path with labels), cache invalidation (4 strategies), diagnostic status endpoint.
+`[F-OQ-05]` — effective cost endpoint (already existed in F2; confirmed cache integration correct).
+`[F-DG-03]` — `annual_cost` on ChargeableEntity, surfaced in DAG resolver `get_own_cost`.
+`[A-PL-06]` — DoI 2→3 BTC gate wired into `approve_intake_project`.
+
+### Technical Details
+- **New models:** `BTCProfile`, `BTCProfileLine`, `RollupCache` in `models/charging.py`. `ChargeableEntity.annual_cost` column added.
+- **New services:** `services/btc_service.py`, `services/rollup_cache.py`, `services/rollup_query.py`.
+- **New schemas:** `schemas/btc_profile.py` (10 Pydantic models), `schemas/rollup.py` (5 Pydantic models).
+- **Updated schemas:** `schemas/chargeable_entity.py` (annual_cost field), `schemas/distribution.py` (own_cost_source field).
+- **Updated services:** `services/dag_resolver.py::get_own_cost` — annual_cost fallback.
+- **Updated services:** `services/intake_workflow.py` — 8-line F3 hook (local imports).
+- **Updated routers:** `routers/charging.py` — 15 new endpoints, cache invalidation wired to distribution/BTC/entity-cost writes.
+- **Seed:** `seed/seed.sql` appended with F3 section (~80 lines): annual_cost UPDATEs, 10 BTCProfile INSERTs, BTCProfileLine INSERTs.
+- **Bug fix:** `btc_service.update_profile` — added `db.expire(profile)` after deleting old lines so the relationship collection reloads correctly before `len(updated.lines)` checks.
+- **Bug fix:** `rollup_cache._upsert_entry` — added `db.commit()` after `db.flush()` so cache writes persist across the request boundary (GET endpoints don't auto-commit).
+
+### Tests
+- `test_btc_service.py` — 48 tests (all BTC service functions)
+- `test_rollup_cache.py` — 15 tests (cache miss/hit + 4 invalidation strategies)
+- `test_rollup_query.py` — 12 tests (11 dims + drill-down)
+- `test_router_btc_profile.py` — 18 tests (BTC router integration)
+- `test_router_rollup.py` — 13 tests (rollup + cache endpoints)
+- `test_dag_resolver.py` — +3 tests (annual_cost fallback for Offering, InternalService, Project subtypes)
+- `test_router_intake.py` — +5 tests (DoI BTC gate: no CE, zero pct, active profile, draft profile, missing profile → 409)
+- **Total F3 new tests: 114; total suite: 913 (was 788)**
+
+### Deviations from brief
+- `_current_quarter` defaults to Q1 2026 (not Q2) because seeded UM data is Q1; automatic profile creation finds UM rows correctly.
+- Brief estimated ~88 tests; actual 114 (more thorough coverage of DoI gate variations and cache behavior).
 
 ## v5 Session F2: ChargeableEntity Polymorphic + Stage 1 Distribution Backend (2026-04-28)
 

@@ -1,32 +1,37 @@
-"""Project Workbench endpoints (Section 10.4) — 11 endpoints."""
+"""Project Workbench endpoints (Section 10.4) — 11 endpoints + C1 forecast grid/versioning."""
 from __future__ import annotations
 import json
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, require_role
 from models.capacity import Allocation, ResourceRequest
 from models.organization import CostCenter
 from models.change_requests import ChangeRequest, CRChangeDetail, CRSubmissionSnapshot
-from models.financial import Actuals, Baseline, Forecast
+from models.financial import Actuals, Baseline, Forecast, ForecastVersion
 from models.people import Person, RateTable, RoleType
 from models.projects import MilestoneType, Project, ProjectMilestone
 from models.system import SystemSuggestion
 from schemas.common import CurrentUser
 from schemas.workbench import (
     AcknowledgeRequest, CRHistoryItem, EditRequest, ForecastGridRow,
+    ForecastVersionDetail, ForecastVersionDiff, ForecastVersionListResponse,
+    ForecastVersionMeta, ManualSnapshotRequest, MixedGridResponse,
     ProjectListItem, SubmitRequest,
 )
 from services.calculations import compute_plan_drift, add_months
 from services.forecast_cycle import (
-    clear_cycle, get_cycle_by_id, start_cycle,
+    clear_cycle, derive_cycle_label, get_cycle_by_id, start_cycle,
 )
 from services.portfolio_service import compute_project_financials, get_project_entity_info, get_project_hierarchy_path, get_top_level_entity_type_id
 
 router = APIRouter(prefix="/api/projects", tags=["Project Workbench"])
+
+# C1: separate router for cross-project diff endpoint [C-RH-05]
+forecast_router = APIRouter(prefix="/api/forecast", tags=["Forecast Versions"])
 
 
 def _get_project_lob_name(db: Session, project_id: str) -> str:
@@ -890,6 +895,17 @@ def submit_forecast_cycle(
     db.commit()
     clear_cycle(project_id)
 
+    # C1 [C-FV-05] — cycle completion: capture one version per active project
+    try:
+        from services.forecast_versioning import capture_versions_for_cycle
+        _cycle_label = derive_cycle_label(DEMO_DATE)
+        _cycle_id = body.cost_centre_groups[0].get("cycle_id") if body.cost_centre_groups else None
+        capture_versions_for_cycle(db, user, _cycle_label, cycle_id=_cycle_id)
+        db.commit()
+    except Exception as _e:  # noqa: BLE001 — best-effort
+        import logging as _logging
+        _logging.getLogger(__name__).warning("Cycle version capture failed: %s", _e)
+
     # [A-BK-14] Forecast-cycle completion (rolling forecast cadence) — fan out
     # to the backlog within_cutoff recompute. Best-effort to avoid surfacing a
     # 500 on the cycle submission itself if the recompute path errors.
@@ -1436,3 +1452,234 @@ def _apply_cr_to_forecast(cr: ChangeRequest, db: Session) -> None:
     # After updating forecast, ensure allocations match
     from services.allocation_service import ensure_project_allocations
     ensure_project_allocations(cr.project_id, db)
+
+
+# ===========================================================================
+# C1 — Mixed-Granularity Forecast Grid [C-FG-01..08]
+# ===========================================================================
+
+@router.get("/{project_id}/forecast/grid")
+def get_forecast_grid(
+    project_id: str,
+    granularity: str = Query(
+        default="mixed",
+        description="'mixed' (default), 'monthly', or 'quarterly'",
+    ),
+    boundary_months: int | None = Query(
+        default=None,
+        description="Override for granularity_boundary_months",
+    ),
+    horizon_months: int | None = Query(
+        default=None,
+        description="Override for planning_horizon_months",
+    ),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Mixed-granularity forecast grid [C-FG-02].
+
+    Monthly columns within the boundary, quarterly columns beyond.
+    Existing v4 GET /api/projects/{id}/forecast is untouched and returns
+    the v4 shape; this endpoint is the new C1 surface.
+    """
+    from dependencies import pl_project_filter
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    # PL filter: only own projects
+    if user.role == "project_lead" and project_id not in user.project_ids:
+        raise HTTPException(403, "Access denied")
+
+    if granularity not in ("mixed", "monthly", "quarterly"):
+        raise HTTPException(422, "granularity must be 'mixed', 'monthly', or 'quarterly'")
+
+    from services.forecast_versioning import build_mixed_grid
+    grid = build_mixed_grid(
+        db=db,
+        project_id=project_id,
+        demo_date=DEMO_DATE,
+        granularity=granularity,
+        boundary_months=boundary_months,
+        horizon_months=horizon_months,
+    )
+    return grid
+
+
+# ===========================================================================
+# C1 — Forecast Versions [C-FV-01..07, C-RH-01..05]
+# ===========================================================================
+
+@router.get("/{project_id}/forecast/versions")
+def list_forecast_versions(
+    project_id: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """List forecast versions for a project, newest first [C-RH-01]."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    # PL filter
+    if user.role == "project_lead" and project_id not in user.project_ids:
+        raise HTTPException(403, "Access denied")
+
+    from services.forecast_versioning import list_versions
+    versions, total = list_versions(db, project_id, limit=limit, offset=offset)
+
+    items = [
+        ForecastVersionMeta(
+            id=fv.id,
+            project_id=fv.project_id,
+            version_number=fv.version_number,
+            version_type=fv.version_type,
+            cycle_label=fv.cycle_label,
+            cycle_id=fv.cycle_id,
+            change_request_id=fv.change_request_id,
+            created_at=fv.created_at,
+            created_by_id=fv.created_by_id,
+            created_by_name=fv.created_by.name if fv.created_by else None,
+            granularity_boundary_months=fv.granularity_boundary_months,
+            planning_horizon_months=fv.planning_horizon_months,
+            cell_count=fv.cell_count,
+            total_amount_eur=float(fv.total_amount_eur) if fv.total_amount_eur else None,
+        )
+        for fv in versions
+    ]
+    return ForecastVersionListResponse(items=items, total=total)
+
+
+@router.get("/{project_id}/forecast/versions/{version_id}")
+def get_forecast_version(
+    project_id: str,
+    version_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Get a specific forecast version including payload [C-RH-02]."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if user.role == "project_lead" and project_id not in user.project_ids:
+        raise HTTPException(403, "Access denied")
+
+    from services.forecast_versioning import get_version
+    import json as _json
+
+    fv = get_version(db, version_id)
+    if not fv or fv.project_id != project_id:
+        raise HTTPException(404, "Forecast version not found")
+
+    meta = ForecastVersionMeta(
+        id=fv.id,
+        project_id=fv.project_id,
+        version_number=fv.version_number,
+        version_type=fv.version_type,
+        cycle_label=fv.cycle_label,
+        cycle_id=fv.cycle_id,
+        change_request_id=fv.change_request_id,
+        created_at=fv.created_at,
+        created_by_id=fv.created_by_id,
+        created_by_name=fv.created_by.name if fv.created_by else None,
+        granularity_boundary_months=fv.granularity_boundary_months,
+        planning_horizon_months=fv.planning_horizon_months,
+        cell_count=fv.cell_count,
+        total_amount_eur=float(fv.total_amount_eur) if fv.total_amount_eur else None,
+    )
+
+    payload = None
+    if fv.payload_json:
+        try:
+            payload = _json.loads(fv.payload_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return ForecastVersionDetail(meta=meta, payload=payload)
+
+
+@router.post("/{project_id}/forecast/versions")
+def create_manual_forecast_version(
+    project_id: str,
+    body: ManualSnapshotRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """Manually create a forecast version snapshot (controller only) [C-FV-03]."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    from services.forecast_versioning import capture_version
+    fv = capture_version(
+        db=db,
+        project_id=project_id,
+        user=user,
+        version_type="manual",
+        cycle_label=body.label,
+    )
+    db.commit()
+    db.refresh(fv)
+
+    return ForecastVersionMeta(
+        id=fv.id,
+        project_id=fv.project_id,
+        version_number=fv.version_number,
+        version_type=fv.version_type,
+        cycle_label=fv.cycle_label,
+        cycle_id=fv.cycle_id,
+        change_request_id=fv.change_request_id,
+        created_at=fv.created_at,
+        created_by_id=fv.created_by_id,
+        created_by_name=fv.created_by.name if fv.created_by else None,
+        granularity_boundary_months=fv.granularity_boundary_months,
+        planning_horizon_months=fv.planning_horizon_months,
+        cell_count=fv.cell_count,
+        total_amount_eur=float(fv.total_amount_eur) if fv.total_amount_eur else None,
+    )
+
+
+# ===========================================================================
+# C1 — Cross-project version diff [C-RH-05] (separate router prefix)
+# ===========================================================================
+
+@forecast_router.get("/versions/{version_a_id}/diff/{version_b_id}")
+def get_forecast_version_diff(
+    version_a_id: int,
+    version_b_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Diff two forecast versions (cross-project is valid) [C-RH-05]."""
+    from services.forecast_versioning import compute_diff, get_version
+    from schemas.workbench import CellDelta
+
+    fv_a = get_version(db, version_a_id)
+    fv_b = get_version(db, version_b_id)
+
+    if fv_a is None:
+        raise HTTPException(404, f"Version {version_a_id} not found")
+    if fv_b is None:
+        raise HTTPException(404, f"Version {version_b_id} not found")
+
+    # PL filtering: PL can only diff their own project's versions
+    if user.role == "project_lead":
+        if fv_a.project_id not in user.project_ids or fv_b.project_id not in user.project_ids:
+            raise HTTPException(403, "Access denied")
+
+    try:
+        diff = compute_diff(db, version_a_id, version_b_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+
+    return ForecastVersionDiff(
+        version_a_id=diff["version_a_id"],
+        version_b_id=diff["version_b_id"],
+        version_a_number=diff["version_a_number"],
+        version_b_number=diff["version_b_number"],
+        version_a_project_id=diff["version_a_project_id"],
+        version_b_project_id=diff["version_b_project_id"],
+        line_deltas=[CellDelta(**d) for d in diff["line_deltas"]],
+        summary=diff["summary"],
+        grand_totals=diff["grand_totals"],
+    )

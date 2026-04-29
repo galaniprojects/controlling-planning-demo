@@ -697,6 +697,16 @@ def approve_cr(
 
     db.commit()
 
+    # === C1 hook [C-FV-02] — capture forecast version on CR approval (6 lines) ===
+    from services.forecast_versioning import capture_version as _capture_fv
+    try:
+        _capture_fv(db, cr.project_id, user, version_type="cr_approval", change_request_id=cr.id)
+        db.commit()
+    except Exception as e:  # don't break CR flow on snapshot failure
+        import logging as _logging
+        _logging.getLogger(__name__).warning("Forecast version capture failed: %s", e)
+    # ============================================================================
+
     # [A-BK-14] CR approval changes forecast/budget → recompute within_cutoff.
     try:
         from services.ranking import recompute_within_cutoff_for_backlog
@@ -937,6 +947,8 @@ def _apply_cr_changes_to_forecast(cr: ChangeRequest, db: Session) -> None:
                         row.amount_eur = new_val * rate
                     else:
                         row.amount_eur = new_val
+                    # C1 [C-FG-07]: manual CR write clears provisional flag
+                    row.is_provisional = False
                 except (ValueError, AttributeError):
                     pass
 

@@ -81,6 +81,11 @@ class Project(Base):
         order_by="ProjectMilestone.sequence_number",
     )
     entity_assignments: Mapped[list["ProjectGroupingAssignment"]] = relationship(back_populates="project")
+    # C1: forecast version history [C-FV-01]
+    forecast_versions: Mapped[list["ForecastVersion"]] = relationship(
+        back_populates="project",
+        order_by="ForecastVersion.version_number",
+    )
 
 
 class MilestoneType(Base):

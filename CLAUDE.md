@@ -125,7 +125,8 @@ Keep this section updated whenever models or schema change.
 - `ProjectMilestone` — project milestones with baseline + forecast date ranges per [A-MS-01]. `sequence_number` ordering, optional FK `milestone_type_id` to the `MilestoneType` catalogue, optional per-milestone `color` override, `baseline_locked_at` set on first save (baseline dates immutable thereafter except via controller override with audit log per [A-MS-03]).
 - `MilestoneType` — global catalogue for the milestone picker per [A-BK-34]. Fields: `id`, `name`, `default_color`, `suggested_ordering`, `is_active`. Read-only via `GET /api/admin/milestone-types`.
 - `Baseline` — immutable approved plan (project × month × line item)
-- `Forecast` — living plan updated via approved CRs (hours/costs per month)
+- `Forecast` — living plan updated via approved CRs (hours/costs per month). v5 Session C1 adds `is_provisional` Boolean (`server_default="0"`) — `True` for cells beyond the granularity boundary (outer zone per `[C-FG-07]`). Manual CR writes clear this flag.
+- `ForecastVersion` — immutable point-in-time snapshot of a project forecast per `[C-FV-01..07]`. Sequential `version_number` per project (UniqueConstraint). `version_type`: `cycle` (from forecast cycle submission), `cr_approval` (from CR approval hook), `manual` (controller-created). `payload_json` stores the full mixed-granularity grid as JSON (schema_version 1, ~70 KB/version). `granularity_boundary_months` and `planning_horizon_months` captured at snapshot time. Created automatically: on CR approval (6-line try-wrapped hook in `approve_cr`) and on cycle completion (fan-out to all active projects). NOT replacing `ForecastSnapshot` (which is kept for the accuracy report).
 - `Actuals` — read-only historical spend
 - `ExternalCostType` — cost categories (hardware, consulting, licenses)
 
@@ -175,6 +176,14 @@ Keep this section updated whenever models or schema change.
   `Allocation` model as a nullable FK so capacity allocations can target any
   chargeable entity. Backfilled in seed.sql for all existing v4 rows. v4
   callers continue to use `project_id` unchanged.
+
+### BTC Profiles + Rollup Cache (Cluster F Session F3)
+- `BTCProfile` — business-transfer charging profile per entity per year. Two modes: `manual` (controller sets percentages) and `automatic` (UM matrix snapshot). `status` is `draft` or `active`; `UniqueConstraint(entity_id, year)`. Carries optional `s_code` for automatic UM lookup and `copied_from_profile_id` self-FK for year-rollover lineage. `ChargeableEntity.annual_cost` (`Numeric(14,2)`, nullable) added in F3 for Offering/InternalService own-cost.
+- `BTCProfileLine` — per-charging-location percentage row (FK to `BTCProfile` + `ChargingLocation`). `Check(percentage > 0 AND <= 100)`. Sum-to-100 enforced at service layer (`BTC_SUM_TOLERANCE = 0.01`). Cascade delete from profile.
+- `RollupCache` — persistent two-layer cost cache keyed by `(cache_layer, year, version, key_id)` with JSON payload. Layers: `stage1_effective` (entity effective cost = own + Σ inflows) and `stage2_location` (entity × charging-location BTC-weighted amount). `UniqueConstraint(cache_layer, year, version, key_id)`. Cache commits immediately on write (survives the request boundary). Invalidated by: distribution writes (all stage1+stage2 for year/version), BTC writes (stage2 for entity+year), annual_cost writes (both layers for entity), manual flush endpoint.
+- BTC service lives in `services/btc_service.py`: full lifecycle including `create_manual_profile`, `create_automatic_profile` (UM snapshot normalisation), `update_profile`, `refresh_from_um` (dry-run + commit), `change_mode`, `copy_from_profile`, `year_rollover`, `assert_btc_required` (DoI 2→3 gate), `build_wbs_matrix`.
+- Rollup service lives in `services/rollup_cache.py` (cache read/write/invalidate) and `services/rollup_query.py` (`query_rollup` with 11 group-by dimensions, `drill_down_charging_location` with enriched path labels).
+- New schemas: `schemas/btc_profile.py`, `schemas/rollup.py`.
 
 ### Scenarios
 - `Scenario` — what-if container (private/published)
@@ -332,8 +341,8 @@ This project uses two tiers of agent parallelization. All agent role definitions
 - `backend/seed/fixtures/` — JSON fixtures (manuals, FAQ, AI Advisor goals)
 - `backend/models/` — `capacity.py`, `change_requests.py`, `charging.py`, `financial.py`, `organization.py`, `people.py`, `projects.py`, `reporting.py`, `scenarios.py`, `scheduled_changes.py`, `submissions.py`, `system.py`, `users.py`, `workflow_templates.py`
 - `backend/routers/` — `admin.py`, `ai_reports.py`, `audit.py`, `capacity.py`, `charging.py`, `documentation.py`, `global_launchpad.py`, `intake.py`, `milestones.py`, `pipeline.py`, `portfolio.py`, `ranking.py`, `reference.py`, `report_builder.py`, `reports.py`, `scenarios.py`, `scheduled_changes.py`, `tech_navigator.py`, `user_measurement.py`, `workbench.py`, `workflow_templates.py`
-- `backend/services/` — `advisor.py`, `ai_report_service.py`, `allocation_service.py`, `audit_export.py`, `audit_query.py`, `calculations.py`, `dag_resolver.py`, `distribution_service.py`, `forecast_cycle.py`, `intake_workflow.py`, `pipeline.py`, `portfolio_service.py`, `report_builder_catalog.py`, `report_builder_engine.py`, `report_builder_export.py`, `report_builder_saved.py`, `report_service.py`, `scenario_engine.py`, `scheduled_change_activation.py`, `tech_navigator.py`, `user_measurement_import.py`, `wbs_generator.py`
-- `backend/schemas/` — `admin.py`, `ai_reports.py`, `capacity.py`, `chargeable_entity.py`, `charging.py`, `common.py`, `distribution.py`, `documentation.py`, `global_launchpad.py`, `intake.py`, `milestones.py`, `pipeline.py`, `portfolio.py`, `ranking.py`, `reference.py`, `report_builder.py`, `reports.py`, `scenarios.py`, `tech_navigator.py`, `user_measurement.py`, `workbench.py`
+- `backend/services/` — `advisor.py`, `ai_report_service.py`, `allocation_service.py`, `audit_export.py`, `audit_query.py`, `btc_service.py`, `calculations.py`, `dag_resolver.py`, `distribution_service.py`, `forecast_cycle.py`, `forecast_versioning.py`, `intake_workflow.py`, `pipeline.py`, `portfolio_service.py`, `report_builder_catalog.py`, `report_builder_engine.py`, `report_builder_export.py`, `report_builder_saved.py`, `report_service.py`, `rollup_cache.py`, `rollup_query.py`, `scenario_engine.py`, `scheduled_change_activation.py`, `tech_navigator.py`, `user_measurement_import.py`, `wbs_generator.py`
+- `backend/schemas/` — `admin.py`, `ai_reports.py`, `btc_profile.py`, `capacity.py`, `chargeable_entity.py`, `charging.py`, `common.py`, `distribution.py`, `documentation.py`, `global_launchpad.py`, `intake.py`, `milestones.py`, `pipeline.py`, `portfolio.py`, `ranking.py`, `reference.py`, `report_builder.py`, `reports.py`, `rollup.py`, `scenarios.py`, `tech_navigator.py`, `user_measurement.py`, `workbench.py`
 - `backend/tests/` — unit tests (post-wave-1 merge: 788 tests; see PROGRESS.md for breakdown)
 
 ### Frontend
