@@ -13,8 +13,9 @@ import { Reporting } from '@/modules/reporting/Reporting';
 import { Administration } from '@/modules/admin/Administration';
 import { DocumentationHub } from '@/modules/docs/DocumentationHub';
 import { ResourcePlanPage } from '@/modules/workbench/submission/ResourcePlanPage';
-// === Tech Navigator (A7) ===
-import { BacklogDetailStub } from '@/modules/backlog/BacklogDetailStub';
+// === Backlog (A6) — replaces A7's BacklogDetailStub ===
+import { BacklogPage } from '@/modules/backlog/BacklogPage';
+import { BacklogProjectDetailPage } from '@/modules/backlog/BacklogProjectDetailPage';
 
 export default function App() {
   return (
@@ -34,8 +35,9 @@ export default function App() {
                 <Route path="/reporting/*" element={<Reporting />} />
                 <Route path="/admin/*" element={<Administration />} />
                 <Route path="/docs/*" element={<DocumentationHub />} />
-                {/* === Tech Navigator (A7) === scaffold harness; A6 will replace */}
-                <Route path="/backlog-detail-stub/:projectId" element={<BacklogDetailStub />} />
+                {/* === Backlog (A6) === */}
+                <Route path="/backlog" element={<BacklogPage />} />
+                <Route path="/backlog/:projectId" element={<BacklogProjectDetailPage />} />
               </Routes>
             </AppLayout>
           </BottomDrawerProvider>

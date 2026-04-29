@@ -64,20 +64,22 @@ MODULES = [
     {"id": "reporting", "name": "Reporting", "description": "Cross-cutting analytical reports with export and saved view capabilities."},
     {"id": "admin", "name": "Administration", "description": "System configuration: organizational structure, rates, and planning parameters."},
     {"id": "documentation", "name": "Documentation", "description": "Application guides, API reference, data model overview, and frequently asked questions."},
+    # === Backlog (A6) [A-BK-01] ===
+    {"id": "backlog", "name": "Backlog", "description": "Ranked IT project backlog with composite scoring, cutoff analysis, and Tech Navigator cube view."},
 ]
 
 MODULE_VISIBILITY = {
-    "controller": ["portfolio", "workbench", "capacity", "simulator", "reporting", "admin", "documentation"],
-    "cost_center_owner": ["portfolio", "workbench", "capacity", "reporting", "documentation"],
-    "project_lead": ["portfolio", "workbench", "reporting", "documentation"],
-    "executive": ["portfolio", "simulator", "reporting", "documentation"],
+    "controller": ["portfolio", "workbench", "capacity", "simulator", "reporting", "admin", "documentation", "backlog"],
+    "cost_center_owner": ["portfolio", "workbench", "capacity", "reporting", "documentation", "backlog"],
+    "project_lead": ["portfolio", "workbench", "reporting", "documentation", "backlog"],
+    "executive": ["portfolio", "simulator", "reporting", "documentation", "backlog"],
 }
 
 MODULE_SORT = {
-    "controller": {"portfolio": 1, "workbench": 2, "capacity": 3, "simulator": 4, "reporting": 5, "admin": 6, "documentation": 7},
-    "cost_center_owner": {"capacity": 1, "workbench": 2, "portfolio": 3, "reporting": 4, "documentation": 5},
-    "project_lead": {"workbench": 1, "portfolio": 2, "reporting": 3, "documentation": 4},
-    "executive": {"portfolio": 1, "simulator": 2, "reporting": 3, "documentation": 4},
+    "controller": {"portfolio": 1, "backlog": 2, "workbench": 3, "capacity": 4, "simulator": 5, "reporting": 6, "admin": 7, "documentation": 8},
+    "cost_center_owner": {"capacity": 1, "workbench": 2, "portfolio": 3, "backlog": 4, "reporting": 5, "documentation": 6},
+    "project_lead": {"workbench": 1, "portfolio": 2, "backlog": 3, "reporting": 4, "documentation": 5},
+    "executive": {"portfolio": 1, "backlog": 2, "simulator": 3, "reporting": 4, "documentation": 5},
 }
 
 
@@ -229,6 +231,22 @@ def _compute_module_metric(db: Session, module_id: str, user: CurrentUser) -> st
 
     elif module_id == "documentation":
         return "Guides, API reference & FAQ"
+
+    elif module_id == "backlog":
+        # Count projects with within_cutoff = True (ranked list, not pre-funded Type 3)
+        # Use pipeline_stage filter to include relevant stages only
+        try:
+            above_cutoff = (
+                db.query(func.count(Project.id))
+                .filter(
+                    Project.is_active.is_(True),
+                    Project.within_cutoff.is_(True),
+                )
+                .scalar()
+            ) or 0
+            return f"{above_cutoff} projects above cutoff"
+        except Exception:
+            return "Project ranking & scoring"
 
     return ""
 
