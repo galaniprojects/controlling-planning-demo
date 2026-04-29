@@ -225,6 +225,34 @@ Mixed-granularity forecast grid, immutable version snapshots, and cross-version 
 | `POST` | `/api/projects/{id}/forecast/versions` | controller | Manual snapshot [C-FV-03] |
 | `GET` | `/api/forecast/versions/{a}/diff/{b}` | all | Diff two versions (cross-project valid) [C-RH-05] |
 
+### Progress Tracker Endpoints (v5 Session E1)
+
+Milestone-anchored qualitative progress tracking with optional deliverable checklist enrichment per `[E-04c]`. All fields live-editable; snapshots captured automatically at forecast cycle completion. Portfolio-level inline indicator per `[E-04d]`.
+
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/projects/{id}/progress` | all | Read live progress state + checklist rollup + effective percentage [E-04c] |
+| `PATCH` | `/api/projects/{id}/progress` | controller / PL on own | Update narrative, confidence (+ reason for at_risk/blocked), manual pct override, current milestone [E-04c]. One audit entry per changed field; category `forecast_actions` |
+| `GET` | `/api/projects/{id}/progress/history` | all | List historical snapshots newest-first |
+| `GET` | `/api/projects/{id}/progress/history/{snapshot_id}` | all | Snapshot detail with captured checklist payload |
+| `GET` | `/api/projects/{id}/milestones/{mid}/checklist` | all | List deliverable items for a milestone |
+| `POST` | `/api/projects/{id}/milestones/{mid}/checklist` | controller / PL on own | Add deliverable item (max 10 per milestone per [E-04c]) |
+| `PATCH` | `/api/projects/{id}/checklist/{item_id}` | controller / PL on own | Update item text, completion (auto-stamps `completed_at`/`completed_by_id`), or sequence |
+| `DELETE` | `/api/projects/{id}/checklist/{item_id}` | controller / PL on own | Remove deliverable item |
+| `GET` | `/api/portfolio/progress-aggregate` | all (PL scope-filtered) | Portfolio-wide progress indicators with confidence summary buckets [E-04d] |
+
+When the current milestone has at least one deliverable, `effective_progress_pct` auto-computes from the completion ratio unless `progress_pct_manual_override=True` per `[E-04c]`. Confidence values are normalised to `on_track | at_risk | blocked`; `at_risk` and `blocked` reject without `confidence_reason`.
+
+### External Cost Category Endpoints (v5 [E-08e] [E-08f])
+
+Admin-configurable taxonomy seeded with the default demo set: Consulting, Cloud/Infrastructure, Licenses, Hardware, Other (production: SAP/Ariba). Standard CRUD per Cluster D admin browser pattern, controller-only writes, audit category `master_data`.
+
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/admin/external-cost-types` | controller | List external cost categories alphabetically |
+| `POST` | `/api/admin/external-cost-types` | controller | Create new category (name unique, audit-logged) |
+| `PUT` | `/api/admin/external-cost-types/{id}` | controller | Rename category (409 on duplicate, audit-logged) |
+
 ### Tech Navigator Endpoints (v5 Cluster A)
 
 The Tech Navigator scoring profile (Complexity sub-criteria, Value Creation sub-criteria, Transformation level, Project Type, t-shirt size derived from budget) is editable per project; sub-criterion weights and t-shirt thresholds are admin-configurable.
