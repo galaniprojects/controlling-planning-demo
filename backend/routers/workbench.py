@@ -33,6 +33,9 @@ router = APIRouter(prefix="/api/projects", tags=["Project Workbench"])
 # C1: separate router for cross-project diff endpoint [C-RH-05]
 forecast_router = APIRouter(prefix="/api/forecast", tags=["Forecast Versions"])
 
+# E1: separate router for portfolio-level progress aggregation [E-04d]
+progress_router = APIRouter(prefix="/api/portfolio", tags=["Progress Tracker"])
+
 
 def _get_project_lob_name(db: Session, project_id: str) -> str:
     """Get the top-level entity name (LoB) for a project."""
@@ -906,6 +909,19 @@ def submit_forecast_cycle(
         import logging as _logging
         _logging.getLogger(__name__).warning("Cycle version capture failed: %s", _e)
 
+    # E1 [E-04c] — cycle completion: capture one progress snapshot per active
+    # project, mirroring the C1 fan-out. Best-effort: any failure here must
+    # not block the cycle submission.
+    try:
+        from services.progress_tracker import capture_progress_for_cycle
+        _cycle_label = derive_cycle_label(DEMO_DATE)
+        _cycle_id = body.cost_centre_groups[0].get("cycle_id") if body.cost_centre_groups else None
+        capture_progress_for_cycle(db, user, _cycle_label, cycle_id=_cycle_id)
+        db.commit()
+    except Exception as _e:  # noqa: BLE001 — best-effort
+        import logging as _logging
+        _logging.getLogger(__name__).warning("Cycle progress snapshot failed: %s", _e)
+
     # [A-BK-14] Forecast-cycle completion (rolling forecast cadence) — fan out
     # to the backlog within_cutoff recompute. Best-effort to avoid surfacing a
     # 500 on the cycle submission itself if the recompute path errors.
@@ -1682,4 +1698,468 @@ def get_forecast_version_diff(
         line_deltas=[CellDelta(**d) for d in diff["line_deltas"]],
         summary=diff["summary"],
         grand_totals=diff["grand_totals"],
+    )
+
+
+# ---------------------------------------------------------------------------
+# E1 — Progress Tracker endpoints [E-04c] [E-04d]
+# ---------------------------------------------------------------------------
+
+from models.projects import MilestoneDeliverable, ProgressSnapshot  # noqa: E402
+from schemas.workbench import (  # noqa: E402
+    DeliverableCreateRequest, DeliverableItem, DeliverableListResponse,
+    DeliverableUpdateRequest, PortfolioProgressAggregateResponse,
+    PortfolioProgressIndicator, ProgressHistoryListResponse, ProgressResponse,
+    ProgressSnapshotDetail, ProgressSnapshotMeta, ProgressUpdateRequest,
+)
+from services.progress_tracker import (  # noqa: E402
+    MAX_CHECKLIST_ITEMS, apply_progress_update, build_progress_response_payload,
+    compute_portfolio_progress_indicators,
+)
+
+
+def _can_edit_progress(user: CurrentUser, project: Project) -> bool:
+    """Controllers can edit any project; PLs can edit projects they own."""
+    if user.role == "controller":
+        return True
+    if user.role == "project_lead":
+        if project.pl_person_id == user.person_id:
+            return True
+        if project.id in (user.project_ids or []):
+            return True
+    return False
+
+
+def _load_project_or_404(db: Session, project_id: str) -> Project:
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(404, f"Project {project_id} not found")
+    return project
+
+
+def _emit_progress_audit(
+    db: Session,
+    user: CurrentUser,
+    project: Project,
+    deltas: dict,
+) -> None:
+    """One audit_log entry per changed field. Category: forecast_actions."""
+    from routers.admin import _log_audit
+    for field, (old_val, new_val) in deltas.items():
+        _log_audit(
+            db, user, "project_progress", project.id, project.name,
+            "update", field,
+            None if old_val is None else str(old_val),
+            None if new_val is None else str(new_val),
+            category="forecast_actions",
+        )
+
+
+def _serialize_deliverable(item: MilestoneDeliverable) -> DeliverableItem:
+    return DeliverableItem(
+        id=item.id,
+        milestone_id=item.milestone_id,
+        sequence=item.sequence,
+        text=item.text,
+        is_complete=item.is_complete,
+        completed_at=item.completed_at,
+        completed_by_id=item.completed_by_id,
+    )
+
+
+def _serialize_progress_snapshot(
+    snap: ProgressSnapshot, person_lookup: dict[str, str],
+) -> ProgressSnapshotMeta:
+    return ProgressSnapshotMeta(
+        id=snap.id,
+        project_id=snap.project_id,
+        cycle_label=snap.cycle_label,
+        cycle_id=snap.cycle_id,
+        snapshot_at=snap.snapshot_at,
+        created_by_id=snap.created_by_id,
+        created_by_name=person_lookup.get(snap.created_by_id) if snap.created_by_id else None,
+        current_milestone_id=snap.current_milestone_id,
+        current_milestone_name=snap.current_milestone_name,
+        current_milestone_sequence=snap.current_milestone_sequence,
+        progress_pct=float(snap.progress_pct) if snap.progress_pct is not None else None,
+        progress_pct_manual_override=bool(snap.progress_pct_manual_override),
+        status_narrative=snap.status_narrative,
+        next_milestone_confidence=snap.next_milestone_confidence,
+        confidence_reason=snap.confidence_reason,
+    )
+
+
+# --- Progress GET / PATCH -------------------------------------------------
+
+
+@router.get("/{project_id}/progress", response_model=ProgressResponse)
+def get_project_progress(
+    project_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Return the current progress tracker state for a project [E-04c]."""
+    project = _load_project_or_404(db, project_id)
+    payload = build_progress_response_payload(db, project)
+    return ProgressResponse(**payload)
+
+
+@router.patch("/{project_id}/progress", response_model=ProgressResponse)
+def update_project_progress(
+    project_id: str,
+    body: ProgressUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Mutate live progress fields. Live-editable per [E-04c].
+
+    Authorization: controller (any project) or PL (own project).
+    Audit category: ``forecast_actions``. One audit entry per changed field.
+    """
+    project = _load_project_or_404(db, project_id)
+    if not _can_edit_progress(user, project):
+        raise HTTPException(403, "Insufficient permissions to edit progress")
+
+    explicit = set(body.model_dump(exclude_unset=True).keys())
+    try:
+        deltas = apply_progress_update(
+            db, project, user,
+            current_milestone_id=body.current_milestone_id,
+            progress_pct=body.progress_pct,
+            progress_pct_manual_override=body.progress_pct_manual_override,
+            status_narrative=body.status_narrative,
+            next_milestone_confidence=body.next_milestone_confidence,
+            confidence_reason=body.confidence_reason,
+            set_explicit=explicit,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    if deltas:
+        _emit_progress_audit(db, user, project, deltas)
+        db.commit()
+        db.refresh(project)
+
+    payload = build_progress_response_payload(db, project)
+    return ProgressResponse(**payload)
+
+
+# --- Progress history -----------------------------------------------------
+
+
+@router.get("/{project_id}/progress/history", response_model=ProgressHistoryListResponse)
+def list_progress_history(
+    project_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """List progress snapshots for a project, newest first [E-04c]."""
+    _load_project_or_404(db, project_id)
+
+    snaps = (
+        db.query(ProgressSnapshot)
+        .filter(ProgressSnapshot.project_id == project_id)
+        .order_by(ProgressSnapshot.snapshot_at.desc(), ProgressSnapshot.id.desc())
+        .all()
+    )
+
+    person_ids = {s.created_by_id for s in snaps if s.created_by_id}
+    persons = (
+        db.query(Person).filter(Person.id.in_(person_ids)).all()
+        if person_ids else []
+    )
+    person_lookup = {p.id: p.name for p in persons}
+
+    items = [_serialize_progress_snapshot(s, person_lookup) for s in snaps]
+    return ProgressHistoryListResponse(items=items, total=len(items))
+
+
+@router.get(
+    "/{project_id}/progress/history/{snapshot_id}",
+    response_model=ProgressSnapshotDetail,
+)
+def get_progress_snapshot(
+    project_id: str,
+    snapshot_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Return a single progress snapshot with the captured checklist payload."""
+    _load_project_or_404(db, project_id)
+
+    snap = (
+        db.query(ProgressSnapshot)
+        .filter(
+            ProgressSnapshot.id == snapshot_id,
+            ProgressSnapshot.project_id == project_id,
+        )
+        .first()
+    )
+    if snap is None:
+        raise HTTPException(404, "Progress snapshot not found")
+
+    person_lookup: dict[str, str] = {}
+    if snap.created_by_id:
+        person = db.query(Person).filter(Person.id == snap.created_by_id).first()
+        if person:
+            person_lookup[snap.created_by_id] = person.name
+
+    checklist = []
+    if snap.checklist_payload_json:
+        try:
+            checklist = json.loads(snap.checklist_payload_json)
+        except (ValueError, TypeError):
+            checklist = []
+
+    return ProgressSnapshotDetail(
+        meta=_serialize_progress_snapshot(snap, person_lookup),
+        checklist=checklist,
+    )
+
+
+# --- Deliverable checklist CRUD -------------------------------------------
+
+
+@router.get(
+    "/{project_id}/milestones/{milestone_id}/checklist",
+    response_model=DeliverableListResponse,
+)
+def list_milestone_deliverables(
+    project_id: str,
+    milestone_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """List deliverable checklist items for a milestone [E-04c]."""
+    _load_project_or_404(db, project_id)
+
+    ms = (
+        db.query(ProjectMilestone)
+        .filter(
+            ProjectMilestone.id == milestone_id,
+            ProjectMilestone.project_id == project_id,
+        )
+        .first()
+    )
+    if ms is None:
+        raise HTTPException(404, "Milestone not found")
+
+    items = (
+        db.query(MilestoneDeliverable)
+        .filter(MilestoneDeliverable.milestone_id == milestone_id)
+        .order_by(MilestoneDeliverable.sequence)
+        .all()
+    )
+    return DeliverableListResponse(
+        items=[_serialize_deliverable(d) for d in items],
+        total=len(items),
+    )
+
+
+@router.post(
+    "/{project_id}/milestones/{milestone_id}/checklist",
+    response_model=DeliverableItem,
+)
+def create_milestone_deliverable(
+    project_id: str,
+    milestone_id: int,
+    body: DeliverableCreateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Add a deliverable checklist item. Max 10 per milestone per [E-04c]."""
+    project = _load_project_or_404(db, project_id)
+    if not _can_edit_progress(user, project):
+        raise HTTPException(403, "Insufficient permissions to edit deliverables")
+
+    ms = (
+        db.query(ProjectMilestone)
+        .filter(
+            ProjectMilestone.id == milestone_id,
+            ProjectMilestone.project_id == project_id,
+        )
+        .first()
+    )
+    if ms is None:
+        raise HTTPException(404, "Milestone not found")
+
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(400, "Deliverable text must not be empty")
+
+    existing_count = (
+        db.query(MilestoneDeliverable)
+        .filter(MilestoneDeliverable.milestone_id == milestone_id)
+        .count()
+    )
+    if existing_count >= MAX_CHECKLIST_ITEMS:
+        raise HTTPException(
+            409,
+            f"Milestone already has {MAX_CHECKLIST_ITEMS} deliverables "
+            f"(maximum per [E-04c])",
+        )
+
+    if body.sequence is None:
+        next_seq = existing_count + 1
+    else:
+        next_seq = max(1, int(body.sequence))
+
+    item = MilestoneDeliverable(
+        milestone_id=milestone_id,
+        sequence=next_seq,
+        text=text,
+        is_complete=False,
+    )
+    db.add(item)
+
+    from routers.admin import _log_audit
+    _log_audit(
+        db, user, "milestone_deliverable", str(milestone_id), text,
+        "create", category="forecast_actions",
+    )
+
+    db.commit()
+    db.refresh(item)
+    return _serialize_deliverable(item)
+
+
+@router.patch(
+    "/{project_id}/checklist/{item_id}",
+    response_model=DeliverableItem,
+)
+def update_milestone_deliverable(
+    project_id: str,
+    item_id: int,
+    body: DeliverableUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Update a deliverable's text, completion, or sequence [E-04c]."""
+    project = _load_project_or_404(db, project_id)
+    if not _can_edit_progress(user, project):
+        raise HTTPException(403, "Insufficient permissions to edit deliverables")
+
+    item = (
+        db.query(MilestoneDeliverable)
+        .join(
+            ProjectMilestone,
+            MilestoneDeliverable.milestone_id == ProjectMilestone.id,
+        )
+        .filter(
+            MilestoneDeliverable.id == item_id,
+            ProjectMilestone.project_id == project_id,
+        )
+        .first()
+    )
+    if item is None:
+        raise HTTPException(404, "Deliverable not found")
+
+    explicit = set(body.model_dump(exclude_unset=True).keys())
+    deltas: dict[str, tuple] = {}
+
+    if "text" in explicit:
+        new_text = (body.text or "").strip()
+        if not new_text:
+            raise HTTPException(400, "Deliverable text must not be empty")
+        if new_text != item.text:
+            deltas["text"] = (item.text, new_text)
+            item.text = new_text
+
+    if "is_complete" in explicit:
+        new_complete = bool(body.is_complete)
+        if item.is_complete != new_complete:
+            deltas["is_complete"] = (item.is_complete, new_complete)
+            item.is_complete = new_complete
+            if new_complete:
+                item.completed_at = datetime.utcnow()
+                item.completed_by_id = user.person_id
+            else:
+                item.completed_at = None
+                item.completed_by_id = None
+
+    if "sequence" in explicit and body.sequence is not None:
+        new_seq = max(1, int(body.sequence))
+        if new_seq != item.sequence:
+            deltas["sequence"] = (item.sequence, new_seq)
+            item.sequence = new_seq
+
+    if deltas:
+        from routers.admin import _log_audit
+        for field, (old_val, new_val) in deltas.items():
+            _log_audit(
+                db, user, "milestone_deliverable", str(item.id), item.text,
+                "update", field,
+                None if old_val is None else str(old_val),
+                None if new_val is None else str(new_val),
+                category="forecast_actions",
+            )
+        db.commit()
+        db.refresh(item)
+
+    return _serialize_deliverable(item)
+
+
+@router.delete("/{project_id}/checklist/{item_id}")
+def delete_milestone_deliverable(
+    project_id: str,
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Remove a deliverable from a milestone [E-04c]."""
+    project = _load_project_or_404(db, project_id)
+    if not _can_edit_progress(user, project):
+        raise HTTPException(403, "Insufficient permissions to edit deliverables")
+
+    item = (
+        db.query(MilestoneDeliverable)
+        .join(
+            ProjectMilestone,
+            MilestoneDeliverable.milestone_id == ProjectMilestone.id,
+        )
+        .filter(
+            MilestoneDeliverable.id == item_id,
+            ProjectMilestone.project_id == project_id,
+        )
+        .first()
+    )
+    if item is None:
+        raise HTTPException(404, "Deliverable not found")
+
+    from routers.admin import _log_audit
+    _log_audit(
+        db, user, "milestone_deliverable", str(item.id), item.text,
+        "delete", category="forecast_actions",
+    )
+
+    db.delete(item)
+    db.commit()
+    return {"id": item_id, "deleted": True}
+
+
+# --- Portfolio aggregation [E-04d] ----------------------------------------
+
+
+@progress_router.get(
+    "/progress-aggregate",
+    response_model=PortfolioProgressAggregateResponse,
+)
+def get_portfolio_progress_aggregate(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Portfolio-wide progress indicators for Backlog / Portfolio inline view.
+
+    Filters to the user's project scope (PL sees only own projects per
+    standard scope rules).
+    """
+    project_ids: list[str] | None = None
+    if user.role == "project_lead":
+        project_ids = list(user.project_ids or [])
+
+    payload = compute_portfolio_progress_indicators(db, project_ids=project_ids)
+    return PortfolioProgressAggregateResponse(
+        items=[PortfolioProgressIndicator(**row) for row in payload["items"]],
+        total=payload["total"],
+        summary=payload["summary"],
     )

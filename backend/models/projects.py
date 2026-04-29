@@ -70,7 +70,12 @@ class Project(Base):
     # PATCH /api/projects/{id}/progress; snapshotted at forecast cycle
     # completion via services/progress_tracker.capture_progress_for_cycle.
     current_milestone_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("project_milestones.id"), nullable=True,
+        ForeignKey(
+            "project_milestones.id",
+            use_alter=True,
+            name="fk_project_current_milestone",
+        ),
+        nullable=True,
     )
     # Pointer to the milestone the project is currently executing. When null,
     # the service derives it from the milestone whose forecast window contains
@@ -103,8 +108,9 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     modified_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
-    pl: Mapped[Optional["Person"]] = relationship()
+    # Relationships — disambiguate by foreign-key list since Project now has
+    # multiple FKs into people.id (pl_person_id + progress_updated_by_id).
+    pl: Mapped[Optional["Person"]] = relationship(foreign_keys="Project.pl_person_id")
     baselines: Mapped[list["Baseline"]] = relationship(back_populates="project")
     forecasts: Mapped[list["Forecast"]] = relationship(back_populates="project")
     actuals: Mapped[list["Actuals"]] = relationship(back_populates="project")
@@ -113,6 +119,7 @@ class Project(Base):
     milestones: Mapped[list["ProjectMilestone"]] = relationship(
         back_populates="project",
         order_by="ProjectMilestone.sequence_number",
+        foreign_keys="ProjectMilestone.project_id",
     )
     entity_assignments: Mapped[list["ProjectGroupingAssignment"]] = relationship(back_populates="project")
     # C1: forecast version history [C-FV-01]
@@ -178,7 +185,10 @@ class ProjectMilestone(Base):
     # Set on first save; baseline dates immutable thereafter except via controller override.
 
     # Relationships
-    project: Mapped["Project"] = relationship(back_populates="milestones")
+    project: Mapped["Project"] = relationship(
+        back_populates="milestones",
+        foreign_keys=[project_id],
+    )
     milestone_type: Mapped[Optional["MilestoneType"]] = relationship()
     # E1: per-milestone deliverable checklist [E-04c] (max 10 items enforced
     # at the service layer; cascade delete keeps the catalogue tidy when a
