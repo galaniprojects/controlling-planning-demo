@@ -34,6 +34,7 @@ from schemas.chargeable_entity import (
     validate_identifier_for_type,
 )
 from schemas.rollup import (
+    EntityAllocationBreakdownResponse, EntityAllocationBreakdownRow,
     RollupCacheStatusResponse, RollupDrillDownResponse, RollupListResponse,
 )
 from schemas.charging import (
@@ -68,7 +69,7 @@ from services.rollup_cache import (
     invalidate_for_distribution_write, invalidate_for_entity_cost_write,
 )
 from services.rollup_query import (
-    drill_down_charging_location, query_rollup,
+    drill_down_charging_location, query_entity_allocation_breakdown, query_rollup,
 )
 from services.wbs_generator import build_wbs_element
 
@@ -288,6 +289,28 @@ def list_charging_locations(
 ):
     """List all charging locations [F-MD-01]."""
     rows = db.query(ChargingLocation).order_by(ChargingLocation.code).all()
+    items = [_serialize_charging_location(cl) for cl in rows]
+    return {"items": [i.model_dump() for i in items], "total": len(items)}
+
+
+@charging_router.get("/charging-locations", response_model=dict)
+def list_charging_locations_read_only(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+):
+    """Read-only list of charging locations accessible to all four roles.
+
+    F6 [E-09]: the Workbench BTC tab needs to render location names + codes
+    for non-controller roles. The admin equivalent above is mutation-gated.
+    """
+    rows = (
+        db.query(ChargingLocation)
+        .filter(ChargingLocation.is_active.is_(True))
+        .order_by(ChargingLocation.code)
+        .all()
+    )
     items = [_serialize_charging_location(cl) for cl in rows]
     return {"items": [i.model_dump() for i in items], "total": len(items)}
 
@@ -1612,6 +1635,123 @@ def get_rollup_drill_down(
             {"path": p.path, "path_labels": p.path_labels}
             for p in result.paths
         ],
+    )
+
+
+@charging_router.get(
+    "/entities/by-project/{project_id}",
+    response_model=ChargeableEntityResponse,
+)
+def get_entity_by_project_id(
+    project_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> ChargeableEntityResponse:
+    """Look up the ChargeableEntity row for a given project. F6 read-only path.
+
+    Workbench BTC tab needs to resolve project → ChargeableEntity to render
+    the BTC tile / tab; the existing ``GET /api/admin/chargeable-entities/{id}``
+    is controller-only. This charging-namespaced endpoint exposes the same
+    serialised shape to all four roles. PL filtering is unnecessary here —
+    the Workbench module already gates project visibility at the route level.
+    """
+    ce = (
+        db.query(ChargeableEntity)
+        .filter(ChargeableEntity.project_id == project_id)
+        .first()
+    )
+    if ce is None:
+        raise HTTPException(
+            404, f"No ChargeableEntity is linked to project '{project_id}'",
+        )
+    return _serialize_chargeable_entity(ce)
+
+
+@charging_router.get(
+    "/entities/{entity_id}",
+    response_model=ChargeableEntityResponse,
+)
+def get_entity_read_only(
+    entity_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> ChargeableEntityResponse:
+    """Read-only ChargeableEntity fetch accessible to all four roles.
+
+    The admin equivalent at ``GET /api/admin/chargeable-entities/{id}`` is
+    controller-only. This thin wrapper enables F6's Workbench BTC tab to
+    fetch the entity for non-controller roles. Mutations remain in the admin
+    namespace.
+    """
+    ce = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if ce is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+    return _serialize_chargeable_entity(ce)
+
+
+@charging_router.get(
+    "/entities/{entity_id}/allocation-breakdown",
+    response_model=EntityAllocationBreakdownResponse,
+)
+def get_entity_allocation_breakdown(
+    entity_id: str,
+    year: int,
+    version: str = "forecast",
+    sort_by: str = "amount",
+    sort_dir: str = "desc",
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> EntityAllocationBreakdownResponse:
+    """Per-entity BTC allocation breakdown for the Workbench BTC tab per [E-09].
+
+    Returns one row per charging location in the entity's active BTC profile,
+    each with the location's percentage, the absolute EUR amount allocated
+    (effective_cost × to_business_pct ÷ 100 × percentage ÷ 100), and enriched
+    region / country / division metadata. Sortable by location/region/division/
+    percentage/amount in ascending or descending order.
+    """
+    try:
+        result = query_entity_allocation_breakdown(
+            db, entity_id, year, version,
+            sort_by=sort_by, sort_dir=sort_dir,
+        )
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+    return EntityAllocationBreakdownResponse(
+        entity_id=result.entity_id,
+        entity_name=result.entity_name,
+        year=result.year,
+        version=result.version,
+        to_business_pct=result.to_business_pct,
+        effective_cost=result.effective_cost,
+        business_amount_total=result.business_amount_total,
+        rows=[
+            EntityAllocationBreakdownRow(
+                charging_location_id=r.charging_location_id,
+                charging_location_code=r.charging_location_code,
+                charging_location_name=r.charging_location_name,
+                region_name=r.region_name,
+                division=r.division,
+                country_iso_code=r.country_iso_code,
+                legal_entity_name=r.legal_entity_name,
+                percentage=r.percentage,
+                amount_eur=r.amount_eur,
+            )
+            for r in result.rows
+        ],
+        profile_id=result.profile_id,
+        profile_status=result.profile_status,
+        profile_mode=result.profile_mode,
+        has_profile=result.has_profile,
+        sums_to_100=result.sums_to_100,
+        total=len(result.rows),
     )
 
 

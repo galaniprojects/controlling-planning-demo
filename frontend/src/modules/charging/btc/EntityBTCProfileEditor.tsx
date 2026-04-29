@@ -39,23 +39,37 @@ import type {
   ChargingLocationItem,
 } from '@/types/api';
 
-interface Props {
-  profileId: number;
-  onBack: () => void;
-}
+/**
+ * Two ways to mount this editor:
+ *
+ *   <EntityBTCProfileEditor profileId={123} onBack={...} />
+ *   <EntityBTCProfileEditor entityId="ce-..." year={2026} onBack={...} />
+ *
+ * The (entityId, year) form fetches the active profile via the entity-keyed
+ * endpoint; if no profile exists the component shows a "no profile yet" panel
+ * so the Workbench BTC tab can still render. Used by F6 / [E-09].
+ *
+ * The legacy (profileId) form is the path used by BTCProfileListView.
+ */
+type Props =
+  | { profileId: number; entityId?: never; year?: never; onBack: () => void }
+  | { profileId?: never; entityId: string; year: number; onBack: () => void };
 
 interface DraftLine {
   charging_location_id: string;
   percentage: number;
 }
 
-export function EntityBTCProfileEditor({ profileId, onBack }: Props) {
+export function EntityBTCProfileEditor(props: Props) {
+  const { onBack } = props;
   const [profile, setProfile] = useState<BTCProfileItem | null>(null);
   const [entity, setEntity] = useState<ChargeableEntityItem | null>(null);
   const [chargingLocations, setChargingLocations] = useState<ChargingLocationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // True when caller passed entityId+year and no profile yet exists for that pair.
+  const [profileMissing, setProfileMissing] = useState(false);
 
   // Manual editor draft (only used when mode === 'manual')
   const [draft, setDraft] = useState<DraftLine[]>([]);
@@ -66,19 +80,55 @@ export function EntityBTCProfileEditor({ profileId, onBack }: Props) {
 
   const fetchData = async () => {
     setLoading(true);
+    setError(null);
+    setProfileMissing(false);
     try {
-      const [prof, locs] = await Promise.all([
-        chargingApi.getBTCProfile(profileId),
-        adminD3Api.getChargingLocations(),
-      ]);
-      const ent = await chargingApi.getEntity(prof.entity_id);
+      // Pick the charging-locations endpoint based on caller path. The
+      // legacy (profileId) caller is controller-only so the admin
+      // endpoint is fine; the (entityId+year) caller may run as PL /
+      // exec / cc-owner so we use the read-only charging-namespaced
+      // endpoint.
+      const locsPromise = props.profileId !== undefined
+        ? adminD3Api.getChargingLocations()
+        : chargingApi.listChargingLocationsReadOnly();
+
+      let prof: BTCProfileItem | null = null;
+      let ent: ChargeableEntityItem | null = null;
+
+      if (props.profileId !== undefined) {
+        // Legacy (profileId) path used by BTCProfileListView.
+        prof = await chargingApi.getBTCProfile(props.profileId);
+        ent = await chargingApi.getEntity(prof.entity_id);
+      } else {
+        // (entityId, year) path used by Workbench BTC tab per [E-09].
+        ent = await chargingApi.getEntity(props.entityId);
+        try {
+          prof = await chargingApi.getEntityBTCProfile(props.entityId, props.year);
+        } catch (e: unknown) {
+          // 404 is expected when no profile yet exists — surface a creation
+          // prompt rather than failing the whole panel.
+          const msg = e instanceof Error ? e.message : '';
+          if (msg.toLowerCase().includes('not found') || msg.includes('404')) {
+            setProfileMissing(true);
+            prof = null;
+          } else {
+            throw e;
+          }
+        }
+      }
+
+      const locs = await locsPromise;
       setProfile(prof);
       setEntity(ent);
       setChargingLocations(locs.items);
-      setDraft(prof.lines.map((l) => ({
-        charging_location_id: l.charging_location_id,
-        percentage: l.percentage,
-      })));
+      setDraft(
+        prof
+          ? prof.lines.map((l) => ({
+              charging_location_id: l.charging_location_id,
+              percentage: l.percentage,
+            }))
+          : [],
+      );
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -86,10 +136,11 @@ export function EntityBTCProfileEditor({ profileId, onBack }: Props) {
     }
   };
 
+  // Re-fetch when caller-provided keys change.
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileId]);
+  }, [props.profileId, props.entityId, props.year]);
 
   const draftSum = useMemo(
     () => draft.reduce((s, l) => s + (Number(l.percentage) || 0), 0),
@@ -175,7 +226,38 @@ export function EntityBTCProfileEditor({ profileId, onBack }: Props) {
     );
   }
 
-  if (!profile || !entity) {
+  if (!entity) {
+    return (
+      <Card className="p-6">
+        <p className="text-sm text-muted-foreground">Failed to load BTC profile.</p>
+        <Button variant="outline" size="sm" onClick={onBack} className="mt-4">
+          <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+        </Button>
+      </Card>
+    );
+  }
+
+  if (profileMissing && !profile) {
+    // (entityId, year) path: entity exists but no profile yet — show a prompt.
+    const targetYear = (props.year ?? new Date().getFullYear()) as number;
+    return (
+      <Card className="p-6 space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">No BTC profile yet</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {entity.name} ({entity.identifier}) has no Business-Transfer Charging
+            profile for {targetYear}. A controller can create one in the
+            Charging & Allocations module.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onBack}>
+          <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+        </Button>
+      </Card>
+    );
+  }
+
+  if (!profile) {
     return (
       <Card className="p-6">
         <p className="text-sm text-muted-foreground">Failed to load BTC profile.</p>

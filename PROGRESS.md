@@ -1,11 +1,128 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Wave 3 merged on main (2026-04-29) and verified end-to-end. All five sessions landed: **B1** (scenario engine + Lever 12, +91 tests), **E1** (progress tracker + ExternalCostCategory, +92 tests), **A8** (frontend pipeline + Run Portfolio scaffolding), **C2** (frontend mixed-granularity grid + version history UI), and **F4 + F5** (frontend Charging & Allocations module — Distribution + BTC editors + Location Cost Rollup map + tree-table + Report Builder integration). Backend test count after Wave 3: **1190** (1007 baseline + 91 B1 + 92 E1). Frontend TypeScript: 0 errors. Visual verification done in light + dark themes across all four roles (~30 screenshots, prefix `w3-`).
+Phase: v5 Wave 4 in progress. **F6 (Workbench BTC tile + tab) ready for review (2026-04-29)** — backend test count **1210** (1190 baseline + 20 F6 tests). Frontend TS clean against new files; visual verification done in light + dark themes across Controller / Executive personas. Two wave-4 sessions remain: **B2** (frontend simulator workspace) and **E2** (backend external cost aggregation + Launchpad data) — both still unstarted.
+Wave 3 merged on main (2026-04-29): **B1** (scenario engine + Lever 12, +91 tests), **E1** (progress tracker + ExternalCostCategory, +92 tests), **A8** (frontend pipeline + Run Portfolio scaffolding), **C2** (frontend mixed-granularity grid + version history UI), and **F4 + F5** (frontend Charging & Allocations module — Distribution + BTC editors + Location Cost Rollup map + tree-table + Report Builder integration). Backend baseline at end of Wave 3: 1190 tests.
 Wave 2 merged: F3 (+125 tests) + C1 (+94 tests) + A6 frontend brought backend baseline to 1007 tests.
 Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
-Next: Wave 4 candidates — F6 (Workbench BTC tile + tab), B2 (frontend simulator workspace), E2 (backend external cost aggregation + Launchpad data). All three are pairwise independent and unblocked.
-**Post-merge requirement on first pull:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables, C1's `is_provisional` column on `forecasts`, B1's Scenario column additions, and E1's progress tracker columns + new tables all require schema regeneration.
+Next: Wave 4 — B2 (frontend simulator) and E2 (backend external cost aggregation) remaining.
+**Post-merge requirement on first pull:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables, C1's `is_provisional` column on `forecasts`, B1's Scenario column additions, and E1's progress tracker columns + new tables all require schema regeneration. F6 adds no schema changes (read-only endpoints + new frontend tile/tab); no DB reset required.
+
+## v5 Session F6: Workbench BTC Tile + Workbench BTC Tab (2026-04-29)
+
+### Feature Overview
+Per `[E-09]`: project leads, controllers, executives and CC owners now see a
+project's Business-Transfer Charging story directly inside the Project
+Workbench. Removes the friction of jumping into the Charging & Allocations
+module to inspect or edit a single project's BTC profile.
+
+- **Workbench Overview BTC tile** (Overview tab, after CapEx/OpEx + Resource
+  Summary block):
+  - Headline: To-Business € amount + percentage of effective cost
+  - Top 3 charging locations rendered with horizontal % bars
+  - "+N more — open BTC tab" CTA → switches to BTC tab
+  - Empty states for missing chargeable entity, no business charging
+    (`to_business_pct === 0`), and no profile yet
+- **Workbench BTC tab** — new third tab in `ProjectWorkspace`:
+  - Tab label flips between **Cost Allocation** (BTC) and **Distribution**
+    (when entity has zero To-Business share)
+  - Section 1: Refactored `EntityBTCProfileEditor` mounted with
+    `(entityId, year)` instead of the legacy `profileId`
+  - Section 2: Allocation breakdown table — sortable columns (location,
+    region, country, division, %, amount), each row is clickable and
+    drills into upstream-cost contributors via the existing
+    `/rollup/charging-location/{cl_id}` endpoint
+  - Section 3: Audit history reusing `adminD3Api.getEntityAuditTrail`
+- **Distribution-only fallback**: when `to_business_pct === 0` the BTC
+  tab renders the entity-keyed `EntityDistributionEditor` inline with an
+  explanatory blue banner
+
+### Spec references implemented
+`[E-09]` (Workbench BTC tile + tab in full).
+
+Out of scope per session plan: scenario-aware BTC overlays in the Workbench
+(Lever 12 sandbox view — covered by simulator UI in B2), per-month BTC
+allocation timeseries, BTC delta vs prior version (out-of-band feature
+request, not in spec).
+
+### Technical Details
+
+**Backend (3 new endpoints + 1 service helper, 20 tests)**
+- `GET /api/charging/entities/{entity_id}/allocation-breakdown` — per-entity
+  BTC allocation for a year. Returns the entity's effective cost, the
+  business amount total (effective × to_business_pct ÷ 100), and one row
+  per charging location in the active BTC profile with enriched
+  region/country/division/legal-entity metadata. Sortable by amount,
+  percentage, location, code, region, division, or country.
+- `GET /api/charging/entities/{entity_id}` — read-only chargeable entity
+  fetch accessible to all four roles (admin variant remains controller-only).
+- `GET /api/charging/entities/by-project/{project_id}` — look up the
+  ChargeableEntity row linked to a given project. Used by the Workbench
+  to resolve project → entity without requiring controller permissions.
+- `GET /api/charging/charging-locations` — read-only list of active
+  charging locations accessible to all four roles. The admin equivalent
+  remains controller-only for mutation paths.
+- `services/rollup_query.query_entity_allocation_breakdown` — extends the
+  existing rollup pipeline using the cache-backed `get_stage1_effective`.
+  Groups one BTC profile's lines into a breakdown response with sorting.
+
+**Schemas extended:** `schemas/rollup.py` adds
+`EntityAllocationBreakdownRow` and `EntityAllocationBreakdownResponse`.
+
+**Frontend (2 new components, 1 refactor)**
+- `frontend/src/modules/workbench/btc/WorkbenchBTCTab.tsx` (new)
+- `frontend/src/modules/workbench/overview/BTCAllocationTile.tsx` (new)
+- `frontend/src/modules/charging/btc/EntityBTCProfileEditor.tsx` —
+  discriminated union props: now accepts either `profileId` (legacy
+  caller in `BTCProfileListView`) or `entityId + year` (new Workbench
+  caller). 404-on-fetch shows a "no profile yet" panel rather than an
+  error state.
+- `frontend/src/modules/workbench/ProjectWorkspace.tsx` — fetches the
+  linked chargeable entity once on load and conditionally registers the
+  BTC tab. Tab label flips on `to_business_pct`.
+- `frontend/src/api/endpoints.ts` — adds
+  `chargingApi.getEntityByProjectId`, `getEntityAllocationBreakdown`,
+  `listChargingLocationsReadOnly`. Aliases the chargingApi
+  `ChargeableEntityItem` import to use the strict `types/api` variant
+  (`'Change' | 'Run'`) rather than the loose `runPortfolio` type. This
+  drops 9 baseline TS errors in F4/F5 charging components.
+- `frontend/src/types/api.ts` — adds `EntityAllocationBreakdownResponse`,
+  `EntityAllocationBreakdownRow`, `AllocationBreakdownSortBy` types.
+
+**Tests (20 new)**
+- `backend/tests/test_charging_entity_allocation_breakdown.py`:
+  - 6 happy-path tests (response shape, amount calculation,
+    region/country/division enrichment)
+  - 2 empty-state tests (no profile, zero to_business_pct)
+  - 1 not-found test
+  - 4 sorting tests (default amount desc, percentage asc, location asc,
+    region desc)
+  - 4 role-gating tests (PL, exec, cc-owner, unknown persona)
+  - 4 entity read-only / by-project tests
+  - 2 sums-to-100 flag tests
+- All other existing charging tests remain green (134 charging-related
+  tests pass, 1210 in the full suite).
+
+### Files Modified / Added
+- `backend/routers/charging.py` (3 new endpoints + new RO charging-locations)
+- `backend/services/rollup_query.py` (new query helper + dataclasses)
+- `backend/schemas/rollup.py` (2 new response schemas)
+- `backend/tests/test_charging_entity_allocation_breakdown.py` (new, 20 tests)
+- `frontend/src/api/endpoints.ts` (4 new client methods)
+- `frontend/src/types/api.ts` (3 new types)
+- `frontend/src/modules/charging/btc/EntityBTCProfileEditor.tsx` (props refactor)
+- `frontend/src/modules/workbench/ProjectWorkspace.tsx` (entity resolution + BTC tab)
+- `frontend/src/modules/workbench/overview/OverviewTab.tsx` (mount BTC tile)
+- `frontend/src/modules/workbench/overview/BTCAllocationTile.tsx` (new)
+- `frontend/src/modules/workbench/btc/WorkbenchBTCTab.tsx` (new)
+
+### Verification
+- Backend: `python -m pytest tests/ -q` — **1210 passed** (1190 baseline + 20 F6).
+- Frontend build: `npx tsc --noEmit` clean against new F6 files; baseline
+  pre-existing errors reduced from 91 → 82 due to type alias fix.
+- Visual verification: Playwright at viewport 1440 in light + dark across
+  Controller and Executive personas. 13 screenshots captured (prefix
+  `w4-f6-`).
 
 ## v5 Session B1: What-If Simulator Backend (2026-04-29)
 

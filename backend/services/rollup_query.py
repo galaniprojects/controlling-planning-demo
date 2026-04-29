@@ -76,6 +76,40 @@ class DrillDownResponse:
     paths: list[DrillDownPath]
 
 
+@dataclass
+class EntityAllocationBreakdownRow:
+    """One charging-location row in the per-entity allocation breakdown.
+
+    Used by F6's Workbench BTC tab per [E-09].
+    """
+    charging_location_id: str
+    charging_location_code: Optional[str]
+    charging_location_name: Optional[str]
+    region_name: Optional[str]
+    division: Optional[str]
+    country_iso_code: Optional[str]
+    legal_entity_name: Optional[str]
+    percentage: float
+    amount_eur: float
+
+
+@dataclass
+class EntityAllocationBreakdownResponse:
+    entity_id: str
+    entity_name: str
+    year: int
+    version: str
+    to_business_pct: float
+    effective_cost: float
+    business_amount_total: float
+    rows: list[EntityAllocationBreakdownRow]
+    profile_id: Optional[int]
+    profile_status: Optional[str]
+    profile_mode: Optional[str]
+    has_profile: bool
+    sums_to_100: bool
+
+
 # ---------------------------------------------------------------------------
 # Supported grouping dimensions
 # ---------------------------------------------------------------------------
@@ -281,4 +315,154 @@ def drill_down_charging_location(
         own_cost=round(float(effective_data.get("own_cost", 0)), 2),
         inflow_total=round(float(effective_data.get("inflow_total", 0)), 2),
         paths=enriched_paths,
+    )
+
+
+# ---------------------------------------------------------------------------
+# F6 — Per-entity allocation breakdown
+# ---------------------------------------------------------------------------
+
+def query_entity_allocation_breakdown(
+    db: Session,
+    entity_id: str,
+    year: int,
+    version: str = "forecast",
+    *,
+    sort_by: str = "amount",
+    sort_dir: str = "desc",
+) -> EntityAllocationBreakdownResponse:
+    """Compute the per-charging-location BTC allocation breakdown for an entity.
+
+    For one ``ChargeableEntity`` and ``year`` this returns:
+      - the entity's effective cost (Stage 1 result, cache-backed)
+      - to_business amount = effective_cost × to_business_pct ÷ 100
+      - one row per charging location in the active BTC profile, with the
+        location's percentage, the absolute EUR amount, and enriched metadata
+        (region, country, division, optional representative legal entity)
+
+    Used by F6's Workbench BTC tab per [E-09] for the allocation breakdown
+    table and drill-down. Sortable by location/region/division/percentage/amount.
+
+    Raises ``ValueError`` if the entity is missing.
+    """
+    from services.rollup_cache import get_stage1_effective
+    from models.charging import (
+        BTCProfile, ChargingLocation, LegalEntity, Region,
+    )
+
+    entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if entity is None:
+        raise ValueError(f"ChargeableEntity '{entity_id}' not found")
+
+    # Cache-backed effective cost.
+    try:
+        effective_data = get_stage1_effective(db, year, version, entity_id)
+    except Exception:
+        effective_data = {"effective_cost": 0.0}
+    effective_cost = float(effective_data.get("effective_cost", 0.0))
+
+    to_business_pct = float(entity.to_business_pct or 0.0)
+    business_amount_total = round(effective_cost * to_business_pct / 100.0, 2)
+
+    # Look up the active profile for (entity, year). Fall back to draft if active missing.
+    profile = (
+        db.query(BTCProfile)
+        .filter(
+            BTCProfile.entity_id == entity_id,
+            BTCProfile.year == year,
+            BTCProfile.status == "active",
+        )
+        .first()
+    )
+    if profile is None:
+        profile = (
+            db.query(BTCProfile)
+            .filter(
+                BTCProfile.entity_id == entity_id,
+                BTCProfile.year == year,
+            )
+            .first()
+        )
+
+    rows: list[EntityAllocationBreakdownRow] = []
+    sum_pct = 0.0
+    if profile is not None:
+        # Pre-fetch related charging-locations + their region/country in bulk.
+        cl_ids = [line.charging_location_id for line in profile.lines]
+        cls = {
+            cl.id: cl for cl in db.query(ChargingLocation)
+            .filter(ChargingLocation.id.in_(cl_ids)).all()
+        } if cl_ids else {}
+
+        # Optional: pull a single representative LegalEntity name per CL
+        # (informational only; charging amounts roll up at CL level, not LE).
+        le_by_cl: dict[str, str] = {}
+        if cl_ids:
+            les = (
+                db.query(LegalEntity)
+                .filter(LegalEntity.charging_location_id.in_(cl_ids))
+                .filter(LegalEntity.is_active.is_(True))
+                .all()
+            )
+            for le in les:
+                if le.charging_location_id and le.charging_location_id not in le_by_cl:
+                    le_by_cl[le.charging_location_id] = le.name
+
+        for line in profile.lines:
+            cl = cls.get(line.charging_location_id)
+            pct = float(line.percentage)
+            sum_pct += pct
+            amount = round(business_amount_total * pct / 100.0, 2)
+            region_name = None
+            country_iso = None
+            division = None
+            cl_code = None
+            cl_name = None
+            if cl is not None:
+                cl_code = cl.code
+                cl_name = cl.name
+                division = cl.division
+                if cl.region is not None:
+                    region_name = cl.region.name
+                if cl.country is not None:
+                    country_iso = cl.country.iso_code
+            rows.append(EntityAllocationBreakdownRow(
+                charging_location_id=line.charging_location_id,
+                charging_location_code=cl_code,
+                charging_location_name=cl_name,
+                region_name=region_name,
+                division=division,
+                country_iso_code=country_iso,
+                legal_entity_name=le_by_cl.get(line.charging_location_id),
+                percentage=pct,
+                amount_eur=amount,
+            ))
+
+    # Sort.
+    sort_key_map = {
+        "amount": lambda r: r.amount_eur,
+        "percentage": lambda r: r.percentage,
+        "location": lambda r: (r.charging_location_name or "").lower(),
+        "code": lambda r: (r.charging_location_code or "").lower(),
+        "region": lambda r: (r.region_name or "").lower(),
+        "division": lambda r: (r.division or "").lower(),
+        "country": lambda r: (r.country_iso_code or "").lower(),
+    }
+    key_fn = sort_key_map.get(sort_by, sort_key_map["amount"])
+    rows.sort(key=key_fn, reverse=(sort_dir.lower() != "asc"))
+
+    return EntityAllocationBreakdownResponse(
+        entity_id=entity.id,
+        entity_name=entity.name,
+        year=year,
+        version=version,
+        to_business_pct=to_business_pct,
+        effective_cost=round(effective_cost, 2),
+        business_amount_total=business_amount_total,
+        rows=rows,
+        profile_id=profile.id if profile is not None else None,
+        profile_status=profile.status if profile is not None else None,
+        profile_mode=profile.mode if profile is not None else None,
+        has_profile=profile is not None,
+        sums_to_100=abs(sum_pct - 100.0) < 0.01,
     )
