@@ -111,7 +111,15 @@ export function RunPortfolioTab() {
     chargeableEntitiesApi
       .list({ entity_type: typeFilter || undefined, is_active: true })
       .then((res) => {
-        if (!cancelled) setItems(res.items);
+        if (cancelled) return;
+        // Run Portfolio = entities classified Run by the backend
+        // (Project @ DoI 5 / all Offerings / all InternalServices) per [E-11].
+        const runOnly = res.items.filter(
+          (e) =>
+            e.is_change_or_run === 'Run' ||
+            e.is_change_or_run === 'run',
+        );
+        setItems(runOnly);
       })
       .catch((e) => {
         if (!cancelled) {

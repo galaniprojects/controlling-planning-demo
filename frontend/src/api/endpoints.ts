@@ -1284,10 +1284,13 @@ import type {
 
 export const chargeableEntitiesApi = {
   /**
-   * GET /api/charging/chargeable-entities — list ChargeableEntities filtered
-   * by entity_type. Used by the Run Portfolio sub-module per [E-11].
-   * Backend currently restricts to controllers; non-controllers receive a 403
-   * which the UI surfaces as an empty-state message.
+   * GET /api/admin/chargeable-entities — list ChargeableEntities filtered by
+   * entity_type. Used by the Run Portfolio sub-module per [E-11].
+   *
+   * Endpoint mounts under /api/admin/* in the F2 router; backend restricts
+   * the call to controllers. Non-controllers receive a 403 which the UI
+   * surfaces as an empty-state message pointing at upcoming F-cluster
+   * sessions.
    */
   list: (params?: {
     entity_type?: 'Project' | 'Offering' | 'InternalService';
@@ -1301,7 +1304,7 @@ export const chargeableEntitiesApi = {
     }
     const qs = q.toString();
     return api.get<ChargeableEntityListResponse>(
-      `/api/charging/chargeable-entities${qs ? '?' + qs : ''}`,
+      `/api/admin/chargeable-entities${qs ? '?' + qs : ''}`,
     );
   },
 };
