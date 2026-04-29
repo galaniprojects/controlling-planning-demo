@@ -41,9 +41,13 @@ from routers.admin import router as admin_router  # noqa: E402
 from routers.ai_reports import router as ai_reports_router  # noqa: E402
 from routers.audit import router as audit_router  # noqa: E402
 from routers.capacity import router as capacity_router  # noqa: E402
-from routers.charging import router as charging_router  # noqa: E402
+from routers.charging import (  # noqa: E402
+    router as charging_router,
+    charging_router as charging_consumer_router,
+)
 from routers.documentation import router as docs_router  # noqa: E402
 from routers.global_launchpad import router as launchpad_router  # noqa: E402
+from routers.intake import router as intake_router  # noqa: E402
 from routers.milestones import (  # noqa: E402
     project_router as milestones_project_router,
     admin_router as milestones_admin_router,
@@ -66,8 +70,10 @@ app.include_router(ai_reports_router)
 app.include_router(audit_router)
 app.include_router(capacity_router)
 app.include_router(charging_router)
+app.include_router(charging_consumer_router)
 app.include_router(docs_router)
 app.include_router(launchpad_router)
+app.include_router(intake_router)
 app.include_router(milestones_project_router)
 app.include_router(milestones_admin_router)
 app.include_router(pipeline_router)

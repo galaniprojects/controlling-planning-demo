@@ -959,6 +959,210 @@ export interface AuditLogEntry {
   new_value: string | null;
 }
 
+// === Admin (D3) types — D1 + D2 + F1 surfaces ===
+
+// Reference catalogues (D1)
+export interface RoleTypeItem {
+  id: string;
+  name: string;
+}
+export interface ExternalCostTypeItem {
+  id: string;
+  name: string;
+}
+
+// Project dependencies (D1 / [D-AC-05])
+export interface ProjectDependencyItem {
+  id: number;
+  predecessor_project_id: string;
+  predecessor_project_name: string | null;
+  successor_project_id: string;
+  successor_project_name: string | null;
+  dependency_type: string;
+  lag_days: number | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string | null;
+}
+
+// Users (D1 / [D-AC-01..03])
+export interface UserItem {
+  id: string;
+  username: string;
+  display_name: string;
+  role: string;
+  person_id: string | null;
+  tier3_flag: boolean;
+  change_reviewer_flag: boolean;
+  is_active: boolean;
+}
+
+// Per-entity-type role permission grants (F1 / [F-AC-01])
+export interface RolePermissionGrantItem {
+  id: number;
+  role: string;
+  entity_type: string;
+  can_edit: boolean;
+}
+
+// Charging master data (F1 / [F-MD-01..03])
+export interface CountryItem {
+  id: string;
+  iso_code: string;
+  name: string;
+  is_active: boolean;
+}
+export interface RegionItem {
+  id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+}
+export interface ChargingLocationItem {
+  id: string;
+  code: string;
+  name: string;
+  division: string | null;
+  region_id: string | null;
+  region_name: string | null;
+  country_id: string | null;
+  country_iso_code: string | null;
+  country_name: string | null;
+  is_active: boolean;
+}
+export interface LegalEntityItem {
+  id: string;
+  code: string;
+  name: string;
+  charging_location_id: string | null;
+  charging_location_code: string | null;
+  charging_location_name: string | null;
+  country_id: string | null;
+  country_iso_code: string | null;
+  country_name: string | null;
+  is_active: boolean;
+}
+
+// User measurement matrix (F1 / [F-UM-01..04])
+export interface UMVersionItem {
+  imported_at: string;
+  source: string;
+  row_count: number;
+}
+export interface UMCellItem {
+  id: number;
+  year: number;
+  quarter: number;
+  s_code: string;
+  charging_location_id: string;
+  charging_location_code: string;
+  charging_location_name: string | null;
+  value: number;
+  source: string;
+  imported_at: string;
+}
+export interface UMRefreshStatus {
+  status: 'not_connected' | 'connected' | string;
+  message: string;
+  last_refresh: string | null;
+}
+export interface UMImportResult {
+  imported_at: string;
+  inserted: number;
+  skipped_zero: number;
+  parse_errors: { row: number; message: string }[];
+  source: string;
+}
+
+// Workflow templates (D2 / [D-CAT-07..10])
+export interface WorkflowTemplateSummary {
+  id: number;
+  key: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  step_count: number;
+}
+export interface WorkflowStepActionItem {
+  id: number;
+  action_order: number;
+  action_type: string;
+  label: string;
+  config: Record<string, unknown> | null;
+}
+export interface WorkflowStepItem {
+  id: number;
+  step_order: number;
+  name: string;
+  description: string | null;
+  step_type: string;
+  required: boolean;
+  skippable: boolean;
+  assigned_role: string | null;
+  data_gates: string[] | null;
+  notifications: Record<string, string[]> | null;
+  time_constraint_days: number | null;
+  escalation_action: string | null;
+  is_active?: boolean;
+  actions: WorkflowStepActionItem[];
+}
+export interface WorkflowTemplateDetail extends WorkflowTemplateSummary {
+  steps: WorkflowStepItem[];
+}
+
+// Scheduled changes (D2 / [D-NAV-06..07])
+export interface ScheduledChangeItem {
+  id: number;
+  entity_type: string;
+  entity_id: string;
+  description: string | null;
+  pending_values: Record<string, unknown>;
+  activation_date: string;
+  review_status: string;
+  created_by: string | null;
+  created_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_comments: string | null;
+  activated_at: string | null;
+  activation_error: string | null;
+}
+export interface ApplyScheduledChangesSummary {
+  applied: number;
+  skipped: number;
+  errors: number;
+  details: { id: number; entity_type: string; status: string; message: string | null }[];
+}
+
+// Audit log V2 (D2 / [D-AC-09])
+export interface AuditCategoryRef {
+  key: string;
+  label: string;
+}
+export interface AuditEntryV2 {
+  id: number;
+  timestamp: string;
+  user_name: string | null;
+  user_id: string | null;
+  category: string;
+  entity_type: string;
+  entity_id: string;
+  entity_name: string | null;
+  action: string;
+  field_changed: string | null;
+  old_value: string | null;
+  new_value: string | null;
+  metadata: Record<string, unknown> | null;
+}
+export interface AuditLogResponse {
+  items: AuditEntryV2[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// === End D3 types ===
+
 // --- Documentation / FAQ ---
 
 export interface FAQStep {

@@ -1,9 +1,654 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D — Three sessions merged in parallel onto `main` (D1 → D2 → A3).
-Last completed: Sessions D1 (admin entities + Cluster F master data), D2 (workflow templates + audit query/export), and A3 (ranking engine + cutoff line backend). All three implemented in parallel agent-team worktrees, verified independently green, merged onto `main` in order with conflicts resolved on `main.py`, `models/__init__.py`, `seed.sql`, `routers/admin.py` (audit category tagging for D1's new endpoints), and PROGRESS.md.
-Next: A5 (Intake workflow + backlog integration) — depends on A2 + A3, both now merged.
+Phase: v5 Cluster A/D/F — Wave 1 sessions merging in order (A5 → F2 → D3 → A7).
+Last completed: A5 (intake workflow + backlog integration backend, +68 tests), F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests), and D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) all merged onto the wave-1 merge branch. A7 (Tech Navigator UI) merges next; no PR yet — single PR for the whole wave per project lead's preference.
+Next: Merge A7, then re-seed DB and curl-smoke the new endpoints, then continue critical path with C1 / B1.
+
+## v5 Session A5: Intake Workflow + Backlog Integration Backend (2026-04-28)
+
+### Feature Overview
+- **Greenfield intake** per `[A-BK-26..A-BK-29]` / `[A-PS-13]` / `[A-DOI-04..A-DOI-05]`. New project creation lands at DoI 0 (Proposed) with the lightweight metadata required by `[A-DOI-04]`; the project appears immediately in the ranked backlog at the bottom (composite score null per A3 ranking) and never enters a separate intake queue.
+- **Three controller actions on Under Evaluation projects** per `[A-BK-27]`: Approve (→ Approved, DoI 3, baseline generation, status=active), Send Back (→ Proposed, DoI 1, snapshot capture, PL notified with deep link to diff view), Reject (→ Cancelled, DoI frozen, audit reason captured).
+- **Send Back ↔ Resubmit cycle** per `[A-BK-29]`: PL on own project (or controller anywhere) can resubmit after Send Back. The resubmission moves the project back to `Under Evaluation` (DoI 2) and captures a `pl_resubmitted` snapshot for the diff view. Diff endpoint returns the structured before/after across the diffable Tech Navigator + master-data + milestone-count subset.
+- **v4 intake surface fully removed**: nine `/api/portfolio/intake*` endpoints now return HTTP 410 Gone with structured replacement pointers — exactly per `[A-PS-13]`'s "v4 intake queue and CR Approvals flow will not be retrofitted onto the new pipeline model."
+- **CR approval workflow unchanged** per spec line 418 ("CR Approvals tab remains unchanged for now (change requests are a separate workflow from intake)"). The existing `routers/portfolio.py::approve_cr` / `reject_cr` / `send_back_cr` endpoints stay put. Audit category tagging for those is flagged as a refactoring opportunity below.
+
+### Spec references implemented
+`[A-BK-26]`, `[A-BK-27]`, `[A-BK-28]`, `[A-BK-29]`, `[A-PS-13]`, `[A-DOI-04]`, `[A-DOI-05]` (gate fields are advisory at the create-time endpoint; structural enforcement remains in `services/pipeline.py::validate_doi_gate`). `[A-BK-14]` is honoured via the existing within_cutoff recompute hook on every state-changing endpoint.
+
+Out of scope per session brief and aligned with A2 boundaries:
+- `[A-DA-02]` structured description sub-fields — stays as a single `description` text column. Schema additions cross-cut intake forms and are deferred.
+- `[A-DA-03]` new project columns (requesting BU, demand type, value stream, Wave ID) — deferred (same reason).
+- `[A-PS-07]` auto-activation Approved → Active scheduler — outside session scope.
+- `[A-BK-15]` separate `estimated_budget` column for pre-approval projects — Tech Navigator scores still drive the rank.
+- Workflow Template enforcement (`[D-CAT-07]`/`[D-CAT-08]`) — D2 ships templates as configurable data; live execution lands in a follow-on session.
+
+### Technical Details
+- **Schemas:** `backend/schemas/intake.py` — six Pydantic models. `IntakeProjectCreate` (lightweight create body), `IntakeProjectResponse` (creation + transition response), `IntakeApproveAction` / `IntakeSendBackAction` / `IntakeRejectAction` / `IntakeResubmitAction` (action bodies), and `IntakeDiffField` / `IntakeDiffResponse` (diff payload).
+- **Service:** `backend/services/intake_workflow.py` — 6 public functions plus a small set of helpers. `create_intake_project`, `approve_intake_project`, `send_back_intake_project`, `reject_intake_project`, `resubmit_intake_project`, `compute_intake_diff`. Side-effect helpers: `_capture_intake_snapshot` (re-uses `ProjectSubmissionSnapshot`), `_trigger_within_cutoff_recompute`, `_notify`. `DIFFABLE_FIELDS` constant defines the diffable subset (21 entries: master data + Tech Navigator + milestone count). Service does NOT commit — the router owns the transaction boundary.
+- **Router:** `backend/routers/intake.py` mounted at `/api/intake`. 7 endpoints: `POST /projects`, `POST /projects/{id}/approve`, `POST /projects/{id}/send-back`, `POST /projects/{id}/reject`, `POST /projects/{id}/resubmit`, `GET /projects/{id}/diff`, `GET /queue`. Authorisation via `require_role("controller")` on the three controller actions; resubmit + diff use a custom check (PL on own project or controller); create allows project_lead/controller/executive (CC owner forbidden 403).
+- **Snapshot reuse:** the existing `ProjectSubmissionSnapshot` table from v4 holds the new `controller_sent_back` and `pl_resubmitted` snapshot types. The `forecast_data_json` column carries the full project-state JSON (column name is a v4 vestige; we stuff the diffable subset there). Active flag respected — only the latest snapshot per type is surfaced by the diff endpoint.
+- **Audit logging:** every state-changing call writes `category='pipeline_transitions'` (stage / DoI / comments / reason / resubmission notes) or `category='master_data'` (project create). Per the D2 contract, `_log_audit` is called with `category=` keyword-only.
+- **within_cutoff recompute hooks (per `[A-BK-14]`):** triggered best-effort on create, approve, and reject (the three calls that change the contestable budget walk). Send Back / Resubmit do not change a project's budget so they skip the hook.
+- **v4 deprecation:** `routers/portfolio.py` had ~750 lines of legacy intake code. All nine handlers were collapsed to one-liner stubs that raise `HTTPException(410, _V4_INTAKE_REMOVED_DETAIL)` with a structured `replacements` dict pointing to the new endpoints. `deprecated=True` on every decorator so OpenAPI surfaces the deprecation cleanly. The legacy bodies live in git history (commits `af4881a` and earlier).
+- **No model changes.** All new state lives on existing columns: `Project.pipeline_stage`, `doi`, `frozen_doi`, `submission_feedback`, plus the existing `ProjectSubmissionSnapshot` rows.
+
+## v5 Session F2: ChargeableEntity Polymorphic + Stage 1 Distribution Backend (2026-04-28)
+
+### Feature Overview
+- **Polymorphic ChargeableEntity root per `[F-DM-01..04]`** — single table with
+  three subtypes (`Project`, `Offering`, `InternalService`). Project subtype
+  carries a nullable `project_id` FK back to the existing v4 `Project` model so
+  capacity allocations and pipeline state stay anchored on the v4 entity per the
+  file-ownership boundary with A5. Offerings and InternalServices have no
+  underlying row — the ChargeableEntity row IS the entity. `is_change_or_run`
+  is a Python property derived from runtime state (Project DoI 0–4 = Change;
+  DoI 5 / Offerings / InternalServices = Run) per `[F-DM-01]`.
+- **Identifier-format enforcement at the schema layer per `[F-DM-01]`** —
+  Project: `IT0<PPM>` (5–6 digits); Offering: `IT00<S-code>` (2–8 alphanumerics);
+  InternalService: `ITF<NNNNN>` (5 digits). Centralised in
+  `schemas/chargeable_entity.py::validate_identifier_for_type` so the seed,
+  router, and future F3 code share the same rules.
+- **Stage 1 Distribution edges per `[F-S1-01..05]`** — sparse storage (one row
+  per actually-flowing edge). Versioned per `[F-S1-04]` using CRETA's standard
+  baseline/forecast/actuals model with scenario forks identified by
+  `scenario-<id>`. Sum-rule per `[F-S1-02]`: `to_business_pct + Σ(distribute %)
+  ≤ 100`; residual is derived. Cycle detection per `[F-S1-05]` is hard-block on
+  save with the cycle chain returned in the 409 body for UI rendering.
+- **DAG resolution endpoint per `[F-S1-02]`** — `compute_effective_cost`
+  recursively walks incoming edges and returns `own_cost + sum(inflows)` plus
+  per-source contributions for the rollup drill-down. Defensive `_seen` guard
+  protects against malformed cycles; recursion capped at depth 8.
+- **WBS Element generator per `[F-DM-03]`** — algorithmic, never stored.
+  Format: `<prefix>-64-99-<location_code>` where prefix is the entity's
+  identifier (already in subtype shape) and `64`/`99` are the spec-mandated
+  KB IT-area marker / separator constants per `[F-OQ-05]`.
+- **Polymorphic refactor of A2's Allocation table** — adds a nullable
+  `chargeable_entity_id` FK alongside the existing `project_id` so
+  Person × Project × Month allocations can target any chargeable entity once
+  F-cluster code paths land. v4-shape callers continue to use `project_id`;
+  new code paths use `chargeable_entity_id` and fall back to project-lookup
+  when NULL. Backfilled in seed.sql for all existing rows.
+
+### Spec references implemented
+`[F-DM-01]`, `[F-DM-02]`, `[F-DM-03]`, `[F-DM-04]`, `[F-S1-01]`, `[F-S1-02]`,
+`[F-S1-03]`, `[F-S1-04]` (data layer; live forecast-version mutation is F3),
+`[F-S1-05]`, `[A-PL-05]` (multi-type chargeable post-launch tracking),
+`[A-PL-06]` (BTC requirement at DoI 2→3 — the schema is in place; gate
+enforcement is F3 territory), `[A-PL-07]` (Run/Change classification surfaces
+on the entity).
+
+Out of scope per session brief / impl-guide partitioning:
+- BTC profile, BTC profile lines, year rollover, automatic-mode UM snapshot,
+  WBS export 90-row matrix — F3.
+- Two-layer rollup cache (Stage 1 + Stage 2 totals) — F3.
+- ChargeableEntity `annual_cost` column for non-Project subtypes — F3.
+  Currently `own_cost` is sourced from `Project.annual_budget` (or
+  `total_budget`) for Project subtypes; reported as 0 for Offerings and
+  InternalServices.
+- RolePermissionGrant enforcement on distribution edits — F4 frontend or a
+  follow-on backend session. F2 enforces controller-only writes.
+
+### Technical Details
+- **Models (extended `models/charging.py`):**
+  - `ChargeableEntity` — id (str PK), entity_type (Check constraint enum),
+    identifier (UniqueConstraint), name, description, hierarchy_node_id (FK to
+    grouping_entities), responsible_person_id (FK to people),
+    to_business_pct (Numeric 5,2 default 0), project_id (FK to projects,
+    nullable; UniqueConstraint so each project links 1:1 to at most one
+    ChargeableEntity), termination_month, is_active, created/modified_at.
+    Relationships kept passive (no `back_populates` on `Project` per F2's
+    read-only constraint on `projects.py`).
+  - `Distribution` — id (autoincr PK), year, version, source_entity_id (FK),
+    destination_entity_id (FK), percentage (Numeric 5,2). Constraints:
+    UniqueConstraint(year, version, source, destination); CheckConstraints
+    rejecting self-loops and out-of-range percentages; indexes on
+    (source, year, version) and (destination, year, version).
+  - `Allocation` — added `chargeable_entity_id` (nullable FK to
+    chargeable_entities) alongside the existing `project_id`. No breaking
+    change to v4 capacity-router callers.
+  - Module-level constants: `CHARGEABLE_ENTITY_TYPES`,
+    `DISTRIBUTION_VERSION_BASELINE/FORECAST/ACTUALS`,
+    `DISTRIBUTION_BUILTIN_VERSIONS`.
+- **Schemas:**
+  - `schemas/chargeable_entity.py` — `ChargeableEntityBase/Create/Update/Response/ListResponse`
+    plus `validate_identifier_for_type` and `PROJECT_ID_PATTERN /
+    OFFERING_ID_PATTERN / INTERNAL_SERVICE_ID_PATTERN`.
+  - `schemas/distribution.py` — `DistributionBase/Create/Update/Response/ListResponse`,
+    `EntityDistributionSummary` (single-entity profile per `[F-S1-03]`),
+    `DistributionEffectiveCost` + `DistributionInflow`, `CycleError`,
+    `WBSElementResponse`.
+- **Services:**
+  - `services/wbs_generator.py` — `build_wbs_element`,
+    `build_wbs_components`, `WBSComponents` dataclass. Pure functions.
+  - `services/dag_resolver.py` — `EdgeKey`, `detect_cycle` (pure),
+    `detect_cycle_db` (DB-backed with `exclude_edge_id` for updates),
+    `compute_effective_cost`, `get_own_cost`, `get_upstream_chain`.
+    Defensive `_seen` cycle guard; depth cap=8.
+  - `services/distribution_service.py` —
+    `DistributionValidationError(message, cycle_chain=)`, `SumValidationResult`,
+    `compute_sum_validation` (with optional candidate args for create/update
+    simulation), `assert_sum_within_100`, `assert_no_cycle`,
+    `create/update/delete_distribution_edge`, `update_to_business_pct`,
+    `is_known_version`. SUM_TOLERANCE=0.01.
+- **Router (extended `routers/charging.py`):** two router instances now exist
+  — the existing `router` under `/api/admin` carries D1's master data plus the
+  new `/chargeable-entities` admin CRUD (5 endpoints), and a new
+  `charging_router` under `/api/charging` carries Distribution + DAG queries
+  (10 endpoints). Both wired into `main.py` (`charging_consumer_router`).
+  Local `_audit` extended with optional `category=` keyword (default
+  `master_data`) so existing D1 callsites stay unchanged while new F2
+  callsites declare `category='master_data'` explicitly per the D2 contract.
+- **Tests (5 new files, 116 tests):**
+  - `tests/test_wbs_generator.py` (10) — format, whitespace, empty inputs.
+  - `tests/test_dag_resolver.py` (36) — pure cycle detection, DB-backed cycle
+    detection, effective cost recursion, own-cost resolution, upstream chain.
+  - `tests/test_distribution_service.py` (29) — sum validation paths,
+    create/update/delete orchestration, to-business updates.
+  - `tests/test_router_chargeable_entity.py` (26) — list/filter/get/create/
+    update/deactivate, identifier-pattern enforcement, role checks,
+    is_change_or_run runtime derivation.
+  - `tests/test_router_distribution.py` (25) — distribution CRUD, summary,
+    to-business update, effective-cost, upstream-chain, WBS preview, role
+    checks, structured 409 cycle/sum errors.
+- **Seed (appended to `backend/seed/seed.sql`):**
+  - **Section 0f — ChargeableEntity rows.** 32 Project (one per existing
+    project, PPM `IT012001..IT012032`) + 3 Offering (PDM/PLM Author
+    `IT00S321`, SAP Maintenance `IT00S412`, Collaboration Suite `IT00S556`) + 5
+    InternalService (Cloud Platform `ITF13001`, IAM Platform `ITF13002`,
+    Observability `ITF13003`, Data Platform `ITF13004`, Service Desk
+    `ITF13005`) = **40 rows total**.
+  - **Section 0g — Distribution edges.** 12 edges for `year=2026,
+    version='forecast'`. Includes a multi-step chain
+    (Cloud Platform → Data Platform → PDM Offering) so the upstream-chain
+    feature has data to drill into per `[F-RV-04]`. All sums per source
+    ≤ 100% (5%/10%/10%/30% self-retained on the 4 distributing
+    InternalServices).
+  - **Section 0h — Allocation backfill.** Idempotent UPDATE that fills
+    `allocations.chargeable_entity_id` from the corresponding ChargeableEntity
+    row keyed by `project_id` for `entity_type='Project'`.
+
+### A5 — API Endpoints Added
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | `/api/intake/projects` | PL/Controller/Exec | Create project at DoI 0 (Proposed) per [A-BK-26]/[A-DOI-04]. |
+| POST | `/api/intake/projects/{id}/approve` | controller | Approve from Under Evaluation → Approved (DoI 3) per [A-BK-27]. |
+| POST | `/api/intake/projects/{id}/send-back` | controller | Send back → Proposed (DoI 1) with comments + snapshot per [A-BK-27]/[A-BK-29]. |
+| POST | `/api/intake/projects/{id}/reject` | controller | Reject → Cancelled with reason; freezes DoI per [A-BK-27]/[A-PS-03]. |
+| POST | `/api/intake/projects/{id}/resubmit` | PL on own / controller | PL revises and resubmits → Under Evaluation (DoI 2); captures pl_resubmitted snapshot per [A-BK-29]. |
+| GET | `/api/intake/projects/{id}/diff` | any role | Structured before/after diff (sent_back vs resubmit/current) per [A-BK-29]. |
+| GET | `/api/intake/queue` | any role | List projects in Under Evaluation (controller review queue) per [A-BK-26]. |
+
+### Endpoints Deprecated (HTTP 410 Gone)
+All bodies replaced with a stub raising `_V4_INTAKE_REMOVED_DETAIL`. `deprecated=True` on every route so `/docs` flags them in OpenAPI.
+
+| Method | Path | Replacement |
+|--------|------|-------------|
+| GET | `/api/portfolio/intake` | `GET /api/intake/queue` |
+| GET | `/api/portfolio/intake/{id}` | Backlog detail view per [A-BK-19] |
+| PUT | `/api/portfolio/intake/{id}/approve` | `POST /api/intake/projects/{id}/approve` |
+| PUT | `/api/portfolio/intake/{id}/reject` | `POST /api/intake/projects/{id}/reject` |
+| PUT | `/api/portfolio/intake/{id}/send-back` | `POST /api/intake/projects/{id}/send-back` |
+| PUT | `/api/portfolio/intake/{id}/resubmit` | `POST /api/intake/projects/{id}/resubmit` |
+| GET | `/api/portfolio/intake/{id}/diff` | `GET /api/intake/projects/{id}/diff` |
+| PUT | `/api/portfolio/intake/{id}/accept-changes` | (removed — controller no longer free-edits per [A-BK-28]; PL revises + Resubmit) |
+| GET | `/api/portfolio/intake/{id}/editable-grid` | (removed — forecast editing happens in workbench, not intake review) |
+
+### Data Model Changes
+None. A5 reuses the A2 fields (`pipeline_stage`, `doi`, `frozen_doi`, `submission_feedback`) and the existing `ProjectSubmissionSnapshot` table from v4. Two new snapshot type strings are introduced (`controller_sent_back` and `pl_resubmitted`) but they are values, not schema.
+
+### Working assumptions (flagged for KB confirmation)
+- **`description` is the proxy for the structured DoI 0 sections** until `[A-DA-02]` adds dedicated columns. Frontend can prompt with the four sub-headings (Problem Statement / Business Driver / Expected Outcome / Current State) and concatenate.
+- **`start_month` is required at create time** per the existing model (`String(7)`, `nullable=False`). Spec `[A-DOI-04]` says no timeline at DoI 0; in this session we accept a placeholder month from the PL. Loosening the model to `nullable=True` is a 1-line schema change; flagged as a refactoring opportunity below.
+- **Controller "approve at Pitch Board" sets `status='active'`** for v4 back-compat. The two-step baseline flow per `[A-OQ-07]` (approve on macro data → PL enters detail → controller locks baseline) is collapsed into a single approve here. When `[A-OQ-07]` resolves, split this into two endpoints (`approve` and `lock-baseline`).
+- **Reject is one-shot.** Cancellation is "nearly one-way" per `[A-PS-10]`; un-cancel goes through the existing `POST /api/projects/{id}/pipeline/transition` with `override_reason` set.
+- **Resubmit notifies any controller persona** found in `DemoPersona`. Once D1/D2's `User`/`RolePermissionGrant` infrastructure unifies with personas (follow-on session), this lookup will switch to the new model.
+- **Diff scope is the master-data + Tech Navigator + milestone-count subset** (21 fields). Forecast-grid diff is a separate concern handled by the workbench's existing CR diff. KB can extend `DIFFABLE_FIELDS` in `services/intake_workflow.py` without touching the router.
+- **CR approval workflow remains unchanged** per spec line 418. The existing `routers/portfolio.py::approve_cr` / `reject_cr` / `send_back_cr` and `routers/workbench.py` CR helpers stay put. The v5 spec schedules CR rework into Cluster B / E follow-ons.
+- **`is_service` flag** is exposed on the create body so a PL can flag a service from day one. Defaults to `false`; the existing `Project.is_service` semantics (annual_budget vs total_budget) are unchanged.
+
+### Refactoring Opportunities (noted, not acted on)
+- **Loosen `Project.start_month` to `nullable=True`**, aligning with spec `[A-DOI-04]` ("no timeline at DoI 0"). 1-line model change + a seed.sql audit + a few NOT NULL guards in queries that read it. Out of A5 scope; flagged for the v5 column-additions session.
+- **`Project.status` and `pipeline_stage` are now redundant for v5-aware code paths.** A5 keeps both in lock-step (status='draft' / 'changes_requested' / 'pending_approval' / 'active' / 'rejected' alongside the pipeline_stage). When the v4 launchpad and workbench finally drop their `status`-based filters (A8 / E1 follow-ons), this redundancy can collapse.
+- **CR approval audit logging is missing.** `routers/portfolio.py::approve_cr` / `reject_cr` / `send_back_cr` and the workbench CR endpoints don't currently call `_log_audit()`. Per the D2 contract every state mutation should emit an audit row under `category='forecast_actions'`. Not in A5 scope; flag for the next CR-touching session.
+- **`_log_audit` import from `routers/admin.py` repeats the A1/A2/A3/D1 pattern.** A5 imports it from `routers.admin` like A2/A3 do. The duplicate-import problem will multiply with each new router. Lift `_log_audit` to `services/audit.py` once a future cleanup session takes the `routers/admin.py` reorganisation.
+- **`ProjectSubmissionSnapshot.forecast_data_json` is now polysemic** — v4 uses it for forecast-grid JSON; A5 stuffs project-state JSON into the same column for the v5 intake snapshots. Consider renaming to `state_json` (or splitting into a polymorphic snapshot table) when KB requests cleaner internals. Audit log captures the snapshot_type so the data is queryable today; only the column name is a smell.
+- **`/api/intake/queue` and `/api/portfolio/backlog?pipeline_stage=Under Evaluation`** return overlapping data. The queue endpoint is a thin convenience wrapper for the controller's review surface. Frontend D3/A6 can pick whichever fits — drop the one that's unused once both UIs ship.
+
+### Notes for follow-on sessions
+- **A6 Backlog frontend** consumes `GET /api/portfolio/backlog` (already returns Under-Evaluation projects in the ranked list) and uses `/api/intake/queue` only when the controller picks the "Under Evaluation only" filter shortcut.
+- **A8 Pipeline frontend** wires the four intake action endpoints into the project detail's action buttons (Approve / Send Back / Reject / Resubmit) and the diff view tab. Form state for `comments` / `reason` / `resubmission_notes` is required for Send Back and Reject (validated server-side as 422).
+- **Cluster F (charging / BTC profile) consumers** can call `POST /api/intake/projects` to admit new projects from the BTC sheet uploader. The `pl_person_id` defaults to `None` for controller-driven creation, leaving an "unassigned" project that a PL can adopt.
+- **D3 admin frontend** does NOT need to wire the v4 intake routes; the 410 deprecation surfaces a clear error and the new endpoints replace them in the backlog detail view.
+- **Live workflow enforcement (`[D-CAT-08]`)** — when a follow-on session wires the `WorkflowTemplate` rows into runtime, the four-step Send Back template (controller comments → PL revises → snapshot → resubmission) is the natural first candidate. Today the steps are encoded in `services/intake_workflow.py`; mapping them to template steps is mechanical.
+
+### Verification
+- **Tests:** `python -m pytest backend/tests/ -v` → **672 passed** (604 baseline + 30 new service tests + 38 new router tests). 0 failures. Standalone A5 suite: 68 new tests across `tests/test_service_intake_workflow.py` (30) and `tests/test_router_intake.py` (38).
+- **Live smoke** against the dev server (port 8765, freshly seeded DB) confirmed:
+  - `GET /api/intake/queue` returns the 1 Under-Evaluation project (proj-autobrake) seeded.
+  - `GET /api/portfolio/intake` returns HTTP 410 Gone with the structured `replacements` dict.
+  - `PUT /api/portfolio/intake/x/approve` returns HTTP 410 Gone.
+  - `POST /api/intake/projects` (controller, lightweight body) returns HTTP 201 with `pipeline_stage='Proposed'`, `doi=0`, `status='draft'`.
+  - `POST /api/intake/projects` (PL, no `pl_person_id`) defaults to the caller's person ID.
+  - `POST /api/intake/projects/proj-autobrake/send-back` (controller) returns 200 with `pipeline_stage='Proposed'`, `doi=1`, `status='changes_requested'` and writes a `controller_sent_back` snapshot.
+  - `POST /api/intake/projects/proj-autobrake/send-back` (PL) returns 403 "Role 'project_lead' not permitted. Required: controller".
+  - `GET /api/intake/projects/proj-autobrake/diff` returns the structured 21-field diff payload with `diff_type='current'` (PL has not yet pressed Resubmit).
+  - `POST /api/intake/projects/proj-autobrake/resubmit` (PL on own project) returns 200 with `pipeline_stage='Under Evaluation'`, `doi=2`, `status='pending_approval'`.
+
+### Curl examples (capture for A8 frontend integration)
+```bash
+H="X-Current-User: persona-controller"
+
+# Create at DoI 0 (Proposed)
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"name":"New IT Initiative","description":"Pitch text","lob_id":"lob-rail","project_type":1,"capex_opex":"capex","start_month":"2026-09"}' \
+  http://localhost:8000/api/intake/projects
+
+# Review queue (Under Evaluation only)
+curl -s -H "$H" http://localhost:8000/api/intake/queue
+
+# Approve
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"comments":"Approved at Pitch Board"}' \
+  http://localhost:8000/api/intake/projects/proj-autobrake/approve
+
+# Send Back
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"comments":"Need stronger TN scoring justification"}' \
+  http://localhost:8000/api/intake/projects/proj-autobrake/send-back
+
+# Diff (after Send Back)
+curl -s -H "$H" http://localhost:8000/api/intake/projects/proj-autobrake/diff
+curl -s -H "$H" "http://localhost:8000/api/intake/projects/proj-autobrake/diff?type=current"
+
+# Reject
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"reason":"Out of strategic scope"}' \
+  http://localhost:8000/api/intake/projects/proj-autobrake/reject
+
+# Resubmit (as PL)
+curl -s -X POST -H "X-Current-User: persona-pl" -H "Content-Type: application/json" \
+  -d '{"resubmission_notes":"Updated TN scores"}' \
+  http://localhost:8000/api/intake/projects/proj-autobrake/resubmit
+```
+
+### Ready for merge
+Branch `v5/cluster-a/a5-intake-backlog-backend` carries 7 atomic commits and 672 passing tests. Merged onto the wave-1 branch as the first wave-1 merger.
+
+### F2 — API Endpoints Added
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| GET    | `/api/admin/chargeable-entities` | controller | List with optional filters (entity_type, hierarchy_node_id, is_active) |
+| GET    | `/api/admin/chargeable-entities/{id}` | controller | Detail |
+| POST   | `/api/admin/chargeable-entities` | controller | Create (Offering / InternalService / link existing Project) |
+| PUT    | `/api/admin/chargeable-entities/{id}` | controller | Partial update |
+| PUT    | `/api/admin/chargeable-entities/{id}/deactivate` | controller | Soft delete |
+| GET    | `/api/charging/distributions` | any role | List edges (filter year, version, source, destination) |
+| GET    | `/api/charging/distributions/{edge_id}` | any role | Edge detail |
+| POST   | `/api/charging/distributions` | controller | Create with sum-rule + cycle validation |
+| PUT    | `/api/charging/distributions/{edge_id}` | controller | Update percentage only |
+| DELETE | `/api/charging/distributions/{edge_id}` | controller | Delete |
+| GET    | `/api/charging/entities/{id}/distribution-summary` | any role | Single-entity profile per `[F-S1-03]` |
+| PUT    | `/api/charging/entities/{id}/to-business-pct` | controller | Update with sum-rule validation |
+| GET    | `/api/charging/entities/{id}/effective-cost` | any role | DAG-resolved own + inflows per `[F-S1-02]` |
+| GET    | `/api/charging/entities/{id}/upstream-chain` | any role | Drill-down paths per `[F-RV-04]` |
+| GET    | `/api/charging/entities/{id}/wbs/{loc_id}` | any role | Algorithmic WBS preview per `[F-DM-03]` |
+
+### Data Model Changes
+- New tables: `chargeable_entities`, `distributions`.
+- New columns: `allocations.chargeable_entity_id` (nullable FK).
+- **No Alembic.** Existing `creta_demo.db` will fail to read the new tables /
+  column on the next startup. Resolution: delete (or move aside)
+  `backend/creta_demo.db` and restart — the seed loader recreates schema and
+  re-runs `seed.sql` to populate all the F2 rows.
+
+### Working assumptions (flagged for KB confirmation)
+- **`64-99-` are constants** per `[F-OQ-05]` working assumption. The WBS
+  generator has them as named module constants (`COMPANY_CODE_MARKER`,
+  `SEPARATOR`) so a future session can promote them to admin parameters if
+  KB confirms they vary by region/division/year.
+- **`own_cost = 0` for non-Project subtypes** because `ChargeableEntity` does
+  not yet carry an `annual_cost` column. F3 will land it. Tests cover the
+  Project subtype path (sources from `Project.annual_budget`); Offering and
+  InternalService subtypes will need the column for F3's rollup data layer.
+- **Versions are free-form strings** beyond the three builtins. The router
+  accepts unknown version strings (e.g. typos) without rejection — it just
+  marks them as non-builtin via `is_known_version()`. Audit log entries make
+  the typo trail discoverable. Strict whitelist enforcement could land in F3
+  or B1 once the simulator's scenario versions are operational.
+- **Project subtype owns own_cost annualisation.** When `Project.annual_budget`
+  is set we use it as-is; otherwise we fall back to `total_budget` without
+  spreading across the project's duration. For F2's demo data this works
+  because the seed populates `annual_budget` for service-y projects (which is
+  where Run-stage own_cost matters). F3's annual_cost column on
+  ChargeableEntity will replace this heuristic for all subtypes.
+- **Allocation polymorphism is non-breaking.** F2 ships
+  `chargeable_entity_id` as nullable + a backfill UPDATE; existing capacity
+  router code paths continue to use `project_id` and are unaware of the new
+  column. New code (F3+) prefers `chargeable_entity_id` with a fallback path.
+- **Distribution edge identifier shape is autoincrement int.** Other v5 tables
+  use string PKs (`grouping_entities`, `chargeable_entities`, etc.); for the
+  high-churn distribution edges the autoincrement int matches the existing
+  Allocation pattern in `models/capacity.py`. Cleaner for `DELETE
+  /distributions/{id}` URLs and lighter for the simulator (Cluster B) when it
+  forks scenario versions.
+
+### Refactoring opportunities (noted, not acted on)
+- **`_audit` helpers are still duplicated** across `routers/admin.py` and
+  `routers/charging.py` (now extended for F2). After D2 landed `category=` as
+  a required keyword on `routers.admin._log_audit`, the local `_audit` in
+  `routers/charging.py` could be migrated to call `_log_audit` directly. F2
+  preserves the local helper to keep the file self-contained but the
+  consolidation flagged in D1's "Refactoring opportunities" still applies.
+- **`Project.is_service` becomes redundant** once Cluster F's polymorphic
+  model fully replaces the v4 project/service distinction per `[F-DG-01]`.
+  The seed retires the distinction in S1; until then the field stays on
+  Project for back-compat with v4 reporting and capacity logic.
+- **`Allocation.project_id` will eventually be dropped** in favour of
+  `chargeable_entity_id` once all callers migrate. F2 keeps both for
+  back-compat. Touches `routers/capacity.py`,
+  `services/allocation_service.py`, `services/calculations.py` — not in F2
+  scope, deliberate.
+- **`compute_effective_cost`'s recursion bottoms out the cache-miss tree
+  every call.** Acceptable for v5 data volumes (≤50 distribution edges,
+  ≤30 entities) but F3 will introduce the two-layer cache per `[F-RV-02]`
+  to keep the rollup queries fast.
+- **`get_upstream_chain` returns `[entity_id]` for sources with no inflows.**
+  The frontend (F4/F5) may want to suppress single-element paths. Easier to
+  filter at the consumer than reshape the API.
+
+### Notes for follow-on sessions
+- **F3 (BTCProfile + Stage 2 + rollup cache)** consumes:
+  - `ChargeableEntity` directly (BTCProfile FK).
+  - `Distribution` via the rollup cache (Stage 1 effective costs feed into
+    Stage 2 location totals).
+  - `services/dag_resolver.compute_effective_cost` as the canonical
+    own+inflows resolver — cache around it rather than re-implement.
+  - `services/wbs_generator.build_wbs_element` for SAP-export 90-row matrix.
+  - The `annual_cost` column on `ChargeableEntity` is F3's to add. Once
+    landed, `services/dag_resolver.get_own_cost` should prefer it over
+    `Project.annual_budget` (the existing fallback stays for back-compat).
+- **F4 (Distribution editor frontend)** consumes:
+  - `GET /api/charging/distributions` for the cross-entity list view.
+  - `GET /api/charging/entities/{id}/distribution-summary` for the
+    edges-as-list editor surface.
+  - `PUT /api/charging/entities/{id}/to-business-pct` for the to_business
+    field.
+  - `POST/PUT/DELETE /api/charging/distributions[/{id}]` for the row-level
+    add/edit/remove. The 409 body's `cycle_chain` is what to render in the
+    inline error banner.
+- **F5 (Location Cost Rollup map + table)** consumes:
+  - `GET /api/charging/entities/{id}/effective-cost` for per-entity rollups
+    (until F3's cache lands).
+  - `GET /api/charging/entities/{id}/upstream-chain` for the cell drill-down
+    panel.
+- **F7 (Run Portfolio sub-module)** consumes:
+  - `GET /api/admin/chargeable-entities?entity_type=Project|Offering|InternalService`
+    plus a future filter for `is_change_or_run=Run`.
+- **B1 (Simulator backend)** consumes:
+  - `Distribution.version` accepts `scenario-<id>` strings. Sandbox mutations
+    fork by inserting new rows under the scenario version; promoting a
+    scenario copies them back to `forecast`.
+- **A5 (Intake workflow)** does not need any F2 hooks — F2's polymorphic
+  refactor leaves Project model untouched so A5's intake/lifecycle work can
+  proceed against the same Project model. New projects created at DoI 0 by
+  A5 will need a corresponding ChargeableEntity row at some point; F2
+  recommends a one-line creation hook in A5's "create project" handler that
+  inserts a Project-subtype ChargeableEntity with synthesized PPM identifier.
+  Not a blocker for A5 — can land in a follow-up.
+
+### Verification
+- `python -m pytest backend/tests/ -v` → **720 passed** (604 baseline + 116
+  new F2 tests). 0 failures, 8.5k DeprecationWarnings (existing
+  `datetime.utcnow()` calls; pre-existing in the codebase).
+- Live `python main.py` smoke test against a fresh `creta_demo.db`:
+  - `GET /health` → 200.
+  - `GET /api/admin/chargeable-entities` → 200, 40 items
+    (Project: 32, Offering: 3, InternalService: 5).
+  - `GET /api/charging/distributions` → 200, 12 items.
+  - `GET /api/charging/entities/ce-off-pdm/effective-cost?year=2026&version=forecast`
+    → 200, 3 inflows, own_cost=0 (Offering), inflow_total=0 (upstream
+    Internal Services have own_cost=0 in v5).
+  - `GET /api/charging/entities/ce-svc-cloud-pf/distribution-summary?year=2026&version=forecast`
+    → 200, 4 outgoing edges, to_business=0, self_retained=5%.
+  - `GET /api/charging/entities/ce-off-pdm/upstream-chain?year=2026&version=forecast`
+    → 200, 4 paths including the 3-hop multi-step chain.
+  - `GET /api/charging/entities/ce-off-pdm/wbs/cl-de-muc` → 200,
+    `IT00S321-64-99-DE-MUC-001`.
+  - `POST /api/charging/distributions` with cycle (PDM → CloudPF) → 409 with
+    `cycle_chain: ["ce-off-pdm", "ce-svc-cloud-pf", "ce-off-pdm"]`.
+  - `POST /api/charging/distributions` with sum overflow (CloudPF → IAMPF
+    50%, would push grand to 145%) → 409 with `[F-S1-02]` message.
+  - `POST /api/charging/distributions` with valid 3% edge → 201.
+  - `POST /api/charging/distributions` as PL → 403.
+
+### Curl examples (capture for F4 frontend integration)
+```
+H="X-Current-User: persona-controller"
+
+# List chargeable entities
+curl -s -H "$H" http://localhost:8000/api/admin/chargeable-entities
+
+# Filter offerings
+curl -s -H "$H" "http://localhost:8000/api/admin/chargeable-entities?entity_type=Offering"
+
+# Single-entity profile
+curl -s -H "$H" "http://localhost:8000/api/charging/entities/ce-svc-cloud-pf/distribution-summary?year=2026&version=forecast"
+
+# Effective cost
+curl -s -H "$H" "http://localhost:8000/api/charging/entities/ce-off-pdm/effective-cost?year=2026&version=forecast"
+
+# Upstream chain
+curl -s -H "$H" "http://localhost:8000/api/charging/entities/ce-off-pdm/upstream-chain?year=2026&version=forecast"
+
+# WBS preview
+curl -s -H "$H" http://localhost:8000/api/charging/entities/ce-off-pdm/wbs/cl-de-muc
+
+# Create distribution edge
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"year":2026,"version":"forecast","source_entity_id":"ce-svc-cloud-pf","destination_entity_id":"ce-svc-helpdesk","percentage":3.0}' \
+  http://localhost:8000/api/charging/distributions
+
+# Update edge
+curl -s -X PUT -H "$H" -H "Content-Type: application/json" -d '{"percentage":4.5}' \
+  http://localhost:8000/api/charging/distributions/12
+
+# Cycle attempt (rejected)
+curl -s -X POST -H "$H" -H "Content-Type: application/json" \
+  -d '{"year":2026,"version":"forecast","source_entity_id":"ce-off-pdm","destination_entity_id":"ce-svc-cloud-pf","percentage":10.0}' \
+  http://localhost:8000/api/charging/distributions
+```
+
+### Ready for merge
+Branch `v5/cluster-f/f2-chargeable-entity-distribution` carries 6 atomic
+commits (model, schemas+services, router, seed, tests, plus this PROGRESS +
+CLAUDE update commit) and 720 passing tests. Merged onto the wave-1 branch as
+the second wave-1 merger after A5; resolved PROGRESS.md + main.py conflicts.
+
+---
+
+## v5 Session D3: Admin Frontend (2026-04-28)
+
+### Feature Overview
+- **5-section admin module rewrite** of `frontend/src/modules/admin/` per `[D-NAV-01..05]`. Sidebar groups all 24 admin sub-surfaces into Master Data / Reference Catalogues / Planning & Ranking / Portfolio Hierarchy / System sections with separators and section labels. Implementation extends the v4 admin module rather than replacing it (existing v4 panels — Cost Centers, People, LoBs, Locations, Hierarchy, Planning Parameters, Rate Tables — are reused unchanged).
+- **Cluster F master-data panels** per `[F-MD-01..03]`, `[F-UM-01..04]`: ChargingLocations list (~90 KB charging codes with Code / Name / Division / Region / Country columns + edit dialog), LegalEntities list (~120 entities with charging-location rollup + country code/name + filter dropdown), Regions / Countries lookup editors, and the **User Measurement matrix viewer** — sparse `99×90` S-code × charging-code grid with Σ-row / Σ-column totals, period (year/quarter) + version selectors, "imported_at" badge on hover, CSV upload form, and **stubbed Automatic-refresh button** that displays the `not_connected` 200 response as an explanatory dialog instead of a network error.
+- **Hover tooltip helpers** per `[F-MD-01]`: `shared/LocationLabel.tsx` renders the master-data-label info-icon tooltip ("Charging Location — Knorr-Bremse charging code (~90 codes) used for inter-service distribution and SAP cost flows. Carries division, region and country attributes.") inline next to the Charging Locations / Legal Entities / Regions panel headers.
+- **Reference catalogue panels** per `[D-CAT-01..03]`: RoleTypes editor (12 seeded roles), ExternalCostTypes editor (10 categories), ProjectDependencies editor (predecessor / successor edges, soft warn-only per spec — empty in seed but panel ready).
+- **System administration panels** per `[D-AC-01..03]`, `[D-AC-09..10]`, `[F-AC-01]`, `[D-CAT-07..10]`, `[D-NAV-06..07]`:
+  - Users editor with Tier-3 + change-reviewer flag columns (User table empty in current seed — see Working assumptions below).
+  - RolePermissionGrid: per-entity-type × role checkbox grid for BTC Profile + Inter-service Distribution + master-data overrides; saves audit `category=access_control`.
+  - **Workflow Template Editor** — consumes D2's `/api/admin/workflow-templates` endpoints. Six-template tab strip (Forecast Cycle 5 steps, Intake / Pipeline Progression 5, Change Request 4, Send Back 3, Milestone Baseline Override 3, Scheduled Master Data Activation 3). Per-step expandable touchpoint editor: required / skippable, assigned role (Controller / CC Owner / PL / Executive / System), data gates (comma-separated), notifications (JSON object — trigger ➜ recipients), time-constraint days, escalation action. Step sequence intentionally non-reorderable (matches D2's contract).
+  - **Scheduled Changes Panel** — full 5-state lifecycle UI (pending_review / approved / activated / rejected / cancelled). Per-row Approve / Reject / Cancel actions plus a single **"Apply due changes"** button that calls `POST /api/admin/apply-scheduled-changes` (manual-trigger activation engine).
+  - **Audit Log V2** consumes D2's `/api/audit` endpoints — 8-category filter dropdown (`master_data`, `configuration`, `hierarchy`, `forecast_actions`, `pipeline_transitions`, `simulator`, `access_control`, `scheduled_change_lifecycle`), entity-type filter, date range, color-coded category badges, old-→-new diff column, **CSV + Excel export** buttons via `/api/audit/export?format=csv|xlsx`.
+- **Demo Reset button** per `[D-AC-10]` — top-right header destructive-styled button with confirmation dialog calling `POST /api/admin/reset-demo`.
+
+### Spec Tags Implemented
+`[D-NAV-01]` `[D-NAV-02]` `[D-NAV-03]` `[D-NAV-04]` `[D-NAV-05]` `[D-NAV-06]` `[D-NAV-07]` `[D-AC-01]` `[D-AC-02]` `[D-AC-03]` `[D-AC-09]` `[D-AC-10]` `[D-CAT-01]` `[D-CAT-02]` `[D-CAT-03]` `[D-CAT-07]` `[D-CAT-08]` `[D-CAT-09]` `[D-CAT-10]` `[F-MD-01]` `[F-MD-02]` `[F-MD-03]` `[F-UM-01]` `[F-UM-02]` `[F-UM-03]` `[F-UM-04]` `[F-AC-01]`.
+
+### Components Added
+- `frontend/src/modules/admin/Administration.tsx` — extended to switch across 24 panels via `selectedSection`.
+- `frontend/src/modules/admin/EntitySelector.tsx` — extended sidebar with 5 sections (1 · Master Data → 5 · System).
+- `frontend/src/modules/admin/entities/ChargingLocationsPanel.tsx` (282 LoC), `LegalEntitiesPanel.tsx` (290 LoC), `RegionsPanel.tsx` (172 LoC), `CountriesPanel.tsx` (208 LoC), `UserMeasurementPanel.tsx` (334 LoC), `RoleTypesPanel.tsx` (141 LoC), `ExternalCostTypesPanel.tsx` (132 LoC), `ProjectDependenciesPanel.tsx` (298 LoC), `UsersPanel.tsx` (339 LoC).
+- `frontend/src/modules/admin/audit/AuditLogV2Panel.tsx` (277 LoC).
+- `frontend/src/modules/admin/scheduled/ScheduledChangesPanel.tsx` (333 LoC).
+- `frontend/src/modules/admin/system/RolePermissionsGrid.tsx` (183 LoC).
+- `frontend/src/modules/admin/workflow/WorkflowTemplateEditor.tsx` (~370 LoC).
+- `frontend/src/modules/admin/shared/LocationLabel.tsx` — F-MD-01 hover tooltip helper (68 LoC).
+
+### Endpoints Consumed
+All ~50 endpoints land via D1 + D2 — see those sessions above for the canonical list. New `adminD3Api` namespace in `frontend/src/api/endpoints.ts` exposes them grouped by panel:
+- Charging master data: `chargingLocations`, `legalEntities`, `regions`, `countries`
+- User Measurement: `getUMMatrix`, `uploadUMCsv`, `triggerUMRefresh`
+- Reference catalogues: `roleTypes`, `externalCostTypes`, `projectDependencies`
+- System: `users`, `rolePermissions`, `workflowTemplates`, `scheduledChanges` (incl. `applyScheduledChanges`)
+- Audit: `getAuditEntries`, `getAuditCategories`, `exportAuditCsv`, `exportAuditXlsx`
+
+### Visual Verification (1440px, light + dark)
+Both themes verified via Playwright MCP at 1440 × 900 viewport. Screenshots captured at repo root:
+
+| # | File | Surface |
+|---|---|---|
+| 01 | `d3-01-admin-cost-centers-light.png` | Default Cost Centers panel + 5 KPI cards + 5-section nav + Reset Demo header |
+| 02 | `d3-02-charging-locations-light.png` | ChargingLocations list (12 rows, Code/Name/Division/Region/Country/Status) |
+| 03 | `d3-03-charging-locations-tooltip-light.png` | Hover tooltip on `Charging Locations` heading per `[F-MD-01]` |
+| 04b | `d3-04b-legal-entities-light-fixed.png` | LegalEntities with rollup column "CN-SHA-001 — Shanghai Office" + Country "CHN — China" (after country_name fix) |
+| 05 | `d3-05-user-measurement-light.png` | UM matrix viewer with stubbed not_connected banner + Σ-row / Σ-col |
+| 06 | `d3-06-regions-light.png` | Regions lookup |
+| 07 | `d3-07-countries-light.png` | Countries lookup |
+| 08 | `d3-08-people-light.png` | People panel (existing v4 panel reused) |
+| 09 | `d3-09-role-types-light.png` | Role Types catalogue |
+| 10 | `d3-10-external-cost-types-light.png` | External Cost Types catalogue |
+| 11 | `d3-11-project-deps-light.png` | Project Dependencies (empty state) |
+| 12 | `d3-12-planning-params-light.png` | Planning Parameters settings cards |
+| 13 | `d3-13-hierarchy-light.png` | Portfolio Hierarchy (existing v4 panel reused) |
+| 14b | `d3-14b-users-light.png` | Users panel with Tier 3 + Change Reviewer columns (empty seed) |
+| 15 | `d3-15-role-permissions-light.png` | RolePermissionGrid for BTC + Distribution edits |
+| 17 | `d3-17-workflow-forecast-cycle-light.png` | Workflow editor showing all 5 Forecast Cycle steps with touchpoints |
+| 19 | `d3-19-workflow-fixed-light.png` | Workflow editor (post-D2-contract-alignment fix) |
+| 20 | `d3-20-scheduled-changes-light.png` | Scheduled Changes 5-state lifecycle + Apply due changes |
+| 21 | `d3-21-audit-log-light.png` | Audit Log V2 with category badges + diff column |
+| 22 | `d3-22-charging-edit-dialog-light.png` | Edit-modal dialog for Charging Location (modal-edit pattern, see [D-NAV-05] note) |
+| 23 | `d3-23-charging-locations-dark.png` | Dark mode — Charging Locations |
+| 24 | `d3-24-workflow-dark.png` | Dark mode — Workflow editor full step list |
+| 25 | `d3-25-audit-log-dark.png` | Dark mode — Audit Log V2 |
+| 26 | `d3-26-um-matrix-dark.png` | Dark mode — UM matrix with adapted yellow alert banner |
+
+### Issues Found and Fixed During Verification
+1. **`country_name` missing from `LegalEntityResponse`** (D1 backend gap surfaced via D3 Legal Entities panel). Frontend rendered "CHN — undefined" because the API returned `country_iso_code` only. ChargingLocation already exposed both fields; aligned LegalEntity to match. Fix: 2 lines in `backend/schemas/charging.py` + `backend/routers/charging.py` (commit `Add country_name to LegalEntityResponse [F-MD-01]`).
+2. **WorkflowTemplateEditor silent fetch-failure** — frontend types mismatched D2's authoritative `WorkflowStep` schema. Editor expected `participant_role` / `ordering` / `step_key` / `notifications: string[]`; backend emits `assigned_role` / `step_order` / no key field / `notifications: Record<string,string[]>`. The mismatch silently threw inside `.then()` (calling `.join()` on a dict), fell through to `.catch(setDetail(null))`, and the rubric stuck on the "Select a template" empty state. Fix: realigned `WorkflowStepItem` + `WorkflowStepActionItem` types, `StepEditState` JSON-encodes notifications now, dropped phantom `is_active` checkbox (only WorkflowTemplate has it, not WorkflowStep), updated PUT payload field names. Commit `Align WorkflowTemplateEditor with D2 backend contract [D-CAT-07]`.
+
+### Working Assumptions
+- **Users seed is empty.** D1 created the `User` model but did not seed any rows (DemoPersona handles auth in v5). The Users panel renders correctly but shows the empty state. Seeding sample users (with controller / cc_owner / pl / executive role + Tier 3 + change-reviewer flags exercised) belongs in **S1 seed reconstruction**.
+- **Country `name` was always populated** in the underlying `Country` table — only the LegalEntity serializer was missing the field. Fixed in this session.
+- **Modal-dialog edit vs full-page detail** — `[D-NAV-05]` reads "breadcrumb drill-down". For master-data entities with 4–6 fields each (ChargingLocation, LegalEntity, Region, Country, RoleType, ExternalCostType), D3 chose modal-dialog edit instead of routing to a per-entity detail page. Trade-off: faster + lighter for small entity edits; gives up the "back to list with breadcrumb" pattern. UM matrix viewer + Workflow Template Editor still use single-surface designs but with intra-page selection (template tabs / period selectors). Flagged below for discussion.
+
+### Refactoring Opportunities
+- **TS strict-mode pre-existing failures.** `npm run build` shows 78 errors across `workbench/`, `reporting/`, `portfolio/`, `capacity/`, `components/charts/`, and `api/endpoints.ts`. Counts identical between this branch and `main` (af4881a) — D3 added zero new strict-mode errors. Existing failures predate the wave; a dedicated `fix/typescript-strict` session would clean them up before they pile higher.
+- **Pre-existing `LoBsPanel` React-key warning** (one duplicate-key warning on tbody children, untouched by D3) — fold into the same TS-strict cleanup.
+- **Detail-page-with-breadcrumb pattern** — if `[D-NAV-05]` is read strictly, route the heavier system entities (Workflow Templates, RolePermissionGrid, Audit Log V2, Scheduled Changes) onto their own admin sub-routes with a breadcrumb (`Admin / Workflow Templates / Forecast Cycle`). Master-data modal edits can stay as-is. Estimated 1–2 hours.
+- **Settings-card empty default** — Fiscal Year Start dropdown loads with no selected value; small UX fix to default to the current `01` value.
+
+### Verification (manual + automated)
+- `npm run build` (post-D3) — 78 errors, all pre-existing on `main`. No new D3-introduced TS errors (verified by running build on `main` too).
+- Backend smoke (verifying D1 fix + D2 alignment): `curl /api/admin/legal-entities` now returns `country_name: "China"`; `curl /api/admin/workflow-templates/forecast_cycle` returns 5 steps with `assigned_role` / `step_order` / dict `notifications`.
+- Browser walk: 24 sub-surfaces, both themes, captured screenshots above. Console: 0 errors triggered by D3 panels (one pre-existing `LoBsPanel` key-prop warning unrelated).
+
+### Ready for merge
+- Branch: `v5/cluster-d/d3-admin-frontend`
+- Commits ahead of `main` (`af4881a`): 7 atomic (5 from initial implementation + 1 country_name fix + 1 D2-contract alignment).
+- Per the wave-1 merge order (A5 → F2 → D3 → A7) D3 is the third merger; expects no conflicts with A5 (different layer) or F2 (different layer) since D3 only touches `frontend/src/modules/admin/`, `frontend/src/api/endpoints.ts` (in a clearly-marked `// === Admin (D3) ===` section per spawn-prompt contract), and `frontend/src/types/api.ts`. A7 is the second frontend merger and rebases on D3.
+
+---
+
+## v5 Session A7: Frontend — Tech Navigator scoring rubric UI (2026-04-28)
+
+### Feature Overview
+Self-contained, reusable Tech Navigator scoring rubric component (`TechNavigatorRubric`) implementing the full Scores & Ranking experience for the Backlog project detail view. Ships with a minimal scaffold harness page (`BacklogDetailStub`) at `/backlog-detail-stub/:projectId` so the rubric can be visually verified inside a representative 4-tab project-detail layout. **A6 (Backlog frontend) will replace the stub with the real detail view** when it lands; A7 ships rubric + harness only — full backlog list / cube view comes in A6.
+
+### Spec references implemented
+- `[A-TN-01]` Tech Navigator profile applies to all projects (frontend reads/writes via the A1 backend API for any project).
+- `[A-TN-02]` Counterintuitive Complexity convention preserved — explicit "higher = simpler / better" sublabel on the Complexity score tile.
+- `[A-TN-03]` Complexity sub-criteria with weights: Standardization 40 %, Usage 40 %, Maintenance and support 20 %.
+- `[A-TN-04]` Value Creation sub-criteria with weights: Financial benefit 50 %, Payback 40 %, Competitive advantage 10 %.
+- `[A-TN-05]` Two reserved Value Creation slots not surfaced — explicit dashed-border note pointing to the (future) admin Tech Navigator weights editor.
+- `[A-TN-06]` Active weights displayed read-only in the rubric footer with note pointing to the admin module — weights themselves are admin-configurable globally (not per LoB).
+- `[A-TN-07]` Transformation level (T0/T1/T2) selector with descriptions ("just better", "paper to software", "new business").
+- `[A-TN-08]` Project Type (1/2/3) selector with ring-colour preview and per-type description, including the "Type 3 exempt from cutoff" note.
+- `[A-TN-09]` Budget t-shirt size displayed (read-only — derived server-side from `total_budget` against admin thresholds) with the active threshold band as the subline.
+
+### Acceptance criteria — all met
+- ✅ Scoring rubric renders with the correct sub-criteria and 1-5 scales.
+- ✅ Score entry updates the composite score in real time (client-side recompute mirrors backend `services/tech_navigator.py` formulas; debounced (300 ms) PUT to the backend keeps the persisted value authoritative).
+- ✅ Transformation level (T0/T1/T2) and Project Type (1/2/3) selectors work.
+- ✅ Weights displayed correctly from admin config (read from the `weights` snapshot embedded in the GET response).
+
+### Technical Details
+- **New module:** `frontend/src/modules/backlog/` created from scratch — minimal scaffold sufficient to host the rubric. Backlog list / cube view, sidebar nav entry, and full detail view defer to A6.
+- **Components added:**
+  - `frontend/src/types/techNavigator.ts` — TypeScript mirror of `backend/schemas/tech_navigator.py` (TechNavigatorProfile / Update / Weights / TshirtThresholds / etc.).
+  - `frontend/src/modules/backlog/data/rubricLabels.ts` — descriptive rubric label dictionary (6 sub-criteria × 5 levels), Transformation level options, Project Type options.
+  - `frontend/src/modules/backlog/components/ScoreSummaryCard.tsx` — Computed scores card (Complexity / Value Creation / Composite + budget t-shirt + threshold strip + saving / saved indicator).
+  - `frontend/src/modules/backlog/components/RubricSubCriterionRow.tsx` — Reusable single sub-criterion picker (1-5 buttons, hover-preview description, Clear affordance, weight badge).
+  - `frontend/src/modules/backlog/components/TechNavigatorRubric.tsx` — Main rubric. Owns local state, optimistic updates, debounced autosave (300 ms), client-side composite recompute. Exposes `projectId` and `readOnly` props.
+  - `frontend/src/modules/backlog/BacklogDetailStub.tsx` — 4-tab harness page (Scores & Ranking, Financial Overview, Master Data, Milestones). Only Scores & Ranking has full content; the other three render placeholder tiles.
+- **Append-only edits** (clearly marked `// === Tech Navigator (A7) ===` so the D3 frontend rebase is mechanical):
+  - `frontend/src/api/endpoints.ts` — appended `techNavigatorApi` block with `get(projectId)` and `update(projectId, body)`.
+  - `frontend/src/lib/routes.ts` — appended `'/backlog-detail-stub'` label entry.
+  - `frontend/src/App.tsx` — added `<Route path="/backlog-detail-stub/:projectId" element={<BacklogDetailStub />} />`.
+- **No sidebar / nav additions** — per team-lead guidance the Backlog top-level nav entry lands in A6.
+
+### API consumed (A1 backend)
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/projects/{id}/tech-navigator` | Read full profile + active weights snapshot |
+| PUT | `/api/projects/{id}/tech-navigator` | Partial update — returns recomputed profile |
+
+No new backend endpoints; A7 is pure frontend.
+
+### Real-time scoring strategy
+1. On mount, fetch the full profile (raw sub-criteria + computed scores + active admin weights) once.
+2. Every click on a sub-criterion / Type / Transformation level button optimistically updates local state.
+3. Computed scores (Complexity, Value Creation, Composite) are derived locally on every render using the same weighted-average formulas as `backend/services/tech_navigator.py` — verified by hand-calc during visual verification (5 / 4 / 3 → Complexity 4,20; 5 / 4 / 4 → Value 4,50; 70/30 → Composite 4,41).
+4. A pending update body accumulates in a ref; a 300 ms debounce timer schedules a single PUT carrying the merged patch.
+5. On PUT response, the authoritative server profile replaces local state (handles weight updates and rounding edge cases).
+6. UI shows "Saving…" while a PUT is in flight and a "Saved" flash for 1.5 s after success.
+
+### Verification (visual, real Playwright)
+Verified at 1440 × 900 viewport against the running backend at `localhost:8000` and the Vite worktree dev server at `localhost:5175`:
+1. **Initial empty profile** — clean, all "—" placeholders, all sub-criterion rows in their default state. Light mode rendered correctly.
+2. **Scored — light mode** — clicked Standardization=5, Usage=4, Maintenance=3 → Complexity tile displayed `4,20 / 5`. Clicked Financial=5, Payback=4, Competitive=4 → Value Creation displayed `4,50 / 5`. Composite (70 % value · 30 % complexity) displayed `4,41 / 5`. Project Type 1 + Transformation T1 selected. "Saved" indicator visible.
+3. **Scored — dark mode** — toggled `dark` theme; all semantic Tailwind tokens render correctly (no hardcoded `bg-white`, `text-slate-700`, etc.); status / scale colours all carry `dark:` variants per CLAUDE.md.
+4. **Partial-profile edge case** — cleared Payback; Complexity stayed at `4,20 / 5`; Value Creation and Composite collapsed to `—` (matches `[A-PRI-01]` "partial profiles do not contribute to the ranking").
+
+Screenshots saved to `/tmp/a7-screens/0{1..4}-*.png` during the verification run.
+
+### Working assumptions / Ambiguities (flagged for KB confirmation)
+- **Intermediate rubric labels (levels 2 / 3 / 4) are placeholders.** The spec only ships endpoint definitions for level 1 and level 5 ("Intermediate values of each sub-criterion are defined in the KB Tech Navigator reference slides and should be mirrored in the CRETA rubric UI"). A7 hard-codes a sensible interpolation in `frontend/src/modules/backlog/data/rubricLabels.ts` so the UI is verifiable today; the long-term home of these labels is the admin Tech Navigator rubric matrix editor (`[D-CAT-04]`), which lands in a future Cluster D session. Once that admin surface ships, the dictionary should be replaced with a fetch.
+- **Read-only mode in the stub harness** is driven only by current role (controller / project_lead → editable; executive / cc_owner → read-only). The backend's stricter PL-ownership check (`pl_person_id == user.person_id`) is enforced server-side; in the stub harness we do not pre-disable controls for non-owning PLs because the harness is for visual verification only. A6 will refine this by passing the host project's `pl_person_id` to the rubric.
+- **Stub harness layout** mimics the planned 4-tab detail view but is intentionally minimal. The 3 non-Scores tabs render placeholder tiles. A6's real detail view will replace the stub.
+
+### Refactoring opportunities (noted, not acted on)
+- The local recompute helpers in `TechNavigatorRubric.tsx` duplicate the backend's weighted-average / composite logic verbatim. Once a6 is built, consider extracting these into a shared `lib/techNavigator.ts` so other call sites (e.g. cube view bubble sizing, scenario diffs) can reuse them.
+- The hard-coded rubric label dictionary will move to a fetched admin-config endpoint when `[D-CAT-04]` lands. At that point, `data/rubricLabels.ts` becomes a fallback.
+
+### File ownership respected
+- **Owned (created):** `frontend/src/modules/backlog/**`, `frontend/src/types/techNavigator.ts`.
+- **Append-only (clearly-marked A7 sections so D3 rebase is mechanical):** `frontend/src/api/endpoints.ts`, `frontend/src/lib/routes.ts`, `frontend/src/App.tsx`.
+- **Untouched** (per team-lead instruction): `frontend/src/modules/admin/**`, all other module folders, sidebar / nav configuration.
+
+### Verification (build)
+- `npx tsc -b` — no errors in any A7 file (4 strict-TS errors in the initial revision were fixed: explicit `reduce<number>` generics on `weightedAverage` and `as unknown as Record<string, number>` for the dynamic weight lookup).
+- 78 pre-existing TS errors elsewhere on `main` HEAD (`SubmissionDiffView.tsx`, `ProjectTimelineChart.tsx`) are unchanged by A7.
+
+### Stop point
+Branch `v5/cluster-a/a7-tech-navigator-ui` carries 8 atomic commits and is ready for review. **No PR has been created** (per team-lead instruction). Awaiting team-lead direction on merge order with D3 (D3 merges first; A7 rebases on D3).
+
+### Next session readiness
+- A6 (Backlog frontend) will integrate `TechNavigatorRubric` directly into its real detail-view "Scores & Ranking" tab and remove the `BacklogDetailStub` stub page + `/backlog-detail-stub/:projectId` route.
+- A8 (Pipeline stage UI) can reuse `data/rubricLabels.ts` for any rubric strings it needs.
+
+---
 
 ## v5 Session D1: Admin Entities + CRUD (incl. Cluster F master data) Backend (2026-04-28)
 

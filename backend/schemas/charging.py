@@ -109,4 +109,5 @@ class LegalEntityResponse(BaseModel):
     charging_location_name: Optional[str]
     country_id: Optional[str]
     country_iso_code: Optional[str]
+    country_name: Optional[str]
     is_active: bool

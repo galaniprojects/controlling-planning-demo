@@ -49,9 +49,13 @@ class TestPortfolioRouter:
                                headers=HEADERS_CTRL)
         assert resp.status_code == 404
 
-    def test_get_intake_queue(self, test_client, seed_personas):
+    def test_get_intake_queue_deprecated(self, test_client, seed_personas):
+        """v5: /api/portfolio/intake is 410 Gone per [A-BK-26]/[A-PS-13]."""
         resp = test_client.get("/api/portfolio/intake", headers=HEADERS_CTRL)
-        assert resp.status_code == 200
+        assert resp.status_code == 410
+        body = resp.json()
+        assert body["detail"]["error"] == "v4_intake_removed"
+        assert "GET /api/intake/queue" in body["detail"]["replacements"]["list_review_queue"]
 
     def test_kpis_filtered_by_status(self, test_client, seed_personas, create_test_project):
         create_test_project("proj-1", status="active")

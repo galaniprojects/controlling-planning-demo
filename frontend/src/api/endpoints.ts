@@ -1,5 +1,26 @@
 import { api } from './client';
 import type {
+  RoleTypeItem,
+  ExternalCostTypeItem,
+  ProjectDependencyItem,
+  UserItem,
+  RolePermissionGrantItem,
+  CountryItem,
+  RegionItem,
+  ChargingLocationItem,
+  LegalEntityItem,
+  UMVersionItem,
+  UMCellItem,
+  UMRefreshStatus,
+  UMImportResult,
+  WorkflowTemplateSummary,
+  WorkflowTemplateDetail,
+  WorkflowStepItem,
+  ScheduledChangeItem,
+  ApplyScheduledChangesSummary,
+  AuditCategoryRef,
+  AuditLogResponse,
+  AuditEntryV2,
   RoleInfo,
   RoleContext,
   Notification,
@@ -866,4 +887,311 @@ export const reportBuilderApi = {
   listShared: () =>
     api.get<{ items: SharedReportSummary[]; total: number }>('/api/report-builder/shared'),
 
+};
+
+// ---------------------------------------------------------------------------
+// === Admin (D3) === — D1 + D2 + F1 admin surfaces consumed by frontend
+// ---------------------------------------------------------------------------
+
+export const adminD3Api = {
+  // --- Reference Catalogues (D1) ---
+  // Role Types
+  getRoleTypes: () => api.get<ListResponse<RoleTypeItem>>('/api/admin/role-types'),
+  createRoleType: (data: { name: string }) =>
+    api.post<RoleTypeItem>('/api/admin/role-types', data),
+  updateRoleType: (id: string, data: { name?: string }) =>
+    api.put<RoleTypeItem>(`/api/admin/role-types/${id}`, data),
+
+  // External Cost Types
+  getExternalCostTypes: () =>
+    api.get<ListResponse<ExternalCostTypeItem>>('/api/admin/external-cost-types'),
+  createExternalCostType: (data: { name: string }) =>
+    api.post<ExternalCostTypeItem>('/api/admin/external-cost-types', data),
+  updateExternalCostType: (id: string, data: { name?: string }) =>
+    api.put<ExternalCostTypeItem>(`/api/admin/external-cost-types/${id}`, data),
+
+  // Project Dependencies
+  getProjectDependencies: (projectId?: string) => {
+    const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return api.get<ListResponse<ProjectDependencyItem>>(`/api/admin/project-dependencies${q}`);
+  },
+  createProjectDependency: (data: {
+    predecessor_project_id: string;
+    successor_project_id: string;
+    dependency_type: string;
+    lag_days?: number | null;
+    notes?: string | null;
+  }) =>
+    api.post<ProjectDependencyItem>('/api/admin/project-dependencies', data),
+  updateProjectDependency: (id: number, data: {
+    dependency_type?: string;
+    lag_days?: number | null;
+    notes?: string | null;
+  }) =>
+    api.put<ProjectDependencyItem>(`/api/admin/project-dependencies/${id}`, data),
+  deleteProjectDependency: (id: number) =>
+    api.delete<{ status: string }>(`/api/admin/project-dependencies/${id}`),
+
+  // --- Users (D1 / [D-AC-01..03]) ---
+  getUsers: () => api.get<ListResponse<UserItem>>('/api/admin/users'),
+  getUser: (id: string) => api.get<UserItem>(`/api/admin/users/${id}`),
+  createUser: (data: {
+    username: string;
+    display_name: string;
+    role: string;
+    person_id?: string | null;
+    tier3_flag?: boolean;
+    change_reviewer_flag?: boolean;
+  }) => api.post<UserItem>('/api/admin/users', data),
+  updateUser: (id: string, data: {
+    display_name?: string;
+    role?: string;
+    person_id?: string | null;
+    tier3_flag?: boolean;
+    change_reviewer_flag?: boolean;
+  }) => api.put<UserItem>(`/api/admin/users/${id}`, data),
+  deactivateUser: (id: string) =>
+    api.put<UserItem>(`/api/admin/users/${id}/deactivate`),
+
+  // --- Role Permissions Grid (F1 / [F-AC-01]) ---
+  getRolePermissions: (params?: { role?: string; entity_type?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.role) q.set('role', params.role);
+    if (params?.entity_type) q.set('entity_type', params.entity_type);
+    const qs = q.toString();
+    return api.get<ListResponse<RolePermissionGrantItem>>(
+      `/api/admin/role-permissions${qs ? '?' + qs : ''}`,
+    );
+  },
+  bulkUpsertRolePermissions: (grants: { role: string; entity_type: string; can_edit: boolean }[]) =>
+    api.put<ListResponse<RolePermissionGrantItem>>('/api/admin/role-permissions/bulk', { grants }),
+
+  // --- Charging Master Data (F1 / [F-MD-01..03]) ---
+  // Countries
+  getCountries: () => api.get<ListResponse<CountryItem>>('/api/admin/countries'),
+  createCountry: (data: { iso_code: string; name: string }) =>
+    api.post<CountryItem>('/api/admin/countries', data),
+  updateCountry: (id: string, data: { iso_code?: string; name?: string }) =>
+    api.put<CountryItem>(`/api/admin/countries/${id}`, data),
+  deactivateCountry: (id: string) =>
+    api.put<CountryItem>(`/api/admin/countries/${id}/deactivate`),
+
+  // Regions
+  getRegions: () => api.get<ListResponse<RegionItem>>('/api/admin/regions'),
+  createRegion: (data: { code: string; name: string }) =>
+    api.post<RegionItem>('/api/admin/regions', data),
+  updateRegion: (id: string, data: { code?: string; name?: string }) =>
+    api.put<RegionItem>(`/api/admin/regions/${id}`, data),
+  deactivateRegion: (id: string) =>
+    api.put<RegionItem>(`/api/admin/regions/${id}/deactivate`),
+
+  // Charging Locations
+  getChargingLocations: () =>
+    api.get<ListResponse<ChargingLocationItem>>('/api/admin/charging-locations'),
+  createChargingLocation: (data: {
+    code: string;
+    name: string;
+    division?: string | null;
+    region_id?: string | null;
+    country_id?: string | null;
+  }) => api.post<ChargingLocationItem>('/api/admin/charging-locations', data),
+  updateChargingLocation: (id: string, data: {
+    name?: string;
+    division?: string | null;
+    region_id?: string | null;
+    country_id?: string | null;
+  }) => api.put<ChargingLocationItem>(`/api/admin/charging-locations/${id}`, data),
+  deactivateChargingLocation: (id: string) =>
+    api.put<ChargingLocationItem>(`/api/admin/charging-locations/${id}/deactivate`),
+
+  // Legal Entities
+  getLegalEntities: (chargingLocationId?: string) => {
+    const q = chargingLocationId
+      ? `?charging_location_id=${encodeURIComponent(chargingLocationId)}`
+      : '';
+    return api.get<ListResponse<LegalEntityItem>>(`/api/admin/legal-entities${q}`);
+  },
+  createLegalEntity: (data: {
+    code: string;
+    name: string;
+    charging_location_id?: string | null;
+    country_id?: string | null;
+  }) => api.post<LegalEntityItem>('/api/admin/legal-entities', data),
+  updateLegalEntity: (id: string, data: {
+    name?: string;
+    charging_location_id?: string | null;
+    country_id?: string | null;
+  }) => api.put<LegalEntityItem>(`/api/admin/legal-entities/${id}`, data),
+  deactivateLegalEntity: (id: string) =>
+    api.put<LegalEntityItem>(`/api/admin/legal-entities/${id}/deactivate`),
+
+  // --- User Measurement (F1 / [F-UM-01..04]) ---
+  getUMRefreshStatus: () =>
+    api.get<UMRefreshStatus>('/api/admin/user-measurement/refresh-status'),
+  getUMVersions: () =>
+    api.get<ListResponse<UMVersionItem>>('/api/admin/user-measurement/versions'),
+  getUMCells: (params: { year: number; quarter: number; imported_at?: string }) => {
+    const q = new URLSearchParams();
+    q.set('year', String(params.year));
+    q.set('quarter', String(params.quarter));
+    if (params.imported_at) q.set('imported_at', params.imported_at);
+    return api.get<{
+      items: UMCellItem[];
+      total: number;
+      year: number;
+      quarter: number;
+      imported_at: string | null;
+      source: string | null;
+    }>(`/api/admin/user-measurement?${q.toString()}`);
+  },
+  importUMCsv: async (file: File): Promise<UMImportResult> => {
+    const form = new FormData();
+    form.append('file', file);
+    // Use fetch directly for multipart upload with X-Current-User header
+    const personaId = localStorage.getItem('currentRoleId') || 'persona-controller';
+    const resp = await fetch('/api/admin/user-measurement/import', {
+      method: 'POST',
+      body: form,
+      headers: { 'X-Current-User': personaId },
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => 'Upload failed');
+      throw new Error(text || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+  },
+
+  // --- Workflow Templates (D2 / [D-CAT-07..10]) ---
+  getWorkflowTemplates: () =>
+    api.get<ListResponse<WorkflowTemplateSummary>>('/api/admin/workflow-templates'),
+  getWorkflowTemplate: (idOrKey: string | number) =>
+    api.get<WorkflowTemplateDetail>(`/api/admin/workflow-templates/${idOrKey}`),
+  updateWorkflowStep: (
+    templateIdOrKey: string | number,
+    stepId: number,
+    data: Partial<{
+      required: boolean;
+      skippable: boolean;
+      assigned_role: string | null;
+      data_gates: string[];
+      notifications: Record<string, string[]> | null;
+      time_constraint_days: number | null;
+      escalation_action: string | null;
+      is_active: boolean;
+    }>,
+  ) =>
+    api.put<WorkflowStepItem>(
+      `/api/admin/workflow-templates/${templateIdOrKey}/steps/${stepId}`,
+      data,
+    ),
+  setWorkflowTemplateActive: (idOrKey: string | number, isActive: boolean) =>
+    api.put<WorkflowTemplateSummary>(
+      `/api/admin/workflow-templates/${idOrKey}/active`,
+      { is_active: isActive },
+    ),
+
+  // --- Scheduled Changes (D2 / [D-NAV-06..07]) ---
+  getScheduledChanges: (status?: string) => {
+    const q = status ? `?status=${encodeURIComponent(status)}` : '';
+    return api.get<ListResponse<ScheduledChangeItem>>(`/api/admin/scheduled-changes${q}`);
+  },
+  getScheduledChange: (id: number) =>
+    api.get<ScheduledChangeItem>(`/api/admin/scheduled-changes/${id}`),
+  createScheduledChange: (data: {
+    entity_type: string;
+    entity_id: string;
+    description?: string | null;
+    pending_values: Record<string, unknown>;
+    activation_date: string;
+  }) => api.post<ScheduledChangeItem>('/api/admin/scheduled-changes', data),
+  approveScheduledChange: (id: number, comments?: string) =>
+    api.post<ScheduledChangeItem>(
+      `/api/admin/scheduled-changes/${id}/approve`,
+      comments ? { comments } : {},
+    ),
+  rejectScheduledChange: (id: number, comments: string) =>
+    api.post<ScheduledChangeItem>(
+      `/api/admin/scheduled-changes/${id}/reject`,
+      { comments },
+    ),
+  cancelScheduledChange: (id: number) =>
+    api.post<ScheduledChangeItem>(`/api/admin/scheduled-changes/${id}/cancel`, {}),
+  applyScheduledChanges: () =>
+    api.post<ApplyScheduledChangesSummary>('/api/admin/apply-scheduled-changes', {}),
+
+  // --- Audit Log V2 (D2 / [D-AC-09]) ---
+  getAuditCategories: () =>
+    api.get<ListResponse<AuditCategoryRef>>('/api/audit/categories'),
+  queryAuditLog: (params?: {
+    category?: string[];
+    entity_type?: string;
+    entity_id?: string;
+    user_id?: string;
+    date_from?: string;
+    date_to?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.category) {
+      params.category.forEach((c) => q.append('category', c));
+    }
+    if (params?.entity_type) q.set('entity_type', params.entity_type);
+    if (params?.entity_id) q.set('entity_id', params.entity_id);
+    if (params?.user_id) q.set('user_id', params.user_id);
+    if (params?.date_from) q.set('date_from', params.date_from);
+    if (params?.date_to) q.set('date_to', params.date_to);
+    if (params?.limit !== undefined) q.set('limit', String(params.limit));
+    if (params?.offset !== undefined) q.set('offset', String(params.offset));
+    const qs = q.toString();
+    return api.get<AuditLogResponse>(`/api/audit/log${qs ? '?' + qs : ''}`);
+  },
+  getEntityAuditTrail: (entityType: string, entityId: string, limit?: number) => {
+    const q = limit ? `?limit=${limit}` : '';
+    return api.get<{ items: AuditEntryV2[]; total: number }>(
+      `/api/audit/log/entity/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}${q}`,
+    );
+  },
+  // Returns the URL string — caller opens in a new tab / triggers download
+  auditExportUrl: (params?: {
+    format?: 'csv' | 'xlsx';
+    category?: string[];
+    entity_type?: string;
+    user_id?: string;
+    date_from?: string;
+    date_to?: string;
+  }) => {
+    const q = new URLSearchParams();
+    q.set('format', params?.format ?? 'csv');
+    if (params?.category) params.category.forEach((c) => q.append('category', c));
+    if (params?.entity_type) q.set('entity_type', params.entity_type);
+    if (params?.user_id) q.set('user_id', params.user_id);
+    if (params?.date_from) q.set('date_from', params.date_from);
+    if (params?.date_to) q.set('date_to', params.date_to);
+    return `/api/audit/export?${q.toString()}`;
+  },
+};
+// === End Admin (D3) ===
+
+// ---------------------------------------------------------------------------
+// === Tech Navigator (A7) ===
+// Backend: backend/routers/tech_navigator.py [A-TN-01..A-TN-09].
+// ---------------------------------------------------------------------------
+
+import type {
+  TechNavigatorProfile,
+  TechNavigatorUpdate,
+} from '@/types/techNavigator';
+
+export const techNavigatorApi = {
+  /** Read the full Tech Navigator profile + active admin weights snapshot. */
+  get: (projectId: string) =>
+    api.get<TechNavigatorProfile>(`/api/projects/${projectId}/tech-navigator`),
+
+  /** Partial update. Returns the full recomputed profile. */
+  update: (projectId: string, body: TechNavigatorUpdate) =>
+    api.put<TechNavigatorProfile>(
+      `/api/projects/${projectId}/tech-navigator`,
+      body,
+    ),
 };
