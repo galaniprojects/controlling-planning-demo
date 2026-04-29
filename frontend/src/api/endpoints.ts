@@ -1413,6 +1413,16 @@ export const chargingApi = {
     api.get<ChargingApiChargeableEntityItem>(
       `/api/charging/entities/by-project/${projectId}`,
     ),
+  /**
+   * Read-only charging locations list — accessible to all four roles per F6.
+   * For mutation, callers go through `adminD3Api.getChargingLocations()`
+   * which remains controller-only.
+   */
+  listChargingLocationsReadOnly: () =>
+    api.get<{
+      items: import('@/types/api').ChargingLocationItem[];
+      total: number;
+    }>(`/api/charging/charging-locations`),
 
   // === Stage 1 inter-service Distribution edges [F-S1-01..05] ===
   listDistributions: (params?: {

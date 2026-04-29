@@ -293,6 +293,28 @@ def list_charging_locations(
     return {"items": [i.model_dump() for i in items], "total": len(items)}
 
 
+@charging_router.get("/charging-locations", response_model=dict)
+def list_charging_locations_read_only(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+):
+    """Read-only list of charging locations accessible to all four roles.
+
+    F6 [E-09]: the Workbench BTC tab needs to render location names + codes
+    for non-controller roles. The admin equivalent above is mutation-gated.
+    """
+    rows = (
+        db.query(ChargingLocation)
+        .filter(ChargingLocation.is_active.is_(True))
+        .order_by(ChargingLocation.code)
+        .all()
+    )
+    items = [_serialize_charging_location(cl) for cl in rows]
+    return {"items": [i.model_dump() for i in items], "total": len(items)}
+
+
 @router.post("/charging-locations", response_model=ChargingLocationResponse)
 def create_charging_location(
     body: ChargingLocationCreate,

@@ -83,7 +83,14 @@ export function EntityBTCProfileEditor(props: Props) {
     setError(null);
     setProfileMissing(false);
     try {
-      const locsPromise = adminD3Api.getChargingLocations();
+      // Pick the charging-locations endpoint based on caller path. The
+      // legacy (profileId) caller is controller-only so the admin
+      // endpoint is fine; the (entityId+year) caller may run as PL /
+      // exec / cc-owner so we use the read-only charging-namespaced
+      // endpoint.
+      const locsPromise = props.profileId !== undefined
+        ? adminD3Api.getChargingLocations()
+        : chargingApi.listChargingLocationsReadOnly();
 
       let prof: BTCProfileItem | null = null;
       let ent: ChargeableEntityItem | null = null;
