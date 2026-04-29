@@ -1,0 +1,86 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button "CRETA" [ref=e6]
+      - navigation [ref=e7]:
+        - generic [ref=e8]:
+          - generic [ref=e9]: /
+          - generic [ref=e10]: __t3-preview
+    - generic [ref=e11]:
+      - button "Switch to dark mode" [ref=e12]:
+        - img [ref=e13]
+      - button "?" [ref=e15]
+      - button "Anna Meier" [ref=e132]:
+        - generic [ref=e17]: Anna Meier
+        - img [ref=e18]
+  - main [ref=e21]:
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - generic [ref=e24]: B2 T3 preview
+        - generic [ref=e25]:
+          - button "strip" [active] [ref=e26]
+          - button "change-feed" [ref=e27]
+          - button "compare-l1" [ref=e28]
+          - button "compare-l2" [ref=e29]
+          - button "compare-l3" [ref=e30]
+        - generic [ref=e31]:
+          - generic [ref=e32]:
+            - checkbox "Tier 3 visible" [ref=e33]
+            - text: Tier 3 visible
+          - button "Toggle dark" [ref=e34]
+      - main [ref=e35]:
+        - generic [ref=e543]:
+          - 'button "Financial: -€1,2M ▼ -8,2%" [ref=e544] [cursor=pointer]':
+            - generic [ref=e545]:
+              - generic [ref=e546]:
+                - img [ref=e547]
+                - generic [ref=e550]: Financial
+              - generic "Stale — recalculate to refresh" [ref=e551]
+            - generic [ref=e552]: "-€1,2M ▼ -8,2%"
+          - 'button "Ranking: 7 shifted, 2 removed" [ref=e553] [cursor=pointer]':
+            - generic [ref=e554]:
+              - generic [ref=e555]:
+                - img [ref=e556]
+                - generic [ref=e559]: Ranking
+              - generic "Stale — recalculate to refresh" [ref=e560]
+            - generic [ref=e561]: 7 shifted, 2 removed
+          - 'button "Capacity: 2 CCs >100%" [ref=e562] [cursor=pointer]':
+            - generic [ref=e563]:
+              - generic [ref=e564]:
+                - img [ref=e565]
+                - generic [ref=e570]: Capacity
+              - generic "Stale — recalculate to refresh" [ref=e571]
+            - generic [ref=e572]: 2 CCs >100%
+          - 'button "Outsourcing: Int 64% / Ext 36%" [ref=e573] [cursor=pointer]':
+            - generic [ref=e574]:
+              - generic [ref=e575]:
+                - img [ref=e576]
+                - generic [ref=e581]: Outsourcing
+              - generic "Stale — recalculate to refresh" [ref=e582]
+            - generic [ref=e583]: Int 64% / Ext 36%
+          - 'button "Investment Mix: 4 nodes · top: ERP / Finance" [ref=e584] [cursor=pointer]':
+            - generic [ref=e585]:
+              - generic [ref=e586]:
+                - img [ref=e587]
+                - generic [ref=e590]: Investment Mix
+              - generic "Stale — recalculate to refresh" [ref=e591]
+            - generic [ref=e592]: "4 nodes · top: ERP / Finance"
+          - 'button "Running Cost: -€1,2M ▼" [ref=e593] [cursor=pointer]':
+            - generic [ref=e594]:
+              - generic [ref=e595]:
+                - img [ref=e596]
+                - generic [ref=e599]: Running Cost
+              - generic "Stale — recalculate to refresh" [ref=e600]
+            - generic [ref=e601]: "-€1,2M ▼"
+          - 'button "Cost Allocation: 3 entities · +€15K ▲" [ref=e602] [cursor=pointer]':
+            - generic [ref=e603]:
+              - generic [ref=e604]:
+                - img [ref=e605]
+                - generic [ref=e609]: Cost Allocation
+              - generic "Stale — recalculate to refresh" [ref=e610]
+            - generic [ref=e611]: 3 entities · +€15K ▲
+          - 'button "Change Summary: 9 changes" [ref=e612] [cursor=pointer]':
+            - generic [ref=e614]:
+              - img [ref=e615]
+              - generic [ref=e618]: Change Summary
+            - generic [ref=e619]: 9 changes

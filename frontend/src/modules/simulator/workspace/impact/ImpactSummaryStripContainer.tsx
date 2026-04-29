@@ -8,13 +8,14 @@
  */
 
 import { useScenarioContext } from '../../useScenarioContext';
+import { narrowImpact } from '../../lib/impactTypes';
 import { ImpactSummaryStrip } from './ImpactSummaryStrip';
 
 export function ImpactSummaryStripContainer() {
   const { impact, loading, stale, tier3Visible } = useScenarioContext();
   return (
     <ImpactSummaryStrip
-      impact={impact}
+      impact={narrowImpact(impact)}
       loading={loading}
       stale={stale}
       tier3Visible={tier3Visible}

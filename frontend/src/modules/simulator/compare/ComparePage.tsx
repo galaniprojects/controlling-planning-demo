@@ -20,14 +20,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { scenariosApi } from '@/api/endpoints';
+import { scenariosApi } from '../api/scenariosApi';
 import type { ComparisonResponse } from '@/types/api';
 import { PortfolioSummaryLevel } from './PortfolioSummaryLevel';
 import { ProjectComparisonLevel } from './ProjectComparisonLevel';
 import { LineLevelDetailLevel } from './LineLevelDetailLevel';
 import type { CompareColumn, CompareViewState } from './compareTypes';
 import type { ScenarioColumnInfo } from './ScenarioColumnHeader';
-import type { ImpactDashboardResponse } from '../lib/impactTypes';
+import { narrowImpact, type ImpactDashboardResponse } from '../lib/impactTypes';
 
 interface ComparePageProps {
   /** Tier 3 visibility passed from the surrounding scenario context. */
@@ -58,22 +58,8 @@ async function fetchImpactWithFallback(
   scenarioId: number,
 ): Promise<ImpactDashboardResponse | null> {
   try {
-    // Wrapper from T1's `scenariosApi` may not exist yet; fall back to a
-    // raw fetch via the existing http client. Once T1 publishes
-    // `scenariosApi.getImpact`, this can be simplified.
-    const maybeWrapper = (
-      scenariosApi as unknown as {
-        getImpact?: (id: number) => Promise<ImpactDashboardResponse>;
-      }
-    ).getImpact;
-    if (maybeWrapper) {
-      return await maybeWrapper(scenarioId);
-    }
-    // Fallback: import the bare api client and call directly.
-    const { api } = await import('@/api/client');
-    return await api.get<ImpactDashboardResponse>(
-      `/api/scenarios/${scenarioId}/impact`,
-    );
+    const raw = await scenariosApi.impact(scenarioId);
+    return narrowImpact(raw);
   } catch (e) {
     // 409 — anchor mismatch / similar — treat as missing impact for the
     // affected column. The compare endpoint itself surfaces the user-facing

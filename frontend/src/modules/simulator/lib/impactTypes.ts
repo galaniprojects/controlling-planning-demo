@@ -3,12 +3,20 @@
  * `GET /api/scenarios/:id/impact`.
  *
  * Backend (`backend/services/scenario_impact.py`) returns each dimension as
- * an opaque dict so it can evolve without schema churn. We mirror the actual
- * shapes here so the frontend renderers can compile against typed access.
+ * an opaque dict so it can evolve without schema churn. T1's API wrapper
+ * (`api/scenariosApi.ts::ImpactDashboardResponse`) reflects this with
+ * `dimensions: Record<string, unknown>`. We narrow that here so the leaf
+ * dimension renderers compile against typed access, while staying
+ * compatible with T1's wider B1 response — `narrowImpact()` is the
+ * adapter used by the strip / compare containers when reading from
+ * ScenarioContext.
  *
- * Source of truth = `compute_*_dimension` functions in scenario_impact.py
- * + `compute_cost_allocation_impact` in scenario_lever12.py.
+ * Source of truth for shapes = `compute_*_dimension` functions in
+ * scenario_impact.py + `compute_cost_allocation_impact` in
+ * scenario_lever12.py.
  */
+
+import type { ImpactDashboardResponse as B1ImpactDashboardResponse } from '../api/scenariosApi';
 
 // ---------------------------------------------------------------------------
 // Dimension 1 — Financial
@@ -194,6 +202,27 @@ export interface ImpactDashboardResponse {
   stale: boolean;
   anchor_forecast_version_id: number | null;
   dimensions: ImpactDashboardDimensions;
+}
+
+/**
+ * Narrow B1's wide `ImpactDashboardResponse` (where `dimensions` is
+ * `Record<string, unknown>`) into our typed shape. Pure structural cast —
+ * the runtime shape matches because the backend returns the same object.
+ *
+ * Used by impact + Compare containers when reading from ScenarioContext.
+ */
+export function narrowImpact(
+  raw: B1ImpactDashboardResponse | null | undefined,
+): ImpactDashboardResponse | null {
+  if (!raw) return null;
+  return {
+    scenario_id: raw.scenario_id,
+    tier3_content: raw.tier3_content,
+    tier3_visible: raw.tier3_visible,
+    stale: raw.stale,
+    anchor_forecast_version_id: raw.anchor_forecast_version_id,
+    dimensions: raw.dimensions as unknown as ImpactDashboardDimensions,
+  };
 }
 
 // ---------------------------------------------------------------------------

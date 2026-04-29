@@ -29,7 +29,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { scenariosApi } from '@/api/endpoints';
+import { scenariosApi } from '../api/scenariosApi';
 import type { ScenarioListItem } from '@/types/api';
 
 /**
