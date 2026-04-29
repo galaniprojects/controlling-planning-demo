@@ -20,6 +20,11 @@ class RoleContext(BaseModel):
     accessible_modules: list[str]
     owned_project_ids: list[str]
     managed_cost_center_id: str | None
+    # v5 B2 [B-AC-02] [D-AC-02]: Tier 3 simulator-access flag.
+    # Resolved from User.tier3_flag (looked up by person_id; False when no
+    # active User row exists). Frontend treats this as the authoritative
+    # gate for Tier 3 surfaces / impact dimensions / catalogue actions.
+    tier3_flag: bool = False
 
 
 class NotificationResponse(BaseModel):

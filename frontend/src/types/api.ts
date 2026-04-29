@@ -29,6 +29,13 @@ export interface RoleContext {
   accessible_modules: string[];
   owned_project_ids: string[];
   managed_cost_center_id: string | null;
+  /**
+   * v5 B2 [B-AC-02] [D-AC-02] — Tier 3 simulator-access flag from
+   * User.tier3_flag, looked up by person_id on the backend. Frontend
+   * gates Tier 3 surfaces / impact dimensions / catalogue actions on
+   * this. Defaults to false when no active User row exists.
+   */
+  tier3_flag?: boolean;
 }
 
 // Notifications
