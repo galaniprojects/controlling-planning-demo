@@ -172,6 +172,29 @@ def utilization_color_bucket(pct: float) -> str:
 # Financial aggregation helpers
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# C1 — Quarter helpers [C-FG-01..04]
+# ---------------------------------------------------------------------------
+
+def month_to_quarter_key(ym: str) -> str:
+    """Convert 'YYYY-MM' to 'YYYY-QN' (e.g. '2027-01' -> '2027-Q1')."""
+    y, m = parse_month(ym)
+    q = (m - 1) // 3 + 1
+    return f"{y}-Q{q}"
+
+
+def quarter_to_months(quarter_key: str) -> list[str]:
+    """Expand 'YYYY-QN' to the three 'YYYY-MM' strings it contains.
+
+    E.g. '2027-Q1' -> ['2027-01', '2027-02', '2027-03'].
+    """
+    year_str, q_str = quarter_key.split("-Q")
+    y = int(year_str)
+    q = int(q_str)
+    first_m = (q - 1) * 3 + 1
+    return [month_to_str(y, first_m + i) for i in range(3)]
+
+
 def aggregate_financial_rows(
     rows: list[dict],
     demo_date: str = "2026-02",
