@@ -85,6 +85,7 @@ def _upsert_entry(
         entry.payload_json = json.dumps(payload)
         entry.computed_at = datetime.utcnow()
     db.flush()
+    db.commit()
     return entry
 
 
