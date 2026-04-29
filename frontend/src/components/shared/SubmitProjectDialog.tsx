@@ -1,3 +1,14 @@
+/**
+ * SubmitProjectDialog — v5 lightweight intake dialog [A-BK-26] [A-DOI-04].
+ *
+ * Calls POST /api/intake/projects which lands the new project at DoI 0
+ * (Proposed) and inserts it into the bottom of the ranked backlog.
+ *
+ * v4 routed callers to /workbench/new-project/{id} for the resource-plan
+ * wizard; v5 routes to /backlog/{id} so the PL can iteratively complete the
+ * Tech Navigator + master-data fields needed to advance through DoI gates.
+ */
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -16,13 +27,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { launchpadApi, referenceApi } from '@/api/endpoints';
+import { intakeProjectApi, referenceApi } from '@/api/endpoints';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
 }
+
+type ProjectType = 1 | 2 | 3;
+type CapexOpex = 'capex' | 'opex';
+
+const PROJECT_TYPE_OPTIONS: { value: ProjectType; label: string }[] = [
+  { value: 1, label: 'Type 1 — Business case' },
+  { value: 2, label: 'Type 2 — Strategic' },
+  { value: 3, label: 'Type 3 — Compliance / lifecycle (off-cutoff)' },
+];
 
 export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
   const navigate = useNavigate();
@@ -32,7 +52,10 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
   const [lobId, setLobId] = useState('');
   const [startMonth, setStartMonth] = useState('2026-04');
   const [endMonth, setEndMonth] = useState('2027-03');
+  const [projectType, setProjectType] = useState<ProjectType>(1);
+  const [capexOpex, setCapexOpex] = useState<CapexOpex>('capex');
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -46,25 +69,32 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
     setLobId('');
     setStartMonth('2026-04');
     setEndMonth('2027-03');
+    setProjectType(1);
+    setCapexOpex('capex');
+    setError(null);
   }
 
   async function handleSubmit() {
-    if (!name.trim() || !lobId) return;
+    if (!name.trim() || !lobId || !description.trim()) return;
     setSubmitting(true);
+    setError(null);
     try {
-      const created = await launchpadApi.createProject({
+      const created = await intakeProjectApi.create({
         name: name.trim(),
-        description: description.trim() || undefined,
+        description: description.trim(),
         lob_id: lobId,
+        project_type: projectType,
+        capex_opex: capexOpex,
         start_month: startMonth,
-        end_month: endMonth || undefined,
+        end_month: endMonth || null,
       });
       onSuccess?.();
       resetForm();
       onOpenChange(false);
-      navigate(`/workbench/new-project/${created.id}`);
-    } catch {
-      // Error handling — keep dialog open
+      // v5: go straight to the backlog detail so the PL can fill scoring fields.
+      navigate(`/backlog/${created.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create project');
     } finally {
       setSubmitting(false);
     }
@@ -77,14 +107,23 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
     onOpenChange(openState);
   }
 
-  const isValid = name.trim().length > 0 && lobId.length > 0 && startMonth.length > 0;
+  const isValid =
+    name.trim().length > 0 &&
+    description.trim().length > 0 &&
+    lobId.length > 0 &&
+    startMonth.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>New Project</DialogTitle>
+          <DialogTitle>New Project — DoI 0 (Evaluate)</DialogTitle>
         </DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-1">
+          New projects land at DoI 0 (Proposed) and appear at the bottom of the
+          backlog. Tech Navigator scores, budget, and gates are completed
+          iteratively after creation.
+        </p>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground">Project Name</label>
@@ -96,32 +135,69 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Description</label>
+            <label className="text-sm font-medium text-foreground">
+              Problem statement / Business driver / Expected outcome
+            </label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief project description"
-              rows={2}
+              placeholder="Briefly describe the problem, business driver, and expected outcome"
+              rows={3}
             />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Line of Business</label>
-            <Select value={lobId} onValueChange={setLobId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select LoB" />
-              </SelectTrigger>
-              <SelectContent>
-                {lobs.map((lob) => (
-                  <SelectItem key={lob.id} value={lob.id}>
-                    {lob.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Line of Business</label>
+              <Select value={lobId} onValueChange={setLobId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select LoB" />
+                </SelectTrigger>
+                <SelectContent>
+                  {lobs.map((lob) => (
+                    <SelectItem key={lob.id} value={lob.id}>
+                      {lob.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Project Type</label>
+              <Select
+                value={String(projectType)}
+                onValueChange={(v) => setProjectType(Number(v) as ProjectType)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROJECT_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={String(opt.value)}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">CapEx / OpEx</label>
+              <Select
+                value={capexOpex}
+                onValueChange={(v) => setCapexOpex(v as CapexOpex)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="capex">CapEx</SelectItem>
+                  <SelectItem value="opex">OpEx</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Start Month</label>
               <Input
@@ -140,13 +216,17 @@ export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {
             </div>
           </div>
 
+          {error ? (
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          ) : null}
+
           <div className="flex gap-2 pt-2">
             <Button
               onClick={handleSubmit}
               disabled={!isValid || submitting}
               className="flex-1"
             >
-              {submitting ? 'Saving...' : 'Next: Resource Plan'}
+              {submitting ? 'Creating…' : 'Add to Backlog'}
             </Button>
             <Button
               variant="outline"
