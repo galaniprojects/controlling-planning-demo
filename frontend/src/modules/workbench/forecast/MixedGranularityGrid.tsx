@@ -6,6 +6,14 @@
  * selected, each changed cell shows a delta indicator (▲/▼) per [C-VC-03].
  *
  * Cluster C / Session C2.
+ *
+ * v5 B2 [B-OQ-02] [F-S1-04]: when `scenarioVersion` is provided the grid
+ * forwards it to the backend as the `version` query so the sandbox view
+ * can render scenario-fork forecast data instead of the live forecast.
+ * Defaulting `scenarioVersion` to `undefined` preserves the v4 / C2 call
+ * sites verbatim (additive prop). Diff helpers used by the cell renderer
+ * live in `simulator/lib/cellDiffHelpers` so Compare L3 + the change-summary
+ * drawer can reuse the same lookup + indicator semantics.
  */
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
@@ -25,9 +33,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { ChevronDown, ChevronRight, TrendingUp, TrendingDown, Info } from 'lucide-react';
+import { ChevronDown, ChevronRight, Info } from 'lucide-react';
 import { formatCurrencyCompact, formatNumber } from '@/lib/formatters';
 import { workbenchApi } from '@/api/endpoints';
+import {
+  lookupDelta as lookupDeltaHelper,
+  renderDeltaIndicator as renderDeltaIndicatorHelper,
+  isMeaningfulDelta,
+} from '@/modules/simulator/lib/cellDiffHelpers';
 import type {
   CellDelta,
   MixedGridCell,
@@ -44,6 +57,14 @@ interface Props {
   deltaIndex: Map<string, CellDelta>;
   /** Whether comparison overlay is active. */
   comparisonActive: boolean;
+  /**
+   * v5 B2 sandbox-version sentinel (e.g. `'scenario-12'`). When provided the
+   * grid fetches the scenario-fork view instead of the live forecast. Build
+   * via `simulator/lib/scenarioVersion.buildScenarioVersion(id)` — never
+   * inline the literal. Default `undefined` = live forecast (no behaviour
+   * change for v4 / C2 callers).
+   */
+  scenarioVersion?: string;
 }
 
 const MONTH_SHORT = [
@@ -91,6 +112,7 @@ export function MixedGranularityGrid({
   nameMap,
   deltaIndex,
   comparisonActive,
+  scenarioVersion,
 }: Props) {
   const [grid, setGrid] = useState<MixedGridResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,8 +123,13 @@ export function MixedGranularityGrid({
     let cancelled = false;
     setLoading(true);
     setError(null);
+    // v5 B2 [B-OQ-02]: forward `version` only when sandbox mode is active so
+    // the live-forecast call site (workbench grid) is byte-identical.
     workbenchApi
-      .getForecastGrid(projectId, { granularity: 'mixed' })
+      .getForecastGrid(projectId, {
+        granularity: 'mixed',
+        ...(scenarioVersion ? { version: scenarioVersion } : {}),
+      })
       .then((res) => {
         if (cancelled) return;
         setGrid(res);
@@ -118,7 +145,7 @@ export function MixedGranularityGrid({
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, scenarioVersion]);
 
   // Reset expanded quarters when project changes
   useEffect(() => {
@@ -218,29 +245,10 @@ export function MixedGranularityGrid({
   // a quarter, we report the parent quarter's delta divided by 3 — the
   // backend stores deltas at the cell-key granularity that was captured in
   // the snapshot, which for the outer zone is monthly storage [C-FG-01].
+  // Implementation extracted to `simulator/lib/cellDiffHelpers` per v5 B2
+  // [B-OQ-02] so Compare L3 + the change-summary drawer share the lookup.
   function lookupDelta(category: string, sub: string, key: string): CellDelta | undefined {
-    if (!comparisonActive) return undefined;
-    return deltaIndex.get(`${category}|${sub}|${key}`);
-  }
-
-  function renderDeltaIndicator(delta: number | null) {
-    if (delta === null || delta === undefined) return null;
-    if (Math.abs(delta) < 0.005) return null;
-    const positive = delta > 0;
-    const Icon = positive ? TrendingUp : TrendingDown;
-    return (
-      <span
-        className={`inline-flex items-center gap-0.5 text-[10px] font-tabular font-medium ${
-          positive
-            ? 'text-emerald-700 dark:text-emerald-400'
-            : 'text-red-700 dark:text-red-400'
-        }`}
-      >
-        <Icon className="h-2.5 w-2.5" />
-        {positive ? '+' : ''}
-        {formatCurrencyCompact(delta)}
-      </span>
-    );
+    return lookupDeltaHelper(deltaIndex, comparisonActive, category, sub, key);
   }
 
   function renderProvisionalDot() {
@@ -424,8 +432,7 @@ export function MixedGranularityGrid({
           const isExpandedSub = col.key.includes('::expanded::');
           const display = getDisplayCell(row, col);
           const delta = lookupDelta(row.category, row.sub_category, display.lookupKey);
-          const hasChange =
-            delta && delta.delta !== null && delta.status !== 'unchanged' && Math.abs(delta.delta) >= 0.005;
+          const hasChange = isMeaningfulDelta(delta);
           return (
             <TableCell
               key={`${row.sub_category}-${col.key}`}
@@ -456,7 +463,7 @@ export function MixedGranularityGrid({
                       {formatCurrencyCompact(display.amount)}
                     </span>
                   )}
-                  {hasChange && renderDeltaIndicator(delta?.delta ?? null)}
+                  {hasChange && renderDeltaIndicatorHelper(delta?.delta ?? null)}
                 </div>
               )}
             </TableCell>

@@ -314,14 +314,24 @@ export const workbenchApi = {
     api.get<ListResponse<ForecastGridRow>>(`/api/projects/${projectId}/forecast`),
 
   // C1 — Mixed-granularity forecast grid [C-FG-02]
+  // v5 B2 [B-OQ-02]: optional `version` param threads scenarioVersion through
+  // for sandbox forecast rendering. Backend at workbench.py:1482 currently
+  // ignores unknown params (FastAPI default), so this is forward-compatible
+  // plumbing — actual sandbox grid composition is a B-cluster follow-up.
   getForecastGrid: (
     projectId: string,
-    params?: { granularity?: 'mixed' | 'monthly' | 'quarterly'; boundary_months?: number; horizon_months?: number },
+    params?: {
+      granularity?: 'mixed' | 'monthly' | 'quarterly';
+      boundary_months?: number;
+      horizon_months?: number;
+      version?: string;
+    },
   ) => {
     const qs = new URLSearchParams();
     if (params?.granularity) qs.append('granularity', params.granularity);
     if (params?.boundary_months !== undefined) qs.append('boundary_months', String(params.boundary_months));
     if (params?.horizon_months !== undefined) qs.append('horizon_months', String(params.horizon_months));
+    if (params?.version) qs.append('version', params.version);
     const suffix = qs.toString();
     return api.get<MixedGridResponse>(
       `/api/projects/${projectId}/forecast/grid${suffix ? `?${suffix}` : ''}`,
