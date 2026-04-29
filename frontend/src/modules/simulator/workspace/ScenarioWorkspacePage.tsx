@@ -58,6 +58,7 @@ import { PeopleMasterSurface } from '../surfaces/PeopleMasterSurface';
 import { CapacityParametersSurface } from '../surfaces/CapacityParametersSurface';
 import { BulkActionsSection } from './sidebar/BulkActionsSection';
 import { ResourcesSection } from './sidebar/ResourcesSection';
+import { PromoteEnter } from '../promote/PromoteEnter';
 
 /**
  * Surface key (from URL `/surface/:surfaceKey/:entityId?`) → component.
@@ -218,7 +219,11 @@ function ScenarioWorkspaceInner() {
         )}
       </Button>
 
-      <ChangeSummaryDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
+      <ChangeSummaryDrawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        promoteSlot={ctx.canPromote ? <PromoteEnter /> : null}
+      />
 
       {ADVISOR_ENABLED && AdvisorPanel && advisorOpen && (
         <AdvisorPanel onClose={() => setAdvisorOpen(false)} />
