@@ -1,12 +1,173 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D/F — Wave 2 merged locally (2026-04-29). F3 + C1 + A6 all on main.
-Last completed: **A6** (frontend Backlog module — ranked list, cube view, 4-tab detail page, Launchpad tile). Verified end-to-end via Playwright walk in light + dark mode.
-Combined Wave 2: F3 (+125 tests) + C1 (+94 tests) brings backend test count to 1007. A6 frontend TS errors unchanged from baseline.
-Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
-Next: Wave 3 unblocked — A8 (Run Portfolio backend), B1 (simulator Lever 12), C2 (frontend mixed-grid + version history), F4–F7 (charging frontend).
-**Post-merge requirement:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables and C1's `is_provisional` column on `forecasts` break any existing DB until reseed.
+Phase: v5 Wave 3 in progress — Cluster E backend complete on branch `v5/cluster-e/e1-progress-tracker`.
+Last completed: **E1** (backend progress tracker + ExternalCostCategory verification). +92 tests bringing backend total to 1099. Unblocks five downstream Cluster E frontend sessions (E3–E7).
+Previous: A6 (frontend Backlog module — ranked list, cube view, 4-tab detail page, Launchpad tile). Verified end-to-end via Playwright walk in light + dark mode.
+Wave 2 merged: F3 (+125 tests) + C1 (+94 tests) brought backend test count to 1007.
+Wave 1 closed at 788 tests with A5 + F2 + D3 + A7.
+Next on Wave 3: A8 (Run Portfolio backend), B1 (simulator Lever 12), C2 (frontend mixed-grid + version history), F4–F7 (charging frontend).
+**Post-merge requirement:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables, C1's `is_provisional` column on `forecasts`, and E1's progress tracker columns + new tables (`milestone_deliverables`, `progress_snapshots`) all require reseed before the existing DB will load.
+
+## v5 Session E1: Backend Progress Tracker + ExternalCostCategory Verification (2026-04-29)
+
+### Feature Overview
+- **Progress tracker** per `[E-04c]`: milestone-anchored qualitative progress
+  layer added on `Project`. Three core fields (intra-milestone progress %,
+  status narrative, next-milestone confidence + reason) plus an optional
+  per-milestone deliverable checklist (max 10 items). Live-editable; every
+  forecast cycle automatically captures an immutable `ProgressSnapshot`
+  alongside C1's `ForecastVersion`.
+- **Auto-compute behaviour** per `[E-04c]`: when the current milestone has at
+  least one deliverable, `effective_progress_pct` derives from the completion
+  ratio (e.g., 4 of 6 = 66.67%). PL retains a manual override flag on
+  `Project.progress_pct_manual_override`.
+- **Confidence semantics** per `[E-04c]`: three-value enum
+  (`on_track | at_risk | blocked`) normalised in the service. `at_risk` and
+  `blocked` reject without a non-empty `confidence_reason`.
+- **Cycle hook** per `[E-05a]`: `services.progress_tracker.capture_progress_for_cycle`
+  fan-out called from `submit_forecast_cycle` after C1's
+  `capture_versions_for_cycle`. Best-effort — exceptions don't block the
+  cycle. Captured snapshot includes denormalised milestone descriptors plus
+  the full deliverable checklist as JSON.
+- **Portfolio aggregation** per `[E-04d]`: new `/api/portfolio/progress-aggregate`
+  endpoint returns inline-indicator payload (project, milestone, %, confidence,
+  RAG, has_progress_data flag) plus a confidence summary (on_track / at_risk /
+  blocked / unreported counts). PL automatically scope-filtered.
+- **ExternalCostCategory verification** per `[E-08e]` `[E-08f]`: D1 already shipped
+  the entity (`ExternalCostType`) plus list/create/update endpoints; this
+  session adds 17 dedicated tests covering the [E-08e] default demo set,
+  CRUD lifecycle, audit-log shape, dup/404 constraints, and controller-only
+  authorisation. No new endpoints or schema changes — the D1 surface meets
+  the [E-08f] requirement as-is.
+
+### Spec references implemented
+`[E-04c]` (progress tracker fields + deliverables + snapshot lifecycle),
+`[E-04d]` (portfolio inline indicator), `[E-05a]` (cycle hook),
+`[E-05d]` (no-data semantics — burn line only when no progress reported;
+honoured by ProgressResponse returning null effective pct when no data),
+`[E-08e]` + `[E-08f]` (verification of D1's ExternalCostType admin CRUD).
+
+Out of scope per session brief and aligned with E1 boundaries:
+- All frontend (E3–E7 land later in Wave 3).
+- Progress vs. Burn chart (E4 — frontend).
+- Variance waterfall (E4 — frontend).
+- Launchpad tile redesigns (E2/E3).
+
+### Technical Details
+- **Schema additions on `Project`** (all nullable, existing rows survive):
+  `current_milestone_id` (FK with `use_alter=True` to break the create_all
+  cycle), `progress_pct` (`Numeric(5,2)`), `progress_pct_manual_override`
+  Boolean, `status_narrative` (Text), `next_milestone_confidence`
+  (`String(20)`), `confidence_reason` (Text), `progress_updated_at`,
+  `progress_updated_by_id` (FK people.id).
+- **New table `milestone_deliverables`**: `id` PK, `milestone_id` FK
+  (cascade-delete from milestone), `sequence` Integer, `text` Text,
+  `is_complete` Boolean, `completed_at`, `completed_by_id` FK people.id.
+- **New table `progress_snapshots`**: `id` PK, `project_id` FK,
+  `cycle_label`, `cycle_id`, `snapshot_at`, `created_by_id`,
+  denormalised `current_milestone_id` + `current_milestone_name` +
+  `current_milestone_sequence`, plus all live progress fields and
+  `checklist_payload_json` (Text — captures full per-milestone checklist
+  state at snapshot time).
+- **Relationship disambiguation on `Project`**: `pl` relationship now carries
+  explicit `foreign_keys="Project.pl_person_id"` because Project has a
+  second FK into `people.id` (`progress_updated_by_id`). `milestones`
+  relationship carries `foreign_keys="ProjectMilestone.project_id"` and
+  `ProjectMilestone.project` mirrors the `foreign_keys=[project_id]` constraint
+  to break the new circular FK.
+- **New service** `services/progress_tracker.py` (~430 LOC, 13 public
+  functions): current-milestone derivation/resolution, checklist rollup,
+  effective-pct computation, validated update (delta map for audit),
+  snapshot capture + cycle fan-out, portfolio aggregation, response
+  payload builder.
+- **New schemas (11)** appended to `schemas/workbench.py`: `DeliverableItem`,
+  `DeliverableListResponse`, `DeliverableCreateRequest`, `DeliverableUpdateRequest`,
+  `CurrentMilestoneSummary`, `ChecklistRollup`, `ProgressResponse`,
+  `ProgressUpdateRequest`, `ProgressSnapshotMeta`, `ProgressHistoryListResponse`,
+  `ProgressSnapshotDetail`, `PortfolioProgressIndicator`,
+  `PortfolioProgressAggregateResponse`. Constant `PROGRESS_CONFIDENCE_VALUES`.
+- **New router endpoints (9)** appended to `routers/workbench.py`:
+  - `GET /api/projects/{id}/progress`
+  - `PATCH /api/projects/{id}/progress`
+  - `GET /api/projects/{id}/progress/history`
+  - `GET /api/projects/{id}/progress/history/{snapshot_id}`
+  - `GET /api/projects/{id}/milestones/{mid}/checklist`
+  - `POST /api/projects/{id}/milestones/{mid}/checklist`
+  - `PATCH /api/projects/{id}/checklist/{item_id}`
+  - `DELETE /api/projects/{id}/checklist/{item_id}`
+  - `GET /api/portfolio/progress-aggregate` (new sub-router
+    `progress_router = APIRouter(prefix='/api/portfolio')`).
+- **Authorization**: read endpoints open to all authenticated roles;
+  write endpoints (PATCH progress, POST/PATCH/DELETE checklist) require
+  controller (any project) or PL (own project). `_can_edit_progress`
+  helper mirrors the milestone editor's gate.
+- **Audit log**: every write emits one entry per changed field with
+  category `forecast_actions`. Entity types: `project_progress`,
+  `milestone_deliverable`.
+- **Seed helper** `_seed_progress_tracker_data()`: populates live progress
+  state on three flagship projects (proj-erp2 / proj-sap / proj-iam) with
+  realistic narratives, milestone-anchored checklists (15 deliverables
+  total across 5–6 items each), and two historical snapshots per project
+  (Q1 + Q2 2026 cycles → 6 snapshots). Registered in BOTH
+  `seed_database()` AND `reset_database()` per the wave-2 lesson
+  (commit 9b7aa6d).
+
+### API Endpoints Added
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| GET | `/api/projects/{id}/progress` | all | Read live progress + checklist rollup [E-04c] |
+| PATCH | `/api/projects/{id}/progress` | controller / PL on own | Update narrative, confidence, reason, manual pct, current milestone [E-04c] |
+| GET | `/api/projects/{id}/progress/history` | all | List snapshots newest-first |
+| GET | `/api/projects/{id}/progress/history/{snapshot_id}` | all | Snapshot detail with checklist |
+| GET | `/api/projects/{id}/milestones/{mid}/checklist` | all | List deliverable items |
+| POST | `/api/projects/{id}/milestones/{mid}/checklist` | controller / PL on own | Add item (max 10) [E-04c] |
+| PATCH | `/api/projects/{id}/checklist/{item_id}` | controller / PL on own | Update item |
+| DELETE | `/api/projects/{id}/checklist/{item_id}` | controller / PL on own | Remove item |
+| GET | `/api/portfolio/progress-aggregate` | all (PL scope-filtered) | Portfolio progress indicators [E-04d] |
+
+### Test counts
+| File | Tests |
+|------|-------|
+| `test_progress_tracker.py` | 43 |
+| `test_router_progress.py` | 29 |
+| `test_external_cost_category.py` | 17 |
+| `test_cycle_submit_creates_progress_snapshots.py` | 3 |
+| **Total new** | **+92** |
+| **Grand total** | **1099** |
+
+### Schema changes requiring reseed
+- `projects` table: 8 new nullable columns (`current_milestone_id`
+  with `use_alter=True`, `progress_pct`, `progress_pct_manual_override`,
+  `status_narrative`, `next_milestone_confidence`, `confidence_reason`,
+  `progress_updated_at`, `progress_updated_by_id`). All nullable so
+  existing rows survive `create_all`, but the columns themselves are
+  absent from any pre-E1 DB file until the file is dropped and the
+  schema rebuilt.
+- `milestone_deliverables` table: NEW. 9 columns; cascade-delete from
+  `project_milestones`.
+- `progress_snapshots` table: NEW. 14 columns including JSON checklist
+  payload.
+
+### Demo data
+- 3 projects (proj-erp2, proj-sap, proj-iam) seeded with progress live
+  state.
+- 15 deliverable checklist items across the three current milestones.
+- 6 historical snapshots (2 per project × 3 projects, Q1 + Q2 2026 cycles).
+- Confidence narrative spans all three values: `at_risk` (proj-erp2),
+  `on_track` (proj-sap), `blocked` (proj-iam) — gives every UI consumer
+  realistic data to render.
+
+### Branch
+`v5/cluster-e/e1-progress-tracker` — 5 atomic commits.
+
+### Refactoring opportunities
+- The `pl` relationship now carries an explicit `foreign_keys` argument
+  because Project gained a second FK into `people.id` (`progress_updated_by_id`).
+  A future cleanup could fold this into a polymorphic "actor" column or a
+  shared mixin once we collect a few more "who last touched this" fields.
+- `MilestoneDeliverable.sequence` is contiguous-but-not-enforced — re-ordering
+  endpoint deferred to the frontend session that needs it.
 
 ## v5 Session C1: Mixed-Granularity Forecast + Versioning (2026-04-29)
 
