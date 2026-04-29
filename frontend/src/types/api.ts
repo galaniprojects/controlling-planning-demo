@@ -1786,3 +1786,43 @@ export interface UpstreamChainResponse {
   paths: string[][];
   total: number;
 }
+
+// === Per-entity BTC allocation breakdown (Workbench BTC tab F6) [E-09] ===
+
+export type AllocationBreakdownSortBy =
+  | 'amount'
+  | 'percentage'
+  | 'location'
+  | 'code'
+  | 'region'
+  | 'division'
+  | 'country';
+
+export interface EntityAllocationBreakdownRow {
+  charging_location_id: string;
+  charging_location_code: string | null;
+  charging_location_name: string | null;
+  region_name: string | null;
+  division: string | null;
+  country_iso_code: string | null;
+  legal_entity_name: string | null;
+  percentage: number;
+  amount_eur: number;
+}
+
+export interface EntityAllocationBreakdownResponse {
+  entity_id: string;
+  entity_name: string;
+  year: number;
+  version: string;
+  to_business_pct: number;
+  effective_cost: number;
+  business_amount_total: number;
+  rows: EntityAllocationBreakdownRow[];
+  profile_id: number | null;
+  profile_status: BTCStatus | null;
+  profile_mode: BTCMode | null;
+  has_profile: boolean;
+  sums_to_100: boolean;
+  total: number;
+}

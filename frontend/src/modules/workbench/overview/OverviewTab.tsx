@@ -9,12 +9,18 @@ import { ResourceSummaryTable } from './ResourceSummaryTable';
 import { ProjectTimelineChart } from './ProjectTimelineChart';
 import { ProjectTrajectoryChart } from '@/components/charts/ProjectTrajectoryChart';
 import { MonthlyTimelineTable } from './MonthlyTimelineTable';
+import { BTCAllocationTile } from './BTCAllocationTile';
 
 interface Props {
   projectId: string;
+  /**
+   * Triggered by BTC tile CTA buttons. Parent (ProjectWorkspace) flips the
+   * active tab so the user lands directly in the BTC editor.
+   */
+  onOpenBTCTab?: () => void;
 }
 
-export function OverviewTab({ projectId }: Props) {
+export function OverviewTab({ projectId, onOpenBTCTab }: Props) {
   const [data, setData] = useState<ProjectOverview | null>(null);
   const [timeline, setTimeline] = useState<TimelineData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,6 +92,12 @@ export function OverviewTab({ projectId }: Props) {
         />
         <ResourceSummaryTable title={data.resource_plan_title} items={data.resource_plan_summary} />
       </div>
+
+      {/* BTC Allocation tile per [E-09] (F6) */}
+      <BTCAllocationTile
+        projectId={projectId}
+        onOpenBTCTab={() => onOpenBTCTab?.()}
+      />
     </div>
   );
 }

@@ -1018,3 +1018,69 @@ def _create_resource_requests_from_cr(cr: ChangeRequest, db: Session) -> None:
             status="pending",
         )
         db.add(req)
+
+
+# ---------------------------------------------------------------------------
+# v5 Session E2 — External cost aggregation (portfolio-scoped) [E-08c]–[E-08d]
+# ---------------------------------------------------------------------------
+
+@router.get("/external-costs/vendor-summary")
+def get_portfolio_external_cost_vendor_summary(
+    year: int | None = None,
+    lob: str | None = None,
+    status: str | None = None,
+    rag: str | None = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Cross-project vendor table per [E-08c].
+
+    Aggregates external spend by vendor across all projects the current user
+    can see. Returns project_count, top_project (highest spend), and total
+    forecast/actuals per vendor.
+    """
+    from services.external_cost_aggregation import compute_portfolio_vendor_summary
+
+    filters = {k: v for k, v in
+               {"lob": lob, "status": status, "rag": rag}.items()
+               if v is not None}
+    rows = compute_portfolio_vendor_summary(db, user, year=year, filters=filters)
+    return {"items": rows, "total": len(rows), "year": year}
+
+
+@router.get("/external-costs/category-analysis")
+def get_portfolio_external_cost_category_analysis(
+    year: int | None = None,
+    lob: str | None = None,
+    status: str | None = None,
+    rag: str | None = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Portfolio-level cost-type breakdown per [E-08c]."""
+    from services.external_cost_aggregation import compute_portfolio_category_analysis
+
+    filters = {k: v for k, v in
+               {"lob": lob, "status": status, "rag": rag}.items()
+               if v is not None}
+    rows = compute_portfolio_category_analysis(db, user, year=year, filters=filters)
+    return {"items": rows, "total": len(rows), "year": year}
+
+
+@router.get("/external-costs/project-vendor-matrix")
+def get_portfolio_external_cost_project_vendor_matrix(
+    year: int | None = None,
+    lob: str | None = None,
+    status: str | None = None,
+    rag: str | None = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Cross-tab grid (rows=projects, cols=vendors) per [E-08d]."""
+    from services.external_cost_aggregation import compute_project_vendor_matrix
+
+    filters = {k: v for k, v in
+               {"lob": lob, "status": status, "rag": rag}.items()
+               if v is not None}
+    payload = compute_project_vendor_matrix(db, user, year=year, filters=filters)
+    return {**payload, "year": year}

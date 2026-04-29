@@ -30,7 +30,7 @@ A full-featured IT financial planning and portfolio management demo application 
 ## Features
 
 ### Portfolio Overview
-IT portfolio dashboard with KPI tiles (CY-scoped to current fiscal year), hierarchical project tree grouped by configurable organizational hierarchy (e.g., Line of Business → Program → Project), budget/forecast/actuals tracking, RAG status indicators, **v5 ranked backlog with cutoff-line walk** (compose budget envelope, project type 1/2/3 driving cutoff exemption, real-time within-cutoff flag), change request approvals, and controller review with editable grids and diff comparison views. **v5 intake replaces the v4 intake queue**: new projects land at DoI 0 in the ranked backlog; controller actions (approve / send back / reject) and PL Send-Back ↔ Resubmit cycle drive lifecycle transitions.
+IT portfolio dashboard with KPI tiles (CY-scoped to current fiscal year), hierarchical project tree grouped by configurable organizational hierarchy (e.g., Line of Business → Program → Project), budget/forecast/actuals tracking, RAG status indicators, **v5 ranked backlog with cutoff-line walk** (compose budget envelope, project type 1/2/3 driving cutoff exemption, real-time within-cutoff flag), change request approvals, and controller review with editable grids and diff comparison views. **v5 intake replaces the v4 intake queue**: new projects land at DoI 0 in the ranked backlog; controller actions (approve / send back / reject) and PL Send-Back ↔ Resubmit cycle drive lifecycle transitions. **v5 Cluster E (Session E2 backend):** portfolio-wide external cost aggregation — vendor summary across projects (top project per vendor, project count), category analysis with `pct_of_external_total`, and a project-vendor cross-tab matrix (rows = projects, columns = vendors).
 
 ### Backlog
 Ranked IT project backlog with composite scoring, cutoff analysis, and Tech Navigator cube view per `[A-BK-01..26]`. **Ranked List view** — sortable table (rank, project name, composite score, budget) with server-driven stage/type/size/T-level filters and within-cutoff toggle. Cutoff bands inserted at `should_be_cutoff_rank` and `reality_cutoff_rank`; misalignment-zone rows tinted amber. Sort override suppresses bands and shows a reset banner. **Cube view** — 3-column scatter chart grid (T0 Just better / T1 Paper to software / T2 New business) with bubble size proportional to budget, colored by project type. **CutoffSummaryStrip** — always-visible portfolio-wide budget envelope KPIs. **Project detail** (`/backlog/:projectId`) — 4-tab view: Scores & Ranking (Tech Navigator rubric + ranking context card), Financial Overview (embedded workbench overview), Master Data (DoI-aware completeness checklist), Milestones (read-only strip + table). URL search params persist all filter, sort, view-mode, and tab state.
@@ -42,7 +42,7 @@ Per-project scoring rubric (Complexity sub-criteria: Standardization 40 % / Usag
 Master-detail project workspace with sidebar project list showing type and status badges (color-coded: amber for workflow statuses, neutral for Active/Completed/Planned). Three tabs: Overview (timeline chart, three-point estimates, resource summary with lifecycle-aware title, CapEx/OpEx percentage split), Forecast & Planning (monthly grid with collapsible year columns, CapEx/OpEx per line item, expandable employee assignments per role with auto-allocation), and Change History. Includes a 5-phase rolling forecast wizard with AI-generated suggestions, a full project submission workflow with resource planning, CC Owner confirmation, and controller change request review. Auto-allocation ensures every internal resource line has assigned employees whose hours match the forecast — triggered on project approval and CR acceptance.
 
 ### Capacity Management
-Team utilization heatmaps (CSS grid, person x month), cell-level drill-down showing allocated/available hours with person-level detail, organization-wide overview with 3 pivot views (Cost Center, Role, top-level entity), and resource request management with assignment preview.
+Team utilization heatmaps (CSS grid, person x month), cell-level drill-down showing allocated/available hours with person-level detail, organization-wide overview with 3 pivot views (Cost Center, Role, top-level entity), and resource request management with assignment preview. **v5 Cluster E (Session E2 backend):** PL-friendly **role availability** read-model aggregated by `(role_type, location, month)` with no person identifiers in the response — surfaced via `GET /api/capacity/role-availability` and consumed by the new PL Resource Availability tile on the Launchpad.
 
 ### What-If Simulator
 Scenario planning tool with 12 v4 action types (7 project-level, 5 portfolio-level), real-time KPI impact calculation, year-scoped actions, multi-scenario comparison, portfolio drill-down, and an AI Advisor panel with optimization recommendations.
@@ -69,6 +69,8 @@ Two-stage IT cost charging cycle. **Polymorphic ChargeableEntity** (Project / Of
 - **BTC Profiles editor:** cross-entity list with sums-to-100 indicator; single-entity manual mode (add-only line list, charging-location picker filterable by region/division, sum-to-100 gate per `[F-S2-02]`); automatic mode with read-only preview, "Refresh from UM" diff dialog before commit per `[F-S2-04]`; mode change with values-visible warning per `[F-S2-05]`; "New profile" supports manual / automatic / copy-from per `[F-S2-07]`.
 - **Location Cost Rollup:** static SVG world map with bubbles at country level (size = magnitude, color = dominant division) and click-to-drill into the country's charging-locations per `[F-RV-03]`; tree-table view with three pre-built rollup paths (Region→Country→Location, Division→Location, Country→Location), cell drill-down to contributing entities + DAG upstream chains per `[F-RV-04]`.
 - **Reporting integration:** AI Report Builder bridge with Cluster F prompt templates (cost by division, top inflow drivers, regional YoY) plus a catalogue listing all 11 dimensions and 6 measures the data layer exposes per `[F-RV-01]`.
+
+**Workbench BTC tile + tab (v5 Session F6, [E-09]):** Project Workbench gains a BTC allocation tile in the Overview tab (headline business € amount, top 3 charging locations with % bars, "+N more" CTA into the BTC tab) and a new third tab "Cost Allocation" (or "Distribution" when the entity has zero To-Business share). The tab embeds the refactored single-entity BTC profile editor (now accepts `entityId + year`), a sortable allocation breakdown table with click-to-drill into upstream-cost paths, and per-entity audit history. Internal services with no business charging fall back to the entity-keyed Distribution editor inline.
 
 ### Administration
 Five-section sidebar navigation (Master Data → Reference Catalogues → Planning & Ranking → Portfolio Hierarchy → System) covering 24 admin sub-surfaces. Master data: Cost Centers, Competence Centers, Lines of Business, Workforce Locations, People, plus Cluster F's Charging Locations / Legal Entities / Regions / Countries / User Measurement. Reference catalogues: Role Types, External Cost Types, Project Dependencies. System: Users (with Tier 3 + change-reviewer flags), Role Permissions Grid (per-role per-entity-type grants for BTC profile + Stage 1 distribution edits + master-data overrides), Rate Tables, **Workflow Templates editor** (six configurable workflows — forecast cycle, intake, change request, send back, milestone baseline override, scheduled master data activation; per-step touchpoint editor for required / skippable / assigned role / data gates / notifications JSON / time constraint / escalation), **Scheduled Changes panel** (5-state lifecycle pending_review → approved → activated / rejected / cancelled with manual-trigger activation engine), and **Audit Log V2** (8-category filter, entity-scoped trail, CSV + Excel export). Dark-mode-ready throughout; all-controller demo.
@@ -171,19 +173,19 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 
 | Router | Prefix | Endpoints | Description |
 |--------|--------|-----------|-------------|
-| **Launchpad** | `/api` | 8 | Roles, modules, KPIs, pending actions, project create/submit |
-| **Portfolio** | `/api/portfolio` | 18 | Dashboard KPIs, project tree, intake queue (approve/reject/send-back/diff/accept-changes), CR approvals (approve/reject/send-back/editable-grid) |
-| **Workbench** | `/api/projects` | 18 | Project list, overview, timeline, forecast grid (v4), mixed-granularity grid (C1), 5-phase forecast cycle, CR diff/accept-changes/resubmit, forecast version history + diff |
+| **Launchpad** | `/api` | 9 | Roles, modules, KPIs, pending actions, role-personalised tiles (E2), project create/submit |
+| **Portfolio** | `/api/portfolio` | 21 | Dashboard KPIs, project tree, intake queue (approve/reject/send-back/diff/accept-changes), CR approvals (approve/reject/send-back/editable-grid), external cost vendor / category / project-vendor matrix (E2) |
+| **Workbench** | `/api/projects`, `/api/workbench` | 20 | Project list, overview, timeline, forecast grid (v4), mixed-granularity grid (C1), 5-phase forecast cycle, CR diff/accept-changes/resubmit, forecast version history + diff, per-project external cost vendor / category rollup (E2) |
 | **Forecast Versions** | `/api/forecast` | 1 | Cross-project version diff (C1) |
 | **Tech Navigator** | `/api/projects` | 2 | Project Tech Navigator profile (read + partial update with score recompute) |
 | **Pipeline** | `/api/projects` | 4 | Pipeline stage + DoI gate state (read, transition with optional override, AI Council flag, manual within_cutoff setter) |
 | **Project Milestones** | `/api/projects` | 4 | Milestone CRUD (list, create, update, delete) per project; baseline-date edits require controller + override reason per [A-MS-03] |
-| **Capacity** | `/api/capacity` | 14 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation |
+| **Capacity** | `/api/capacity` | 15 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation, role × location × month availability (E2) |
 | **Scenarios** | `/api/scenarios` | 28 | CRUD, actions, comparison, AI advisor (v4) + Lever 12 sandbox (Stage 1/Stage 2/per-CL impact), 8-dimension impact dashboard, anchor + rebase + archive lifecycle, controller Promote (with [F-AC-01] gating), PL Apply-to-forecast, Tier 3 visibility (B1) |
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
 | **Report Builder** | `/api/report-builder` | 12 | Data catalog, filter options, query execution, saved reports CRUD, share/publish, CSV export |
 | **AI Report Builder** | `/api/reports/ai-builder` | 4 | Status check, conversation start, message, cleanup |
-| **BTC Profiles + Rollup** | `/api/charging`, `/api/admin` | 15 | BTCProfile CRUD, UM refresh, mode change, copy/year-rollover, WBS matrix, rollup query (11 dims), drill-down, cache invalidate/status |
+| **BTC Profiles + Rollup** | `/api/charging`, `/api/admin` | 19 | BTCProfile CRUD, UM refresh, mode change, copy/year-rollover, WBS matrix, rollup query (11 dims), drill-down, cache invalidate/status, F6 per-entity allocation breakdown + read-only entity / charging-locations |
 | **Admin** | `/api/admin` | 20 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset, Tech Navigator score recompute, milestone-types catalogue |
 | **Docs** | `/api/docs` | 3 | Module manuals, FAQ |
 | **Reference** | `/api/reference` | 4 | Roles, cost types, grouping entities, cost centers |
@@ -357,10 +359,46 @@ BTCProfile (Business Transfer Charging) maps a chargeable entity's to-business c
 | `POST` | `/api/admin/btc-profiles/year-rollover` | controller | Bulk copy active profiles from `source_year` to `target_year` drafts per `[F-S2-05]` |
 | `GET` | `/api/charging/rollup` | any role | Aggregate effective costs by dimension (`group_by`: entity/entity_type/hierarchy_node/responsible/change_or_run/charging_location/legal_entity/region/division/country/stage) per `[F-RV-01..03]` |
 | `GET` | `/api/charging/rollup/charging-location/{cl_id}` | any role | Drill-down: upstream path chain for entity × charging-location with enriched labels per `[F-RV-04]` |
+| `GET` | `/api/charging/entities/{id}/allocation-breakdown` | any role | F6: Per-entity BTC allocation breakdown per `[E-09]` — sortable charging-location rows with %, € amount, region/country/division metadata |
+| `GET` | `/api/charging/entities/{id}` | any role | F6: Read-only chargeable entity fetch (admin variant remains controller-only for mutation paths) |
+| `GET` | `/api/charging/entities/by-project/{project_id}` | any role | F6: Look up the chargeable entity linked to a project — used by Workbench BTC tab |
+| `GET` | `/api/charging/charging-locations` | any role | F6: Read-only active-charging-locations list (admin variant remains controller-only) |
 | `POST` | `/api/admin/rollup-cache/invalidate` | controller | Flush entire rollup cache per `[F-RV-02]` (manual recovery path) |
 | `GET` | `/api/admin/rollup-cache/status` | controller | Diagnostic: entry counts per cache layer (stage1_effective / stage2_location) per `[F-RV-02]` |
 
 BTC validation rules: sum-to-100 tolerance 0.01%; manual profiles only editable in `draft` status; automatic profiles updated via `refresh-um` only; mode change requires explicit `confirm` flag; year rollover creates `draft` copies only. Cache invalidation is wired into all write paths: distribution writes invalidate (year, version), BTC writes invalidate stage2 for entity, annual_cost writes invalidate both layers for entity.
+
+### External Cost Aggregation Endpoints (v5 Cluster E — Session E2)
+
+External cost vendor and category breakdowns at project and portfolio scopes per `[E-08a]`–`[E-08d]`. All endpoints reuse the `_get_scoped_project_ids` role-scoping helper from the existing Vendor Spend report so visibility behaves identically. Project-scoped endpoints additionally enforce per-role access via `_verify_project_visible` (PL: own projects only → 403; CC Owner: only projects with allocations from their CC; Controller / Executive: full).
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/workbench/projects/{id}/external-costs/vendor-summary` | any role (visibility-checked) | Vendor breakdown for one project; forecast / actuals / baseline / remaining / variance per vendor |
+| `GET` | `/api/workbench/projects/{id}/external-costs/category-rollup` | any role (visibility-checked) | Per-cost-type rollup for one project |
+| `GET` | `/api/portfolio/external-costs/vendor-summary` | any role | Cross-project vendor table with `project_count`, `top_project_id`, top spend |
+| `GET` | `/api/portfolio/external-costs/category-analysis` | any role | Portfolio-level cost-type breakdown with `pct_of_external_total` |
+| `GET` | `/api/portfolio/external-costs/project-vendor-matrix` | any role | Cross-tab grid (rows = projects, columns = vendors, cells = forecast + actuals) |
+
+All endpoints accept an optional `?year=YYYY` filter; portfolio endpoints additionally accept `lob`, `status`, `rag` filters identical to the rest of `/api/portfolio/`.
+
+### Launchpad Role Tiles (v5 Cluster E — Session E2)
+
+Role-personalised tile payload for the Launchpad home page per `[E-06d]`–`[E-06j]`. Tile shape is identical across all four roles so the front-end renders them with one component.
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/launchpad/tiles` | any role | Returns role-appropriate tiles: PL = 7 (My Projects, My Budget, My Progress, My Forecast, Recent Changes, Scenario Explorer, Resource Availability); Controller = 9 (Portfolio KPIs, Pipeline, Budget vs Cutoff, Reporting, Forecast Cycle, Pending Reviews, Capacity Overview, Scenario Activity, Admin); CC Owner = 8 (Team Utilization, Open Requests, Headcount, CC Budget, Portfolio, My CC's Projects, Published Scenarios, CC Simulator); Executive = 7 (Portfolio KPIs, Investment Mix, Pipeline Health, Top Risks, Scenario Activity, Budget Trajectory, Backlog) |
+
+Tile shape: `{ tile_id, title, primary_metric, secondary_metric?, link_module, link_entity_id?, link_tab?, tone }`. `tone` is one of `neutral` / `positive` / `warning` / `alert` and is computed server-side from the metric (e.g. `> 5` overdue forecasts → `alert`).
+
+### PL Capacity Read-Only (v5 Cluster E — Session E2)
+
+Aggregated allocation snapshot keyed by `(role_type, location, month)` per `[E-06a]`. **No person identifiers or names** appear in the response — verified by negative assertion in tests. All four roles read the same shape.
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/capacity/role-availability?location_id=&role_type_id=&month_from=&month_to=` | any role | Returns headcount, standard hours, allocated hours, available hours, utilisation % per (role × location × month). Default month range: current demo month plus the next two months |
 
 ### Resource Assignment Endpoints (CC Owner)
 
