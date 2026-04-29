@@ -1,12 +1,700 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D/F — Wave 2 merged locally (2026-04-29). F3 + C1 + A6 all on main.
-Last completed: **A6** (frontend Backlog module — ranked list, cube view, 4-tab detail page, Launchpad tile). Verified end-to-end via Playwright walk in light + dark mode.
-Combined Wave 2: F3 (+125 tests) + C1 (+94 tests) brings backend test count to 1007. A6 frontend TS errors unchanged from baseline.
+Phase: v5 Wave 3 merged on main (2026-04-29) and verified end-to-end. All five sessions landed: **B1** (scenario engine + Lever 12, +91 tests), **E1** (progress tracker + ExternalCostCategory, +92 tests), **A8** (frontend pipeline + Run Portfolio scaffolding), **C2** (frontend mixed-granularity grid + version history UI), and **F4 + F5** (frontend Charging & Allocations module — Distribution + BTC editors + Location Cost Rollup map + tree-table + Report Builder integration). Backend test count after Wave 3: **1190** (1007 baseline + 91 B1 + 92 E1). Frontend TypeScript: 0 errors. Visual verification done in light + dark themes across all four roles (~30 screenshots, prefix `w3-`).
+Wave 2 merged: F3 (+125 tests) + C1 (+94 tests) + A6 frontend brought backend baseline to 1007 tests.
 Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
-Next: Wave 3 unblocked — A8 (Run Portfolio backend), B1 (simulator Lever 12), C2 (frontend mixed-grid + version history), F4–F7 (charging frontend).
-**Post-merge requirement:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables and C1's `is_provisional` column on `forecasts` break any existing DB until reseed.
+Next: Wave 4 candidates — F6 (Workbench BTC tile + tab), B2 (frontend simulator workspace), E2 (backend external cost aggregation + Launchpad data). All three are pairwise independent and unblocked.
+**Post-merge requirement on first pull:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables, C1's `is_provisional` column on `forecasts`, B1's Scenario column additions, and E1's progress tracker columns + new tables all require schema regeneration.
+
+## v5 Session B1: What-If Simulator Backend (2026-04-29)
+
+### Feature Overview
+- **Scenario lifecycle extended** per `[B-SL-01..05]`: anchor to a specific `ForecastVersion`,
+  manual rebase to a newer cycle, soft archive (read-only, hidden from active list, clonable),
+  free-text tags with multi-select filter, Tier 3 content gating on publish (Option C — defaults
+  to "tier3_only" visibility when scenario contains Tier 3 diffs).
+- **17+ editable surfaces** per `[B-ES-01]` — ScenarioAction `lever_category` + `tier`
+  classification provides the foundation; B1 ships full implementation for forecast_grid,
+  cost_allocation (Lever 12), people, rate_table, etc. Other categories accept actions
+  through the generic `POST /actions` endpoint.
+- **Lever 12 (Cost allocation rules) widening per `[B-OQ-01]` working assumption**:
+  - Stage 1 distribution edges fork lazily into `Distribution.version='scenario-{id}'`
+    on first mutation; live `forecast` rows never touched.
+  - Stage 2 BTC line + `to_business_pct` mutations stored as `ScenarioAction` overlays
+    (live `BTCProfile` / `BTCProfileLine` rows untouched).
+  - Cycle detection union-aware across anchor + scenario versions per `[F-S1-05]`.
+  - Sum-rule per `[F-S1-02]` enforced via existing `distribution_service` helpers.
+  - `compute_cost_allocation_impact()` returns per-charging-location deltas vs the anchor,
+    re-running `dag_resolver.compute_effective_cost` on the sandbox state per `[F-RV-02]`.
+- **8-dimension impact dashboard** per `[B-ID-01..03]`: financial / backlog_ranking /
+  capacity / people (Tier 3 redacted) / outsourcing_ratio / investment_mix / running_cost /
+  change_summary. Plus the Lever 12 widening: `cost_allocation` sub-section with
+  per-charging-location deltas.
+- **Promote workflow (controller-only)** per `[B-PR-01..06]`:
+  - `assert_anchor_is_latest_cycle()` enforces `[B-PR-02]` rebase gate.
+  - `decide_routing()` maps each diff to its native workflow (forecast_grid → direct
+    update or change_request, pipeline_stage → DoI gate check, tech_navigator →
+    direct or send_back, rate_table → admin path, people → action item, cost_allocation
+    → direct mutation gated by RolePermissionGrant).
+  - **Lever 12 promote materialises sandbox mutations on live entities** (Distribution,
+    `to_business_pct`, BTC profile lines).
+  - `[F-AC-01]` permission gating: controllers always allowed; other roles require
+    explicit `RolePermissionGrant` row for `entity_type='btc_profile'` or `'distribution'`.
+  - Selective per-action promotion via `action_ids`; `ScenarioAction.promoted_at` /
+    `promoted_by_id` stamped; `ScenarioPromotion` audit row recorded.
+- **PL Apply-to-forecast** per `[B-PR-05]`:
+  - PL-only; controllers cannot use this path (they use Promote).
+  - Filters to PL's own-project diffs in carry-forward categories
+    (forecast_grid, milestone, people-on-own-project, sourcing_mix).
+  - Stamps `Forecast.is_provisional=True` per `[B-OQ-02]` provenance pattern.
+  - `ScenarioApplyToForecastEvent` audit row.
+- **Role policy expansion**:
+  - List/get/drill/compare/impact/cost-allocation-impact/promotions are accessible to
+    all four roles with Tier 3 redaction + visibility check.
+  - Create/metadata/publish/archive/rebase/actions: controller, executive, cost_center_owner.
+    PL is intentionally excluded from creation per `[E-06c]`.
+  - CC Owner creation auto-scopes to managed CC per `[E-06b]`; reject mismatch.
+  - Lever 12 mutations: controller + executive (Tier 2).
+  - Promote (preview + execute): controller-only per `[B-PR-06]`.
+  - Apply-to-forecast: project_lead-only per `[B-PR-05]`.
+
+### Spec references implemented
+`[B-AC-01..03]` (three-role + three-tier access), `[B-ES-01]` (lever framework + Lever 12
+widening), `[B-CA-01..04]` (catalogue actions — partial; existing v4 actions cover most),
+`[B-SL-01..05]` (anchor/rebase/publish/archive lifecycle), `[B-PR-01..06]` (Promote workflow),
+`[B-ID-01..03]` (impact dashboard + recalculation model), `[B-CV-01..05]` (compare —
+shared-anchor enforcement added), `[B-OQ-01]` (Lever 12 promote with `[F-AC-01]` gate
+working-assumption confirmed), `[B-OQ-02]` (Apply-to-forecast provenance visible to
+controller — working-assumption confirmed), `[E-06b]` (CC Owner CC-scoped creation),
+`[E-06c]` (PL read-only + Apply-to-forecast).
+
+Out of scope per session plan: B2 frontend (simulator workspace UI, lever panels, comparison
+view, scenario manager), AI Advisor production wiring (`[B-AI-01]`), inter-project dependency
+data model (`[B-DEP-01]` — seeded to Cluster D), Monte Carlo / stochastic simulation,
+NPV/IRR/payback engines (Tech Navigator covers payback already), automatic dependency
+rescheduling, organisational structure changes in sandbox, planning parameter changes in
+sandbox.
+
+### Technical Details
+- **Models extended (existing tables only — no rename):**
+  `Scenario` adds `anchor_forecast_version_id` (FK), `rebased_from_version_id` (FK),
+  `visibility` (`'private'|'tier3_only'|'all_users'`, server_default `'private'`),
+  `tier3_content_flag` (Boolean, server_default `'0'`), `archived` (Boolean,
+  server_default `'0'`), `archived_at`, `tags` (JSON Text), `last_recalculated_at`,
+  `cc_owner_scope_cc_id` (FK to cost_centers).
+  `ScenarioAction` adds `promoted_at`, `promoted_by_id`, `lever_category`, `tier` (server_default `'1'`).
+- **New models:** `ScenarioPromotion` (per-promote audit), `ScenarioApplyToForecastEvent`
+  (PL apply audit). All Integer counters carry `server_default='0'` so seed.sql INSERTs
+  remain compatible.
+- **New services (4):**
+  `scenario_lever12.py` — sandbox distribution + BTC overlays + per-location impact.
+  `scenario_impact.py` — 8-dimension dashboard + Tier 3 detection + stale flag.
+  `scenario_promote.py` — anchor check + routing decisions + per-route appliers
+  + `[F-AC-01]` permission gate.
+  `scenario_apply_forecast.py` — PL eligibility filter + provisional-cell stamping.
+- **Schemas extended:** 14 new request/response schemas appended to `schemas/scenarios.py`.
+- **Router extended:** 13 → 28 endpoints registered in `routers/scenarios.py`.
+- **Dependencies extended:** `dependencies.py::user_has_tier3()` looks up the persona's
+  `User` row to read `tier3_flag` per `[D-AC-02]`.
+- **READ-ONLY services preserved:** `services/rollup_cache.py`, `rollup_query.py`,
+  `dag_resolver.py`, `btc_service.py`, `distribution_service.py` are not modified —
+  B1 calls into them with scenario-scoped arguments (version='scenario-{id}').
+
+### API Endpoints Added (15 new)
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| PUT | `/api/scenarios/{id}/archive` | owner | Soft archive [B-SL-05] |
+| PUT | `/api/scenarios/{id}/rebase` | owner | Re-anchor to newer cycle [B-SL-02] |
+| POST | `/api/scenarios/{id}/lever12/distributions` | controller/exec | Stage 1 edge create [B-ES-01] |
+| PUT | `/api/scenarios/{id}/lever12/distributions/{edge_id}` | controller/exec | Stage 1 edge update |
+| DELETE | `/api/scenarios/{id}/lever12/distributions/{edge_id}` | controller/exec | Stage 1 edge delete |
+| POST | `/api/scenarios/{id}/lever12/to-business` | controller/exec | to_business_pct overlay |
+| POST | `/api/scenarios/{id}/lever12/btc-lines` | controller/exec | BTC line overlay |
+| GET | `/api/scenarios/{id}/lever12/cost-allocation-impact` | all | Per-CL impact [F-RV-01..06] |
+| GET | `/api/scenarios/{id}/impact` | all | 8-dimension dashboard [B-ID-01..03] |
+| POST | `/api/scenarios/{id}/recalculate` | owner | Stamp last_recalculated_at |
+| POST | `/api/scenarios/{id}/promote/preview` | controller | Preview routing decisions |
+| POST | `/api/scenarios/{id}/promote` | controller | Execute selective promotion [B-PR-01..06] |
+| GET | `/api/scenarios/{id}/promotions` | all | Promotion audit trail |
+| POST | `/api/scenarios/{id}/apply-to-forecast` | project_lead | PL apply-to-forecast [B-PR-05] |
+
+(13 v4 endpoints retained with extended request/response shapes.)
+
+### Test counts
+| File | Tests |
+|------|-------|
+| `test_scenario_lever12.py` | 26 |
+| `test_scenario_impact.py` | 11 |
+| `test_scenario_promote.py` | 17 |
+| `test_scenario_apply_forecast.py` | 14 |
+| `test_router_scenarios_b1.py` | 23 |
+| **Total new** | **+91** |
+| **Grand total** | **1098** |
+
+### Lever 12 verification example (live, fresh seed)
+```
+Entity: ce-off-coll  (Offering, identifier IT00S556)
+Anchor:  to_business_pct=90%, BTC split (DE-MUC, US-CHI, others)
+         → €1,080,000 total to-business allocation across CLs
+
+Scenario (B1 sandbox):
+  POST /lever12/to-business  {"entity_id": "ce-off-coll", "year": 2026, "new_pct": 25}
+  POST /lever12/btc-lines    {"entity_id": "ce-off-coll", "year": 2026,
+                              "lines": [{"charging_location_id": "cl-cn-sha", "percentage": 100}]}
+
+GET /lever12/cost-allocation-impact?year=2026 →
+  totals: anchor=€1,080,000  scenario=€300,000  delta=-€780,000
+  items:
+    ce-off-coll @ CN-SHA-001  anchor=€0       scenario=€300,000   delta=+€300,000
+    ce-off-coll @ DE-MUC-001  anchor=€583,740 scenario=€0         delta=-€583,740
+    ce-off-coll @ US-CHI-001  anchor=€350,244 scenario=€0         delta=-€350,244
+
+POST /promote (controller) →
+  promoted=2  skipped=0  (both Lever 12 actions materialised on live data)
+  Live ChargeableEntity.to_business_pct now 25.00% (was 90.00%).
+  Live BTCProfileLine rows replaced with single CN-SHA-001 @ 100%.
+```
+
+### Schema changes requiring reseed
+- `scenarios` table: 8 new columns (`anchor_forecast_version_id`,
+  `rebased_from_version_id`, `visibility`, `tier3_content_flag`, `archived`,
+  `archived_at`, `tags`, `last_recalculated_at`, `cc_owner_scope_cc_id`).
+- `scenario_actions` table: 4 new columns (`promoted_at`, `promoted_by_id`,
+  `lever_category`, `tier`).
+- `scenario_promotions` table: new (B1 audit trail).
+- `scenario_apply_to_forecast_events` table: new (B1 PL audit trail).
+
+All non-nullable additions carry `server_default` so existing seed.sql `INSERT INTO`
+statements remain compatible without modification.
+
+## v5 Session E1: Backend Progress Tracker + ExternalCostCategory Verification (2026-04-29)
+
+### Feature Overview
+- **Progress tracker** per `[E-04c]`: milestone-anchored qualitative progress
+  layer added on `Project`. Three core fields (intra-milestone progress %,
+  status narrative, next-milestone confidence + reason) plus an optional
+  per-milestone deliverable checklist (max 10 items). Live-editable; every
+  forecast cycle automatically captures an immutable `ProgressSnapshot`
+  alongside C1's `ForecastVersion`.
+- **Auto-compute behaviour** per `[E-04c]`: when the current milestone has at
+  least one deliverable, `effective_progress_pct` derives from the completion
+  ratio (e.g., 4 of 6 = 66.67%). PL retains a manual override flag on
+  `Project.progress_pct_manual_override`.
+- **Confidence semantics** per `[E-04c]`: three-value enum
+  (`on_track | at_risk | blocked`) normalised in the service. `at_risk` and
+  `blocked` reject without a non-empty `confidence_reason`.
+- **Cycle hook** per `[E-05a]`: `services.progress_tracker.capture_progress_for_cycle`
+  fan-out called from `submit_forecast_cycle` after C1's
+  `capture_versions_for_cycle`. Best-effort — exceptions don't block the
+  cycle. Captured snapshot includes denormalised milestone descriptors plus
+  the full deliverable checklist as JSON.
+- **Portfolio aggregation** per `[E-04d]`: new `/api/portfolio/progress-aggregate`
+  endpoint returns inline-indicator payload (project, milestone, %, confidence,
+  RAG, has_progress_data flag) plus a confidence summary (on_track / at_risk /
+  blocked / unreported counts). PL automatically scope-filtered.
+- **ExternalCostCategory verification** per `[E-08e]` `[E-08f]`: D1 already shipped
+  the entity (`ExternalCostType`) plus list/create/update endpoints; this
+  session adds 17 dedicated tests covering the [E-08e] default demo set,
+  CRUD lifecycle, audit-log shape, dup/404 constraints, and controller-only
+  authorisation. No new endpoints or schema changes — the D1 surface meets
+  the [E-08f] requirement as-is.
+
+### Spec references implemented
+`[E-04c]` (progress tracker fields + deliverables + snapshot lifecycle),
+`[E-04d]` (portfolio inline indicator), `[E-05a]` (cycle hook),
+`[E-05d]` (no-data semantics — burn line only when no progress reported;
+honoured by ProgressResponse returning null effective pct when no data),
+`[E-08e]` + `[E-08f]` (verification of D1's ExternalCostType admin CRUD).
+
+Out of scope per session brief and aligned with E1 boundaries:
+- All frontend (E3–E7 land later in Wave 3).
+- Progress vs. Burn chart (E4 — frontend).
+- Variance waterfall (E4 — frontend).
+- Launchpad tile redesigns (E2/E3).
+
+### Technical Details
+- **Schema additions on `Project`** (all nullable, existing rows survive):
+  `current_milestone_id` (FK with `use_alter=True` to break the create_all
+  cycle), `progress_pct` (`Numeric(5,2)`), `progress_pct_manual_override`
+  Boolean, `status_narrative` (Text), `next_milestone_confidence`
+  (`String(20)`), `confidence_reason` (Text), `progress_updated_at`,
+  `progress_updated_by_id` (FK people.id).
+- **New table `milestone_deliverables`**: `id` PK, `milestone_id` FK
+  (cascade-delete from milestone), `sequence` Integer, `text` Text,
+  `is_complete` Boolean, `completed_at`, `completed_by_id` FK people.id.
+- **New table `progress_snapshots`**: `id` PK, `project_id` FK,
+  `cycle_label`, `cycle_id`, `snapshot_at`, `created_by_id`,
+  denormalised `current_milestone_id` + `current_milestone_name` +
+  `current_milestone_sequence`, plus all live progress fields and
+  `checklist_payload_json` (Text — captures full per-milestone checklist
+  state at snapshot time).
+- **Relationship disambiguation on `Project`**: `pl` relationship now carries
+  explicit `foreign_keys="Project.pl_person_id"` because Project has a
+  second FK into `people.id` (`progress_updated_by_id`). `milestones`
+  relationship carries `foreign_keys="ProjectMilestone.project_id"` and
+  `ProjectMilestone.project` mirrors the `foreign_keys=[project_id]` constraint
+  to break the new circular FK.
+- **New service** `services/progress_tracker.py` (~430 LOC, 13 public
+  functions): current-milestone derivation/resolution, checklist rollup,
+  effective-pct computation, validated update (delta map for audit),
+  snapshot capture + cycle fan-out, portfolio aggregation, response
+  payload builder.
+- **New schemas (11)** appended to `schemas/workbench.py`: `DeliverableItem`,
+  `DeliverableListResponse`, `DeliverableCreateRequest`, `DeliverableUpdateRequest`,
+  `CurrentMilestoneSummary`, `ChecklistRollup`, `ProgressResponse`,
+  `ProgressUpdateRequest`, `ProgressSnapshotMeta`, `ProgressHistoryListResponse`,
+  `ProgressSnapshotDetail`, `PortfolioProgressIndicator`,
+  `PortfolioProgressAggregateResponse`. Constant `PROGRESS_CONFIDENCE_VALUES`.
+- **New router endpoints (9)** appended to `routers/workbench.py`:
+  - `GET /api/projects/{id}/progress`
+  - `PATCH /api/projects/{id}/progress`
+  - `GET /api/projects/{id}/progress/history`
+  - `GET /api/projects/{id}/progress/history/{snapshot_id}`
+  - `GET /api/projects/{id}/milestones/{mid}/checklist`
+  - `POST /api/projects/{id}/milestones/{mid}/checklist`
+  - `PATCH /api/projects/{id}/checklist/{item_id}`
+  - `DELETE /api/projects/{id}/checklist/{item_id}`
+  - `GET /api/portfolio/progress-aggregate` (new sub-router
+    `progress_router = APIRouter(prefix='/api/portfolio')`).
+- **Authorization**: read endpoints open to all authenticated roles;
+  write endpoints (PATCH progress, POST/PATCH/DELETE checklist) require
+  controller (any project) or PL (own project). `_can_edit_progress`
+  helper mirrors the milestone editor's gate.
+- **Audit log**: every write emits one entry per changed field with
+  category `forecast_actions`. Entity types: `project_progress`,
+  `milestone_deliverable`.
+- **Seed helper** `_seed_progress_tracker_data()`: populates live progress
+  state on three flagship projects (proj-erp2 / proj-sap / proj-iam) with
+  realistic narratives, milestone-anchored checklists (15 deliverables
+  total across 5–6 items each), and two historical snapshots per project
+  (Q1 + Q2 2026 cycles → 6 snapshots). Registered in BOTH
+  `seed_database()` AND `reset_database()` per the wave-2 lesson
+  (commit 9b7aa6d).
+
+### API Endpoints Added
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| GET | `/api/projects/{id}/progress` | all | Read live progress + checklist rollup [E-04c] |
+| PATCH | `/api/projects/{id}/progress` | controller / PL on own | Update narrative, confidence, reason, manual pct, current milestone [E-04c] |
+| GET | `/api/projects/{id}/progress/history` | all | List snapshots newest-first |
+| GET | `/api/projects/{id}/progress/history/{snapshot_id}` | all | Snapshot detail with checklist |
+| GET | `/api/projects/{id}/milestones/{mid}/checklist` | all | List deliverable items |
+| POST | `/api/projects/{id}/milestones/{mid}/checklist` | controller / PL on own | Add item (max 10) [E-04c] |
+| PATCH | `/api/projects/{id}/checklist/{item_id}` | controller / PL on own | Update item |
+| DELETE | `/api/projects/{id}/checklist/{item_id}` | controller / PL on own | Remove item |
+| GET | `/api/portfolio/progress-aggregate` | all (PL scope-filtered) | Portfolio progress indicators [E-04d] |
+
+### Test counts
+| File | Tests |
+|------|-------|
+| `test_progress_tracker.py` | 43 |
+| `test_router_progress.py` | 29 |
+| `test_external_cost_category.py` | 17 |
+| `test_cycle_submit_creates_progress_snapshots.py` | 3 |
+| **Total new** | **+92** |
+| **Grand total** | **1099** |
+
+### Schema changes requiring reseed
+- `projects` table: 8 new nullable columns (`current_milestone_id`
+  with `use_alter=True`, `progress_pct`, `progress_pct_manual_override`,
+  `status_narrative`, `next_milestone_confidence`, `confidence_reason`,
+  `progress_updated_at`, `progress_updated_by_id`). All nullable so
+  existing rows survive `create_all`, but the columns themselves are
+  absent from any pre-E1 DB file until the file is dropped and the
+  schema rebuilt.
+- `milestone_deliverables` table: NEW. 9 columns; cascade-delete from
+  `project_milestones`.
+- `progress_snapshots` table: NEW. 14 columns including JSON checklist
+  payload.
+
+### Demo data
+- 3 projects (proj-erp2, proj-sap, proj-iam) seeded with progress live
+  state.
+- 15 deliverable checklist items across the three current milestones.
+- 6 historical snapshots (2 per project × 3 projects, Q1 + Q2 2026 cycles).
+- Confidence narrative spans all three values: `at_risk` (proj-erp2),
+  `on_track` (proj-sap), `blocked` (proj-iam) — gives every UI consumer
+  realistic data to render.
+
+### Branch
+`v5/cluster-e/e1-progress-tracker` — 5 atomic commits.
+
+### Refactoring opportunities
+- The `pl` relationship now carries an explicit `foreign_keys` argument
+  because Project gained a second FK into `people.id` (`progress_updated_by_id`).
+  A future cleanup could fold this into a polymorphic "actor" column or a
+  shared mixin once we collect a few more "who last touched this" fields.
+- `MilestoneDeliverable.sequence` is contiguous-but-not-enforced — re-ordering
+  endpoint deferred to the frontend session that needs it.
+
+## v5 Session A8: Frontend pipeline stage UI + Run Portfolio sub-module (2026-04-29)
+
+### Feature Overview
+Surfaces the v5 pipeline stages and DoI levels across the application,
+rewrites the intake flow to use the [A-DOI-04] lightweight create endpoint,
+and restructures the Portfolio module into Change Portfolio + Run Portfolio
+sibling sub-modules per `[E-11]`.
+
+- **Shared components** in `components/shared/`: `PipelineStageBadge`,
+  `DoIBadge`, `PipelineTransitionMenu`, `DoIGateChecklist`. All four are
+  consumed by Backlog detail, Workbench overview, and the Portfolio Run
+  sub-module. Colour mapping for all 9 stages and 6 DoI levels lives in
+  `lib/pipelineStages.ts` (mirrors the backend's `services/pipeline.STAGES`).
+- **`SubmitProjectDialog` rewrite** per `[A-BK-26]` / `[A-DOI-04]`. Uses
+  `POST /api/intake/projects` instead of the v4 `POST /api/projects`. Adds
+  project_type and capex/opex fields, removes the resource-plan navigation
+  step, and routes the new project straight to `/backlog/{id}` so the PL can
+  iteratively complete Tech Navigator scores and DoI-gate fields.
+- **Portfolio module Change/Run sub-modules** per `[E-11]`. Pill switcher at
+  the top of the module toggles between the existing Change Portfolio
+  (Dashboard + CR Approvals) and the new Run Portfolio. The v4 "Intake
+  Queue" tab is removed per `[A-PS-13]` / A8 acceptance criteria; the
+  `/portfolio/intake` URL redirects to `/backlog`. Sub-module choice
+  persists in localStorage.
+- **Run Portfolio sub-module** per `[E-11]`. Single unified entity list
+  with type filter (Project / Offering / InternalService), type-aware
+  columns (identifier, name, annual cost, To-Business %, termination
+  month), and a placeholder KPI strip (count, annual cost, To-Business
+  share, mix). Project rows are clickable and drill into the workbench;
+  Offering and InternalService rows wait for F6's Workbench BTC tab.
+- **Pipeline-state surfacing** on Backlog DetailHeader and Workbench
+  MetadataBar. Both render the shared StageBadge + DoIBadge pair, attach
+  the controller `PipelineTransitionMenu` (Pause / Reactivate / Cancel /
+  Re-open with override-reason dialog per `[A-PS-10]`/`[A-BK-30]`), and
+  show the `DoIGateChecklist` (live missing-fields list) directly under
+  the metadata.
+- **Backlog filter alignment** — `BacklogFilterBar` stage options now match
+  `[A-PS-02]` (Proposed, Under Evaluation, Approved, Active, Paused,
+  Cancelled). Operate-stage rows are intentionally NOT in the backlog
+  filter — they belong to the Run Portfolio.
+
+### Spec references implemented
+`[A-PS-01..13]` (stage state machine surfacing), `[A-DOI-01..11]` (DoI
+indicator rendering, gate checklist), `[A-BK-26..30]` (intake create flow,
+controller actions surfaced on detail), `[A-PS-13]` (Intake Queue removed
+from Portfolio module), `[E-11]` (Change/Run sub-module restructure).
+
+Out of scope per session brief and aligned with adjacent sessions:
+- The Workbench BTC tab and per-entity Run Portfolio drill-down for
+  Offering/InternalService — handed off to F6.
+- The Run Portfolio Location Cost Rollup panels — handed off to F5.
+- `/api/admin/chargeable-entities` access widening to executive role —
+  pending follow-on (current session does not touch backend auth).
+- Tech Navigator full inline scoring on the new project dialog — A7's
+  rubric handles the post-creation flow; the dialog stays a [A-DOI-04]
+  lightweight form.
+
+### Files Created
+- `frontend/src/lib/pipelineStages.ts` — stage + DoI constants and
+  colour-class maps
+- `frontend/src/components/shared/PipelineStageBadge.tsx`
+- `frontend/src/components/shared/DoIBadge.tsx`
+- `frontend/src/components/shared/PipelineTransitionMenu.tsx`
+- `frontend/src/components/shared/DoIGateChecklist.tsx`
+- `frontend/src/hooks/usePipelineState.ts`
+- `frontend/src/types/pipeline.ts`
+- `frontend/src/types/runPortfolio.ts`
+- `frontend/src/modules/portfolio/run/RunPortfolioTab.tsx`
+
+### Files Modified
+- `frontend/src/components/shared/SubmitProjectDialog.tsx` — full rewrite
+  to use `intakeProjectApi.create` + new project-type and capex/opex
+  selectors
+- `frontend/src/api/endpoints.ts` — adds `pipelineApi`,
+  `intakeProjectApi`, `chargeableEntitiesApi`
+- `frontend/src/modules/portfolio/PortfolioOverview.tsx` — Change/Run
+  pill switcher, intake-tab redirect to `/backlog`
+- `frontend/src/modules/backlog/BacklogProjectDetailPage.tsx` — passes
+  `projectId` into the master-data tab
+- `frontend/src/modules/backlog/components/detail/DetailHeader.tsx` — uses
+  shared StageBadge + DoIBadge + transition menu
+- `frontend/src/modules/backlog/components/detail/MasterDataTab.tsx` —
+  surfaces the live DoI gate checklist at the top of the section
+- `frontend/src/modules/backlog/components/BacklogFilterBar.tsx` — stage
+  options aligned with `[A-PS-02]`
+- `frontend/src/modules/workbench/overview/MetadataBar.tsx` — shared
+  StageBadge + DoIBadge + transition menu + compact gate checklist
+- `frontend/src/modules/workbench/overview/OverviewTab.tsx` — passes
+  `projectId` to the metadata bar
+- `frontend/src/lib/routes.ts` — drops the `/portfolio/intake` label and
+  adds `/portfolio/run`
+- `frontend/src/modules/launchpad/PendingActionsPanel.tsx` — intake-tab
+  deep-links route to `/backlog/{id}`
+
+### Verification
+- TypeScript: 0 errors (unchanged from baseline)
+- Visual verification: 13 Playwright screenshots in `a8-*.png` covering
+  Portfolio Change view, Portfolio Run view (all entity types + project
+  filter), Backlog detail header (stage badge, DoI badge, transition
+  menu), Backlog Master Data tab (live gate checklist), Workbench
+  Overview (stage + DoI + gate satisfied), and the new intake dialog
+  (light + dark)
+- Smoke test: `POST /api/intake/projects` creates a DoI 0 / Proposed
+  project; the new row immediately surfaces on the workbench with the
+  correct stage badge, DoI 0 badge, and "DoI 1 gate — 5 fields missing"
+  checklist.
+
+### Branch
+`v5/cluster-a/a8-pipeline-run-portfolio` — 5 atomic commits.
+
+### Refactoring opportunities
+- The backlog cube tooltip and ranked-row inline stage text could swap to
+  the shared `PipelineStageBadge` for full consistency. Out of scope for
+  A8 (the row is space-constrained and the tooltip is non-badge text).
+- The workbench `WorkbenchProjectListItem` API shape could surface
+  `pipeline_stage` and `doi` so the project list panel renders stage +
+  DoI badges without each item making a `GET /pipeline` round-trip. That
+  is a backend shape change and was deferred to keep A8 frontend-only.
+
+
+
+## v5 Session C2: Frontend — Mixed-Granularity Grid + Version Comparison UI (2026-04-29)
+
+### Feature Overview
+- **Mixed-granularity forecast grid** in the Workbench Forecast & Planning tab per
+  `[C-FG-02]`: 12 monthly columns in the near zone, ~16 quarterly columns in the
+  outer zone, with a clear blue boundary divider between them. Quarterly columns
+  carry a subtle blue tint and a chevron handle so users can expand a quarter to
+  reveal three synthesised monthly cells (equal-thirds distribution per
+  `[C-FG-03]`).
+- **Provisional cell markers** per `[C-FG-08]`: cells with `is_provisional == true`
+  display a small amber dot with a tooltip explaining the value is system-generated
+  (quarterly distribution, DoI 2 prepopulation, copy-from-project) and needs
+  review. Single visual treatment regardless of source.
+- **Version selector + delta overlay** per `[C-VC-03]`: a "Compare against" Select
+  at the top of the grid lists all prior versions. Picking one fetches the diff
+  via `GET /api/forecast/versions/{a}/diff/{b}` against the latest snapshot and
+  overlays cell-level deltas (▲/▼ with amount) plus an amber "modified" ring on
+  every changed cell.
+- **Version history panel** per `[C-RH-01]`: collapsible card listing all
+  versions newest-first with version number, type badge (`Cycle` / `CR` /
+  `Manual`), cycle label or CR id, timestamp, accepting user, cell count, and
+  total amount. Each row exposes a "Compare" toggle (sets the anchor for the
+  inline overlay) and a "Detail" button (opens the comparison dialog).
+- **Version comparison dialog** per `[C-RH-05]`: full-detail two-version diff
+  with summary badges (modified / added / removed), grand-total delta, and a
+  sortable table of every changed cell showing old → new amounts and delta.
+- **Reuses C1 backend** unchanged: `GET /api/projects/{id}/forecast/grid`,
+  `GET /api/projects/{id}/forecast/versions`, `GET /api/projects/{id}/forecast/versions/{vid}`,
+  `POST /api/projects/{id}/forecast/versions`, `GET /api/forecast/versions/{a}/diff/{b}`.
+
+### Files added (frontend, all in `frontend/src/modules/workbench/forecast/`)
+- `MixedGranularityGrid.tsx` (~470 lines) — main grid component (read-mode).
+  Two-row header (year span + month/quarter labels), zone-boundary 4px divider,
+  quarter expand-into-months, provisional dot, delta overlay, internal/external
+  groupings with subtotals + grand total.
+- `VersionSelector.tsx` (~140 lines) — dropdown + status badges for the
+  currently-active comparison anchor.
+- `VersionHistoryPanel.tsx` (~190 lines) — collapsible list of all versions.
+- `VersionComparisonDialog.tsx` (~220 lines) — full-detail diff dialog
+  (`Dialog` from shadcn/ui).
+- `useForecastVersions.ts` (~120 lines) — custom hook managing version list,
+  compare-anchor state, and diff fetching with a cell-keyed `Map<string,
+  CellDelta>` for fast O(1) overlay lookup.
+
+### Files modified
+- `frontend/src/types/api.ts` — 11 new exported types matching `schemas/workbench.py`:
+  `MixedGridResponse`, `MixedGridColumn`, `MixedGridCell`, `MixedGridRow`,
+  `ForecastVersionMeta`, `ForecastVersionListResponse`, `ForecastVersionDetail`,
+  `ForecastVersionDiff`, `CellDelta`, plus `GridCellType` and
+  `ForecastVersionType` enums.
+- `frontend/src/api/endpoints.ts` — 5 new methods on `workbenchApi`:
+  `getForecastGrid`, `listForecastVersions`, `getForecastVersion`,
+  `createForecastVersion`, `getForecastVersionDiff`.
+- `frontend/src/modules/workbench/forecast/ForecastTab.tsx` — replaced the v4
+  `<ForecastGrid>` with the new mixed-granularity stack
+  (`<VersionSelector> + <MixedGranularityGrid> + <VersionHistoryPanel>`)
+  in read mode. The 5-phase wizard (`ForecastWizard` → `Phase3EditForecast`)
+  is unchanged and still drives editing through the existing v4 monthly grid.
+
+### Spec references implemented
+`[C-FG-02]` mixed monthly+quarterly columns, `[C-FG-03]` quarterly→monthly
+distribution (UI-only synthetic expansion), `[C-FG-07]` provisional flag
+display, `[C-FG-08]` provisional marker, `[C-RH-01]` version list newest
+first, `[C-RH-02]` version detail, `[C-RH-05]` cross-version diff,
+`[C-VC-03]` Workbench F&P version selector + per-cell delta indicators,
+`[C-FV-04]` version metadata display.
+
+### Verification
+- TypeScript strict typecheck passes (`npx tsc --noEmit`, exit 0).
+- Visual verification via Puppeteer headless Chrome at 1440px–1700px width:
+  light mode default + horizontal-scrolled (boundary divider visible) +
+  comparison overlay (amber-ringed modified cells with green/red delta
+  indicators) + version history panel showing v1 + v2 with Q1/Q2 2026 Cycle
+  labels + comparison dialog showing all 117 modified cells with
+  per-cell amounts. Same flow re-run in dark mode — semantic colour tokens
+  hold up, quarterly tint and modified-cell highlight readable on dark
+  background.
+- Confirmed C1 verification facts from team-lead briefing:
+  - 12 monthly + 16 quarterly columns rendered (`proj-erp2`,
+    `proj-autobrake`).
+  - 2 versions per project (`Q1 2026 Cycle`, `Q2 2026 Cycle`) listed in the
+    panel newest-first.
+  - Diffing them surfaces the ×1.05 uplift cells as `modified` (e.g.
+    `proj-autobrake` total Δ −€45.84k across 117 cells).
+
+### Known gaps / follow-ups
+- **Phase3 wizard quarterly entry** — the cycle-wizard edit phase still uses
+  the v4 monthly grid via `getForecast` + `saveEdits`. Quarterly entry with
+  client-side equal-thirds distribution into three `ForecastChange` rows is a
+  follow-on enhancement (separate session). The F&P read-mode grid is
+  fully mixed-granularity.
+- **Lint** — three new files trigger the repo-wide `react-hooks/set-state-in-effect`
+  rule, matching the existing pattern in `Phase3EditForecast.tsx` and other
+  legacy components. Not blocking (lint exits 0). Refactor to event-driven
+  reducers can land alongside any future React 19 cleanup pass.
+
+---
+## v5 Sessions F4 + F5: Frontend — Charging & Allocations module (2026-04-29)
+
+### Feature Overview
+- **New top-level module** per `[E-10]`: "Charging & Allocations" placed after
+  Portfolio in the navigation. Visible to all four roles. Sidebar pattern
+  matches the Cluster D admin module per `[E-07c]`. Section state persists
+  in `?section=…` query param (deep links + back/forward work).
+- **Inter-service Distribution editor** per `[F-S1-01..05]` `[F-S1-03]`:
+  - Cross-entity list view with filters (year, version, source type, search).
+  - Single-entity edges-as-list editor with editable `to_business_pct`,
+    derived self-retained %, sum-cap pre-check, and 409-cycle-chain rendering
+    on save per `[F-S1-05]`.
+  - Searchable destination picker (filterable by type) for new edges.
+- **BTC Profiles editor** per `[F-S2-01..07]` `[F-MD-01]`:
+  - Cross-entity list view with sums-to-100 indicator + filters (year, mode,
+    status, entity type).
+  - Single-entity manual mode: add-only line list with charging-location
+    picker filterable by region/division per `[F-S2-02]`, sum-to-100 gate.
+  - Single-entity automatic mode: read-only preview, "Refresh from UM" with
+    diff dialog before commit per `[F-S2-04]`.
+  - Mode change with values-visible warning per `[F-S2-05]`.
+  - "New profile" dialog supports manual / automatic / copy-from per `[F-S2-07]`.
+- **Location Cost Rollup** per `[F-RV-03..04]` `[F-RV-06]`:
+  - **Map view:** static SVG world map (no tile service) with bubbles at
+    country level; click → drills into the country's charging-locations.
+    Bubble size = sqrt(cost / max), bubble color = dominant division. Hover
+    popup with per-entity breakdown. Legend showing size scale + division
+    palette.
+  - **Tree-table view:** three pre-built rollup paths (Region→Country→Loc,
+    Division→Loc, Country→Loc), pivot-direction-toggleable, cell drill-down
+    to contributing entities + DAG upstream chains.
+  - Year + version selectors at the top apply to both views.
+- **Reporting integration** per `[F-RV-01]`:
+  - AI Report Builder bridge with four pre-baked Cluster F prompts
+    (cost-by-division, top-inflow-drivers, regional-YoY, blank builder)
+    that navigate via `/reporting/builder?prompt=…`.
+  - Catalogue cards listing every dimension (11) and measure (6) the data
+    layer exposes.
+  - Quick-jump tiles to existing standard reports that touch charging data.
+
+### Spec references implemented
+`[E-10]` (module navigation), `[F-DM-01..04]` (entity types in lists),
+`[F-S1-01..05]` (distribution editor + cycle detection),
+`[F-S2-01..07]` (BTC editor + refresh + mode change + copy),
+`[F-RV-01..06]` (rollup map + table + drill-down + Report Builder bridge),
+`[F-MD-01]` (LocationLabel disambiguation tooltips on charging-location
+labels in the BTC editor and tree-table view).
+
+Out of scope per F4/F5 plan: F6 (Workbench BTC tile/tab), F7 (Portfolio
+Change/Run sub-module restructure), Lever 12 sandbox-bound mode of these
+editors (B1).
+
+### Technical Details
+- New top-level module: `frontend/src/modules/charging/` — 13 files, ~3000 LOC.
+  - `Charging.tsx` + `ChargingSidebar.tsx` — module shell with 4-section sidebar.
+  - `distribution/DistributionListView.tsx` + `EntityDistributionEditor.tsx`.
+  - `btc/BTCProfileListView.tsx` + `EntityBTCProfileEditor.tsx` +
+    `CreateBTCProfileDialog.tsx`.
+  - `rollup/RollupView.tsx` + `RollupMapView.tsx` + `RollupTreeTableView.tsx` +
+    `useChargingRollupData.ts` + `countryCoords.ts` + `worldMapPaths.tsx`.
+  - `reports/ReportingPanel.tsx`.
+- New API client: `chargingApi` in `frontend/src/api/endpoints.ts` wrapping
+  every Cluster F backend route (read + write). 19 new TypeScript types in
+  `frontend/src/types/api.ts`.
+- Backend changes — minimal:
+  - `routers/global_launchpad.py`: registered `charging` module id with
+    role visibility for all four personas, sort positions per spec
+    placement, and a contextual metric ("N chargeable entities").
+- Routes: `App.tsx` mounts `/charging/*` → `Charging` module. `routes.ts`
+  registers the `/charging` route + four sub-section labels.
+- Rollup data hook: `useChargingRollupData` does the cross-product
+  `entity × cl` locally (`effective_cost × to_business_pct/100 × line_pct/100`)
+  using one parallel call to entities + locations + active BTC profiles +
+  per-entity rollup. This mirrors the backend's `get_stage2_location_total`
+  formula and applies the BTC-only-on-To-Business-share rule per `[F-S2-08]`.
+  Aggregations keyed by region / country / division / charging_location.
+- SVG world map: 6-continent low-poly outline traced from a shared
+  equirectangular projection (1000×500 viewport, lon ∈ [-180,180], lat ∈
+  [-60,80]). 30-country centroid table for bubble placement. Map and
+  bubbles share the same projection so they always align. Per `[F-RV-03]`
+  the map is "one tile among several, not the hero" — detail level is
+  intentionally coarse.
+
+### Frontend Routes Added
+| Route | Module | Notes |
+|-------|--------|-------|
+| `/charging?section=distribution` | Charging & Allocations | Inter-service Distribution editor |
+| `/charging?section=btc` | Charging & Allocations | BTC Profiles editor |
+| `/charging?section=rollup` | Charging & Allocations | Location Cost Rollup (map + table) |
+| `/charging?section=reports` | Charging & Allocations | Report Builder bridge |
+
+### Backend changes
+- `routers/global_launchpad.py`: `charging` module added to MODULES, MODULE_VISIBILITY (all 4 roles), MODULE_SORT (after Portfolio for controller/exec, after Backlog for PL/CCO), and `_compute_module_metric` returns "N chargeable entities".
+
+### Test counts
+No new tests in this session — it's a frontend-only module assembly that
+relies entirely on backend endpoints already covered by F2 + F3 tests.
+Backend tests remain at **1007** passing.
+
+### Frontend type-check delta
+Baseline (post-Wave-2): 81 pre-existing TS errors (vendor / report-builder
+recharts type drift). After F4 + F5: **81** — zero new errors.
+
+### Files added (frontend only — no backend touched beyond launchpad metadata)
+**Module:**
+- `frontend/src/modules/charging/Charging.tsx`
+- `frontend/src/modules/charging/ChargingSidebar.tsx`
+- `frontend/src/modules/charging/distribution/DistributionListView.tsx`
+- `frontend/src/modules/charging/distribution/EntityDistributionEditor.tsx`
+- `frontend/src/modules/charging/btc/BTCProfileListView.tsx`
+- `frontend/src/modules/charging/btc/EntityBTCProfileEditor.tsx`
+- `frontend/src/modules/charging/btc/CreateBTCProfileDialog.tsx`
+- `frontend/src/modules/charging/rollup/RollupView.tsx`
+- `frontend/src/modules/charging/rollup/RollupMapView.tsx`
+- `frontend/src/modules/charging/rollup/RollupTreeTableView.tsx`
+- `frontend/src/modules/charging/rollup/useChargingRollupData.ts`
+- `frontend/src/modules/charging/rollup/countryCoords.ts`
+- `frontend/src/modules/charging/rollup/worldMapPaths.tsx`
+- `frontend/src/modules/charging/reports/ReportingPanel.tsx`
+
+**Modified:**
+- `frontend/src/App.tsx` — `/charging/*` route.
+- `frontend/src/lib/routes.ts` — `MODULE_ROUTES.charging` + 5 ROUTE_LABELS.
+- `frontend/src/api/endpoints.ts` — `chargingApi` (~180 LOC).
+- `frontend/src/types/api.ts` — 19 new interfaces (~190 LOC).
+- `backend/routers/global_launchpad.py` — `charging` module registration.
+
+### Visual verification
+Playwright screenshots taken in both light + dark themes at 1440×900 viewport:
+- Launchpad with the new tile.
+- Distribution list view + single-entity editor (toBusinessPct + edges).
+- BTC list view + single-entity editor (automatic mode showing sums-to-100,
+  UM snapshot date, charging-location lines).
+- Rollup map view (country bubbles + drill-down on Germany showing 13 lines).
+- Rollup tree-table (Europe → Germany → Munich HQ €3.2M / Berlin €299K / …).
+- Reporting panel with prompt buttons + dimension/measure catalogue.
+
+### Branch + commits
+- Branch: `v5/cluster-f/f4-f5-charging-frontend`
+- 9 atomic commits split F4 (5) + F5 (4):
+  - F4 1/5: register module in nav `[E-10]`
+  - F4 2/5: charging API client + types
+  - F4 3/5: module shell + sidebar + F5 stubs
+  - F4 4/5: Inter-service Distribution editor
+  - F4 5/5: BTC Profile editor
+  - F5 1/4: rollup data hook
+  - F5 2/4: SVG world map + bubble overlay
+  - F5 3/4: tree-table + drill-down + tab switcher
+  - F5 4/4: Reporting bridge
 
 ## v5 Session C1: Mixed-Granularity Forecast + Versioning (2026-04-29)
 

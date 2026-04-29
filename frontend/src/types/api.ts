@@ -433,6 +433,120 @@ export interface ForecastGridRow {
   assignments?: PersonAssignment[];
 }
 
+// ---------------------------------------------------------------------------
+// C1 — Mixed-granularity forecast grid + version comparison
+// (matches backend/schemas/workbench.py)
+// ---------------------------------------------------------------------------
+
+export type GridCellType = 'monthly' | 'quarterly';
+
+export interface MixedGridColumn {
+  key: string;                   // 'YYYY-MM' or 'YYYY-QN'
+  label: string;
+  cell_type: GridCellType;
+}
+
+export interface MixedGridCell {
+  key: string;
+  cell_type: GridCellType;
+  hours: number;
+  amount_eur: number;
+  is_provisional: boolean;       // [C-FG-07]
+}
+
+export interface MixedGridRow {
+  category: string;              // 'internal' | 'external'
+  sub_category: string;          // role/cost-type id
+  capex_opex?: string | null;
+  cells: MixedGridCell[];
+  row_total: number;
+}
+
+export interface MixedGridResponse {
+  project_id: string;
+  granularity: 'mixed' | 'monthly' | 'quarterly';
+  boundary_month: string;        // last month rendered monthly (YYYY-MM)
+  horizon_end_month: string;
+  granularity_boundary_months: number;
+  planning_horizon_months: number;
+  columns: MixedGridColumn[];
+  rows: MixedGridRow[];
+  totals_by_column: Record<string, number>;
+  grand_total: number;
+}
+
+export type ForecastVersionType = 'cycle' | 'cr_approval' | 'manual';
+
+export interface ForecastVersionMeta {
+  id: number;
+  project_id: string;
+  version_number: number;
+  version_type: ForecastVersionType;
+  cycle_label?: string | null;
+  cycle_id?: string | null;
+  change_request_id?: number | null;
+  created_at: string;
+  created_by_id: string;
+  created_by_name?: string | null;
+  granularity_boundary_months: number;
+  planning_horizon_months: number;
+  cell_count?: number | null;
+  total_amount_eur?: number | null;
+}
+
+export interface ForecastVersionListResponse {
+  items: ForecastVersionMeta[];
+  total: number;
+}
+
+export interface ForecastVersionDetail {
+  meta: ForecastVersionMeta;
+  payload?: {
+    schema_version: number;
+    project_id: string;
+    captured_at: string;
+    boundary_month: string;
+    horizon_end_month: string;
+    rows: MixedGridRow[];
+    totals_by_column: Record<string, number>;
+    totals_by_category: Record<string, number>;
+    grand_total: number;
+  } | null;
+}
+
+export type CellDeltaStatus = 'added' | 'removed' | 'modified' | 'unchanged';
+
+export interface CellDelta {
+  category: string;
+  sub_category: string;
+  cell_key: string;
+  version_a_amount: number | null;
+  version_b_amount: number | null;
+  delta: number | null;
+  status: CellDeltaStatus;
+}
+
+export interface ForecastVersionDiff {
+  version_a_id: number;
+  version_b_id: number;
+  version_a_number: number;
+  version_b_number: number;
+  version_a_project_id: string;
+  version_b_project_id: string;
+  line_deltas: CellDelta[];
+  summary: {
+    added_count: number;
+    removed_count: number;
+    modified_count: number;
+    total_changes: number;
+  };
+  grand_totals: {
+    version_a: number;
+    version_b: number;
+    delta: number;
+  };
+}
+
 export interface RetrospectiveItem {
   category: string;
   sub_category: string;
@@ -1488,4 +1602,187 @@ export interface IntakeQueueItem {
   pl_person_id: string | null;
   submission_feedback: string | null;
   ai_council_approved: boolean | null;
+}
+
+// ===========================================================================
+// === v5 Cluster F — Charging & Allocations (F4 / F5) [F-DM-01..04] ===
+// ===========================================================================
+
+export type ChargeableEntityType = 'Project' | 'Offering' | 'InternalService';
+
+export interface ChargeableEntityItem {
+  id: string;
+  entity_type: ChargeableEntityType;
+  identifier: string;
+  name: string;
+  description: string | null;
+  hierarchy_node_id: string | null;
+  responsible_person_id: string | null;
+  to_business_pct: number;
+  annual_cost: number | null;
+  project_id: string | null;
+  termination_month: string | null;
+  is_active: boolean;
+  is_change_or_run: 'Change' | 'Run';
+}
+
+// === Distribution edges (Stage 1) [F-S1-01..05] ===
+
+export interface DistributionEdgeItem {
+  id: number;
+  year: number;
+  version: string;
+  source_entity_id: string;
+  destination_entity_id: string;
+  percentage: number;
+  source_entity_name?: string | null;
+  destination_entity_name?: string | null;
+}
+
+export interface EntityDistributionSummary {
+  entity_id: string;
+  entity_name: string;
+  year: number;
+  version: string;
+  to_business_pct: number;
+  distributions: DistributionEdgeItem[];
+  self_retained_pct: number;
+  sums_within_100: boolean;
+}
+
+export interface DistributionInflow {
+  source_entity_id: string;
+  source_entity_name: string;
+  percentage: number;
+  amount: number;
+}
+
+export interface DistributionEffectiveCost {
+  entity_id: string;
+  entity_name: string;
+  year: number;
+  version: string;
+  own_cost: number;
+  own_cost_source?: string | null;
+  inflows: DistributionInflow[];
+  inflow_total: number;
+  effective_cost: number;
+}
+
+// 409 cycle-detection error body shape (per [F-S1-05])
+export interface DistributionCycleError {
+  detail: string;
+  cycle_chain?: string[];
+  cycle_chain_labels?: string[];
+}
+
+// === BTC Profiles (Stage 2) [F-S2-01..08] ===
+
+export type BTCMode = 'manual' | 'automatic';
+export type BTCStatus = 'draft' | 'active';
+
+export interface BTCProfileLineItem {
+  id: number;
+  profile_id: number;
+  charging_location_id: string;
+  percentage: number;
+  charging_location_code?: string | null;
+  charging_location_name?: string | null;
+}
+
+export interface BTCProfileItem {
+  id: number;
+  entity_id: string;
+  year: number;
+  mode: BTCMode;
+  s_code: string | null;
+  um_snapshot_at: string | null;
+  status: BTCStatus;
+  copied_from_profile_id: number | null;
+  lines: BTCProfileLineItem[];
+  sums_to_100: boolean;
+  created_at: string | null;
+  modified_at: string | null;
+}
+
+export interface BTCRefreshDiffChangedRow {
+  cl_id: string;
+  old_pct: number | null;
+  new_pct: number | null;
+}
+
+export interface BTCRefreshDiffResult {
+  profile_id: number;
+  s_code: string;
+  year: number;
+  quarter: number;
+  added: string[];
+  removed: string[];
+  changed: BTCRefreshDiffChangedRow[];
+  would_sum_to_100: boolean;
+  committed: boolean;
+}
+
+// === Rollup (Stage 1+2 effective costs) [F-RV-01..06] ===
+
+export type RollupGroupBy =
+  | 'entity'
+  | 'entity_type'
+  | 'hierarchy_node'
+  | 'responsible'
+  | 'change_or_run'
+  | 'charging_location'
+  | 'legal_entity'
+  | 'region'
+  | 'division'
+  | 'country'
+  | 'stage';
+
+export interface RollupRowItem {
+  group_key: string;
+  group_label: string;
+  dimension: string;
+  year: number;
+  version: string;
+  entity_count: number;
+  effective_cost: number;
+  own_cost: number;
+  inflow_total: number;
+  stage2_amount: number | null;
+}
+
+export interface RollupListResponse {
+  dimension: string;
+  year: number;
+  version: string;
+  rows: RollupRowItem[];
+  grand_total_effective: number;
+  grand_total_own_cost: number;
+  total: number;
+}
+
+export interface RollupDrillDownPath {
+  path: string[];
+  path_labels: string[];
+}
+
+export interface RollupDrillDownResponse {
+  entity_id: string;
+  entity_name: string;
+  year: number;
+  version: string;
+  effective_cost: number;
+  own_cost: number;
+  inflow_total: number;
+  stage2_amount?: number | null;
+  paths: RollupDrillDownPath[];
+}
+
+export interface UpstreamChainResponse {
+  entity_id: string;
+  entity_name: string;
+  year: number;
+  version: string;
+  paths: string[][];
+  total: number;
 }

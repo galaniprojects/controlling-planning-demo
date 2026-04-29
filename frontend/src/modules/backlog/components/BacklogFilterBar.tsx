@@ -26,12 +26,17 @@ interface Props {
   onClear: () => void;
 }
 
+// Pipeline stage options aligned with [A-PS-02]. Backlog endpoint only
+// surfaces BACKLOG_STAGES (Proposed → Active + Paused); operate-stage rows
+// (Hyper-maintenance / Operate / Retired) belong to the Run Portfolio.
 const PIPELINE_STAGES = [
   { value: '', label: 'All Stages' },
+  { value: 'Proposed', label: 'Proposed' },
   { value: 'Under Evaluation', label: 'Under Evaluation' },
   { value: 'Approved', label: 'Approved' },
   { value: 'Active', label: 'Active' },
-  { value: 'On Hold', label: 'On Hold' },
+  { value: 'Paused', label: 'Paused' },
+  { value: 'Cancelled', label: 'Cancelled' },
 ];
 
 const PROJECT_TYPES = [

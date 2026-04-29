@@ -45,7 +45,9 @@ Master-detail project workspace with sidebar project list showing type and statu
 Team utilization heatmaps (CSS grid, person x month), cell-level drill-down showing allocated/available hours with person-level detail, organization-wide overview with 3 pivot views (Cost Center, Role, top-level entity), and resource request management with assignment preview.
 
 ### What-If Simulator
-Scenario planning tool with 12 action types (7 project-level, 5 portfolio-level), real-time KPI impact calculation, year-scoped actions, multi-scenario comparison, portfolio drill-down, and an AI Advisor panel with optimization recommendations.
+Scenario planning tool with 12 v4 action types (7 project-level, 5 portfolio-level), real-time KPI impact calculation, year-scoped actions, multi-scenario comparison, portfolio drill-down, and an AI Advisor panel with optimization recommendations.
+
+**v5 Cluster B (B1 backend, merged):** Scenarios anchor to a specific `ForecastVersion`; manual rebase to newer cycles. Soft archive (read-only, hidden from active list, clonable). Free-text tags with multi-select filter. Tier 3 content gating on publish (defaults to "tier3_only" visibility when scenario contains people / rate-table / capacity-param / restructuring diffs). **Lever 12 sandbox engine** mutates Stage 1 distribution edges (forked into `version='scenario-{id}'`) and Stage 2 BTC profile / `to_business_pct` overlays without touching live `BTCProfile` rows; `GET /lever12/cost-allocation-impact` returns per-charging-location deltas. **8-dimension impact dashboard** (financial / backlog_ranking / capacity / people [Tier 3 redacted] / outsourcing_ratio / investment_mix / running_cost / change_summary + cost_allocation widening). **Promote workflow** (controller-only) routes each diff through its native system path (forecast_grid → direct/CR, pipeline_stage → DoI gate, tech_navigator → direct/send-back, rate_table → admin path, people → action item, cost_allocation → direct mutation gated by per-entity-type RolePermissionGrant per `[F-AC-01]`). **PL Apply-to-forecast** carries own-project diffs into the next cycle with `is_provisional=True` provenance markers. CC Owner scenarios auto-scope to managed cost centre per `[E-06b]`.
 
 ### Reporting
 Five standard reports — Programme Rollup, Cost Center Financial Summary, Vendor Spend Analysis, Forecast Accuracy, and Year-over-Year Comparison. Features include custom project groupings, column configuration, saved views, and export capabilities.
@@ -61,6 +63,12 @@ Full dark mode support with a Sun/Moon toggle in the top bar. Theme preference p
 
 ### Charging & Allocations (Cluster F)
 Two-stage IT cost charging cycle. **Polymorphic ChargeableEntity** (Project / Offering / InternalService) is the cost-allocation root, replacing project-only allocations. **Stage 1 inter-service distribution edges** with sparse storage, sum-rule validation (`to_business_pct + Σ(distribute %) ≤ 100`), DAG resolution for effective costs (own + Σ inflows), cycle detection with chain returned in error body, and versioning along the standard baseline / forecast / actuals lifecycle. WBS Element generation is algorithmic in format `<identifier>-64-99-<charging_location_code>`. Master data adds Charging Locations (~90 KB charging codes), Legal Entities (~120 with rollup), Regions, Countries, and the User Measurement matrix viewer (sparse 99×90 S-code × charging-code grid with CSV upload + stubbed automatic-refresh per the integration boundary).
+
+**Frontend module (v5 Sessions F4 + F5):** Top-level "Charging & Allocations" module placed after Portfolio in the navigation per `[E-10]`. Sidebar pattern matching the admin module, four primary surfaces:
+- **Inter-service Distribution editor:** cross-entity browse + filter, per-entity edges-as-list editor with `to_business_pct` field, sum-cap pre-check, derived self-retained %, cycle-chain rendering on 409 per `[F-S1-03..05]`.
+- **BTC Profiles editor:** cross-entity list with sums-to-100 indicator; single-entity manual mode (add-only line list, charging-location picker filterable by region/division, sum-to-100 gate per `[F-S2-02]`); automatic mode with read-only preview, "Refresh from UM" diff dialog before commit per `[F-S2-04]`; mode change with values-visible warning per `[F-S2-05]`; "New profile" supports manual / automatic / copy-from per `[F-S2-07]`.
+- **Location Cost Rollup:** static SVG world map with bubbles at country level (size = magnitude, color = dominant division) and click-to-drill into the country's charging-locations per `[F-RV-03]`; tree-table view with three pre-built rollup paths (Region→Country→Location, Division→Location, Country→Location), cell drill-down to contributing entities + DAG upstream chains per `[F-RV-04]`.
+- **Reporting integration:** AI Report Builder bridge with Cluster F prompt templates (cost by division, top inflow drivers, regional YoY) plus a catalogue listing all 11 dimensions and 6 measures the data layer exposes per `[F-RV-01]`.
 
 ### Administration
 Five-section sidebar navigation (Master Data → Reference Catalogues → Planning & Ranking → Portfolio Hierarchy → System) covering 24 admin sub-surfaces. Master data: Cost Centers, Competence Centers, Lines of Business, Workforce Locations, People, plus Cluster F's Charging Locations / Legal Entities / Regions / Countries / User Measurement. Reference catalogues: Role Types, External Cost Types, Project Dependencies. System: Users (with Tier 3 + change-reviewer flags), Role Permissions Grid (per-role per-entity-type grants for BTC profile + Stage 1 distribution edits + master-data overrides), Rate Tables, **Workflow Templates editor** (six configurable workflows — forecast cycle, intake, change request, send back, milestone baseline override, scheduled master data activation; per-step touchpoint editor for required / skippable / assigned role / data gates / notifications JSON / time constraint / escalation), **Scheduled Changes panel** (5-state lifecycle pending_review → approved → activated / rejected / cancelled with manual-trigger activation engine), and **Audit Log V2** (8-category filter, entity-scoped trail, CSV + Excel export). Dark-mode-ready throughout; all-controller demo.
@@ -171,7 +179,7 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Pipeline** | `/api/projects` | 4 | Pipeline stage + DoI gate state (read, transition with optional override, AI Council flag, manual within_cutoff setter) |
 | **Project Milestones** | `/api/projects` | 4 | Milestone CRUD (list, create, update, delete) per project; baseline-date edits require controller + override reason per [A-MS-03] |
 | **Capacity** | `/api/capacity` | 14 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation |
-| **Scenarios** | `/api/scenarios` | 8 | CRUD, actions, comparison, AI advisor |
+| **Scenarios** | `/api/scenarios` | 28 | CRUD, actions, comparison, AI advisor (v4) + Lever 12 sandbox (Stage 1/Stage 2/per-CL impact), 8-dimension impact dashboard, anchor + rebase + archive lifecycle, controller Promote (with [F-AC-01] gating), PL Apply-to-forecast, Tier 3 visibility (B1) |
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
 | **Report Builder** | `/api/report-builder` | 12 | Data catalog, filter options, query execution, saved reports CRUD, share/publish, CSV export |
 | **AI Report Builder** | `/api/reports/ai-builder` | 4 | Status check, conversation start, message, cleanup |
@@ -222,6 +230,34 @@ Mixed-granularity forecast grid, immutable version snapshots, and cross-version 
 | `GET` | `/api/projects/{id}/forecast/versions/{vid}` | all | Version detail + full payload [C-RH-02] |
 | `POST` | `/api/projects/{id}/forecast/versions` | controller | Manual snapshot [C-FV-03] |
 | `GET` | `/api/forecast/versions/{a}/diff/{b}` | all | Diff two versions (cross-project valid) [C-RH-05] |
+
+### Progress Tracker Endpoints (v5 Session E1)
+
+Milestone-anchored qualitative progress tracking with optional deliverable checklist enrichment per `[E-04c]`. All fields live-editable; snapshots captured automatically at forecast cycle completion. Portfolio-level inline indicator per `[E-04d]`.
+
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/projects/{id}/progress` | all | Read live progress state + checklist rollup + effective percentage [E-04c] |
+| `PATCH` | `/api/projects/{id}/progress` | controller / PL on own | Update narrative, confidence (+ reason for at_risk/blocked), manual pct override, current milestone [E-04c]. One audit entry per changed field; category `forecast_actions` |
+| `GET` | `/api/projects/{id}/progress/history` | all | List historical snapshots newest-first |
+| `GET` | `/api/projects/{id}/progress/history/{snapshot_id}` | all | Snapshot detail with captured checklist payload |
+| `GET` | `/api/projects/{id}/milestones/{mid}/checklist` | all | List deliverable items for a milestone |
+| `POST` | `/api/projects/{id}/milestones/{mid}/checklist` | controller / PL on own | Add deliverable item (max 10 per milestone per [E-04c]) |
+| `PATCH` | `/api/projects/{id}/checklist/{item_id}` | controller / PL on own | Update item text, completion (auto-stamps `completed_at`/`completed_by_id`), or sequence |
+| `DELETE` | `/api/projects/{id}/checklist/{item_id}` | controller / PL on own | Remove deliverable item |
+| `GET` | `/api/portfolio/progress-aggregate` | all (PL scope-filtered) | Portfolio-wide progress indicators with confidence summary buckets [E-04d] |
+
+When the current milestone has at least one deliverable, `effective_progress_pct` auto-computes from the completion ratio unless `progress_pct_manual_override=True` per `[E-04c]`. Confidence values are normalised to `on_track | at_risk | blocked`; `at_risk` and `blocked` reject without `confidence_reason`.
+
+### External Cost Category Endpoints (v5 [E-08e] [E-08f])
+
+Admin-configurable taxonomy seeded with the default demo set: Consulting, Cloud/Infrastructure, Licenses, Hardware, Other (production: SAP/Ariba). Standard CRUD per Cluster D admin browser pattern, controller-only writes, audit category `master_data`.
+
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/admin/external-cost-types` | controller | List external cost categories alphabetically |
+| `POST` | `/api/admin/external-cost-types` | controller | Create new category (name unique, audit-logged) |
+| `PUT` | `/api/admin/external-cost-types/{id}` | controller | Rename category (409 on duplicate, audit-logged) |
 
 ### Tech Navigator Endpoints (v5 Cluster A)
 

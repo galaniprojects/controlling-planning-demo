@@ -40,6 +40,11 @@ import type {
   WorkbenchProjectListItem,
   ProjectOverview,
   ForecastGridRow,
+  MixedGridResponse,
+  ForecastVersionMeta,
+  ForecastVersionListResponse,
+  ForecastVersionDetail,
+  ForecastVersionDiff,
   ForecastCycleStartResponse,
   SuggestionItem,
   ForecastChange,
@@ -307,6 +312,51 @@ export const workbenchApi = {
   // Forecast grid (read mode)
   getForecast: (projectId: string) =>
     api.get<ListResponse<ForecastGridRow>>(`/api/projects/${projectId}/forecast`),
+
+  // C1 — Mixed-granularity forecast grid [C-FG-02]
+  getForecastGrid: (
+    projectId: string,
+    params?: { granularity?: 'mixed' | 'monthly' | 'quarterly'; boundary_months?: number; horizon_months?: number },
+  ) => {
+    const qs = new URLSearchParams();
+    if (params?.granularity) qs.append('granularity', params.granularity);
+    if (params?.boundary_months !== undefined) qs.append('boundary_months', String(params.boundary_months));
+    if (params?.horizon_months !== undefined) qs.append('horizon_months', String(params.horizon_months));
+    const suffix = qs.toString();
+    return api.get<MixedGridResponse>(
+      `/api/projects/${projectId}/forecast/grid${suffix ? `?${suffix}` : ''}`,
+    );
+  },
+
+  // C1 — Forecast version history [C-RH-01]
+  listForecastVersions: (projectId: string, params?: { limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit !== undefined) qs.append('limit', String(params.limit));
+    if (params?.offset !== undefined) qs.append('offset', String(params.offset));
+    const suffix = qs.toString();
+    return api.get<ForecastVersionListResponse>(
+      `/api/projects/${projectId}/forecast/versions${suffix ? `?${suffix}` : ''}`,
+    );
+  },
+
+  // C1 — Single version detail [C-RH-02]
+  getForecastVersion: (projectId: string, versionId: number) =>
+    api.get<ForecastVersionDetail>(
+      `/api/projects/${projectId}/forecast/versions/${versionId}`,
+    ),
+
+  // C1 — Manual snapshot (controller only) [C-FV-03]
+  createForecastVersion: (projectId: string, label?: string) =>
+    api.post<ForecastVersionMeta>(
+      `/api/projects/${projectId}/forecast/versions`,
+      { label: label ?? null },
+    ),
+
+  // C1 — Diff two versions [C-RH-05]
+  getForecastVersionDiff: (versionAId: number, versionBId: number) =>
+    api.get<ForecastVersionDiff>(
+      `/api/forecast/versions/${versionAId}/diff/${versionBId}`,
+    ),
 
   // Forecast cycle (5-phase wizard)
   startCycle: (projectId: string) =>
@@ -1241,4 +1291,248 @@ export const milestonesApi = {
   /** GET /api/projects/{id}/milestones — read-only milestone list. */
   list: (projectId: string) =>
     api.get<MilestoneListResponse>(`/api/projects/${projectId}/milestones`),
+};
+
+// ---------------------------------------------------------------------------
+// === Pipeline / DoI (A8) [A-PS-01..13] [A-DOI-01..11]
+// ---------------------------------------------------------------------------
+
+import type {
+  PipelineState,
+  StageTransitionRequest,
+  IntakeProjectCreate,
+  IntakeProjectResponse,
+} from '@/types/pipeline';
+
+export const pipelineApi = {
+  /** GET /api/projects/{id}/pipeline — current stage / DoI / gate state. */
+  get: (projectId: string) =>
+    api.get<PipelineState>(`/api/projects/${projectId}/pipeline`),
+
+  /** POST /api/projects/{id}/pipeline/transition — move stage / DoI. */
+  transition: (projectId: string, body: StageTransitionRequest) =>
+    api.post<PipelineState>(
+      `/api/projects/${projectId}/pipeline/transition`,
+      body,
+    ),
+};
+
+export const intakeProjectApi = {
+  /** POST /api/intake/projects — DoI 0 lightweight create [A-DOI-04]. */
+  create: (body: IntakeProjectCreate) =>
+    api.post<IntakeProjectResponse>('/api/intake/projects', body),
+};
+
+// ---------------------------------------------------------------------------
+// === Run Portfolio (A8) [E-11]
+// ---------------------------------------------------------------------------
+
+import type {
+  ChargeableEntityItem,
+  ChargeableEntityListResponse,
+} from '@/types/runPortfolio';
+
+export const chargeableEntitiesApi = {
+  /**
+   * GET /api/admin/chargeable-entities — list ChargeableEntities filtered by
+   * entity_type. Used by the Run Portfolio sub-module per [E-11].
+   *
+   * Endpoint mounts under /api/admin/* in the F2 router; backend restricts
+   * the call to controllers. Non-controllers receive a 403 which the UI
+   * surfaces as an empty-state message pointing at upcoming F-cluster
+   * sessions.
+   */
+  list: (params?: {
+    entity_type?: 'Project' | 'Offering' | 'InternalService';
+    is_active?: boolean | null;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.entity_type) q.set('entity_type', params.entity_type);
+    if (params?.is_active === null) q.set('is_active', 'null');
+    else if (params?.is_active !== undefined) {
+      q.set('is_active', String(params.is_active));
+    }
+    const qs = q.toString();
+    return api.get<ChargeableEntityListResponse>(
+      `/api/admin/chargeable-entities${qs ? '?' + qs : ''}`,
+    );
+  },
+};
+
+// Re-export run-portfolio types for downstream consumers.
+export type { ChargeableEntityItem, ChargeableEntityListResponse };
+
+// ---------------------------------------------------------------------------
+// === v5 Cluster F — Charging & Allocations API (F4 / F5)
+// === Backed by /api/charging (read) + /api/admin (write/admin)
+// ---------------------------------------------------------------------------
+
+import type {
+  ChargeableEntityType,
+  DistributionEdgeItem,
+  EntityDistributionSummary,
+  DistributionEffectiveCost,
+  BTCProfileItem,
+  BTCMode,
+  BTCStatus,
+  BTCRefreshDiffResult,
+  RollupListResponse as ChargingRollupListResponse,
+  RollupGroupBy,
+  RollupDrillDownResponse,
+  UpstreamChainResponse,
+} from '@/types/api';
+
+export const chargingApi = {
+  // === ChargeableEntity catalogue [F-DM-01] ===
+  listEntities: (params?: {
+    entity_type?: ChargeableEntityType;
+    hierarchy_node_id?: string;
+    is_active?: boolean | null;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.entity_type) q.set('entity_type', params.entity_type);
+    if (params?.hierarchy_node_id) q.set('hierarchy_node_id', params.hierarchy_node_id);
+    if (params?.is_active === false) q.set('is_active', 'false');
+    if (params?.is_active === null) q.set('is_active', 'null');
+    const qs = q.toString();
+    return api.get<ListResponse<ChargeableEntityItem>>(
+      `/api/admin/chargeable-entities${qs ? '?' + qs : ''}`,
+    );
+  },
+  getEntity: (id: string) =>
+    api.get<ChargeableEntityItem>(`/api/admin/chargeable-entities/${id}`),
+
+  // === Stage 1 inter-service Distribution edges [F-S1-01..05] ===
+  listDistributions: (params?: {
+    year?: number;
+    version?: string;
+    source_entity_id?: string;
+    destination_entity_id?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.year !== undefined) q.set('year', String(params.year));
+    if (params?.version) q.set('version', params.version);
+    if (params?.source_entity_id) q.set('source_entity_id', params.source_entity_id);
+    if (params?.destination_entity_id) q.set('destination_entity_id', params.destination_entity_id);
+    const qs = q.toString();
+    return api.get<ListResponse<DistributionEdgeItem>>(
+      `/api/charging/distributions${qs ? '?' + qs : ''}`,
+    );
+  },
+  getEntityDistributionSummary: (entityId: string, year: number, version: string = 'forecast') =>
+    api.get<EntityDistributionSummary>(
+      `/api/charging/entities/${entityId}/distribution-summary?year=${year}&version=${encodeURIComponent(version)}`,
+    ),
+  createDistribution: (data: {
+    year: number;
+    version: string;
+    source_entity_id: string;
+    destination_entity_id: string;
+    percentage: number;
+  }) => api.post<DistributionEdgeItem>('/api/charging/distributions', data),
+  updateDistribution: (id: number, data: { percentage: number }) =>
+    api.put<DistributionEdgeItem>(`/api/charging/distributions/${id}`, data),
+  deleteDistribution: (id: number) =>
+    api.delete<{ id: number; deleted: boolean }>(`/api/charging/distributions/${id}`),
+  updateEntityToBusinessPct: (entityId: string, year: number, newPct: number, version: string = 'forecast') =>
+    api.put<EntityDistributionSummary>(
+      `/api/charging/entities/${entityId}/to-business-pct?new_pct=${newPct}&year=${year}&version=${encodeURIComponent(version)}`,
+    ),
+  getEntityEffectiveCost: (entityId: string, year: number, version: string = 'forecast') =>
+    api.get<DistributionEffectiveCost>(
+      `/api/charging/entities/${entityId}/effective-cost?year=${year}&version=${encodeURIComponent(version)}`,
+    ),
+  getEntityUpstreamChain: (entityId: string, year: number, version: string = 'forecast') =>
+    api.get<UpstreamChainResponse>(
+      `/api/charging/entities/${entityId}/upstream-chain?year=${year}&version=${encodeURIComponent(version)}`,
+    ),
+
+  // === Stage 2 BTC Profiles [F-S2-01..08] ===
+  listBTCProfiles: (params?: {
+    entity_id?: string;
+    year?: number;
+    status?: BTCStatus;
+    mode?: BTCMode;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.entity_id) q.set('entity_id', params.entity_id);
+    if (params?.year !== undefined) q.set('year', String(params.year));
+    if (params?.status) q.set('status', params.status);
+    if (params?.mode) q.set('mode', params.mode);
+    const qs = q.toString();
+    return api.get<ListResponse<BTCProfileItem>>(
+      `/api/charging/btc-profiles${qs ? '?' + qs : ''}`,
+    );
+  },
+  getBTCProfile: (id: number) =>
+    api.get<BTCProfileItem>(`/api/charging/btc-profiles/${id}`),
+  getEntityBTCProfile: (entityId: string, year: number) =>
+    api.get<BTCProfileItem>(
+      `/api/charging/entities/${entityId}/btc-profile?year=${year}`,
+    ),
+  createBTCProfile: (data: {
+    entity_id: string;
+    year: number;
+    mode: BTCMode;
+    s_code?: string | null;
+    status?: BTCStatus;
+    lines?: { charging_location_id: string; percentage: number }[];
+    um_year?: number | null;
+    um_quarter?: number | null;
+  }) => api.post<BTCProfileItem>('/api/charging/btc-profiles', data),
+  updateBTCProfile: (id: number, data: {
+    lines: { charging_location_id: string; percentage: number }[];
+  }) => api.put<BTCProfileItem>(`/api/charging/btc-profiles/${id}`, data),
+  deleteBTCProfile: (id: number) =>
+    api.delete<{ id: number; deleted: boolean }>(`/api/charging/btc-profiles/${id}`),
+  refreshBTCFromUM: (id: number, data: {
+    um_year?: number | null;
+    um_quarter?: number | null;
+    dry_run?: boolean;
+  }) =>
+    api.post<BTCRefreshDiffResult>(`/api/charging/btc-profiles/${id}/refresh-um`, data),
+  changeBTCMode: (id: number, data: {
+    new_mode: BTCMode;
+    s_code?: string | null;
+    confirm: boolean;
+    um_year?: number | null;
+    um_quarter?: number | null;
+  }) =>
+    api.post<BTCProfileItem>(`/api/charging/btc-profiles/${id}/change-mode`, data),
+  copyBTCProfileFrom: (data: {
+    source_profile_id: number;
+    target_entity_id: string;
+    target_year: number;
+    target_status?: BTCStatus;
+  }) =>
+    api.post<BTCProfileItem>(`/api/charging/btc-profiles/${data.source_profile_id}/copy-from`, data),
+
+  // === Rollup query + drill-down [F-RV-01..06] ===
+  getRollup: (params: {
+    year: number;
+    version?: string;
+    group_by?: RollupGroupBy;
+    entity_type?: ChargeableEntityType;
+  }) => {
+    const q = new URLSearchParams();
+    q.set('year', String(params.year));
+    if (params.version) q.set('version', params.version);
+    if (params.group_by) q.set('group_by', params.group_by);
+    if (params.entity_type) q.set('entity_type', params.entity_type);
+    return api.get<ChargingRollupListResponse>(`/api/charging/rollup?${q.toString()}`);
+  },
+  getRollupDrillDown: (params: {
+    cl_id: string;
+    entity_id: string;
+    year: number;
+    version?: string;
+  }) => {
+    const q = new URLSearchParams();
+    q.set('entity_id', params.entity_id);
+    q.set('year', String(params.year));
+    if (params.version) q.set('version', params.version);
+    return api.get<RollupDrillDownResponse>(
+      `/api/charging/rollup/charging-location/${params.cl_id}?${q.toString()}`,
+    );
+  },
 };

@@ -2,12 +2,19 @@ import { Badge } from '@/components/ui/badge';
 import { ragBgColor } from '@/lib/rag';
 import { cn } from '@/lib/utils';
 import type { ProjectMetadata } from '@/types/api';
+import { PipelineStageBadge } from '@/components/shared/PipelineStageBadge';
+import { DoIBadge } from '@/components/shared/DoIBadge';
+import { PipelineTransitionMenu } from '@/components/shared/PipelineTransitionMenu';
+import { DoIGateChecklist } from '@/components/shared/DoIGateChecklist';
+import { usePipelineState } from '@/hooks/usePipelineState';
 
 interface Props {
   metadata: ProjectMetadata;
+  projectId?: string;
 }
 
-export function MetadataBar({ metadata }: Props) {
+export function MetadataBar({ metadata, projectId }: Props) {
+  const { data: pipelineState, refresh } = usePipelineState(projectId ?? null);
   // Timeline progress
   let timelinePct = 0;
   if (metadata.timeline.start && metadata.timeline.end) {
@@ -25,18 +32,35 @@ export function MetadataBar({ metadata }: Props) {
 
   return (
     <div className="space-y-3 p-4 bg-card border border-border rounded-lg">
-      <div className="flex items-center gap-2 flex-wrap">
-        <h2 className="text-lg font-semibold text-foreground">
-          {metadata.name}
-        </h2>
-        {metadata.rag && (
-          <Badge className={cn('text-xs capitalize', ragBgColor(metadata.rag))}>
-            {metadata.rag}
-          </Badge>
-        )}
-        <Badge variant="outline" className="text-xs capitalize">
-          {metadata.status}
-        </Badge>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="text-lg font-semibold text-foreground">
+            {metadata.name}
+          </h2>
+          {metadata.rag && (
+            <Badge className={cn('text-xs capitalize', ragBgColor(metadata.rag))}>
+              {metadata.rag}
+            </Badge>
+          )}
+          {pipelineState?.pipeline_stage ? (
+            <PipelineStageBadge stage={pipelineState.pipeline_stage} />
+          ) : (
+            <Badge variant="outline" className="text-xs capitalize">
+              {metadata.status}
+            </Badge>
+          )}
+          <DoIBadge
+            doi={pipelineState?.doi}
+            frozenDoi={pipelineState?.frozen_doi}
+          />
+        </div>
+        {projectId && pipelineState ? (
+          <PipelineTransitionMenu
+            projectId={projectId}
+            state={pipelineState}
+            onChanged={() => refresh()}
+          />
+        ) : null}
       </div>
 
       <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -54,6 +78,12 @@ export function MetadataBar({ metadata }: Props) {
         )}
         {metadata.pl_name && <span>PL: {metadata.pl_name}</span>}
       </div>
+
+      {/* DoI gate checklist [A-PS-04] — only visible when there is a next DoI */}
+      {pipelineState?.gate_status?.next_doi !== undefined &&
+      pipelineState?.gate_status?.next_doi !== null ? (
+        <DoIGateChecklist gate={pipelineState.gate_status} compact />
+      ) : null}
 
       {/* Timeline bar */}
       {metadata.timeline.start && (

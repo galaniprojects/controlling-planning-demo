@@ -64,6 +64,7 @@ from routers.tech_navigator import router as tech_navigator_router  # noqa: E402
 from routers.user_measurement import router as user_measurement_router  # noqa: E402
 from routers.workbench import router as workbench_router  # noqa: E402
 from routers.workbench import forecast_router as forecast_versions_router  # noqa: E402
+from routers.workbench import progress_router as portfolio_progress_router  # noqa: E402
 from routers.workflow_templates import router as workflow_templates_router  # noqa: E402
 
 app.include_router(admin_router)
@@ -89,6 +90,7 @@ app.include_router(tech_navigator_router)
 app.include_router(user_measurement_router)
 app.include_router(workbench_router)
 app.include_router(forecast_versions_router)
+app.include_router(portfolio_progress_router)
 app.include_router(workflow_templates_router)
 
 

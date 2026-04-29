@@ -7,12 +7,14 @@ export const MODULE_ROUTES: Record<string, string> = {
   admin: '/admin',
   documentation: '/docs',
   backlog: '/backlog',
+  // === v5 Cluster F — Charging & Allocations [E-10] ===
+  charging: '/charging',
 };
 
 export const ROUTE_LABELS: Record<string, string> = {
   '/': 'Launchpad',
   '/portfolio': 'Portfolio Overview',
-  '/portfolio/intake': 'Intake Queue',
+  '/portfolio/run': 'Run Portfolio',
   '/portfolio/approvals': 'Approvals',
   '/workbench': 'Project Workbench',
   '/capacity': 'Capacity Management',
@@ -24,4 +26,10 @@ export const ROUTE_LABELS: Record<string, string> = {
   '/docs': 'Documentation',
   // === Backlog (A6) ===
   '/backlog': 'Backlog',
+  // === Charging & Allocations (F4 [E-10]) ===
+  '/charging': 'Charging & Allocations',
+  '/charging/distribution': 'Inter-service Distribution',
+  '/charging/btc': 'BTC Profiles',
+  '/charging/rollup': 'Location Cost Rollup',
+  '/charging/reports': 'Reporting',
 };
