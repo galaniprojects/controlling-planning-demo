@@ -1,12 +1,162 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D/F — Wave 2 merged locally (2026-04-29). F3 + C1 + A6 all on main.
-Last completed: **A6** (frontend Backlog module — ranked list, cube view, 4-tab detail page, Launchpad tile). Verified end-to-end via Playwright walk in light + dark mode.
-Combined Wave 2: F3 (+125 tests) + C1 (+94 tests) brings backend test count to 1007. A6 frontend TS errors unchanged from baseline.
-Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
-Next: Wave 3 unblocked — A8 (Run Portfolio backend), B1 (simulator Lever 12), C2 (frontend mixed-grid + version history), F4–F7 (charging frontend).
-**Post-merge requirement:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables and C1's `is_provisional` column on `forecasts` break any existing DB until reseed.
+Phase: v5 Cluster A/D/F — Wave 3 in flight (2026-04-29). F4 + F5 (charging frontend) on `v5/cluster-f/f4-f5-charging-frontend`.
+Last completed: **F4 + F5** combined branch — new top-level "Charging & Allocations" module (placed after Portfolio per `[E-10]`) with all four primary surfaces shipping in one branch: Inter-service Distribution editor, BTC Profiles editor, Location Cost Rollup (SVG world map + tree-table), Reporting integration.
+Frontend TS errors unchanged from baseline (81 pre-existing, +0 from F4/F5). No backend code changed. Visual verification complete in light + dark mode for all four surfaces and both drill-down paths (map country→location, table location→entity→upstream chain).
+Previous: Wave 2 merged via PR #65 (F3 + C1 + A6 + seed-helper follow-up). 1007 backend tests on main.
+Next: rest of Wave 3 — A8 (frontend pipeline + Run Portfolio scaffolding), B1 (simulator Lever 12), C2 (frontend mixed-grid + version history), E1 (progress tracker backend), F6/F7.
+**Post-merge requirement on first pull:** drop `creta_demo.db` and re-seed — F3's BTC + RollupCache tables and C1's `is_provisional` column on `forecasts` still break any existing DB until reseed.
+
+## v5 Sessions F4 + F5: Frontend — Charging & Allocations module (2026-04-29)
+
+### Feature Overview
+- **New top-level module** per `[E-10]`: "Charging & Allocations" placed after
+  Portfolio in the navigation. Visible to all four roles. Sidebar pattern
+  matches the Cluster D admin module per `[E-07c]`. Section state persists
+  in `?section=…` query param (deep links + back/forward work).
+- **Inter-service Distribution editor** per `[F-S1-01..05]` `[F-S1-03]`:
+  - Cross-entity list view with filters (year, version, source type, search).
+  - Single-entity edges-as-list editor with editable `to_business_pct`,
+    derived self-retained %, sum-cap pre-check, and 409-cycle-chain rendering
+    on save per `[F-S1-05]`.
+  - Searchable destination picker (filterable by type) for new edges.
+- **BTC Profiles editor** per `[F-S2-01..07]` `[F-MD-01]`:
+  - Cross-entity list view with sums-to-100 indicator + filters (year, mode,
+    status, entity type).
+  - Single-entity manual mode: add-only line list with charging-location
+    picker filterable by region/division per `[F-S2-02]`, sum-to-100 gate.
+  - Single-entity automatic mode: read-only preview, "Refresh from UM" with
+    diff dialog before commit per `[F-S2-04]`.
+  - Mode change with values-visible warning per `[F-S2-05]`.
+  - "New profile" dialog supports manual / automatic / copy-from per `[F-S2-07]`.
+- **Location Cost Rollup** per `[F-RV-03..04]` `[F-RV-06]`:
+  - **Map view:** static SVG world map (no tile service) with bubbles at
+    country level; click → drills into the country's charging-locations.
+    Bubble size = sqrt(cost / max), bubble color = dominant division. Hover
+    popup with per-entity breakdown. Legend showing size scale + division
+    palette.
+  - **Tree-table view:** three pre-built rollup paths (Region→Country→Loc,
+    Division→Loc, Country→Loc), pivot-direction-toggleable, cell drill-down
+    to contributing entities + DAG upstream chains.
+  - Year + version selectors at the top apply to both views.
+- **Reporting integration** per `[F-RV-01]`:
+  - AI Report Builder bridge with four pre-baked Cluster F prompts
+    (cost-by-division, top-inflow-drivers, regional-YoY, blank builder)
+    that navigate via `/reporting/builder?prompt=…`.
+  - Catalogue cards listing every dimension (11) and measure (6) the data
+    layer exposes.
+  - Quick-jump tiles to existing standard reports that touch charging data.
+
+### Spec references implemented
+`[E-10]` (module navigation), `[F-DM-01..04]` (entity types in lists),
+`[F-S1-01..05]` (distribution editor + cycle detection),
+`[F-S2-01..07]` (BTC editor + refresh + mode change + copy),
+`[F-RV-01..06]` (rollup map + table + drill-down + Report Builder bridge),
+`[F-MD-01]` (LocationLabel disambiguation tooltips on charging-location
+labels in the BTC editor and tree-table view).
+
+Out of scope per F4/F5 plan: F6 (Workbench BTC tile/tab), F7 (Portfolio
+Change/Run sub-module restructure), Lever 12 sandbox-bound mode of these
+editors (B1).
+
+### Technical Details
+- New top-level module: `frontend/src/modules/charging/` — 13 files, ~3000 LOC.
+  - `Charging.tsx` + `ChargingSidebar.tsx` — module shell with 4-section sidebar.
+  - `distribution/DistributionListView.tsx` + `EntityDistributionEditor.tsx`.
+  - `btc/BTCProfileListView.tsx` + `EntityBTCProfileEditor.tsx` +
+    `CreateBTCProfileDialog.tsx`.
+  - `rollup/RollupView.tsx` + `RollupMapView.tsx` + `RollupTreeTableView.tsx` +
+    `useChargingRollupData.ts` + `countryCoords.ts` + `worldMapPaths.tsx`.
+  - `reports/ReportingPanel.tsx`.
+- New API client: `chargingApi` in `frontend/src/api/endpoints.ts` wrapping
+  every Cluster F backend route (read + write). 19 new TypeScript types in
+  `frontend/src/types/api.ts`.
+- Backend changes — minimal:
+  - `routers/global_launchpad.py`: registered `charging` module id with
+    role visibility for all four personas, sort positions per spec
+    placement, and a contextual metric ("N chargeable entities").
+- Routes: `App.tsx` mounts `/charging/*` → `Charging` module. `routes.ts`
+  registers the `/charging` route + four sub-section labels.
+- Rollup data hook: `useChargingRollupData` does the cross-product
+  `entity × cl` locally (`effective_cost × to_business_pct/100 × line_pct/100`)
+  using one parallel call to entities + locations + active BTC profiles +
+  per-entity rollup. This mirrors the backend's `get_stage2_location_total`
+  formula and applies the BTC-only-on-To-Business-share rule per `[F-S2-08]`.
+  Aggregations keyed by region / country / division / charging_location.
+- SVG world map: 6-continent low-poly outline traced from a shared
+  equirectangular projection (1000×500 viewport, lon ∈ [-180,180], lat ∈
+  [-60,80]). 30-country centroid table for bubble placement. Map and
+  bubbles share the same projection so they always align. Per `[F-RV-03]`
+  the map is "one tile among several, not the hero" — detail level is
+  intentionally coarse.
+
+### Frontend Routes Added
+| Route | Module | Notes |
+|-------|--------|-------|
+| `/charging?section=distribution` | Charging & Allocations | Inter-service Distribution editor |
+| `/charging?section=btc` | Charging & Allocations | BTC Profiles editor |
+| `/charging?section=rollup` | Charging & Allocations | Location Cost Rollup (map + table) |
+| `/charging?section=reports` | Charging & Allocations | Report Builder bridge |
+
+### Backend changes
+- `routers/global_launchpad.py`: `charging` module added to MODULES, MODULE_VISIBILITY (all 4 roles), MODULE_SORT (after Portfolio for controller/exec, after Backlog for PL/CCO), and `_compute_module_metric` returns "N chargeable entities".
+
+### Test counts
+No new tests in this session — it's a frontend-only module assembly that
+relies entirely on backend endpoints already covered by F2 + F3 tests.
+Backend tests remain at **1007** passing.
+
+### Frontend type-check delta
+Baseline (post-Wave-2): 81 pre-existing TS errors (vendor / report-builder
+recharts type drift). After F4 + F5: **81** — zero new errors.
+
+### Files added (frontend only — no backend touched beyond launchpad metadata)
+**Module:**
+- `frontend/src/modules/charging/Charging.tsx`
+- `frontend/src/modules/charging/ChargingSidebar.tsx`
+- `frontend/src/modules/charging/distribution/DistributionListView.tsx`
+- `frontend/src/modules/charging/distribution/EntityDistributionEditor.tsx`
+- `frontend/src/modules/charging/btc/BTCProfileListView.tsx`
+- `frontend/src/modules/charging/btc/EntityBTCProfileEditor.tsx`
+- `frontend/src/modules/charging/btc/CreateBTCProfileDialog.tsx`
+- `frontend/src/modules/charging/rollup/RollupView.tsx`
+- `frontend/src/modules/charging/rollup/RollupMapView.tsx`
+- `frontend/src/modules/charging/rollup/RollupTreeTableView.tsx`
+- `frontend/src/modules/charging/rollup/useChargingRollupData.ts`
+- `frontend/src/modules/charging/rollup/countryCoords.ts`
+- `frontend/src/modules/charging/rollup/worldMapPaths.tsx`
+- `frontend/src/modules/charging/reports/ReportingPanel.tsx`
+
+**Modified:**
+- `frontend/src/App.tsx` — `/charging/*` route.
+- `frontend/src/lib/routes.ts` — `MODULE_ROUTES.charging` + 5 ROUTE_LABELS.
+- `frontend/src/api/endpoints.ts` — `chargingApi` (~180 LOC).
+- `frontend/src/types/api.ts` — 19 new interfaces (~190 LOC).
+- `backend/routers/global_launchpad.py` — `charging` module registration.
+
+### Visual verification
+Playwright screenshots taken in both light + dark themes at 1440×900 viewport:
+- Launchpad with the new tile.
+- Distribution list view + single-entity editor (toBusinessPct + edges).
+- BTC list view + single-entity editor (automatic mode showing sums-to-100,
+  UM snapshot date, charging-location lines).
+- Rollup map view (country bubbles + drill-down on Germany showing 13 lines).
+- Rollup tree-table (Europe → Germany → Munich HQ €3.2M / Berlin €299K / …).
+- Reporting panel with prompt buttons + dimension/measure catalogue.
+
+### Branch + commits
+- Branch: `v5/cluster-f/f4-f5-charging-frontend`
+- 9 atomic commits split F4 (5) + F5 (4):
+  - F4 1/5: register module in nav `[E-10]`
+  - F4 2/5: charging API client + types
+  - F4 3/5: module shell + sidebar + F5 stubs
+  - F4 4/5: Inter-service Distribution editor
+  - F4 5/5: BTC Profile editor
+  - F5 1/4: rollup data hook
+  - F5 2/4: SVG world map + bubble overlay
+  - F5 3/4: tree-table + drill-down + tab switcher
+  - F5 4/4: Reporting bridge
 
 ## v5 Session C1: Mixed-Granularity Forecast + Versioning (2026-04-29)
 
