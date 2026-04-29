@@ -1,10 +1,106 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D/F — Wave 1 merged via PR #63 (2026-04-29). Wave 2 in progress.
-Last completed: **F3** (BTCProfile + Stage 2 + rollup cache backend, +125 tests, 913 total). Branch `feature/v5-f3-btc-rollup` ready for PR.
-Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests passing pre-F3.
-Next: Merge F3 PR, then continue Wave 2 with A6 (frontend backlog) + C1 (mixed-granularity forecast + versioning). F3 unblocks A8 + B1.
+Phase: v5 Cluster A/D/F — Wave 2 merging locally (2026-04-29). F3 + C1 merged into main; A6 next.
+Last completed: **C1** (mixed-granularity forecast grid + version history backend, +94 tests). Combined with F3 (+125 tests) the suite is now 1007 backend tests. F3 unblocks A8 + B1; C1 unblocks B1 + C2.
+Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
+Next: Merge A6 (frontend backlog) and walk visual verification end-to-end on the combined branch.
+**Post-merge requirement:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables and C1's `is_provisional` column on `forecasts` break any existing DB until reseed.
+
+## v5 Session C1: Mixed-Granularity Forecast + Versioning (2026-04-29)
+
+### Feature Overview
+- **Mixed-granularity forecast grid** per `[C-FG-01..08]`: monthly columns within
+  the boundary window (default 12 months), quarterly columns beyond it. Three
+  `granularity` modes: `mixed` (default), `monthly`, `quarterly`. Boundary and
+  horizon configurable via query params or `planning_parameters` DB rows.
+- **`is_provisional` flag** per `[C-FG-07]`: `Boolean` column on `Forecast` with
+  `server_default="0"` (keeps all existing seed.sql `INSERT INTO forecasts` rows
+  valid). `True` for cells beyond the granularity boundary. Manual CR writes clear
+  the flag back to `False` via a 1-line tweak in `_apply_cr_changes_to_forecast`.
+- **Forecast versioning** per `[C-FV-01..07]`: new `ForecastVersion` table with
+  sequential `version_number` per project (UniqueConstraint), payload stored as
+  JSON (schema_version 1, ~70 KB/project). Three types: `cycle`, `cr_approval`,
+  `manual`.
+  - CR approval hook [C-FV-02]: 6 try-wrapped lines inserted in `approve_cr`
+    after the final `db.commit()`. Snapshot failure cannot break CR flow.
+  - Cycle hook [C-FV-05]: `capture_versions_for_cycle` fan-out called after
+    `clear_cycle` in `submit_forecast_cycle`. Creates one version per active
+    project with forecast rows.
+  - Manual snapshot [C-FV-03]: controller-only `POST /api/projects/{id}/forecast/versions`.
+- **Diff computation** per `[C-RH-05]`: pure-Python diff over decoded payloads.
+  Status enum: unchanged / added / removed / modified. Cross-project diffs valid
+  (version IDs are global PKs).
+- **Seed helper**: `_seed_forecast_versions()` Python function in `seed/loader.py`
+  creates 2 cycle versions per project: v1 = Q1 2026 Cycle (×1.05 uplift), v2 =
+  Q2 2026 Cycle (current state). Called from `reset_database()`.
+
+### Spec references implemented
+`[C-FG-01..08]` (mixed-granularity grid, quarter bucketing, cent-remainder
+distribution, provisional flag), `[C-FV-01..07]` (versioning lifecycle),
+`[C-RH-01..05]` (list, detail, diff), `[C-VC-01..03]` (version_number, created_at,
+created_by metadata).
+
+Out of scope per plan: C2 frontend, `[C-VC-04..06]` (portfolio dashboard + report
+builder dim + standard report 6), DoI 2 prepopulation (Cluster A), `is_provisional`
+UI marker (C2), replacing `ForecastSnapshot` (kept for accuracy report).
+
+### Technical Details
+- **New model:** `models/financial.py::ForecastVersion` (18 columns,
+  UniqueConstraint on `project_id × version_number`).
+- **Column addition:** `Forecast.is_provisional` Boolean `server_default="0"`.
+- **New service:** `services/forecast_versioning.py` — 14 public functions covering
+  boundary math, quarter bucketing, grid build, serialization, capture, list/get, diff,
+  and provisional marking.
+- **Service additions:** `calculations.py::month_to_quarter_key`,
+  `quarter_to_months`; `forecast_cycle.py::derive_cycle_label`.
+- **New schemas:** 9 Pydantic models appended to `schemas/workbench.py`.
+- **New endpoints (5):** `GET /api/projects/{id}/forecast/grid`,
+  `GET /api/projects/{id}/forecast/versions`,
+  `GET /api/projects/{id}/forecast/versions/{vid}`,
+  `POST /api/projects/{id}/forecast/versions`,
+  `GET /api/forecast/versions/{a}/diff/{b}`.
+- **Separate router:** `forecast_router = APIRouter(prefix='/api/forecast')` defined
+  in `workbench.py`, registered in `main.py` as `forecast_versions_router`.
+- **Backwards compat:** `GET /api/projects/{id}/forecast` unchanged, v4 shape preserved.
+- **Planning parameter:** `planning_horizon_months=60` added to `seed.sql`
+  (`granularity_boundary_months=12` was already seeded by D1).
+
+### API Endpoints Added
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| GET | `/api/projects/{id}/forecast/grid` | all | Mixed-granularity grid [C-FG-02] |
+| GET | `/api/projects/{id}/forecast/versions` | all | List versions newest first [C-RH-01] |
+| GET | `/api/projects/{id}/forecast/versions/{vid}` | all | Version detail + payload [C-RH-02] |
+| POST | `/api/projects/{id}/forecast/versions` | controller | Manual snapshot [C-FV-03] |
+| GET | `/api/forecast/versions/{a}/diff/{b}` | all | Diff two versions [C-RH-05] |
+
+### Test counts
+| File | Tests |
+|------|-------|
+| `test_forecast_versioning_service.py` | 58 |
+| `test_router_forecast_grid.py` | 12 |
+| `test_router_forecast_versions.py` | 10 |
+| `test_router_forecast_diff.py` | 5 |
+| `test_cr_approval_creates_version.py` | 3 |
+| `test_cycle_submit_creates_versions.py` | 3 |
+| **Total new** | **+94** |
+| **Grand total** | **882** |
+
+### Schema changes requiring reseed
+- `forecasts` table: `is_provisional` Boolean column (`server_default="0"` — existing
+  rows survive schema creation but the old DB file must be deleted for the column to
+  appear via SQLAlchemy `create_all`).
+- `forecast_versions` table: new table (populated by Python seed helper on reset).
+- `planning_parameters` table: 1 new row (`planning_horizon_months`).
+
+### Expected DB growth (forecast_versions)
+~70 KB/project × 30 projects × 5 cycles ≈ <40 MB. SQLite handles trivially per the
+plan. No pruning is applied (`payload_json` is not compressed per `[C-FV-07]`).
+
+### Refactoring opportunities
+- `_apply_cr_changes_to_forecast` in `routers/portfolio.py` now has a `row.is_provisional = False` line inside a try/except that does partial field mutation. This is a v4-era pattern; C2 or a future cleanup could centralise forecast mutations via a service function.
+- The `ForecastSnapshot` vs `ForecastVersion` dual-table setup is intentional (different consumers) but could be unified in a future data model simplification.
 
 ## v5 Session A5: Intake Workflow + Backlog Integration Backend (2026-04-28)
 

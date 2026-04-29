@@ -47,3 +47,20 @@ def clear_cycle(project_id: str) -> None:
 
 def clear_all_cycles() -> None:
     _active_cycles.clear()
+
+
+def derive_cycle_label(today_ym: str) -> str:
+    """Derive a human-readable cycle label from a YYYY-MM string.
+
+    Maps the month to its fiscal quarter and returns e.g. "Q2 2026 Cycle".
+
+    >>> derive_cycle_label("2026-04")
+    'Q2 2026 Cycle'
+    >>> derive_cycle_label("2026-01")
+    'Q1 2026 Cycle'
+    """
+    year_str, month_str = today_ym.split("-")
+    y = int(year_str)
+    m = int(month_str)
+    q = (m - 1) // 3 + 1
+    return f"Q{q} {y} Cycle"
