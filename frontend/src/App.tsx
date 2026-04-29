@@ -9,6 +9,8 @@ import { PortfolioOverview } from '@/modules/portfolio/PortfolioOverview';
 import { ProjectWorkbench } from '@/modules/workbench/ProjectWorkbench';
 import { CapacityManagement } from '@/modules/capacity/CapacityManagement';
 import { WhatIfSimulator } from '@/modules/simulator/WhatIfSimulator';
+// === TEMPORARY T4 visual-verification harness (B2 — to be removed by lead at merge) ===
+import { T4PreviewPage } from '@/modules/simulator/__t4_preview/T4PreviewPage';
 import { Reporting } from '@/modules/reporting/Reporting';
 import { Administration } from '@/modules/admin/Administration';
 import { DocumentationHub } from '@/modules/docs/DocumentationHub';
@@ -34,6 +36,9 @@ export default function App() {
                 <Route path="/workbench/*" element={<ProjectWorkbench />} />
                 <Route path="/capacity/*" element={<CapacityManagement />} />
                 <Route path="/simulator/*" element={<WhatIfSimulator />} />
+                {/* TEMPORARY T4 verification harness — removed at lead merge */}
+                <Route path="/__t4-preview" element={<T4PreviewPage />} />
+                <Route path="/__t4-preview/no-tier3" element={<T4PreviewPage hideTier3 />} />
                 <Route path="/reporting/*" element={<Reporting />} />
                 <Route path="/admin/*" element={<Administration />} />
                 <Route path="/docs/*" element={<DocumentationHub />} />
