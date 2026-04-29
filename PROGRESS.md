@@ -1,12 +1,398 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Wave 4 partial — **F6 + E2 merged locally on `v5/wave4-f6-e2-merged` (2026-04-29)**, awaiting PR. F6 ships the Workbench BTC tile + tab + per-entity allocation breakdown endpoint (+20 tests). E2 ships external cost aggregation endpoints + role-personalised Launchpad tiles + PL capacity read-only endpoint (+73 tests). Backend test count: **1283** (1190 baseline + 20 F6 + 73 E2). Frontend TS: F6's new files clean; pre-existing baseline errors in `SubmissionDiffView.tsx` (unchanged from main) deferred to a follow-up. Visual verification done in light + dark themes for F6 surfaces. Only Wave 4 candidate remaining: **B2** (frontend simulator workspace).
+Phase: **v5 Wave 4 complete locally on `v5/wave4-f6-e2-b2-merged` (2026-04-29)**, awaiting PR. Wave 4 bundles **F6 + E2 + B2**. B2 is the frontend What-If Simulator full rebuild — four-team parallel session: **T1** (shell + ScenarioContext + manager + drawer + apply-to-forecast + RoleContext.tier3_flag patch), **T2** (15 sandbox surfaces + cross-module `scenarioVersion` threading across F4/F5/C2/A6 + 3 sidebar bodies), **T3** (8-dimension impact dashboard + 3-level Compare view), **T4** (21 catalogue actions + Promote workflow + 2 Tier-3 surfaces + 2 Tier-3 sidebar sections). v4 simulator removed wholesale (zero cross-module imports). v4 AI Advisor preserved behind `VITE_ENABLE_AI_ADVISOR` flag. Backend test count: **1283** (unchanged from F6+E2 — B2 is frontend-only; T1's backend RoleContext.tier3_flag patch covered by existing tests). Frontend TS: 82 baseline errors maintained (zero new from any of the 4 slices). 30 endpoints under `/api/scenarios` (all from B1) wired through `scenariosApi` typed wrappers. Lever 12 sandbox storage pattern wired through ScenarioContext (Stage 1 distribution forks to `scenario-{id}` Distribution rows; Stage 2 BTC overlays as ScenarioAction rows). 6 merge commits on the consolidated branch + 2 integration glue commits (sidebar bodies + surfaceKey URL switch + Tier 3 surfaces + Promote button → /promote route). T2-flagged backend gap: `routers/workbench.py:1482` does not yet read the optional `version` query for sandbox forecast composition — frontend plumbing in place, B-cluster follow-up.
+
+Phase preceding: F6 ships the Workbench BTC tile + tab + per-entity allocation breakdown endpoint (+20 tests). E2 ships external cost aggregation endpoints + role-personalised Launchpad tiles + PL capacity read-only endpoint (+73 tests).
 Wave 3 merged on main (2026-04-29) and verified end-to-end. All five sessions landed: **B1** (scenario engine + Lever 12, +91 tests), **E1** (progress tracker + ExternalCostCategory, +92 tests), **A8** (frontend pipeline + Run Portfolio scaffolding), **C2** (frontend mixed-granularity grid + version history UI), and **F4 + F5** (frontend Charging & Allocations module — Distribution + BTC editors + Location Cost Rollup map + tree-table + Report Builder integration). Backend test count after Wave 3: **1190** (1007 baseline + 91 B1 + 92 E1). Frontend TypeScript: 0 errors. Visual verification done in light + dark themes across all four roles (~30 screenshots, prefix `w3-`).
+
+## v5 Session B2 — T2 Sandbox Surfaces + Version Threading (2026-04-29)
+
+### Scope
+T2 of the four-team B2 split. Owns the 15 non-Tier-3 sandbox surfaces +
+BacklogSandboxSurface, the 3 portfolio-scoped sidebar bodies, and the 5
+cross-module patches that thread `scenarioVersion` into F4/F5/C2/A6
+production components per `[B-OQ-02]` `[F-S1-04]`.
+
+### Cross-module patches (5)
+All additive + optional; default behaviour byte-identical to v4 / Wave 3.
+
+- `frontend/src/modules/workbench/forecast/MixedGranularityGrid.tsx` —
+  optional `scenarioVersion?: string` prop; forwarded to
+  `workbenchApi.getForecastGrid({ ..., version })`. Diff helpers
+  (`lookupDelta`, `renderDeltaIndicator`, `isMeaningfulDelta`) extracted
+  to `frontend/src/modules/simulator/lib/cellDiffHelpers.tsx` so Compare
+  L3 (T3) and the change-summary drawer (T1) share the same semantics.
+- `frontend/src/modules/charging/btc/EntityBTCProfileEditor.tsx` —
+  optional `scenarioVersion?: string` + `onSandboxSave` callback. In
+  sandbox mode, manual save routes through the consumer-supplied
+  callback (wired to `ScenarioContext.setBtcLines`); UM "Refresh from
+  UM" + mode-switch are hidden because they are canonical-only writes.
+  Added a "Sandbox edit" badge.
+- `frontend/src/modules/charging/rollup/RollupView.tsx` — optional
+  `scenarioVersion?: string`, `compact?: boolean`, `defaultYear?: number`
+  props. When `scenarioVersion` is set, the version selector is locked
+  and shown as a pill. `compact` hides the top control bar so the rollup
+  embeds neatly inside the impact-tile preview.
+- `frontend/src/modules/charging/distribution/EntityDistributionEditor.tsx`
+  — optional `sandboxScenarioId?: number`. When set, all 4 mutation
+  paths (add edge, update edge, delete edge, change to-business-pct)
+  route to the scenario Lever 12 endpoints instead of canonical
+  Charging API. Read path was already version-aware since F2.
+- `frontend/src/modules/backlog/BacklogContext.tsx` — adds
+  `SandboxBacklogProvider` alongside the live `BacklogProvider`. The
+  sandbox provider keeps state in-memory (no `useSearchParams`) so the
+  simulator workspace URL stays clean. Both providers populate the same
+  context shape; the new optional `scenarioVersion` field on the context
+  lets data hooks fork their fetch path.
+- One-line additive change to `frontend/src/api/endpoints.ts`
+  `workbenchApi.getForecastGrid` to accept the new `version` query
+  (T1-owned file; coordinated via SendMessage. **Backend route at
+  `routers/workbench.py:1482` currently ignores the param** — flagged
+  here as a B-cluster follow-up gap, not in B2 scope).
+
+### 16 surfaces (T2 owns 15 + BacklogSandboxSurface)
+Under `frontend/src/modules/simulator/surfaces/`, exported via barrel
+`surfaces/index.ts`. Each surface dispatches edits through
+`useScenarioContext().applyAction({ scope, action_type, project_id?,
+parameters, lever_category })` per `[B-ES-01]`.
+
+- `ForecastGridSurface` — embeds `MixedGranularityGrid` in sandbox mode
+  (read-only) + scale/remove/pause action dispatch
+- `CostAllocationSurface` (Lever 12) — 3-tab shell: Stage 1
+  distribution editor (sandbox routing), Stage 2 BTC editor (sandbox
+  routing via `setBtcLines`), per-charging-location impact preview +
+  embedded `RollupView` in `compact` sandbox mode (acceptance criteria
+  8 + 9 + 10)
+- `BacklogSandboxSurface` — wraps `RankedListView` with
+  `SandboxBacklogProvider`
+- `RateTableSurface`, `ResourceAssignmentSurface`, `MilestonesSurface`,
+  `VendorContractsSurface`, `SourcingMixSurface`, `CapExOpExSurface`,
+  `RunningCostsSurface`, `HierarchyReassignSurface`,
+  `BudgetEnvelopeSurface`, `EscalationFactorsSurface`,
+  `HypotheticalProjectSurface`, `PipelineStageSurface`,
+  `TechNavigatorScoreSurface` — focused single-action sandbox forms
+- Shared `SurfaceCard` shell — title + sandbox badge + error card +
+  busy state
+
+### 3 sidebar bodies
+Under `frontend/src/modules/simulator/workspace/sidebar/`. Mounted by
+T1's `WorkspaceSidebar` host via the `projectsSection`,
+`backlogSection`, `portfolioSettingsSection` slot props.
+
+- `ProjectsSection` — flattens portfolio tree to project leaves; CC
+  Owner scope filter; navigates to surface URL preserving the user's
+  current `surfaceKey`
+- `BacklogSection` — shortcuts to `backlog` + `hypothetical-project`
+- `PortfolioSettingsSection` — shortcuts to 5 portfolio-scoped surfaces
+
+### Files added (22)
+- `frontend/src/modules/simulator/lib/cellDiffHelpers.tsx`
+- 16 files under `frontend/src/modules/simulator/surfaces/`
+  (15 surfaces + `SurfaceCard.tsx` + `index.ts`)
+- 3 files under `frontend/src/modules/simulator/workspace/sidebar/`
+  (`ProjectsSection.tsx`, `BacklogSection.tsx`,
+  `PortfolioSettingsSection.tsx`)
+
+### Files modified (6)
+- `frontend/src/api/endpoints.ts` — single-line `version` param on
+  `workbenchApi.getForecastGrid`
+- `frontend/src/modules/workbench/forecast/MixedGranularityGrid.tsx`
+- `frontend/src/modules/charging/btc/EntityBTCProfileEditor.tsx`
+- `frontend/src/modules/charging/rollup/RollupView.tsx`
+- `frontend/src/modules/charging/distribution/EntityDistributionEditor.tsx`
+- `frontend/src/modules/backlog/BacklogContext.tsx`
+
+### Verification
+- `tsc --noEmit` exit 0 across all 22 new + 6 modified files.
+- 6 atomic commits with `[B-OQ-02]` decision tags.
+- Cross-module regression: prop additions are optional + default
+  behaviour identical, so F4/F5/C2/A6 production call sites are
+  unaffected.
+
+### Refactoring opportunities (deferred per session protocol)
+- `MixedGranularityGrid` could move its column-grouping helpers
+  (`groupColumnsByYear`, `formatColumnLabel`, etc.) to `lib/` for reuse
+  by the comparison + drawer surfaces — out of scope for B2.
+- `BacklogContext` and `SandboxBacklogProvider` share enough logic that
+  a single internal `useBacklogState({ persistTo: 'url' | 'memory' })`
+  hook would be cleaner — left for a future cleanup pass.
+
+### Known gap (B-cluster follow-up)
+- Backend `/api/projects/{id}/forecast/grid` does not yet read the
+  `version` query, so the sandbox forecast view currently still
+  reflects live-forecast cells. Frontend plumbing is in place; backend
+  filter pass-through is the missing link. Tracked outside B2 scope
+  per the plan's "Lever 12 sandbox storage pattern" rule.
+
+## v5 Session B2 — T3 Impact Dashboard + Compare
+
+Frontend slice for the What-If Simulator workspace (Zone 2 impact dashboard +
+the dedicated Compare flow), per CRETA v5 spec lines 974–1067 and decisions
+`[B-ID-01..03]` `[B-CV-01..05]` `[B-AC-02..03]`. Built in worktree
+`v5/wave4-b2-t3` (off `v5/wave4-f6-e2-b2-merged`); awaits T1 → T2 → T3 → T4
+sequential merge.
+
+### Files added (T3-owned)
+
+- `frontend/src/modules/simulator/lib/colorCoding.ts` — per-scenario palette
+  (anchor + 3 scenarios; light + dark Tailwind tokens for header tint, cell
+  tint, left border, dot, plus hex fallbacks for inline SVG)
+- `frontend/src/modules/simulator/lib/impactTypes.ts` — narrow TS types for
+  the B1 8-dimension impact response + Lever-12 cost-allocation overlay
+- `frontend/src/modules/simulator/lib/dimensionHeadlines.ts` — shared
+  headline-string derivation (arrows ▲▼ + +/- prefixes; no colour-only cues)
+- `frontend/src/modules/simulator/useScenarioContext.ts` — read-only consumer
+  hook stub (T1 owns canonical implementation; merge note in file header)
+- `frontend/src/modules/simulator/workspace/impact/`:
+  - `ImpactSummaryStrip.tsx` — 8-tile strip with stale dot per tile,
+    Tier-3 People tile hidden (not greyed) for non-Tier-3 callers
+  - `ImpactSummaryStripContainer.tsx` — wires strip to ScenarioContext
+  - `ImpactTile.tsx` — accessible card with stale tooltip + active state
+  - `ImpactDetailPanel.tsx` — single-open lazy-rendered detail panel
+  - `ChangeSummaryFeed.tsx` — append-only real-time feed (dim 8) with
+    category badges + per-action Tier-3 / Promoted markers
+  - `dimensions/FinancialDimension.tsx` — anchor/scenario/delta KPIs +
+    CapEx/OpEx + time-frame breakdown table
+  - `dimensions/BacklogRankingDimension.tsx` — affected/removed counts +
+    backlog sandbox CTA
+  - `dimensions/CapacityDimension.tsx` — per-CC table with utilisation bars
+    (over-100 amber tint), FTE delta column
+  - `dimensions/PeopleDimension.tsx` — Tier-3 only; defense-in-depth
+    `null` return when `!tier3Visible`
+  - `dimensions/OutsourcingDimension.tsx` — internal/external split bar +
+    twin total cards
+  - `dimensions/InvestmentMixDimension.tsx` — per-hierarchy-node anchor /
+    scenario / delta table
+  - `dimensions/RunningCostDimension.tsx` — long-term cost-tail breakdown
+  - `dimensions/CostAllocationDimension.tsx` — Lever-12 per-charging-location
+    delta table + totals strip (acceptance criterion #10)
+- `frontend/src/modules/simulator/compare/`:
+  - `compareTypes.ts` — discriminated anchor / scenario column union
+  - `ScenarioColumnHeader.tsx` — name + owner + anchor + status badge +
+    diff count + stale icon, with per-scenario colour token application
+  - `CompareToggle.tsx` — segmented "Show values / Show changes from anchor"
+  - `CompareSelectionPage.tsx` — list with shared-anchor enforcement
+    (mismatched rows disabled with tooltip; backend 409 is fallback)
+  - `ComparePage.tsx` — shell + breadcrumb (Selection › Comparison › project
+    › line) + state machine for L1 ↔ L2 ↔ L3 + anchor-mismatch error UI;
+    fans-out per-scenario impact fetches and stitches with `/compare`
+  - `PortfolioSummaryLevel.tsx` (L1) — 9-row × N-column summary
+    (8 dimensions + cost-allocation), People row hidden for non-Tier-3
+  - `ProjectComparisonLevel.tsx` (L2) — per-project rollup with toggle +
+    click-to-drill chevrons
+  - `LineLevelDetailLevel.tsx` (L3) — line-level scaffold with toggle;
+    month-by-month detail deferred to workbench cross-link
+
+### B1 endpoints consumed
+
+- `GET  /api/scenarios/:id/impact?year=YYYY` → `ImpactDashboardResponse`
+- `POST /api/scenarios/compare`               → project rollup
+- `GET  /api/scenarios/:id/drill-down`        → wired through `scenariosApi.drillDown`
+- `POST /api/scenarios/:id/recalculate`       → consumed via ScenarioContext (T1 owns wrapper)
+
+T1 still needs to add the typed `getImpact` wrapper to `scenariosApi`; until
+then `ComparePage.tsx` falls back to a direct `api.get` call so the page
+works on a fresh checkout.
+
+### Display + accessibility conventions honoured
+
+- Per-scenario colour coding on column headers + cell tints + left borders
+  (3-scenario palette: blue / pink / emerald, with light + dark variants)
+- Directional indicators inline with arrows (▲▼) + +/- prefixes — never
+  colour-only (CLAUDE.md accessibility rule)
+- "Show values vs Show changes from anchor" toggle live at L2 + L3
+- Stale dot on every impact tile (except Change Summary, which updates in
+  real time and is never stale per spec line 1048)
+- Stale icon on scenario column headers when an outdated anchor is detected
+- Tier-3 redaction defense-in-depth: People tile removed entirely from the
+  strip (not greyed), People row removed from L1 Compare, PeopleDimension
+  renders `null` when `!tier3Visible`. Backend already redacts server-side.
+
+### Tests + verification
+
+- All T3 source files type-check clean against the project tsconfig
+  (no errors in `modules/simulator/(lib|workspace/impact|compare)/`).
+- Visual verification done at desktop viewport (1440 × 900) in light + dark
+  themes via Playwright MCP using a temporary preview route mounting all
+  components with stub data:
+  - `w5-b2-t3-01-impact-strip-light.png` — 9-tile strip with stale dots
+  - `w5-b2-t3-02-impact-financial-detail-light.png` — Financial detail
+  - `w5-b2-t3-03-impact-capacity-detail-light.png` — Capacity (over-100 rows
+    amber-tinted)
+  - `w5-b2-t3-04-impact-cost-allocation-light.png` — Lever-12 per-location
+    deltas
+  - `w5-b2-t3-05-compare-l1-light.png` — Compare L1 portfolio summary
+  - `w5-b2-t3-06-compare-l2-light.png` — L2 "Show values"
+  - `w5-b2-t3-07-compare-l2-changes-light.png` — L2 "Show changes from anchor"
+  - `w5-b2-t3-08-change-summary-feed-light.png` — append-only feed
+  - `w5-b2-t3-09-impact-strip-tier3-redacted-light.png` — People tile gone
+  - `w5-b2-t3-10-impact-strip-dark.png`
+  - `w5-b2-t3-11-compare-l1-dark.png`
+  - `w5-b2-t3-12-compare-l2-dark.png`
+  - `w5-b2-t3-13-impact-financial-detail-dark.png`
+  - `w5-b2-t3-14-compare-l3-dark.png` — line-level scaffold with toggle
+- The temporary preview route + file (`__t3-preview.tsx`) was reverted
+  before the final commit.
+
 Wave 2 merged: F3 (+125 tests) + C1 (+94 tests) + A6 frontend brought backend baseline to 1007 tests.
 Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
 Next: Wave 4 — **B2** (frontend simulator workspace) remaining.
 **Post-merge requirement on first pull:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables, C1's `is_provisional` column on `forecasts`, B1's Scenario column additions, and E1's progress tracker columns + new tables all require schema regeneration. F6 + E2 add no schema changes (read-only endpoints + new frontend tile/tab); no further DB reset required for Wave 4.
+
+## v5 Session B2 — T1 Shell + Context + Manager (2026-04-29)
+
+T1 slice of the four-team B2 simulator rebuild. Owns the cross-cutting
+infrastructure (T2/T3/T4 depend on this), the manager pages, the workspace
+shell (header, sandbox border, sidebar host), the apply-to-forecast flow,
+the change-summary drawer, and the route swap at `App.tsx`.
+
+### Files added
+- `frontend/src/modules/simulator/SimulatorRouter.tsx` — replaces
+  `WhatIfSimulator.tsx`. Routes: `/simulator`, `/scenarios/:id` (workspace),
+  `/scenarios/:id/surface/:surfaceKey/:entityId?` (T2 reads URL params),
+  `/scenarios/:id/promote` (T4 placeholder), `/compare/...` (T3 placeholder).
+- `frontend/src/modules/simulator/ScenarioContext.tsx` +
+  `useScenarioContext.ts` — provider-based store with reducer. Single
+  source of truth for scenario id + version, detail, impact, stale flag,
+  optimistic change-summary feed. Mutations cover the full B1 surface
+  (CRUD, lifecycle, action apply/remove/reorder, all 6 Lever 12 endpoints,
+  recalc, promote preview/execute, apply-to-forecast).
+- `frontend/src/modules/simulator/lib/scenarioVersion.ts` — single source of
+  truth for the `'scenario-{id}'` sandbox version string per `[F-S1-04]`.
+  Exports `FORECAST_VERSION`, `buildScenarioVersion`, `parseScenarioVersion`,
+  `isScenarioVersion`, `resolveVersion`. T2 surfaces import from here.
+- `frontend/src/modules/simulator/lib/cellDiffHelpers.tsx` — extracted
+  `lookupDelta` + `renderDeltaIndicator` from
+  `MixedGranularityGrid.tsx:226-244`. T2 will refactor MixedGranularityGrid
+  to import from this module.
+- `frontend/src/modules/simulator/lib/{changeSummary,routingLabels,colorCoding}.ts`
+  — shared label / formatting helpers (T3 fills colorCoding further).
+- `frontend/src/modules/simulator/permissions/` — `useTier3` (reads
+  `RoleContext.tier3_flag`, falls back to `impact.tier3_visible`),
+  `useCanPromote` (controller-only), `useCanApplyToForecast` (PL-only),
+  `useCanCreateScenario` (controller / executive / CC Owner per `[E-06c]`),
+  `ccOwnerScope` (`filterProjectsForCcOwner`, `filterLeversForCcOwner`).
+- `frontend/src/modules/simulator/flags/advisorFlag.ts` — build-time gate
+  `VITE_ENABLE_AI_ADVISOR`. v4 advisor moved to `advisor/` and mounted via
+  lazy-loaded `AdvisorMount.tsx` (uses separate `useAdvisor()` hook so the
+  flag-off path renders zero advisor DOM and does not import the v4 panel).
+- `frontend/src/modules/simulator/api/scenariosApi.ts` — ~30 typed wrappers
+  covering CRUD / lifecycle / actions / Lever 12 / impact / promote /
+  apply-to-forecast / advisor. T1 sole owner per the Wave-3 conflict-pattern
+  lesson (T2/T3/T4 request additions through SendMessage at checkpoints).
+- `frontend/src/modules/simulator/manager/{ScenarioManagerPage,
+  MyScenariosTable,PublishedScenariosTable,ScenarioRow,
+  CreateScenarioModal,RebaseModal,TagFilterBar,ArchivedToggle}.tsx` —
+  v5 manager with tags, archived toggle, rebase, publish/unpublish,
+  visibility (private / Tier 3 / all-users) badges, CC-Owner-aware Create
+  modal.
+- `frontend/src/modules/simulator/workspace/ScenarioWorkspacePage.tsx`,
+  `SandboxBorder.tsx`, `header/{ScenarioHeader,StatusBadge,RecalculateButton,
+  StaleIndicator}.tsx`, `sidebar/WorkspaceSidebar.tsx` — 3-zone shell with
+  amber sandbox border + banner, ScenarioHeader with stale indicator +
+  Recalculate, lifecycle dropdown, Apply-to-forecast (PL), advisor button
+  (gated). Sidebar host with collapsible Projects / Backlog / Portfolio
+  Settings / Resources (Tier-3 hidden DOM) / Bulk Actions sections — T2/T4
+  fill the bodies.
+- `frontend/src/modules/simulator/drawer/{ChangeSummaryDrawer,DiffEntry,
+  PromoteApplyButtons}.tsx` — slide-in change-summary feed with
+  per-entry remove and Promote slot footer (T4 fills).
+- `frontend/src/modules/simulator/apply-to-forecast/{ApplyButton,
+  ApplyConfirmModal}.tsx` — PL-only confirm modal with two phases
+  (confirm → result summary with carried/skipped counts and provenance note).
+- `frontend/src/modules/simulator/{compare,promote}/Placeholder.tsx` —
+  reserve the routes while T3 / T4 are in flight.
+
+### Files removed (replaced wholesale)
+- `frontend/src/modules/simulator/WhatIfSimulator.tsx`
+- `frontend/src/modules/simulator/useScenarioState.ts`
+- `frontend/src/modules/simulator/comparison/` (3 files)
+- `frontend/src/modules/simulator/drilldown/` (1 file)
+- `frontend/src/modules/simulator/manager/` v4 trio
+- `frontend/src/modules/simulator/workspace/` v4 (7 files)
+
+v4's `advisor/` is preserved verbatim per plan.
+
+### Backend
+Single backend patch per the B2 plan: `RoleContext` now exposes
+`tier3_flag` resolved from `User.tier3_flag` looked up by `person_id`
+(`backend/routers/global_launchpad.py` + `backend/schemas/global_launchpad.py`).
+Falls back to False when no active User row exists. Frontend types mirror
+the new field as optional for backward compat.
+
+### App.tsx route swap
+`/simulator/*` now mounts `<SimulatorRouter />` instead of v4's
+`<WhatIfSimulator />`.
+
+### Verification
+- Backend: 1283 tests pass (unchanged baseline).
+- Frontend `tsc -b --noEmit`: 82 errors total — same as the pre-existing
+  baseline on main; **zero** new errors from the T1 file set.
+- Visual verification (light + dark, screenshot prefix `w5-b2-t1-`):
+  manager page (`01-manager-light`, `03-manager-dark`), workspace shell
+  (`02-workspace-light`, `04-workspace-dark`), compare placeholder
+  (`05-compare-placeholder-dark`). All semantic Tailwind classes; no
+  hardcoded colors; sandbox border uses amber-300 / amber-700/60 with
+  matching bg variants per the dark-mode rule in CLAUDE.md.
+
+### Still owned by T2 / T3 / T4
+- T2: 17 sandbox surfaces + scenarioVersion prop threading on
+  MixedGranularityGrid / EntityBTCProfileEditor / RollupView /
+  EntityDistributionEditor / Backlog. Sidebar bodies for Projects /
+  Backlog / Portfolio Settings.
+- T3: Impact dashboard (8 dimensions) + Compare (selection + 3 levels
+  + color coding).
+- T4: Catalogue (21 actions) + Promote workflow + Resources / Bulk Actions
+  sidebar bodies + 2 Tier-3 surfaces (PeopleMaster, CapacityParameters).
+
+## v5 Session B2 — T4 Catalogue + Promote
+
+### Scope
+Frontend-only slice of the v5 Cluster B What-If Simulator rebuild. T4 owns the **catalogue** of 23 bulk actions, the **Promote workflow** UI, the two **Tier-3 surfaces** (PeopleMaster, CapacityParameters), and the two **Tier-3 sidebar sections** (BulkActions, Resources). Backend reused as-is — the single dispatch endpoint `POST /api/scenarios/:id/actions` (`backend/routers/scenarios.py:536`) routes every catalogue action through `services/scenario_engine.py::_apply_action`, and the Promote workflow consumes `POST /:id/promote/preview`, `POST /:id/promote`, and `GET /:id/promotions`.
+
+### What landed
+- **`catalogue/` (full)** per `[B-ES-01]`:
+  - `types.ts` — `ActionDefinition` / `FieldDefinition` / `LeverCategory` / `ActionTier`
+  - `catalogueDef.ts` — all 23 actions across 4 categories (10 project-level, 7 portfolio rules, 2 target-setters, 4 restructuring Tier 3); `visibleActions(hasTier3)` removes restructuring entries entirely from the array (hidden DOM, not disabled)
+  - `ActionForm.tsx` — single shared scaffold rendering any `ActionDefinition` into a project picker (when scope=project) + dynamic field stack (number / percent / currency / month / select / multi-select / textarea) with `dependsOn` visibility + lazy reference fetch (`referenceApi`, `adminApi.getActiveHierarchy()`)
+  - `BulkActionsPanel.tsx` — tile grid grouped by category; selecting a tile reveals the form; restructuring section filtered for non-Tier-3
+  - 23 thin per-action wrappers via `makeCatalogueWrapper` for deep-linking + per-action customisation hooks: `projectLevel/{RemoveProject,PauseProject,DelayProject,AccelerateProject,ScaleBudget,ChangeSourcingMix,SetTerminationDate,CloneProject,AdjustVendorContract,ChangeExternalRate}`, `portfolioRules/{CutByHierarchy,CutByType,CutByTransformation,AcrossTheBoardCut,FreezeNewStarts,ApplyEscalation,AdjustRateTable}`, `targetSetters/{OutsourcingTarget,InvestmentMixTarget}`, `restructuring/{RemoveRole,ReduceHeadcount,RelocateTeam,HireBlock}`
+- **`workspace/sidebar/`** per `[B-AC-02]`:
+  - `BulkActionsSection.tsx` — host that mounts `BulkActionsPanel`
+  - `ResourcesSection.tsx` — Tier 3 only; returns `null` entirely when `!hasTier3` (hidden DOM); renders 2 surface shortcuts + 4 restructuring action shortcuts
+- **`surfaces/` (Tier 3 only)** co-located with restructuring actions:
+  - `PeopleMasterSurface.tsx` — returns `null` when `!hasTier3`; renders the 4 restructuring actions inline as collapsible details
+  - `CapacityParametersSurface.tsx` — returns `null` when `!hasTier3`; inline form for overriding hours/FTE/month per location, submitting as `action_type='capacity_param_change'` lever_category=`'capacity_param'` tier=3 → routes to `capacity_param_update` at Promote
+- **`promote/` (full)** per `[B-PR-01..06]`:
+  - `routingLabels.ts` — labels + descriptions + Tailwind colour classes for the 12 routing types (`direct_forecast_update`, `change_request`, `doi_gate_check`, `tech_navigator_direct`, `tech_navigator_send_back`, `rate_table_update`, `people_action_item`, `budget_envelope_update`, `hypothetical_to_proposed`, `hierarchy_update`, `cost_allocation_update`, `capacity_param_update`, plus `no_route` for target-setters); plus `ROUTING_CATEGORY_LABEL` grouping for the diff selector
+  - `PromotedBadge.tsx` — small marker for already-promoted actions
+  - `PromoteEnter.tsx` — header / drawer entry button; hidden DOM for non-controllers (`useCanPromote()`); disabled with rebase tooltip when anchor stale or scenario archived
+  - `DiffSelector.tsx` — category-grouped checkbox picker per `[B-PR-03]`: per-diff checkboxes + select-all PER CATEGORY + NO global select-all; already-promoted rows are visible but unselectable; routing badge + target_id + requires_review + permission_ok flag inline
+  - `RoutingPreview.tsx` — compact table of the chosen subset for pre-confirm review
+  - `PromoteConfirmModal.tsx` — confirm dialog with optional notes textarea (recorded on `ScenarioPromotion` audit row); calls `promoteExecute(action_ids, notes)`
+  - `PromoteAuditDrawer.tsx` — right-side sheet listing past promotions via `GET /api/scenarios/:id/promotions`
+  - `PromoteReviewPage.tsx` — full-page orchestrator: fetch preview → DiffSelector → routing preview → confirm modal → post-execute summary; rebase prompt rendered when preview returns 409 stale-anchor
+
+### Files
+**New:** `frontend/src/modules/simulator/catalogue/{types.ts, catalogueDef.ts, ActionForm.tsx, BulkActionsPanel.tsx, wrapper.tsx}` + 23 per-action wrappers in 4 sub-folders + 4 barrel `index.ts` files; `frontend/src/modules/simulator/workspace/sidebar/{BulkActionsSection.tsx, ResourcesSection.tsx}`; `frontend/src/modules/simulator/surfaces/{PeopleMasterSurface.tsx, CapacityParametersSurface.tsx}`; `frontend/src/modules/simulator/promote/{routingLabels.ts, PromotedBadge.tsx, PromoteEnter.tsx, DiffSelector.tsx, RoutingPreview.tsx, PromoteConfirmModal.tsx, PromoteAuditDrawer.tsx, PromoteReviewPage.tsx, index.ts}`. Plus a temporary visual-verification harness at `frontend/src/modules/simulator/__t4_preview/T4PreviewPage.tsx` + 2 routes in `App.tsx` (both flagged `TEMP — removed at lead merge`).
+
+### API consumption
+- `POST /api/scenarios/:id/actions` (single dispatch — all 21 catalogue actions)
+- `POST /api/scenarios/:id/promote/preview` + `POST /api/scenarios/:id/promote` + `GET /api/scenarios/:id/promotions`
+- `referenceApi.{getRoles,getCostCenters,getLocations,getCostTypes}` + `adminApi.getActiveHierarchy()` (lazy-loaded by `ActionForm` on first relevant field)
+
+### Tier 3 security pattern
+`useTier3()` from T1's permission hooks reads `RoleContext.tier3_flag` with defensive fallback to `impact.tier3_visible`. Every Tier-3 surface returns `null` when `!hasTier3` — no DOM rendered, never a disabled state. Restructuring actions are filtered out of `visibleActions(false)` so their tiles never appear in the catalogue. Backend redacts the `people` impact dimension and Tier-3 actions independently for defense in depth.
+
+### Verification
+- T4 files type-check clean (`tsc -b` reports zero errors in `modules/simulator/{catalogue,promote,surfaces,workspace/sidebar,__t4_preview}`).
+- Pre-existing baseline TS errors unchanged: `workbench/forecast/useForecastCycle.ts`, `workbench/overview/ProjectTimelineChart.tsx`, `workbench/submission/SubmissionDiffView.tsx` (called out in Current Status as deferred).
+- **Visual verification (`w5-b2-t4-*` screenshots) deferred to lead's merge smoke walk** (Task #5). Both Playwright and Chrome DevTools MCP browser instances were locked by other teammates throughout the T4 build; the temp `/__t4-preview` route is wired so the lead can navigate the catalogue grid (Tier-3 visible vs hidden), Promote review page, routing preview, and confirm modal in seconds against the stub ScenarioCtx.Provider.
+
+### Refactoring opportunities (not yet picked up — leave for a future session)
+- `backend/services/scenario_engine.py::recalculate_scenario` and `get_scenario_state` do not include `lever_category`, `tier`, or `promoted_at` in the serialised action list. The router-level redaction filter at `routers/scenarios.py:480-485` already references those fields, suggesting a serialisation gap. Adding them is a one-line additive change that would make the Promoted badge work on the integrated workspace without re-querying the promote audit.
+
 
 ## v5 Session F6: Workbench BTC Tile + Workbench BTC Tab (2026-04-29)
 

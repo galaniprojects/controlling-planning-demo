@@ -121,6 +121,18 @@ def get_role_context(
     project_ids = json.loads(persona.owned_project_ids_json) if persona.owned_project_ids_json else []
     accessible = MODULE_VISIBILITY.get(persona.role, [])
 
+    # v5 B2 [B-AC-02] [D-AC-02]: resolve Tier 3 flag from User row by person_id.
+    # Falls back to False when no active User row exists.
+    from models.users import User
+    tier3_flag = False
+    if persona.person_id:
+        urow = (
+            db.query(User)
+            .filter(User.person_id == persona.person_id, User.is_active.is_(True))
+            .first()
+        )
+        tier3_flag = bool(urow and urow.tier3_flag)
+
     return RoleContext(
         role=persona.role,
         user_name=persona.display_name,
@@ -128,6 +140,7 @@ def get_role_context(
         accessible_modules=accessible,
         owned_project_ids=project_ids,
         managed_cost_center_id=persona.managed_cost_center_id,
+        tier3_flag=tier3_flag,
     )
 
 

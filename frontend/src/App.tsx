@@ -8,7 +8,8 @@ import { Launchpad } from '@/modules/launchpad/Launchpad';
 import { PortfolioOverview } from '@/modules/portfolio/PortfolioOverview';
 import { ProjectWorkbench } from '@/modules/workbench/ProjectWorkbench';
 import { CapacityManagement } from '@/modules/capacity/CapacityManagement';
-import { WhatIfSimulator } from '@/modules/simulator/WhatIfSimulator';
+// === v5 Cluster B Session B2 — full simulator rebuild [B-AC-01..03] ===
+import { SimulatorRouter } from '@/modules/simulator/SimulatorRouter';
 import { Reporting } from '@/modules/reporting/Reporting';
 import { Administration } from '@/modules/admin/Administration';
 import { DocumentationHub } from '@/modules/docs/DocumentationHub';
@@ -33,7 +34,7 @@ export default function App() {
                 <Route path="/workbench/new-project/:projectId" element={<ResourcePlanPage />} />
                 <Route path="/workbench/*" element={<ProjectWorkbench />} />
                 <Route path="/capacity/*" element={<CapacityManagement />} />
-                <Route path="/simulator/*" element={<WhatIfSimulator />} />
+                <Route path="/simulator/*" element={<SimulatorRouter />} />
                 <Route path="/reporting/*" element={<Reporting />} />
                 <Route path="/admin/*" element={<Administration />} />
                 <Route path="/docs/*" element={<DocumentationHub />} />

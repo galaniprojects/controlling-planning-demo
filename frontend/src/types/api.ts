@@ -29,6 +29,13 @@ export interface RoleContext {
   accessible_modules: string[];
   owned_project_ids: string[];
   managed_cost_center_id: string | null;
+  /**
+   * v5 B2 [B-AC-02] [D-AC-02] — Tier 3 simulator-access flag from
+   * User.tier3_flag, looked up by person_id on the backend. Frontend
+   * gates Tier 3 surfaces / impact dimensions / catalogue actions on
+   * this. Defaults to false when no active User row exists.
+   */
+  tier3_flag?: boolean;
 }
 
 // Notifications
@@ -832,11 +839,21 @@ export interface ScenarioListItem {
   created_at: string;
   modified_at: string;
   headline_impact: string | null;
+  // v5 B2 additions [B-SL-01..05]
+  visibility?: string | null;
+  tier3_content_flag?: boolean | null;
+  archived?: boolean | null;
+  archived_at?: string | null;
+  tags?: string[] | null;
+  anchor_forecast_version_id?: number | null;
+  last_recalculated_at?: string | null;
 }
 
 export interface ScenarioListResponse {
   my_scenarios: ScenarioListItem[];
   published_scenarios: ScenarioListItem[];
+  archived_scenarios?: ScenarioListItem[];
+  available_tags?: string[];
 }
 
 export interface ScenarioCreateResponse {

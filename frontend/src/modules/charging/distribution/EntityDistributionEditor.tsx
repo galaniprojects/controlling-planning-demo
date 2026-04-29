@@ -6,6 +6,13 @@
  * "Self-retained %" indicator. Save-time validation:
  *   - Sum rule per [F-S1-02]: to_business + sum(distribute) ≤ 100
  *   - Cycle detection per [F-S1-05]: backend rejects with 409 + chain
+ *
+ * v5 B2 [B-OQ-02]: when any `onSandbox*` handler is provided, the matching
+ * mutation routes through the caller's callback instead of `chargingApi`.
+ * The simulator CostAllocationSurface wires those callbacks to
+ * `ScenarioContext` Lever 12 mutations, which both populate the
+ * change-summary feed and avoid an `@/modules/simulator/*` import inside
+ * this Charging-module component.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Plus, Trash2, AlertTriangle, Save, X } from 'lucide-react';
@@ -31,7 +38,36 @@ import type {
   EntityDistributionSummary,
 } from '@/types/api';
 
-interface Props {
+/**
+ * v5 B2 [B-OQ-02]: callbacks the simulator CostAllocationSurface wires to
+ * `ScenarioContext` mutations so that (a) the change-summary feed gets an
+ * entry per edit and (b) this F4 component never imports anything from
+ * `@/modules/simulator/*` (clean layering).
+ *
+ * When `onSandbox*` callbacks are provided, the editor routes all 4
+ * mutation paths through them instead of `chargingApi`. When undefined,
+ * the editor uses the canonical Charging API (default v4 behaviour).
+ */
+export interface DistributionSandboxHandlers {
+  onSandboxCreateEdge?: (input: {
+    year: number;
+    source_entity_id: string;
+    destination_entity_id: string;
+    percentage: number;
+  }) => Promise<unknown>;
+  onSandboxUpdateEdge?: (
+    edgeId: number,
+    input: { percentage: number },
+  ) => Promise<unknown>;
+  onSandboxDeleteEdge?: (edgeId: number) => Promise<unknown>;
+  onSandboxSetToBusiness?: (input: {
+    entity_id: string;
+    year: number;
+    new_pct: number;
+  }) => Promise<unknown>;
+}
+
+interface Props extends DistributionSandboxHandlers {
   entityId: string;
   year: number;
   version: string;
@@ -45,7 +81,16 @@ const ENTITY_TYPE_OPTIONS: { value: 'all' | ChargeableEntityType; label: string 
   { value: 'InternalService', label: 'Internal Services' },
 ];
 
-export function EntityDistributionEditor({ entityId, year, version, onBack }: Props) {
+export function EntityDistributionEditor({
+  entityId,
+  year,
+  version,
+  onBack,
+  onSandboxCreateEdge,
+  onSandboxUpdateEdge,
+  onSandboxDeleteEdge,
+  onSandboxSetToBusiness,
+}: Props) {
   const [summary, setSummary] = useState<EntityDistributionSummary | null>(null);
   const [entity, setEntity] = useState<ChargeableEntityItem | null>(null);
   const [allEntities, setAllEntities] = useState<ChargeableEntityItem[]>([]);
@@ -100,9 +145,21 @@ export function EntityDistributionEditor({ entityId, year, version, onBack }: Pr
     setSavingTBP(true);
     setTbpError(null);
     try {
-      const updated = await chargingApi.updateEntityToBusinessPct(entityId, year, next, version);
-      setSummary(updated);
-      setTbpDraft(String(updated.to_business_pct));
+      // v5 B2 [B-OQ-02]: sandbox path → callback (wired by simulator
+      // CostAllocationSurface to ScenarioContext.setToBusiness).
+      if (onSandboxSetToBusiness) {
+        await onSandboxSetToBusiness({
+          entity_id: entityId,
+          year,
+          new_pct: next,
+        });
+        // Refetch summary so derived fields stay in sync.
+        fetchData();
+      } else {
+        const updated = await chargingApi.updateEntityToBusinessPct(entityId, year, next, version);
+        setSummary(updated);
+        setTbpDraft(String(updated.to_business_pct));
+      }
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Save failed';
       setTbpError(message);
@@ -123,7 +180,12 @@ export function EntityDistributionEditor({ entityId, year, version, onBack }: Pr
       return;
     }
     try {
-      await chargingApi.updateDistribution(edge.id, { percentage: next });
+      // v5 B2 [B-OQ-02]: sandbox path → callback.
+      if (onSandboxUpdateEdge) {
+        await onSandboxUpdateEdge(edge.id, { percentage: next });
+      } else {
+        await chargingApi.updateDistribution(edge.id, { percentage: next });
+      }
       setEditingEdgeId(null);
       setEdgeDraftPct('');
       fetchData();
@@ -134,7 +196,12 @@ export function EntityDistributionEditor({ entityId, year, version, onBack }: Pr
 
   const handleDeleteEdge = async (edge: DistributionEdgeItem) => {
     try {
-      await chargingApi.deleteDistribution(edge.id);
+      // v5 B2 [B-OQ-02]: sandbox path → callback.
+      if (onSandboxDeleteEdge) {
+        await onSandboxDeleteEdge(edge.id);
+      } else {
+        await chargingApi.deleteDistribution(edge.id);
+      }
       fetchData();
     } catch (e: unknown) {
       setTbpError(e instanceof Error ? e.message : 'Delete failed');
@@ -382,6 +449,7 @@ export function EntityDistributionEditor({ entityId, year, version, onBack }: Pr
         allEntities={allEntities}
         year={year}
         version={version}
+        onSandboxCreateEdge={onSandboxCreateEdge}
         availableHeadroom={Math.max(0, 100 - (summary.to_business_pct + distributedTotal))}
         error={addError}
         cycleChain={cycleChain}
@@ -409,6 +477,9 @@ interface AddDialogProps {
   allEntities: ChargeableEntityItem[];
   year: number;
   version: string;
+  /** v5 B2 [B-OQ-02]: when provided, sandbox-creates the edge through the
+   * caller's callback instead of `chargingApi.createDistribution`. */
+  onSandboxCreateEdge?: DistributionSandboxHandlers['onSandboxCreateEdge'];
   availableHeadroom: number;
   error: string | null;
   cycleChain: string[] | null;
@@ -425,6 +496,7 @@ function AddDistributionDialog({
   allEntities,
   year,
   version,
+  onSandboxCreateEdge,
   availableHeadroom,
   error,
   cycleChain,
@@ -485,13 +557,24 @@ function AddDistributionDialog({
     }
     setSaving(true);
     try {
-      await chargingApi.createDistribution({
-        year,
-        version,
-        source_entity_id: sourceEntity.id,
-        destination_entity_id: destinationId,
-        percentage: pct,
-      });
+      // v5 B2 [B-OQ-02]: sandbox path → callback (wired by simulator
+      // CostAllocationSurface to ScenarioContext.createDistribution).
+      if (onSandboxCreateEdge) {
+        await onSandboxCreateEdge({
+          year,
+          source_entity_id: sourceEntity.id,
+          destination_entity_id: destinationId,
+          percentage: pct,
+        });
+      } else {
+        await chargingApi.createDistribution({
+          year,
+          version,
+          source_entity_id: sourceEntity.id,
+          destination_entity_id: destinationId,
+          percentage: pct,
+        });
+      }
       onSaved();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Save failed';

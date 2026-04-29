@@ -1,0 +1,87 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button "CRETA" [ref=e6]
+      - navigation [ref=e7]:
+        - generic [ref=e8]:
+          - generic [ref=e9]: /
+          - generic [ref=e10]: __t3-preview
+    - generic [ref=e11]:
+      - button "Switch to dark mode" [ref=e12]:
+        - img [ref=e13]
+      - button "?" [ref=e15]
+      - button "Anna Meier" [ref=e132]:
+        - generic [ref=e17]: Anna Meier
+        - img [ref=e18]
+  - main [ref=e21]:
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - generic [ref=e24]: B2 T3 preview
+        - generic [ref=e25]:
+          - button "strip" [ref=e26]
+          - button "change-feed" [ref=e27]
+          - button "compare-l1" [ref=e28]
+          - button "compare-l2" [active] [ref=e29]
+          - button "compare-l3" [ref=e30]
+        - generic [ref=e31]:
+          - generic [ref=e32]:
+            - checkbox "Tier 3 visible" [checked] [ref=e33]
+            - text: Tier 3 visible
+          - button "Toggle dark" [ref=e34]
+      - main [ref=e35]:
+        - generic [ref=e702]:
+          - generic [ref=e703]:
+            - paragraph [ref=e704]: Click a row to drill into a specific forecast line (Level 3).
+            - group "Compare display mode" [ref=e705]:
+              - button "Show values" [pressed] [ref=e706]
+              - button "Show changes from anchor" [ref=e707]
+          - generic [ref=e709]:
+            - generic [ref=e710]: Project
+            - generic [ref=e714]: Current State
+            - generic [ref=e715]:
+              - generic [ref=e718]: 10% across-the-board cut
+              - generic [ref=e719]:
+                - generic [ref=e720]: Anna Meier
+                - generic [ref=e721]: · v18
+                - generic [ref=e722]: private
+                - generic [ref=e723]: 9 diffs
+            - generic [ref=e724]:
+              - generic [ref=e725]:
+                - generic [ref=e727]: Operate-stage cap
+                - generic "Stale — anchor outdated" [ref=e728]:
+                  - img [ref=e729]
+              - generic [ref=e731]:
+                - generic [ref=e732]: Thomas Becker
+                - generic [ref=e733]: · v18
+                - generic [ref=e734]: published
+                - generic [ref=e735]: 5 diffs
+            - button "Cloud Lift-and-Shift" [ref=e737] [cursor=pointer]
+            - generic [ref=e738]: €2,8M
+            - generic [ref=e739]: €2,5M
+            - generic [ref=e740]: €2,6M
+            - button "Drill into Cloud Lift-and-Shift" [ref=e741] [cursor=pointer]:
+              - img [ref=e742]
+            - button "CRM Refresh" [ref=e744] [cursor=pointer]
+            - generic [ref=e745]: €1,9M
+            - generic [ref=e746]: €1,6M
+            - generic [ref=e747]: €1,9M
+            - button "Drill into CRM Refresh" [ref=e748] [cursor=pointer]:
+              - img [ref=e749]
+            - button "Data Lake Migration" [ref=e751] [cursor=pointer]
+            - generic [ref=e752]: €3,1M
+            - generic [ref=e753]: €2,9M
+            - generic [ref=e754]: €2,9M
+            - button "Drill into Data Lake Migration" [ref=e755] [cursor=pointer]:
+              - img [ref=e756]
+            - button "ERP Migration Wave 2" [ref=e758] [cursor=pointer]
+            - generic [ref=e759]: €4,2M
+            - generic [ref=e760]: €3,8M
+            - generic [ref=e761]: €4,1M
+            - button "Drill into ERP Migration Wave 2" [ref=e762] [cursor=pointer]:
+              - img [ref=e763]
+            - button "Identity Platform" [ref=e765] [cursor=pointer]
+            - generic [ref=e766]: €1,4M
+            - generic [ref=e767]: €1,3M
+            - generic [ref=e768]: —
+            - button "Drill into Identity Platform" [ref=e769] [cursor=pointer]:
+              - img [ref=e770]
