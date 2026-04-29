@@ -1195,3 +1195,50 @@ export const techNavigatorApi = {
       body,
     ),
 };
+
+// ---------------------------------------------------------------------------
+// === Backlog (A6) [A-BK-01..26]
+// ---------------------------------------------------------------------------
+
+import type {
+  RankedBacklogResponse,
+  CutoffLinesResponse,
+  IntakeQueueItem,
+} from '@/types/api';
+import type { MilestoneListResponse } from '@/types/milestones';
+
+export const backlogApi = {
+  /**
+   * GET /api/portfolio/backlog — ranked items + pre-funded + cutoff + config.
+   * Optional server-side filters narrow items[]; cutoff is always portfolio-wide.
+   */
+  getBacklog: (params?: {
+    pipeline_stage?: string;
+    project_type?: string;
+    tshirt_size?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.pipeline_stage) q.set('pipeline_stage', params.pipeline_stage);
+    if (params?.project_type) q.set('project_type', params.project_type);
+    if (params?.tshirt_size) q.set('tshirt_size', params.tshirt_size);
+    const qs = q.toString();
+    return api.get<RankedBacklogResponse>(`/api/portfolio/backlog${qs ? '?' + qs : ''}`);
+  },
+
+  /** GET /api/portfolio/backlog/cutoff — KPI strip only (no item list). */
+  getCutoff: () => api.get<CutoffLinesResponse>('/api/portfolio/backlog/cutoff'),
+};
+
+export const intakeApi = {
+  /**
+   * GET /api/intake/queue — Under Evaluation projects (controller/exec see all,
+   * PL sees own). Used by backlog to show projects in the Under Evaluation stage.
+   */
+  getQueue: () => api.get<{ items: IntakeQueueItem[]; total: number }>('/api/intake/queue'),
+};
+
+export const milestonesApi = {
+  /** GET /api/projects/{id}/milestones — read-only milestone list. */
+  list: (projectId: string) =>
+    api.get<MilestoneListResponse>(`/api/projects/${projectId}/milestones`),
+};
