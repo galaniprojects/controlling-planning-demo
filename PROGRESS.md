@@ -1,9 +1,77 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D/F — Wave 1 merged via PR #63 (2026-04-29).
-Last completed: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests passing. Frontend TS error count unchanged at 78 pre-existing. Verified end-to-end via 5 live curl smokes + Chrome-DevTools visual walk (composite-ranking math 0.7 × 4.4 + 0.3 × 4.0 = 4.28 confirmed live).
-Next: **Wave 2 — F3 (BTCProfile + Stage 2 + rollup) + A6 (frontend backlog) + C1 (mixed-granularity forecast + versioning)** can run in parallel on three independent agent-team worktrees. F3 unblocks A8 + B1; A6 replaces A7's stub harness; C1 unblocks B1 + C2.
+Phase: v5 Cluster A/D/F — Wave 2 in progress (A6 complete, F3 and C1 running in parallel worktrees).
+Last completed: A6 (frontend Backlog module — ranked list, cube view, detail page with 4 tabs, Launchpad tile). Frontend TS error count 0 (all clean). Verified end-to-end via Playwright visual walk (22 screenshots, light + dark mode).
+Next: **F3 (BTCProfile + Stage 2 + rollup) + C1 (mixed-granularity forecast + versioning)** completing in parallel. F3 unblocks A8 + B1; C1 unblocks B1 + C2.
+
+## v5 Session A6: Frontend Backlog Module (2026-04-29)
+
+### Feature Overview
+Full frontend Backlog module per `[A-BK-01..26]` `[A-TN-08..09]`:
+
+- **Ranked List view** — paginated table with sort controls (rank / project name / composite score / budget), server-driven stage/type/size/T-level filters, within-cutoff toggle, `CutoffBand` rows inserted at `should_be_cutoff_rank` and `reality_cutoff_rank`, misalignment-zone tinting. Sort override suppresses bands and shows amber `ResetToRankingButton` banner.
+- **Cube view** — Recharts `ScatterChart` 3-column grid (T0/T1/T2) with CSS custom property colors, bubble-size ∝ budget, click navigates to detail page, empty-state when no projects have T-level assigned.
+- **`CutoffSummaryStrip`** — always shows portfolio-wide envelope metrics (Budget envelope, Contestable, Should-be cutoff, Reality cutoff, Horizon).
+- **`BandJumpRail`** — sticky left rail with scroll-to-band anchor links (hidden when no bands present).
+- **`BacklogProjectDetailPage`** (`/backlog/:projectId`) — 4-tab detail view (Scores & Ranking, Financial Overview, Master Data, Milestones). Tab state persisted via `?tab=` URL param.
+  - **Scores & Ranking tab**: reuses A7's `TechNavigatorRubric` plus new `RankingPositionCard`.
+  - **Financial Overview tab**: embeds workbench `OverviewTab` read-only.
+  - **Master Data tab**: DoI-aware completeness checklist (cumulative requirements for DoI 0–N from `DoIRequirementsRegistry`), per-section breakdown, progress bar.
+  - **Milestones tab**: read-only milestone strip (SVG timeline) + sortable milestone table.
+- **`DetailHeader`** — back-navigation, project name + status badge, rank / DoI / cutoff / budget metadata strip.
+- **Launchpad tile** — `backlog` module entry added to `global_launchpad.py` with metric "N projects above cutoff" (computed live from `Project.within_cutoff`), visible to all 4 roles.
+- **`BacklogContext`** — URL-param-persisted view mode, filters, sort, and cutoff toggle. `useBacklog()` hook for consumers.
+- **`BacklogFilterBar`** — stage / type / size / T-level dropdowns + within-cutoff toggle + Clear.
+
+### Files Created
+- `frontend/src/modules/backlog/BacklogContext.tsx` — context + provider + `useBacklog()` hook
+- `frontend/src/modules/backlog/BacklogPage.tsx` — route shell, wraps provider
+- `frontend/src/modules/backlog/BacklogProjectDetailPage.tsx` — `/backlog/:projectId` with 4-tab layout
+- `frontend/src/modules/backlog/components/BacklogFilterBar.tsx` — filter bar
+- `frontend/src/modules/backlog/components/CutoffSummaryStrip.tsx` — cutoff KPI strip
+- `frontend/src/modules/backlog/components/ranked/RankedListView.tsx` — ranked list container
+- `frontend/src/modules/backlog/components/ranked/RankedListTable.tsx` — table with band insertion + sort icons
+- `frontend/src/modules/backlog/components/ranked/RankedRow.tsx` — row with type-ring left border
+- `frontend/src/modules/backlog/components/ranked/CutoffBand.tsx` — full-width band row
+- `frontend/src/modules/backlog/components/ranked/BandJumpRail.tsx` — sticky scroll-to-band rail
+- `frontend/src/modules/backlog/components/ranked/ResetToRankingButton.tsx` — sort-override reset banner
+- `frontend/src/modules/backlog/components/cube/CubeView.tsx` — cube grid wrapper
+- `frontend/src/modules/backlog/components/cube/CubeScatterPanel.tsx` — Recharts ScatterChart per T-level
+- `frontend/src/modules/backlog/components/detail/DetailHeader.tsx` — project detail header + back link
+- `frontend/src/modules/backlog/components/detail/ScoresAndRankingTab.tsx` — scores tab with ranking card + rubric
+- `frontend/src/modules/backlog/components/detail/RankingPositionCard.tsx` — rank / score / cutoff / DoI card
+- `frontend/src/modules/backlog/components/detail/FinancialOverviewTab.tsx` — embeds workbench OverviewTab
+- `frontend/src/modules/backlog/components/detail/MasterDataTab.tsx` — DoI completeness checklist
+- `frontend/src/modules/backlog/components/detail/DoIRequirementsRegistry.ts` — static DoI→fields map
+- `frontend/src/modules/backlog/components/detail/MilestonesTab.tsx` — milestone strip + table
+- `frontend/src/modules/backlog/components/detail/MilestoneStrip.tsx` — SVG/CSS milestone timeline
+- `frontend/src/types/milestones.ts` — TypeScript types for milestone API responses
+
+### Files Modified
+- `frontend/src/types/api.ts` — added `RankedProjectItem`, `CutoffLines`, `RankedBacklogResponse`, `IntakeQueueItem`, `CutoffLinesResponse`
+- `frontend/src/api/endpoints.ts` — added `backlogApi`, `intakeApi`, `milestonesApi`
+- `frontend/src/App.tsx` — added `/backlog` and `/backlog/:projectId` routes; removed stub route
+- `frontend/src/lib/routes.ts` — added `backlog: '/backlog'` to `MODULE_ROUTES`; added `/backlog` label
+- `backend/routers/global_launchpad.py` — added `backlog` module entry with `within_cutoff` metric
+
+### Files Deleted
+- `frontend/src/modules/backlog/BacklogDetailStub.tsx` — replaced by real detail page
+
+### Key Design Decisions
+- **Filter data flow**: server-side `pipeline_stage` / `project_type` / `tshirt_size` params narrow `items[]`; `within_cutoff` is client-side toggle; cutoff strip always shows portfolio-wide values.
+- **Sort override semantics**: any column sort other than `rank` sets `hasSortOverride=true` which suppresses `CutoffBand` rows and misalignment tinting; `ResetToRankingButton` restores default order.
+- **`Fragment key` pattern**: `<Fragment key={item.project_id}>` wraps conditional band rows + `RankedRow` to satisfy React's list-key requirement.
+- **A8 collision avoidance**: `RankedRow` accepts an `actionCell?: React.ReactNode` prop slot (unused, reserved for A8 controller actions).
+- **Recharts colors**: all chart/SVG colors use CSS custom properties (`var(--chart-1)`, `var(--chart-grid, hsl(var(--border)))`) — never hex values.
+
+### Verification
+- TypeScript: 0 errors
+- Visual: 22 Playwright screenshots (11 light + 11 dark) covering launchpad tile, ranked list, filters, sort override, cube view, all 4 detail tabs, within-cutoff toggle, back navigation
+- Dark mode: all components use semantic Tailwind classes; no hardcoded colors; status colors have `dark:` variants
+
+### Branch
+`feature/v5-a6-backlog-frontend` — 5 atomic commits. No PR created (awaiting team-lead direction).
 
 ## v5 Session A5: Intake Workflow + Backlog Integration Backend (2026-04-28)
 
