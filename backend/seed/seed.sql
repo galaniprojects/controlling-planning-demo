@@ -459,7 +459,10 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 -- Working assumptions pending KB confirmation: 50M EUR envelope is a placeholder;
 -- tie-breaker default ASC on DoI surfaces earlier-stage projects first per [A-BK-06].
 ('ranking_total_available_budget', 'Total Available Budget', 'Annual portfolio budget envelope used for cutoff line calculation [A-BK-09]', '50000000', '50000000', 'integer', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('ranking_tiebreakers', 'Backlog Tie-Breaker Order', 'Comma-separated tie-breaker fields applied after composite_score DESC [A-BK-06]', 'composite_score:desc,doi:asc,total_budget:desc', 'composite_score:desc,doi:asc,total_budget:desc', 'string', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('ranking_tiebreakers', 'Backlog Tie-Breaker Order', 'Comma-separated tie-breaker fields applied after composite_score DESC [A-BK-06]', 'composite_score:desc,doi:asc,total_budget:desc', 'composite_score:desc,doi:asc,total_budget:desc', 'string', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+-- v5 Session C1 — Mixed-Granularity Forecast horizon parameter [C-FG-05]
+-- granularity_boundary_months already seeded above by D1; only horizon added here.
+('planning_horizon_months', 'Planning Horizon (months)', 'Total number of months in the mixed-granularity forecast grid [C-FG-05]', '60', '60', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- 13. KPI Definitions
