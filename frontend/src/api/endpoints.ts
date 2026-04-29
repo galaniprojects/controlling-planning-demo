@@ -1242,3 +1242,179 @@ export const milestonesApi = {
   list: (projectId: string) =>
     api.get<MilestoneListResponse>(`/api/projects/${projectId}/milestones`),
 };
+
+// ---------------------------------------------------------------------------
+// === v5 Cluster F — Charging & Allocations API (F4 / F5)
+// === Backed by /api/charging (read) + /api/admin (write/admin)
+// ---------------------------------------------------------------------------
+
+import type {
+  ChargeableEntityItem,
+  ChargeableEntityType,
+  DistributionEdgeItem,
+  EntityDistributionSummary,
+  DistributionEffectiveCost,
+  BTCProfileItem,
+  BTCMode,
+  BTCStatus,
+  BTCRefreshDiffResult,
+  RollupListResponse as ChargingRollupListResponse,
+  RollupGroupBy,
+  RollupDrillDownResponse,
+  UpstreamChainResponse,
+} from '@/types/api';
+
+export const chargingApi = {
+  // === ChargeableEntity catalogue [F-DM-01] ===
+  listEntities: (params?: {
+    entity_type?: ChargeableEntityType;
+    hierarchy_node_id?: string;
+    is_active?: boolean | null;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.entity_type) q.set('entity_type', params.entity_type);
+    if (params?.hierarchy_node_id) q.set('hierarchy_node_id', params.hierarchy_node_id);
+    if (params?.is_active === false) q.set('is_active', 'false');
+    if (params?.is_active === null) q.set('is_active', 'null');
+    const qs = q.toString();
+    return api.get<ListResponse<ChargeableEntityItem>>(
+      `/api/admin/chargeable-entities${qs ? '?' + qs : ''}`,
+    );
+  },
+  getEntity: (id: string) =>
+    api.get<ChargeableEntityItem>(`/api/admin/chargeable-entities/${id}`),
+
+  // === Stage 1 inter-service Distribution edges [F-S1-01..05] ===
+  listDistributions: (params?: {
+    year?: number;
+    version?: string;
+    source_entity_id?: string;
+    destination_entity_id?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.year !== undefined) q.set('year', String(params.year));
+    if (params?.version) q.set('version', params.version);
+    if (params?.source_entity_id) q.set('source_entity_id', params.source_entity_id);
+    if (params?.destination_entity_id) q.set('destination_entity_id', params.destination_entity_id);
+    const qs = q.toString();
+    return api.get<ListResponse<DistributionEdgeItem>>(
+      `/api/charging/distributions${qs ? '?' + qs : ''}`,
+    );
+  },
+  getEntityDistributionSummary: (entityId: string, year: number, version: string = 'forecast') =>
+    api.get<EntityDistributionSummary>(
+      `/api/charging/entities/${entityId}/distribution-summary?year=${year}&version=${encodeURIComponent(version)}`,
+    ),
+  createDistribution: (data: {
+    year: number;
+    version: string;
+    source_entity_id: string;
+    destination_entity_id: string;
+    percentage: number;
+  }) => api.post<DistributionEdgeItem>('/api/charging/distributions', data),
+  updateDistribution: (id: number, data: { percentage: number }) =>
+    api.put<DistributionEdgeItem>(`/api/charging/distributions/${id}`, data),
+  deleteDistribution: (id: number) =>
+    api.delete<{ id: number; deleted: boolean }>(`/api/charging/distributions/${id}`),
+  updateEntityToBusinessPct: (entityId: string, year: number, newPct: number, version: string = 'forecast') =>
+    api.put<EntityDistributionSummary>(
+      `/api/charging/entities/${entityId}/to-business-pct?new_pct=${newPct}&year=${year}&version=${encodeURIComponent(version)}`,
+    ),
+  getEntityEffectiveCost: (entityId: string, year: number, version: string = 'forecast') =>
+    api.get<DistributionEffectiveCost>(
+      `/api/charging/entities/${entityId}/effective-cost?year=${year}&version=${encodeURIComponent(version)}`,
+    ),
+  getEntityUpstreamChain: (entityId: string, year: number, version: string = 'forecast') =>
+    api.get<UpstreamChainResponse>(
+      `/api/charging/entities/${entityId}/upstream-chain?year=${year}&version=${encodeURIComponent(version)}`,
+    ),
+
+  // === Stage 2 BTC Profiles [F-S2-01..08] ===
+  listBTCProfiles: (params?: {
+    entity_id?: string;
+    year?: number;
+    status?: BTCStatus;
+    mode?: BTCMode;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.entity_id) q.set('entity_id', params.entity_id);
+    if (params?.year !== undefined) q.set('year', String(params.year));
+    if (params?.status) q.set('status', params.status);
+    if (params?.mode) q.set('mode', params.mode);
+    const qs = q.toString();
+    return api.get<ListResponse<BTCProfileItem>>(
+      `/api/charging/btc-profiles${qs ? '?' + qs : ''}`,
+    );
+  },
+  getBTCProfile: (id: number) =>
+    api.get<BTCProfileItem>(`/api/charging/btc-profiles/${id}`),
+  getEntityBTCProfile: (entityId: string, year: number) =>
+    api.get<BTCProfileItem>(
+      `/api/charging/entities/${entityId}/btc-profile?year=${year}`,
+    ),
+  createBTCProfile: (data: {
+    entity_id: string;
+    year: number;
+    mode: BTCMode;
+    s_code?: string | null;
+    status?: BTCStatus;
+    lines?: { charging_location_id: string; percentage: number }[];
+    um_year?: number | null;
+    um_quarter?: number | null;
+  }) => api.post<BTCProfileItem>('/api/charging/btc-profiles', data),
+  updateBTCProfile: (id: number, data: {
+    lines: { charging_location_id: string; percentage: number }[];
+  }) => api.put<BTCProfileItem>(`/api/charging/btc-profiles/${id}`, data),
+  deleteBTCProfile: (id: number) =>
+    api.delete<{ id: number; deleted: boolean }>(`/api/charging/btc-profiles/${id}`),
+  refreshBTCFromUM: (id: number, data: {
+    um_year?: number | null;
+    um_quarter?: number | null;
+    dry_run?: boolean;
+  }) =>
+    api.post<BTCRefreshDiffResult>(`/api/charging/btc-profiles/${id}/refresh-um`, data),
+  changeBTCMode: (id: number, data: {
+    new_mode: BTCMode;
+    s_code?: string | null;
+    confirm: boolean;
+    um_year?: number | null;
+    um_quarter?: number | null;
+  }) =>
+    api.post<BTCProfileItem>(`/api/charging/btc-profiles/${id}/change-mode`, data),
+  copyBTCProfileFrom: (data: {
+    source_profile_id: number;
+    target_entity_id: string;
+    target_year: number;
+    target_status?: BTCStatus;
+  }) =>
+    api.post<BTCProfileItem>(`/api/charging/btc-profiles/${data.source_profile_id}/copy-from`, data),
+
+  // === Rollup query + drill-down [F-RV-01..06] ===
+  getRollup: (params: {
+    year: number;
+    version?: string;
+    group_by?: RollupGroupBy;
+    entity_type?: ChargeableEntityType;
+  }) => {
+    const q = new URLSearchParams();
+    q.set('year', String(params.year));
+    if (params.version) q.set('version', params.version);
+    if (params.group_by) q.set('group_by', params.group_by);
+    if (params.entity_type) q.set('entity_type', params.entity_type);
+    return api.get<ChargingRollupListResponse>(`/api/charging/rollup?${q.toString()}`);
+  },
+  getRollupDrillDown: (params: {
+    cl_id: string;
+    entity_id: string;
+    year: number;
+    version?: string;
+  }) => {
+    const q = new URLSearchParams();
+    q.set('entity_id', params.entity_id);
+    q.set('year', String(params.year));
+    if (params.version) q.set('version', params.version);
+    return api.get<RollupDrillDownResponse>(
+      `/api/charging/rollup/charging-location/${params.cl_id}?${q.toString()}`,
+    );
+  },
+};
