@@ -499,10 +499,38 @@ function renderField(
   );
 }
 
+function lookupRef(
+  refs: RefBundle,
+  source: ReferenceSource,
+): FieldOption[] {
+  switch (source) {
+    case 'roles':
+      return refs.roles;
+    case 'cost_centers':
+      return refs.cost_centers;
+    case 'locations':
+      return refs.locations;
+    case 'cost_types':
+      return refs.cost_types;
+    case 'hierarchy_nodes':
+      return refs.hierarchy_nodes;
+    case 'rate_tables':
+      return refs.rate_tables;
+    case 'project_types':
+      return refs.project_types;
+    case 'transformation_levels':
+      return refs.transformation_levels;
+    case 'projects':
+      // Projects come from `detail.project_states` via the project picker;
+      // catalogue fields don't currently use this source directly.
+      return [];
+  }
+}
+
 function resolveOptions(field: FieldDefinition, refs: RefBundle): FieldOption[] {
   if (field.options) return field.options;
   if (field.referenceSource) {
-    return refs[field.referenceSource] ?? [];
+    return lookupRef(refs, field.referenceSource);
   }
   return [];
 }
@@ -513,7 +541,7 @@ function resolveMultiSelectOptions(
   refs: RefBundle,
 ): FieldOption[] {
   if (field.options) return field.options;
-  if (field.referenceSource) return refs[field.referenceSource] ?? [];
+  if (field.referenceSource) return lookupRef(refs, field.referenceSource);
 
   // Implicit dependsOn-driven sources used by Apply Escalation.
   if (field.dependsOn?.field === 'scope_type') {
