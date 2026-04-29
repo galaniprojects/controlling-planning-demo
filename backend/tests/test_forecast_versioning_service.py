@@ -1,0 +1,549 @@
+"""Tests for services/forecast_versioning.py — C1 Mixed-Granularity Forecast + Versioning.
+
+Spec: [C-FG-01..08], [C-FV-01..07], [C-RH-01..05]
+"""
+from __future__ import annotations
+
+import json
+import pytest
+from decimal import Decimal
+
+from models.financial import Forecast, ForecastVersion
+from models.projects import Project
+from models.people import RoleType, Person
+from models.organization import Location, CompetenceCenter, CostCenter
+from models.system import PlanningParameter
+from schemas.common import CurrentUser
+from services.forecast_versioning import (
+    get_horizon_params,
+    compute_boundary_month,
+    compute_horizon_end_month,
+    bucket_to_quarter,
+    quarter_constituent_months,
+    distribute_quarterly_value,
+    build_mixed_grid,
+    serialize_forecast_payload,
+    capture_version,
+    capture_versions_for_cycle,
+    list_versions,
+    get_version,
+    compute_diff,
+    mark_cells_provisional,
+    _next_version_number,
+    _first_quarter_start,
+)
+from services.calculations import month_to_quarter_key, quarter_to_months
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def controller() -> CurrentUser:
+    return CurrentUser(
+        user_id="persona-controller",
+        person_id="p-ctrl",
+        name="Anna Meier",
+        role="controller",
+        cost_center_id=None,
+        project_ids=[],
+    )
+
+
+@pytest.fixture
+def seeded_project(db):
+    """Insert minimal org + one project + forecast rows."""
+    loc = Location(id="loc-muc", city="Munich", country="Germany")
+    cc = CompetenceCenter(id="comp-dev", name="Dev")
+    cost_c = CostCenter(id="cc-muc-dev", name="Munich Dev",
+                        location_id="loc-muc", competence_center_id="comp-dev")
+    role = RoleType(id="role-dev", name="Developer")
+    person = Person(id="p-ctrl", name="Anna Meier", role_type_id="role-dev",
+                    cost_center_id="cc-muc-dev", competence_center_id="comp-dev")
+    project = Project(
+        id="proj-alpha", name="Alpha Project",
+        status="active", capex_opex="capex",
+        start_month="2026-04", is_service=False, is_active=True,
+    )
+    db.add_all([loc, cc, cost_c, role, person, project])
+    db.commit()
+
+    # Add forecast rows: 2 months × 2 line items
+    for month in ["2026-04", "2026-05", "2026-06", "2026-07",
+                  "2027-01", "2027-04", "2027-07", "2027-10", "2028-01"]:
+        db.add(Forecast(
+            project_id="proj-alpha", month=month,
+            category="internal", sub_category="role-dev",
+            hours=80, amount_eur=8000.00, capex_opex="capex",
+        ))
+        db.add(Forecast(
+            project_id="proj-alpha", month=month,
+            category="external", sub_category="ext-hw",
+            hours=None, amount_eur=2000.00, capex_opex="capex",
+        ))
+    db.commit()
+    return {"project_id": "proj-alpha", "person_id": "p-ctrl"}
+
+
+@pytest.fixture
+def horizon_params(db):
+    """Insert planning parameters for boundary=12, horizon=60."""
+    db.add(PlanningParameter(
+        key="granularity_boundary_months", name="Boundary",
+        description="", current_value="12", default_value="12",
+        data_type="integer", param_group="planning",
+    ))
+    db.add(PlanningParameter(
+        key="planning_horizon_months", name="Horizon",
+        description="", current_value="60", default_value="60",
+        data_type="integer", param_group="planning",
+    ))
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
+# 1. Boundary / horizon math
+# ---------------------------------------------------------------------------
+
+class TestBoundaryMath:
+    """[C-FG-05] Boundary and horizon month calculations."""
+
+    def test_compute_boundary_month_default(self):
+        # 12 boundary months from April 2026 → March 2027
+        assert compute_boundary_month("2026-04", 12) == "2027-03"
+
+    def test_compute_boundary_month_6(self):
+        # 6 boundary months from April 2026 → September 2026
+        assert compute_boundary_month("2026-04", 6) == "2026-09"
+
+    def test_compute_horizon_end_month(self):
+        # 60 months from April 2026 → March 2031
+        assert compute_horizon_end_month("2026-04", 60) == "2031-03"
+
+    def test_compute_horizon_end_month_12(self):
+        assert compute_horizon_end_month("2026-04", 12) == "2027-03"
+
+    def test_get_horizon_params_fallback(self, db):
+        """Returns fallback (12, 60) when parameters missing."""
+        b, h = get_horizon_params(db)
+        assert b == 12
+        assert h == 60
+
+    def test_get_horizon_params_from_db(self, db, horizon_params):
+        b, h = get_horizon_params(db)
+        assert b == 12
+        assert h == 60
+
+
+# ---------------------------------------------------------------------------
+# 2. Quarter math
+# ---------------------------------------------------------------------------
+
+class TestQuarterMath:
+    """[C-FG-02..04] Quarter bucketing and distribution."""
+
+    @pytest.mark.parametrize("month,expected_key", [
+        ("2026-01", "2026-Q1"),
+        ("2026-04", "2026-Q2"),
+        ("2026-07", "2026-Q3"),
+        ("2026-10", "2026-Q4"),
+        ("2027-01", "2027-Q1"),
+        ("2027-12", "2027-Q4"),
+    ])
+    def test_month_to_quarter_key(self, month, expected_key):
+        assert month_to_quarter_key(month) == expected_key
+
+    @pytest.mark.parametrize("quarter_key,expected_months", [
+        ("2026-Q1", ["2026-01", "2026-02", "2026-03"]),
+        ("2026-Q2", ["2026-04", "2026-05", "2026-06"]),
+        ("2026-Q4", ["2026-10", "2026-11", "2026-12"]),
+        ("2027-Q1", ["2027-01", "2027-02", "2027-03"]),
+    ])
+    def test_quarter_to_months(self, quarter_key, expected_months):
+        assert quarter_to_months(quarter_key) == expected_months
+
+    @pytest.mark.parametrize("month,boundary,expected_bucket", [
+        ("2026-04", "2027-03", None),           # within boundary → monthly
+        ("2027-03", "2027-03", None),           # at boundary → monthly
+        ("2027-04", "2027-03", "2027-Q2"),      # just past boundary → quarterly
+        ("2027-10", "2027-03", "2027-Q4"),      # well past boundary → quarterly
+    ])
+    def test_bucket_to_quarter(self, month, boundary, expected_bucket):
+        assert bucket_to_quarter(month, boundary) == expected_bucket
+
+    def test_quarter_constituent_months_full(self):
+        months = quarter_constituent_months("2027-Q1", "2031-03")
+        assert months == ["2027-01", "2027-02", "2027-03"]
+
+    def test_quarter_constituent_months_clipped_by_horizon(self):
+        # horizon ends in January 2027 → Q1 2027 only has Jan
+        months = quarter_constituent_months("2027-Q1", "2027-01")
+        assert months == ["2027-01"]
+
+    def test_first_quarter_start_march_boundary(self):
+        """boundary_month='2027-03' → first quarter beyond starts at 2027-04."""
+        first = _first_quarter_start("2027-03")
+        assert first == "2027-04"
+
+    def test_first_quarter_start_mid_quarter(self):
+        """boundary_month='2027-05' → Q2 2027 starts 2027-04 but 2027-05 > 2027-04,
+        so next quarter past boundary is Q3 2027 → 2027-07."""
+        first = _first_quarter_start("2027-05")
+        assert first == "2027-07"
+
+    def test_first_quarter_start_december(self):
+        """boundary_month='2027-12' → first quarterly key 2028-Q1, start 2028-01."""
+        first = _first_quarter_start("2027-12")
+        assert first == "2028-01"
+
+
+# ---------------------------------------------------------------------------
+# 3. distribute_quarterly_value — cent remainder
+# ---------------------------------------------------------------------------
+
+class TestDistributeQuarterlyValue:
+    """[C-FG-03] Cent-remainder applied to last month."""
+
+    def test_even_division(self):
+        dist = distribute_quarterly_value(300.0, ["2027-01", "2027-02", "2027-03"])
+        assert dist == {"2027-01": 100.0, "2027-02": 100.0, "2027-03": 100.0}
+
+    def test_cent_remainder_to_last(self):
+        # 100.0 / 3 = 33.33, 33.33 * 2 = 66.66, remainder = 33.34
+        dist = distribute_quarterly_value(100.0, ["2027-01", "2027-02", "2027-03"])
+        assert dist["2027-01"] == 33.33
+        assert dist["2027-02"] == 33.33
+        assert round(dist["2027-03"], 2) == 33.34
+        assert round(sum(dist.values()), 2) == 100.0
+
+    def test_single_month(self):
+        dist = distribute_quarterly_value(500.0, ["2027-01"])
+        assert dist == {"2027-01": 500.0}
+
+    def test_empty_months(self):
+        dist = distribute_quarterly_value(500.0, [])
+        assert dist == {}
+
+    def test_zero_total(self):
+        dist = distribute_quarterly_value(0.0, ["2027-01", "2027-02", "2027-03"])
+        assert all(v == 0.0 for v in dist.values())
+
+
+# ---------------------------------------------------------------------------
+# 4. build_mixed_grid
+# ---------------------------------------------------------------------------
+
+class TestBuildMixedGrid:
+    """[C-FG-01..06] Grid construction."""
+
+    def test_returns_expected_keys(self, db, seeded_project, horizon_params):
+        grid = build_mixed_grid(db, "proj-alpha", "2026-04")
+        assert "project_id" in grid
+        assert "columns" in grid
+        assert "rows" in grid
+        assert "totals_by_column" in grid
+        assert "grand_total" in grid
+        assert grid["granularity"] == "mixed"
+
+    def test_monthly_only_granularity(self, db, seeded_project, horizon_params):
+        grid = build_mixed_grid(db, "proj-alpha", "2026-04", granularity="monthly")
+        # All columns should be monthly
+        cell_types = {col["cell_type"] for col in grid["columns"]}
+        assert cell_types == {"monthly"}
+
+    def test_quarterly_only_granularity(self, db, seeded_project, horizon_params):
+        grid = build_mixed_grid(db, "proj-alpha", "2026-04", granularity="quarterly")
+        cell_types = {col["cell_type"] for col in grid["columns"]}
+        assert cell_types == {"quarterly"}
+
+    def test_mixed_has_both_types(self, db, seeded_project, horizon_params):
+        grid = build_mixed_grid(db, "proj-alpha", "2026-04",
+                                boundary_months=3, horizon_months=12)
+        cell_types = {col["cell_type"] for col in grid["columns"]}
+        assert "monthly" in cell_types
+        assert "quarterly" in cell_types
+
+    def test_boundary_month_correct(self, db, seeded_project, horizon_params):
+        grid = build_mixed_grid(db, "proj-alpha", "2026-04", boundary_months=3)
+        assert grid["boundary_month"] == "2026-06"  # 3 months: Apr=1, May=2, Jun=3
+
+    def test_totals_by_column_is_sum(self, db, seeded_project, horizon_params):
+        grid = build_mixed_grid(db, "proj-alpha", "2026-04")
+        grand_from_columns = round(sum(grid["totals_by_column"].values()), 2)
+        assert grand_from_columns == grid["grand_total"]
+
+    def test_no_forecast_rows_returns_empty(self, db, seeded_project, horizon_params):
+        # Create new project with no forecast
+        db.add(Project(id="proj-empty", name="Empty", status="active",
+                       capex_opex="capex", start_month="2026-04", is_active=True))
+        db.commit()
+        grid = build_mixed_grid(db, "proj-empty", "2026-04")
+        assert grid["rows"] == []
+        assert grid["grand_total"] == 0.0
+
+    def test_configurable_boundary_override(self, db, seeded_project, horizon_params):
+        grid = build_mixed_grid(db, "proj-alpha", "2026-04", boundary_months=6)
+        assert grid["granularity_boundary_months"] == 6
+        assert grid["boundary_month"] == "2026-09"
+
+
+# ---------------------------------------------------------------------------
+# 5. serialize_forecast_payload
+# ---------------------------------------------------------------------------
+
+class TestSerializeForecastPayload:
+    def test_schema_version(self, db, seeded_project, horizon_params):
+        grid = build_mixed_grid(db, "proj-alpha", "2026-04")
+        payload_str = serialize_forecast_payload("proj-alpha", grid, "2026-04-01T00:00:00")
+        payload = json.loads(payload_str)
+        assert payload["schema_version"] == 1
+        assert payload["project_id"] == "proj-alpha"
+        assert "rows" in payload
+        assert "totals_by_column" in payload
+        assert "grand_total" in payload
+
+    def test_totals_by_category_present(self, db, seeded_project, horizon_params):
+        grid = build_mixed_grid(db, "proj-alpha", "2026-04")
+        payload_str = serialize_forecast_payload("proj-alpha", grid, "2026-04-01T00:00:00")
+        payload = json.loads(payload_str)
+        assert "totals_by_category" in payload
+        assert "internal" in payload["totals_by_category"]
+
+
+# ---------------------------------------------------------------------------
+# 6. capture_version
+# ---------------------------------------------------------------------------
+
+class TestCaptureVersion:
+    """[C-FV-02, C-FV-03] Version capture."""
+
+    def test_creates_version_row(self, db, seeded_project, horizon_params, controller):
+        fv = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.commit()
+        assert fv.id is not None
+        assert fv.project_id == "proj-alpha"
+        assert fv.version_type == "manual"
+        assert fv.version_number == 1
+        assert fv.payload_json is not None
+        assert fv.cell_count is not None
+
+    def test_cr_approval_type(self, db, seeded_project, horizon_params, controller):
+        fv = capture_version(
+            db, "proj-alpha", controller,
+            version_type="cr_approval", change_request_id=99,
+        )
+        db.commit()
+        assert fv.version_type == "cr_approval"
+        assert fv.change_request_id == 99
+
+    def test_cycle_type_with_label(self, db, seeded_project, horizon_params, controller):
+        fv = capture_version(
+            db, "proj-alpha", controller,
+            version_type="cycle", cycle_label="Q2 2026 Cycle", cycle_id="abc123",
+        )
+        db.commit()
+        assert fv.cycle_label == "Q2 2026 Cycle"
+        assert fv.cycle_id == "abc123"
+
+    def test_sequential_version_numbers(self, db, seeded_project, horizon_params, controller):
+        fv1 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.flush()
+        fv2 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.flush()
+        fv3 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.commit()
+        assert fv1.version_number == 1
+        assert fv2.version_number == 2
+        assert fv3.version_number == 3
+
+
+# ---------------------------------------------------------------------------
+# 7. capture_versions_for_cycle
+# ---------------------------------------------------------------------------
+
+class TestCaptureVersionsForCycle:
+    """[C-FV-05] Fan-out: one version per active project."""
+
+    def test_creates_one_per_project_with_forecasts(self, db, seeded_project, horizon_params, controller):
+        created = capture_versions_for_cycle(
+            db, controller, "Q2 2026 Cycle", cycle_id="test-cycle"
+        )
+        db.commit()
+        # Should create 1 version for proj-alpha
+        assert len(created) == 1
+        assert created[0].project_id == "proj-alpha"
+        assert created[0].version_type == "cycle"
+        assert created[0].cycle_label == "Q2 2026 Cycle"
+
+    def test_skips_project_without_forecast(self, db, seeded_project, horizon_params, controller):
+        # Add a project with no forecast rows
+        db.add(Project(id="proj-nof", name="No Forecast", status="active",
+                       capex_opex="capex", start_month="2026-04", is_active=True))
+        db.commit()
+        created = capture_versions_for_cycle(db, controller, "Q2 2026 Cycle")
+        db.commit()
+        project_ids = {fv.project_id for fv in created}
+        assert "proj-nof" not in project_ids
+        assert "proj-alpha" in project_ids
+
+    def test_fan_out_multiple_projects(self, db, seeded_project, horizon_params, controller):
+        # Add second project with forecast
+        db.add(Project(id="proj-beta", name="Beta", status="active",
+                       capex_opex="capex", start_month="2026-04", is_active=True))
+        db.commit()
+        for month in ["2026-04", "2026-05"]:
+            db.add(Forecast(project_id="proj-beta", month=month,
+                            category="internal", sub_category="role-dev",
+                            hours=40, amount_eur=4000.00, capex_opex="capex"))
+        db.commit()
+
+        created = capture_versions_for_cycle(db, controller, "Q2 2026 Cycle")
+        db.commit()
+        assert len(created) == 2
+
+
+# ---------------------------------------------------------------------------
+# 8. list_versions / get_version
+# ---------------------------------------------------------------------------
+
+class TestListGetVersions:
+    """[C-RH-01..02]"""
+
+    def test_list_versions_empty(self, db, seeded_project, controller):
+        versions, total = list_versions(db, "proj-alpha")
+        assert total == 0
+        assert versions == []
+
+    def test_list_versions_newest_first(self, db, seeded_project, horizon_params, controller):
+        capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.flush()
+        capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.commit()
+        versions, total = list_versions(db, "proj-alpha")
+        assert total == 2
+        assert versions[0].version_number == 2
+        assert versions[1].version_number == 1
+
+    def test_get_version_by_id(self, db, seeded_project, horizon_params, controller):
+        fv = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.commit()
+        fetched = get_version(db, fv.id)
+        assert fetched is not None
+        assert fetched.id == fv.id
+
+    def test_get_version_not_found(self, db):
+        result = get_version(db, 99999)
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# 9. compute_diff
+# ---------------------------------------------------------------------------
+
+class TestComputeDiff:
+    """[C-RH-05]"""
+
+    def test_happy_path_modified(self, db, seeded_project, horizon_params, controller):
+        fv1 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.flush()
+
+        # Modify a forecast row, then capture v2
+        row = db.query(Forecast).filter(
+            Forecast.project_id == "proj-alpha",
+            Forecast.month == "2026-04",
+            Forecast.sub_category == "role-dev",
+        ).first()
+        row.amount_eur = 10000.0
+        db.flush()
+
+        fv2 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.commit()
+
+        diff = compute_diff(db, fv1.id, fv2.id)
+        assert diff["version_a_id"] == fv1.id
+        assert diff["version_b_id"] == fv2.id
+        assert diff["summary"]["modified_count"] > 0 or diff["summary"]["total_changes"] > 0
+
+    def test_all_unchanged(self, db, seeded_project, horizon_params, controller):
+        fv1 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.flush()
+        fv2 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.commit()
+
+        diff = compute_diff(db, fv1.id, fv2.id)
+        assert diff["summary"]["total_changes"] == 0
+        assert diff["summary"]["modified_count"] == 0
+
+    def test_cross_project_diff(self, db, seeded_project, horizon_params, controller):
+        """Cross-project diff is valid [C-RH-05]."""
+        db.add(Project(id="proj-beta", name="Beta", status="active",
+                       capex_opex="capex", start_month="2026-04", is_active=True))
+        db.commit()
+        for month in ["2026-04"]:
+            db.add(Forecast(project_id="proj-beta", month=month,
+                            category="internal", sub_category="role-dev",
+                            hours=40, amount_eur=5000.00, capex_opex="capex"))
+        db.commit()
+
+        fv_a = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.flush()
+        fv_b = capture_version(db, "proj-beta", controller, version_type="manual")
+        db.commit()
+
+        diff = compute_diff(db, fv_a.id, fv_b.id)
+        assert diff["version_a_project_id"] == "proj-alpha"
+        assert diff["version_b_project_id"] == "proj-beta"
+
+    def test_version_a_not_found(self, db, seeded_project, horizon_params, controller):
+        fv = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.commit()
+        with pytest.raises(ValueError, match="99999"):
+            compute_diff(db, 99999, fv.id)
+
+    def test_removed_line_item(self, db, seeded_project, horizon_params, controller):
+        """Forecast row present in v1 but deleted before v2 → shows as 'removed'."""
+        fv1 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.flush()
+
+        # Remove all external rows from forecast
+        db.query(Forecast).filter(
+            Forecast.project_id == "proj-alpha",
+            Forecast.sub_category == "ext-hw",
+        ).delete()
+        db.flush()
+
+        fv2 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.commit()
+
+        diff = compute_diff(db, fv1.id, fv2.id)
+        removed = [d for d in diff["line_deltas"] if d["status"] == "removed"]
+        assert len(removed) > 0
+
+
+# ---------------------------------------------------------------------------
+# 10. mark_cells_provisional
+# ---------------------------------------------------------------------------
+
+class TestMarkCellsProvisional:
+    """[C-FG-07] Provisional flag on outer-zone cells."""
+
+    def test_marks_beyond_boundary(self, db, seeded_project, horizon_params):
+        count = mark_cells_provisional(db, "proj-alpha", "2026-04", boundary_months=3)
+        db.commit()
+        # Rows beyond 2026-06 should be provisional
+        beyond = db.query(Forecast).filter(
+            Forecast.project_id == "proj-alpha",
+            Forecast.month > "2026-06",
+        ).all()
+        assert all(f.is_provisional for f in beyond)
+        within = db.query(Forecast).filter(
+            Forecast.project_id == "proj-alpha",
+            Forecast.month <= "2026-06",
+        ).all()
+        assert all(not f.is_provisional for f in within)
+
+    def test_returns_updated_count(self, db, seeded_project, horizon_params):
+        count = mark_cells_provisional(db, "proj-alpha", "2026-04", boundary_months=12)
+        # Months after 2027-03 should be marked (2027-04, 2027-07, 2027-10, 2028-01 = 4 months × 2 rows = 8)
+        assert count == 8
