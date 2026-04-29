@@ -64,6 +64,40 @@ class Project(Base):
     # Settable in A2; A3 replaces with computed value driven by the ranking
     # engine's envelope walk per [A-PS-06].
 
+    # v5 Session E1 progress tracker [E-04c]. Milestone-anchored qualitative
+    # progress with optional deliverable checklist enrichment. All fields
+    # nullable so existing rows survive schema migration. Live-editable via
+    # PATCH /api/projects/{id}/progress; snapshotted at forecast cycle
+    # completion via services/progress_tracker.capture_progress_for_cycle.
+    current_milestone_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("project_milestones.id"), nullable=True,
+    )
+    # Pointer to the milestone the project is currently executing. When null,
+    # the service derives it from the milestone whose forecast window contains
+    # the demo date.
+    progress_pct: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    # Intra-milestone progress percentage (0-100). Auto-computed from the
+    # current milestone's deliverable checklist when items exist; manually
+    # overridable when ``progress_pct_manual_override`` is True.
+    progress_pct_manual_override: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="0",
+    )
+    status_narrative: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # PL's free-text status narrative (1-2 sentences). Mandatory at forecast
+    # cycle submission per [E-04c]; advisory elsewhere.
+    next_milestone_confidence: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True,
+    )
+    # Three-value enum: 'on_track' | 'at_risk' | 'blocked'. Service layer
+    # enforces ``confidence_reason`` is non-empty when value is at_risk/blocked.
+    confidence_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    progress_updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True,
+    )
+    progress_updated_by_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("people.id"), nullable=True,
+    )
+
     last_forecast_submitted_month: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)  # YYYY-MM — last month PL submitted forecast
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -85,6 +119,15 @@ class Project(Base):
     forecast_versions: Mapped[list["ForecastVersion"]] = relationship(
         back_populates="project",
         order_by="ForecastVersion.version_number",
+    )
+    # E1: progress snapshot history [E-04c]
+    progress_snapshots: Mapped[list["ProgressSnapshot"]] = relationship(
+        back_populates="project",
+        order_by="ProgressSnapshot.snapshot_at",
+    )
+    current_milestone: Mapped[Optional["ProjectMilestone"]] = relationship(
+        foreign_keys=[current_milestone_id],
+        post_update=True,
     )
 
 
@@ -137,6 +180,94 @@ class ProjectMilestone(Base):
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="milestones")
     milestone_type: Mapped[Optional["MilestoneType"]] = relationship()
+    # E1: per-milestone deliverable checklist [E-04c] (max 10 items enforced
+    # at the service layer; cascade delete keeps the catalogue tidy when a
+    # milestone is removed).
+    deliverables: Mapped[list["MilestoneDeliverable"]] = relationship(
+        back_populates="milestone",
+        order_by="MilestoneDeliverable.sequence",
+        cascade="all, delete-orphan",
+    )
+
+
+class MilestoneDeliverable(Base):
+    """Per-milestone deliverable checklist item per [E-04c].
+
+    Free-text PL-defined items, max 10 per milestone (enforced in
+    ``services/progress_tracker.MAX_CHECKLIST_ITEMS``). When deliverables
+    exist on the current milestone, ``Project.progress_pct`` auto-computes
+    from the completion ratio; PL retains a manual override flag.
+    """
+
+    __tablename__ = "milestone_deliverables"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    milestone_id: Mapped[int] = mapped_column(
+        ForeignKey("project_milestones.id", ondelete="CASCADE"), nullable=False,
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Stable display ordering. PL controls insertion order; sequence values are
+    # contiguous (1..N) but service-layer reorder is not implemented in E1.
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    is_complete: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="0",
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    completed_by_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("people.id"), nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    modified_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow,
+    )
+
+    # Relationships
+    milestone: Mapped["ProjectMilestone"] = relationship(back_populates="deliverables")
+
+
+class ProgressSnapshot(Base):
+    """Versioned snapshot of project progress at forecast cycle completion [E-04c].
+
+    Live progress fields on ``Project`` are mutable. ProgressSnapshot freezes
+    a copy at each forecast cycle for the History view (Workbench Overview
+    Progress tile drill-down per [E-03f]). Created by
+    ``services/progress_tracker.capture_progress_for_cycle`` alongside
+    Cluster C1's ``capture_versions_for_cycle`` at cycle submission.
+    """
+
+    __tablename__ = "progress_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    cycle_label: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    cycle_id: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    snapshot_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow,
+    )
+    created_by_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("people.id"), nullable=True,
+    )
+
+    # Captured project progress state — denormalised for history-without-FK-walks
+    current_milestone_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("project_milestones.id"), nullable=True,
+    )
+    current_milestone_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    current_milestone_sequence: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    progress_pct: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    progress_pct_manual_override: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="0",
+    )
+    status_narrative: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    next_milestone_confidence: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    confidence_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Full deliverable checklist captured as JSON keyed by milestone_id, so
+    # the History view can render the checklist state at snapshot time
+    # without back-walking the live deliverables table.
+    checklist_payload_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    project: Mapped["Project"] = relationship(back_populates="progress_snapshots")
 
 
 class ProjectDependency(Base):
