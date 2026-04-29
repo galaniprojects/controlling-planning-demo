@@ -21,6 +21,7 @@ import { ArrowLeft, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { scenariosApi } from '../api/scenariosApi';
+import { useTier3 } from '../permissions';
 import type { ComparisonResponse } from '@/types/api';
 import { PortfolioSummaryLevel } from './PortfolioSummaryLevel';
 import { ProjectComparisonLevel } from './ProjectComparisonLevel';
@@ -30,8 +31,12 @@ import type { ScenarioColumnInfo } from './ScenarioColumnHeader';
 import { narrowImpact, type ImpactDashboardResponse } from '../lib/impactTypes';
 
 interface ComparePageProps {
-  /** Tier 3 visibility passed from the surrounding scenario context. */
-  tier3Visible: boolean;
+  /**
+   * Tier 3 visibility override. When omitted, derived from `useTier3()`.
+   * Tests / non-router mounts pass an explicit value; the router doesn't
+   * need to.
+   */
+  tier3Visible?: boolean;
   /** Override route param parsing (used by tests / non-router mounts). */
   scenarioIdsOverride?: number[];
   projectIdOverride?: string | null;
@@ -150,13 +155,15 @@ function buildColumns(
 }
 
 export function ComparePage({
-  tier3Visible,
+  tier3Visible: tier3VisibleProp,
   scenarioIdsOverride,
   projectIdOverride,
   lineKeyOverride,
-}: ComparePageProps) {
+}: ComparePageProps = {}) {
   const params = useParams();
   const navigate = useNavigate();
+  const tier3FromHook = useTier3();
+  const tier3Visible = tier3VisibleProp ?? tier3FromHook;
 
   const scenarioIds = useMemo(
     () =>

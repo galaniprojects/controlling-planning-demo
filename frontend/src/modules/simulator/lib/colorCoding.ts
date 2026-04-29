@@ -18,6 +18,12 @@
  *
  * The "anchor" / "current state" column has its own neutral palette since
  * it is always pinned as column 0 and isn't a scenario.
+ *
+ * The bottom of this file also exports T1's `deltaColor` /
+ * POSITIVE/NEGATIVE/NEUTRAL_DELTA_CLASS helpers (originally a stub in
+ * Checkpoint A). Keep these for v4 advisor compatibility, but new code in
+ * the impact dashboard / Compare view uses arrows + signs (see
+ * `lib/dimensionHeadlines.ts`) per the accessibility rule above.
  */
 
 export interface ScenarioColorTokens {
@@ -115,3 +121,24 @@ export function colorForScenarioId(
 
 export const ANCHOR_COLOR_TOKENS = ANCHOR;
 export const SCENARIO_COLOR_PALETTE = SCENARIO_PALETTE;
+
+// ---------------------------------------------------------------------------
+// Delta-direction colour helpers (T1 Checkpoint A stub — preserved here)
+// ---------------------------------------------------------------------------
+//
+// Per CLAUDE.md, the impact dashboard + Compare view convey direction via
+// arrows + +/- prefixes, NOT colour. These helpers are kept for v4-era
+// callers (e.g. the AI advisor panel preserved verbatim from v4) and may
+// be useful as a *complementary* cue alongside arrows in non-accessibility-
+// critical surfaces.
+
+export const POSITIVE_DELTA_CLASS =
+  'text-emerald-700 dark:text-emerald-400';
+export const NEGATIVE_DELTA_CLASS =
+  'text-red-700 dark:text-red-400';
+export const NEUTRAL_DELTA_CLASS = 'text-muted-foreground';
+
+export function deltaColor(delta: number | null | undefined): string {
+  if (delta == null || Math.abs(delta) < 0.005) return NEUTRAL_DELTA_CLASS;
+  return delta > 0 ? POSITIVE_DELTA_CLASS : NEGATIVE_DELTA_CLASS;
+}

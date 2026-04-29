@@ -839,11 +839,21 @@ export interface ScenarioListItem {
   created_at: string;
   modified_at: string;
   headline_impact: string | null;
+  // v5 B2 additions [B-SL-01..05]
+  visibility?: string | null;
+  tier3_content_flag?: boolean | null;
+  archived?: boolean | null;
+  archived_at?: string | null;
+  tags?: string[] | null;
+  anchor_forecast_version_id?: number | null;
+  last_recalculated_at?: string | null;
 }
 
 export interface ScenarioListResponse {
   my_scenarios: ScenarioListItem[];
   published_scenarios: ScenarioListItem[];
+  archived_scenarios?: ScenarioListItem[];
+  available_tags?: string[];
 }
 
 export interface ScenarioCreateResponse {

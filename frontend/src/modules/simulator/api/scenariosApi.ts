@@ -422,6 +422,56 @@ export const scenariosApi = {
       `/api/scenarios/${scenarioId}/advisor/apply`,
       { path_id: pathId },
     ),
+
+  // -------------------------------------------------------------------------
+  // Aliases — explicit names matching T2/T3/T4's B2-survey naming.
+  // -------------------------------------------------------------------------
+
+  // T2 — Lever 12 set
+  lever12CreateDistribution: (scenarioId: number, body: DistributionEdgeCreateBody) =>
+    api.post<unknown>(
+      `/api/scenarios/${scenarioId}/lever12/distributions`,
+      body,
+    ),
+  lever12UpdateDistribution: (
+    scenarioId: number,
+    edgeId: number,
+    body: DistributionEdgeUpdateBody,
+  ) =>
+    api.put<unknown>(
+      `/api/scenarios/${scenarioId}/lever12/distributions/${edgeId}`,
+      body,
+    ),
+  lever12DeleteDistribution: (scenarioId: number, edgeId: number) =>
+    api.delete<unknown>(
+      `/api/scenarios/${scenarioId}/lever12/distributions/${edgeId}`,
+    ),
+  lever12SetToBusinessPct: (scenarioId: number, body: ToBusinessChangeBody) =>
+    api.post<unknown>(
+      `/api/scenarios/${scenarioId}/lever12/to-business`,
+      body,
+    ),
+  lever12SetBtcLines: (scenarioId: number, body: BTCLinesChangeBody) =>
+    api.post<unknown>(
+      `/api/scenarios/${scenarioId}/lever12/btc-lines`,
+      body,
+    ),
+  lever12CostAllocationImpact: (scenarioId: number, year = 2026) =>
+    api.get<CostAllocationImpactResponse>(
+      `/api/scenarios/${scenarioId}/lever12/cost-allocation-impact?year=${year}`,
+    ),
+
+  // T3 — Impact alias (mirrors `impact` above)
+  getImpact: (scenarioId: number, year = 2026) =>
+    api.get<ImpactDashboardResponse>(
+      `/api/scenarios/${scenarioId}/impact?year=${year}`,
+    ),
+
+  // T4 — Promotions audit-list alias (mirrors `promotionsList` above)
+  listPromotions: (scenarioId: number) =>
+    api.get<PromotionsListResponse>(
+      `/api/scenarios/${scenarioId}/promotions`,
+    ),
 };
 
 export type ScenariosApi = typeof scenariosApi;

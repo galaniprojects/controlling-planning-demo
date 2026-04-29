@@ -119,6 +119,112 @@ Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (Ch
 Next: Wave 4 — **B2** (frontend simulator workspace) remaining.
 **Post-merge requirement on first pull:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables, C1's `is_provisional` column on `forecasts`, B1's Scenario column additions, and E1's progress tracker columns + new tables all require schema regeneration. F6 + E2 add no schema changes (read-only endpoints + new frontend tile/tab); no further DB reset required for Wave 4.
 
+## v5 Session B2 — T1 Shell + Context + Manager (2026-04-29)
+
+T1 slice of the four-team B2 simulator rebuild. Owns the cross-cutting
+infrastructure (T2/T3/T4 depend on this), the manager pages, the workspace
+shell (header, sandbox border, sidebar host), the apply-to-forecast flow,
+the change-summary drawer, and the route swap at `App.tsx`.
+
+### Files added
+- `frontend/src/modules/simulator/SimulatorRouter.tsx` — replaces
+  `WhatIfSimulator.tsx`. Routes: `/simulator`, `/scenarios/:id` (workspace),
+  `/scenarios/:id/surface/:surfaceKey/:entityId?` (T2 reads URL params),
+  `/scenarios/:id/promote` (T4 placeholder), `/compare/...` (T3 placeholder).
+- `frontend/src/modules/simulator/ScenarioContext.tsx` +
+  `useScenarioContext.ts` — provider-based store with reducer. Single
+  source of truth for scenario id + version, detail, impact, stale flag,
+  optimistic change-summary feed. Mutations cover the full B1 surface
+  (CRUD, lifecycle, action apply/remove/reorder, all 6 Lever 12 endpoints,
+  recalc, promote preview/execute, apply-to-forecast).
+- `frontend/src/modules/simulator/lib/scenarioVersion.ts` — single source of
+  truth for the `'scenario-{id}'` sandbox version string per `[F-S1-04]`.
+  Exports `FORECAST_VERSION`, `buildScenarioVersion`, `parseScenarioVersion`,
+  `isScenarioVersion`, `resolveVersion`. T2 surfaces import from here.
+- `frontend/src/modules/simulator/lib/cellDiffHelpers.tsx` — extracted
+  `lookupDelta` + `renderDeltaIndicator` from
+  `MixedGranularityGrid.tsx:226-244`. T2 will refactor MixedGranularityGrid
+  to import from this module.
+- `frontend/src/modules/simulator/lib/{changeSummary,routingLabels,colorCoding}.ts`
+  — shared label / formatting helpers (T3 fills colorCoding further).
+- `frontend/src/modules/simulator/permissions/` — `useTier3` (reads
+  `RoleContext.tier3_flag`, falls back to `impact.tier3_visible`),
+  `useCanPromote` (controller-only), `useCanApplyToForecast` (PL-only),
+  `useCanCreateScenario` (controller / executive / CC Owner per `[E-06c]`),
+  `ccOwnerScope` (`filterProjectsForCcOwner`, `filterLeversForCcOwner`).
+- `frontend/src/modules/simulator/flags/advisorFlag.ts` — build-time gate
+  `VITE_ENABLE_AI_ADVISOR`. v4 advisor moved to `advisor/` and mounted via
+  lazy-loaded `AdvisorMount.tsx` (uses separate `useAdvisor()` hook so the
+  flag-off path renders zero advisor DOM and does not import the v4 panel).
+- `frontend/src/modules/simulator/api/scenariosApi.ts` — ~30 typed wrappers
+  covering CRUD / lifecycle / actions / Lever 12 / impact / promote /
+  apply-to-forecast / advisor. T1 sole owner per the Wave-3 conflict-pattern
+  lesson (T2/T3/T4 request additions through SendMessage at checkpoints).
+- `frontend/src/modules/simulator/manager/{ScenarioManagerPage,
+  MyScenariosTable,PublishedScenariosTable,ScenarioRow,
+  CreateScenarioModal,RebaseModal,TagFilterBar,ArchivedToggle}.tsx` —
+  v5 manager with tags, archived toggle, rebase, publish/unpublish,
+  visibility (private / Tier 3 / all-users) badges, CC-Owner-aware Create
+  modal.
+- `frontend/src/modules/simulator/workspace/ScenarioWorkspacePage.tsx`,
+  `SandboxBorder.tsx`, `header/{ScenarioHeader,StatusBadge,RecalculateButton,
+  StaleIndicator}.tsx`, `sidebar/WorkspaceSidebar.tsx` — 3-zone shell with
+  amber sandbox border + banner, ScenarioHeader with stale indicator +
+  Recalculate, lifecycle dropdown, Apply-to-forecast (PL), advisor button
+  (gated). Sidebar host with collapsible Projects / Backlog / Portfolio
+  Settings / Resources (Tier-3 hidden DOM) / Bulk Actions sections — T2/T4
+  fill the bodies.
+- `frontend/src/modules/simulator/drawer/{ChangeSummaryDrawer,DiffEntry,
+  PromoteApplyButtons}.tsx` — slide-in change-summary feed with
+  per-entry remove and Promote slot footer (T4 fills).
+- `frontend/src/modules/simulator/apply-to-forecast/{ApplyButton,
+  ApplyConfirmModal}.tsx` — PL-only confirm modal with two phases
+  (confirm → result summary with carried/skipped counts and provenance note).
+- `frontend/src/modules/simulator/{compare,promote}/Placeholder.tsx` —
+  reserve the routes while T3 / T4 are in flight.
+
+### Files removed (replaced wholesale)
+- `frontend/src/modules/simulator/WhatIfSimulator.tsx`
+- `frontend/src/modules/simulator/useScenarioState.ts`
+- `frontend/src/modules/simulator/comparison/` (3 files)
+- `frontend/src/modules/simulator/drilldown/` (1 file)
+- `frontend/src/modules/simulator/manager/` v4 trio
+- `frontend/src/modules/simulator/workspace/` v4 (7 files)
+
+v4's `advisor/` is preserved verbatim per plan.
+
+### Backend
+Single backend patch per the B2 plan: `RoleContext` now exposes
+`tier3_flag` resolved from `User.tier3_flag` looked up by `person_id`
+(`backend/routers/global_launchpad.py` + `backend/schemas/global_launchpad.py`).
+Falls back to False when no active User row exists. Frontend types mirror
+the new field as optional for backward compat.
+
+### App.tsx route swap
+`/simulator/*` now mounts `<SimulatorRouter />` instead of v4's
+`<WhatIfSimulator />`.
+
+### Verification
+- Backend: 1283 tests pass (unchanged baseline).
+- Frontend `tsc -b --noEmit`: 82 errors total — same as the pre-existing
+  baseline on main; **zero** new errors from the T1 file set.
+- Visual verification (light + dark, screenshot prefix `w5-b2-t1-`):
+  manager page (`01-manager-light`, `03-manager-dark`), workspace shell
+  (`02-workspace-light`, `04-workspace-dark`), compare placeholder
+  (`05-compare-placeholder-dark`). All semantic Tailwind classes; no
+  hardcoded colors; sandbox border uses amber-300 / amber-700/60 with
+  matching bg variants per the dark-mode rule in CLAUDE.md.
+
+### Still owned by T2 / T3 / T4
+- T2: 17 sandbox surfaces + scenarioVersion prop threading on
+  MixedGranularityGrid / EntityBTCProfileEditor / RollupView /
+  EntityDistributionEditor / Backlog. Sidebar bodies for Projects /
+  Backlog / Portfolio Settings.
+- T3: Impact dashboard (8 dimensions) + Compare (selection + 3 levels
+  + color coding).
+- T4: Catalogue (21 actions) + Promote workflow + Resources / Bulk Actions
+  sidebar bodies + 2 Tier-3 surfaces (PeopleMaster, CapacityParameters).
+
 ## v5 Session F6: Workbench BTC Tile + Workbench BTC Tab (2026-04-29)
 
 ### Feature Overview
