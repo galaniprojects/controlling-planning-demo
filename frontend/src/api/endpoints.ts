@@ -1380,6 +1380,8 @@ import type {
   RollupGroupBy,
   RollupDrillDownResponse,
   UpstreamChainResponse,
+  AllocationBreakdownSortBy,
+  EntityAllocationBreakdownResponse,
 } from '@/types/api';
 
 export const chargingApi = {
@@ -1400,7 +1402,14 @@ export const chargingApi = {
     );
   },
   getEntity: (id: string) =>
-    api.get<ChargeableEntityItem>(`/api/admin/chargeable-entities/${id}`),
+    // Charging-namespaced read endpoint accessible to all four roles
+    // per F6 [E-09]. The admin variant remains controller-only for
+    // mutation paths.
+    api.get<ChargeableEntityItem>(`/api/charging/entities/${id}`),
+  getEntityByProjectId: (projectId: string) =>
+    api.get<ChargeableEntityItem>(
+      `/api/charging/entities/by-project/${projectId}`,
+    ),
 
   // === Stage 1 inter-service Distribution edges [F-S1-01..05] ===
   listDistributions: (params?: {
@@ -1533,6 +1542,24 @@ export const chargingApi = {
     if (params.version) q.set('version', params.version);
     return api.get<RollupDrillDownResponse>(
       `/api/charging/rollup/charging-location/${params.cl_id}?${q.toString()}`,
+    );
+  },
+
+  // === Per-entity BTC allocation breakdown (Workbench BTC tab F6) [E-09] ===
+  getEntityAllocationBreakdown: (params: {
+    entity_id: string;
+    year: number;
+    version?: string;
+    sort_by?: AllocationBreakdownSortBy;
+    sort_dir?: 'asc' | 'desc';
+  }) => {
+    const q = new URLSearchParams();
+    q.set('year', String(params.year));
+    if (params.version) q.set('version', params.version);
+    if (params.sort_by) q.set('sort_by', params.sort_by);
+    if (params.sort_dir) q.set('sort_dir', params.sort_dir);
+    return api.get<EntityAllocationBreakdownResponse>(
+      `/api/charging/entities/${params.entity_id}/allocation-breakdown?${q.toString()}`,
     );
   },
 };

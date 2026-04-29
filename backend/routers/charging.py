@@ -1617,6 +1617,61 @@ def get_rollup_drill_down(
 
 
 @charging_router.get(
+    "/entities/by-project/{project_id}",
+    response_model=ChargeableEntityResponse,
+)
+def get_entity_by_project_id(
+    project_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> ChargeableEntityResponse:
+    """Look up the ChargeableEntity row for a given project. F6 read-only path.
+
+    Workbench BTC tab needs to resolve project → ChargeableEntity to render
+    the BTC tile / tab; the existing ``GET /api/admin/chargeable-entities/{id}``
+    is controller-only. This charging-namespaced endpoint exposes the same
+    serialised shape to all four roles. PL filtering is unnecessary here —
+    the Workbench module already gates project visibility at the route level.
+    """
+    ce = (
+        db.query(ChargeableEntity)
+        .filter(ChargeableEntity.project_id == project_id)
+        .first()
+    )
+    if ce is None:
+        raise HTTPException(
+            404, f"No ChargeableEntity is linked to project '{project_id}'",
+        )
+    return _serialize_chargeable_entity(ce)
+
+
+@charging_router.get(
+    "/entities/{entity_id}",
+    response_model=ChargeableEntityResponse,
+)
+def get_entity_read_only(
+    entity_id: str,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> ChargeableEntityResponse:
+    """Read-only ChargeableEntity fetch accessible to all four roles.
+
+    The admin equivalent at ``GET /api/admin/chargeable-entities/{id}`` is
+    controller-only. This thin wrapper enables F6's Workbench BTC tab to
+    fetch the entity for non-controller roles. Mutations remain in the admin
+    namespace.
+    """
+    ce = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if ce is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+    return _serialize_chargeable_entity(ce)
+
+
+@charging_router.get(
     "/entities/{entity_id}/allocation-breakdown",
     response_model=EntityAllocationBreakdownResponse,
 )

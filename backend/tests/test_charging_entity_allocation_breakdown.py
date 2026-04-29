@@ -321,6 +321,60 @@ class TestAllocationBreakdownRoleGating:
 # 6. Sums-to-100 flag
 # ---------------------------------------------------------------------------
 
+class TestEntityReadOnlyEndpoint:
+    """Tests for the new charging-namespaced entity read endpoints (F6 helper)."""
+
+    def test_get_entity_read_only_works_for_pl(self, test_client, seed_personas, db):
+        _seed_base(db)
+
+        resp = test_client.get(
+            "/api/charging/entities/ce-off-1", headers=HEADERS_PL,
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["id"] == "ce-off-1"
+        assert data["entity_type"] == "Offering"
+
+    def test_get_entity_read_only_404(self, test_client, seed_personas, db):
+        resp = test_client.get(
+            "/api/charging/entities/no-such-id", headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 404
+
+    def test_get_entity_by_project_id_works(self, test_client, seed_personas, db):
+        from models.projects import Project
+        from models.charging import ChargeableEntity
+
+        # Seed a project + linked chargeable entity.
+        proj = Project(
+            id="proj-x", name="Linked", status="active",
+            capex_opex="capex", start_month="2026-01", end_month="2026-12",
+        )
+        db.add(proj)
+        ce = ChargeableEntity(
+            id="ce-proj-x", entity_type="Project", identifier="IT0001",
+            name="Project X CE", to_business_pct=10.0,
+            project_id="proj-x", is_active=True,
+        )
+        db.add(ce)
+        db.commit()
+
+        resp = test_client.get(
+            "/api/charging/entities/by-project/proj-x", headers=HEADERS_PL,
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["id"] == "ce-proj-x"
+        assert data["project_id"] == "proj-x"
+
+    def test_get_entity_by_project_id_404(self, test_client, seed_personas, db):
+        resp = test_client.get(
+            "/api/charging/entities/by-project/no-such-proj",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 404
+
+
 class TestAllocationBreakdownSumsTo100:
     def test_sum_lines_match_100_flag_true(self, test_client, seed_personas, db):
         _seed_base(db)
