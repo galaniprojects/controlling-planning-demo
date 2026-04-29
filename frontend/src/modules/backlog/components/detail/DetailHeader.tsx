@@ -1,13 +1,20 @@
 /**
  * DetailHeader — back button + project name + stage + DoI + composite score.
- * [A-BK-20]
+ * [A-BK-20] [A-PS-01..13] [A-DOI-01..11] [E-11]
+ *
+ * A8 update: replaces the inline STAGE_BADGE map with the shared
+ * `PipelineStageBadge` + `DoIBadge` components and surfaces the controller
+ * `PipelineTransitionMenu` (Pause / Cancel / Re-open) inline.
  */
 
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { PipelineStageBadge } from '@/components/shared/PipelineStageBadge';
+import { DoIBadge } from '@/components/shared/DoIBadge';
+import { PipelineTransitionMenu } from '@/components/shared/PipelineTransitionMenu';
+import { usePipelineState } from '@/hooks/usePipelineState';
 import type { RankedProjectItem } from '@/types/api';
-import { cn } from '@/lib/utils';
 
 interface Props {
   item: RankedProjectItem | null;
@@ -28,16 +35,9 @@ function fmtBudget(n: number | null): string {
   return '€' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
-const STAGE_BADGE: Record<string, string> = {
-  'Under Evaluation': 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
-  Approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  Active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  'On Hold': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  Completed: 'bg-muted text-muted-foreground',
-};
-
 export function DetailHeader({ item, loading, projectId }: Props) {
   const navigate = useNavigate();
+  const { data: pipelineState, refresh } = usePipelineState(projectId);
 
   return (
     <div className="space-y-3">
@@ -60,28 +60,30 @@ export function DetailHeader({ item, loading, projectId }: Props) {
         </div>
       ) : item ? (
         <div className="space-y-2">
-          <div className="flex flex-wrap items-start gap-3">
-            <h1 className="text-2xl font-semibold text-foreground">
-              {item.project_name}
-            </h1>
-            {item.pipeline_stage ? (
-              <span
-                className={cn(
-                  'mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium',
-                  STAGE_BADGE[item.pipeline_stage] ??
-                    'bg-muted text-muted-foreground',
-                )}
-              >
-                {item.pipeline_stage}
-              </span>
-            ) : null}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-start gap-3">
+              <h1 className="text-2xl font-semibold text-foreground">
+                {item.project_name}
+              </h1>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <PipelineStageBadge
+                  stage={pipelineState?.pipeline_stage ?? item.pipeline_stage}
+                />
+                <DoIBadge
+                  doi={pipelineState?.doi ?? item.doi}
+                  frozenDoi={pipelineState?.frozen_doi}
+                />
+              </div>
+            </div>
+            <PipelineTransitionMenu
+              projectId={projectId}
+              state={pipelineState}
+              onChanged={() => refresh()}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             {item.rank !== null ? (
               <span>Rank #{item.rank}</span>
-            ) : null}
-            {item.doi !== null ? (
-              <span>DoI {item.doi}</span>
             ) : null}
             {item.composite_score !== null ? (
               <span>
