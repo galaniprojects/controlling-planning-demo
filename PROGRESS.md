@@ -1,9 +1,10 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D/F — Wave 1 merged via PR #63 (2026-04-29).
-Last completed: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests passing. Frontend TS error count unchanged at 78 pre-existing. Verified end-to-end via 5 live curl smokes + Chrome-DevTools visual walk (composite-ranking math 0.7 × 4.4 + 0.3 × 4.0 = 4.28 confirmed live).
-Next: **Wave 2 — F3 (BTCProfile + Stage 2 + rollup) + A6 (frontend backlog) + C1 (mixed-granularity forecast + versioning)** can run in parallel on three independent agent-team worktrees. F3 unblocks A8 + B1; A6 replaces A7's stub harness; C1 unblocks B1 + C2.
+Phase: v5 Cluster A/D/F — Wave 1 merged via PR #63 (2026-04-29). Wave 2 in progress.
+Last completed: **F3** (BTCProfile + Stage 2 + rollup cache backend, +125 tests, 913 total). Branch `feature/v5-f3-btc-rollup` ready for PR.
+Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests passing pre-F3.
+Next: Merge F3 PR, then continue Wave 2 with A6 (frontend backlog) + C1 (mixed-granularity forecast + versioning). F3 unblocks A8 + B1.
 
 ## v5 Session A5: Intake Workflow + Backlog Integration Backend (2026-04-28)
 
@@ -33,6 +34,52 @@ Out of scope per session brief and aligned with A2 boundaries:
 - **within_cutoff recompute hooks (per `[A-BK-14]`):** triggered best-effort on create, approve, and reject (the three calls that change the contestable budget walk). Send Back / Resubmit do not change a project's budget so they skip the hook.
 - **v4 deprecation:** `routers/portfolio.py` had ~750 lines of legacy intake code. All nine handlers were collapsed to one-liner stubs that raise `HTTPException(410, _V4_INTAKE_REMOVED_DETAIL)` with a structured `replacements` dict pointing to the new endpoints. `deprecated=True` on every decorator so OpenAPI surfaces the deprecation cleanly. The legacy bodies live in git history (commits `af4881a` and earlier).
 - **No model changes.** All new state lives on existing columns: `Project.pipeline_stage`, `doi`, `frozen_doi`, `submission_feedback`, plus the existing `ProjectSubmissionSnapshot` rows.
+
+## v5 Session F3: BTCProfile + Stage 2 + Rollup Data Layer + Cache (2026-04-29)
+
+### Feature Overview
+- **BTCProfile + BTCProfileLine models per `[F-S2-01]`** — two modes: `manual` (controller sets percentages directly) and `automatic` (derived from UM matrix snapshot). `UniqueConstraint(entity_id, year)` enforces one profile per entity-year. Profile lines reference `ChargingLocation` (FK) with `Check(percentage > 0 AND <= 100)`. Cascade delete from profile to lines.
+- **`annual_cost` column on `ChargeableEntity` per `[F-DG-03]`** — `Numeric(14,2)`, nullable. F3 adds this to close the own-cost gap: Offerings and InternalServices now have a stored budget figure; the DAG resolver `get_own_cost` returns it as fallback for Project subtypes when `annual_budget` and `total_budget` are both null.
+- **RollupCache model per `[F-RV-01..02]`** — persistent two-layer cache (stage1_effective / stage2_location) keyed by `(cache_layer, year, version, key_id)`. JSON payload stores the computed dict. `UniqueConstraint` prevents duplicate entries.
+- **`btc_service.py` per `[F-S2-02..08]`** — full BTC lifecycle: `create_manual_profile`, `create_automatic_profile` (UM snapshot), `update_profile` (draft-only replace), `refresh_from_um` (dry-run + commit), `change_mode` (manual↔automatic with confirm gate), `copy_from_profile`, `year_rollover` (bulk copy of active profiles to next-year drafts), `assert_btc_required` (gate check), `build_wbs_matrix` (charging-location × entity matrix with WBS elements).
+- **`rollup_cache.py` per `[F-RV-01..06]`** — read-through cache for Stage 1 and Stage 2 costs. Four invalidation helpers: `invalidate_for_distribution_write` (all stage1+stage2 for year/version), `invalidate_for_btc_write` (stage2 for entity+year), `invalidate_for_entity_cost_write` (both layers for entity), `invalidate_all` (full flush). Cache entries committed immediately on write (survives across requests).
+- **`rollup_query.py` per `[F-RV-01..06]`** — `query_rollup` aggregates effective costs across 11 group-by dimensions (entity, entity_type, hierarchy_node, responsible, change_or_run, charging_location, legal_entity, region, division, country, stage). `drill_down_charging_location` returns the full upstream path chain for a given entity × charging-location pair with enriched labels.
+- **15 new endpoints in `routers/charging.py`** — BTC CRUD (list, get, get-by-entity, create, update, delete), UM refresh (dry-run + commit), mode change, copy-from, WBS matrix, year-rollover, rollup query, drill-down, cache invalidate, cache status.
+- **DoI 2→3 BTC gate per `[A-PL-06]`** — 8-line hook in `services/intake_workflow.py::approve_intake_project` (local imports; zero import-block diff). Blocks with HTTP 409 when `to_business_pct > 0` and no active BTCProfile exists for the demo year.
+- **Seed data** — `annual_cost` backfilled for 11 seeded CEs; 5 manual + 5 automatic BTCProfile rows with lines summing to 100%; profile 10 is an empty 2027 draft for year-rollover demo.
+
+### Spec references implemented
+`[F-S2-01]`, `[F-S2-02]`, `[F-S2-03]`, `[F-S2-04]`, `[F-S2-05]`, `[F-S2-06]`, `[F-S2-07]`, `[F-S2-08]` — BTCProfile CRUD, UM snapshot, mode change, copy, rollover, sum-to-100 validation, WBS matrix.
+`[F-RV-01]`, `[F-RV-02]`, `[F-RV-03]`, `[F-RV-04]`, `[F-RV-05]`, `[F-RV-06]` — rollup cache (two layers), query (11 dimensions), drill-down (upstream path with labels), cache invalidation (4 strategies), diagnostic status endpoint.
+`[F-OQ-05]` — effective cost endpoint (already existed in F2; confirmed cache integration correct).
+`[F-DG-03]` — `annual_cost` on ChargeableEntity, surfaced in DAG resolver `get_own_cost`.
+`[A-PL-06]` — DoI 2→3 BTC gate wired into `approve_intake_project`.
+
+### Technical Details
+- **New models:** `BTCProfile`, `BTCProfileLine`, `RollupCache` in `models/charging.py`. `ChargeableEntity.annual_cost` column added.
+- **New services:** `services/btc_service.py`, `services/rollup_cache.py`, `services/rollup_query.py`.
+- **New schemas:** `schemas/btc_profile.py` (10 Pydantic models), `schemas/rollup.py` (5 Pydantic models).
+- **Updated schemas:** `schemas/chargeable_entity.py` (annual_cost field), `schemas/distribution.py` (own_cost_source field).
+- **Updated services:** `services/dag_resolver.py::get_own_cost` — annual_cost fallback.
+- **Updated services:** `services/intake_workflow.py` — 8-line F3 hook (local imports).
+- **Updated routers:** `routers/charging.py` — 15 new endpoints, cache invalidation wired to distribution/BTC/entity-cost writes.
+- **Seed:** `seed/seed.sql` appended with F3 section (~80 lines): annual_cost UPDATEs, 10 BTCProfile INSERTs, BTCProfileLine INSERTs.
+- **Bug fix:** `btc_service.update_profile` — added `db.expire(profile)` after deleting old lines so the relationship collection reloads correctly before `len(updated.lines)` checks.
+- **Bug fix:** `rollup_cache._upsert_entry` — added `db.commit()` after `db.flush()` so cache writes persist across the request boundary (GET endpoints don't auto-commit).
+
+### Tests
+- `test_btc_service.py` — 48 tests (all BTC service functions)
+- `test_rollup_cache.py` — 15 tests (cache miss/hit + 4 invalidation strategies)
+- `test_rollup_query.py` — 12 tests (11 dims + drill-down)
+- `test_router_btc_profile.py` — 18 tests (BTC router integration)
+- `test_router_rollup.py` — 13 tests (rollup + cache endpoints)
+- `test_dag_resolver.py` — +3 tests (annual_cost fallback for Offering, InternalService, Project subtypes)
+- `test_router_intake.py` — +5 tests (DoI BTC gate: no CE, zero pct, active profile, draft profile, missing profile → 409)
+- **Total F3 new tests: 114; total suite: 913 (was 788)**
+
+### Deviations from brief
+- `_current_quarter` defaults to Q1 2026 (not Q2) because seeded UM data is Q1; automatic profile creation finds UM rows correctly.
+- Brief estimated ~88 tests; actual 114 (more thorough coverage of DoI gate variations and cache behavior).
 
 ## v5 Session F2: ChargeableEntity Polymorphic + Stage 1 Distribution Backend (2026-04-28)
 

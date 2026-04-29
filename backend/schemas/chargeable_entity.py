@@ -61,6 +61,8 @@ class ChargeableEntityBase(BaseModel):
     responsible_person_id: Optional[str] = Field(None, max_length=50)
     to_business_pct: float = Field(0.0, ge=0, le=100)
     termination_month: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}$")
+    # F3: own running cost in EUR; primary source for Offerings/InternalServices.
+    annual_cost: Optional[float] = Field(None, ge=0)
 
 
 class ChargeableEntityCreate(ChargeableEntityBase):
@@ -95,6 +97,8 @@ class ChargeableEntityUpdate(BaseModel):
     responsible_person_id: Optional[str] = Field(None, max_length=50)
     to_business_pct: Optional[float] = Field(None, ge=0, le=100)
     termination_month: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}$")
+    # F3: own running cost in EUR.
+    annual_cost: Optional[float] = Field(None, ge=0)
 
 
 class ChargeableEntityResponse(BaseModel):
@@ -110,6 +114,7 @@ class ChargeableEntityResponse(BaseModel):
     hierarchy_node_id: Optional[str] = None
     responsible_person_id: Optional[str] = None
     to_business_pct: float
+    annual_cost: Optional[float] = None
     project_id: Optional[str] = None
     termination_month: Optional[str] = None
     is_active: bool

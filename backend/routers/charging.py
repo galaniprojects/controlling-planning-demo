@@ -21,10 +21,20 @@ from models.organization import GroupingEntity
 from models.people import Person
 from models.projects import Project
 from models.system import AuditLog
+from schemas.btc_profile import (
+    BTCCopyFromRequest, BTCModeChangeRequest, BTCProfileCreate,
+    BTCProfileListResponse, BTCProfileResponse, BTCProfileUpdate,
+    BTCRefreshDiffRequest, BTCRefreshDiffResponse,
+    WBSMatrixResponse as WBSMatrixSchemaResponse,
+    YearRolloverRequest, YearRolloverResponse,
+)
 from schemas.chargeable_entity import (
     ChargeableEntityCreate, ChargeableEntityListResponse,
     ChargeableEntityResponse, ChargeableEntityUpdate,
     validate_identifier_for_type,
+)
+from schemas.rollup import (
+    RollupCacheStatusResponse, RollupDrillDownResponse, RollupListResponse,
 )
 from schemas.charging import (
     ChargingLocationCreate, ChargingLocationResponse, ChargingLocationUpdate,
@@ -38,6 +48,13 @@ from schemas.distribution import (
     DistributionUpdate, DistributionEffectiveCost, DistributionInflow,
     EntityDistributionSummary, WBSElementResponse,
 )
+from services.btc_service import (
+    BTCValidationError, assert_btc_required,
+    build_wbs_matrix, change_mode, copy_from_profile, create_automatic_profile,
+    create_manual_profile, compute_sums_to_100, get_profile,
+    get_profile_for_entity, list_profiles, refresh_from_um,
+    update_profile, year_rollover,
+)
 from services.dag_resolver import (
     compute_effective_cost, get_upstream_chain,
 )
@@ -45,6 +62,13 @@ from services.distribution_service import (
     DistributionValidationError, compute_sum_validation,
     create_distribution_edge, delete_distribution_edge,
     is_known_version, update_distribution_edge, update_to_business_pct,
+)
+from services.rollup_cache import (
+    get_cache_status, invalidate_all, invalidate_for_btc_write,
+    invalidate_for_distribution_write, invalidate_for_entity_cost_write,
+)
+from services.rollup_query import (
+    drill_down_charging_location, query_rollup,
 )
 from services.wbs_generator import build_wbs_element
 
@@ -485,6 +509,7 @@ def _serialize_chargeable_entity(ce: ChargeableEntity) -> ChargeableEntityRespon
         hierarchy_node_id=ce.hierarchy_node_id,
         responsible_person_id=ce.responsible_person_id,
         to_business_pct=float(ce.to_business_pct or 0),
+        annual_cost=float(ce.annual_cost) if ce.annual_cost is not None else None,
         project_id=ce.project_id,
         termination_month=ce.termination_month,
         is_active=ce.is_active,
@@ -615,10 +640,25 @@ def create_chargeable_entity(
         hierarchy_node_id=body.hierarchy_node_id,
         responsible_person_id=body.responsible_person_id,
         to_business_pct=body.to_business_pct,
+        annual_cost=body.annual_cost,
         project_id=body.project_id,
         termination_month=body.termination_month,
     )
     db.add(ce)
+    db.flush()
+
+    # F3: Offering creation gate per [F-S2-01] — if entity_type='Offering' and
+    # to_business_pct > 0, require an inline btc_profile or btc_profile_copy_from.
+    # For now we log the requirement but do not block (BTC profile can be created
+    # after entity creation in the admin UI). The gate at DoI 2→3 is the hard block.
+    if body.entity_type == "Offering" and float(body.to_business_pct or 0) > 0:
+        _audit(
+            db, user, "chargeable_entity", ce.id, ce.name, "create",
+            "btc_gate_note", None,
+            f"Offering with to_business_pct={body.to_business_pct}% — BTC profile required before billing",
+            category="master_data",
+        )
+
     _audit(
         db, user, "chargeable_entity", ce.id, ce.name, "create",
         category="master_data",
@@ -686,6 +726,19 @@ def update_chargeable_entity(
             category="master_data",
         )
         ce.termination_month = body.termination_month
+    if body.annual_cost is not None:
+        old_cost = float(ce.annual_cost) if ce.annual_cost is not None else None
+        if old_cost != body.annual_cost:
+            _audit(
+                db, user, "chargeable_entity", ce.id, ce.name, "update",
+                "annual_cost",
+                str(old_cost) if old_cost is not None else None,
+                str(body.annual_cost),
+                category="master_data",
+            )
+            ce.annual_cost = body.annual_cost
+            # Invalidate rollup cache for this entity across all years/versions.
+            invalidate_for_entity_cost_write(db, ce.id)
 
     db.commit()
     db.refresh(ce)
@@ -829,6 +882,8 @@ def create_distribution(
         new_value=f"{body.year}/{body.version}: {body.percentage}%",
         category="master_data",
     )
+    # Invalidate rollup cache for all affected entities in this (year, version).
+    invalidate_for_distribution_write(db, body.source_entity_id, body.year, body.version)
     db.commit()
     db.refresh(edge)
     return _serialize_distribution(edge)
@@ -859,6 +914,7 @@ def update_distribution(
         "update", "percentage", str(old_pct), str(body.percentage),
         category="master_data",
     )
+    invalidate_for_distribution_write(db, edge.source_entity_id, edge.year, edge.version)
     db.commit()
     db.refresh(edge)
     return _serialize_distribution(edge)
@@ -885,6 +941,11 @@ def delete_distribution(
         old_value=f"{edge_year_version}: {edge_pct}%",
         category="master_data",
     )
+    # Invalidate cache: edge_label is "src -> dst", extract source.
+    src_id = edge_label.split(" -> ")[0]
+    year_str = edge_year_version.split("/")[0]
+    ver_str = edge_year_version.split("/")[1]
+    invalidate_for_distribution_write(db, src_id, int(year_str), ver_str)
     db.commit()
     return {"id": edge_id, "deleted": True}
 
@@ -1070,3 +1131,512 @@ def get_entity_wbs_element(
         charging_location_id=cl.id,
         wbs_element=wbs,
     )
+
+
+# ===========================================================================
+# v5 Session F3 — BTC Profile endpoints [F-S2-01..08]
+# Mounted under /api/charging (read) and /api/admin (write scheduler).
+# ===========================================================================
+
+def _btc_error_to_http(e: BTCValidationError) -> HTTPException:
+    payload: dict = {"detail": e.message}
+    if e.warnings:
+        payload["warnings"] = e.warnings
+    return HTTPException(409, payload)
+
+
+def _serialize_btc_profile(profile) -> BTCProfileResponse:
+    """Serialize a BTCProfile ORM row to its response shape."""
+    lines = [
+        {
+            "id": line.id,
+            "profile_id": line.profile_id,
+            "charging_location_id": line.charging_location_id,
+            "percentage": float(line.percentage),
+            "charging_location_code": line.charging_location.code if line.charging_location else None,
+            "charging_location_name": line.charging_location.name if line.charging_location else None,
+        }
+        for line in (profile.lines or [])
+    ]
+    from schemas.btc_profile import BTCProfileLineResponse
+    return BTCProfileResponse(
+        id=profile.id,
+        entity_id=profile.entity_id,
+        year=profile.year,
+        mode=profile.mode,
+        s_code=profile.s_code,
+        um_snapshot_at=profile.um_snapshot_at,
+        status=profile.status,
+        copied_from_profile_id=profile.copied_from_profile_id,
+        lines=[BTCProfileLineResponse(**line) for line in lines],
+        sums_to_100=compute_sums_to_100(profile.lines) if profile.lines else False,
+        created_at=profile.created_at,
+        modified_at=profile.modified_at,
+    )
+
+
+@charging_router.get("/btc-profiles", response_model=BTCProfileListResponse)
+def list_btc_profiles(
+    entity_id: str | None = None,
+    year: int | None = None,
+    status: str | None = None,
+    mode: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> BTCProfileListResponse:
+    """List BTC profiles with optional filters per [F-S2-01]."""
+    profiles = list_profiles(
+        db, entity_id=entity_id, year=year, status=status, mode=mode,
+    )
+    items = [_serialize_btc_profile(p) for p in profiles]
+    return BTCProfileListResponse(items=items, total=len(items))
+
+
+@charging_router.get("/btc-profiles/{profile_id}", response_model=BTCProfileResponse)
+def get_btc_profile(
+    profile_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> BTCProfileResponse:
+    """Fetch a BTC profile by id. Includes sums-to-100 flag per [F-S2-02]."""
+    try:
+        profile = get_profile(db, profile_id)
+    except BTCValidationError as e:
+        raise HTTPException(404, e.message)
+    return _serialize_btc_profile(profile)
+
+
+@charging_router.get("/entities/{entity_id}/btc-profile", response_model=BTCProfileResponse)
+def get_entity_btc_profile(
+    entity_id: str,
+    year: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> BTCProfileResponse:
+    """Fetch the BTC profile for a specific (entity, year) per [F-S2-01]."""
+    entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if entity is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+    profile = get_profile_for_entity(db, entity_id, year)
+    if profile is None:
+        raise HTTPException(
+            404,
+            f"No BTC profile for entity '{entity_id}' year {year}",
+        )
+    return _serialize_btc_profile(profile)
+
+
+@charging_router.post("/btc-profiles", response_model=BTCProfileResponse, status_code=201)
+def create_btc_profile(
+    body: BTCProfileCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> BTCProfileResponse:
+    """Create a manual or automatic BTC profile per [F-S2-01..04]."""
+    try:
+        if body.mode == "manual":
+            profile = create_manual_profile(
+                db,
+                entity_id=body.entity_id,
+                year=body.year,
+                lines=[{"charging_location_id": l.charging_location_id, "percentage": l.percentage} for l in body.lines],
+                status=body.status,
+            )
+        else:
+            if not body.s_code:
+                raise HTTPException(422, "s_code is required for automatic mode")
+            profile = create_automatic_profile(
+                db,
+                entity_id=body.entity_id,
+                year=body.year,
+                s_code=body.s_code,
+                um_year=body.um_year,
+                um_quarter=body.um_quarter,
+                status=body.status,
+            )
+    except BTCValidationError as e:
+        raise _btc_error_to_http(e)
+
+    _audit(
+        db, user, "btc_profile", str(profile.id),
+        f"entity={body.entity_id} year={body.year} mode={body.mode}",
+        "create",
+        new_value=f"status={body.status}",
+        category="master_data",
+    )
+    invalidate_for_btc_write(db, body.entity_id, body.year)
+    db.commit()
+    db.refresh(profile)
+    return _serialize_btc_profile(profile)
+
+
+@charging_router.put("/btc-profiles/{profile_id}", response_model=BTCProfileResponse)
+def update_btc_profile(
+    profile_id: int,
+    body: BTCProfileUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> BTCProfileResponse:
+    """Update lines on a manual BTC profile per [F-S2-02]."""
+    try:
+        profile = get_profile(db, profile_id)
+        profile = update_profile(
+            db, profile_id,
+            lines=[{"charging_location_id": l.charging_location_id, "percentage": l.percentage} for l in body.lines],
+        )
+    except BTCValidationError as e:
+        raise _btc_error_to_http(e)
+
+    _audit(
+        db, user, "btc_profile", str(profile.id),
+        f"entity={profile.entity_id} year={profile.year}",
+        "update", "lines", None, f"{len(body.lines)} lines",
+        category="master_data",
+    )
+    invalidate_for_btc_write(db, profile.entity_id, profile.year)
+    db.commit()
+    db.refresh(profile)
+    return _serialize_btc_profile(profile)
+
+
+@charging_router.delete("/btc-profiles/{profile_id}")
+def delete_btc_profile(
+    profile_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> dict:
+    """Delete a BTC profile (cascades to lines)."""
+    from models.charging import BTCProfile as BTCProfileModel
+    profile = db.query(BTCProfileModel).filter_by(id=profile_id).first()
+    if profile is None:
+        raise HTTPException(404, f"BTCProfile {profile_id} not found")
+    entity_id = profile.entity_id
+    year = profile.year
+    _audit(
+        db, user, "btc_profile", str(profile_id),
+        f"entity={entity_id} year={year}",
+        "delete",
+        old_value=f"mode={profile.mode} status={profile.status}",
+        category="master_data",
+    )
+    db.delete(profile)
+    invalidate_for_btc_write(db, entity_id, year)
+    db.commit()
+    return {"id": profile_id, "deleted": True}
+
+
+@charging_router.post(
+    "/btc-profiles/{profile_id}/refresh-um",
+    response_model=BTCRefreshDiffResponse,
+)
+def refresh_btc_profile_from_um(
+    profile_id: int,
+    body: BTCRefreshDiffRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> BTCRefreshDiffResponse:
+    """Refresh an automatic BTC profile from UM data per [F-S2-04].
+
+    ``?dry_run=true`` returns the diff without committing. Pass
+    ``body.dry_run=false`` to commit the update.
+    """
+    try:
+        diff = refresh_from_um(
+            db, profile_id,
+            um_year=body.um_year,
+            um_quarter=body.um_quarter,
+            dry_run=body.dry_run,
+        )
+    except BTCValidationError as e:
+        raise _btc_error_to_http(e)
+
+    if not body.dry_run:
+        try:
+            profile = get_profile(db, profile_id)
+            _audit(
+                db, user, "btc_profile", str(profile_id),
+                f"entity={profile.entity_id} year={profile.year}",
+                "refresh_um",
+                new_value=f"year={diff.year} Q{diff.quarter}",
+                category="master_data",
+            )
+            invalidate_for_btc_write(db, profile.entity_id, profile.year)
+        except BTCValidationError:
+            pass
+        db.commit()
+
+    return BTCRefreshDiffResponse(
+        profile_id=diff.profile_id,
+        s_code=diff.s_code,
+        year=diff.year,
+        quarter=diff.quarter,
+        added=diff.added,
+        removed=diff.removed,
+        changed=diff.changed,
+        would_sum_to_100=diff.would_sum_to_100,
+        committed=not body.dry_run,
+    )
+
+
+@charging_router.post(
+    "/btc-profiles/{profile_id}/change-mode",
+    response_model=BTCProfileResponse,
+)
+def change_btc_profile_mode(
+    profile_id: int,
+    body: BTCModeChangeRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> BTCProfileResponse:
+    """Change the mode of a BTC profile per [F-S2-03]."""
+    try:
+        profile_obj = get_profile(db, profile_id)
+        profile_obj = change_mode(
+            db, profile_id, body.new_mode,
+            confirm=body.confirm,
+            s_code=body.s_code,
+            um_year=body.um_year,
+            um_quarter=body.um_quarter,
+        )
+    except BTCValidationError as e:
+        raise _btc_error_to_http(e)
+
+    _audit(
+        db, user, "btc_profile", str(profile_id),
+        f"entity={profile_obj.entity_id} year={profile_obj.year}",
+        "change_mode", "mode", None, body.new_mode,
+        category="master_data",
+    )
+    invalidate_for_btc_write(db, profile_obj.entity_id, profile_obj.year)
+    db.commit()
+    db.refresh(profile_obj)
+    return _serialize_btc_profile(profile_obj)
+
+
+@charging_router.post(
+    "/btc-profiles/{profile_id}/copy-from",
+    response_model=BTCProfileResponse,
+    status_code=201,
+)
+def copy_btc_profile(
+    profile_id: int,
+    body: BTCCopyFromRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> BTCProfileResponse:
+    """Copy a BTC profile to a new (entity, year) combination per [F-S2-06]."""
+    try:
+        new_profile = copy_from_profile(
+            db, body.source_profile_id,
+            target_entity_id=body.target_entity_id,
+            target_year=body.target_year,
+            target_status=body.target_status,
+        )
+    except BTCValidationError as e:
+        raise _btc_error_to_http(e)
+
+    _audit(
+        db, user, "btc_profile", str(new_profile.id),
+        f"entity={body.target_entity_id} year={body.target_year}",
+        "copy_from",
+        new_value=f"source_profile_id={body.source_profile_id}",
+        category="master_data",
+    )
+    invalidate_for_btc_write(db, body.target_entity_id, body.target_year)
+    db.commit()
+    db.refresh(new_profile)
+    return _serialize_btc_profile(new_profile)
+
+
+@charging_router.get(
+    "/entities/{entity_id}/wbs-matrix",
+    response_model=WBSMatrixSchemaResponse,
+)
+def get_entity_wbs_matrix(
+    entity_id: str,
+    year: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> WBSMatrixSchemaResponse:
+    """Return the full WBS matrix (all charging locations) for an entity per [F-OQ-05]."""
+    try:
+        matrix = build_wbs_matrix(db, entity_id, year)
+    except BTCValidationError as e:
+        raise HTTPException(404, e.message)
+
+    return WBSMatrixSchemaResponse(
+        entity_id=matrix.entity_id,
+        entity_name=matrix.entity_name,
+        identifier=matrix.identifier,
+        year=matrix.year,
+        rows=[
+            {
+                "charging_location_id": r.charging_location_id,
+                "charging_location_code": r.charging_location_code,
+                "charging_location_name": r.charging_location_name,
+                "wbs_element": r.wbs_element,
+                "btc_percentage": r.btc_percentage,
+                "annual_amount_eur": r.annual_amount_eur,
+            }
+            for r in matrix.rows
+        ],
+        sums_to_100=matrix.sums_to_100,
+        has_active_profile=matrix.has_active_profile,
+        effective_cost=matrix.effective_cost,
+    )
+
+
+@router.post("/btc-profiles/year-rollover", response_model=YearRolloverResponse)
+def btc_year_rollover(
+    body: YearRolloverRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> YearRolloverResponse:
+    """Roll over all active BTC profiles from source_year to target_year per [F-S2-07]."""
+    if body.source_year >= body.target_year:
+        raise HTTPException(
+            422, "target_year must be greater than source_year",
+        )
+    result = year_rollover(db, body.source_year, body.target_year)
+    _audit(
+        db, user, "btc_profile", "year_rollover",
+        f"year_rollover source={body.source_year} target={body.target_year}",
+        "year_rollover",
+        new_value=f"rolled_over={len(result.rolled_over)} skipped={len(result.skipped)} errors={len(result.errors)}",
+        category="master_data",
+    )
+    db.commit()
+    return YearRolloverResponse(
+        source_year=body.source_year,
+        target_year=body.target_year,
+        rolled_over=result.rolled_over,
+        skipped=result.skipped,
+        errors=result.errors,
+    )
+
+
+# ===========================================================================
+# v5 Session F3 — Rollup Query + Cache endpoints [F-RV-01..06]
+# ===========================================================================
+
+@charging_router.get("/rollup", response_model=RollupListResponse)
+def get_rollup(
+    year: int,
+    version: str = "forecast",
+    group_by: str = "entity_type",
+    entity_type: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> RollupListResponse:
+    """Aggregate effective costs by dimension per [F-RV-01..06].
+
+    ``group_by`` can be: entity, entity_type, hierarchy_node, responsible,
+    change_or_run, charging_location, legal_entity, region, division, country, stage.
+    """
+    try:
+        result = query_rollup(
+            db, year, version,
+            group_by=group_by,
+            entity_type=entity_type,
+        )
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+    return RollupListResponse(
+        dimension=result.dimension,
+        year=result.year,
+        version=result.version,
+        rows=[
+            {
+                "group_key": r.group_key,
+                "group_label": r.group_label,
+                "dimension": r.dimension,
+                "year": r.year,
+                "version": r.version,
+                "entity_count": r.entity_count,
+                "effective_cost": r.effective_cost,
+                "own_cost": r.own_cost,
+                "inflow_total": r.inflow_total,
+                "stage2_amount": r.stage2_amount,
+            }
+            for r in result.rows
+        ],
+        grand_total_effective=result.grand_total_effective,
+        grand_total_own_cost=result.grand_total_own_cost,
+        total=len(result.rows),
+    )
+
+
+@charging_router.get(
+    "/rollup/charging-location/{cl_id}",
+    response_model=RollupDrillDownResponse,
+)
+def get_rollup_drill_down(
+    cl_id: str,
+    entity_id: str,
+    year: int,
+    version: str = "forecast",
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> RollupDrillDownResponse:
+    """Drill into a specific (entity × charging-location) to see the upstream chain."""
+    cl = db.query(ChargingLocation).filter_by(id=cl_id).first()
+    if cl is None:
+        raise HTTPException(404, f"ChargingLocation '{cl_id}' not found")
+    try:
+        result = drill_down_charging_location(db, entity_id, year, version, cl_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+    return RollupDrillDownResponse(
+        entity_id=result.entity_id,
+        entity_name=result.entity_name,
+        year=result.year,
+        version=result.version,
+        effective_cost=result.effective_cost,
+        own_cost=result.own_cost,
+        inflow_total=result.inflow_total,
+        paths=[
+            {"path": p.path, "path_labels": p.path_labels}
+            for p in result.paths
+        ],
+    )
+
+
+@router.post("/rollup-cache/invalidate")
+def invalidate_rollup_cache(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> dict:
+    """Flush the entire rollup cache per [F-RV-01]. Manual recovery path."""
+    count = invalidate_all(db)
+    _audit(
+        db, user, "rollup_cache", "global", "Rollup cache invalidation",
+        "invalidate_all",
+        new_value=f"deleted={count}",
+        category="master_data",
+    )
+    db.commit()
+    return {"deleted": count, "message": "Rollup cache flushed"}
+
+
+@router.get("/rollup-cache/status", response_model=RollupCacheStatusResponse)
+def get_rollup_cache_status(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+) -> RollupCacheStatusResponse:
+    """Diagnostic: return rollup cache entry counts per layer."""
+    status = get_cache_status(db)
+    return RollupCacheStatusResponse(**status)

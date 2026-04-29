@@ -152,23 +152,35 @@ class EffectiveCostResult:
 def get_own_cost(entity: ChargeableEntity) -> float:
     """Resolve an entity's own (annual) cost.
 
-    For Project subtypes we read ``Project.annual_budget`` first (services
-    use this column for steady-state cost) then fall back to
-    ``total_budget`` divided by an estimated duration. For Offerings and
-    InternalServices the column does not yet exist on ChargeableEntity in
-    v5 (F3 will add it), so we report 0. The math stays correct — the
-    field just shows up as 0 in API responses for non-Project entities.
+    Resolution order per F3 [F-S2-01]:
+    1. For Project subtypes: ``Project.annual_budget`` → ``Project.total_budget``
+       → ``ChargeableEntity.annual_cost`` (F3 column).
+    2. For Offerings and InternalServices: ``ChargeableEntity.annual_cost``
+       (F3 column). Falls back to 0.0 when null.
+
+    The ``annual_cost`` column on ``ChargeableEntity`` was added in Session F3
+    as the primary cost source for non-Project subtypes and as a fallback for
+    Projects whose budget columns are unpopulated.
     """
+    # Check entity-level annual_cost first as override/fallback.
+    entity_annual_cost: float | None = None
+    if entity.annual_cost is not None:
+        entity_annual_cost = float(entity.annual_cost)
+
     if entity.entity_type == "Project" and entity.project is not None:
         proj: Project = entity.project
         if proj.annual_budget is not None:
             return float(proj.annual_budget)
         if proj.total_budget is not None:
-            # Conservative annualisation: spread the total over the project's
-            # duration in years (rough heuristic; F3 will refine when the
-            # cost-aggregation engine lands).
             return float(proj.total_budget)
-    return 0.0
+        # F3: fall back to ChargeableEntity.annual_cost for projects whose
+        # budget columns are not yet populated.
+        if entity_annual_cost is not None:
+            return entity_annual_cost
+        return 0.0
+
+    # Offerings and InternalServices use annual_cost exclusively.
+    return entity_annual_cost if entity_annual_cost is not None else 0.0
 
 
 def compute_effective_cost(

@@ -20406,3 +20406,125 @@ SET chargeable_entity_id = (
 )
 WHERE chargeable_entity_id IS NULL;
 
+
+-- =============================================================================
+-- v5 Session F3 — BTCProfile + Stage 2 + Rollup Data Layer
+-- [F-S2-01..08] [F-RV-01..06] [F-OQ-05] [A-PL-06].
+-- Appended at end-of-file per F3's append-only ownership rule for seed.sql.
+-- =============================================================================
+
+-- F3.a — Backfill annual_cost for entities with to_business_pct > 0.
+-- Round numbers per [F-DG-03] for the 2 demo flagship entities.
+-- Covers: 3 Offerings, 3 service-project CEs with 50% to_business, and
+-- the 5 InternalServices with partial BTC charges.
+UPDATE chargeable_entities SET annual_cost = 2400000.00  WHERE id = 'ce-off-pdm';       -- PDM/PLM Author flagship
+UPDATE chargeable_entities SET annual_cost = 3600000.00  WHERE id = 'ce-off-erp';       -- SAP Maintenance flagship
+UPDATE chargeable_entities SET annual_cost = 1200000.00  WHERE id = 'ce-off-coll';      -- Collaboration Suite
+UPDATE chargeable_entities SET annual_cost = 180000.00   WHERE id = 'ce-svc-monitor';   -- Observability (10% BTC)
+UPDATE chargeable_entities SET annual_cost = 480000.00   WHERE id = 'ce-svc-data-pf';   -- Data Platform (25% BTC)
+UPDATE chargeable_entities SET annual_cost = 240000.00   WHERE id = 'ce-svc-helpdesk';  -- Service Desk (80% BTC)
+UPDATE chargeable_entities SET annual_cost = 600000.00   WHERE id = 'ce-svc-sap-ops';   -- SAP Basis Ops (50% BTC)
+UPDATE chargeable_entities SET annual_cost = 360000.00   WHERE id = 'ce-svc-euc';       -- End User Computing (50% BTC)
+UPDATE chargeable_entities SET annual_cost = 300000.00   WHERE id = 'ce-svc-tbs-maint'; -- TBS App Maintenance (50% BTC)
+UPDATE chargeable_entities SET annual_cost = 240000.00   WHERE id = 'ce-svc-rail-desk'; -- Rail IT Desk (50% BTC)
+UPDATE chargeable_entities SET annual_cost = 200000.00   WHERE id = 'ce-svc-rail-maint';-- Rail App Maintenance (50% BTC)
+
+-- F3.b — BTCProfile rows.
+-- 5 manual profiles (multi-location, sums-to-100) + 5 automatic profiles
+-- referencing seeded S-codes. Flagship ce-off-pdm gets a 5-location automatic
+-- profile referencing S0001 to demo the Cloud Platform → Data Platform → PDM
+-- upstream chain F2 already seeded.
+-- One 2027 draft profile so year-rollover demo has data.
+
+-- Manual profiles for service projects that have to_business_pct = 50%.
+INSERT INTO btc_profiles (entity_id, year, mode, s_code, um_snapshot_at, status, copied_from_profile_id, created_at, modified_at) VALUES
+-- Manual profile: SAP Basis Operations (2026, active)
+('ce-svc-sap-ops', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
+-- Manual profile: End User Computing Support (2026, active)
+('ce-svc-euc', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
+-- Manual profile: TBS App Maintenance (2026, active)
+('ce-svc-tbs-maint', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
+-- Manual profile: Rail IT Service Desk (2026, active)
+('ce-svc-rail-desk', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
+-- Manual profile: Rail App Maintenance (2026, active)
+('ce-svc-rail-maint', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00');
+
+INSERT INTO btc_profiles (entity_id, year, mode, s_code, um_snapshot_at, status, copied_from_profile_id, created_at, modified_at) VALUES
+-- Automatic profile: PDM/PLM Offering (2026, active) — references S0001 (multi-location)
+('ce-off-pdm', 2026, 'automatic', 'S0001', '2026-01-15 10:00:00', 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
+-- Automatic profile: SAP Maintenance Offering (2026, active) — references S0002
+('ce-off-erp', 2026, 'automatic', 'S0002', '2026-01-15 10:00:00', 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
+-- Automatic profile: Collaboration Suite Offering (2026, active) — references S0003
+('ce-off-coll', 2026, 'automatic', 'S0003', '2026-01-15 10:00:00', 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
+-- Automatic profile: Observability Service (2026, active) — references S0004
+('ce-svc-monitor', 2026, 'automatic', 'S0004', '2026-01-15 10:00:00', 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
+-- Draft 2027 profile for PDM/PLM — so year-rollover demo has a target
+('ce-off-pdm', 2027, 'automatic', 'S0001', NULL, 'draft', NULL, '2026-04-01 10:00:00', '2026-04-01 10:00:00');
+
+-- F3.c — BTCProfileLine rows for manual profiles (must sum to 100%).
+-- Profile IDs are sequential starting from 1, in the order inserted above.
+
+-- Profile 1: SAP Basis Operations — 3 locations (DE-MUC 60%, HU-BUD 25%, IN-PUN 15%)
+INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
+(1, 'cl-de-muc', 60.00),
+(1, 'cl-hu-bud', 25.00),
+(1, 'cl-in-pun', 15.00);
+
+-- Profile 2: End User Computing Support — 4 locations
+INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
+(2, 'cl-de-muc', 45.00),
+(2, 'cl-de-bln', 20.00),
+(2, 'cl-hu-bud', 20.00),
+(2, 'cl-in-blr', 15.00);
+
+-- Profile 3: TBS App Maintenance — 3 locations
+INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
+(3, 'cl-de-muc', 55.00),
+(3, 'cl-hu-bud', 30.00),
+(3, 'cl-in-pun', 15.00);
+
+-- Profile 4: Rail IT Service Desk — 3 locations
+INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
+(4, 'cl-de-muc', 40.00),
+(4, 'cl-de-nbg', 35.00),
+(4, 'cl-hu-bud', 25.00);
+
+-- Profile 5: Rail App Maintenance — 3 locations
+INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
+(5, 'cl-de-muc', 50.00),
+(5, 'cl-de-frz', 30.00),
+(5, 'cl-hu-bud', 20.00);
+
+-- Profiles 6-10 are automatic (derived from UM). Seed the normalised UM-derived
+-- percentages as BTCProfileLine rows so the demo DB is fully populated.
+
+-- Profile 6: PDM/PLM (S0001 Q1-2026: de-muc 45.5, de-bln 12.0, hu-bud 8.5 → total 66.0 → normalise to 100%)
+-- Normalised: de-muc 68.94%, de-bln 18.18%, hu-bud 12.88%  (rounded, residual on first)
+INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
+(6, 'cl-de-muc', 68.94),
+(6, 'cl-de-bln', 18.18),
+(6, 'cl-hu-bud', 12.88);
+
+-- Profile 7: SAP Maintenance (S0002 Q1-2026: de-muc 22.0, in-pun 15.5, in-blr 10.0 → total 47.5)
+-- Normalised: de-muc 46.32%, in-pun 32.63%, in-blr 21.05%
+INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
+(7, 'cl-de-muc', 46.32),
+(7, 'cl-in-pun', 32.63),
+(7, 'cl-in-blr', 21.05);
+
+-- Profile 8: Collaboration Suite (S0003 Q1-2026: de-muc 30.0, us-chi 18.0, us-pit 7.5 → total 55.5)
+-- Normalised: de-muc 54.05%, us-chi 32.43%, us-pit 13.52%
+INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
+(8, 'cl-de-muc', 54.05),
+(8, 'cl-us-chi', 32.43),
+(8, 'cl-us-pit', 13.52);
+
+-- Profile 9: Observability (S0004 Q1-2026: cn-sha 25.5, cn-szx 14.0, de-muc 6.0 → total 45.5)
+-- Normalised: cn-sha 56.04%, cn-szx 30.77%, de-muc 13.19%
+INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
+(9, 'cl-cn-sha', 56.04),
+(9, 'cl-cn-szx', 30.77),
+(9, 'cl-de-muc', 13.19);
+
+-- Profile 10: PDM 2027 draft — no lines yet (blank starting point for year-rollover demo).
+

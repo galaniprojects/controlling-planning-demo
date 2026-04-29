@@ -90,11 +90,11 @@ class EntityDistributionSummary(BaseModel):
 class DistributionEffectiveCost(BaseModel):
     """DAG-resolved effective cost for a single entity per [F-S1-02].
 
-    ``own_cost`` is the entity's own (Run-stage) annual cost — for Project
-    rows this currently sources from ``Project.annual_budget`` or
-    ``total_budget``; for Offering / InternalService rows it sources from
-    a future ``ChargeableEntity.annual_cost`` field (TBD in F3 — for v5 this
-    field is not yet on the schema and own_cost is reported as 0).
+    ``own_cost`` is the entity's own (Run-stage) annual cost. Resolution order:
+    - Project subtypes: ``Project.annual_budget`` → ``Project.total_budget``
+      → ``ChargeableEntity.annual_cost`` (F3).
+    - Offering / InternalService: ``ChargeableEntity.annual_cost`` (F3).
+    ``own_cost_source`` indicates which column provided the value.
 
     ``inflows`` lists the per-source contribution (source_entity_id, %, amount)
     walked through the DAG. ``effective_cost`` is ``own_cost + sum(inflows)``.
@@ -105,6 +105,8 @@ class DistributionEffectiveCost(BaseModel):
     year: int
     version: str
     own_cost: float
+    # F3: source field for own_cost (annual_budget | total_budget | annual_cost | zero)
+    own_cost_source: Optional[str] = None
     inflows: list["DistributionInflow"]
     inflow_total: float
     effective_cost: float

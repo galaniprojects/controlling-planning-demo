@@ -171,6 +171,7 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
 | **Report Builder** | `/api/report-builder` | 12 | Data catalog, filter options, query execution, saved reports CRUD, share/publish, CSV export |
 | **AI Report Builder** | `/api/reports/ai-builder` | 4 | Status check, conversation start, message, cleanup |
+| **BTC Profiles + Rollup** | `/api/charging`, `/api/admin` | 15 | BTCProfile CRUD, UM refresh, mode change, copy/year-rollover, WBS matrix, rollup query (11 dims), drill-down, cache invalidate/status |
 | **Admin** | `/api/admin` | 20 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset, Tech Navigator score recompute, milestone-types catalogue |
 | **Docs** | `/api/docs` | 3 | Module manuals, FAQ |
 | **Reference** | `/api/reference` | 4 | Roles, cost types, grouping entities, cost centers |
@@ -284,6 +285,30 @@ ChargeableEntity is the polymorphic cost-allocation root (Project / Offering / I
 | `GET` | `/api/charging/entities/{id}/wbs/{loc_id}` | any role | Algorithmic WBS preview per `[F-DM-03]` |
 
 Versioning per `[F-S1-04]`: edges are keyed by `(year, version, source_id, destination_id)`. `version` participates in the standard baseline / forecast / actuals lifecycle, with scenario forks identified by `scenario-<id>`. Cycle detection runs on every save and rejects with the cycle chain returned in the 409 body for UI rendering.
+
+### BTC Profile + Rollup Endpoints (v5 Cluster F — Session F3)
+
+BTCProfile (Business Transfer Charging) maps a chargeable entity's to-business cost across charging locations using percentage-based allocations per `[F-S2-01..08]`. The rollup data layer aggregates effective costs across 11 dimensions with a persistent two-layer cache per `[F-RV-01..06]`. DoI 2→3 approval is gated on an active BTC profile when `to_business_pct > 0` per `[A-PL-06]`.
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/charging/btc-profiles` | any role | List all BTC profiles (filter by `entity_id`, `year`, `status`) |
+| `GET` | `/api/charging/btc-profiles/{id}` | any role | Profile detail with lines + `sums_to_100` flag |
+| `GET` | `/api/charging/entities/{id}/btc-profile` | any role | Active profile for entity × year |
+| `POST` | `/api/charging/btc-profiles` | controller | Create manual or automatic profile (UM snapshot) per `[F-S2-02]` |
+| `PUT` | `/api/charging/btc-profiles/{id}` | controller | Replace lines on a draft manual profile per `[F-S2-04]` |
+| `DELETE` | `/api/charging/btc-profiles/{id}` | controller | Delete profile + lines (cascade) |
+| `POST` | `/api/charging/btc-profiles/{id}/refresh-um` | controller | Re-derive automatic profile lines from UM matrix; dry-run + commit per `[F-S2-06]` |
+| `POST` | `/api/charging/btc-profiles/{id}/change-mode` | controller | Switch manual↔automatic with confirmation gate per `[F-S2-03]` |
+| `POST` | `/api/charging/btc-profiles/{id}/copy-from` | controller | Clone profile to another entity/year per `[F-S2-07]` |
+| `GET` | `/api/charging/entities/{id}/wbs-matrix` | any role | Full charging-location matrix with WBS elements + BTC percentages per `[F-S2-08]` / `[F-DM-03]` |
+| `POST` | `/api/admin/btc-profiles/year-rollover` | controller | Bulk copy active profiles from `source_year` to `target_year` drafts per `[F-S2-05]` |
+| `GET` | `/api/charging/rollup` | any role | Aggregate effective costs by dimension (`group_by`: entity/entity_type/hierarchy_node/responsible/change_or_run/charging_location/legal_entity/region/division/country/stage) per `[F-RV-01..03]` |
+| `GET` | `/api/charging/rollup/charging-location/{cl_id}` | any role | Drill-down: upstream path chain for entity × charging-location with enriched labels per `[F-RV-04]` |
+| `POST` | `/api/admin/rollup-cache/invalidate` | controller | Flush entire rollup cache per `[F-RV-02]` (manual recovery path) |
+| `GET` | `/api/admin/rollup-cache/status` | controller | Diagnostic: entry counts per cache layer (stage1_effective / stage2_location) per `[F-RV-02]` |
+
+BTC validation rules: sum-to-100 tolerance 0.01%; manual profiles only editable in `draft` status; automatic profiles updated via `refresh-um` only; mode change requires explicit `confirm` flag; year rollover creates `draft` copies only. Cache invalidation is wired into all write paths: distribution writes invalidate (year, version), BTC writes invalidate stage2 for entity, annual_cost writes invalidate both layers for entity.
 
 ### Resource Assignment Endpoints (CC Owner)
 
