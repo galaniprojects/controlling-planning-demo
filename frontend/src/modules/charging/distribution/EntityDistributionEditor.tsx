@@ -7,11 +7,12 @@
  *   - Sum rule per [F-S1-02]: to_business + sum(distribute) ≤ 100
  *   - Cycle detection per [F-S1-05]: backend rejects with 409 + chain
  *
- * v5 B2 [B-OQ-02]: when `sandboxScenarioId` is provided, edge
- * mutations + to-business-pct updates route through the scenario Lever 12
- * endpoints (POST/PUT/DELETE /api/scenarios/:id/lever12/distributions and
- * POST /api/scenarios/:id/lever12/to-business). The version prop is
- * already plumbed end-to-end since F2 — that part is unchanged.
+ * v5 B2 [B-OQ-02]: when any `onSandbox*` handler is provided, the matching
+ * mutation routes through the caller's callback instead of `chargingApi`.
+ * The simulator CostAllocationSurface wires those callbacks to
+ * `ScenarioContext` Lever 12 mutations, which both populate the
+ * change-summary feed and avoid an `@/modules/simulator/*` import inside
+ * this Charging-module component.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Plus, Trash2, AlertTriangle, Save, X } from 'lucide-react';
@@ -30,7 +31,6 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { chargingApi } from '@/api/endpoints';
-import { scenariosApi } from '@/modules/simulator/api/scenariosApi';
 import type {
   ChargeableEntityItem,
   ChargeableEntityType,
@@ -38,19 +38,40 @@ import type {
   EntityDistributionSummary,
 } from '@/types/api';
 
-interface Props {
+/**
+ * v5 B2 [B-OQ-02]: callbacks the simulator CostAllocationSurface wires to
+ * `ScenarioContext` mutations so that (a) the change-summary feed gets an
+ * entry per edit and (b) this F4 component never imports anything from
+ * `@/modules/simulator/*` (clean layering).
+ *
+ * When `onSandbox*` callbacks are provided, the editor routes all 4
+ * mutation paths through them instead of `chargingApi`. When undefined,
+ * the editor uses the canonical Charging API (default v4 behaviour).
+ */
+export interface DistributionSandboxHandlers {
+  onSandboxCreateEdge?: (input: {
+    year: number;
+    source_entity_id: string;
+    destination_entity_id: string;
+    percentage: number;
+  }) => Promise<unknown>;
+  onSandboxUpdateEdge?: (
+    edgeId: number,
+    input: { percentage: number },
+  ) => Promise<unknown>;
+  onSandboxDeleteEdge?: (edgeId: number) => Promise<unknown>;
+  onSandboxSetToBusiness?: (input: {
+    entity_id: string;
+    year: number;
+    new_pct: number;
+  }) => Promise<unknown>;
+}
+
+interface Props extends DistributionSandboxHandlers {
   entityId: string;
   year: number;
   version: string;
   onBack: () => void;
-  /**
-   * v5 B2 [B-OQ-02]: when set, all mutating actions (add edge, update edge,
-   * delete edge, change to-business-pct) route through the scenario sandbox
-   * Lever 12 endpoints instead of the canonical Charging API. The `version`
-   * prop is also expected to be the scenario sentinel (`scenario-{id}`)
-   * matching this id, but this is enforced by the caller, not here.
-   */
-  sandboxScenarioId?: number;
 }
 
 const ENTITY_TYPE_OPTIONS: { value: 'all' | ChargeableEntityType; label: string }[] = [
@@ -65,9 +86,11 @@ export function EntityDistributionEditor({
   year,
   version,
   onBack,
-  sandboxScenarioId,
+  onSandboxCreateEdge,
+  onSandboxUpdateEdge,
+  onSandboxDeleteEdge,
+  onSandboxSetToBusiness,
 }: Props) {
-  const sandboxMode = sandboxScenarioId !== undefined;
   const [summary, setSummary] = useState<EntityDistributionSummary | null>(null);
   const [entity, setEntity] = useState<ChargeableEntityItem | null>(null);
   const [allEntities, setAllEntities] = useState<ChargeableEntityItem[]>([]);
@@ -122,9 +145,10 @@ export function EntityDistributionEditor({
     setSavingTBP(true);
     setTbpError(null);
     try {
-      // v5 B2 [B-OQ-02]: sandbox path → Lever 12 to-business overlay.
-      if (sandboxMode && sandboxScenarioId !== undefined) {
-        await scenariosApi.setToBusiness(sandboxScenarioId, {
+      // v5 B2 [B-OQ-02]: sandbox path → callback (wired by simulator
+      // CostAllocationSurface to ScenarioContext.setToBusiness).
+      if (onSandboxSetToBusiness) {
+        await onSandboxSetToBusiness({
           entity_id: entityId,
           year,
           new_pct: next,
@@ -156,11 +180,9 @@ export function EntityDistributionEditor({
       return;
     }
     try {
-      // v5 B2 [B-OQ-02]: sandbox path → Lever 12 distribution edge update.
-      if (sandboxMode && sandboxScenarioId !== undefined) {
-        await scenariosApi.updateDistribution(sandboxScenarioId, edge.id, {
-          percentage: next,
-        });
+      // v5 B2 [B-OQ-02]: sandbox path → callback.
+      if (onSandboxUpdateEdge) {
+        await onSandboxUpdateEdge(edge.id, { percentage: next });
       } else {
         await chargingApi.updateDistribution(edge.id, { percentage: next });
       }
@@ -174,9 +196,9 @@ export function EntityDistributionEditor({
 
   const handleDeleteEdge = async (edge: DistributionEdgeItem) => {
     try {
-      // v5 B2 [B-OQ-02]: sandbox path → Lever 12 distribution edge delete.
-      if (sandboxMode && sandboxScenarioId !== undefined) {
-        await scenariosApi.deleteDistribution(sandboxScenarioId, edge.id);
+      // v5 B2 [B-OQ-02]: sandbox path → callback.
+      if (onSandboxDeleteEdge) {
+        await onSandboxDeleteEdge(edge.id);
       } else {
         await chargingApi.deleteDistribution(edge.id);
       }
@@ -427,7 +449,7 @@ export function EntityDistributionEditor({
         allEntities={allEntities}
         year={year}
         version={version}
-        sandboxScenarioId={sandboxScenarioId}
+        onSandboxCreateEdge={onSandboxCreateEdge}
         availableHeadroom={Math.max(0, 100 - (summary.to_business_pct + distributedTotal))}
         error={addError}
         cycleChain={cycleChain}
@@ -455,8 +477,9 @@ interface AddDialogProps {
   allEntities: ChargeableEntityItem[];
   year: number;
   version: string;
-  /** v5 B2 [B-OQ-02]: optional Lever 12 sandbox scenario id for routing. */
-  sandboxScenarioId?: number;
+  /** v5 B2 [B-OQ-02]: when provided, sandbox-creates the edge through the
+   * caller's callback instead of `chargingApi.createDistribution`. */
+  onSandboxCreateEdge?: DistributionSandboxHandlers['onSandboxCreateEdge'];
   availableHeadroom: number;
   error: string | null;
   cycleChain: string[] | null;
@@ -473,7 +496,7 @@ function AddDistributionDialog({
   allEntities,
   year,
   version,
-  sandboxScenarioId,
+  onSandboxCreateEdge,
   availableHeadroom,
   error,
   cycleChain,
@@ -534,9 +557,10 @@ function AddDistributionDialog({
     }
     setSaving(true);
     try {
-      // v5 B2 [B-OQ-02]: sandbox path → Lever 12 distribution edge create.
-      if (sandboxScenarioId !== undefined) {
-        await scenariosApi.createDistribution(sandboxScenarioId, {
+      // v5 B2 [B-OQ-02]: sandbox path → callback (wired by simulator
+      // CostAllocationSurface to ScenarioContext.createDistribution).
+      if (onSandboxCreateEdge) {
+        await onSandboxCreateEdge({
           year,
           source_entity_id: sourceEntity.id,
           destination_entity_id: destinationId,
