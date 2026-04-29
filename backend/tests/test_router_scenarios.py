@@ -22,9 +22,14 @@ class TestScenariosRouter:
         assert "my_scenarios" in data
         assert "published_scenarios" in data
 
-    def test_list_scenarios_forbidden_for_pl(self, test_client, seed_personas):
+    def test_list_scenarios_allowed_for_pl(self, test_client, seed_personas):
+        # Per [E-06c] PL gains read access to the simulator (view published
+        # scenarios + Apply-to-forecast). Updated from the v4 forbid behaviour.
         resp = test_client.get("/api/scenarios", headers=HEADERS_PL)
-        assert resp.status_code == 403
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "my_scenarios" in data
+        assert "published_scenarios" in data
 
     def test_create_scenario(self, test_client, seed_personas):
         resp = test_client.post("/api/scenarios", headers=HEADERS_CTRL, json={
