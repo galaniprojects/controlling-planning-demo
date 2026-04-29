@@ -64,14 +64,14 @@ class Scenario(Base):
         ForeignKey("forecast_versions.id"), nullable=True,
     )
     visibility: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="private",
+        String(20), nullable=False, default="private", server_default="private",
     )
     # 'private' | 'tier3_only' | 'all_users'
     tier3_content_flag: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False,
+        Boolean, default=False, nullable=False, server_default="0",
     )
     archived: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False,
+        Boolean, default=False, nullable=False, server_default="0",
     )
     archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON array
@@ -131,7 +131,9 @@ class ScenarioAction(Base):
     # 'hypothetical_project' | 'restructuring' .
     lever_category: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     # Tier flag (1/2/3) per [B-AC-02]; absence = Tier 1.
-    tier: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    tier: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1",
+    )
 
     # Relationships
     scenario: Mapped["Scenario"] = relationship(back_populates="actions")
@@ -230,8 +232,12 @@ class ScenarioPromotion(Base):
     )
     # JSON: list of {action_id, routing_type, status, message, target_id}.
     routing_summary_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    promoted_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    skipped_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    promoted_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0",
+    )
+    skipped_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0",
+    )
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Relationships
@@ -267,8 +273,12 @@ class ScenarioApplyToForecastEvent(Base):
     )
     cycle_id: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     cycle_label: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
-    diffs_carried_forward: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    diffs_skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    diffs_carried_forward: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0",
+    )
+    diffs_skipped: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0",
+    )
     # JSON: list of {project_id, action_id, status, message}.
     summary_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
