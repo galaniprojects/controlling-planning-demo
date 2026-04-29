@@ -475,3 +475,150 @@ class TestV4IntakeDeprecation:
         assert resp.status_code == 410, f"{path} returned {resp.status_code}"
         body = resp.json()
         assert body["detail"]["error"] == "v4_intake_removed"
+
+
+# ---------------------------------------------------------------------------
+# 9. DoI 2→3 BTC gate [A-PL-06] (F3)
+# ---------------------------------------------------------------------------
+
+def _seed_eval_project_with_ce(
+    db, seed_hierarchy,
+    to_business_pct=60.0,
+    project_id="proj-btc-gate",
+) -> tuple:
+    """Insert an Under Evaluation project with a linked ChargeableEntity."""
+    from models.charging import ChargeableEntity
+    from models.organization import GroupingEntityType, GroupingEntity
+
+    et = GroupingEntityType(id="get-lob-g", name="LoBGate")
+    lob = GroupingEntity(id="lob-gate", entity_type_id="get-lob-g", name="Gate LoB")
+    db.add_all([et, lob])
+    db.flush()
+
+    proj = Project(
+        id=project_id,
+        name="BTC Gate Project",
+        description="gate",
+        status="pending_approval",
+        capex_opex="capex",
+        start_month="2026-06",
+        pl_person_id="p-pm-1",
+        project_type=1,
+        pipeline_stage=UNDER_EVALUATION,
+        doi=2,
+        ai_council_approved=True,
+        is_active=True,
+    )
+    db.add(proj)
+    db.flush()
+
+    ce = ChargeableEntity(
+        id=f"ce-{project_id}", entity_type="Project",
+        identifier=f"IT0{project_id[-3:]}001" if len(project_id) >= 3 else "IT0999",
+        name="CE for Gate Project",
+        project_id=project_id,
+        to_business_pct=to_business_pct,
+        hierarchy_node_id="lob-gate",
+        is_active=True,
+    )
+    db.add(ce)
+    db.commit()
+    return proj, ce
+
+
+class TestDoiBTCGate:
+    def test_approve_no_ce_succeeds(
+        self, test_client, seed_personas, seed_hierarchy, db,
+    ):
+        """Project with no ChargeableEntity skips BTC gate — should approve normally."""
+        proj = _seed_eval_project(db, None, seed_hierarchy, project_id="proj-no-ce")
+        resp = test_client.post(
+            f"/api/intake/projects/{proj.id}/approve",
+            json={"comments": "ok"}, headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["doi"] == 3
+
+    def test_approve_zero_to_business_pct_skips_gate(
+        self, test_client, seed_personas, seed_hierarchy, db,
+    ):
+        """CE with to_business_pct=0 has no BTC requirement — should approve normally."""
+        proj, _ = _seed_eval_project_with_ce(
+            db, seed_hierarchy, to_business_pct=0.0, project_id="proj-zero-pct",
+        )
+        resp = test_client.post(
+            f"/api/intake/projects/{proj.id}/approve",
+            json={"comments": "ok"}, headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["doi"] == 3
+
+    def test_approve_with_active_btc_profile_succeeds(
+        self, test_client, seed_personas, seed_hierarchy, db,
+    ):
+        """CE with to_business_pct>0 AND an active BTC profile — gate passes."""
+        from models.charging import BTCProfile, BTCProfileLine, ChargingLocation
+        proj, ce = _seed_eval_project_with_ce(
+            db, seed_hierarchy, to_business_pct=50.0, project_id="proj-has-btc",
+        )
+        cl = ChargingLocation(id="cl-gate", code="DE-G-001", name="Gate CL", is_active=True)
+        db.add(cl)
+        db.flush()
+        profile = BTCProfile(entity_id=ce.id, year=2026, mode="manual", status="active")
+        db.add(profile)
+        db.flush()
+        line = BTCProfileLine(
+            profile_id=profile.id, charging_location_id="cl-gate", percentage=100.0,
+        )
+        db.add(line)
+        db.commit()
+
+        resp = test_client.post(
+            f"/api/intake/projects/{proj.id}/approve",
+            json={"comments": "BTC present"}, headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["doi"] == 3
+
+    def test_approve_missing_btc_profile_returns_409(
+        self, test_client, seed_personas, seed_hierarchy, db,
+    ):
+        """CE with to_business_pct>0 but NO active BTC profile — gate blocks with 409."""
+        proj, _ = _seed_eval_project_with_ce(
+            db, seed_hierarchy, to_business_pct=80.0, project_id="proj-no-btc",
+        )
+        resp = test_client.post(
+            f"/api/intake/projects/{proj.id}/approve",
+            json={"comments": "attempt"}, headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 409, resp.text
+        detail = resp.json()["detail"]
+        # Error message should reference BTC
+        assert "btc" in detail.lower() or "charging" in detail.lower()
+
+    def test_approve_draft_btc_profile_still_blocks(
+        self, test_client, seed_personas, seed_hierarchy, db,
+    ):
+        """Draft BTC profile does NOT satisfy the gate — must be active."""
+        from models.charging import BTCProfile, BTCProfileLine, ChargingLocation
+        proj, ce = _seed_eval_project_with_ce(
+            db, seed_hierarchy, to_business_pct=40.0, project_id="proj-draft-btc",
+        )
+        cl = ChargingLocation(id="cl-gate2", code="DE-G-002", name="Gate CL2", is_active=True)
+        db.add(cl)
+        db.flush()
+        # Only a DRAFT profile, not active
+        profile = BTCProfile(entity_id=ce.id, year=2026, mode="manual", status="draft")
+        db.add(profile)
+        db.flush()
+        line = BTCProfileLine(
+            profile_id=profile.id, charging_location_id="cl-gate2", percentage=100.0,
+        )
+        db.add(line)
+        db.commit()
+
+        resp = test_client.post(
+            f"/api/intake/projects/{proj.id}/approve",
+            json={"comments": "draft only"}, headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 409, resp.text

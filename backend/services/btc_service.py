@@ -420,10 +420,12 @@ def update_profile(
                 f"ChargingLocation '{line_data['charging_location_id']}' not found",
             )
 
-    # Replace lines.
+    # Replace lines: delete old, flush, then add new.
     for old_line in list(profile.lines):
         db.delete(old_line)
     db.flush()
+    # Expire the profile so the 'lines' collection reflects the deletion.
+    db.expire(profile)
 
     line_objects = []
     for line_data in lines:
