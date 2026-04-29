@@ -6,9 +6,10 @@ import { MixedGranularityGrid } from './MixedGranularityGrid';
 import { VersionSelector } from './VersionSelector';
 import { VersionHistoryPanel } from './VersionHistoryPanel';
 import { VersionComparisonDialog } from './VersionComparisonDialog';
+import { ManualSnapshotDialog } from './ManualSnapshotDialog';
 import { useForecastVersions } from './useForecastVersions';
 import { workbenchApi } from '@/api/endpoints';
-import { Clock } from 'lucide-react';
+import { Clock, Camera } from 'lucide-react';
 
 interface PendingCR {
   cr_id: number;
@@ -33,6 +34,7 @@ export function ForecastTab({ projectId, role }: Props) {
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   const [pendingCR, setPendingCR] = useState<PendingCR | null>(null);
   const [diffDialogVersionId, setDiffDialogVersionId] = useState<number | null>(null);
+  const [snapshotDialogOpen, setSnapshotDialogOpen] = useState(false);
 
   const {
     versions,
@@ -44,6 +46,7 @@ export function ForecastTab({ projectId, role }: Props) {
     diffLoading,
     deltaIndex,
     latestVersion,
+    reload: reloadVersions,
   } = useForecastVersions(projectId);
 
   // Reset wizard mode when switching projects
@@ -105,25 +108,38 @@ export function ForecastTab({ projectId, role }: Props) {
           diffLoading={diffLoading}
           latestVersionId={latestVersion?.id ?? null}
         />
-        {role === 'project_lead' && projectStatus === 'active' && (
-          <div className="flex items-center gap-3">
-            {pendingCR && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Clock className="h-4 w-4" />
-                <span>CR-{pendingCR.cr_id} under review</span>
-                <Badge
-                  variant="outline"
-                  className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-700"
-                >
-                  {STATUS_LABELS[pendingCR.status] || pendingCR.status}
-                </Badge>
-              </div>
-            )}
-            <Button onClick={() => setMode('cycle')} disabled={!!pendingCR}>
-              Rolling Forecast Review
+        <div className="flex items-center gap-3 flex-wrap">
+          {role === 'controller' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSnapshotDialogOpen(true)}
+              className="gap-1.5"
+            >
+              <Camera className="h-3.5 w-3.5" />
+              Take snapshot
             </Button>
-          </div>
-        )}
+          )}
+          {role === 'project_lead' && projectStatus === 'active' && (
+            <>
+              {pendingCR && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Clock className="h-4 w-4" />
+                  <span>CR-{pendingCR.cr_id} under review</span>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-700"
+                  >
+                    {STATUS_LABELS[pendingCR.status] || pendingCR.status}
+                  </Badge>
+                </div>
+              )}
+              <Button onClick={() => setMode('cycle')} disabled={!!pendingCR}>
+                Rolling Forecast Review
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <MixedGranularityGrid
@@ -150,6 +166,13 @@ export function ForecastTab({ projectId, role }: Props) {
         versionBId={latestVersion?.id ?? null}
         versions={versions}
         nameMap={nameMap}
+      />
+
+      <ManualSnapshotDialog
+        open={snapshotDialogOpen}
+        onOpenChange={setSnapshotDialogOpen}
+        projectId={projectId}
+        onSnapshotCreated={reloadVersions}
       />
     </div>
   );
