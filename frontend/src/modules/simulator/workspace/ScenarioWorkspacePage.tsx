@@ -54,12 +54,16 @@ import {
   PipelineStageSurface,
   TechNavigatorScoreSurface,
 } from '../surfaces';
+import { PeopleMasterSurface } from '../surfaces/PeopleMasterSurface';
+import { CapacityParametersSurface } from '../surfaces/CapacityParametersSurface';
+import { BulkActionsSection } from './sidebar/BulkActionsSection';
+import { ResourcesSection } from './sidebar/ResourcesSection';
 
 /**
  * Surface key (from URL `/surface/:surfaceKey/:entityId?`) → component.
- * Tier-3 surfaces (PeopleMaster, CapacityParameters) are added when T4
- * merges. Until then the switch returns `null` for those keys, which
- * matches the spec's hidden-DOM rule for users without Tier 3 access.
+ * Tier-3 surfaces (PeopleMaster, CapacityParameters) return `null` server-
+ * side and frontend-side when the caller lacks Tier 3 — matches the
+ * spec's hidden-DOM rule.
  */
 function renderSurface(
   surfaceKey: string | undefined,
@@ -98,6 +102,10 @@ function renderSurface(
       return <PipelineStageSurface projectId={entityId ?? ''} />;
     case 'tech-navigator-score':
       return <TechNavigatorScoreSurface projectId={entityId ?? ''} />;
+    case 'people-master':
+      return <PeopleMasterSurface />;
+    case 'capacity-parameters':
+      return <CapacityParametersSurface />;
     default:
       return null;
   }
@@ -105,10 +113,10 @@ function renderSurface(
 
 function ScenarioWorkspaceInner() {
   const ctx = useScenarioContext();
+  const navigate = useNavigate();
   const params = useParams<{ surfaceKey?: string; entityId?: string }>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [advisorOpen, setAdvisorOpen] = useState(false);
-  const [promoteOpen, setPromoteOpen] = useState(false);
 
   // Lazy-load advisor only when the flag is on.
   const [AdvisorPanel, setAdvisorPanel] = useState<React.ComponentType<{
@@ -161,7 +169,11 @@ function ScenarioWorkspaceInner() {
     <div className="px-6 py-6 space-y-3">
       <ScenarioHeader
         onOpenAdvisor={ADVISOR_ENABLED ? () => setAdvisorOpen(true) : undefined}
-        onOpenPromote={ctx.canPromote ? () => setPromoteOpen(true) : undefined}
+        onOpenPromote={
+          ctx.canPromote
+            ? () => navigate(`/simulator/scenarios/${ctx.scenarioId}/promote`)
+            : undefined
+        }
       />
 
       <SandboxBorder>
@@ -170,6 +182,8 @@ function ScenarioWorkspaceInner() {
             projectsSection={<ProjectsSection />}
             backlogSection={<BacklogSection />}
             portfolioSettingsSection={<PortfolioSettingsSection />}
+            resourcesSection={<ResourcesSection />}
+            bulkActionsSection={<BulkActionsSection />}
           />
           <div className="flex-1 min-w-0 space-y-3">
             {/* Impact strip — T3 [B-ID-01..03]. 8 tiles + cost-allocation
@@ -210,33 +224,10 @@ function ScenarioWorkspaceInner() {
         <AdvisorPanel onClose={() => setAdvisorOpen(false)} />
       )}
 
-      {/* Promote modal slot — T4 owns. T1 just needs the open/close state. */}
-      {promoteOpen && (
-        <div
-          aria-modal="true"
-          role="dialog"
-          className="fixed inset-0 z-40 flex items-center justify-center bg-foreground/30 backdrop-blur-sm"
-          onClick={() => setPromoteOpen(false)}
-        >
-          <Card className="max-w-md p-6 m-4 text-center">
-            <p className="text-sm text-foreground mb-2">
-              Promote workflow — owned by T4.
-            </p>
-            <p className="text-xs text-muted-foreground mb-4">
-              T1 surfaces the entry point; T4's PromoteReviewPage will mount
-              here under{' '}
-              <code className="text-xs">/simulator/scenarios/:id/promote</code>.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPromoteOpen(false)}
-            >
-              Close
-            </Button>
-          </Card>
-        </div>
-      )}
+      {/* Promote workflow lives at /simulator/scenarios/:id/promote (T4's
+          PromoteReviewPage). The Promote button in ScenarioHeader navigates
+          there directly. PromoteEnter is also available from the change-summary
+          drawer footer (controller-only, hidden DOM otherwise). */}
     </div>
   );
 }

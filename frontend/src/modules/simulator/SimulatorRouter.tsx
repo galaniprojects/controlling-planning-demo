@@ -33,7 +33,7 @@ import { ScenarioManagerPage } from './manager/ScenarioManagerPage';
 import { ScenarioWorkspacePage } from './workspace/ScenarioWorkspacePage';
 import { CompareSelectionPage } from './compare/CompareSelectionPage';
 import { ComparePage } from './compare/ComparePage';
-import { PromotePlaceholder } from './promote/PromotePlaceholder';
+import { PromoteReviewPage } from './promote/PromoteReviewPage';
 
 export function SimulatorRouter() {
   return (
@@ -52,7 +52,7 @@ export function SimulatorRouter() {
         path="scenarios/:id/surface/:surfaceKey/:entityId"
         element={<ScenarioWorkspacePage />}
       />
-      <Route path="scenarios/:id/promote" element={<PromotePlaceholder />} />
+      <Route path="scenarios/:id/promote" element={<PromoteReviewPage />} />
       <Route
         path="scenarios/:id/apply"
         element={<Navigate to=".." replace />}
