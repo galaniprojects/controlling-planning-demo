@@ -344,6 +344,54 @@ the new field as optional for backward compat.
 - T4: Catalogue (21 actions) + Promote workflow + Resources / Bulk Actions
   sidebar bodies + 2 Tier-3 surfaces (PeopleMaster, CapacityParameters).
 
+## v5 Session B2 — T4 Catalogue + Promote
+
+### Scope
+Frontend-only slice of the v5 Cluster B What-If Simulator rebuild. T4 owns the **catalogue** of 23 bulk actions, the **Promote workflow** UI, the two **Tier-3 surfaces** (PeopleMaster, CapacityParameters), and the two **Tier-3 sidebar sections** (BulkActions, Resources). Backend reused as-is — the single dispatch endpoint `POST /api/scenarios/:id/actions` (`backend/routers/scenarios.py:536`) routes every catalogue action through `services/scenario_engine.py::_apply_action`, and the Promote workflow consumes `POST /:id/promote/preview`, `POST /:id/promote`, and `GET /:id/promotions`.
+
+### What landed
+- **`catalogue/` (full)** per `[B-ES-01]`:
+  - `types.ts` — `ActionDefinition` / `FieldDefinition` / `LeverCategory` / `ActionTier`
+  - `catalogueDef.ts` — all 23 actions across 4 categories (10 project-level, 7 portfolio rules, 2 target-setters, 4 restructuring Tier 3); `visibleActions(hasTier3)` removes restructuring entries entirely from the array (hidden DOM, not disabled)
+  - `ActionForm.tsx` — single shared scaffold rendering any `ActionDefinition` into a project picker (when scope=project) + dynamic field stack (number / percent / currency / month / select / multi-select / textarea) with `dependsOn` visibility + lazy reference fetch (`referenceApi`, `adminApi.getActiveHierarchy()`)
+  - `BulkActionsPanel.tsx` — tile grid grouped by category; selecting a tile reveals the form; restructuring section filtered for non-Tier-3
+  - 23 thin per-action wrappers via `makeCatalogueWrapper` for deep-linking + per-action customisation hooks: `projectLevel/{RemoveProject,PauseProject,DelayProject,AccelerateProject,ScaleBudget,ChangeSourcingMix,SetTerminationDate,CloneProject,AdjustVendorContract,ChangeExternalRate}`, `portfolioRules/{CutByHierarchy,CutByType,CutByTransformation,AcrossTheBoardCut,FreezeNewStarts,ApplyEscalation,AdjustRateTable}`, `targetSetters/{OutsourcingTarget,InvestmentMixTarget}`, `restructuring/{RemoveRole,ReduceHeadcount,RelocateTeam,HireBlock}`
+- **`workspace/sidebar/`** per `[B-AC-02]`:
+  - `BulkActionsSection.tsx` — host that mounts `BulkActionsPanel`
+  - `ResourcesSection.tsx` — Tier 3 only; returns `null` entirely when `!hasTier3` (hidden DOM); renders 2 surface shortcuts + 4 restructuring action shortcuts
+- **`surfaces/` (Tier 3 only)** co-located with restructuring actions:
+  - `PeopleMasterSurface.tsx` — returns `null` when `!hasTier3`; renders the 4 restructuring actions inline as collapsible details
+  - `CapacityParametersSurface.tsx` — returns `null` when `!hasTier3`; inline form for overriding hours/FTE/month per location, submitting as `action_type='capacity_param_change'` lever_category=`'capacity_param'` tier=3 → routes to `capacity_param_update` at Promote
+- **`promote/` (full)** per `[B-PR-01..06]`:
+  - `routingLabels.ts` — labels + descriptions + Tailwind colour classes for the 12 routing types (`direct_forecast_update`, `change_request`, `doi_gate_check`, `tech_navigator_direct`, `tech_navigator_send_back`, `rate_table_update`, `people_action_item`, `budget_envelope_update`, `hypothetical_to_proposed`, `hierarchy_update`, `cost_allocation_update`, `capacity_param_update`, plus `no_route` for target-setters); plus `ROUTING_CATEGORY_LABEL` grouping for the diff selector
+  - `PromotedBadge.tsx` — small marker for already-promoted actions
+  - `PromoteEnter.tsx` — header / drawer entry button; hidden DOM for non-controllers (`useCanPromote()`); disabled with rebase tooltip when anchor stale or scenario archived
+  - `DiffSelector.tsx` — category-grouped checkbox picker per `[B-PR-03]`: per-diff checkboxes + select-all PER CATEGORY + NO global select-all; already-promoted rows are visible but unselectable; routing badge + target_id + requires_review + permission_ok flag inline
+  - `RoutingPreview.tsx` — compact table of the chosen subset for pre-confirm review
+  - `PromoteConfirmModal.tsx` — confirm dialog with optional notes textarea (recorded on `ScenarioPromotion` audit row); calls `promoteExecute(action_ids, notes)`
+  - `PromoteAuditDrawer.tsx` — right-side sheet listing past promotions via `GET /api/scenarios/:id/promotions`
+  - `PromoteReviewPage.tsx` — full-page orchestrator: fetch preview → DiffSelector → routing preview → confirm modal → post-execute summary; rebase prompt rendered when preview returns 409 stale-anchor
+
+### Files
+**New:** `frontend/src/modules/simulator/catalogue/{types.ts, catalogueDef.ts, ActionForm.tsx, BulkActionsPanel.tsx, wrapper.tsx}` + 23 per-action wrappers in 4 sub-folders + 4 barrel `index.ts` files; `frontend/src/modules/simulator/workspace/sidebar/{BulkActionsSection.tsx, ResourcesSection.tsx}`; `frontend/src/modules/simulator/surfaces/{PeopleMasterSurface.tsx, CapacityParametersSurface.tsx}`; `frontend/src/modules/simulator/promote/{routingLabels.ts, PromotedBadge.tsx, PromoteEnter.tsx, DiffSelector.tsx, RoutingPreview.tsx, PromoteConfirmModal.tsx, PromoteAuditDrawer.tsx, PromoteReviewPage.tsx, index.ts}`. Plus a temporary visual-verification harness at `frontend/src/modules/simulator/__t4_preview/T4PreviewPage.tsx` + 2 routes in `App.tsx` (both flagged `TEMP — removed at lead merge`).
+
+### API consumption
+- `POST /api/scenarios/:id/actions` (single dispatch — all 21 catalogue actions)
+- `POST /api/scenarios/:id/promote/preview` + `POST /api/scenarios/:id/promote` + `GET /api/scenarios/:id/promotions`
+- `referenceApi.{getRoles,getCostCenters,getLocations,getCostTypes}` + `adminApi.getActiveHierarchy()` (lazy-loaded by `ActionForm` on first relevant field)
+
+### Tier 3 security pattern
+`useTier3()` from T1's permission hooks reads `RoleContext.tier3_flag` with defensive fallback to `impact.tier3_visible`. Every Tier-3 surface returns `null` when `!hasTier3` — no DOM rendered, never a disabled state. Restructuring actions are filtered out of `visibleActions(false)` so their tiles never appear in the catalogue. Backend redacts the `people` impact dimension and Tier-3 actions independently for defense in depth.
+
+### Verification
+- T4 files type-check clean (`tsc -b` reports zero errors in `modules/simulator/{catalogue,promote,surfaces,workspace/sidebar,__t4_preview}`).
+- Pre-existing baseline TS errors unchanged: `workbench/forecast/useForecastCycle.ts`, `workbench/overview/ProjectTimelineChart.tsx`, `workbench/submission/SubmissionDiffView.tsx` (called out in Current Status as deferred).
+- **Visual verification (`w5-b2-t4-*` screenshots) deferred to lead's merge smoke walk** (Task #5). Both Playwright and Chrome DevTools MCP browser instances were locked by other teammates throughout the T4 build; the temp `/__t4-preview` route is wired so the lead can navigate the catalogue grid (Tier-3 visible vs hidden), Promote review page, routing preview, and confirm modal in seconds against the stub ScenarioCtx.Provider.
+
+### Refactoring opportunities (not yet picked up — leave for a future session)
+- `backend/services/scenario_engine.py::recalculate_scenario` and `get_scenario_state` do not include `lever_category`, `tier`, or `promoted_at` in the serialised action list. The router-level redaction filter at `routers/scenarios.py:480-485` already references those fields, suggesting a serialisation gap. Adding them is a one-line additive change that would make the Promoted badge work on the integrated workspace without re-querying the promote audit.
+
+
 ## v5 Session F6: Workbench BTC Tile + Workbench BTC Tab (2026-04-29)
 
 ### Feature Overview
