@@ -59,6 +59,8 @@ def _get_project_entity_id(db: Session, project_id: str) -> str:
 MODULES = [
     {"id": "portfolio", "name": "Portfolio Overview", "description": "IT portfolio dashboard with budget tracking, intake queue, and change request approvals."},
     {"id": "workbench", "name": "Project Workbench", "description": "Project detail view with forecast planning, change requests, and trend analysis."},
+    # === v5 Cluster F — Charging & Allocations [E-10] ===
+    {"id": "charging", "name": "Charging & Allocations", "description": "Inter-service distribution edges, BTC profiles, and location cost rollup across the IT portfolio."},
     {"id": "capacity", "name": "Capacity Management", "description": "Team utilization heatmaps, resource allocation, and request management."},
     {"id": "simulator", "name": "What-If Simulator", "description": "Scenario planning tool for budget optimization with AI-assisted recommendations."},
     {"id": "reporting", "name": "Reporting", "description": "Cross-cutting analytical reports with export and saved view capabilities."},
@@ -69,17 +71,17 @@ MODULES = [
 ]
 
 MODULE_VISIBILITY = {
-    "controller": ["portfolio", "workbench", "capacity", "simulator", "reporting", "admin", "documentation", "backlog"],
-    "cost_center_owner": ["portfolio", "workbench", "capacity", "reporting", "documentation", "backlog"],
-    "project_lead": ["portfolio", "workbench", "reporting", "documentation", "backlog"],
-    "executive": ["portfolio", "simulator", "reporting", "documentation", "backlog"],
+    "controller": ["portfolio", "workbench", "charging", "capacity", "simulator", "reporting", "admin", "documentation", "backlog"],
+    "cost_center_owner": ["portfolio", "workbench", "charging", "capacity", "reporting", "documentation", "backlog"],
+    "project_lead": ["portfolio", "workbench", "charging", "reporting", "documentation", "backlog"],
+    "executive": ["portfolio", "charging", "simulator", "reporting", "documentation", "backlog"],
 }
 
 MODULE_SORT = {
-    "controller": {"portfolio": 1, "backlog": 2, "workbench": 3, "capacity": 4, "simulator": 5, "reporting": 6, "admin": 7, "documentation": 8},
-    "cost_center_owner": {"capacity": 1, "workbench": 2, "portfolio": 3, "backlog": 4, "reporting": 5, "documentation": 6},
-    "project_lead": {"workbench": 1, "portfolio": 2, "backlog": 3, "reporting": 4, "documentation": 5},
-    "executive": {"portfolio": 1, "backlog": 2, "simulator": 3, "reporting": 4, "documentation": 5},
+    "controller": {"portfolio": 1, "backlog": 2, "workbench": 3, "charging": 4, "capacity": 5, "simulator": 6, "reporting": 7, "admin": 8, "documentation": 9},
+    "cost_center_owner": {"capacity": 1, "workbench": 2, "portfolio": 3, "backlog": 4, "charging": 5, "reporting": 6, "documentation": 7},
+    "project_lead": {"workbench": 1, "portfolio": 2, "backlog": 3, "charging": 4, "reporting": 5, "documentation": 6},
+    "executive": {"portfolio": 1, "backlog": 2, "charging": 3, "simulator": 4, "reporting": 5, "documentation": 6},
 }
 
 
@@ -222,6 +224,19 @@ def _compute_module_metric(db: Session, module_id: str, user: CurrentUser) -> st
 
     elif module_id == "simulator":
         return "What-if scenario planning"
+
+    elif module_id == "charging":
+        # === v5 Cluster F [E-10] ===
+        try:
+            from models.charging import ChargeableEntity
+            count = (
+                db.query(func.count(ChargeableEntity.id))
+                .filter(ChargeableEntity.is_active.is_(True))
+                .scalar()
+            ) or 0
+            return f"{count} chargeable entities"
+        except Exception:
+            return "Inter-service distribution & BTC profiles"
 
     elif module_id == "reporting":
         return "5 standard reports"

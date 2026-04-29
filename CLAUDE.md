@@ -352,7 +352,7 @@ This project uses two tiers of agent parallelization. All agent role definitions
 - `backend/tests/` — unit tests (Wave 3 B1 in flight: 1098 tests; see PROGRESS.md for breakdown)
 
 ### Frontend
-- `frontend/src/modules/` — 8 module UIs (launchpad, portfolio, workbench, capacity, simulator, reporting, admin, docs)
+- `frontend/src/modules/` — 10 module UIs (launchpad, portfolio, workbench, charging, capacity, simulator, reporting, admin, docs, backlog)
 - `frontend/src/components/` — shared, layout, chart, and UI components
 - `frontend/src/contexts/` — React contexts (Theme, Role, SidePanel, BottomDrawer)
 - `frontend/src/hooks/` — custom hooks
@@ -385,6 +385,7 @@ curl -X POST http://localhost:8000/api/admin/reset-demo
 | `/portfolio/intake` | Intake Queue | Project intake approvals |
 | `/portfolio/approvals` | Approvals | CR approval queue |
 | `/workbench` | Project Workbench | Master-detail workspace |
+| `/charging` | Charging & Allocations | Distribution + BTC + rollup map/table + reporting bridge (v5 F4/F5) |
 | `/capacity` | Capacity Management | Heatmaps, utilization |
 | `/capacity/requests` | Resource Requests | Resource request management |
 | `/simulator` | What-If Simulator | Scenario builder |

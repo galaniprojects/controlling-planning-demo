@@ -16,6 +16,8 @@ import { ResourcePlanPage } from '@/modules/workbench/submission/ResourcePlanPag
 // === Backlog (A6) — replaces A7's BacklogDetailStub ===
 import { BacklogPage } from '@/modules/backlog/BacklogPage';
 import { BacklogProjectDetailPage } from '@/modules/backlog/BacklogProjectDetailPage';
+// === Charging & Allocations (F4 / F5) [E-10] ===
+import { Charging } from '@/modules/charging/Charging';
 
 export default function App() {
   return (
@@ -38,6 +40,8 @@ export default function App() {
                 {/* === Backlog (A6) === */}
                 <Route path="/backlog" element={<BacklogPage />} />
                 <Route path="/backlog/:projectId" element={<BacklogProjectDetailPage />} />
+                {/* === Charging & Allocations (F4 / F5) [E-10] === */}
+                <Route path="/charging/*" element={<Charging />} />
               </Routes>
             </AppLayout>
           </BottomDrawerProvider>
