@@ -3,7 +3,7 @@
  * tinting, and sort controls. [A-BK-15..17][A-BK-25]
  */
 
-import { useRef } from 'react';
+import { Fragment } from 'react';
 import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import type { RankedProjectItem, CutoffLines } from '@/types/api';
 import type { SortDir, SortField } from '../../BacklogContext';
@@ -107,10 +107,9 @@ export function RankedListTable({
                 rank <= cutoff.misalignment_zone_end;
 
               return (
-                <>
+                <Fragment key={item.project_id}>
                   {insertShouldBeBand ? (
                     <CutoffBand
-                      key={`band-should-be-${rank}`}
                       id={shouldBeBandId}
                       label="Should-be cutoff"
                       explanation="Projects above this line fit within the ideal budget envelope."
@@ -119,7 +118,6 @@ export function RankedListTable({
                   ) : null}
                   {insertRealityBand ? (
                     <CutoffBand
-                      key={`band-reality-${rank}`}
                       id={realityBandId}
                       label="Reality cutoff"
                       explanation="Projects above this line fit within the current approved budget."
@@ -127,11 +125,10 @@ export function RankedListTable({
                     />
                   ) : null}
                   <RankedRow
-                    key={item.project_id}
                     item={item}
                     isMisaligned={isMisaligned}
                   />
-                </>
+                </Fragment>
               );
             })}
           </tbody>
