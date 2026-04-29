@@ -10,6 +10,15 @@
  * Mode-change UX per [F-S2-05]:
  *   - automatic → manual : verbatim inherit, no warning needed.
  *   - manual → automatic : warning-with-values-visible dialog before discard.
+ *
+ * v5 B2 [B-OQ-02]: optional `scenarioVersion?: string` + `onSandboxSave`
+ * callback let the simulator CostAllocationSurface mount this editor in
+ * sandbox mode. When `scenarioVersion` is provided + `onSandboxSave` is
+ * given, the manual-save handler routes the line list through the scenario
+ * sandbox instead of the canonical Charging API. Mode toggling and the UM
+ * "Refresh from UM" path are disabled in sandbox mode (see [B-ES-01] —
+ * Lever 12 sandbox stays on the line-overlay path; mode switches and UM
+ * snapshots are canonical-only operations).
  */
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -50,10 +59,31 @@ import type {
  * so the Workbench BTC tab can still render. Used by F6 / [E-09].
  *
  * The legacy (profileId) form is the path used by BTCProfileListView.
+ *
+ * v5 B2 [B-OQ-02]: when `scenarioVersion` is provided + `onSandboxSave` is
+ * supplied, the manual-save submit branch routes the line list through the
+ * scenario sandbox (Lever 12 BTC overlay) instead of writing canonical rows.
  */
+type CommonProps = {
+  /**
+   * v5 B2 sandbox-version sentinel (e.g. `'scenario-12'`). When present the
+   * editor is in sandbox mode: the canonical UM refresh + mode-switch are
+   * disabled and `onSandboxSave` (if also provided) handles the line submit.
+   */
+  scenarioVersion?: string;
+  /**
+   * Sandbox submit handler. Called with the draft line list when sandbox
+   * mode is active. Surfaces wire this to ScenarioContext.setBtcLines().
+   * Required when `scenarioVersion` is provided; otherwise unused.
+   */
+  onSandboxSave?: (
+    lines: { charging_location_id: string; percentage: number }[],
+  ) => Promise<void>;
+};
+
 type Props =
-  | { profileId: number; entityId?: never; year?: never; onBack: () => void }
-  | { profileId?: never; entityId: string; year: number; onBack: () => void };
+  | (CommonProps & { profileId: number; entityId?: never; year?: never; onBack: () => void })
+  | (CommonProps & { profileId?: never; entityId: string; year: number; onBack: () => void });
 
 interface DraftLine {
   charging_location_id: string;
@@ -61,7 +91,8 @@ interface DraftLine {
 }
 
 export function EntityBTCProfileEditor(props: Props) {
-  const { onBack } = props;
+  const { onBack, scenarioVersion, onSandboxSave } = props;
+  const sandboxMode = Boolean(scenarioVersion);
   const [profile, setProfile] = useState<BTCProfileItem | null>(null);
   const [entity, setEntity] = useState<ChargeableEntityItem | null>(null);
   const [chargingLocations, setChargingLocations] = useState<ChargingLocationItem[]>([]);
@@ -179,8 +210,16 @@ export function EntityBTCProfileEditor(props: Props) {
     setSaving(true);
     setError(null);
     try {
-      const updated = await chargingApi.updateBTCProfile(profile.id, { lines: draft });
-      setProfile(updated);
+      // v5 B2 [B-OQ-02]: in sandbox mode, route to the scenario Lever 12
+      // BTC-line overlay rather than writing canonical rows. The scenario
+      // engine merges the overlay at impact-calc time per spec line 880.
+      if (sandboxMode && onSandboxSave) {
+        await onSandboxSave(draft);
+        // No canonical-row update; the scenario context owns reload/recalc.
+      } else {
+        const updated = await chargingApi.updateBTCProfile(profile.id, { lines: draft });
+        setProfile(updated);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -309,15 +348,28 @@ export function EntityBTCProfileEditor(props: Props) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {isAutomatic ? (
+          {isAutomatic && !sandboxMode ? (
             <Button variant="outline" size="sm" onClick={handleDryRunRefresh}>
               <RefreshCw className="h-3.5 w-3.5 mr-1" />
               Refresh from UM
             </Button>
           ) : null}
-          <Button variant="outline" size="sm" onClick={() => setModeChangeOpen(true)}>
-            Switch to {profile.mode === 'manual' ? 'automatic' : 'manual'}
-          </Button>
+          {/* v5 B2: hide canonical-only operations in sandbox mode.
+              UM refresh and mode-switch always write canonical rows;
+              Lever 12 sandbox keeps them disabled by design ([B-ES-01]). */}
+          {!sandboxMode && (
+            <Button variant="outline" size="sm" onClick={() => setModeChangeOpen(true)}>
+              Switch to {profile.mode === 'manual' ? 'automatic' : 'manual'}
+            </Button>
+          )}
+          {sandboxMode && (
+            <Badge
+              variant="outline"
+              className="text-[10px] border-blue-500 text-blue-700 dark:text-blue-400"
+            >
+              Sandbox edit
+            </Badge>
+          )}
         </div>
       </div>
 

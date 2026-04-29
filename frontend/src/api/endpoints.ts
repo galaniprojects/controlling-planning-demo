@@ -314,10 +314,10 @@ export const workbenchApi = {
     api.get<ListResponse<ForecastGridRow>>(`/api/projects/${projectId}/forecast`),
 
   // C1 — Mixed-granularity forecast grid [C-FG-02]
-  // v5 B2: optional `version` query param threaded by the simulator
+  // v5 B2 [B-OQ-02]: optional `version` query param threaded by the simulator
   // sandbox (e.g. `version='scenario-{id}'`). Backend route at
-  // backend/routers/workbench.py:1482 currently ignores the param;
-  // proper sandbox forecast-grid composition is a backend follow-up
+  // backend/routers/workbench.py:1482 currently ignores the param (FastAPI
+  // default); proper sandbox forecast-grid composition is a backend follow-up
   // tracked in PROGRESS.md as a B-cluster gap.
   getForecastGrid: (
     projectId: string,

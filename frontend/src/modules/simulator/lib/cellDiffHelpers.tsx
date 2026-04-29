@@ -1,24 +1,20 @@
 /**
- * v5 B2 — Cell diff helpers extracted from
- * `frontend/src/modules/workbench/forecast/MixedGranularityGrid.tsx:226-244`.
+ * v5 B2 — Cell-level diff helpers shared between forecast surfaces.
  *
- * Shared by sandbox surfaces (T2), the impact dashboard's Compare
- * level-3 (T3), and the change-summary drawer (T1) so we don't
- * triplicate the lookup + delta-rendering logic.
+ * Extracted from `MixedGranularityGrid.tsx:226-244` per `[B-OQ-02]` so the
+ * same delta-lookup + delta-indicator render logic powers:
+ *   - `MixedGranularityGrid` (Workbench forecast tab + ForecastGridSurface)
+ *   - `compare/LineLevelDetailLevel` (Compare L3 — T3)
+ *   - `drawer/DiffEntry` (Change-summary drawer rows — T1)
+ *   - sandbox surfaces (T2)
  *
- * NOTE: T2 will refactor MixedGranularityGrid to import from here so
- * the workbench grid uses the same canonical implementation. Until
- * then, this file is the single source of truth for new code.
+ * The functions here are pure (no React state, no API calls). `CellDelta`
+ * is the canonical comparison shape from `@/types/api` (delta + status).
  */
-
 import type { ReactNode } from 'react';
-import { TrendingDown, TrendingUp } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 import { formatCurrencyCompact } from '@/lib/formatters';
-
-export interface CellDelta {
-  /** Numeric delta (scenario - anchor). May be 0; null when unavailable. */
-  delta: number | null;
-}
+import type { CellDelta } from '@/types/api';
 
 /** Build a stable cell key from category / sub-line / month identifier. */
 export function cellKey(category: string, sub: string, key: string): string {
@@ -26,11 +22,11 @@ export function cellKey(category: string, sub: string, key: string): string {
 }
 
 /**
- * Resolve a cell delta from a precomputed index.
+ * Look up the delta for a cell keyed by `(category, sub, key)`.
+ * Returns undefined when no comparison overlay is active or no delta exists.
  *
- * The index maps `cellKey(...)` to its numeric delta. When comparison
- * is inactive, surfaces should pass `comparisonActive=false` so the
- * lookup short-circuits.
+ * Accepts a nullable Map so callers can pass `comparisonActive=false` and
+ * a null index without an extra null guard.
  */
 export function lookupDelta(
   deltaIndex: Map<string, CellDelta> | null | undefined,
@@ -44,11 +40,21 @@ export function lookupDelta(
 }
 
 /**
- * Render a small inline +/- delta indicator with an icon.
- * Returns `null` when the delta is null, undefined, or |delta| < 0.005.
+ * True when a delta represents a meaningful change (rounded above 1 cent).
+ * Mirrors the threshold used by the original MixedGranularityGrid render.
+ */
+export function isMeaningfulDelta(delta: CellDelta | undefined): boolean {
+  if (!delta) return false;
+  if (delta.delta === null || delta.delta === undefined) return false;
+  if (delta.status === 'unchanged') return false;
+  return Math.abs(delta.delta) >= 0.005;
+}
+
+/**
+ * Render the small ▲/▼ delta indicator with the EUR-formatted amount.
+ * Returns `null` when the delta is missing or below the visibility threshold.
  *
- * Match the visual style from MixedGranularityGrid lines 226-244 so
- * grid + simulator surfaces look identical.
+ * Direction conveyed via icon + sign prefix, never colour-only (accessibility).
  */
 export function renderDeltaIndicator(delta: number | null | undefined): ReactNode {
   if (delta === null || delta === undefined) return null;

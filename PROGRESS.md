@@ -3,6 +3,125 @@
 ## Current Status
 Phase: v5 Wave 4 partial — **F6 + E2 merged locally on `v5/wave4-f6-e2-merged` (2026-04-29)**, awaiting PR. F6 ships the Workbench BTC tile + tab + per-entity allocation breakdown endpoint (+20 tests). E2 ships external cost aggregation endpoints + role-personalised Launchpad tiles + PL capacity read-only endpoint (+73 tests). Backend test count: **1283** (1190 baseline + 20 F6 + 73 E2). Frontend TS: F6's new files clean; pre-existing baseline errors in `SubmissionDiffView.tsx` (unchanged from main) deferred to a follow-up. Visual verification done in light + dark themes for F6 surfaces. Only Wave 4 candidate remaining: **B2** (frontend simulator workspace).
 Wave 3 merged on main (2026-04-29) and verified end-to-end. All five sessions landed: **B1** (scenario engine + Lever 12, +91 tests), **E1** (progress tracker + ExternalCostCategory, +92 tests), **A8** (frontend pipeline + Run Portfolio scaffolding), **C2** (frontend mixed-granularity grid + version history UI), and **F4 + F5** (frontend Charging & Allocations module — Distribution + BTC editors + Location Cost Rollup map + tree-table + Report Builder integration). Backend test count after Wave 3: **1190** (1007 baseline + 91 B1 + 92 E1). Frontend TypeScript: 0 errors. Visual verification done in light + dark themes across all four roles (~30 screenshots, prefix `w3-`).
+
+## v5 Session B2 — T2 Sandbox Surfaces + Version Threading (2026-04-29)
+
+### Scope
+T2 of the four-team B2 split. Owns the 15 non-Tier-3 sandbox surfaces +
+BacklogSandboxSurface, the 3 portfolio-scoped sidebar bodies, and the 5
+cross-module patches that thread `scenarioVersion` into F4/F5/C2/A6
+production components per `[B-OQ-02]` `[F-S1-04]`.
+
+### Cross-module patches (5)
+All additive + optional; default behaviour byte-identical to v4 / Wave 3.
+
+- `frontend/src/modules/workbench/forecast/MixedGranularityGrid.tsx` —
+  optional `scenarioVersion?: string` prop; forwarded to
+  `workbenchApi.getForecastGrid({ ..., version })`. Diff helpers
+  (`lookupDelta`, `renderDeltaIndicator`, `isMeaningfulDelta`) extracted
+  to `frontend/src/modules/simulator/lib/cellDiffHelpers.tsx` so Compare
+  L3 (T3) and the change-summary drawer (T1) share the same semantics.
+- `frontend/src/modules/charging/btc/EntityBTCProfileEditor.tsx` —
+  optional `scenarioVersion?: string` + `onSandboxSave` callback. In
+  sandbox mode, manual save routes through the consumer-supplied
+  callback (wired to `ScenarioContext.setBtcLines`); UM "Refresh from
+  UM" + mode-switch are hidden because they are canonical-only writes.
+  Added a "Sandbox edit" badge.
+- `frontend/src/modules/charging/rollup/RollupView.tsx` — optional
+  `scenarioVersion?: string`, `compact?: boolean`, `defaultYear?: number`
+  props. When `scenarioVersion` is set, the version selector is locked
+  and shown as a pill. `compact` hides the top control bar so the rollup
+  embeds neatly inside the impact-tile preview.
+- `frontend/src/modules/charging/distribution/EntityDistributionEditor.tsx`
+  — optional `sandboxScenarioId?: number`. When set, all 4 mutation
+  paths (add edge, update edge, delete edge, change to-business-pct)
+  route to the scenario Lever 12 endpoints instead of canonical
+  Charging API. Read path was already version-aware since F2.
+- `frontend/src/modules/backlog/BacklogContext.tsx` — adds
+  `SandboxBacklogProvider` alongside the live `BacklogProvider`. The
+  sandbox provider keeps state in-memory (no `useSearchParams`) so the
+  simulator workspace URL stays clean. Both providers populate the same
+  context shape; the new optional `scenarioVersion` field on the context
+  lets data hooks fork their fetch path.
+- One-line additive change to `frontend/src/api/endpoints.ts`
+  `workbenchApi.getForecastGrid` to accept the new `version` query
+  (T1-owned file; coordinated via SendMessage. **Backend route at
+  `routers/workbench.py:1482` currently ignores the param** — flagged
+  here as a B-cluster follow-up gap, not in B2 scope).
+
+### 16 surfaces (T2 owns 15 + BacklogSandboxSurface)
+Under `frontend/src/modules/simulator/surfaces/`, exported via barrel
+`surfaces/index.ts`. Each surface dispatches edits through
+`useScenarioContext().applyAction({ scope, action_type, project_id?,
+parameters, lever_category })` per `[B-ES-01]`.
+
+- `ForecastGridSurface` — embeds `MixedGranularityGrid` in sandbox mode
+  (read-only) + scale/remove/pause action dispatch
+- `CostAllocationSurface` (Lever 12) — 3-tab shell: Stage 1
+  distribution editor (sandbox routing), Stage 2 BTC editor (sandbox
+  routing via `setBtcLines`), per-charging-location impact preview +
+  embedded `RollupView` in `compact` sandbox mode (acceptance criteria
+  8 + 9 + 10)
+- `BacklogSandboxSurface` — wraps `RankedListView` with
+  `SandboxBacklogProvider`
+- `RateTableSurface`, `ResourceAssignmentSurface`, `MilestonesSurface`,
+  `VendorContractsSurface`, `SourcingMixSurface`, `CapExOpExSurface`,
+  `RunningCostsSurface`, `HierarchyReassignSurface`,
+  `BudgetEnvelopeSurface`, `EscalationFactorsSurface`,
+  `HypotheticalProjectSurface`, `PipelineStageSurface`,
+  `TechNavigatorScoreSurface` — focused single-action sandbox forms
+- Shared `SurfaceCard` shell — title + sandbox badge + error card +
+  busy state
+
+### 3 sidebar bodies
+Under `frontend/src/modules/simulator/workspace/sidebar/`. Mounted by
+T1's `WorkspaceSidebar` host via the `projectsSection`,
+`backlogSection`, `portfolioSettingsSection` slot props.
+
+- `ProjectsSection` — flattens portfolio tree to project leaves; CC
+  Owner scope filter; navigates to surface URL preserving the user's
+  current `surfaceKey`
+- `BacklogSection` — shortcuts to `backlog` + `hypothetical-project`
+- `PortfolioSettingsSection` — shortcuts to 5 portfolio-scoped surfaces
+
+### Files added (22)
+- `frontend/src/modules/simulator/lib/cellDiffHelpers.tsx`
+- 16 files under `frontend/src/modules/simulator/surfaces/`
+  (15 surfaces + `SurfaceCard.tsx` + `index.ts`)
+- 3 files under `frontend/src/modules/simulator/workspace/sidebar/`
+  (`ProjectsSection.tsx`, `BacklogSection.tsx`,
+  `PortfolioSettingsSection.tsx`)
+
+### Files modified (6)
+- `frontend/src/api/endpoints.ts` — single-line `version` param on
+  `workbenchApi.getForecastGrid`
+- `frontend/src/modules/workbench/forecast/MixedGranularityGrid.tsx`
+- `frontend/src/modules/charging/btc/EntityBTCProfileEditor.tsx`
+- `frontend/src/modules/charging/rollup/RollupView.tsx`
+- `frontend/src/modules/charging/distribution/EntityDistributionEditor.tsx`
+- `frontend/src/modules/backlog/BacklogContext.tsx`
+
+### Verification
+- `tsc --noEmit` exit 0 across all 22 new + 6 modified files.
+- 6 atomic commits with `[B-OQ-02]` decision tags.
+- Cross-module regression: prop additions are optional + default
+  behaviour identical, so F4/F5/C2/A6 production call sites are
+  unaffected.
+
+### Refactoring opportunities (deferred per session protocol)
+- `MixedGranularityGrid` could move its column-grouping helpers
+  (`groupColumnsByYear`, `formatColumnLabel`, etc.) to `lib/` for reuse
+  by the comparison + drawer surfaces — out of scope for B2.
+- `BacklogContext` and `SandboxBacklogProvider` share enough logic that
+  a single internal `useBacklogState({ persistTo: 'url' | 'memory' })`
+  hook would be cleaner — left for a future cleanup pass.
+
+### Known gap (B-cluster follow-up)
+- Backend `/api/projects/{id}/forecast/grid` does not yet read the
+  `version` query, so the sandbox forecast view currently still
+  reflects live-forecast cells. Frontend plumbing is in place; backend
+  filter pass-through is the missing link. Tracked outside B2 scope
+  per the plan's "Lever 12 sandbox storage pattern" rule.
 Wave 2 merged: F3 (+125 tests) + C1 (+94 tests) + A6 frontend brought backend baseline to 1007 tests.
 Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
 Next: Wave 4 — **B2** (frontend simulator workspace) remaining.

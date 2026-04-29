@@ -1,6 +1,14 @@
 /**
  * BacklogContext — filter/sort/view-mode/scroll state, persisted to URL params.
  * [A-BK-21..24]
+ *
+ * v5 B2 [B-OQ-02]: an optional `scenarioVersion` is exposed on the context
+ * so embedded backlog views (`BacklogSandboxSurface` in the simulator
+ * workspace) can render a scenario fork instead of the live ranking.
+ * `BacklogProvider` continues to default to the URL-driven live view —
+ * the sandbox path uses `SandboxBacklogProvider` which forces in-memory
+ * state instead of `useSearchParams` so workspace URLs don't get polluted
+ * with backlog filter/sort params.
  */
 
 import {
@@ -8,6 +16,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useState,
   type ReactNode,
 } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -44,6 +53,12 @@ interface BacklogCtx {
   clearSort: () => void;
   /** True when sort field diverges from the natural rank order */
   hasSortOverride: boolean;
+  /**
+   * v5 B2 [B-OQ-02] sandbox version sentinel (e.g. `'scenario-12'`). Set
+   * by `SandboxBacklogProvider`; `undefined` for the live `BacklogProvider`.
+   * Consumed by data hooks to forward the version to backlog API calls.
+   */
+  scenarioVersion?: string;
 }
 
 const BacklogContext = createContext<BacklogCtx | null>(null);
@@ -185,4 +200,80 @@ function keyToParam(key: keyof BacklogFilters): string {
     within_cutoff: 'cutoff',
   };
   return map[key];
+}
+
+// ---------------------------------------------------------------------------
+// v5 B2 [B-OQ-02] — Sandbox provider for the simulator BacklogSandboxSurface.
+// ---------------------------------------------------------------------------
+//
+// The live BacklogProvider persists state via `useSearchParams`, which is
+// great for `/backlog` but pollutes the simulator workspace URL when the
+// backlog view is mounted inside `BacklogSandboxSurface`. The sandbox
+// provider keeps the same context shape but stores filter/sort/view-mode
+// state in plain `useState` and accepts a `scenarioVersion` so data hooks
+// can fork their fetch path to the scenario sandbox.
+//
+// Consumers may continue to call `useBacklog()` regardless of which
+// provider wraps them — the context shape is unified.
+
+interface SandboxProviderProps {
+  scenarioVersion: string;
+  children: ReactNode;
+}
+
+export function SandboxBacklogProvider({
+  scenarioVersion,
+  children,
+}: SandboxProviderProps) {
+  const [viewMode, setViewModeState] = useState<ViewMode>('ranked');
+  const [filters, setFiltersState] = useState<BacklogFilters>(DEFAULT_FILTERS);
+  const [sortField, setSortFieldState] = useState<SortField | null>(null);
+  const [sortDir, setSortDirState] = useState<SortDir>('asc');
+
+  const hasSortOverride = sortField !== null && sortField !== 'rank';
+
+  const setViewMode = useCallback((v: ViewMode) => setViewModeState(v), []);
+
+  const setFilter = useCallback(
+    <K extends keyof BacklogFilters>(key: K, value: BacklogFilters[K]) => {
+      setFiltersState((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
+
+  const clearFilters = useCallback(() => setFiltersState(DEFAULT_FILTERS), []);
+
+  const setSort = useCallback((field: SortField) => {
+    setSortFieldState((curField) => {
+      if (curField === field) {
+        setSortDirState((curDir) => (curDir === 'asc' ? 'desc' : 'asc'));
+        return curField;
+      }
+      setSortDirState(field === 'composite_score' ? 'desc' : 'asc');
+      return field;
+    });
+  }, []);
+
+  const clearSort = useCallback(() => {
+    setSortFieldState(null);
+    setSortDirState('asc');
+  }, []);
+
+  const value: BacklogCtx = {
+    viewMode,
+    filters,
+    sortField,
+    sortDir,
+    setViewMode,
+    setFilter,
+    clearFilters,
+    setSort,
+    clearSort,
+    hasSortOverride,
+    scenarioVersion,
+  };
+
+  return (
+    <BacklogContext.Provider value={value}>{children}</BacklogContext.Provider>
+  );
 }
