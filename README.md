@@ -70,6 +70,8 @@ Two-stage IT cost charging cycle. **Polymorphic ChargeableEntity** (Project / Of
 - **Location Cost Rollup:** static SVG world map with bubbles at country level (size = magnitude, color = dominant division) and click-to-drill into the country's charging-locations per `[F-RV-03]`; tree-table view with three pre-built rollup paths (Region→Country→Location, Division→Location, Country→Location), cell drill-down to contributing entities + DAG upstream chains per `[F-RV-04]`.
 - **Reporting integration:** AI Report Builder bridge with Cluster F prompt templates (cost by division, top inflow drivers, regional YoY) plus a catalogue listing all 11 dimensions and 6 measures the data layer exposes per `[F-RV-01]`.
 
+**Workbench BTC tile + tab (v5 Session F6, [E-09]):** Project Workbench gains a BTC allocation tile in the Overview tab (headline business € amount, top 3 charging locations with % bars, "+N more" CTA into the BTC tab) and a new third tab "Cost Allocation" (or "Distribution" when the entity has zero To-Business share). The tab embeds the refactored single-entity BTC profile editor (now accepts `entityId + year`), a sortable allocation breakdown table with click-to-drill into upstream-cost paths, and per-entity audit history. Internal services with no business charging fall back to the entity-keyed Distribution editor inline.
+
 ### Administration
 Five-section sidebar navigation (Master Data → Reference Catalogues → Planning & Ranking → Portfolio Hierarchy → System) covering 24 admin sub-surfaces. Master data: Cost Centers, Competence Centers, Lines of Business, Workforce Locations, People, plus Cluster F's Charging Locations / Legal Entities / Regions / Countries / User Measurement. Reference catalogues: Role Types, External Cost Types, Project Dependencies. System: Users (with Tier 3 + change-reviewer flags), Role Permissions Grid (per-role per-entity-type grants for BTC profile + Stage 1 distribution edits + master-data overrides), Rate Tables, **Workflow Templates editor** (six configurable workflows — forecast cycle, intake, change request, send back, milestone baseline override, scheduled master data activation; per-step touchpoint editor for required / skippable / assigned role / data gates / notifications JSON / time constraint / escalation), **Scheduled Changes panel** (5-state lifecycle pending_review → approved → activated / rejected / cancelled with manual-trigger activation engine), and **Audit Log V2** (8-category filter, entity-scoped trail, CSV + Excel export). Dark-mode-ready throughout; all-controller demo.
 
@@ -183,7 +185,7 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
 | **Report Builder** | `/api/report-builder` | 12 | Data catalog, filter options, query execution, saved reports CRUD, share/publish, CSV export |
 | **AI Report Builder** | `/api/reports/ai-builder` | 4 | Status check, conversation start, message, cleanup |
-| **BTC Profiles + Rollup** | `/api/charging`, `/api/admin` | 15 | BTCProfile CRUD, UM refresh, mode change, copy/year-rollover, WBS matrix, rollup query (11 dims), drill-down, cache invalidate/status |
+| **BTC Profiles + Rollup** | `/api/charging`, `/api/admin` | 19 | BTCProfile CRUD, UM refresh, mode change, copy/year-rollover, WBS matrix, rollup query (11 dims), drill-down, cache invalidate/status, F6 per-entity allocation breakdown + read-only entity / charging-locations |
 | **Admin** | `/api/admin` | 20 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset, Tech Navigator score recompute, milestone-types catalogue |
 | **Docs** | `/api/docs` | 3 | Module manuals, FAQ |
 | **Reference** | `/api/reference` | 4 | Roles, cost types, grouping entities, cost centers |
@@ -357,6 +359,10 @@ BTCProfile (Business Transfer Charging) maps a chargeable entity's to-business c
 | `POST` | `/api/admin/btc-profiles/year-rollover` | controller | Bulk copy active profiles from `source_year` to `target_year` drafts per `[F-S2-05]` |
 | `GET` | `/api/charging/rollup` | any role | Aggregate effective costs by dimension (`group_by`: entity/entity_type/hierarchy_node/responsible/change_or_run/charging_location/legal_entity/region/division/country/stage) per `[F-RV-01..03]` |
 | `GET` | `/api/charging/rollup/charging-location/{cl_id}` | any role | Drill-down: upstream path chain for entity × charging-location with enriched labels per `[F-RV-04]` |
+| `GET` | `/api/charging/entities/{id}/allocation-breakdown` | any role | F6: Per-entity BTC allocation breakdown per `[E-09]` — sortable charging-location rows with %, € amount, region/country/division metadata |
+| `GET` | `/api/charging/entities/{id}` | any role | F6: Read-only chargeable entity fetch (admin variant remains controller-only for mutation paths) |
+| `GET` | `/api/charging/entities/by-project/{project_id}` | any role | F6: Look up the chargeable entity linked to a project — used by Workbench BTC tab |
+| `GET` | `/api/charging/charging-locations` | any role | F6: Read-only active-charging-locations list (admin variant remains controller-only) |
 | `POST` | `/api/admin/rollup-cache/invalidate` | controller | Flush entire rollup cache per `[F-RV-02]` (manual recovery path) |
 | `GET` | `/api/admin/rollup-cache/status` | controller | Diagnostic: entry counts per cache layer (stage1_effective / stage2_location) per `[F-RV-02]` |
 
