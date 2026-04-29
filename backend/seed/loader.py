@@ -119,6 +119,7 @@ def seed_database() -> dict:
 
     print("[seed] Database empty — running full seed...")
     load_seed_sql()
+    _seed_forecast_versions()
     fixtures = load_fixtures()
     print("[seed] Seed complete.")
     return fixtures
