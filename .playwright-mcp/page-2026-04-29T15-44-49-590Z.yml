@@ -1,0 +1,109 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button "CRETA" [ref=e6]
+      - navigation [ref=e7]:
+        - generic [ref=e8]:
+          - generic [ref=e9]: /
+          - generic [ref=e10]: __t3-preview
+    - generic [ref=e11]:
+      - button "Switch to dark mode" [ref=e12]:
+        - img [ref=e13]
+      - button "?" [ref=e15]
+      - button "Anna Meier" [ref=e132]:
+        - generic [ref=e17]: Anna Meier
+        - img [ref=e18]
+  - main [ref=e21]:
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - generic [ref=e24]: B2 T3 preview
+        - generic [ref=e25]:
+          - button "strip" [ref=e26]
+          - button "change-feed" [ref=e27]
+          - button "compare-l1" [ref=e28]
+          - button "compare-l2" [ref=e29]
+          - button "compare-l3" [ref=e30]
+        - generic [ref=e31]:
+          - generic [ref=e32]:
+            - checkbox "Tier 3 visible" [active] [ref=e33]
+            - text: Tier 3 visible
+          - button "Toggle dark" [ref=e34]
+      - main [ref=e35]:
+        - generic [ref=e464]:
+          - generic [ref=e465]:
+            - generic [ref=e466]: 9 total
+            - generic [ref=e467]: "Forecast: 3"
+            - generic [ref=e468]: "Cost allocation: 2"
+            - generic [ref=e469]: "People: 2"
+            - generic [ref=e470]: "Portfolio rule: 1"
+            - generic [ref=e471]: "Milestone: 1"
+          - list [ref=e472]:
+            - listitem [ref=e473]:
+              - generic [ref=e474]: "#9"
+              - generic [ref=e475]:
+                - generic [ref=e476]:
+                  - generic [ref=e477]: cut consulting
+                  - generic [ref=e478]: Forecast
+                - generic [ref=e479]: CRM Refresh
+                - generic [ref=e480]: reduction pct=15
+            - listitem [ref=e481]:
+              - generic [ref=e482]: "#8"
+              - generic [ref=e483]:
+                - generic [ref=e484]:
+                  - generic [ref=e485]: reduce budget
+                  - generic [ref=e486]: Forecast
+                - generic [ref=e487]: Data Lake Migration
+                - generic [ref=e488]: reduction pct=8
+            - listitem [ref=e489]:
+              - generic [ref=e490]: "#7"
+              - generic [ref=e491]:
+                - generic [ref=e492]:
+                  - generic [ref=e493]: reassign person
+                  - generic [ref=e494]: People
+                  - generic [ref=e495]: Tier 3
+                - generic [ref=e496]: person=Anna Meier
+            - listitem [ref=e497]:
+              - generic [ref=e498]: "#6"
+              - generic [ref=e499]:
+                - generic [ref=e500]:
+                  - generic [ref=e501]: hire block
+                  - generic [ref=e502]: People
+                  - generic [ref=e503]: Tier 3
+                - generic [ref=e504]: count=2
+            - listitem [ref=e505]:
+              - generic [ref=e506]: "#5"
+              - generic [ref=e507]:
+                - generic [ref=e508]:
+                  - generic [ref=e509]: btc profile line change
+                  - generic [ref=e510]: Cost allocation
+                - generic [ref=e511]: entity id=IT0042 · location=DE-MUC-001
+            - listitem [ref=e512]:
+              - generic [ref=e513]: "#4"
+              - generic [ref=e514]:
+                - generic [ref=e515]:
+                  - generic [ref=e516]: distribution edge change
+                  - generic [ref=e517]: Cost allocation
+                - generic [ref=e518]: source=IT-OPS · destination=IT-FIN · percentage=12
+            - listitem [ref=e519]:
+              - generic [ref=e520]: "#3"
+              - generic [ref=e521]:
+                - generic [ref=e522]:
+                  - generic [ref=e523]: across the board cut
+                  - generic [ref=e524]: Portfolio rule
+                - generic [ref=e525]: pct=5
+            - listitem [ref=e526]:
+              - generic [ref=e527]: "#2"
+              - generic [ref=e528]:
+                - generic [ref=e529]:
+                  - generic [ref=e530]: delay project
+                  - generic [ref=e531]: Milestone
+                - generic [ref=e532]: Cloud Lift-and-Shift
+                - generic [ref=e533]: months=3
+            - listitem [ref=e534]:
+              - generic [ref=e535]: "#1"
+              - generic [ref=e536]:
+                - generic [ref=e537]:
+                  - generic [ref=e538]: reduce budget
+                  - generic [ref=e539]: Forecast
+                - generic [ref=e540]: ERP Migration Wave 2
+                - generic [ref=e541]: reduction pct=10

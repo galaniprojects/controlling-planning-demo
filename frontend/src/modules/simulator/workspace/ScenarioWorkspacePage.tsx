@@ -35,6 +35,7 @@ import { BacklogSection } from './sidebar/BacklogSection';
 import { PortfolioSettingsSection } from './sidebar/PortfolioSettingsSection';
 import { SandboxBorder } from './SandboxBorder';
 import { ChangeSummaryDrawer } from '../drawer/ChangeSummaryDrawer';
+import { ImpactSummaryStripContainer } from './impact/ImpactSummaryStripContainer';
 import {
   ForecastGridSurface,
   CostAllocationSurface,
@@ -171,15 +172,9 @@ function ScenarioWorkspaceInner() {
             portfolioSettingsSection={<PortfolioSettingsSection />}
           />
           <div className="flex-1 min-w-0 space-y-3">
-            {/* Impact strip slot — filled by T3 when their merge lands. */}
-            <div
-              data-slot="impact-strip"
-              className="rounded border border-dashed border-border p-3 text-xs text-muted-foreground italic"
-            >
-              Impact dashboard — filled by T3 (8 dimensions: financial,
-              backlog ranking, capacity, people, outsourcing, investment mix,
-              running cost, cost allocation).
-            </div>
+            {/* Impact strip — T3 [B-ID-01..03]. 8 tiles + cost-allocation
+                overlay; click a tile to expand its detail panel below. */}
+            <ImpactSummaryStripContainer />
             {/* Surface slot — switched by URL `surfaceKey` from T2's sidebar nav. */}
             <div data-slot="surface" data-surface-key={params.surfaceKey ?? 'none'}>
               {renderSurface(params.surfaceKey, params.entityId) ?? (

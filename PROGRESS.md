@@ -122,6 +122,117 @@ T1's `WorkspaceSidebar` host via the `projectsSection`,
   reflects live-forecast cells. Frontend plumbing is in place; backend
   filter pass-through is the missing link. Tracked outside B2 scope
   per the plan's "Lever 12 sandbox storage pattern" rule.
+
+## v5 Session B2 — T3 Impact Dashboard + Compare
+
+Frontend slice for the What-If Simulator workspace (Zone 2 impact dashboard +
+the dedicated Compare flow), per CRETA v5 spec lines 974–1067 and decisions
+`[B-ID-01..03]` `[B-CV-01..05]` `[B-AC-02..03]`. Built in worktree
+`v5/wave4-b2-t3` (off `v5/wave4-f6-e2-b2-merged`); awaits T1 → T2 → T3 → T4
+sequential merge.
+
+### Files added (T3-owned)
+
+- `frontend/src/modules/simulator/lib/colorCoding.ts` — per-scenario palette
+  (anchor + 3 scenarios; light + dark Tailwind tokens for header tint, cell
+  tint, left border, dot, plus hex fallbacks for inline SVG)
+- `frontend/src/modules/simulator/lib/impactTypes.ts` — narrow TS types for
+  the B1 8-dimension impact response + Lever-12 cost-allocation overlay
+- `frontend/src/modules/simulator/lib/dimensionHeadlines.ts` — shared
+  headline-string derivation (arrows ▲▼ + +/- prefixes; no colour-only cues)
+- `frontend/src/modules/simulator/useScenarioContext.ts` — read-only consumer
+  hook stub (T1 owns canonical implementation; merge note in file header)
+- `frontend/src/modules/simulator/workspace/impact/`:
+  - `ImpactSummaryStrip.tsx` — 8-tile strip with stale dot per tile,
+    Tier-3 People tile hidden (not greyed) for non-Tier-3 callers
+  - `ImpactSummaryStripContainer.tsx` — wires strip to ScenarioContext
+  - `ImpactTile.tsx` — accessible card with stale tooltip + active state
+  - `ImpactDetailPanel.tsx` — single-open lazy-rendered detail panel
+  - `ChangeSummaryFeed.tsx` — append-only real-time feed (dim 8) with
+    category badges + per-action Tier-3 / Promoted markers
+  - `dimensions/FinancialDimension.tsx` — anchor/scenario/delta KPIs +
+    CapEx/OpEx + time-frame breakdown table
+  - `dimensions/BacklogRankingDimension.tsx` — affected/removed counts +
+    backlog sandbox CTA
+  - `dimensions/CapacityDimension.tsx` — per-CC table with utilisation bars
+    (over-100 amber tint), FTE delta column
+  - `dimensions/PeopleDimension.tsx` — Tier-3 only; defense-in-depth
+    `null` return when `!tier3Visible`
+  - `dimensions/OutsourcingDimension.tsx` — internal/external split bar +
+    twin total cards
+  - `dimensions/InvestmentMixDimension.tsx` — per-hierarchy-node anchor /
+    scenario / delta table
+  - `dimensions/RunningCostDimension.tsx` — long-term cost-tail breakdown
+  - `dimensions/CostAllocationDimension.tsx` — Lever-12 per-charging-location
+    delta table + totals strip (acceptance criterion #10)
+- `frontend/src/modules/simulator/compare/`:
+  - `compareTypes.ts` — discriminated anchor / scenario column union
+  - `ScenarioColumnHeader.tsx` — name + owner + anchor + status badge +
+    diff count + stale icon, with per-scenario colour token application
+  - `CompareToggle.tsx` — segmented "Show values / Show changes from anchor"
+  - `CompareSelectionPage.tsx` — list with shared-anchor enforcement
+    (mismatched rows disabled with tooltip; backend 409 is fallback)
+  - `ComparePage.tsx` — shell + breadcrumb (Selection › Comparison › project
+    › line) + state machine for L1 ↔ L2 ↔ L3 + anchor-mismatch error UI;
+    fans-out per-scenario impact fetches and stitches with `/compare`
+  - `PortfolioSummaryLevel.tsx` (L1) — 9-row × N-column summary
+    (8 dimensions + cost-allocation), People row hidden for non-Tier-3
+  - `ProjectComparisonLevel.tsx` (L2) — per-project rollup with toggle +
+    click-to-drill chevrons
+  - `LineLevelDetailLevel.tsx` (L3) — line-level scaffold with toggle;
+    month-by-month detail deferred to workbench cross-link
+
+### B1 endpoints consumed
+
+- `GET  /api/scenarios/:id/impact?year=YYYY` → `ImpactDashboardResponse`
+- `POST /api/scenarios/compare`               → project rollup
+- `GET  /api/scenarios/:id/drill-down`        → wired through `scenariosApi.drillDown`
+- `POST /api/scenarios/:id/recalculate`       → consumed via ScenarioContext (T1 owns wrapper)
+
+T1 still needs to add the typed `getImpact` wrapper to `scenariosApi`; until
+then `ComparePage.tsx` falls back to a direct `api.get` call so the page
+works on a fresh checkout.
+
+### Display + accessibility conventions honoured
+
+- Per-scenario colour coding on column headers + cell tints + left borders
+  (3-scenario palette: blue / pink / emerald, with light + dark variants)
+- Directional indicators inline with arrows (▲▼) + +/- prefixes — never
+  colour-only (CLAUDE.md accessibility rule)
+- "Show values vs Show changes from anchor" toggle live at L2 + L3
+- Stale dot on every impact tile (except Change Summary, which updates in
+  real time and is never stale per spec line 1048)
+- Stale icon on scenario column headers when an outdated anchor is detected
+- Tier-3 redaction defense-in-depth: People tile removed entirely from the
+  strip (not greyed), People row removed from L1 Compare, PeopleDimension
+  renders `null` when `!tier3Visible`. Backend already redacts server-side.
+
+### Tests + verification
+
+- All T3 source files type-check clean against the project tsconfig
+  (no errors in `modules/simulator/(lib|workspace/impact|compare)/`).
+- Visual verification done at desktop viewport (1440 × 900) in light + dark
+  themes via Playwright MCP using a temporary preview route mounting all
+  components with stub data:
+  - `w5-b2-t3-01-impact-strip-light.png` — 9-tile strip with stale dots
+  - `w5-b2-t3-02-impact-financial-detail-light.png` — Financial detail
+  - `w5-b2-t3-03-impact-capacity-detail-light.png` — Capacity (over-100 rows
+    amber-tinted)
+  - `w5-b2-t3-04-impact-cost-allocation-light.png` — Lever-12 per-location
+    deltas
+  - `w5-b2-t3-05-compare-l1-light.png` — Compare L1 portfolio summary
+  - `w5-b2-t3-06-compare-l2-light.png` — L2 "Show values"
+  - `w5-b2-t3-07-compare-l2-changes-light.png` — L2 "Show changes from anchor"
+  - `w5-b2-t3-08-change-summary-feed-light.png` — append-only feed
+  - `w5-b2-t3-09-impact-strip-tier3-redacted-light.png` — People tile gone
+  - `w5-b2-t3-10-impact-strip-dark.png`
+  - `w5-b2-t3-11-compare-l1-dark.png`
+  - `w5-b2-t3-12-compare-l2-dark.png`
+  - `w5-b2-t3-13-impact-financial-detail-dark.png`
+  - `w5-b2-t3-14-compare-l3-dark.png` — line-level scaffold with toggle
+- The temporary preview route + file (`__t3-preview.tsx`) was reverted
+  before the final commit.
+
 Wave 2 merged: F3 (+125 tests) + C1 (+94 tests) + A6 frontend brought backend baseline to 1007 tests.
 Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
 Next: Wave 4 — **B2** (frontend simulator workspace) remaining.

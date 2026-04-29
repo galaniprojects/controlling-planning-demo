@@ -31,7 +31,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ScenarioManagerPage } from './manager/ScenarioManagerPage';
 import { ScenarioWorkspacePage } from './workspace/ScenarioWorkspacePage';
-import { ComparePlaceholder } from './compare/ComparePlaceholder';
+import { CompareSelectionPage } from './compare/CompareSelectionPage';
+import { ComparePage } from './compare/ComparePage';
 import { PromotePlaceholder } from './promote/PromotePlaceholder';
 
 export function SimulatorRouter() {
@@ -56,16 +57,34 @@ export function SimulatorRouter() {
         path="scenarios/:id/apply"
         element={<Navigate to=".." replace />}
       />
-      <Route path="compare" element={<ComparePlaceholder />} />
-      <Route path="compare/:idA/:idB" element={<ComparePlaceholder />} />
-      <Route path="compare/:idA/:idB/:idC" element={<ComparePlaceholder />} />
+      {/* T3: real Compare flow — selection → L1 → L2 → L3 */}
+      <Route path="compare" element={<CompareSelectionPage />} />
+      <Route path="compare/:idA" element={<ComparePage />} />
+      <Route path="compare/:idA/:idB" element={<ComparePage />} />
+      <Route path="compare/:idA/:idB/:idC" element={<ComparePage />} />
+      <Route
+        path="compare/:idA/project/:projectId"
+        element={<ComparePage />}
+      />
       <Route
         path="compare/:idA/:idB/project/:projectId"
-        element={<ComparePlaceholder />}
+        element={<ComparePage />}
+      />
+      <Route
+        path="compare/:idA/:idB/:idC/project/:projectId"
+        element={<ComparePage />}
+      />
+      <Route
+        path="compare/:idA/project/:projectId/line/:lineKey"
+        element={<ComparePage />}
       />
       <Route
         path="compare/:idA/:idB/project/:projectId/line/:lineKey"
-        element={<ComparePlaceholder />}
+        element={<ComparePage />}
+      />
+      <Route
+        path="compare/:idA/:idB/:idC/project/:projectId/line/:lineKey"
+        element={<ComparePage />}
       />
       <Route path="*" element={<Navigate to="/simulator" replace />} />
     </Routes>
