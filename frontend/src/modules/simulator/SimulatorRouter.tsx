@@ -28,12 +28,31 @@
  * scoped. Backend enforces; frontend renders only what's permitted.
  */
 
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { ScenarioManagerPage } from './manager/ScenarioManagerPage';
 import { ScenarioWorkspacePage } from './workspace/ScenarioWorkspacePage';
 import { CompareSelectionPage } from './compare/CompareSelectionPage';
 import { ComparePage } from './compare/ComparePage';
 import { PromoteReviewPage } from './promote/PromoteReviewPage';
+import { ScenarioProvider } from './ScenarioContext';
+
+/**
+ * PromoteReviewPage lives outside ScenarioWorkspacePage so it has its own
+ * route, but it consumes useScenarioContext() — wrap it in a ScenarioProvider
+ * keyed off the URL scenarioId.
+ */
+function PromoteRoute() {
+  const params = useParams<{ id: string }>();
+  const scenarioId = Number.parseInt(params.id ?? '', 10);
+  if (!Number.isFinite(scenarioId) || scenarioId <= 0) {
+    return <Navigate to="/simulator" replace />;
+  }
+  return (
+    <ScenarioProvider scenarioId={scenarioId}>
+      <PromoteReviewPage />
+    </ScenarioProvider>
+  );
+}
 
 export function SimulatorRouter() {
   return (
@@ -52,7 +71,7 @@ export function SimulatorRouter() {
         path="scenarios/:id/surface/:surfaceKey/:entityId"
         element={<ScenarioWorkspacePage />}
       />
-      <Route path="scenarios/:id/promote" element={<PromoteReviewPage />} />
+      <Route path="scenarios/:id/promote" element={<PromoteRoute />} />
       <Route
         path="scenarios/:id/apply"
         element={<Navigate to=".." replace />}
