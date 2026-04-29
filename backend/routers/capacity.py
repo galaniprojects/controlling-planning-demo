@@ -11,15 +11,15 @@ from models.capacity import Allocation, ResourceRequest, ResourceRequestAssignme
 from models.change_requests import ChangeRequest
 from models.financial import Forecast
 from models.people import RateTable
-from models.organization import CostCenter, GroupingEntity
+from models.organization import CostCenter, GroupingEntity, Location
 from services.portfolio_service import _get_projects_for_entity_recursive, get_project_entity_info, get_top_level_entity_type_id
 from models.people import Person, RoleType
 from models.projects import Project
 from schemas.capacity import (
     CapacityContext, ConfirmRequest, CounterProposeRequest, DeclineRequest,
     OrgHeatmapRow, OrgSummary, PartialFulfillRequest, PersonHeatmapRow,
-    RequestItem, RoleHeatmapRow, SaveAssignmentsRequest, TeamSummary,
-    UtilizationCell,
+    RequestItem, RoleAvailabilityResponse, RoleAvailabilityRow, RoleHeatmapRow,
+    SaveAssignmentsRequest, TeamSummary, UtilizationCell,
 )
 from schemas.common import CurrentUser
 from services.calculations import (
@@ -1192,3 +1192,135 @@ def _apply_cr_to_forecast_on_cc_confirm(cr: ChangeRequest, db: Session) -> None:
                         row.amount_eur = new_val
                 except (ValueError, AttributeError):
                     pass
+
+
+# ---------------------------------------------------------------------------
+# v5 Session E2 — PL-friendly role-availability aggregation [E-06a]
+# ---------------------------------------------------------------------------
+
+
+@router.get("/role-availability", response_model=RoleAvailabilityResponse)
+def get_role_availability(
+    location_id: str | None = None,
+    role_type_id: str | None = None,
+    month_from: str | None = None,
+    month_to: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Aggregated allocation read-model for capacity planning per [E-06a].
+
+    Returns one row per (role_type, location, month). The response intentionally
+    omits person identifiers and names so Project Leads can browse availability
+    without seeing personal data. All four roles read the same shape.
+
+    Default month range: current demo month plus the next two months.
+    """
+    if not month_from:
+        month_from = DEMO_DATE
+    if not month_to:
+        month_to = add_months(month_from, 2)
+
+    if month_to < month_from:
+        raise HTTPException(400, "month_to must be >= month_from")
+
+    months = generate_month_range(month_from, month_to)
+    if not months:
+        return RoleAvailabilityResponse(items=[], total=0, months=[])
+
+    # 1. People in scope, filtered by location + role
+    person_q = (
+        db.query(Person)
+        .filter(Person.is_active.is_(True), Person.cost_center_id.isnot(None))
+    )
+    if role_type_id:
+        person_q = person_q.filter(Person.role_type_id == role_type_id)
+    if location_id:
+        person_q = (
+            person_q.join(CostCenter, Person.cost_center_id == CostCenter.id)
+            .filter(CostCenter.location_id == location_id)
+        )
+    people = person_q.all()
+
+    if not people:
+        return RoleAvailabilityResponse(items=[], total=0, months=months)
+
+    # Pre-fetch lookup tables
+    role_names = {r.id: r.name for r in db.query(RoleType).all()}
+    location_names = {l.id: l.city for l in db.query(Location).all()}
+    cc_to_location = {
+        cc.id: cc.location_id for cc in db.query(CostCenter).all()
+    }
+
+    # 2. Compute headcount per (role, location)
+    cell_meta: dict[tuple[str, str], dict] = {}
+    for p in people:
+        loc_id = cc_to_location.get(p.cost_center_id, "")
+        key = (p.role_type_id, loc_id)
+        if key not in cell_meta:
+            cell_meta[key] = {
+                "role_type_id": p.role_type_id,
+                "role_type_name": role_names.get(p.role_type_id, p.role_type_id),
+                "location_id": loc_id,
+                "location_name": location_names.get(loc_id, loc_id),
+                "person_ids": set(),
+            }
+        cell_meta[key]["person_ids"].add(p.id)
+
+    # 3. Pull allocations for these people across the month range
+    person_ids = [p.id for p in people]
+    alloc_rows = (
+        db.query(Allocation.person_id, Allocation.month,
+                 func.coalesce(func.sum(Allocation.hours), 0).label("total"))
+        .filter(
+            Allocation.person_id.in_(person_ids),
+            Allocation.month >= month_from,
+            Allocation.month <= month_to,
+        )
+        .group_by(Allocation.person_id, Allocation.month)
+        .all()
+    )
+    person_to_role_loc: dict[str, tuple[str, str]] = {
+        p.id: (p.role_type_id, cc_to_location.get(p.cost_center_id, ""))
+        for p in people
+    }
+
+    # (role, location, month) -> total allocated hours
+    allocated_map: dict[tuple[str, str, str], float] = {}
+    for row in alloc_rows:
+        key = person_to_role_loc.get(row.person_id)
+        if not key:
+            continue
+        cell_key = (key[0], key[1], row.month)
+        allocated_map[cell_key] = (
+            allocated_map.get(cell_key, 0.0) + float(row.total)
+        )
+
+    # 4. Build response rows
+    standard = get_standard_hours(db)
+    items: list[RoleAvailabilityRow] = []
+    for (role_id, loc_id), meta in cell_meta.items():
+        for month in months:
+            headcount = len(meta["person_ids"])
+            total_capacity = headcount * standard
+            allocated = allocated_map.get((role_id, loc_id, month), 0.0)
+            available = max(total_capacity - allocated, 0.0)
+            util = (
+                round((allocated / total_capacity) * 100, 1)
+                if total_capacity > 0 else 0.0
+            )
+            items.append(RoleAvailabilityRow(
+                role_type_id=role_id,
+                role_type_name=meta["role_type_name"],
+                location_id=loc_id,
+                location_name=meta["location_name"],
+                month=month,
+                headcount=headcount,
+                standard_hours=round(total_capacity, 2),
+                allocated_hours=round(allocated, 2),
+                available_hours=round(available, 2),
+                utilization_pct=util,
+            ))
+
+    items.sort(key=lambda r: (r.role_type_name, r.location_name, r.month))
+    return RoleAvailabilityResponse(items=items, total=len(items), months=months)
