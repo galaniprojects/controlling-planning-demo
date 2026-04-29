@@ -6,6 +6,12 @@
  * "Self-retained %" indicator. Save-time validation:
  *   - Sum rule per [F-S1-02]: to_business + sum(distribute) ≤ 100
  *   - Cycle detection per [F-S1-05]: backend rejects with 409 + chain
+ *
+ * v5 B2 [B-OQ-02]: when `sandboxScenarioId` is provided, edge
+ * mutations + to-business-pct updates route through the scenario Lever 12
+ * endpoints (POST/PUT/DELETE /api/scenarios/:id/lever12/distributions and
+ * POST /api/scenarios/:id/lever12/to-business). The version prop is
+ * already plumbed end-to-end since F2 — that part is unchanged.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Plus, Trash2, AlertTriangle, Save, X } from 'lucide-react';
@@ -24,6 +30,7 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { chargingApi } from '@/api/endpoints';
+import { scenariosApi } from '@/modules/simulator/api/scenariosApi';
 import type {
   ChargeableEntityItem,
   ChargeableEntityType,
@@ -36,6 +43,14 @@ interface Props {
   year: number;
   version: string;
   onBack: () => void;
+  /**
+   * v5 B2 [B-OQ-02]: when set, all mutating actions (add edge, update edge,
+   * delete edge, change to-business-pct) route through the scenario sandbox
+   * Lever 12 endpoints instead of the canonical Charging API. The `version`
+   * prop is also expected to be the scenario sentinel (`scenario-{id}`)
+   * matching this id, but this is enforced by the caller, not here.
+   */
+  sandboxScenarioId?: number;
 }
 
 const ENTITY_TYPE_OPTIONS: { value: 'all' | ChargeableEntityType; label: string }[] = [
@@ -45,7 +60,14 @@ const ENTITY_TYPE_OPTIONS: { value: 'all' | ChargeableEntityType; label: string 
   { value: 'InternalService', label: 'Internal Services' },
 ];
 
-export function EntityDistributionEditor({ entityId, year, version, onBack }: Props) {
+export function EntityDistributionEditor({
+  entityId,
+  year,
+  version,
+  onBack,
+  sandboxScenarioId,
+}: Props) {
+  const sandboxMode = sandboxScenarioId !== undefined;
   const [summary, setSummary] = useState<EntityDistributionSummary | null>(null);
   const [entity, setEntity] = useState<ChargeableEntityItem | null>(null);
   const [allEntities, setAllEntities] = useState<ChargeableEntityItem[]>([]);
@@ -100,9 +122,20 @@ export function EntityDistributionEditor({ entityId, year, version, onBack }: Pr
     setSavingTBP(true);
     setTbpError(null);
     try {
-      const updated = await chargingApi.updateEntityToBusinessPct(entityId, year, next, version);
-      setSummary(updated);
-      setTbpDraft(String(updated.to_business_pct));
+      // v5 B2 [B-OQ-02]: sandbox path → Lever 12 to-business overlay.
+      if (sandboxMode && sandboxScenarioId !== undefined) {
+        await scenariosApi.setToBusiness(sandboxScenarioId, {
+          entity_id: entityId,
+          year,
+          new_pct: next,
+        });
+        // Refetch summary so derived fields stay in sync.
+        fetchData();
+      } else {
+        const updated = await chargingApi.updateEntityToBusinessPct(entityId, year, next, version);
+        setSummary(updated);
+        setTbpDraft(String(updated.to_business_pct));
+      }
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Save failed';
       setTbpError(message);
@@ -123,7 +156,14 @@ export function EntityDistributionEditor({ entityId, year, version, onBack }: Pr
       return;
     }
     try {
-      await chargingApi.updateDistribution(edge.id, { percentage: next });
+      // v5 B2 [B-OQ-02]: sandbox path → Lever 12 distribution edge update.
+      if (sandboxMode && sandboxScenarioId !== undefined) {
+        await scenariosApi.updateDistribution(sandboxScenarioId, edge.id, {
+          percentage: next,
+        });
+      } else {
+        await chargingApi.updateDistribution(edge.id, { percentage: next });
+      }
       setEditingEdgeId(null);
       setEdgeDraftPct('');
       fetchData();
@@ -134,7 +174,12 @@ export function EntityDistributionEditor({ entityId, year, version, onBack }: Pr
 
   const handleDeleteEdge = async (edge: DistributionEdgeItem) => {
     try {
-      await chargingApi.deleteDistribution(edge.id);
+      // v5 B2 [B-OQ-02]: sandbox path → Lever 12 distribution edge delete.
+      if (sandboxMode && sandboxScenarioId !== undefined) {
+        await scenariosApi.deleteDistribution(sandboxScenarioId, edge.id);
+      } else {
+        await chargingApi.deleteDistribution(edge.id);
+      }
       fetchData();
     } catch (e: unknown) {
       setTbpError(e instanceof Error ? e.message : 'Delete failed');
@@ -382,6 +427,7 @@ export function EntityDistributionEditor({ entityId, year, version, onBack }: Pr
         allEntities={allEntities}
         year={year}
         version={version}
+        sandboxScenarioId={sandboxScenarioId}
         availableHeadroom={Math.max(0, 100 - (summary.to_business_pct + distributedTotal))}
         error={addError}
         cycleChain={cycleChain}
@@ -409,6 +455,8 @@ interface AddDialogProps {
   allEntities: ChargeableEntityItem[];
   year: number;
   version: string;
+  /** v5 B2 [B-OQ-02]: optional Lever 12 sandbox scenario id for routing. */
+  sandboxScenarioId?: number;
   availableHeadroom: number;
   error: string | null;
   cycleChain: string[] | null;
@@ -425,6 +473,7 @@ function AddDistributionDialog({
   allEntities,
   year,
   version,
+  sandboxScenarioId,
   availableHeadroom,
   error,
   cycleChain,
@@ -485,13 +534,23 @@ function AddDistributionDialog({
     }
     setSaving(true);
     try {
-      await chargingApi.createDistribution({
-        year,
-        version,
-        source_entity_id: sourceEntity.id,
-        destination_entity_id: destinationId,
-        percentage: pct,
-      });
+      // v5 B2 [B-OQ-02]: sandbox path → Lever 12 distribution edge create.
+      if (sandboxScenarioId !== undefined) {
+        await scenariosApi.createDistribution(sandboxScenarioId, {
+          year,
+          source_entity_id: sourceEntity.id,
+          destination_entity_id: destinationId,
+          percentage: pct,
+        });
+      } else {
+        await chargingApi.createDistribution({
+          year,
+          version,
+          source_entity_id: sourceEntity.id,
+          destination_entity_id: destinationId,
+          percentage: pct,
+        });
+      }
       onSaved();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Save failed';
