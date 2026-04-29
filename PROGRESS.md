@@ -1,12 +1,133 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D/F — Wave 2 merged locally (2026-04-29). F3 + C1 + A6 all on main.
-Last completed: **A6** (frontend Backlog module — ranked list, cube view, 4-tab detail page, Launchpad tile). Verified end-to-end via Playwright walk in light + dark mode.
+Phase: v5 Cluster A/D/E/F — Wave 3 in progress (2026-04-29). Wave 2 (F3 + C1 + A6) merged.
+Last completed (this branch): **A8** (frontend pipeline-stage UI, intake dialog rewrite, Portfolio module Change/Run sub-modules, Run Portfolio sub-module scaffolding per `[E-11]`). Verified end-to-end via Playwright walk in light + dark mode. Frontend TS errors: 0 (unchanged from baseline).
 Combined Wave 2: F3 (+125 tests) + C1 (+94 tests) brings backend test count to 1007. A6 frontend TS errors unchanged from baseline.
 Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
-Next: Wave 3 unblocked — A8 (Run Portfolio backend), B1 (simulator Lever 12), C2 (frontend mixed-grid + version history), F4–F7 (charging frontend).
+Wave 3 in flight (parallel): A8 (this branch), B1 (simulator Lever 12), C2 (frontend mixed-grid + version history), F4–F7 (charging frontend), E1.
 **Post-merge requirement:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables and C1's `is_provisional` column on `forecasts` break any existing DB until reseed.
+
+## v5 Session A8: Frontend pipeline stage UI + Run Portfolio sub-module (2026-04-29)
+
+### Feature Overview
+Surfaces the v5 pipeline stages and DoI levels across the application,
+rewrites the intake flow to use the [A-DOI-04] lightweight create endpoint,
+and restructures the Portfolio module into Change Portfolio + Run Portfolio
+sibling sub-modules per `[E-11]`.
+
+- **Shared components** in `components/shared/`: `PipelineStageBadge`,
+  `DoIBadge`, `PipelineTransitionMenu`, `DoIGateChecklist`. All four are
+  consumed by Backlog detail, Workbench overview, and the Portfolio Run
+  sub-module. Colour mapping for all 9 stages and 6 DoI levels lives in
+  `lib/pipelineStages.ts` (mirrors the backend's `services/pipeline.STAGES`).
+- **`SubmitProjectDialog` rewrite** per `[A-BK-26]` / `[A-DOI-04]`. Uses
+  `POST /api/intake/projects` instead of the v4 `POST /api/projects`. Adds
+  project_type and capex/opex fields, removes the resource-plan navigation
+  step, and routes the new project straight to `/backlog/{id}` so the PL can
+  iteratively complete Tech Navigator scores and DoI-gate fields.
+- **Portfolio module Change/Run sub-modules** per `[E-11]`. Pill switcher at
+  the top of the module toggles between the existing Change Portfolio
+  (Dashboard + CR Approvals) and the new Run Portfolio. The v4 "Intake
+  Queue" tab is removed per `[A-PS-13]` / A8 acceptance criteria; the
+  `/portfolio/intake` URL redirects to `/backlog`. Sub-module choice
+  persists in localStorage.
+- **Run Portfolio sub-module** per `[E-11]`. Single unified entity list
+  with type filter (Project / Offering / InternalService), type-aware
+  columns (identifier, name, annual cost, To-Business %, termination
+  month), and a placeholder KPI strip (count, annual cost, To-Business
+  share, mix). Project rows are clickable and drill into the workbench;
+  Offering and InternalService rows wait for F6's Workbench BTC tab.
+- **Pipeline-state surfacing** on Backlog DetailHeader and Workbench
+  MetadataBar. Both render the shared StageBadge + DoIBadge pair, attach
+  the controller `PipelineTransitionMenu` (Pause / Reactivate / Cancel /
+  Re-open with override-reason dialog per `[A-PS-10]`/`[A-BK-30]`), and
+  show the `DoIGateChecklist` (live missing-fields list) directly under
+  the metadata.
+- **Backlog filter alignment** — `BacklogFilterBar` stage options now match
+  `[A-PS-02]` (Proposed, Under Evaluation, Approved, Active, Paused,
+  Cancelled). Operate-stage rows are intentionally NOT in the backlog
+  filter — they belong to the Run Portfolio.
+
+### Spec references implemented
+`[A-PS-01..13]` (stage state machine surfacing), `[A-DOI-01..11]` (DoI
+indicator rendering, gate checklist), `[A-BK-26..30]` (intake create flow,
+controller actions surfaced on detail), `[A-PS-13]` (Intake Queue removed
+from Portfolio module), `[E-11]` (Change/Run sub-module restructure).
+
+Out of scope per session brief and aligned with adjacent sessions:
+- The Workbench BTC tab and per-entity Run Portfolio drill-down for
+  Offering/InternalService — handed off to F6.
+- The Run Portfolio Location Cost Rollup panels — handed off to F5.
+- `/api/admin/chargeable-entities` access widening to executive role —
+  pending follow-on (current session does not touch backend auth).
+- Tech Navigator full inline scoring on the new project dialog — A7's
+  rubric handles the post-creation flow; the dialog stays a [A-DOI-04]
+  lightweight form.
+
+### Files Created
+- `frontend/src/lib/pipelineStages.ts` — stage + DoI constants and
+  colour-class maps
+- `frontend/src/components/shared/PipelineStageBadge.tsx`
+- `frontend/src/components/shared/DoIBadge.tsx`
+- `frontend/src/components/shared/PipelineTransitionMenu.tsx`
+- `frontend/src/components/shared/DoIGateChecklist.tsx`
+- `frontend/src/hooks/usePipelineState.ts`
+- `frontend/src/types/pipeline.ts`
+- `frontend/src/types/runPortfolio.ts`
+- `frontend/src/modules/portfolio/run/RunPortfolioTab.tsx`
+
+### Files Modified
+- `frontend/src/components/shared/SubmitProjectDialog.tsx` — full rewrite
+  to use `intakeProjectApi.create` + new project-type and capex/opex
+  selectors
+- `frontend/src/api/endpoints.ts` — adds `pipelineApi`,
+  `intakeProjectApi`, `chargeableEntitiesApi`
+- `frontend/src/modules/portfolio/PortfolioOverview.tsx` — Change/Run
+  pill switcher, intake-tab redirect to `/backlog`
+- `frontend/src/modules/backlog/BacklogProjectDetailPage.tsx` — passes
+  `projectId` into the master-data tab
+- `frontend/src/modules/backlog/components/detail/DetailHeader.tsx` — uses
+  shared StageBadge + DoIBadge + transition menu
+- `frontend/src/modules/backlog/components/detail/MasterDataTab.tsx` —
+  surfaces the live DoI gate checklist at the top of the section
+- `frontend/src/modules/backlog/components/BacklogFilterBar.tsx` — stage
+  options aligned with `[A-PS-02]`
+- `frontend/src/modules/workbench/overview/MetadataBar.tsx` — shared
+  StageBadge + DoIBadge + transition menu + compact gate checklist
+- `frontend/src/modules/workbench/overview/OverviewTab.tsx` — passes
+  `projectId` to the metadata bar
+- `frontend/src/lib/routes.ts` — drops the `/portfolio/intake` label and
+  adds `/portfolio/run`
+- `frontend/src/modules/launchpad/PendingActionsPanel.tsx` — intake-tab
+  deep-links route to `/backlog/{id}`
+
+### Verification
+- TypeScript: 0 errors (unchanged from baseline)
+- Visual verification: 13 Playwright screenshots in `a8-*.png` covering
+  Portfolio Change view, Portfolio Run view (all entity types + project
+  filter), Backlog detail header (stage badge, DoI badge, transition
+  menu), Backlog Master Data tab (live gate checklist), Workbench
+  Overview (stage + DoI + gate satisfied), and the new intake dialog
+  (light + dark)
+- Smoke test: `POST /api/intake/projects` creates a DoI 0 / Proposed
+  project; the new row immediately surfaces on the workbench with the
+  correct stage badge, DoI 0 badge, and "DoI 1 gate — 5 fields missing"
+  checklist.
+
+### Branch
+`v5/cluster-a/a8-pipeline-run-portfolio` — 5 atomic commits.
+
+### Refactoring opportunities
+- The backlog cube tooltip and ranked-row inline stage text could swap to
+  the shared `PipelineStageBadge` for full consistency. Out of scope for
+  A8 (the row is space-constrained and the tooltip is non-badge text).
+- The workbench `WorkbenchProjectListItem` API shape could surface
+  `pipeline_stage` and `doi` so the project list panel renders stage +
+  DoI badges without each item making a `GET /pipeline` round-trip. That
+  is a backend shape change and was deferred to keep A8 frontend-only.
+
+
 
 ## v5 Session C1: Mixed-Granularity Forecast + Versioning (2026-04-29)
 
