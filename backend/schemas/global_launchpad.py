@@ -84,3 +84,34 @@ class ProjectCreate(BaseModel):
     capex_opex: str = "capex"
     resource_plan: list[ResourcePlanItem] = []
     external_costs: list[ExternalCostItem] = []
+
+
+# ---------------------------------------------------------------------------
+# v5 Session E2 — Launchpad role tiles per [E-06d]–[E-06j]
+# ---------------------------------------------------------------------------
+
+
+class TilePayload(BaseModel):
+    """A single role-personalised launchpad tile.
+
+    Each tile carries one primary metric (always populated), an optional
+    secondary metric, and a deep-link target (module + optional entity / tab)
+    for the front-end to navigate to on click.
+    """
+
+    tile_id: str
+    title: str
+    primary_metric: str
+    secondary_metric: str | None = None
+    link_module: str
+    link_entity_id: str | None = None
+    link_tab: str | None = None
+    tone: str = "neutral"  # "neutral" | "positive" | "warning" | "alert"
+
+
+class TilesResponse(BaseModel):
+    """Wrapper for `GET /api/launchpad/tiles`."""
+
+    role: str
+    items: list[TilePayload]
+    total: int
