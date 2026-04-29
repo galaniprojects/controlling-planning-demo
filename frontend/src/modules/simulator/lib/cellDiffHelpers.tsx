@@ -6,27 +6,33 @@
  *   - `MixedGranularityGrid` (Workbench forecast tab + ForecastGridSurface)
  *   - `compare/LineLevelDetailLevel` (Compare L3 — T3)
  *   - `drawer/DiffEntry` (Change-summary drawer rows — T1)
- *   - sandbox surfaces (T2)
  *
- * The functions here are pure (no React state, no API calls). `CellDelta`
- * is the canonical comparison shape from `@/types/api` (delta + status).
+ * The functions here are pure (no React state, no API calls). They depend on
+ * the `CellDelta` shape from `@/types/api` which v4 ships unchanged.
  */
 import type { ReactNode } from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { formatCurrencyCompact } from '@/lib/formatters';
 import type { CellDelta } from '@/types/api';
 
-/** Build a stable cell key from category / sub-line / month identifier. */
+/**
+ * Build the joined cell key shared between every consumer (grid renderer,
+ * compare drill-down, drawer entries). Centralising it here prevents drift
+ * if the join character ever changes.
+ */
 export function cellKey(category: string, sub: string, key: string): string {
   return `${category}|${sub}|${key}`;
 }
 
 /**
- * Look up the delta for a cell keyed by `(category, sub, key)`.
+ * Look up the delta for a cell keyed by `(category, sub_category, cell_key)`.
  * Returns undefined when no comparison overlay is active or no delta exists.
  *
- * Accepts a nullable Map so callers can pass `comparisonActive=false` and
- * a null index without an extra null guard.
+ * The `deltaIndex` map is built upstream from the comparison response —
+ * keys are joined via {@link cellKey} to avoid nested maps. The map is
+ * accepted as `null | undefined` so pre-load surfaces (impact response not
+ * yet returned, comparison response still in flight) can call this safely
+ * without a guard at every call site.
  */
 export function lookupDelta(
   deltaIndex: Map<string, CellDelta> | null | undefined,
@@ -35,7 +41,8 @@ export function lookupDelta(
   sub: string,
   key: string,
 ): CellDelta | undefined {
-  if (!comparisonActive || !deltaIndex) return undefined;
+  if (!comparisonActive) return undefined;
+  if (!deltaIndex) return undefined;
   return deltaIndex.get(cellKey(category, sub, key));
 }
 
@@ -54,7 +61,9 @@ export function isMeaningfulDelta(delta: CellDelta | undefined): boolean {
  * Render the small ▲/▼ delta indicator with the EUR-formatted amount.
  * Returns `null` when the delta is missing or below the visibility threshold.
  *
- * Direction conveyed via icon + sign prefix, never colour-only (accessibility).
+ * Uses semantic colour classes per CLAUDE.md dark-mode rule: emerald for a
+ * positive delta (cost up = unfavourable for cost-trim scenarios; the icon
+ * conveys direction without implying sentiment), red for a negative delta.
  */
 export function renderDeltaIndicator(delta: number | null | undefined): ReactNode {
   if (delta === null || delta === undefined) return null;
