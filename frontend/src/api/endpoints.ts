@@ -40,6 +40,11 @@ import type {
   WorkbenchProjectListItem,
   ProjectOverview,
   ForecastGridRow,
+  MixedGridResponse,
+  ForecastVersionMeta,
+  ForecastVersionListResponse,
+  ForecastVersionDetail,
+  ForecastVersionDiff,
   ForecastCycleStartResponse,
   SuggestionItem,
   ForecastChange,
@@ -307,6 +312,51 @@ export const workbenchApi = {
   // Forecast grid (read mode)
   getForecast: (projectId: string) =>
     api.get<ListResponse<ForecastGridRow>>(`/api/projects/${projectId}/forecast`),
+
+  // C1 — Mixed-granularity forecast grid [C-FG-02]
+  getForecastGrid: (
+    projectId: string,
+    params?: { granularity?: 'mixed' | 'monthly' | 'quarterly'; boundary_months?: number; horizon_months?: number },
+  ) => {
+    const qs = new URLSearchParams();
+    if (params?.granularity) qs.append('granularity', params.granularity);
+    if (params?.boundary_months !== undefined) qs.append('boundary_months', String(params.boundary_months));
+    if (params?.horizon_months !== undefined) qs.append('horizon_months', String(params.horizon_months));
+    const suffix = qs.toString();
+    return api.get<MixedGridResponse>(
+      `/api/projects/${projectId}/forecast/grid${suffix ? `?${suffix}` : ''}`,
+    );
+  },
+
+  // C1 — Forecast version history [C-RH-01]
+  listForecastVersions: (projectId: string, params?: { limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit !== undefined) qs.append('limit', String(params.limit));
+    if (params?.offset !== undefined) qs.append('offset', String(params.offset));
+    const suffix = qs.toString();
+    return api.get<ForecastVersionListResponse>(
+      `/api/projects/${projectId}/forecast/versions${suffix ? `?${suffix}` : ''}`,
+    );
+  },
+
+  // C1 — Single version detail [C-RH-02]
+  getForecastVersion: (projectId: string, versionId: number) =>
+    api.get<ForecastVersionDetail>(
+      `/api/projects/${projectId}/forecast/versions/${versionId}`,
+    ),
+
+  // C1 — Manual snapshot (controller only) [C-FV-03]
+  createForecastVersion: (projectId: string, label?: string) =>
+    api.post<ForecastVersionMeta>(
+      `/api/projects/${projectId}/forecast/versions`,
+      { label: label ?? null },
+    ),
+
+  // C1 — Diff two versions [C-RH-05]
+  getForecastVersionDiff: (versionAId: number, versionBId: number) =>
+    api.get<ForecastVersionDiff>(
+      `/api/forecast/versions/${versionAId}/diff/${versionBId}`,
+    ),
 
   // Forecast cycle (5-phase wizard)
   startCycle: (projectId: string) =>
