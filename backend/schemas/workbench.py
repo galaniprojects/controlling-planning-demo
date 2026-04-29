@@ -173,3 +173,150 @@ class ForecastVersionDiff(BaseModel):
 class ManualSnapshotRequest(BaseModel):
     """Body for POST /api/projects/{id}/forecast/versions (manual snapshot) [C-FV-03]."""
     label: Optional[str] = None   # optional human label stored as cycle_label
+
+
+# ---------------------------------------------------------------------------
+# E1 — Progress Tracker schemas [E-04c]
+# ---------------------------------------------------------------------------
+
+# Confidence enum values per [E-04c]. Anything else rejects with 400.
+PROGRESS_CONFIDENCE_VALUES = ("on_track", "at_risk", "blocked")
+
+
+class DeliverableItem(BaseModel):
+    """One deliverable checklist item on a milestone [E-04c]."""
+    id: int
+    milestone_id: int
+    sequence: int
+    text: str
+    is_complete: bool
+    completed_at: Optional[datetime] = None
+    completed_by_id: Optional[str] = None
+
+
+class DeliverableListResponse(BaseModel):
+    items: list[DeliverableItem]
+    total: int
+
+
+class DeliverableCreateRequest(BaseModel):
+    """Body for POST /api/projects/{id}/milestones/{mid}/checklist."""
+    text: str
+    sequence: Optional[int] = None  # auto-assign at end if not provided
+
+
+class DeliverableUpdateRequest(BaseModel):
+    """Body for PATCH /api/projects/{id}/checklist/{item_id}."""
+    text: Optional[str] = None
+    is_complete: Optional[bool] = None
+    sequence: Optional[int] = None
+
+
+class CurrentMilestoneSummary(BaseModel):
+    """Lightweight milestone descriptor returned with progress payload."""
+    id: int
+    name: str
+    sequence_number: int
+    forecast_start: str
+    forecast_end: str
+
+
+class ChecklistRollup(BaseModel):
+    """Aggregate checklist completion for the current milestone."""
+    total_items: int
+    completed_items: int
+    completion_pct: Optional[float] = None  # null when total_items == 0
+
+
+class ProgressResponse(BaseModel):
+    """Response for GET /api/projects/{id}/progress [E-04c]."""
+    project_id: str
+    project_name: str
+    current_milestone: Optional[CurrentMilestoneSummary] = None
+    progress_pct: Optional[float] = None
+    # Effective percentage — reflects the auto-computed checklist value when
+    # ``progress_pct_manual_override`` is False AND the current milestone has
+    # checklist items; otherwise mirrors the stored ``progress_pct`` field.
+    effective_progress_pct: Optional[float] = None
+    progress_pct_manual_override: bool
+    status_narrative: Optional[str] = None
+    next_milestone_confidence: Optional[str] = None
+    confidence_reason: Optional[str] = None
+    progress_updated_at: Optional[datetime] = None
+    progress_updated_by_id: Optional[str] = None
+    progress_updated_by_name: Optional[str] = None
+    checklist: ChecklistRollup
+    deliverables: list[DeliverableItem]
+
+
+class ProgressUpdateRequest(BaseModel):
+    """Body for PATCH /api/projects/{id}/progress [E-04c].
+
+    Field semantics:
+    - ``progress_pct``: when provided alongside ``progress_pct_manual_override=True``
+      sets the manual override; when ``progress_pct_manual_override=False`` clears
+      the override and the next GET re-derives from the checklist.
+    - ``next_milestone_confidence``: required to be one of
+      ``PROGRESS_CONFIDENCE_VALUES``. ``confidence_reason`` is required when the
+      value is ``at_risk`` or ``blocked``.
+    - ``current_milestone_id``: PL/controller marks the current milestone
+      explicitly. Must reference a milestone of the same project.
+    """
+    current_milestone_id: Optional[int] = None
+    progress_pct: Optional[float] = None
+    progress_pct_manual_override: Optional[bool] = None
+    status_narrative: Optional[str] = None
+    next_milestone_confidence: Optional[str] = None
+    confidence_reason: Optional[str] = None
+
+
+class ProgressSnapshotMeta(BaseModel):
+    """One row in GET /api/projects/{id}/progress/history."""
+    id: int
+    project_id: str
+    cycle_label: Optional[str] = None
+    cycle_id: Optional[str] = None
+    snapshot_at: datetime
+    created_by_id: Optional[str] = None
+    created_by_name: Optional[str] = None
+    current_milestone_id: Optional[int] = None
+    current_milestone_name: Optional[str] = None
+    current_milestone_sequence: Optional[int] = None
+    progress_pct: Optional[float] = None
+    progress_pct_manual_override: bool
+    status_narrative: Optional[str] = None
+    next_milestone_confidence: Optional[str] = None
+    confidence_reason: Optional[str] = None
+
+
+class ProgressHistoryListResponse(BaseModel):
+    items: list[ProgressSnapshotMeta]
+    total: int
+
+
+class ProgressSnapshotDetail(BaseModel):
+    """Full snapshot detail including the captured checklist payload."""
+    meta: ProgressSnapshotMeta
+    checklist: list[dict] = []
+    # Each entry: {milestone_id, milestone_name, sequence_number, items: [{text, is_complete, sequence}]}
+
+
+class PortfolioProgressIndicator(BaseModel):
+    """One row in GET /api/portfolio/progress-aggregate [E-04d]."""
+    project_id: str
+    project_name: str
+    pipeline_stage: Optional[str] = None
+    rag_status: Optional[str] = None
+    current_milestone_name: Optional[str] = None
+    current_milestone_sequence: Optional[int] = None
+    progress_pct: Optional[float] = None
+    next_milestone_confidence: Optional[str] = None
+    has_progress_data: bool
+
+
+class PortfolioProgressAggregateResponse(BaseModel):
+    """Response shape for GET /api/portfolio/progress-aggregate."""
+    items: list[PortfolioProgressIndicator]
+    total: int
+    summary: dict[str, int]
+    # Counts per confidence bucket: {on_track, at_risk, blocked, unreported}
