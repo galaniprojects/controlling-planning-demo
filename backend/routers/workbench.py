@@ -36,6 +36,11 @@ forecast_router = APIRouter(prefix="/api/forecast", tags=["Forecast Versions"])
 # E1: separate router for portfolio-level progress aggregation [E-04d]
 progress_router = APIRouter(prefix="/api/portfolio", tags=["Progress Tracker"])
 
+# E2: separate router for external cost aggregation [E-08a]–[E-08b]
+external_costs_workbench_router = APIRouter(
+    prefix="/api/workbench", tags=["Project Workbench External Costs"],
+)
+
 
 def _get_project_lob_name(db: Session, project_id: str) -> str:
     """Get the top-level entity name (LoB) for a project."""
@@ -2163,3 +2168,100 @@ def get_portfolio_progress_aggregate(
         total=payload["total"],
         summary=payload["summary"],
     )
+
+
+# ---------------------------------------------------------------------------
+# v5 Session E2 — External cost aggregation (project-scoped) [E-08a]–[E-08b]
+# ---------------------------------------------------------------------------
+
+def _verify_project_visible(db: Session, project_id: str, user: CurrentUser) -> Project:
+    """Look up a project and verify the current user can see it.
+
+    Project Leads only see their own projects; Cost Center Owners only see
+    projects with allocations from their cost center; Controllers and
+    Executives see everything.
+    """
+    from dependencies import pl_project_filter
+
+    proj = db.query(Project).filter(Project.id == project_id).first()
+    if not proj:
+        raise HTTPException(404, f"Project not found: {project_id}")
+
+    if user.role == "project_lead":
+        # Re-query under PL filter to confirm visibility
+        visible = (
+            db.query(Project.id)
+            .filter(Project.id == project_id, pl_project_filter(user))
+            .first()
+        )
+        if not visible:
+            raise HTTPException(403, "Forbidden: not your project")
+    elif user.role == "cost_center_owner" and user.cost_center_id:
+        from models.people import Person
+        cc_person_ids = [
+            r[0] for r in db.query(Person.id)
+            .filter(Person.cost_center_id == user.cost_center_id).all()
+        ]
+        if cc_person_ids:
+            allowed = (
+                db.query(Allocation.project_id)
+                .filter(
+                    Allocation.project_id == project_id,
+                    Allocation.person_id.in_(cc_person_ids),
+                )
+                .first()
+            )
+            if not allowed:
+                raise HTTPException(403, "Forbidden: project not in your CC scope")
+        else:
+            raise HTTPException(403, "Forbidden: no people in your cost center")
+
+    return proj
+
+
+@external_costs_workbench_router.get(
+    "/projects/{project_id}/external-costs/vendor-summary",
+)
+def get_project_external_cost_vendor_summary(
+    project_id: str,
+    year: int | None = Query(None, description="Optional fiscal year filter (YYYY)"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Vendor breakdown for a single project per [E-08a].
+
+    Returns one row per vendor with forecast/actuals/baseline totals plus
+    derived remaining and variance figures.
+    """
+    from services.external_cost_aggregation import compute_project_vendor_summary
+
+    _verify_project_visible(db, project_id, user)
+    rows = compute_project_vendor_summary(db, project_id, year=year)
+    return {
+        "items": rows,
+        "total": len(rows),
+        "project_id": project_id,
+        "year": year,
+    }
+
+
+@external_costs_workbench_router.get(
+    "/projects/{project_id}/external-costs/category-rollup",
+)
+def get_project_external_cost_category_rollup(
+    project_id: str,
+    year: int | None = Query(None, description="Optional fiscal year filter (YYYY)"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Per-cost-type rollup for a single project per [E-08b]."""
+    from services.external_cost_aggregation import compute_project_category_rollup
+
+    _verify_project_visible(db, project_id, user)
+    rows = compute_project_category_rollup(db, project_id, year=year)
+    return {
+        "items": rows,
+        "total": len(rows),
+        "project_id": project_id,
+        "year": year,
+    }
