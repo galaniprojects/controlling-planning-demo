@@ -30,7 +30,10 @@ A full-featured IT financial planning and portfolio management demo application 
 ## Features
 
 ### Portfolio Overview
-IT portfolio dashboard with KPI tiles (CY-scoped to current fiscal year), hierarchical project tree grouped by configurable organizational hierarchy (e.g., Line of Business → Program → Project), budget/forecast/actuals tracking, RAG status indicators, intake queue for new project submissions, change request approvals, and controller review with editable grids and diff comparison views.
+IT portfolio dashboard with KPI tiles (CY-scoped to current fiscal year), hierarchical project tree grouped by configurable organizational hierarchy (e.g., Line of Business → Program → Project), budget/forecast/actuals tracking, RAG status indicators, **v5 ranked backlog with cutoff-line walk** (compose budget envelope, project type 1/2/3 driving cutoff exemption, real-time within-cutoff flag), change request approvals, and controller review with editable grids and diff comparison views. **v5 intake replaces the v4 intake queue**: new projects land at DoI 0 in the ranked backlog; controller actions (approve / send back / reject) and PL Send-Back ↔ Resubmit cycle drive lifecycle transitions.
+
+### Tech Navigator Scoring
+Per-project scoring rubric (Complexity sub-criteria: Standardization 40 % / Usage 40 % / Maintenance 20 %; Value Creation sub-criteria: Financial benefit 50 % / Payback 40 % / Competitive advantage 10 %) with 1–5 scale and descriptive labels. Project Type (1/2/3) and Transformation Level (T0/T1/T2) selectors. Real-time computed Complexity / Value Creation / Composite Ranking (Value 70 % · Complexity 30 %) plus admin-configurable budget t-shirt size (XS/S/M/L/XL with editable thresholds). Ranking engine consumes composite score for the cutoff-line walk.
 
 ### Project Workbench
 Master-detail project workspace with sidebar project list showing type and status badges (color-coded: amber for workflow statuses, neutral for Active/Completed/Planned). Three tabs: Overview (timeline chart, three-point estimates, resource summary with lifecycle-aware title, CapEx/OpEx percentage split), Forecast & Planning (monthly grid with collapsible year columns, CapEx/OpEx per line item, expandable employee assignments per role with auto-allocation), and Change History. Includes a 5-phase rolling forecast wizard with AI-generated suggestions, a full project submission workflow with resource planning, CC Owner confirmation, and controller change request review. Auto-allocation ensures every internal resource line has assigned employees whose hours match the forecast — triggered on project approval and CR acceptance.
@@ -53,8 +56,11 @@ Natural language report generation powered by Claude. Describe any report in pla
 ### Dark Mode
 Full dark mode support with a Sun/Moon toggle in the top bar. Theme preference persists in localStorage and respects system preferences. All 141 components use semantic CSS variables for seamless light/dark switching. Charts, status badges, and heatmaps are all dark-mode aware.
 
+### Charging & Allocations (Cluster F)
+Two-stage IT cost charging cycle. **Polymorphic ChargeableEntity** (Project / Offering / InternalService) is the cost-allocation root, replacing project-only allocations. **Stage 1 inter-service distribution edges** with sparse storage, sum-rule validation (`to_business_pct + Σ(distribute %) ≤ 100`), DAG resolution for effective costs (own + Σ inflows), cycle detection with chain returned in error body, and versioning along the standard baseline / forecast / actuals lifecycle. WBS Element generation is algorithmic in format `<identifier>-64-99-<charging_location_code>`. Master data adds Charging Locations (~90 KB charging codes), Legal Entities (~120 with rollup), Regions, Countries, and the User Measurement matrix viewer (sparse 99×90 S-code × charging-code grid with CSV upload + stubbed automatic-refresh per the integration boundary).
+
 ### Administration
-Entity management for Cost Centers, Competence Centers, organizational entities (Lines of Business, Programs, etc.), Locations, People, and Rate Tables. Configurable portfolio hierarchy with dynamic entity types, multi-level grouping, cross-module label propagation, location-aware planning parameters (standard hours per location), and audit logging.
+Five-section sidebar navigation (Master Data → Reference Catalogues → Planning & Ranking → Portfolio Hierarchy → System) covering 24 admin sub-surfaces. Master data: Cost Centers, Competence Centers, Lines of Business, Workforce Locations, People, plus Cluster F's Charging Locations / Legal Entities / Regions / Countries / User Measurement. Reference catalogues: Role Types, External Cost Types, Project Dependencies. System: Users (with Tier 3 + change-reviewer flags), Role Permissions Grid (per-role per-entity-type grants for BTC profile + Stage 1 distribution edits + master-data overrides), Rate Tables, **Workflow Templates editor** (six configurable workflows — forecast cycle, intake, change request, send back, milestone baseline override, scheduled master data activation; per-step touchpoint editor for required / skippable / assigned role / data gates / notifications JSON / time constraint / escalation), **Scheduled Changes panel** (5-state lifecycle pending_review → approved → activated / rejected / cancelled with manual-trigger activation engine), and **Audit Log V2** (8-category filter, entity-scoped trail, CSV + Excel export). Dark-mode-ready throughout; all-controller demo.
 
 ---
 
@@ -238,6 +244,46 @@ Project milestones (renamed from `ProjectPhase` in v5 per `[A-MS-01]`) carry bas
 | `GET` | `/api/admin/milestone-types` | Read-only catalogue of the 10 default milestone types per `[A-BK-34]`. |
 
 The catalogue exposes `{id, name, default_color, suggested_ordering, is_active}` rows. The resolved `color` returned on milestone responses is the per-milestone override when set, otherwise `MilestoneType.default_color` for the linked type.
+
+### Intake Workflow Endpoints (v5 Cluster A — Session A5)
+
+Greenfield project creation lands at DoI 0 (Proposed) and the project appears immediately in the ranked backlog (composite score null). Three controller actions move the project through the pipeline; PL or controller can resubmit after a Send Back. v4 `/api/portfolio/intake*` endpoints are removed (HTTP 410 with structured replacement pointers) per `[A-PS-13]`.
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `POST` | `/api/intake/projects` | PL / Controller / Exec | Create project at DoI 0 (Proposed) per `[A-BK-26]` / `[A-DOI-04]` |
+| `GET` | `/api/intake/queue` | any role | List projects in Under Evaluation (controller review queue) per `[A-BK-26]` |
+| `POST` | `/api/intake/projects/{id}/approve` | controller | Approve from Under Evaluation → Approved (DoI 3) per `[A-BK-27]` |
+| `POST` | `/api/intake/projects/{id}/send-back` | controller | Send back → Proposed (DoI 1) with comments + snapshot per `[A-BK-27]` / `[A-BK-29]` |
+| `POST` | `/api/intake/projects/{id}/reject` | controller | Reject → Cancelled with reason; freezes DoI per `[A-BK-27]` / `[A-PS-03]` |
+| `POST` | `/api/intake/projects/{id}/resubmit` | PL on own / controller | PL revises and resubmits → Under Evaluation (DoI 2); captures `pl_resubmitted` snapshot per `[A-BK-29]` |
+| `GET` | `/api/intake/projects/{id}/diff` | any role | Structured before/after diff (sent_back vs resubmit/current) per `[A-BK-29]` |
+
+Removed v4 endpoints (return 410 Gone with `{error, message, replacements}`): `GET/PUT /api/portfolio/intake*`, `PUT /api/portfolio/intake/{id}/{approve,reject,send-back,resubmit,accept-changes}`, `GET /api/portfolio/intake/{id}/{diff,editable-grid}`. Each response carries the new endpoint path under `replacements`.
+
+### Charging & Allocations Endpoints (v5 Cluster F — Session F2)
+
+ChargeableEntity is the polymorphic cost-allocation root (Project / Offering / InternalService) per `[F-DM-01..04]`. Distribution captures Stage 1 inter-service edges with cycle detection and sum-rule validation per `[F-S1-01..05]`. WBS Element is algorithmic, never stored, in format `<identifier>-64-99-<charging_location_code>` per `[F-DM-03]`.
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/admin/chargeable-entities` | controller | List with optional filters (`entity_type`, `hierarchy_node_id`, `is_active`) |
+| `GET` | `/api/admin/chargeable-entities/{id}` | controller | Detail |
+| `POST` | `/api/admin/chargeable-entities` | controller | Create (Offering / InternalService / link existing Project) |
+| `PUT` | `/api/admin/chargeable-entities/{id}` | controller | Partial update |
+| `PUT` | `/api/admin/chargeable-entities/{id}/deactivate` | controller | Soft delete |
+| `GET` | `/api/charging/distributions` | any role | List edges (filter `year`, `version`, `source`, `destination`) |
+| `GET` | `/api/charging/distributions/{edge_id}` | any role | Edge detail |
+| `POST` | `/api/charging/distributions` | controller | Create edge with sum-rule + cycle validation (409 on cycle with chain in body) |
+| `PUT` | `/api/charging/distributions/{edge_id}` | controller | Update percentage only (sum-rule re-validated) |
+| `DELETE` | `/api/charging/distributions/{edge_id}` | controller | Delete edge |
+| `GET` | `/api/charging/entities/{id}/distribution-summary` | any role | Single-entity profile per `[F-S1-03]` |
+| `PUT` | `/api/charging/entities/{id}/to-business-pct` | controller | Update with sum-rule validation |
+| `GET` | `/api/charging/entities/{id}/effective-cost` | any role | DAG-resolved own + Σ(inflows) per `[F-S1-02]` |
+| `GET` | `/api/charging/entities/{id}/upstream-chain` | any role | Drill-down paths terminating at this entity per `[F-RV-04]` |
+| `GET` | `/api/charging/entities/{id}/wbs/{loc_id}` | any role | Algorithmic WBS preview per `[F-DM-03]` |
+
+Versioning per `[F-S1-04]`: edges are keyed by `(year, version, source_id, destination_id)`. `version` participates in the standard baseline / forecast / actuals lifecycle, with scenario forks identified by `scenario-<id>`. Cycle detection runs on every save and rejects with the cycle chain returned in the 409 body for UI rendering.
 
 ### Resource Assignment Endpoints (CC Owner)
 
