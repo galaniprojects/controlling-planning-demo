@@ -1,12 +1,12 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Wave 4 in progress. **F6 (Workbench BTC tile + tab) ready for review (2026-04-29)** — backend test count **1210** (1190 baseline + 20 F6 tests). Frontend TS clean against new files; visual verification done in light + dark themes across Controller / Executive personas. Two wave-4 sessions remain: **B2** (frontend simulator workspace) and **E2** (backend external cost aggregation + Launchpad data) — both still unstarted.
-Wave 3 merged on main (2026-04-29): **B1** (scenario engine + Lever 12, +91 tests), **E1** (progress tracker + ExternalCostCategory, +92 tests), **A8** (frontend pipeline + Run Portfolio scaffolding), **C2** (frontend mixed-granularity grid + version history UI), and **F4 + F5** (frontend Charging & Allocations module — Distribution + BTC editors + Location Cost Rollup map + tree-table + Report Builder integration). Backend baseline at end of Wave 3: 1190 tests.
+Phase: v5 Wave 4 partial — **F6 + E2 merged locally on `v5/wave4-f6-e2-merged` (2026-04-29)**, awaiting PR. F6 ships the Workbench BTC tile + tab + per-entity allocation breakdown endpoint (+20 tests). E2 ships external cost aggregation endpoints + role-personalised Launchpad tiles + PL capacity read-only endpoint (+73 tests). Backend test count: **1283** (1190 baseline + 20 F6 + 73 E2). Frontend TS: F6's new files clean; pre-existing baseline errors in `SubmissionDiffView.tsx` (unchanged from main) deferred to a follow-up. Visual verification done in light + dark themes for F6 surfaces. Only Wave 4 candidate remaining: **B2** (frontend simulator workspace).
+Wave 3 merged on main (2026-04-29) and verified end-to-end. All five sessions landed: **B1** (scenario engine + Lever 12, +91 tests), **E1** (progress tracker + ExternalCostCategory, +92 tests), **A8** (frontend pipeline + Run Portfolio scaffolding), **C2** (frontend mixed-granularity grid + version history UI), and **F4 + F5** (frontend Charging & Allocations module — Distribution + BTC editors + Location Cost Rollup map + tree-table + Report Builder integration). Backend test count after Wave 3: **1190** (1007 baseline + 91 B1 + 92 E1). Frontend TypeScript: 0 errors. Visual verification done in light + dark themes across all four roles (~30 screenshots, prefix `w3-`).
 Wave 2 merged: F3 (+125 tests) + C1 (+94 tests) + A6 frontend brought backend baseline to 1007 tests.
 Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
-Next: Wave 4 — B2 (frontend simulator) and E2 (backend external cost aggregation) remaining.
-**Post-merge requirement on first pull:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables, C1's `is_provisional` column on `forecasts`, B1's Scenario column additions, and E1's progress tracker columns + new tables all require schema regeneration. F6 adds no schema changes (read-only endpoints + new frontend tile/tab); no DB reset required.
+Next: Wave 4 — **B2** (frontend simulator workspace) remaining.
+**Post-merge requirement on first pull:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables, C1's `is_provisional` column on `forecasts`, B1's Scenario column additions, and E1's progress tracker columns + new tables all require schema regeneration. F6 + E2 add no schema changes (read-only endpoints + new frontend tile/tab); no further DB reset required for Wave 4.
 
 ## v5 Session F6: Workbench BTC Tile + Workbench BTC Tab (2026-04-29)
 
@@ -123,6 +123,46 @@ request, not in spec).
 - Visual verification: Playwright at viewport 1440 in light + dark across
   Controller and Executive personas. 13 screenshots captured (prefix
   `w4-f6-`).
+
+## v5 Session E2: Backend External Cost Aggregation + Launchpad Role Tiles (2026-04-29)
+
+### Feature Overview
+- **External cost aggregation** per `[E-08a]`–`[E-08d]`: five new endpoints surface vendor and category totals at project and portfolio scopes. Reuses `_get_scoped_project_ids` from `report_service` so role visibility behaves identically to the existing Vendor Spend report.
+- **Launchpad role-personalised tiles** per `[E-06d]`–`[E-06j]`: `GET /api/launchpad/tiles` returns 7 PL tiles, 9 Controller tiles, 8 CC Owner tiles, 7 Executive tiles. Tile shape (`tile_id`, `title`, `primary_metric`, `secondary_metric`, `link_module`, `link_entity_id`, `link_tab`, `tone`) is identical across roles so the front-end renders all tiles with one component.
+- **PL capacity read-only** per `[E-06a]`: `GET /api/capacity/role-availability?location_id=&role_type_id=&month_from=&month_to=` returns aggregated `(role, location, month)` rows with headcount, allocated hours, available hours, and utilisation %. **No person identifiers or names** appear in the response — verified by negative assertion in tests for both PL and Controller payloads.
+
+### Backend deliverables
+- **New endpoints** (7 total):
+  - `GET /api/workbench/projects/{id}/external-costs/vendor-summary`
+  - `GET /api/workbench/projects/{id}/external-costs/category-rollup`
+  - `GET /api/portfolio/external-costs/vendor-summary`
+  - `GET /api/portfolio/external-costs/category-analysis`
+  - `GET /api/portfolio/external-costs/project-vendor-matrix`
+  - `GET /api/launchpad/tiles`
+  - `GET /api/capacity/role-availability`
+- **New service** `services/external_cost_aggregation.py` — five top-level helpers (project + portfolio scopes); reuses `_get_scoped_project_ids`. Project-level helpers do not call into the role-scoping helper because endpoint-level access checks are done in the router.
+- **New schemas** `schemas/external_costs.py` (`VendorSummaryItem`, `CategoryRollupItem`, `PortfolioVendorSummaryItem`, `PortfolioCategoryAnalysisItem`, `ProjectVendorMatrixCell`, `ProjectVendorMatrixResponse`).
+- **Extended schemas**:
+  - `schemas/global_launchpad.py`: `TilePayload`, `TilesResponse`.
+  - `schemas/capacity.py`: `RoleAvailabilityRow`, `RoleAvailabilityResponse`.
+- **Tile metric helpers** (`_build_tiles_for_pl/controller/cc_owner/executive`): all reuse existing aggregation primitives (`compute_portfolio_kpis`, `pl_project_filter`, `FTE_HOURS`) — no duplicated math.
+- **Project visibility helper** `_verify_project_visible` in `routers/workbench.py` — encodes the same scope rules the report service applies, surfaces 403 vs 404 correctly.
+
+### Tests (+73, 1190 → 1263)
+- `tests/test_router_external_costs.py` — **31 tests**. Five test classes: project vendor summary (9 tests covering Acme/AWS aggregates, internal-line filtering, year filter, PL ownership, PL forbidden cross-project, 404, no-auth, unknown persona), project category rollup (5), portfolio vendor summary (7 covering AWS in 2 projects, top_project ranking, year filter, exec read), portfolio category analysis (4 covering pct sums to 100), project-vendor matrix (6 covering grand total 61500.0).
+- `tests/test_router_launchpad_tiles.py` — **23 tests**. PL/Controller/CCO/Exec tile counts (4) + tile content (12: shape, IDs, my-projects count, forecast warning, progress avg, pending reviews, pipeline count, scenario activity, headcount, top-risks alert) + auth/edge cases (5: no-auth 422, unknown persona 401, empty DB still returns counts, PL with no projects).
+- `tests/test_router_capacity_role_availability.py` — **19 tests**. Shape + role gating across all four roles (6) + **NO person names** assertion (3, scanning payload bodies for "Anna"/"Thomas"/"Priya"/"Becker"/etc.) + aggregation correctness (5 testing exact Munich-dev 50% util, Budapest-dev 25%, QA 0%, multi-month, PM 100% in May) + filters (5 covering location, role, combined, invalid range 400, default 3-month range).
+- All 1263 tests pass; no regression in 1190 baseline.
+
+### Verification
+- `python -m pytest tests/ -v`: 1263 passed in 110s.
+- Curl spot-checks on a worktree backend (port 8765) for all four roles:
+  - Controller tiles: 9 returned (€5,686,770 portfolio forecast, 13 forecast overdue, 2 pending reviews).
+  - PL tiles: 7 returned (5 projects, €4,300,360 budget, 60% avg progress).
+  - CC Owner tiles: 8 returned (41.9% util, 10 pending requests, 10 headcount).
+  - Executive tiles: 7 returned (€5,686,770 KPI, Run 9% / Change 91%, 1 red / 4 amber).
+  - Portfolio vendor summary: 54 vendors, AWS top with €484,500 across 9 projects.
+  - Role-availability for PL: 31 (role × location × month) cells; payload body confirmed clean of person names.
 
 ## v5 Session B1: What-If Simulator Backend (2026-04-29)
 

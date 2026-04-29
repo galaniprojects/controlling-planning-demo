@@ -103,3 +103,34 @@ class OrgHeatmapRow(BaseModel):
     name: str
     utilization: list[UtilizationCell]
     children: list[dict] = []
+
+
+# ---------------------------------------------------------------------------
+# v5 Session E2 — PL capacity read-only role-availability per [E-06a]
+# ---------------------------------------------------------------------------
+
+
+class RoleAvailabilityRow(BaseModel):
+    """Aggregated allocation snapshot for one (role, location, month) cell.
+
+    Returned by ``GET /api/capacity/role-availability``. Person identifiers and
+    names are intentionally omitted so Project Leads can browse availability
+    without seeing personal data per [E-06a].
+    """
+
+    role_type_id: str
+    role_type_name: str
+    location_id: str
+    location_name: str
+    month: str  # YYYY-MM
+    headcount: int
+    standard_hours: float
+    allocated_hours: float
+    available_hours: float
+    utilization_pct: float
+
+
+class RoleAvailabilityResponse(BaseModel):
+    items: list[RoleAvailabilityRow]
+    total: int
+    months: list[str]
