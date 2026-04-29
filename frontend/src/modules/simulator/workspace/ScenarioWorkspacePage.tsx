@@ -30,11 +30,81 @@ import { useScenarioContext } from '../useScenarioContext';
 import { ADVISOR_ENABLED } from '../flags/advisorFlag';
 import { ScenarioHeader } from './header/ScenarioHeader';
 import { WorkspaceSidebar } from './sidebar/WorkspaceSidebar';
+import { ProjectsSection } from './sidebar/ProjectsSection';
+import { BacklogSection } from './sidebar/BacklogSection';
+import { PortfolioSettingsSection } from './sidebar/PortfolioSettingsSection';
 import { SandboxBorder } from './SandboxBorder';
 import { ChangeSummaryDrawer } from '../drawer/ChangeSummaryDrawer';
+import {
+  ForecastGridSurface,
+  CostAllocationSurface,
+  BacklogSandboxSurface,
+  RateTableSurface,
+  ResourceAssignmentSurface,
+  MilestonesSurface,
+  VendorContractsSurface,
+  SourcingMixSurface,
+  CapExOpExSurface,
+  RunningCostsSurface,
+  HierarchyReassignSurface,
+  BudgetEnvelopeSurface,
+  EscalationFactorsSurface,
+  HypotheticalProjectSurface,
+  PipelineStageSurface,
+  TechNavigatorScoreSurface,
+} from '../surfaces';
+
+/**
+ * Surface key (from URL `/surface/:surfaceKey/:entityId?`) → component.
+ * Tier-3 surfaces (PeopleMaster, CapacityParameters) are added when T4
+ * merges. Until then the switch returns `null` for those keys, which
+ * matches the spec's hidden-DOM rule for users without Tier 3 access.
+ */
+function renderSurface(
+  surfaceKey: string | undefined,
+  entityId: string | undefined,
+): React.ReactNode {
+  switch (surfaceKey) {
+    case 'forecast-grid':
+      return <ForecastGridSurface projectId={entityId ?? ''} />;
+    case 'cost-allocation':
+      return <CostAllocationSurface entityId={entityId ?? ''} />;
+    case 'backlog':
+      return <BacklogSandboxSurface />;
+    case 'rate-table':
+      return <RateTableSurface />;
+    case 'resource-assignment':
+      return <ResourceAssignmentSurface projectId={entityId ?? ''} />;
+    case 'milestones':
+      return <MilestonesSurface projectId={entityId ?? ''} />;
+    case 'vendor-contracts':
+      return <VendorContractsSurface projectId={entityId ?? ''} />;
+    case 'sourcing-mix':
+      return <SourcingMixSurface projectId={entityId ?? ''} />;
+    case 'capex-opex':
+      return <CapExOpExSurface projectId={entityId ?? ''} />;
+    case 'running-costs':
+      return <RunningCostsSurface projectId={entityId ?? ''} />;
+    case 'hierarchy-reassign':
+      return <HierarchyReassignSurface projectId={entityId ?? ''} />;
+    case 'budget-envelope':
+      return <BudgetEnvelopeSurface />;
+    case 'escalation-factors':
+      return <EscalationFactorsSurface />;
+    case 'hypothetical-project':
+      return <HypotheticalProjectSurface />;
+    case 'pipeline-stage':
+      return <PipelineStageSurface projectId={entityId ?? ''} />;
+    case 'tech-navigator-score':
+      return <TechNavigatorScoreSurface projectId={entityId ?? ''} />;
+    default:
+      return null;
+  }
+}
 
 function ScenarioWorkspaceInner() {
   const ctx = useScenarioContext();
+  const params = useParams<{ surfaceKey?: string; entityId?: string }>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [advisorOpen, setAdvisorOpen] = useState(false);
   const [promoteOpen, setPromoteOpen] = useState(false);
@@ -95,9 +165,13 @@ function ScenarioWorkspaceInner() {
 
       <SandboxBorder>
         <div className="flex gap-3">
-          <WorkspaceSidebar />
+          <WorkspaceSidebar
+            projectsSection={<ProjectsSection />}
+            backlogSection={<BacklogSection />}
+            portfolioSettingsSection={<PortfolioSettingsSection />}
+          />
           <div className="flex-1 min-w-0 space-y-3">
-            {/* Impact strip slot — filled by T3 via portal/composition. */}
+            {/* Impact strip slot — filled by T3 when their merge lands. */}
             <div
               data-slot="impact-strip"
               className="rounded border border-dashed border-border p-3 text-xs text-muted-foreground italic"
@@ -106,13 +180,14 @@ function ScenarioWorkspaceInner() {
               backlog ranking, capacity, people, outsourcing, investment mix,
               running cost, cost allocation).
             </div>
-            {/* Surface slot — filled by T2 (and T4 for restructuring). */}
-            <div
-              data-slot="surface"
-              className="rounded border border-dashed border-border p-6 text-xs text-muted-foreground italic"
-            >
-              Surface — filled by T2 / T4 based on the URL surface key
-              (forecast grid, rate table, BTC, distribution, milestones, etc.).
+            {/* Surface slot — switched by URL `surfaceKey` from T2's sidebar nav. */}
+            <div data-slot="surface" data-surface-key={params.surfaceKey ?? 'none'}>
+              {renderSurface(params.surfaceKey, params.entityId) ?? (
+                <div className="rounded border border-dashed border-border p-6 text-xs text-muted-foreground italic">
+                  Pick a project, the backlog, or a portfolio setting from the
+                  sidebar to load a sandbox surface.
+                </div>
+              )}
             </div>
           </div>
         </div>
