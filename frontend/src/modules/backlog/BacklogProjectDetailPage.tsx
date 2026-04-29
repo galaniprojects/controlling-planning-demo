@@ -149,6 +149,7 @@ export function BacklogProjectDetailPage() {
             rankingItem={rankingItem}
             tnProfile={tnProfile}
             loading={loading}
+            projectId={projectId}
           />
         </TabsContent>
 

@@ -24,8 +24,9 @@ export function PendingActionsPanel({ actions, loading }: Props) {
           navigate(`${baseRoute}?project=${eid}${tab ? '&tab=' + tab : ''}`);
           return;
         case 'portfolio':
+          // v5: intake retired per [A-PS-13] — deep-links land on Backlog instead.
           if (tab === 'intake') {
-            navigate(`/portfolio/intake?project=${eid}`);
+            navigate(`/backlog/${eid}`);
           } else if (tab === 'approvals') {
             navigate(`/portfolio/approvals?cr=${eid}`);
           } else {

@@ -1242,3 +1242,73 @@ export const milestonesApi = {
   list: (projectId: string) =>
     api.get<MilestoneListResponse>(`/api/projects/${projectId}/milestones`),
 };
+
+// ---------------------------------------------------------------------------
+// === Pipeline / DoI (A8) [A-PS-01..13] [A-DOI-01..11]
+// ---------------------------------------------------------------------------
+
+import type {
+  PipelineState,
+  StageTransitionRequest,
+  IntakeProjectCreate,
+  IntakeProjectResponse,
+} from '@/types/pipeline';
+
+export const pipelineApi = {
+  /** GET /api/projects/{id}/pipeline — current stage / DoI / gate state. */
+  get: (projectId: string) =>
+    api.get<PipelineState>(`/api/projects/${projectId}/pipeline`),
+
+  /** POST /api/projects/{id}/pipeline/transition — move stage / DoI. */
+  transition: (projectId: string, body: StageTransitionRequest) =>
+    api.post<PipelineState>(
+      `/api/projects/${projectId}/pipeline/transition`,
+      body,
+    ),
+};
+
+export const intakeProjectApi = {
+  /** POST /api/intake/projects — DoI 0 lightweight create [A-DOI-04]. */
+  create: (body: IntakeProjectCreate) =>
+    api.post<IntakeProjectResponse>('/api/intake/projects', body),
+};
+
+// ---------------------------------------------------------------------------
+// === Run Portfolio (A8) [E-11]
+// ---------------------------------------------------------------------------
+
+import type {
+  ChargeableEntityItem,
+  ChargeableEntityListResponse,
+} from '@/types/runPortfolio';
+
+export const chargeableEntitiesApi = {
+  /**
+   * GET /api/admin/chargeable-entities — list ChargeableEntities filtered by
+   * entity_type. Used by the Run Portfolio sub-module per [E-11].
+   *
+   * Endpoint mounts under /api/admin/* in the F2 router; backend restricts
+   * the call to controllers. Non-controllers receive a 403 which the UI
+   * surfaces as an empty-state message pointing at upcoming F-cluster
+   * sessions.
+   */
+  list: (params?: {
+    entity_type?: 'Project' | 'Offering' | 'InternalService';
+    is_active?: boolean | null;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.entity_type) q.set('entity_type', params.entity_type);
+    if (params?.is_active === null) q.set('is_active', 'null');
+    else if (params?.is_active !== undefined) {
+      q.set('is_active', String(params.is_active));
+    }
+    const qs = q.toString();
+    return api.get<ChargeableEntityListResponse>(
+      `/api/admin/chargeable-entities${qs ? '?' + qs : ''}`,
+    );
+  },
+};
+
+// Re-export run-portfolio types for downstream consumers.
+export type { ChargeableEntityItem, ChargeableEntityListResponse };
+

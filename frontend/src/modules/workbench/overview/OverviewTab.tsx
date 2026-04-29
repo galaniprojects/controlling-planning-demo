@@ -52,7 +52,7 @@ export function OverviewTab({ projectId }: Props) {
 
   return (
     <div className="space-y-6 min-w-0">
-      <MetadataBar metadata={data.metadata} />
+      <MetadataBar metadata={data.metadata} projectId={projectId} />
 
       {/* Project Timeline Visualization */}
       {timeline && timeline.monthly_data.length > 0 && (

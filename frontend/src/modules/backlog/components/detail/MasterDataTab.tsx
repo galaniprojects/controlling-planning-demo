@@ -1,5 +1,9 @@
 /**
- * MasterDataTab — DoI-aware completeness checklist. [A-BK-20][A-BK-30]
+ * MasterDataTab — DoI-aware completeness checklist. [A-BK-20][A-BK-30][A-PS-04]
+ *
+ * A8 update: surfaces the live DoI gate checklist (server-computed missing
+ * fields for advancing to the next DoI) above the section-by-section
+ * completeness summary.
  */
 
 import type { RankedProjectItem } from '@/types/api';
@@ -9,12 +13,15 @@ import {
   type DoIFieldRequirement,
 } from './DoIRequirementsRegistry';
 import { FieldCompletenessRow } from './FieldCompletenessRow';
+import { DoIGateChecklist } from '@/components/shared/DoIGateChecklist';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { usePipelineState } from '@/hooks/usePipelineState';
 
 interface Props {
   rankingItem: RankedProjectItem | null;
   tnProfile: TechNavigatorProfile | null;
   loading: boolean;
+  projectId: string;
 }
 
 type FieldStatus = 'present' | 'missing' | 'required-from-doi';
@@ -78,7 +85,8 @@ function resolveField(
   return [null, 'missing'];
 }
 
-export function MasterDataTab({ rankingItem, tnProfile, loading }: Props) {
+export function MasterDataTab({ rankingItem, tnProfile, loading, projectId }: Props) {
+  const { data: pipelineState } = usePipelineState(projectId);
   if (loading) {
     return (
       <div className="space-y-3">
@@ -116,6 +124,9 @@ export function MasterDataTab({ rankingItem, tnProfile, loading }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Live DoI gate checklist [A-PS-04] */}
+      <DoIGateChecklist gate={pipelineState?.gate_status ?? null} />
+
       {/* Summary */}
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex items-baseline justify-between">
