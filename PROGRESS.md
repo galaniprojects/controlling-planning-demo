@@ -1,7 +1,7 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Wave 3 in flight (2026-04-29). **B1** (scenario engine + Lever 12, +91 tests), **E1** (progress tracker + ExternalCostCategory, +92 tests), and **A8** (frontend pipeline + Run Portfolio scaffolding) merged on main; **C2 / F4 / F5** frontend branches pending merge. Backend test count after B1+E1: 1190 (1007 baseline + 91 + 92).
+Phase: v5 Wave 3 in flight (2026-04-29). **B1** (scenario engine + Lever 12, +91 tests), **E1** (progress tracker + ExternalCostCategory, +92 tests), **A8** (frontend pipeline + Run Portfolio scaffolding), and **C2** (frontend mixed-granularity grid + version history UI) merged on main; **F4 / F5** frontend branches pending merge. Backend test count after B1+E1: 1190 (1007 baseline + 91 + 92).
 Wave 2 merged: F3 (+125 tests) + C1 (+94 tests) + A6 frontend brought backend baseline to 1007 tests.
 Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
 Next: C2/F4/F5 merges + cross-session smoke walk on merged main → consolidated Wave 3 PR.
@@ -448,6 +448,104 @@ Out of scope per session brief and aligned with adjacent sessions:
   is a backend shape change and was deferred to keep A8 frontend-only.
 
 
+
+## v5 Session C2: Frontend — Mixed-Granularity Grid + Version Comparison UI (2026-04-29)
+
+### Feature Overview
+- **Mixed-granularity forecast grid** in the Workbench Forecast & Planning tab per
+  `[C-FG-02]`: 12 monthly columns in the near zone, ~16 quarterly columns in the
+  outer zone, with a clear blue boundary divider between them. Quarterly columns
+  carry a subtle blue tint and a chevron handle so users can expand a quarter to
+  reveal three synthesised monthly cells (equal-thirds distribution per
+  `[C-FG-03]`).
+- **Provisional cell markers** per `[C-FG-08]`: cells with `is_provisional == true`
+  display a small amber dot with a tooltip explaining the value is system-generated
+  (quarterly distribution, DoI 2 prepopulation, copy-from-project) and needs
+  review. Single visual treatment regardless of source.
+- **Version selector + delta overlay** per `[C-VC-03]`: a "Compare against" Select
+  at the top of the grid lists all prior versions. Picking one fetches the diff
+  via `GET /api/forecast/versions/{a}/diff/{b}` against the latest snapshot and
+  overlays cell-level deltas (▲/▼ with amount) plus an amber "modified" ring on
+  every changed cell.
+- **Version history panel** per `[C-RH-01]`: collapsible card listing all
+  versions newest-first with version number, type badge (`Cycle` / `CR` /
+  `Manual`), cycle label or CR id, timestamp, accepting user, cell count, and
+  total amount. Each row exposes a "Compare" toggle (sets the anchor for the
+  inline overlay) and a "Detail" button (opens the comparison dialog).
+- **Version comparison dialog** per `[C-RH-05]`: full-detail two-version diff
+  with summary badges (modified / added / removed), grand-total delta, and a
+  sortable table of every changed cell showing old → new amounts and delta.
+- **Reuses C1 backend** unchanged: `GET /api/projects/{id}/forecast/grid`,
+  `GET /api/projects/{id}/forecast/versions`, `GET /api/projects/{id}/forecast/versions/{vid}`,
+  `POST /api/projects/{id}/forecast/versions`, `GET /api/forecast/versions/{a}/diff/{b}`.
+
+### Files added (frontend, all in `frontend/src/modules/workbench/forecast/`)
+- `MixedGranularityGrid.tsx` (~470 lines) — main grid component (read-mode).
+  Two-row header (year span + month/quarter labels), zone-boundary 4px divider,
+  quarter expand-into-months, provisional dot, delta overlay, internal/external
+  groupings with subtotals + grand total.
+- `VersionSelector.tsx` (~140 lines) — dropdown + status badges for the
+  currently-active comparison anchor.
+- `VersionHistoryPanel.tsx` (~190 lines) — collapsible list of all versions.
+- `VersionComparisonDialog.tsx` (~220 lines) — full-detail diff dialog
+  (`Dialog` from shadcn/ui).
+- `useForecastVersions.ts` (~120 lines) — custom hook managing version list,
+  compare-anchor state, and diff fetching with a cell-keyed `Map<string,
+  CellDelta>` for fast O(1) overlay lookup.
+
+### Files modified
+- `frontend/src/types/api.ts` — 11 new exported types matching `schemas/workbench.py`:
+  `MixedGridResponse`, `MixedGridColumn`, `MixedGridCell`, `MixedGridRow`,
+  `ForecastVersionMeta`, `ForecastVersionListResponse`, `ForecastVersionDetail`,
+  `ForecastVersionDiff`, `CellDelta`, plus `GridCellType` and
+  `ForecastVersionType` enums.
+- `frontend/src/api/endpoints.ts` — 5 new methods on `workbenchApi`:
+  `getForecastGrid`, `listForecastVersions`, `getForecastVersion`,
+  `createForecastVersion`, `getForecastVersionDiff`.
+- `frontend/src/modules/workbench/forecast/ForecastTab.tsx` — replaced the v4
+  `<ForecastGrid>` with the new mixed-granularity stack
+  (`<VersionSelector> + <MixedGranularityGrid> + <VersionHistoryPanel>`)
+  in read mode. The 5-phase wizard (`ForecastWizard` → `Phase3EditForecast`)
+  is unchanged and still drives editing through the existing v4 monthly grid.
+
+### Spec references implemented
+`[C-FG-02]` mixed monthly+quarterly columns, `[C-FG-03]` quarterly→monthly
+distribution (UI-only synthetic expansion), `[C-FG-07]` provisional flag
+display, `[C-FG-08]` provisional marker, `[C-RH-01]` version list newest
+first, `[C-RH-02]` version detail, `[C-RH-05]` cross-version diff,
+`[C-VC-03]` Workbench F&P version selector + per-cell delta indicators,
+`[C-FV-04]` version metadata display.
+
+### Verification
+- TypeScript strict typecheck passes (`npx tsc --noEmit`, exit 0).
+- Visual verification via Puppeteer headless Chrome at 1440px–1700px width:
+  light mode default + horizontal-scrolled (boundary divider visible) +
+  comparison overlay (amber-ringed modified cells with green/red delta
+  indicators) + version history panel showing v1 + v2 with Q1/Q2 2026 Cycle
+  labels + comparison dialog showing all 117 modified cells with
+  per-cell amounts. Same flow re-run in dark mode — semantic colour tokens
+  hold up, quarterly tint and modified-cell highlight readable on dark
+  background.
+- Confirmed C1 verification facts from team-lead briefing:
+  - 12 monthly + 16 quarterly columns rendered (`proj-erp2`,
+    `proj-autobrake`).
+  - 2 versions per project (`Q1 2026 Cycle`, `Q2 2026 Cycle`) listed in the
+    panel newest-first.
+  - Diffing them surfaces the ×1.05 uplift cells as `modified` (e.g.
+    `proj-autobrake` total Δ −€45.84k across 117 cells).
+
+### Known gaps / follow-ups
+- **Phase3 wizard quarterly entry** — the cycle-wizard edit phase still uses
+  the v4 monthly grid via `getForecast` + `saveEdits`. Quarterly entry with
+  client-side equal-thirds distribution into three `ForecastChange` rows is a
+  follow-on enhancement (separate session). The F&P read-mode grid is
+  fully mixed-granularity.
+- **Lint** — three new files trigger the repo-wide `react-hooks/set-state-in-effect`
+  rule, matching the existing pattern in `Phase3EditForecast.tsx` and other
+  legacy components. Not blocking (lint exits 0). Refactor to event-driven
+  reducers can land alongside any future React 19 cleanup pass.
+
+---
 
 ## v5 Session C1: Mixed-Granularity Forecast + Versioning (2026-04-29)
 

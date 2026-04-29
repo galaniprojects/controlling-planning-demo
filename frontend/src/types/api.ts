@@ -433,6 +433,120 @@ export interface ForecastGridRow {
   assignments?: PersonAssignment[];
 }
 
+// ---------------------------------------------------------------------------
+// C1 — Mixed-granularity forecast grid + version comparison
+// (matches backend/schemas/workbench.py)
+// ---------------------------------------------------------------------------
+
+export type GridCellType = 'monthly' | 'quarterly';
+
+export interface MixedGridColumn {
+  key: string;                   // 'YYYY-MM' or 'YYYY-QN'
+  label: string;
+  cell_type: GridCellType;
+}
+
+export interface MixedGridCell {
+  key: string;
+  cell_type: GridCellType;
+  hours: number;
+  amount_eur: number;
+  is_provisional: boolean;       // [C-FG-07]
+}
+
+export interface MixedGridRow {
+  category: string;              // 'internal' | 'external'
+  sub_category: string;          // role/cost-type id
+  capex_opex?: string | null;
+  cells: MixedGridCell[];
+  row_total: number;
+}
+
+export interface MixedGridResponse {
+  project_id: string;
+  granularity: 'mixed' | 'monthly' | 'quarterly';
+  boundary_month: string;        // last month rendered monthly (YYYY-MM)
+  horizon_end_month: string;
+  granularity_boundary_months: number;
+  planning_horizon_months: number;
+  columns: MixedGridColumn[];
+  rows: MixedGridRow[];
+  totals_by_column: Record<string, number>;
+  grand_total: number;
+}
+
+export type ForecastVersionType = 'cycle' | 'cr_approval' | 'manual';
+
+export interface ForecastVersionMeta {
+  id: number;
+  project_id: string;
+  version_number: number;
+  version_type: ForecastVersionType;
+  cycle_label?: string | null;
+  cycle_id?: string | null;
+  change_request_id?: number | null;
+  created_at: string;
+  created_by_id: string;
+  created_by_name?: string | null;
+  granularity_boundary_months: number;
+  planning_horizon_months: number;
+  cell_count?: number | null;
+  total_amount_eur?: number | null;
+}
+
+export interface ForecastVersionListResponse {
+  items: ForecastVersionMeta[];
+  total: number;
+}
+
+export interface ForecastVersionDetail {
+  meta: ForecastVersionMeta;
+  payload?: {
+    schema_version: number;
+    project_id: string;
+    captured_at: string;
+    boundary_month: string;
+    horizon_end_month: string;
+    rows: MixedGridRow[];
+    totals_by_column: Record<string, number>;
+    totals_by_category: Record<string, number>;
+    grand_total: number;
+  } | null;
+}
+
+export type CellDeltaStatus = 'added' | 'removed' | 'modified' | 'unchanged';
+
+export interface CellDelta {
+  category: string;
+  sub_category: string;
+  cell_key: string;
+  version_a_amount: number | null;
+  version_b_amount: number | null;
+  delta: number | null;
+  status: CellDeltaStatus;
+}
+
+export interface ForecastVersionDiff {
+  version_a_id: number;
+  version_b_id: number;
+  version_a_number: number;
+  version_b_number: number;
+  version_a_project_id: string;
+  version_b_project_id: string;
+  line_deltas: CellDelta[];
+  summary: {
+    added_count: number;
+    removed_count: number;
+    modified_count: number;
+    total_changes: number;
+  };
+  grand_totals: {
+    version_a: number;
+    version_b: number;
+    delta: number;
+  };
+}
+
 export interface RetrospectiveItem {
   category: string;
   sub_category: string;
