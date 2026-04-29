@@ -1369,6 +1369,7 @@ export type { ChargeableEntityItem, ChargeableEntityListResponse };
 
 import type {
   ChargeableEntityType,
+  ChargeableEntityItem as ChargingApiChargeableEntityItem,
   DistributionEdgeItem,
   EntityDistributionSummary,
   DistributionEffectiveCost,
@@ -1397,7 +1398,7 @@ export const chargingApi = {
     if (params?.is_active === false) q.set('is_active', 'false');
     if (params?.is_active === null) q.set('is_active', 'null');
     const qs = q.toString();
-    return api.get<ListResponse<ChargeableEntityItem>>(
+    return api.get<ListResponse<ChargingApiChargeableEntityItem>>(
       `/api/admin/chargeable-entities${qs ? '?' + qs : ''}`,
     );
   },
@@ -1405,9 +1406,11 @@ export const chargingApi = {
     // Charging-namespaced read endpoint accessible to all four roles
     // per F6 [E-09]. The admin variant remains controller-only for
     // mutation paths.
-    api.get<ChargeableEntityItem>(`/api/charging/entities/${id}`),
+    api.get<ChargingApiChargeableEntityItem>(
+      `/api/charging/entities/${id}`,
+    ),
   getEntityByProjectId: (projectId: string) =>
-    api.get<ChargeableEntityItem>(
+    api.get<ChargingApiChargeableEntityItem>(
       `/api/charging/entities/by-project/${projectId}`,
     ),
 

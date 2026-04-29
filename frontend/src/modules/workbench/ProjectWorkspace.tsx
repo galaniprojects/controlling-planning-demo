@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button';
 import { OverviewTab } from './overview/OverviewTab';
 import { ChangeHistoryTab } from './history/ChangeHistoryTab';
 import { ForecastTab } from './forecast/ForecastTab';
-import { portfolioApi } from '@/api/endpoints';
+import { WorkbenchBTCTab } from './btc/WorkbenchBTCTab';
+import { chargingApi, portfolioApi } from '@/api/endpoints';
 import { Edit2, Eye } from 'lucide-react';
+import type { ChargeableEntityItem } from '@/types/api';
 
 interface Props {
   projectId: string;
@@ -19,6 +21,10 @@ export function ProjectWorkspace({ projectId, role, status }: Props) {
   const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
   const [feedback, setFeedback] = useState<string | null>(null);
+  // F6 [E-09]: resolve the project's ChargeableEntity once on load. The
+  // entity drives whether to surface the BTC tab and which fallback to
+  // show. Missing-entity (404) is a normal state for many demo projects.
+  const [entity, setEntity] = useState<ChargeableEntityItem | null>(null);
 
   // Fetch submission feedback when status is changes_requested
   useEffect(() => {
@@ -31,6 +37,22 @@ export function ProjectWorkspace({ projectId, role, status }: Props) {
       setFeedback(null);
     }
   }, [projectId, status]);
+
+  // F6: load the linked chargeable entity (best-effort).
+  useEffect(() => {
+    let cancelled = false;
+    chargingApi
+      .getEntityByProjectId(projectId)
+      .then((ent) => {
+        if (!cancelled) setEntity(ent);
+      })
+      .catch(() => {
+        if (!cancelled) setEntity(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   return (
     <div className="space-y-4">
@@ -65,16 +87,34 @@ export function ProjectWorkspace({ projectId, role, status }: Props) {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="forecast">Forecast & Planning</TabsTrigger>
+          {entity && (
+            <TabsTrigger value="btc">
+              {(entity.to_business_pct ?? 0) > 0
+                ? 'Cost Allocation'
+                : 'Distribution'}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="history">Change History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
-          <OverviewTab projectId={projectId} />
+          <OverviewTab
+            projectId={projectId}
+            onOpenBTCTab={
+              entity ? () => setActiveTab('btc') : undefined
+            }
+          />
         </TabsContent>
 
         <TabsContent value="forecast" className="mt-4 min-w-0">
           <ForecastTab projectId={projectId} role={role} />
         </TabsContent>
+
+        {entity && (
+          <TabsContent value="btc" className="mt-4 min-w-0">
+            <WorkbenchBTCTab projectId={projectId} />
+          </TabsContent>
+        )}
 
         <TabsContent value="history" className="mt-4">
           <ChangeHistoryTab projectId={projectId} />
