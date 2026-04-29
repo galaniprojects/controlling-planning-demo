@@ -1,9 +1,9 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D/F — Wave 1 sessions merging in order (A5 → F2 → D3 → A7).
-Last completed: A5 (intake workflow + backlog integration backend, +68 tests), F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests), and D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) all merged onto the wave-1 merge branch. A7 (Tech Navigator UI) merges next; no PR yet — single PR for the whole wave per project lead's preference.
-Next: Merge A7, then re-seed DB and curl-smoke the new endpoints, then continue critical path with C1 / B1.
+Phase: v5 Cluster A/D/F — Wave 1 merged via PR #63 (2026-04-29).
+Last completed: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests passing. Frontend TS error count unchanged at 78 pre-existing. Verified end-to-end via 5 live curl smokes + Chrome-DevTools visual walk (composite-ranking math 0.7 × 4.4 + 0.3 × 4.0 = 4.28 confirmed live).
+Next: **Wave 2 — F3 (BTCProfile + Stage 2 + rollup) + A6 (frontend backlog) + C1 (mixed-granularity forecast + versioning)** can run in parallel on three independent agent-team worktrees. F3 unblocks A8 + B1; A6 replaces A7's stub harness; C1 unblocks B1 + C2.
 
 ## v5 Session A5: Intake Workflow + Backlog Integration Backend (2026-04-28)
 
