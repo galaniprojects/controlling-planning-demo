@@ -45,7 +45,9 @@ Master-detail project workspace with sidebar project list showing type and statu
 Team utilization heatmaps (CSS grid, person x month), cell-level drill-down showing allocated/available hours with person-level detail, organization-wide overview with 3 pivot views (Cost Center, Role, top-level entity), and resource request management with assignment preview.
 
 ### What-If Simulator
-Scenario planning tool with 12 action types (7 project-level, 5 portfolio-level), real-time KPI impact calculation, year-scoped actions, multi-scenario comparison, portfolio drill-down, and an AI Advisor panel with optimization recommendations.
+Scenario planning tool with 12 v4 action types (7 project-level, 5 portfolio-level), real-time KPI impact calculation, year-scoped actions, multi-scenario comparison, portfolio drill-down, and an AI Advisor panel with optimization recommendations.
+
+**v5 Cluster B (B1 backend, in flight):** Scenarios anchor to a specific `ForecastVersion`; manual rebase to newer cycles. Soft archive (read-only, hidden from active list, clonable). Free-text tags with multi-select filter. Tier 3 content gating on publish (defaults to "tier3_only" visibility when scenario contains people / rate-table / capacity-param / restructuring diffs). **Lever 12 sandbox engine** mutates Stage 1 distribution edges (forked into `version='scenario-{id}'`) and Stage 2 BTC profile / `to_business_pct` overlays without touching live `BTCProfile` rows; `GET /lever12/cost-allocation-impact` returns per-charging-location deltas. **8-dimension impact dashboard** (financial / backlog_ranking / capacity / people [Tier 3 redacted] / outsourcing_ratio / investment_mix / running_cost / change_summary + cost_allocation widening). **Promote workflow** (controller-only) routes each diff through its native system path (forecast_grid → direct/CR, pipeline_stage → DoI gate, tech_navigator → direct/send-back, rate_table → admin path, people → action item, cost_allocation → direct mutation gated by per-entity-type RolePermissionGrant per `[F-AC-01]`). **PL Apply-to-forecast** carries own-project diffs into the next cycle with `is_provisional=True` provenance markers. CC Owner scenarios auto-scope to managed cost centre per `[E-06b]`.
 
 ### Reporting
 Five standard reports — Programme Rollup, Cost Center Financial Summary, Vendor Spend Analysis, Forecast Accuracy, and Year-over-Year Comparison. Features include custom project groupings, column configuration, saved views, and export capabilities.
@@ -171,7 +173,7 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **Pipeline** | `/api/projects` | 4 | Pipeline stage + DoI gate state (read, transition with optional override, AI Council flag, manual within_cutoff setter) |
 | **Project Milestones** | `/api/projects` | 4 | Milestone CRUD (list, create, update, delete) per project; baseline-date edits require controller + override reason per [A-MS-03] |
 | **Capacity** | `/api/capacity` | 14 | Team heatmap, drill-down, resource requests, per-month assignments, org overview, project confirmation |
-| **Scenarios** | `/api/scenarios` | 8 | CRUD, actions, comparison, AI advisor |
+| **Scenarios** | `/api/scenarios` | 28 | CRUD, actions, comparison, AI advisor (v4) + Lever 12 sandbox (Stage 1/Stage 2/per-CL impact), 8-dimension impact dashboard, anchor + rebase + archive lifecycle, controller Promote (with [F-AC-01] gating), PL Apply-to-forecast, Tier 3 visibility (B1) |
 | **Reports** | `/api/reports` | 8 | Programme rollup, CC financial, vendor spend, forecast accuracy, YoY, saved views |
 | **Report Builder** | `/api/report-builder` | 12 | Data catalog, filter options, query execution, saved reports CRUD, share/publish, CSV export |
 | **AI Report Builder** | `/api/reports/ai-builder` | 4 | Status check, conversation start, message, cleanup |

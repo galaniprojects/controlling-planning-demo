@@ -1,12 +1,173 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
-Phase: v5 Cluster A/D/F — Wave 2 merged locally (2026-04-29). F3 + C1 + A6 all on main.
-Last completed: **A6** (frontend Backlog module — ranked list, cube view, 4-tab detail page, Launchpad tile). Verified end-to-end via Playwright walk in light + dark mode.
-Combined Wave 2: F3 (+125 tests) + C1 (+94 tests) brings backend test count to 1007. A6 frontend TS errors unchanged from baseline.
+Phase: v5 Cluster B Wave 3 — **B1 in flight on `v5/cluster-b/b1-scenario-engine`** (2026-04-29).
+Last completed (worktree): **B1** (Cluster B What-If Simulator backend rebuild — 15 new endpoints, Lever 12 sandbox engine, 8-dimension impact dashboard, Promote workflow with [F-AC-01] permission gating, PL Apply-to-forecast, Tier 3 + CC Owner enforcement). +91 backend tests; 1098 pass / 0 fail. Live verification on fresh seed succeeds (worked example below).
+Wave 2 merged: F3 (+125 tests) + C1 (+94 tests) + A6 frontend brings backend baseline to 1007 tests.
 Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
-Next: Wave 3 unblocked — A8 (Run Portfolio backend), B1 (simulator Lever 12), C2 (frontend mixed-grid + version history), F4–F7 (charging frontend).
-**Post-merge requirement:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables and C1's `is_provisional` column on `forecasts` break any existing DB until reseed.
+Next: Wave 3 sibling sessions in flight — A8 (Run Portfolio backend), C2 (frontend mixed-grid + version history), F4–F7 (charging frontend), E1 (progress tracker backend).
+**Post-merge requirement:** drop `creta_demo.db` and re-seed — F3's BTC + RollupCache tables, C1's `is_provisional` column, and B1's Scenario column additions all require schema regeneration. After B1 lands, also restart any running server so the new endpoints register.
+
+## v5 Session B1: What-If Simulator Backend (2026-04-29)
+
+### Feature Overview
+- **Scenario lifecycle extended** per `[B-SL-01..05]`: anchor to a specific `ForecastVersion`,
+  manual rebase to a newer cycle, soft archive (read-only, hidden from active list, clonable),
+  free-text tags with multi-select filter, Tier 3 content gating on publish (Option C — defaults
+  to "tier3_only" visibility when scenario contains Tier 3 diffs).
+- **17+ editable surfaces** per `[B-ES-01]` — ScenarioAction `lever_category` + `tier`
+  classification provides the foundation; B1 ships full implementation for forecast_grid,
+  cost_allocation (Lever 12), people, rate_table, etc. Other categories accept actions
+  through the generic `POST /actions` endpoint.
+- **Lever 12 (Cost allocation rules) widening per `[B-OQ-01]` working assumption**:
+  - Stage 1 distribution edges fork lazily into `Distribution.version='scenario-{id}'`
+    on first mutation; live `forecast` rows never touched.
+  - Stage 2 BTC line + `to_business_pct` mutations stored as `ScenarioAction` overlays
+    (live `BTCProfile` / `BTCProfileLine` rows untouched).
+  - Cycle detection union-aware across anchor + scenario versions per `[F-S1-05]`.
+  - Sum-rule per `[F-S1-02]` enforced via existing `distribution_service` helpers.
+  - `compute_cost_allocation_impact()` returns per-charging-location deltas vs the anchor,
+    re-running `dag_resolver.compute_effective_cost` on the sandbox state per `[F-RV-02]`.
+- **8-dimension impact dashboard** per `[B-ID-01..03]`: financial / backlog_ranking /
+  capacity / people (Tier 3 redacted) / outsourcing_ratio / investment_mix / running_cost /
+  change_summary. Plus the Lever 12 widening: `cost_allocation` sub-section with
+  per-charging-location deltas.
+- **Promote workflow (controller-only)** per `[B-PR-01..06]`:
+  - `assert_anchor_is_latest_cycle()` enforces `[B-PR-02]` rebase gate.
+  - `decide_routing()` maps each diff to its native workflow (forecast_grid → direct
+    update or change_request, pipeline_stage → DoI gate check, tech_navigator →
+    direct or send_back, rate_table → admin path, people → action item, cost_allocation
+    → direct mutation gated by RolePermissionGrant).
+  - **Lever 12 promote materialises sandbox mutations on live entities** (Distribution,
+    `to_business_pct`, BTC profile lines).
+  - `[F-AC-01]` permission gating: controllers always allowed; other roles require
+    explicit `RolePermissionGrant` row for `entity_type='btc_profile'` or `'distribution'`.
+  - Selective per-action promotion via `action_ids`; `ScenarioAction.promoted_at` /
+    `promoted_by_id` stamped; `ScenarioPromotion` audit row recorded.
+- **PL Apply-to-forecast** per `[B-PR-05]`:
+  - PL-only; controllers cannot use this path (they use Promote).
+  - Filters to PL's own-project diffs in carry-forward categories
+    (forecast_grid, milestone, people-on-own-project, sourcing_mix).
+  - Stamps `Forecast.is_provisional=True` per `[B-OQ-02]` provenance pattern.
+  - `ScenarioApplyToForecastEvent` audit row.
+- **Role policy expansion**:
+  - List/get/drill/compare/impact/cost-allocation-impact/promotions are accessible to
+    all four roles with Tier 3 redaction + visibility check.
+  - Create/metadata/publish/archive/rebase/actions: controller, executive, cost_center_owner.
+    PL is intentionally excluded from creation per `[E-06c]`.
+  - CC Owner creation auto-scopes to managed CC per `[E-06b]`; reject mismatch.
+  - Lever 12 mutations: controller + executive (Tier 2).
+  - Promote (preview + execute): controller-only per `[B-PR-06]`.
+  - Apply-to-forecast: project_lead-only per `[B-PR-05]`.
+
+### Spec references implemented
+`[B-AC-01..03]` (three-role + three-tier access), `[B-ES-01]` (lever framework + Lever 12
+widening), `[B-CA-01..04]` (catalogue actions — partial; existing v4 actions cover most),
+`[B-SL-01..05]` (anchor/rebase/publish/archive lifecycle), `[B-PR-01..06]` (Promote workflow),
+`[B-ID-01..03]` (impact dashboard + recalculation model), `[B-CV-01..05]` (compare —
+shared-anchor enforcement added), `[B-OQ-01]` (Lever 12 promote with `[F-AC-01]` gate
+working-assumption confirmed), `[B-OQ-02]` (Apply-to-forecast provenance visible to
+controller — working-assumption confirmed), `[E-06b]` (CC Owner CC-scoped creation),
+`[E-06c]` (PL read-only + Apply-to-forecast).
+
+Out of scope per session plan: B2 frontend (simulator workspace UI, lever panels, comparison
+view, scenario manager), AI Advisor production wiring (`[B-AI-01]`), inter-project dependency
+data model (`[B-DEP-01]` — seeded to Cluster D), Monte Carlo / stochastic simulation,
+NPV/IRR/payback engines (Tech Navigator covers payback already), automatic dependency
+rescheduling, organisational structure changes in sandbox, planning parameter changes in
+sandbox.
+
+### Technical Details
+- **Models extended (existing tables only — no rename):**
+  `Scenario` adds `anchor_forecast_version_id` (FK), `rebased_from_version_id` (FK),
+  `visibility` (`'private'|'tier3_only'|'all_users'`, server_default `'private'`),
+  `tier3_content_flag` (Boolean, server_default `'0'`), `archived` (Boolean,
+  server_default `'0'`), `archived_at`, `tags` (JSON Text), `last_recalculated_at`,
+  `cc_owner_scope_cc_id` (FK to cost_centers).
+  `ScenarioAction` adds `promoted_at`, `promoted_by_id`, `lever_category`, `tier` (server_default `'1'`).
+- **New models:** `ScenarioPromotion` (per-promote audit), `ScenarioApplyToForecastEvent`
+  (PL apply audit). All Integer counters carry `server_default='0'` so seed.sql INSERTs
+  remain compatible.
+- **New services (4):**
+  `scenario_lever12.py` — sandbox distribution + BTC overlays + per-location impact.
+  `scenario_impact.py` — 8-dimension dashboard + Tier 3 detection + stale flag.
+  `scenario_promote.py` — anchor check + routing decisions + per-route appliers
+  + `[F-AC-01]` permission gate.
+  `scenario_apply_forecast.py` — PL eligibility filter + provisional-cell stamping.
+- **Schemas extended:** 14 new request/response schemas appended to `schemas/scenarios.py`.
+- **Router extended:** 13 → 28 endpoints registered in `routers/scenarios.py`.
+- **Dependencies extended:** `dependencies.py::user_has_tier3()` looks up the persona's
+  `User` row to read `tier3_flag` per `[D-AC-02]`.
+- **READ-ONLY services preserved:** `services/rollup_cache.py`, `rollup_query.py`,
+  `dag_resolver.py`, `btc_service.py`, `distribution_service.py` are not modified —
+  B1 calls into them with scenario-scoped arguments (version='scenario-{id}').
+
+### API Endpoints Added (15 new)
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| PUT | `/api/scenarios/{id}/archive` | owner | Soft archive [B-SL-05] |
+| PUT | `/api/scenarios/{id}/rebase` | owner | Re-anchor to newer cycle [B-SL-02] |
+| POST | `/api/scenarios/{id}/lever12/distributions` | controller/exec | Stage 1 edge create [B-ES-01] |
+| PUT | `/api/scenarios/{id}/lever12/distributions/{edge_id}` | controller/exec | Stage 1 edge update |
+| DELETE | `/api/scenarios/{id}/lever12/distributions/{edge_id}` | controller/exec | Stage 1 edge delete |
+| POST | `/api/scenarios/{id}/lever12/to-business` | controller/exec | to_business_pct overlay |
+| POST | `/api/scenarios/{id}/lever12/btc-lines` | controller/exec | BTC line overlay |
+| GET | `/api/scenarios/{id}/lever12/cost-allocation-impact` | all | Per-CL impact [F-RV-01..06] |
+| GET | `/api/scenarios/{id}/impact` | all | 8-dimension dashboard [B-ID-01..03] |
+| POST | `/api/scenarios/{id}/recalculate` | owner | Stamp last_recalculated_at |
+| POST | `/api/scenarios/{id}/promote/preview` | controller | Preview routing decisions |
+| POST | `/api/scenarios/{id}/promote` | controller | Execute selective promotion [B-PR-01..06] |
+| GET | `/api/scenarios/{id}/promotions` | all | Promotion audit trail |
+| POST | `/api/scenarios/{id}/apply-to-forecast` | project_lead | PL apply-to-forecast [B-PR-05] |
+
+(13 v4 endpoints retained with extended request/response shapes.)
+
+### Test counts
+| File | Tests |
+|------|-------|
+| `test_scenario_lever12.py` | 26 |
+| `test_scenario_impact.py` | 11 |
+| `test_scenario_promote.py` | 17 |
+| `test_scenario_apply_forecast.py` | 14 |
+| `test_router_scenarios_b1.py` | 23 |
+| **Total new** | **+91** |
+| **Grand total** | **1098** |
+
+### Lever 12 verification example (live, fresh seed)
+```
+Entity: ce-off-coll  (Offering, identifier IT00S556)
+Anchor:  to_business_pct=90%, BTC split (DE-MUC, US-CHI, others)
+         → €1,080,000 total to-business allocation across CLs
+
+Scenario (B1 sandbox):
+  POST /lever12/to-business  {"entity_id": "ce-off-coll", "year": 2026, "new_pct": 25}
+  POST /lever12/btc-lines    {"entity_id": "ce-off-coll", "year": 2026,
+                              "lines": [{"charging_location_id": "cl-cn-sha", "percentage": 100}]}
+
+GET /lever12/cost-allocation-impact?year=2026 →
+  totals: anchor=€1,080,000  scenario=€300,000  delta=-€780,000
+  items:
+    ce-off-coll @ CN-SHA-001  anchor=€0       scenario=€300,000   delta=+€300,000
+    ce-off-coll @ DE-MUC-001  anchor=€583,740 scenario=€0         delta=-€583,740
+    ce-off-coll @ US-CHI-001  anchor=€350,244 scenario=€0         delta=-€350,244
+
+POST /promote (controller) →
+  promoted=2  skipped=0  (both Lever 12 actions materialised on live data)
+  Live ChargeableEntity.to_business_pct now 25.00% (was 90.00%).
+  Live BTCProfileLine rows replaced with single CN-SHA-001 @ 100%.
+```
+
+### Schema changes requiring reseed
+- `scenarios` table: 8 new columns (`anchor_forecast_version_id`,
+  `rebased_from_version_id`, `visibility`, `tier3_content_flag`, `archived`,
+  `archived_at`, `tags`, `last_recalculated_at`, `cc_owner_scope_cc_id`).
+- `scenario_actions` table: 4 new columns (`promoted_at`, `promoted_by_id`,
+  `lever_category`, `tier`).
+- `scenario_promotions` table: new (B1 audit trail).
+- `scenario_apply_to_forecast_events` table: new (B1 PL audit trail).
+
+All non-nullable additions carry `server_default` so existing seed.sql `INSERT INTO`
+statements remain compatible without modification.
 
 ## v5 Session C1: Mixed-Granularity Forecast + Versioning (2026-04-29)
 
