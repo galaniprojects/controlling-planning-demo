@@ -360,6 +360,18 @@ def approve_intake_project(
             ),
         )
 
+    # === F3 hook: BTC gate per [A-PL-06] ===
+    # Inserted here with local imports to keep the A5 file's import-block diff at zero.
+    from models.charging import ChargeableEntity  # local import — avoids cross-module cycle
+    from services.btc_service import BTCValidationError, assert_btc_required  # local import
+    ce = db.query(ChargeableEntity).filter_by(project_id=project.id).first()
+    if ce is not None and float(ce.to_business_pct or 0) > 0:
+        try:
+            assert_btc_required(db, ce.id, 2026)  # demo year hardcoded per CLAUDE.md
+        except BTCValidationError as _btc_err:
+            raise HTTPException(status_code=409, detail=_btc_err.message)
+    # === end F3 hook ===
+
     old_stage = project.pipeline_stage
     old_doi = project.doi
     old_status = project.status
