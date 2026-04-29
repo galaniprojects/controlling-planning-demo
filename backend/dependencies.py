@@ -51,6 +51,25 @@ def pl_project_filter(user: CurrentUser):
     return or_(*conditions)
 
 
+def user_has_tier3(db: Session, user: CurrentUser) -> bool:
+    """Return True if the persona has Tier 3 simulator access per [D-AC-02].
+
+    Tier 3 is a flag on the ``User`` row (not on ``DemoPersona``). For demo
+    purposes we look up the User by person_id; if no User row exists or the
+    flag is False we deny Tier 3.
+    """
+    from models.users import User
+
+    if not user.person_id:
+        return False
+    row = (
+        db.query(User)
+        .filter(User.person_id == user.person_id, User.is_active.is_(True))
+        .first()
+    )
+    return bool(row and row.tier3_flag)
+
+
 def require_role(*allowed_roles: str):
     """Return a FastAPI dependency that checks the current user has one of the allowed roles.
 
