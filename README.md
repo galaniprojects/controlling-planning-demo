@@ -162,7 +162,8 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 |--------|--------|-----------|-------------|
 | **Launchpad** | `/api` | 8 | Roles, modules, KPIs, pending actions, project create/submit |
 | **Portfolio** | `/api/portfolio` | 18 | Dashboard KPIs, project tree, intake queue (approve/reject/send-back/diff/accept-changes), CR approvals (approve/reject/send-back/editable-grid) |
-| **Workbench** | `/api/projects` | 13 | Project list, overview, timeline, forecast grid, 5-phase forecast cycle, CR diff/accept-changes/resubmit |
+| **Workbench** | `/api/projects` | 18 | Project list, overview, timeline, forecast grid (v4), mixed-granularity grid (C1), 5-phase forecast cycle, CR diff/accept-changes/resubmit, forecast version history + diff |
+| **Forecast Versions** | `/api/forecast` | 1 | Cross-project version diff (C1) |
 | **Tech Navigator** | `/api/projects` | 2 | Project Tech Navigator profile (read + partial update with score recompute) |
 | **Pipeline** | `/api/projects` | 4 | Pipeline stage + DoI gate state (read, transition with optional override, AI Council flag, manual within_cutoff setter) |
 | **Project Milestones** | `/api/projects` | 4 | Milestone CRUD (list, create, update, delete) per project; baseline-date edits require controller + override reason per [A-MS-03] |
@@ -205,6 +206,18 @@ The CR lifecycle (`pending_controller_approval` -> `sent_back_by_controller` -> 
 | `GET` | `/api/projects/{pid}/change-requests/{cr_id}/diff` | PL views original vs controller-proposed comparison |
 | `PUT` | `/api/projects/{pid}/change-requests/{cr_id}/accept-changes` | PL accepts controller's proposed changes |
 | `PUT` | `/api/projects/{pid}/change-requests/{cr_id}/resubmit` | PL resubmits CR to controller |
+
+### Forecast Grid + Versioning Endpoints (v5 Session C1)
+
+Mixed-granularity forecast grid, immutable version snapshots, and cross-version diff. Backwards-compatible: v4 `GET /api/projects/{id}/forecast` is unchanged.
+
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/projects/{id}/forecast/grid` | all | Mixed-granularity grid (monthly+quarterly) [C-FG-02]. Params: `granularity`, `boundary_months`, `horizon_months` |
+| `GET` | `/api/projects/{id}/forecast/versions` | all | List forecast versions newest-first [C-RH-01]. PL-filtered |
+| `GET` | `/api/projects/{id}/forecast/versions/{vid}` | all | Version detail + full payload [C-RH-02] |
+| `POST` | `/api/projects/{id}/forecast/versions` | controller | Manual snapshot [C-FV-03] |
+| `GET` | `/api/forecast/versions/{a}/diff/{b}` | all | Diff two versions (cross-project valid) [C-RH-05] |
 
 ### Tech Navigator Endpoints (v5 Cluster A)
 
