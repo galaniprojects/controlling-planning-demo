@@ -291,6 +291,15 @@ class ChargeableEntity(Base):
         String(7), nullable=True,
     )
 
+    # v5 Session F3 — own running cost in EUR per [F-S2-01].
+    # Primary cost source for Offerings and InternalServices.
+    # For Project subtypes, the DAG resolver falls back to this when
+    # project.annual_budget / total_budget are null (covers the case where
+    # the project cost is known but the budget columns are not populated yet).
+    annual_cost: Mapped[Optional[float]] = mapped_column(
+        Numeric(14, 2), nullable=True,
+    )
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     modified_at: Mapped[datetime] = mapped_column(
@@ -397,3 +406,152 @@ class Distribution(Base):
         foreign_keys=[destination_entity_id],
         back_populates="incoming_edges",
     )
+
+
+# ===========================================================================
+# v5 Session F3 — BTC Profile + Stage 2 + Rollup Cache
+# Per [F-S2-01..08], [F-RV-01..06], [F-OQ-05], [A-PL-06].
+# Appended at end-of-file per F3's append-only ownership rule for models.
+# ===========================================================================
+
+# BTC mode and status values per [F-S2-02].
+BTC_MODES = ("manual", "automatic")
+BTC_STATUSES = ("draft", "active")
+
+
+class BTCProfile(Base):
+    """BTC (Business Transfer Charging) profile per [F-S2-01..04].
+
+    One profile per (entity, year) pair; UniqueConstraint enforces this.
+    Mode ``'manual'`` means the controller sets percentages directly.
+    Mode ``'automatic'`` reads from the UM (User Measurement) matrix for the
+    entity's S-code and snapshots the computed percentages. The snapshot
+    timestamp is recorded in ``um_snapshot_at`` so auditors can see which
+    UM version drove the percentages.
+
+    A ``'draft'`` profile is editable and not yet used for billing. Promoting
+    to ``'active'`` locks the entity-year pair for use in the rollup engine.
+    The ``copied_from_profile_id`` FK supports the year-rollover workflow
+    (copy prior year's profile as a starting point).
+    """
+
+    __tablename__ = "btc_profiles"
+    __table_args__ = (
+        UniqueConstraint("entity_id", "year", name="uq_btc_profile_entity_year"),
+        CheckConstraint("mode IN ('manual', 'automatic')", name="ck_btc_profile_mode"),
+        CheckConstraint("status IN ('draft', 'active')", name="ck_btc_profile_status"),
+        Index("ix_btc_profiles_entity_year", "entity_id", "year"),
+        Index("ix_btc_profiles_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    entity_id: Mapped[str] = mapped_column(
+        ForeignKey("chargeable_entities.id", ondelete="CASCADE"), nullable=False,
+    )
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    mode: Mapped[str] = mapped_column(String(10), nullable=False, default="manual")
+    s_code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Populated when mode='automatic'; records the UM batch timestamp used.
+    um_snapshot_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default="draft")
+    # FK to prior-year profile for year-rollover provenance chain.
+    copied_from_profile_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("btc_profiles.id", ondelete="SET NULL"), nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    modified_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow,
+    )
+
+    # Relationships
+    entity: Mapped["ChargeableEntity"] = relationship(
+        "ChargeableEntity", foreign_keys=[entity_id],
+    )
+    lines: Mapped[list["BTCProfileLine"]] = relationship(
+        "BTCProfileLine",
+        back_populates="profile",
+        cascade="all, delete-orphan",
+    )
+    copied_from: Mapped[Optional["BTCProfile"]] = relationship(
+        "BTCProfile", remote_side="BTCProfile.id", foreign_keys=[copied_from_profile_id],
+    )
+
+
+class BTCProfileLine(Base):
+    """One BTC percentage cell: (profile × charging_location) → percentage.
+
+    Sparse storage — only non-zero cells are stored per [F-S2-01]. The
+    profile's ``sums_to_100`` flag (computed at read time by the service)
+    is not persisted; the service computes it on every read.
+
+    ``percentage`` must be 0 < x ≤ 100. The sum rule (all lines must sum to
+    exactly 100 within tolerance) is enforced at the service layer, not here —
+    the DB layer only constrains individual values.
+    """
+
+    __tablename__ = "btc_profile_lines"
+    __table_args__ = (
+        UniqueConstraint(
+            "profile_id", "charging_location_id",
+            name="uq_btc_profile_line_profile_cl",
+        ),
+        CheckConstraint(
+            "percentage > 0 AND percentage <= 100",
+            name="ck_btc_profile_line_pct_range",
+        ),
+        Index("ix_btc_profile_lines_profile", "profile_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("btc_profiles.id", ondelete="CASCADE"), nullable=False,
+    )
+    charging_location_id: Mapped[str] = mapped_column(
+        ForeignKey("charging_locations.id"), nullable=False,
+    )
+    percentage: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+
+    # Relationships
+    profile: Mapped["BTCProfile"] = relationship("BTCProfile", back_populates="lines")
+    charging_location: Mapped["ChargingLocation"] = relationship("ChargingLocation")
+
+
+class RollupCache(Base):
+    """Persistent rollup cache for Stage 1 effective costs and Stage 2 location totals.
+
+    Two cache layers per [F-RV-01..06]:
+    - ``'stage1_effective'`` — stores the result of ``compute_effective_cost``
+      for a given (entity, year, version). Key: entity_id. Payload: JSON of
+      EffectiveCostResult.
+    - ``'stage2_location'`` — stores the per-charging-location total for a
+      given (entity, year, version) after applying BTC profile percentages.
+      Key: ``<entity_id>:<charging_location_id>``. Payload: JSON ``{"amount": float}``.
+
+    Justification for persistent over in-memory: simulator (B1) needs reads
+    outside the writing request; survives uvicorn reload during demos; demo
+    scale is trivial.
+
+    Cache invalidation: each Distribution write, BTC write, and annual_cost
+    write calls into ``services/rollup_cache.py::invalidate_for_*``. The
+    ``POST /api/admin/rollup-cache/invalidate`` endpoint (controller-only)
+    flushes everything for a manual recovery path.
+    """
+
+    __tablename__ = "rollup_cache"
+    __table_args__ = (
+        UniqueConstraint(
+            "cache_layer", "year", "version", "key_id",
+            name="uq_rollup_cache_entry",
+        ),
+        Index("ix_rollup_cache_layer_year_version", "cache_layer", "year", "version"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    cache_layer: Mapped[str] = mapped_column(String(30), nullable=False)
+    # 'stage1_effective' | 'stage2_location'
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    version: Mapped[str] = mapped_column(String(40), nullable=False)
+    key_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    # entity_id for stage1; "<entity_id>:<cl_id>" for stage2
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
