@@ -1890,3 +1890,110 @@ export interface EntityAllocationBreakdownResponse {
   sums_to_100: boolean;
   total: number;
 }
+
+// ===========================================================================
+// === v5 Cluster E Session E5 — External cost views [E-08a..d] ===
+// Backend: routers/workbench.py + routers/portfolio.py (E2 endpoints).
+// ===========================================================================
+
+/** Project-scoped vendor breakdown row per [E-08a]. */
+export interface ProjectVendorSummaryRow {
+  vendor_name: string;
+  expense_cost_type: string;
+  forecast_total: number;
+  actuals_total: number;
+  baseline_total: number;
+  remaining: number;
+  variance: number;
+  po_count: number;
+  line_count: number;
+}
+
+export interface ProjectVendorSummaryResponse {
+  items: ProjectVendorSummaryRow[];
+  total: number;
+  project_id: string;
+  year: number | null;
+}
+
+/** Project-scoped category rollup row per [E-08b]. */
+export interface ProjectCategoryRollupRow {
+  cost_type_id: string;
+  cost_type_name: string;
+  forecast_total: number;
+  actuals_total: number;
+  baseline_total: number;
+  remaining: number;
+  variance: number;
+  vendor_count: number;
+}
+
+export interface ProjectCategoryRollupResponse {
+  items: ProjectCategoryRollupRow[];
+  total: number;
+  project_id: string;
+  year: number | null;
+}
+
+/** Portfolio-scoped vendor summary row per [E-08c]. */
+export interface PortfolioVendorSummaryRow {
+  vendor_name: string;
+  expense_cost_type: string;
+  project_count: number;
+  forecast_total: number;
+  actuals_total: number;
+  top_project_id: string | null;
+  top_project_name: string | null;
+  top_project_amount: number;
+  po_count: number;
+}
+
+export interface PortfolioVendorSummaryResponse {
+  items: PortfolioVendorSummaryRow[];
+  total: number;
+  year: number | null;
+}
+
+/** Portfolio-scoped category analysis row per [E-08c]. */
+export interface PortfolioCategoryAnalysisRow {
+  cost_type_id: string;
+  cost_type_name: string;
+  forecast_total: number;
+  actuals_total: number;
+  project_count: number;
+  vendor_count: number;
+  pct_of_external_total: number;
+}
+
+export interface PortfolioCategoryAnalysisResponse {
+  items: PortfolioCategoryAnalysisRow[];
+  total: number;
+  year: number | null;
+}
+
+/** Portfolio project × vendor cross-tab matrix per [E-08d]. */
+export interface ProjectVendorMatrixCell {
+  project_id: string;
+  vendor_name: string;
+  forecast_total: number;
+  actuals_total: number;
+}
+
+export interface ProjectVendorMatrixProject {
+  id: string;
+  name: string;
+  row_total: number;
+}
+
+export interface ProjectVendorMatrixVendor {
+  name: string;
+  col_total: number;
+}
+
+export interface ProjectVendorMatrixResponse {
+  projects: ProjectVendorMatrixProject[];
+  vendors: ProjectVendorMatrixVendor[];
+  cells: ProjectVendorMatrixCell[];
+  total: number;
+  year: number | null;
+}

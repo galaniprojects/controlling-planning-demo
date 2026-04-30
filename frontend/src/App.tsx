@@ -6,6 +6,8 @@ import { BottomDrawerProvider } from '@/contexts/BottomDrawerContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Launchpad } from '@/modules/launchpad/Launchpad';
 import { PortfolioOverview } from '@/modules/portfolio/PortfolioOverview';
+// === v5 Wave 5 E6 — full-page Portfolio project detail [E-03a..g] ===
+import { ProjectDetailPage } from '@/modules/portfolio/detail/ProjectDetailPage';
 import { ProjectWorkbench } from '@/modules/workbench/ProjectWorkbench';
 import { CapacityManagement } from '@/modules/capacity/CapacityManagement';
 // === v5 Cluster B Session B2 — full simulator rebuild [B-AC-01..03] ===
@@ -30,6 +32,8 @@ export default function App() {
             <AppLayout>
               <Routes>
                 <Route path="/" element={<Launchpad />} />
+                {/* === v5 Wave 5 E6 — Portfolio project full-page detail [E-03a..g] === */}
+                <Route path="/portfolio/project/:projectId" element={<ProjectDetailPage />} />
                 <Route path="/portfolio/*" element={<PortfolioOverview />} />
                 <Route path="/workbench/new-project/:projectId" element={<ResourcePlanPage />} />
                 <Route path="/workbench/*" element={<ProjectWorkbench />} />

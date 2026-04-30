@@ -1443,6 +1443,84 @@ export const chargeableEntitiesApi = {
 export type { ChargeableEntityItem, ChargeableEntityListResponse };
 
 // ---------------------------------------------------------------------------
+// === v5 Cluster E Session E5 — External cost views [E-08a..d] ===
+// Backed by E2's existing aggregation endpoints under
+//   /api/projects/{id}/external-costs/* and /api/portfolio/external-costs/*.
+// Owned by T1 in Wave 5; T2 / T3 do not extend this wrapper.
+// ---------------------------------------------------------------------------
+
+import type {
+  ProjectVendorSummaryResponse,
+  ProjectCategoryRollupResponse,
+  PortfolioVendorSummaryResponse,
+  PortfolioCategoryAnalysisResponse,
+  ProjectVendorMatrixResponse,
+} from '@/types/api';
+
+interface ExternalCostQuery {
+  year?: number;
+  lob?: string;
+  status?: string;
+  rag?: string;
+}
+
+function externalCostQs(params?: ExternalCostQuery): string {
+  if (!params) return '';
+  const q = new URLSearchParams();
+  if (params.year !== undefined) q.set('year', String(params.year));
+  if (params.lob) q.set('lob', params.lob);
+  if (params.status) q.set('status', params.status);
+  if (params.rag) q.set('rag', params.rag);
+  const qs = q.toString();
+  return qs ? '?' + qs : '';
+}
+
+export const externalCostsApi = {
+  /**
+   * Project-scoped vendor breakdown per [E-08a].
+   * Routes to: GET /api/workbench/projects/{id}/external-costs/vendor-summary
+   * (the project-scoped variants live under the workbench external_costs
+   *  router which mounts at /api/workbench, not /api/projects).
+   */
+  getProjectVendorSummary: (projectId: string, year?: number) =>
+    api.get<ProjectVendorSummaryResponse>(
+      `/api/workbench/projects/${encodeURIComponent(projectId)}/external-costs/vendor-summary${externalCostQs({ year })}`,
+    ),
+  /**
+   * Project-scoped category rollup per [E-08b].
+   * Routes to: GET /api/workbench/projects/{id}/external-costs/category-rollup
+   */
+  getProjectCategoryRollup: (projectId: string, year?: number) =>
+    api.get<ProjectCategoryRollupResponse>(
+      `/api/workbench/projects/${encodeURIComponent(projectId)}/external-costs/category-rollup${externalCostQs({ year })}`,
+    ),
+  /**
+   * Portfolio-scoped vendor summary per [E-08c].
+   * Routes to: GET /api/portfolio/external-costs/vendor-summary
+   */
+  getPortfolioVendorSummary: (params?: ExternalCostQuery) =>
+    api.get<PortfolioVendorSummaryResponse>(
+      `/api/portfolio/external-costs/vendor-summary${externalCostQs(params)}`,
+    ),
+  /**
+   * Portfolio-scoped category analysis per [E-08c].
+   * Routes to: GET /api/portfolio/external-costs/category-analysis
+   */
+  getPortfolioCategoryAnalysis: (params?: ExternalCostQuery) =>
+    api.get<PortfolioCategoryAnalysisResponse>(
+      `/api/portfolio/external-costs/category-analysis${externalCostQs(params)}`,
+    ),
+  /**
+   * Portfolio project × vendor cross-tab matrix per [E-08d].
+   * Routes to: GET /api/portfolio/external-costs/project-vendor-matrix
+   */
+  getPortfolioProjectVendorMatrix: (params?: ExternalCostQuery) =>
+    api.get<ProjectVendorMatrixResponse>(
+      `/api/portfolio/external-costs/project-vendor-matrix${externalCostQs(params)}`,
+    ),
+};
+
+// ---------------------------------------------------------------------------
 // === v5 Cluster F — Charging & Allocations API (F4 / F5)
 // === Backed by /api/charging (read) + /api/admin (write/admin)
 // ---------------------------------------------------------------------------

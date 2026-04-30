@@ -12,6 +12,12 @@
  *
  * For internal services with `to_business_pct === 0` the tab automatically
  * falls back to the Distribution editor (already entity-keyed).
+ *
+ * v5 Wave 5 F7 [E-11]: the tab now accepts an alternative `entityId` prop
+ * for the Run-portfolio drill-down on Offerings + InternalServices. When
+ * `entityId` is provided the tab fetches the entity directly via
+ * `chargingApi.getEntity(id)` instead of the project-keyed lookup. Exactly
+ * one of `projectId` / `entityId` should be supplied.
  */
 import { useEffect, useState } from 'react';
 import {
@@ -41,10 +47,18 @@ import type {
 } from '@/types/api';
 
 interface Props {
-  projectId: string;
+  /** Project entry-point — resolves the linked ChargeableEntity by project id. */
+  projectId?: string;
+  /**
+   * Entity entry-point (Wave 5 F7 [E-11]) — resolves the ChargeableEntity
+   * directly by id. Used for the Run-portfolio drill-down on Offerings and
+   * InternalServices, which do not have a backing project. Exactly one of
+   * `projectId` or `entityId` should be provided.
+   */
+  entityId?: string;
 }
 
-export function WorkbenchBTCTab({ projectId }: Props) {
+export function WorkbenchBTCTab({ projectId, entityId }: Props) {
   const [entity, setEntity] = useState<ChargeableEntityItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,8 +69,12 @@ export function WorkbenchBTCTab({ projectId }: Props) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    chargingApi
-      .getEntityByProjectId(projectId)
+    const promise = entityId
+      ? chargingApi.getEntity(entityId)
+      : projectId
+        ? chargingApi.getEntityByProjectId(projectId)
+        : Promise.reject(new Error('Either projectId or entityId is required'));
+    promise
       .then((ent) => {
         if (!cancelled) setEntity(ent);
       })
@@ -75,7 +93,7 @@ export function WorkbenchBTCTab({ projectId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, entityId]);
 
   if (loading) {
     return (

@@ -25,6 +25,8 @@ import { cn } from '@/lib/utils';
 import { DashboardTab } from './dashboard/DashboardTab';
 import { ApprovalsTab } from './approvals/ApprovalsTab';
 import { RunPortfolioTab } from './run/RunPortfolioTab';
+// === v5 Wave 5 E5 — Portfolio external spend tab [E-08c..d] ===
+import { ExternalSpendTab } from './external-spend/ExternalSpendTab';
 
 type SubModule = 'change' | 'run';
 
@@ -43,6 +45,7 @@ function persistSubModule(value: SubModule) {
 
 function getTabFromPath(pathname: string): string {
   if (pathname.startsWith('/portfolio/approvals')) return 'approvals';
+  if (pathname.startsWith('/portfolio/external-spend')) return 'external-spend';
   return 'dashboard';
 }
 
@@ -51,7 +54,8 @@ function getSubModuleFromPath(pathname: string): SubModule | null {
   if (
     pathname === '/portfolio' ||
     pathname.startsWith('/portfolio/dashboard') ||
-    pathname.startsWith('/portfolio/approvals')
+    pathname.startsWith('/portfolio/approvals') ||
+    pathname.startsWith('/portfolio/external-spend')
   ) {
     return 'change';
   }
@@ -152,6 +156,8 @@ export function PortfolioOverview() {
           <TabsList>
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             {showApprovals && <TabsTrigger value="approvals">CR Approvals</TabsTrigger>}
+            {/* E5: external spend tab visible to all roles in the Change sub-module */}
+            <TabsTrigger value="external-spend">External Spend</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="mt-4">
@@ -163,6 +169,10 @@ export function PortfolioOverview() {
               <ApprovalsTab />
             </TabsContent>
           )}
+
+          <TabsContent value="external-spend" className="mt-4">
+            <ExternalSpendTab />
+          </TabsContent>
         </Tabs>
       ) : (
         <RunPortfolioTab />

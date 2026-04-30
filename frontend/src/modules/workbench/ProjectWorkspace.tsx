@@ -6,6 +6,8 @@ import { OverviewTab } from './overview/OverviewTab';
 import { ChangeHistoryTab } from './history/ChangeHistoryTab';
 import { ForecastTab } from './forecast/ForecastTab';
 import { WorkbenchBTCTab } from './btc/WorkbenchBTCTab';
+// === v5 Wave 5 E5 — External costs Workbench tab [E-08a..b] ===
+import { ExternalCostsTab } from './external-costs/ExternalCostsTab';
 import { chargingApi, portfolioApi } from '@/api/endpoints';
 import { Edit2, Eye } from 'lucide-react';
 import type { ChargeableEntityItem } from '@/types/api';
@@ -94,6 +96,8 @@ export function ProjectWorkspace({ projectId, role, status }: Props) {
                 : 'Distribution'}
             </TabsTrigger>
           )}
+          {/* E5: external costs tab sits between BTC and history */}
+          <TabsTrigger value="external-costs">External Costs</TabsTrigger>
           <TabsTrigger value="history">Change History</TabsTrigger>
         </TabsList>
 
@@ -117,6 +121,10 @@ export function ProjectWorkspace({ projectId, role, status }: Props) {
             <WorkbenchBTCTab projectId={projectId} />
           </TabsContent>
         )}
+
+        <TabsContent value="external-costs" className="mt-4 min-w-0">
+          <ExternalCostsTab projectId={projectId} />
+        </TabsContent>
 
         <TabsContent value="history" className="mt-4">
           <ChangeHistoryTab projectId={projectId} />
