@@ -10,7 +10,6 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -33,6 +32,13 @@ interface Props {
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Callback invoked when the user clicks a category bar — receives the
+   * change category. Parent (ProjectWorkspace via OverviewTab) is
+   * responsible for switching to the Change History tab. The dialog
+   * closes itself before invoking the callback.
+   */
+  onNavigateToChangeHistory?: (category: string) => void;
 }
 
 interface CategoryGroup {
@@ -85,8 +91,8 @@ export function VarianceWaterfallDialog({
   projectId,
   open,
   onOpenChange,
+  onNavigateToChangeHistory,
 }: Props) {
-  const navigate = useNavigate();
   const [overview, setOverview] = useState<ProjectOverview | null>(null);
   const [crs, setCrs] = useState<CRHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -165,13 +171,11 @@ export function VarianceWaterfallDialog({
   const handleBarClick = (stepId: string) => {
     if (stepId === 'baseline' || stepId === 'forecast') return;
     if (stepId === 'residual') return;
-    // category:<key> — navigate to change history with category filter
+    // category:<key> — close dialog and ask parent to switch to history.
     if (stepId.startsWith('category:')) {
       const category = stepId.slice('category:'.length);
       onOpenChange(false);
-      navigate(
-        `/workbench?project=${encodeURIComponent(projectId)}&tab=history&category=${encodeURIComponent(category)}`,
-      );
+      onNavigateToChangeHistory?.(category);
     }
   };
 

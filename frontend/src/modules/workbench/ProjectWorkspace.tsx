@@ -103,6 +103,8 @@ export function ProjectWorkspace({ projectId, role, status }: Props) {
             onOpenBTCTab={
               entity ? () => setActiveTab('btc') : undefined
             }
+            onOpenForecastTab={() => setActiveTab('forecast')}
+            onOpenChangeHistory={() => setActiveTab('history')}
           />
         </TabsContent>
 
