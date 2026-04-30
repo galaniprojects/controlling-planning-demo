@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
+import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useRole } from '@/contexts/RoleContext';
 import { workbenchApi } from '@/api/endpoints';
@@ -72,12 +73,11 @@ export function ProjectWorkbench() {
 
   return (
     <div className="px-6 py-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-foreground">
-          Project Workbench
-        </h1>
-        <ModuleGuideButton moduleId="project_workbench" />
-      </div>
+      <ModuleHeader
+        title="Project Workbench"
+        actions={<ModuleGuideButton moduleId="project_workbench" />}
+      />
+
 
       {isEntityMode && entityIdParam ? (
         // F7 [E-11]: entity-only workspace for Offerings + InternalServices.

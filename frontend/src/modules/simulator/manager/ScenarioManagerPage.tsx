@@ -17,6 +17,7 @@ import { GitCompare, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
+import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { useRole } from '@/contexts/RoleContext';
 import type { ScenarioListItem, ScenarioListResponse } from '@/types/api';
 import { scenariosApi } from '../api/scenariosApi';
@@ -196,28 +197,28 @@ export function ScenarioManagerPage() {
 
   return (
     <div className="px-6 py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">
-          What-If Simulator
-        </h1>
-        <div className="flex items-center gap-2">
-          <ModuleGuideButton moduleId="whatif_simulator" />
-          <Button variant="outline" size="sm" onClick={handleCompare}>
-            <GitCompare className="h-4 w-4 mr-1.5" />
-            Compare Scenarios
-          </Button>
-          <ArchivedToggle
-            showArchived={showArchived}
-            onToggle={setShowArchived}
-          />
-          {canCreate && (
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-1.5" />
-              Create New Scenario
+      <ModuleHeader
+        title="What-If Simulator"
+        actions={
+          <>
+            <ModuleGuideButton moduleId="whatif_simulator" />
+            <Button variant="outline" size="sm" onClick={handleCompare}>
+              <GitCompare className="h-4 w-4 mr-1.5" />
+              Compare Scenarios
             </Button>
-          )}
-        </div>
-      </div>
+            <ArchivedToggle
+              showArchived={showArchived}
+              onToggle={setShowArchived}
+            />
+            {canCreate && (
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4 mr-1.5" />
+                Create New Scenario
+              </Button>
+            )}
+          </>
+        }
+      />
 
       <TagFilterBar
         availableTags={response?.available_tags ?? []}

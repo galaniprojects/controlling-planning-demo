@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { useRole } from '@/contexts/RoleContext';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
+import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { SummaryCard } from '@/modules/capacity/shared/SummaryCard';
 import { adminApi } from '@/api/endpoints';
@@ -180,22 +181,23 @@ export function Administration() {
 
   return (
     <div className="px-6 py-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Administration</h1>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-900/20"
-            onClick={() => setResetOpen(true)}
-          >
-            <RotateCcw className="h-4 w-4 mr-1.5" />
-            Reset Demo
-          </Button>
-          <ModuleGuideButton moduleId="administration" />
-        </div>
-      </div>
+      <ModuleHeader
+        title="Administration"
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-900/20"
+              onClick={() => setResetOpen(true)}
+            >
+              <RotateCcw className="h-4 w-4 mr-1.5" />
+              Reset Demo
+            </Button>
+            <ModuleGuideButton moduleId="administration" />
+          </>
+        }
+      />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-5 gap-3">

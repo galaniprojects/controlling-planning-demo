@@ -5,6 +5,7 @@ import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
+import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useRole } from '@/contexts/RoleContext';
 import { capacityApi, referenceApi } from '@/api/endpoints';
@@ -154,10 +155,10 @@ export function CapacityManagement() {
 
   return (
     <div className="px-6 py-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-foreground">Capacity Management</h1>
-        <ModuleGuideButton moduleId="capacity_management" />
-      </div>
+      <ModuleHeader
+        title="Capacity Management"
+        actions={<ModuleGuideButton moduleId="capacity_management" />}
+      />
 
       <Routes>
         <Route index element={<CapacityTabs capContext={capContext} />} />

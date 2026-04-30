@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { OverviewTab } from './tabs/OverviewTab';
 import { ModulesTab } from './tabs/ModulesTab';
 import { ApiReferenceTab } from './tabs/ApiReferenceTab';
@@ -11,9 +12,7 @@ export function DocumentationHub() {
 
   return (
     <div className="px-6 py-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Documentation</h1>
-      </div>
+      <ModuleHeader title="Documentation" />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
