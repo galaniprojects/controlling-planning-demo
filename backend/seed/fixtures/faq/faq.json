@@ -305,5 +305,244 @@
       {"step_number": 3, "instruction": "The system generates a CSV file with metadata comment rows (report name, export date, user, filters), column headers, data rows with subtotals and grand totals. Cross-tabulated reports are flattened into columns named by dimension value and measure."},
       {"step_number": 4, "instruction": "The file downloads automatically with the naming pattern **{app_name}_ReportBuilder_[Name]_[Date].csv**. The CSV includes a UTF-8 BOM for correct Excel compatibility."}
     ]
+  },
+  {
+    "id": "faq-v5-01",
+    "question": "How does a project move through the DoI lifecycle (0→5)?",
+    "summary": "DoI is the Degree of Implementation (0–5) tied to pipeline stage. Projects advance through controller-driven gates: 0 Proposed → 1 Under Evaluation early → 2 Under Evaluation late → 3 Approved/Active → 4 Hyper-maintenance → 5 Operate.",
+    "applicable_roles": ["controller", "project_lead", "executive"],
+    "modules_involved": ["portfolio", "backlog", "workbench"],
+    "steps": [
+      {"step_number": 1, "instruction": "**DoI 0 — Proposed**: PL submits a new project from the Backlog page (`+ New`). Lightweight metadata only; appears unranked at the bottom of the list.", "target_module": "backlog"},
+      {"step_number": 2, "instruction": "**DoI 0 → 1**: Controller opens the Backlog detail, marks AI Council approved (if AI-related), then clicks **Advance to DoI 1** on the Scores & Ranking tab."},
+      {"step_number": 3, "instruction": "**DoI 1 → 2**: PL completes Tech Navigator scoring and the business case; controller verifies the Master Data tab is all green-checked and clicks **Advance to DoI 2**."},
+      {"step_number": 4, "instruction": "**DoI 2 → 3 (Pitch Board)**: Controller clicks **Approve at Pitch Board** → confirms locking the baseline. Project becomes Approved/Active. The first ForecastVersion is captured."},
+      {"step_number": 5, "instruction": "**DoI 3 → Active stage**: Controller clicks **Mark Active** in the Workbench Overview header (label-only transition; DoI stays 3)."},
+      {"step_number": 6, "instruction": "**DoI 3 → 4 → 5**: Post-launch the project moves to Hyper-maintenance (DoI 4) then to Operate (DoI 5). DoI 5 entities leave the Backlog and join the Run Portfolio with `is_change_or_run='Run'`."},
+      {"step_number": 7, "instruction": "**Off-path**: Pause / Cancel freezes DoI in `frozen_doi`. The project stays visible but is excluded from cutoff calculations."},
+      {"step_number": 8, "instruction": "See also: workflow W02.1–W02.8 in `docs/workflows/02-project-lifecycle.md` and W11.3 for the Backlog cutoff line."}
+    ]
+  },
+  {
+    "id": "faq-v5-02",
+    "question": "How do I score a project's Tech Navigator profile?",
+    "summary": "Open the project's Backlog detail, Scores & Ranking tab. Pick Project Type and Transformation Level, then score 3 Complexity sub-criteria (Standardization 40% / Usage 40% / Maintenance 20%) and 3 Value Creation sub-criteria (Financial 50% / Payback 40% / Competitive 10%) on a 1–5 scale.",
+    "applicable_roles": ["project_lead", "controller"],
+    "modules_involved": ["backlog"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to `/backlog/<project-id>` and open the **Scores & Ranking** tab.", "target_module": "backlog"},
+      {"step_number": 2, "instruction": "Pick **Project Type** (1 / 2 / 3). Type 3 (Legal / compliance / security / lifecycle) is exempt from the cutoff line."},
+      {"step_number": 3, "instruction": "Pick **Transformation level** (T0 just better / T1 paper to software / T2 new business). Categorical decorator only — does NOT factor into the composite score."},
+      {"step_number": 4, "instruction": "Score the 3 Complexity sub-criteria: **Standardization** (40%), **Usage** (40%), **Maintenance & support** (20%) on a 1–5 scale. Convention: a HIGHER Complexity score means LOWER real-world complexity."},
+      {"step_number": 5, "instruction": "Score the 3 Value Creation sub-criteria: **Financial benefit** (50%), **Payback** (40%), **Competitive advantage** (10%) on a 1–5 scale."},
+      {"step_number": 6, "instruction": "Each click saves immediately. The Composite (Value × 0.7 + Complexity × 0.3 by default) recomputes inline; the Backlog re-ranks accordingly."},
+      {"step_number": 7, "instruction": "See also: workflow W11.1 in `docs/workflows/11-tech-navigator-and-backlog.md` for the deep dive, and W11.2 for adjusting the ranking weights."}
+    ]
+  },
+  {
+    "id": "faq-v5-03",
+    "question": "What's the difference between Change Portfolio and Run Portfolio?",
+    "summary": "Change Portfolio = projects in motion (DoI 0–4). Run Portfolio = steady-state operations (DoI 5 + Offerings + Internal Services). The split is computed from `ChargeableEntity.is_change_or_run` and drives the Portfolio Overview view filter and many Reporting dimensions.",
+    "applicable_roles": ["controller", "executive", "project_lead", "cost_center_owner"],
+    "modules_involved": ["portfolio", "charging", "reporting"],
+    "steps": [
+      {"step_number": 1, "instruction": "**Change** = projects at DoI 0–4: Proposed, Under Evaluation, Approved, Active, Hyper-maintenance. Tracked in the Backlog and Project Workbench.", "target_module": "backlog"},
+      {"step_number": 2, "instruction": "**Run** = DoI 5 (Operate) projects + all Offerings + all Internal Services. Managed in Charging & Allocations for cost flows and BTC rather than in the Backlog ranker.", "target_module": "charging"},
+      {"step_number": 3, "instruction": "The flag is **computed**, not stored: ChargeableEntity.is_change_or_run is a Python property derived from `entity_type` + `doi`. Project DoI 0–4 = Change; DoI 5 / Offering / InternalService = Run."},
+      {"step_number": 4, "instruction": "Switch between the two portfolios in Portfolio Overview using the view selector (Run Portfolio shows DoI 5 chargeable entities)."},
+      {"step_number": 5, "instruction": "Reporting dimension `change_or_run` is exposed in the Report Builder catalog and the AI Report Builder for split queries."},
+      {"step_number": 6, "instruction": "See also: workflow W02.8 in `docs/workflows/02-project-lifecycle.md` for the DoI 4→5 transition."}
+    ]
+  },
+  {
+    "id": "faq-v5-04",
+    "question": "How do I edit a Stage 1 distribution edge?",
+    "summary": "From `/charging?section=distribution`, pick a row and click the pencil to open the per-entity editor. Edit the percentage inline or add a new destination via the Add destination dialog. Sum-rule per [F-S1-02]: to_business + Σ(edges) ≤ 100.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["charging"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to `/charging?section=distribution`. The list shows every Stage 1 edge for the selected (year, version), defaulting to (2026, forecast).", "target_module": "charging"},
+      {"step_number": 2, "instruction": "Use the filter bar to narrow by year, version, source type (Project / Offering / Internal Service), or by free-text search."},
+      {"step_number": 3, "instruction": "Click the **pencil** icon on any row → the EntityDistributionEditor opens scoped to the source entity. Three columns at the top: To-Business %, Distributed Σ, Self-retained (derived)."},
+      {"step_number": 4, "instruction": "Edit: change the To-Business % input and click Save; or click the save icon on an outgoing edge to enter inline edit. The Self-retained number recomputes per `100 − to_business − Σ edges`."},
+      {"step_number": 5, "instruction": "Add: click **Add destination** → modal with destination type filter, search, percentage input, and a live headroom indicator. Sum-rule violation is blocked client-side; cycles are blocked server-side per [F-S1-05]."},
+      {"step_number": 6, "instruction": "All saves are audited in Administration → Audit Log under category `master_data`."},
+      {"step_number": 7, "instruction": "See also: workflow W07.2 + W07.3 in `docs/workflows/07-charging.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-05",
+    "question": "How is a BTC profile's automatic mode different from manual?",
+    "summary": "Manual: controller authors lines by hand and the editor enforces sum-to-100. Automatic: profile snapshots from the User Measurement (UM) matrix for a chosen S-code. Lines are read-only in automatic; switch to manual to override.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["charging"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to `/charging?section=btc` and click **+ New profile**.", "target_module": "charging"},
+      {"step_number": 2, "instruction": "**Manual tab** → pick year + target entity → Create. The editor opens blank; click **+ Add line**, pick a charging location, enter a percentage. Save is gated until Σ = 100% (tolerance ±0.01)."},
+      {"step_number": 3, "instruction": "**Automatic (UM) tab** → enter the S-code (e.g. S042 for Master Data Hub) → Create. The editor opens populated with normalised UM values; lines are read-only."},
+      {"step_number": 4, "instruction": "Automatic profiles get two extra header buttons: **Refresh from UM** (re-snapshots the matrix with a dry-run diff preview) and **Switch to manual** (inherits the snapshot verbatim, unlocking line edits)."},
+      {"step_number": 5, "instruction": "Use manual when the BTC mix doesn't follow UM (e.g., a deal-specific carve-out). Use automatic for the standard production case where measurement data drives allocation."},
+      {"step_number": 6, "instruction": "See also: workflows W07.4 (manual) and W07.5 (automatic) in `docs/workflows/07-charging.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-06",
+    "question": "What happens when I 'Refresh from UM' on a BTC profile?",
+    "summary": "Re-snapshots the UM matrix into the profile with a dry-run diff preview (Added / Removed / Changed) before commit. Updates `um_snapshot_at` and rewrites `BTCProfileLine` rows; invalidates RollupCache for the entity's stage2 entries.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["charging"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open an automatic BTC profile (Charging → BTC Profiles → pencil on an `automatic` row).", "target_module": "charging"},
+      {"step_number": 2, "instruction": "Click **Refresh from UM** in the editor header. The system runs a dry-run against the current UM matrix for the profile's S-code."},
+      {"step_number": 3, "instruction": "A diff dialog appears with three sections: **Added** (new charging locations, emerald), **Removed** (red), **Changed** (amber — old % → new %). 'No differences' message if the snapshot already matches."},
+      {"step_number": 4, "instruction": "Click **Apply changes** to commit; the editor refetches and the lines table reflects the diff. Click Cancel to abandon."},
+      {"step_number": 5, "instruction": "Effects: `BTCProfile.um_snapshot_at` updates to now; `BTCProfileLine` rows rewritten; RollupCache stage2 entries for the entity invalidated; `audit_log` row in `master_data`."},
+      {"step_number": 6, "instruction": "Note: in scenario sandbox mode (Lever 12), the Refresh from UM button is hidden by design — UM is a canonical-only operation."},
+      {"step_number": 7, "instruction": "See also: workflow W07.7 in `docs/workflows/07-charging.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-07",
+    "question": "How do I do a year-rollover on BTC profiles?",
+    "summary": "Use the **Copy from…** tab in the New BTC profile dialog. Pick a source profile (any year) and a target year + entity; lines copy verbatim, mode is preserved, lineage is tracked via `copied_from_profile_id`. For a portfolio-wide roll, call POST `/api/admin/btc-profiles/year-rollover`.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["charging"],
+    "steps": [
+      {"step_number": 1, "instruction": "**Single profile**: from `/charging?section=btc`, click **+ New profile** → switch to **Copy from…** tab.", "target_module": "charging"},
+      {"step_number": 2, "instruction": "Pick year (target year, e.g. 2027), pick the target entity (must not yet have a 2027 profile), then search and pick the source profile in the dropdown."},
+      {"step_number": 3, "instruction": "Click **Create profile**. The new 2027 profile opens in `draft` status with all source lines populated. `copied_from_profile_id` lineage is recorded."},
+      {"step_number": 4, "instruction": "Mode is preserved: manual sources copy as manual; automatic sources copy as automatic with the same S-code."},
+      {"step_number": 5, "instruction": "**Bulk roll** for the whole portfolio: POST `/api/admin/btc-profiles/year-rollover` with `{source_year: 2026, target_year: 2027}`. v5 has no UI button for this; trigger via Swagger/curl/services call."},
+      {"step_number": 6, "instruction": "After rollover the 2027 rows have status `draft`. Edit and switch to `active` per profile to publish them."},
+      {"step_number": 7, "instruction": "See also: workflow W07.6 in `docs/workflows/07-charging.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-08",
+    "question": "What is Lever 12 and how do I use it?",
+    "summary": "Lever 12 (BTC profile shift) and Lever 10 (Stage 1 distribution edge) are the simulator's cost-allocation sandboxes per [B-LV-12]. Edits never touch canonical state — they're stored as scenario-version Distribution rows + ScenarioAction overlays — and only Promote materialises them.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["simulator", "charging"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open or create a scenario in `/simulator`. The seeded **MDH BTC Rebalance — DE/PL/CZ** is the canonical lever-12 demo.", "target_module": "simulator"},
+      {"step_number": 2, "instruction": "In the workspace, expand **Bulk Actions** in the left rail → click **Cost Allocation Sandbox**."},
+      {"step_number": 3, "instruction": "The sandbox surface mounts the Charging editors in sandbox mode: Distribution edges and BTC profile lines are editable, but UM refresh and mode-switch buttons are hidden (canonical-only operations)."},
+      {"step_number": 4, "instruction": "Edit BTC lines (Lever 11) or Distribution edges (Lever 10). Storage: Stage 1 forks into `Distribution.version='scenario-{id}'` rows; Stage 2 lives as `ScenarioAction` overlays on the scenario."},
+      {"step_number": 5, "instruction": "Click **Recalculate** to populate the impact dashboard. The Cost Allocation dimension tile shows headline numbers (e.g. '€228k of annual Stage-2 charge rebalanced')."},
+      {"step_number": 6, "instruction": "Promote: ⋯ menu → **Promote**. Permission per [F-AC-01]: controllers always allowed; other roles need an explicit RolePermissionGrant for `entity_type='btc_profile'` or `'distribution'`. Promotion materialises overlays onto canonical rows and creates a `ScenarioPromotion` audit row."},
+      {"step_number": 7, "instruction": "See also: workflow W06.5 in `docs/workflows/06-simulator.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-09",
+    "question": "How do I promote a scenario to the live forecast?",
+    "summary": "Open the scenario, click ⋯ → Promote. The system materialises all promotable actions onto canonical state (forecast cells for Tier 1/2, BTC/Distribution for Tier 3). Permission grants per [F-AC-01]; audit row in `simulator` category.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["simulator"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open the scenario workspace in `/simulator/scenarios/{id}`. Verify the action list is finalised — Promote consumes the current state.", "target_module": "simulator"},
+      {"step_number": 2, "instruction": "Click ⋯ in the page header → **Promote**. A confirmation modal opens summarising what will be materialised."},
+      {"step_number": 3, "instruction": "Permission check: Tier 3 actions (Lever 10 / 11) require `tier3_flag=true` on the user AND a `RolePermissionGrant` for the entity_type. Controllers default-have these; other roles see 'Insufficient permissions'."},
+      {"step_number": 4, "instruction": "Click **Confirm & promote**. The system applies actions one-by-one and records a `ScenarioPromotion` row with `routing_summary_json` listing the result of each (status, message, target_id)."},
+      {"step_number": 5, "instruction": "Partial promote: when only some actions match the user's grants, only those are promoted; the rest remain in the scenario. The toast reports `Promoted X actions, skipped Y`."},
+      {"step_number": 6, "instruction": "Verification: navigate to the affected canonical surface (e.g. `/charging?section=btc` for BTC profile changes) and confirm the live values now reflect the promoted shift. RollupCache for the affected (entity, year) is invalidated."},
+      {"step_number": 7, "instruction": "See also: workflow W06.5 step 7–9 in `docs/workflows/06-simulator.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-10",
+    "question": "What does 'Apply to forecast' do as a Project Lead?",
+    "summary": "Pre-populates your next forecast cycle submission with diffs from a published scenario that touches your projects. Cells beyond the granularity boundary are flagged `is_provisional=true`; you still drive the cycle submission yourself.",
+    "applicable_roles": ["project_lead"],
+    "modules_involved": ["simulator", "workbench"],
+    "steps": [
+      {"step_number": 1, "instruction": "From `/simulator`, locate a published scenario whose tags or description suggest it touches your projects (e.g. 'Budget Pressure: 15% Reduction').", "target_module": "simulator"},
+      {"step_number": 2, "instruction": "Click the scenario row. The workspace opens in **read-only** mode (PLs cannot edit non-owned scenarios)."},
+      {"step_number": 3, "instruction": "Click **Apply to forecast** in the page header. A modal lists the projects you own that the scenario touches."},
+      {"step_number": 4, "instruction": "Click **Confirm apply**. A `ScenarioApplyToForecastEvent` audit row is created. The diffs are pre-loaded onto your next forecast cycle for those projects."},
+      {"step_number": 5, "instruction": "Affected `Forecast` rows beyond the granularity boundary get `is_provisional=true` per [B-OQ-02]; the Workbench grid shows a 'Provisional' badge on those cells."},
+      {"step_number": 6, "instruction": "You still drive the forecast cycle submission afterwards (Rolling Forecast Review → 5-phase wizard). Apply-to-forecast does not auto-submit."},
+      {"step_number": 7, "instruction": "See also: workflow W06.6 in `docs/workflows/06-simulator.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-11",
+    "question": "How do I edit a workflow template's step deadlines?",
+    "summary": "Administration → Workflow Templates → pick a template tab → click the step header to expand → change Time constraint (days) → Save. Step sequence is fixed; only touchpoints (required, role, gates, notifications, time, escalation) are editable.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["administration"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to `/admin?section=workflow_templates`.", "target_module": "administration"},
+      {"step_number": 2, "instruction": "Six template tabs: Forecast Cycle (5 steps), Intake / Pipeline Progression (5), Change Request (4), Send Back (3), Milestone Baseline Override (3), Scheduled Master Data Activation (3). Click the relevant tab."},
+      {"step_number": 3, "instruction": "Each step is a collapsible card. Click the step header to expand the edit panel."},
+      {"step_number": 4, "instruction": "In the expand panel, change **Time constraint (days)** input to the desired value (e.g. 7 instead of 10). Other touchpoints in the same panel: Required, Skippable, Assigned role, Data gates (CSV), Notifications (JSON), Escalation action."},
+      {"step_number": 5, "instruction": "An **Unsaved** badge appears on the step header when fields differ from the persisted state. Click **Save** at the bottom of the expand panel."},
+      {"step_number": 6, "instruction": "Effects: `WorkflowStep.time_constraint_days` updated; `audit_log` row in `configuration` category."},
+      {"step_number": 7, "instruction": "Note: v5 ships templates as configurable data only. Live workflow execution wiring (enforcing the gates at runtime) is a follow-on session. See also: workflow W10.5 in `docs/workflows/10-administration.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-12",
+    "question": "What is a Scheduled Change and how does activation work?",
+    "summary": "Future-dated master-data or planning-parameter change with a 5-state lifecycle: pending_review → approved → activated (or rejected / cancelled). Activation runs via the manual **Apply due changes** button or a daily job. Only `planning_parameter` activation is wired through to the live entity in v5.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["administration"],
+    "steps": [
+      {"step_number": 1, "instruction": "**Create** (no UI in v5; use the API): `POST /api/admin/scheduled-changes` with `{entity_type, entity_id, description, pending_values, activation_date}`. activation_date must be today-or-future.", "target_module": "administration"},
+      {"step_number": 2, "instruction": "**Review**: navigate to `/admin?section=scheduled_changes`. Filter by status. For pending_review rows, click **Approve** (with optional comments) or **Reject** (with required reason)."},
+      {"step_number": 3, "instruction": "Approved rows wait until their `activation_date` passes. Cancel is still possible until activation. Rejected rows are terminal."},
+      {"step_number": 4, "instruction": "**Activate**: click **Apply due changes** in the panel header. The activation engine scans approved changes whose date has passed and applies each."},
+      {"step_number": 5, "instruction": "v5 only fully wires `planning_parameter` activation. Other entity types (`person`, `cost_center`, etc.) record the activation as a no-op until production handlers are added in `services/scheduled_change_activation.APPLY_HANDLERS`."},
+      {"step_number": 6, "instruction": "All four lifecycle transitions (review, activate, reject, cancel) emit `audit_log` rows under category `scheduled_change_lifecycle` (and additionally `master_data` for the activation effect)."},
+      {"step_number": 7, "instruction": "See also: workflow W10.6 in `docs/workflows/10-administration.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-13",
+    "question": "How do I import a UM matrix CSV?",
+    "summary": "Administration → User Measurement → click **Upload CSV**. Columns: year, quarter, s_code, charging_location_code, value. Imports are append-only and versioned by import timestamp; switch the version selector to view a specific snapshot.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["administration"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to `/admin?section=user_measurement`.", "target_module": "administration"},
+      {"step_number": 2, "instruction": "Pick a year + quarter in the period selector. Inspect the current matrix; the version selector defaults to **Latest import**."},
+      {"step_number": 3, "instruction": "Click **Upload CSV** and pick a file. CSV columns: `year`, `quarter`, `s_code`, `charging_location_code`, `value`. UTF-8 encoding."},
+      {"step_number": 4, "instruction": "After upload, a confirmation dialog shows: cells inserted, errors per row (if any), and the new version's import timestamp."},
+      {"step_number": 5, "instruction": "The new snapshot appears in the version selector. Pick it to view; stay on **Latest import** to keep the freshest pointer for downstream automatic profile refresh."},
+      {"step_number": 6, "instruction": "Imports are append-only — no overwrite. To rebuild from scratch, re-seed the demo via `POST /api/admin/reset-demo`."},
+      {"step_number": 7, "instruction": "Automatic BTC profiles using the affected S-code can now be refreshed via Charging → BTC → pencil → **Refresh from UM**. See also: workflow W07.7 in `docs/workflows/07-charging.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-14",
+    "question": "How does Tier 3 scenario gating work?",
+    "summary": "Scenarios containing Lever 10 or Lever 11 actions auto-set `tier3_content_flag=true`. Publish requires `tier3_flag` on the user; promote additionally requires a `RolePermissionGrant` for the entity type. Visibility levels: private / tier3_only / all_users.",
+    "applicable_roles": ["controller", "executive"],
+    "modules_involved": ["simulator", "administration"],
+    "steps": [
+      {"step_number": 1, "instruction": "Tier 3 content = anything in the `cost_allocation` lever_category — Stage 1 distribution edits (Lever 10) and Stage 2 BTC line edits (Lever 11). The first such action flips `tier3_content_flag=true` on the scenario.", "target_module": "simulator"},
+      {"step_number": 2, "instruction": "**Visibility levels** per [B-SL-03]: `private` (author only), `tier3_only` (Tier 3 users only), `all_users` (anyone authenticated)."},
+      {"step_number": 3, "instruction": "**Publish gating**: trying to publish a Tier 3 scenario without `tier3_flag` is blocked with 'Tier 3 publish requires elevated permissions'. Choose `tier3_only` to publish for Tier 3 users only."},
+      {"step_number": 4, "instruction": "**Promote gating**: promoting requires both `tier3_flag=true` AND a `RolePermissionGrant` row for `entity_type='btc_profile'` or `entity_type='distribution'`. Controllers default-have these grants per [F-AC-01]; other roles need explicit admin-issued grants."},
+      {"step_number": 5, "instruction": "Manage user `tier3_flag` in Administration → Users (read-only in v5; SSO integration in production). Manage grants in Administration → Role Permissions (audit category `access_control`)."},
+      {"step_number": 6, "instruction": "Example: 'MDH BTC Rebalance — DE/PL/CZ' is Tier 3. Anna Meier (controller, tier3_flag=true) can promote it. Priya (PL) can see it if it's published as `all_users` but cannot promote it."},
+      {"step_number": 7, "instruction": "See also: workflow W06.8 in `docs/workflows/06-simulator.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-15",
+    "question": "What's the cutoff line in the Backlog?",
+    "summary": "Two cutoff lines on the Backlog page: **Should-be cutoff** (rank where the contestable envelope runs out) and **Reality cutoff** (additional override decisions). Their gap is the misalignment zone — controller's primary attention surface.",
+    "applicable_roles": ["controller", "executive"],
+    "modules_involved": ["backlog"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to `/backlog`. Inspect the **Cutoff Summary Strip** at the top: 6 KPI cells separated by dividers — Budget envelope, Contestable, Should-be cutoff, Reality cutoff, Misaligned projects (when present), Horizon.", "target_module": "backlog"},
+      {"step_number": 2, "instruction": "**Budget envelope** = total available budget. **Contestable** = envelope minus Σ(Type 3 projects' budgets) — Type 3 projects are pre-funded off the top before ranking."},
+      {"step_number": 3, "instruction": "**Should-be cutoff** = the rank at which cumulative project budgets exhaust the contestable envelope. Below this rank: 'unfunded' under pure score-based ranking."},
+      {"step_number": 4, "instruction": "**Reality cutoff** = the rank reflecting controller override decisions on `within_cutoff` flags. May differ from Should-be when business reasons override pure-score ranking."},
+      {"step_number": 5, "instruction": "**Misalignment zone** = the gap between the two lines, rendered as an amber band. The KPI strip shows the count of misaligned projects."},
+      {"step_number": 6, "instruction": "**Jump buttons** next to each KPI scroll the list to the relevant rank. **Within cutoff** filter narrows to funded projects (above Reality + Type 3 pre-funded). Sort override (e.g. by Composite score descending) suppresses the cutoff bands."},
+      {"step_number": 7, "instruction": "See also: workflow W11.3 in `docs/workflows/11-tech-navigator-and-backlog.md` and `[A-BK-14..17]` decision tags."}
+    ]
   }
 ]
