@@ -7,10 +7,12 @@
  * - Each row links to the single-entity editor scoped to the source entity.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { FilterX } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/shared/EmptyState';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -219,9 +221,11 @@ export function DistributionListView() {
             <Skeleton className="h-8 w-full" />
           </div>
         ) : filteredEdges.length === 0 ? (
-          <div className="p-12 text-center text-sm text-muted-foreground">
-            No distribution edges match the current filters.
-          </div>
+          <EmptyState
+            icon={FilterX}
+            title="No distribution edges"
+            description="No edges match the current filters. Adjust the filters above or clear them to see all edges."
+          />
         ) : (
           <Table>
             <TableHeader>

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Building2, Truck, Target, CalendarRange, Sparkles, LayoutGrid, Users } from 'lucide-react';
+import { BarChart3, Building2, Truck, Target, CalendarRange, Sparkles, LayoutGrid, Users, Bookmark } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { ReportCard } from './ReportCard';
 import { SavedViewCard } from './SavedViewCard';
 import { reportsApi, reportBuilderApi } from '@/api/endpoints';
@@ -192,10 +193,13 @@ export function ReportLibrary() {
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-border bg-muted/50 p-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              No saved views yet. Open a report and click "Save View" to save your filter configuration.
-            </p>
+          <div className="rounded-lg border border-dashed border-border bg-muted/50">
+            <EmptyState
+              icon={Bookmark}
+              size="sm"
+              title="No saved views yet"
+              description='Open a report and click "Save View" to save your filter configuration.'
+            />
           </div>
         )}
       </div>

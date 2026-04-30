@@ -5,7 +5,7 @@ import { reportsApi, referenceApi, workbenchApi } from '@/api/endpoints';
 import { useActiveHierarchy, buildHierarchyFilterConfigs, getMostSpecificEntityFilter, clearLowerHierarchyFilters } from '@/hooks/useActiveHierarchy';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
-import { SummaryCard } from '@/modules/capacity/shared/SummaryCard';
+import { SummaryCard } from '@/components/shared/SummaryCard';
 import { ReportViewer } from '../viewer/ReportViewer';
 import { ProgrammeRollupChart } from './ProgrammeRollupChart';
 import { formatCurrency, formatPercent, formatCurrencyDetailed } from '@/lib/formatters';

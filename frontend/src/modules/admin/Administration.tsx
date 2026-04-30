@@ -15,7 +15,7 @@ import { useRole } from '@/contexts/RoleContext';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
 import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { SummaryCard } from '@/modules/capacity/shared/SummaryCard';
+import { SummaryCard } from '@/components/shared/SummaryCard';
 import { adminApi } from '@/api/endpoints';
 import type { AdminContext } from '@/types/api';
 import { EntitySelector } from './EntitySelector';

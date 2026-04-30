@@ -27,7 +27,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { ChevronDown, ChevronRight, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Receipt, X } from 'lucide-react';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { externalCostsApi } from '@/api/endpoints';
 import { formatCurrency, formatPercent } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
@@ -155,10 +156,12 @@ export function ExternalCostsTab({ projectId }: Props) {
 
   if (vendors.length === 0 && categories.length === 0) {
     return (
-      <Card className="p-6">
-        <p className="text-sm text-muted-foreground">
-          No external cost data recorded for this project.
-        </p>
+      <Card>
+        <EmptyState
+          icon={Receipt}
+          title="No external cost data"
+          description="No external cost data recorded for this project yet."
+        />
       </Card>
     );
   }

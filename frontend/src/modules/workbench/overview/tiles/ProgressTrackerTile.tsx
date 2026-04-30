@@ -2,65 +2,24 @@
  * Workbench Overview tile (2,3) — Progress Tracker per `[E-04b]` `[E-04c]`.
  *
  * Shows the current milestone name, an intra-milestone progress bar with
- * percentage, the most recent status narrative excerpt, and a confidence
- * indicator (diamond shape per `[E-07g]` to differentiate from RAG dots).
+ * percentage, the most recent status narrative excerpt, and the shared
+ * `ConfidenceIndicator` diamond per `[E-07g]` (extracted in E8 so all
+ * surfaces use the same shape vocabulary).
  *
  * Click target is the Progress vs. Burn dialog (`[E-05a]`).
  */
 import { useEffect, useState } from 'react';
 import { ActionCard } from '@/components/shared/ActionCard';
+import {
+  ConfidenceIndicator,
+  CONFIDENCE_LABEL,
+} from '@/components/shared/ConfidenceIndicator';
 import { progressApi } from '@/api/endpoints';
-import { cn } from '@/lib/utils';
-import type { ProgressResponse, ProgressConfidence } from '@/types/progress';
+import type { ProgressResponse } from '@/types/progress';
 
 interface Props {
   projectId: string;
   onClick: () => void;
-}
-
-const CONFIDENCE_LABEL: Record<ProgressConfidence, string> = {
-  on_track: 'On track',
-  at_risk: 'At risk',
-  blocked: 'Blocked',
-};
-
-const CONFIDENCE_COLOR: Record<ProgressConfidence, string> = {
-  on_track: 'fill-green-500 stroke-green-600',
-  at_risk: 'fill-amber-500 stroke-amber-600',
-  blocked: 'fill-red-500 stroke-red-600',
-};
-
-/**
- * Diamond confidence indicator per `[E-07g]` — distinct shape vs. RAG dots
- * to support side-by-side rendering on the Backlog and Portfolio.
- */
-function ConfidenceDiamond({
-  confidence,
-  size = 14,
-}: {
-  confidence: ProgressConfidence;
-  size?: number;
-}) {
-  // Diamond drawn as a rotated square centred on (size/2, size/2)
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = (size / 2) - 1;
-  const points = `${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`;
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      role="img"
-      aria-label={`Confidence: ${CONFIDENCE_LABEL[confidence]}`}
-      className="flex-shrink-0"
-    >
-      <polygon
-        points={points}
-        className={cn('stroke-2', CONFIDENCE_COLOR[confidence])}
-      />
-    </svg>
-  );
 }
 
 export function ProgressTrackerTile({ projectId, onClick }: Props) {
@@ -111,7 +70,7 @@ export function ProgressTrackerTile({ projectId, onClick }: Props) {
       isEmpty={!loading && !error && !hasProgress}
       emptyState="No progress reported yet for this project."
       headerRight={
-        confidence ? <ConfidenceDiamond confidence={confidence} /> : undefined
+        confidence ? <ConfidenceIndicator level={confidence} /> : undefined
       }
     >
       {hasProgress && (
@@ -161,7 +120,7 @@ export function ProgressTrackerTile({ projectId, onClick }: Props) {
           {/* Confidence + narrative */}
           {confidence && (
             <div className="flex items-center gap-2 text-xs">
-              <ConfidenceDiamond confidence={confidence} size={12} />
+              <ConfidenceIndicator level={confidence} size={12} />
               <span className="text-foreground font-medium">
                 {CONFIDENCE_LABEL[confidence]}
               </span>
