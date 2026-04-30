@@ -90,7 +90,6 @@ All admin panels (`ChargingLocationsPanel`, `LegalEntitiesPanel`, `LocationsPane
 ### Known follow-ups
 
 - Long-tail empty-state surfaces (chart-level "no data", in-card nulls) still ad-hoc — adoption can be incremental.
-- `frontend/src/modules/admin/shared/LocationLabel.tsx` left as a re-export shim; can be deleted once all callers (currently zero remaining direct imports outside the admin module) are confirmed migrated.
 - `frontend/src/modules/workbench/ProjectListPanel.tsx` deliberately renders its own multi-line items rather than `LeftRailNav` — extending the shared component to support multi-line items is a future refactor.
 
 ## v5 Session E3 + E4 — T2 Workbench Overview tile grid + Progress vs. Burn / Variance Waterfall (2026-04-30)
