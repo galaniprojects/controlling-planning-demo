@@ -28,7 +28,19 @@
     },
     {
       "title": "Saving Views",
-      "body": "Click **Save View** to save your current filter and customization settings as a named view. Saved views appear in the Report Library under **My Saved Views** for quick access. You can rename or delete saved views from the library."
+      "body": "Click **Save View** to save your current filter and customization settings as a named view. Saved views appear in the Report Library under **My Saved Views** for quick access. You can rename or delete saved views from the library. Saved views are scoped to the standard report they were captured from — switching to a different standard report shows that report's saved views only."
+    },
+    {
+      "title": "Saved Views & Custom Reports (v5)",
+      "body": "The Report Library distinguishes two persistence stores under **My Saved Views**: a **SavedView** is a filter+customisation snapshot of a standard report; a **SavedReport** is a full Report Builder composition (rows, columns, filters, values, calculated measures, conditional formatting, view mode). Custom reports show a **Custom** badge to differentiate. Loading a custom report restores every zone and re-runs the query automatically. Sharing applies to custom reports only — see Sharing & Publishing Reports."
+    },
+    {
+      "title": "v5 measures (Cluster F)",
+      "body": "Two v5 measures are reachable through the AI Report Builder catalog and (for the standard Report Builder, in a follow-on) through the data layer: **BTC Allocation** (Stage 2 charge per charging location, derived from `BTCProfileLine` × entity effective cost) and **Distribution Volume** (Σ outgoing edge weight per source entity per year, derived from `Distribution`). The standard Report Builder does not yet have a native Cluster F data source — see the open note in `[F-RV-04]`. Until then, use the AI Report Builder for Cluster F questions or jump from `/charging?section=reports` (see Charging-bridge below)."
+    },
+    {
+      "title": "Charging bridge",
+      "body": "The Charging & Allocations module (`/charging?section=reports`) acts as a discoverability bridge into the AI Report Builder for Cluster F questions. Three quick-prompt buttons (Cost by division, Top inflow drivers, Regional YoY) open `/reporting/builder?prompt=<prefilled>` with the prompt seeded so the AI can answer immediately. Below the hero card, a catalogue lists the 11 Cluster F dimensions and 6 measures the data layer exposes. This is the recommended entry point until the standard Report Builder gains a native Cluster F data source."
     },
     {
       "title": "Report Builder (Build Your Own)",
