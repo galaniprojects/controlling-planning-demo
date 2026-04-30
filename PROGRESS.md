@@ -2,6 +2,10 @@
 
 ## Current Status
 
+Phase: **v5 Wave 5 complete on `v5/wave5-f7-e3-e4-e5-e6-e7-merged` (2026-04-30)**, PR [#69](https://github.com/bill-pap/vision-demo-prototype/pull/69) open. Wave 5 lands six v5 frontend sessions in one consolidated PR via the Wave-3-style 3-team parallel pattern: **T1 Portfolio** (F7 Run dashboards + drill-down → E6 project detail full-page → E5 external cost views, serial within branch), **T2 Workbench** (E3 3×3 tile grid + E4 Progress vs. Burn / Variance Waterfall combined), **T3 Launchpad** (E7 three-zone redesign + 4 role tile grids). 23 commits, 47 files (+7,011 / −518). Frontend TypeScript: **0 errors**. Backend: **1283/1283 tests passing** (no backend code touched — Wave 5 is frontend-only, all API endpoints reused from E2 / F3 already merged in Waves 3–4). Visual verification walked all 4 roles + light/dark themes; one React `key` prop warning caught and fixed in `ExternalCostsTab` (commit `916d5dd`). Run Portfolio region/country dimension panels show "Rollup unavailable" gracefully — backend `services/rollup_query.py` falls back to entity_type for those dimensions, deferred to a later session.
+
+**v5 backlog after Wave 5:** Only **E8** (cross-module visual consistency) and **S1** (full seed reconstruction) remain — both terminal single-team sessions.
+
 ## v5 Session E3 + E4 — T2 Workbench Overview tile grid + Progress vs. Burn / Variance Waterfall (2026-04-30)
 
 ### Scope
