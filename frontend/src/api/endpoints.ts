@@ -27,6 +27,8 @@ import type {
   PendingAction,
   PortfolioKPISummary,
   ModuleTile,
+  TilesResponse,
+  RoleAvailabilityResponse,
   ListResponse,
   PortfolioKPIs,
   ProjectTreeNode,
@@ -117,6 +119,8 @@ export const modulesApi = {
 export const launchpadApi = {
   getPendingActions: () =>
     api.get<ListResponse<PendingAction>>('/api/launchpad/pending-actions'),
+  // v5 E7 [E-06d-j] — role-personalised tile grid
+  getTiles: () => api.get<TilesResponse>('/api/launchpad/tiles'),
   createProject: (data: {
     name: string;
     description?: string;
@@ -576,6 +580,24 @@ export const capacityApi = {
       `/api/capacity/project-confirmation/${projectId}/decline`,
       { reason },
     ),
+
+  // v5 E7 [E-06a] — anonymised role × location availability for PL launchpad
+  getRoleAvailability: (params?: {
+    location_id?: string;
+    role_type_id?: string;
+    month_from?: string;
+    month_to?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.location_id) q.set('location_id', params.location_id);
+    if (params?.role_type_id) q.set('role_type_id', params.role_type_id);
+    if (params?.month_from) q.set('month_from', params.month_from);
+    if (params?.month_to) q.set('month_to', params.month_to);
+    const qs = q.toString();
+    return api.get<RoleAvailabilityResponse>(
+      `/api/capacity/role-availability${qs ? '?' + qs : ''}`,
+    );
+  },
 
   // Org Overview
   getOrgSummary: () => api.get<OrgSummary>('/api/capacity/org/summary'),
@@ -1305,6 +1327,53 @@ export const milestonesApi = {
 };
 
 // ---------------------------------------------------------------------------
+// === Progress Tracker (E1) [E-04c] [E-05a]
+// ---------------------------------------------------------------------------
+
+import type {
+  ProgressResponse,
+  ProgressUpdateRequest,
+  ProgressHistoryListResponse,
+  ProgressSnapshotDetail,
+  DeliverableListResponse,
+} from '@/types/progress';
+
+export const progressApi = {
+  /** GET /api/projects/{id}/progress — current live progress state. */
+  get: (projectId: string) =>
+    api.get<ProgressResponse>(`/api/projects/${projectId}/progress`),
+
+  /** PATCH /api/projects/{id}/progress — partial update (live edit). */
+  update: (projectId: string, body: ProgressUpdateRequest) =>
+    api.put<ProgressResponse>(`/api/projects/${projectId}/progress`, body),
+
+  /**
+   * GET /api/projects/{id}/progress/history — list of progress snapshots,
+   * newest first. One snapshot per forecast cycle submission.
+   */
+  getHistory: (projectId: string) =>
+    api.get<ProgressHistoryListResponse>(
+      `/api/projects/${projectId}/progress/history`,
+    ),
+
+  /** GET /api/projects/{id}/progress/history/{snapshot_id} — full snapshot. */
+  getSnapshot: (projectId: string, snapshotId: number) =>
+    api.get<ProgressSnapshotDetail>(
+      `/api/projects/${projectId}/progress/history/${snapshotId}`,
+    ),
+
+  /**
+   * GET /api/projects/{id}/milestones/{milestone_id}/checklist — deliverable
+   * checklist items for a single milestone. Useful when an external surface
+   * (e.g. the progress tracker dialog) wants the live checklist state.
+   */
+  getMilestoneChecklist: (projectId: string, milestoneId: number) =>
+    api.get<DeliverableListResponse>(
+      `/api/projects/${projectId}/milestones/${milestoneId}/checklist`,
+    ),
+};
+
+// ---------------------------------------------------------------------------
 // === Pipeline / DoI (A8) [A-PS-01..13] [A-DOI-01..11]
 // ---------------------------------------------------------------------------
 
@@ -1372,6 +1441,84 @@ export const chargeableEntitiesApi = {
 
 // Re-export run-portfolio types for downstream consumers.
 export type { ChargeableEntityItem, ChargeableEntityListResponse };
+
+// ---------------------------------------------------------------------------
+// === v5 Cluster E Session E5 — External cost views [E-08a..d] ===
+// Backed by E2's existing aggregation endpoints under
+//   /api/projects/{id}/external-costs/* and /api/portfolio/external-costs/*.
+// Owned by T1 in Wave 5; T2 / T3 do not extend this wrapper.
+// ---------------------------------------------------------------------------
+
+import type {
+  ProjectVendorSummaryResponse,
+  ProjectCategoryRollupResponse,
+  PortfolioVendorSummaryResponse,
+  PortfolioCategoryAnalysisResponse,
+  ProjectVendorMatrixResponse,
+} from '@/types/api';
+
+interface ExternalCostQuery {
+  year?: number;
+  lob?: string;
+  status?: string;
+  rag?: string;
+}
+
+function externalCostQs(params?: ExternalCostQuery): string {
+  if (!params) return '';
+  const q = new URLSearchParams();
+  if (params.year !== undefined) q.set('year', String(params.year));
+  if (params.lob) q.set('lob', params.lob);
+  if (params.status) q.set('status', params.status);
+  if (params.rag) q.set('rag', params.rag);
+  const qs = q.toString();
+  return qs ? '?' + qs : '';
+}
+
+export const externalCostsApi = {
+  /**
+   * Project-scoped vendor breakdown per [E-08a].
+   * Routes to: GET /api/workbench/projects/{id}/external-costs/vendor-summary
+   * (the project-scoped variants live under the workbench external_costs
+   *  router which mounts at /api/workbench, not /api/projects).
+   */
+  getProjectVendorSummary: (projectId: string, year?: number) =>
+    api.get<ProjectVendorSummaryResponse>(
+      `/api/workbench/projects/${encodeURIComponent(projectId)}/external-costs/vendor-summary${externalCostQs({ year })}`,
+    ),
+  /**
+   * Project-scoped category rollup per [E-08b].
+   * Routes to: GET /api/workbench/projects/{id}/external-costs/category-rollup
+   */
+  getProjectCategoryRollup: (projectId: string, year?: number) =>
+    api.get<ProjectCategoryRollupResponse>(
+      `/api/workbench/projects/${encodeURIComponent(projectId)}/external-costs/category-rollup${externalCostQs({ year })}`,
+    ),
+  /**
+   * Portfolio-scoped vendor summary per [E-08c].
+   * Routes to: GET /api/portfolio/external-costs/vendor-summary
+   */
+  getPortfolioVendorSummary: (params?: ExternalCostQuery) =>
+    api.get<PortfolioVendorSummaryResponse>(
+      `/api/portfolio/external-costs/vendor-summary${externalCostQs(params)}`,
+    ),
+  /**
+   * Portfolio-scoped category analysis per [E-08c].
+   * Routes to: GET /api/portfolio/external-costs/category-analysis
+   */
+  getPortfolioCategoryAnalysis: (params?: ExternalCostQuery) =>
+    api.get<PortfolioCategoryAnalysisResponse>(
+      `/api/portfolio/external-costs/category-analysis${externalCostQs(params)}`,
+    ),
+  /**
+   * Portfolio project × vendor cross-tab matrix per [E-08d].
+   * Routes to: GET /api/portfolio/external-costs/project-vendor-matrix
+   */
+  getPortfolioProjectVendorMatrix: (params?: ExternalCostQuery) =>
+    api.get<ProjectVendorMatrixResponse>(
+      `/api/portfolio/external-costs/project-vendor-matrix${externalCostQs(params)}`,
+    ),
+};
 
 // ---------------------------------------------------------------------------
 // === v5 Cluster F — Charging & Allocations API (F4 / F5)

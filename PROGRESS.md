@@ -1,10 +1,344 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
+
+Phase: **v5 Wave 5 complete on `v5/wave5-f7-e3-e4-e5-e6-e7-merged` (2026-04-30)**, PR [#69](https://github.com/bill-pap/vision-demo-prototype/pull/69) open. Wave 5 lands six v5 frontend sessions in one consolidated PR via the Wave-3-style 3-team parallel pattern: **T1 Portfolio** (F7 Run dashboards + drill-down → E6 project detail full-page → E5 external cost views, serial within branch), **T2 Workbench** (E3 3×3 tile grid + E4 Progress vs. Burn / Variance Waterfall combined), **T3 Launchpad** (E7 three-zone redesign + 4 role tile grids). 23 commits, 47 files (+7,011 / −518). Frontend TypeScript: **0 errors**. Backend: **1283/1283 tests passing** (no backend code touched — Wave 5 is frontend-only, all API endpoints reused from E2 / F3 already merged in Waves 3–4). Visual verification walked all 4 roles + light/dark themes; one React `key` prop warning caught and fixed in `ExternalCostsTab` (commit `916d5dd`). Run Portfolio region/country dimension panels show "Rollup unavailable" gracefully — backend `services/rollup_query.py` falls back to entity_type for those dimensions, deferred to a later session.
+
+**v5 backlog after Wave 5:** Only **E8** (cross-module visual consistency) and **S1** (full seed reconstruction) remain — both terminal single-team sessions.
+
+## v5 Session E3 + E4 — T2 Workbench Overview tile grid + Progress vs. Burn / Variance Waterfall (2026-04-30)
+
+### Scope
+T2 of the four-team Wave 5 split. Owns the **E3** Workbench Overview 3×3
+tile grid + 9 tile components + the **E4** Progress vs. Burn chart and
+Variance Waterfall chart with their expanded dialogs. Coexists with the
+F6 BTC allocation tile (rendered separately below the grid per the
+spec's E-09 + E3 coexistence note).
+
+### Frontend deliverables
+- **9 tile components** under `frontend/src/modules/workbench/overview/tiles/`
+  (Row 1: ProjectHeaderTile, ThreePointSummaryTile, MilestoneStatusTile;
+  Row 2: ResourcePlanTile, CostMixTile, ProgressTrackerTile;
+  Row 3: ExternalCostsTile, ForecastHealthTile, TechNavigatorTile)
+  + barrel `tiles/index.ts`.
+- **2 chart components** under `frontend/src/components/charts/`:
+  `ProgressVsBurnChart.tsx` (cumulative progress + burn + baseline lines
+  with milestone zone bands and solid/highlighted/dashed milestone
+  markers per `[E-05b]`; burn-only fallback per `[E-05d]`),
+  `VarianceWaterfallChart.tsx` (stacked-spacer waterfall bridging
+  baseline → grouped CR categories → current forecast with bar-click
+  navigation per `[E-05c]`).
+- **2 dialog components** under
+  `frontend/src/modules/workbench/overview/expanded/`:
+  `ProgressVsBurnDialog.tsx`, `VarianceWaterfallDialog.tsx`. Wired to
+  the Progress Tracker tile click and Three-Point Summary tile click
+  respectively.
+- **1 shared component** at `frontend/src/components/shared/ActionCard.tsx`
+  codifying the Cluster E `[E-07d]` action-card pattern (surface card +
+  hover + click affordance) with built-in loading / error / empty
+  states.
+- **Progress tracker types + API wrappers**:
+  `frontend/src/types/progress.ts` mirrors backend's
+  `schemas/workbench.py` progress models;
+  `frontend/src/api/endpoints.ts` gains a `progressApi` block exposing
+  `get / update / getHistory / getSnapshot / getMilestoneChecklist`.
+
+### OverviewTab refactor
+`frontend/src/modules/workbench/overview/OverviewTab.tsx` rewritten
+end-to-end. The v4 vertical stack (MetadataBar +
+ProjectTimelineChart + MonthlyTimelineTable + ThreePointTable +
+ProjectTrajectoryChart + 2-col CapEx/Resource + BTCAllocationTile) is
+replaced by:
+- `responsive grid (1 / 2 / 3 cols)` of the 9 new tiles per `[E-04a]`,
+- the F6 `BTCAllocationTile` rendered as a full-width band below the
+  grid (E-09 + E3 coexistence),
+- two embedded dialogs that open from the tile click handlers.
+
+The legacy components (MetadataBar, MonthlyTimelineTable,
+ProjectTimelineChart, ThreePointTable, CapexOpexDisplay,
+ResourceSummaryTable, ProjectTrajectoryChart) are intentionally kept on
+disk — they remain in use elsewhere (intake, change history) and the
+Cluster C / E specs do not call for their removal in this session.
+
+### ProjectWorkspace wiring
+`frontend/src/modules/workbench/ProjectWorkspace.tsx` adds two new
+callbacks (`onOpenForecastTab`, `onOpenChangeHistory`) so tiles can ask
+the parent to switch tabs without coupling the Overview to react-router.
+The Three-Point Summary → waterfall click route closes the dialog
+before delegating to `onNavigateToChangeHistory(category)`.
+
+### Confidence vocabulary [E-07g]
+The Progress Tracker tile renders the next-milestone confidence as a
+**diamond** (rotated square SVG) rather than a circle, distinct from
+the RAG dot vocabulary per `[E-07g]`.
+
+### Endpoint coverage
+- `workbenchApi.getOverview()` → Project Header, Three-Point Summary,
+  Cost Mix, Resource Plan, Forecast Health summary numbers.
+- `progressApi.get()` → Progress Tracker tile + Progress vs. Burn dialog
+  current state.
+- `progressApi.getHistory()` → Progress vs. Burn dialog snapshot
+  history sidebar + chart data points.
+- `milestonesApi.list()` → Milestone Status tile + Progress vs. Burn
+  zone bands.
+- `techNavigatorApi.get()` → Tech Navigator tile + Project Header
+  badges (project type, t-shirt size).
+- `backlogApi.getBacklog()` → Tech Navigator tile peer scatter.
+- `workbenchApi.listForecastVersions()` → Forecast Health tile
+  current-version metadata.
+- `workbenchApi.getForecast()` → Cost Mix tile internal/external
+  derivation.
+- `workbenchApi.getChangeRequests()` → Variance Waterfall dialog CR
+  bridge.
+- `GET /api/projects/{id}/external-costs/vendor-summary` and
+  `category-rollup` (called via `api.get` directly to avoid racing T1's
+  `externalCostsApi` wrapper) → External Costs tile.
+
+### Files added (16) / modified (4)
+- New: `frontend/src/components/shared/ActionCard.tsx`
+- New: `frontend/src/components/charts/ProgressVsBurnChart.tsx`
+- New: `frontend/src/components/charts/VarianceWaterfallChart.tsx`
+- New: `frontend/src/types/progress.ts`
+- New: `frontend/src/modules/workbench/overview/tiles/` (10 files —
+  9 tiles + index.ts)
+- New: `frontend/src/modules/workbench/overview/expanded/`
+  (2 dialogs)
+- Modified: `frontend/src/api/endpoints.ts` (+progressApi block)
+- Modified: `frontend/src/modules/workbench/overview/OverviewTab.tsx`
+  (rewrite to 3×3 grid + dialogs)
+- Modified: `frontend/src/modules/workbench/ProjectWorkspace.tsx`
+  (+onOpenForecastTab / +onOpenChangeHistory callbacks)
+
+### Verification
+- TypeScript: 82 baseline errors maintained, **zero new errors** from
+  E3 + E4 (verified via `tsc -b tsconfig.app.json --noEmit`).
+- Vite production build: clean (`vite build` succeeds; bundle
+  ~1.77 MB / 462 KB gzipped).
+- Visual verification: Playwright MCP not available in this agent
+  session — flagged for the team-lead consolidated review.
+
+### Known gaps / follow-ups
+- **T1 owns `externalCostsApi`**: ExternalCostsTile calls the vendor /
+  category endpoints via `api.get` directly. Once T1 lands the typed
+  wrapper, this tile can migrate to `externalCostsApi.getProjectVendor
+  Summary()` etc. in a one-line change.
+- **No URL-driven Change History filter**: the `/workbench` URL does
+  not yet decode `?tab=history&category=…`. The waterfall click
+  delegates to `onNavigateToChangeHistory(category)` so a future
+  session can implement deep-linking centrally without touching the
+  dialog.
+- **Demo data has no progress snapshots seeded**: every project's
+  `/api/projects/{id}/progress` returns nulls today. The Progress
+  Tracker tile falls through to its empty state (`No progress
+  reported yet`); the Progress vs. Burn dialog renders the burn-only
+  fallback path. E1 follow-up to seed sample progress data would
+  unlock the full UI.
+
+## v5 Wave 4 (preceding) — Current Status
 Phase: **v5 Wave 4 complete locally on `v5/wave4-f6-e2-b2-merged` (2026-04-29)**, awaiting PR. Wave 4 bundles **F6 + E2 + B2**. B2 is the frontend What-If Simulator full rebuild — four-team parallel session: **T1** (shell + ScenarioContext + manager + drawer + apply-to-forecast + RoleContext.tier3_flag patch), **T2** (15 sandbox surfaces + cross-module `scenarioVersion` threading across F4/F5/C2/A6 + 3 sidebar bodies), **T3** (8-dimension impact dashboard + 3-level Compare view), **T4** (21 catalogue actions + Promote workflow + 2 Tier-3 surfaces + 2 Tier-3 sidebar sections). v4 simulator removed wholesale (zero cross-module imports). v4 AI Advisor preserved behind `VITE_ENABLE_AI_ADVISOR` flag. Backend test count: **1283** (unchanged from F6+E2 — B2 is frontend-only; T1's backend RoleContext.tier3_flag patch covered by existing tests). Frontend TS: 82 baseline errors maintained (zero new from any of the 4 slices). 30 endpoints under `/api/scenarios` (all from B1) wired through `scenariosApi` typed wrappers. Lever 12 sandbox storage pattern wired through ScenarioContext (Stage 1 distribution forks to `scenario-{id}` Distribution rows; Stage 2 BTC overlays as ScenarioAction rows). 6 merge commits on the consolidated branch + 2 integration glue commits (sidebar bodies + surfaceKey URL switch + Tier 3 surfaces + Promote button → /promote route). T2-flagged backend gap: `routers/workbench.py:1482` does not yet read the optional `version` query for sandbox forecast composition — frontend plumbing in place, B-cluster follow-up.
 
 Phase preceding: F6 ships the Workbench BTC tile + tab + per-entity allocation breakdown endpoint (+20 tests). E2 ships external cost aggregation endpoints + role-personalised Launchpad tiles + PL capacity read-only endpoint (+73 tests).
 Wave 3 merged on main (2026-04-29) and verified end-to-end. All five sessions landed: **B1** (scenario engine + Lever 12, +91 tests), **E1** (progress tracker + ExternalCostCategory, +92 tests), **A8** (frontend pipeline + Run Portfolio scaffolding), **C2** (frontend mixed-granularity grid + version history UI), and **F4 + F5** (frontend Charging & Allocations module — Distribution + BTC editors + Location Cost Rollup map + tree-table + Report Builder integration). Backend test count after Wave 3: **1190** (1007 baseline + 91 B1 + 92 E1). Frontend TypeScript: 0 errors. Visual verification done in light + dark themes across all four roles (~30 screenshots, prefix `w3-`).
+
+## v5 Session E7 — Launchpad full redesign (T3, 2026-04-30)
+
+### Scope
+T3 of Wave 5's three-team split. Replaces the legacy two-column Launchpad
+(module-entry tile grid + vertical pending-actions sidebar) with a full
+three-zone vertical layout per `[E-06d]–[E-06j]`, `[E-06a]`, `[E-06b]`,
+`[E-06c]`. All backend dependencies (`/api/launchpad/tiles`,
+`/api/capacity/role-availability`) ship from Wave 4 E2 — this session is
+frontend-only.
+
+### Three zones
+1. **LaunchpadHeader** — adds a status row under the role badge with the
+   formatted current date (e.g. *Thursday, 30 April 2026*) and a Q{n}
+   {year} Cycle badge derived client-side via the same fiscal-quarter
+   mapping as `backend/services/forecast_cycle.derive_cycle_label`.
+2. **PendingActionsPanel** — full rewrite as a horizontal scrollable
+   strip per `[E-06b]`. Cards sorted urgent-first (red accent bar +
+   triangle icon for urgent); the entire strip toggles via Show/Hide;
+   when no actions exist the strip collapses into a single-line *All
+   caught up* banner. All deep-link routing preserved verbatim from the
+   v4 vertical sidebar.
+3. **RoleTileGrid + 4 role-specific tile-set components** — dispatcher
+   branches on `useRole().context?.role`. Backend returns the right
+   tile count per role (PL 7, Controller 9, CC Owner 8, Executive 7);
+   frontend layout is per-role.
+   - `PLTileGrid` (3-col, 7 tiles) — Resource Availability tile pulls
+     from `capacityApi.getRoleAvailability()` to surface the top 3 roles
+     by available hours over the next 3 months. Anonymised per `[E-06a]`
+     — no person names anywhere.
+   - `ControllerTileGrid` (3×3, 9 tiles)
+   - `CCOwnerTileGrid` (4-col, 8 tiles)
+   - `ExecutiveTileGrid` (3-col, 7 tiles)
+
+### Frontend wrappers (added)
+- `launchpadApi.getTiles()` → `TilesResponse`
+- `capacityApi.getRoleAvailability(params)` → `RoleAvailabilityResponse`
+- New types in `frontend/src/types/api.ts`: `TilePayload`, `TilesResponse`,
+  `TileTone`, `RoleAvailabilityRow`, `RoleAvailabilityResponse`
+
+### Files added (6)
+- `frontend/src/modules/launchpad/RoleTileGrid.tsx`
+- `frontend/src/modules/launchpad/tiles/TileCard.tsx`
+- `frontend/src/modules/launchpad/tiles/PLTileGrid.tsx`
+- `frontend/src/modules/launchpad/tiles/ControllerTileGrid.tsx`
+- `frontend/src/modules/launchpad/tiles/CCOwnerTileGrid.tsx`
+- `frontend/src/modules/launchpad/tiles/ExecutiveTileGrid.tsx`
+
+### Files modified (4)
+- `frontend/src/modules/launchpad/Launchpad.tsx` — 3-zone restructure
+- `frontend/src/modules/launchpad/LaunchpadHeader.tsx` — date + cycle
+- `frontend/src/modules/launchpad/PendingActionsPanel.tsx` — rewrite
+- `frontend/src/api/endpoints.ts` — two wrappers
+- `frontend/src/types/api.ts` — five new types
+
+### Files removed (1)
+- `frontend/src/modules/launchpad/ModuleTilesGrid.tsx` — orphaned after
+  RoleTileGrid takeover
+
+### Verification
+- TypeScript: **0 errors** project-wide (verified via `tsc --noEmit`)
+- Visual verification: 8 full-page screenshots captured at 1440px width
+  across the 4 roles × 2 themes (under
+  `.playwright-mcp/screenshots/w5-launchpad-{role}-{theme}.png`).
+- Tile click navigation verified for Pipeline → /backlog,
+  Pending Reviews → /portfolio?tab=approvals, Resource Availability →
+  /capacity?tab=availability, My Forecast → /workbench?tab=forecast.
+- Pending action click verified to deep-link CR #19 → /portfolio/approvals?cr=19.
+- Backend test count: **1283** (unchanged — frontend-only session).
+
+### Cross-team contract
+T3 owns `launchpadApi.getTiles` + `capacityApi.getRoleAvailability` per
+the Wave-5 plan. T1 (`externalCostsApi`) and T2 (progress / milestones
+wrappers) own their own wrapper additions; no overlapping edits.
+
+## v5 Wave 5 Session — T1 Portfolio: F7 (rest) + E6 + E5 (2026-04-30)
+
+### Scope
+Wave 5 Team 1 (Portfolio). Owns
+``frontend/src/modules/portfolio/`` plus E5's Workbench tab in
+``frontend/src/modules/workbench/external-costs/``. Three sessions
+serial on a single branch (``v5/wave5-t1-portfolio``):
+
+- **F7 (rest)** [E-11] [A-PL-07] — Portfolio Run dashboards + Run drill-down
+- **E6** [E-03a..g] — Portfolio project detail (slide-in → full-page)
+- **E5** [E-08a..d] — External cost views (Workbench tab + Portfolio tab)
+
+### F7 (rest) — what landed (commits ``da14277``, ``2ba1052``)
+- `RunPortfolioTab` 4 KPI cards rebuilt to match the F7 spec: total
+  annual cost, To-Business vs internal split, mix by entity type,
+  outsourcing ratio.
+- New `RunDimensionRollupPanel` renders compact region / division /
+  country rollup panels under the KPI strip via
+  `chargingApi.getRollup()`. Falls through gracefully when the backend
+  rollup query falls back to entity_type for these dimensions
+  (documented in `services/rollup_query.py::_dim_key_label`).
+- Offering + InternalService rows are now clickable. Drill-down route
+  `/workbench?entity={id}&type={offering|internal_service}` resolved by
+  a new `EntityWorkspace` shell that hides the project list and
+  presents the BTC tab only (label flips between *Cost Allocation* and
+  *Distribution* per the F6 BTC-tab semantics).
+- `WorkbenchBTCTab` accepts either `projectId` or `entityId` —
+  same component now backs both project and non-project drill-downs.
+- `ProjectWorkbench` detects the `entity` query param and switches
+  rendering to the entity workspace; project-list fetch is short-
+  circuited in entity mode.
+
+### E6 — what landed (commit ``daf55b7``)
+- New route `/portfolio/project/:projectId` in `App.tsx`, ahead of the
+  catch-all `/portfolio/*` so the deeper match wins.
+- `ProjectDetailPage` shell with hierarchy breadcrumb (Portfolio → LoB
+  → Programme → Project) sourced from `ProjectMetadata.hierarchy_path`.
+  Read-only banner + "Open in Workbench" CTA.
+- Four section files under `modules/portfolio/detail/sections/`:
+  `OverviewSection`, `FinancialDetailSection`, `ResourcesAndCostsSection`,
+  `HistorySection`. All read-only for every role. Reuses
+  `MixedGranularityGrid` (C2), `ProjectTrajectoryChart`,
+  `VersionHistoryPanel` + `VersionComparisonDialog` (C2),
+  `CRHistoryList` (workbench history), and the new
+  `externalCostsApi` wrapper.
+- Variance waterfall slot on Financial Detail is a documented
+  placeholder — will swap in T2's E4 chart in a follow-up integration
+  commit once T2 merges.
+- Back-button restores scroll + filters via a sessionStorage handshake
+  (`creta:portfolio:dashboard:scroll`) per [E-03b].
+- v4 deep-link `/portfolio/<projectId>` redirects to the new route.
+- `DashboardTab` loses its `useSidePanel` wiring; old
+  `ProjectSummaryPanel.tsx` removed.
+
+### E5 — what landed (commit ``ae9a084``)
+- New `ExternalCostsTab.tsx` at `modules/workbench/external-costs/`
+  wired as the 5th `TabsTrigger` in `ProjectWorkspace.tsx` between
+  Cost Allocation and Change History. Sections: 4-KPI strip,
+  clickable category breakdown (filters the vendor list), sortable
+  expandable vendor table.
+- New `ExternalSpendTab.tsx` at `modules/portfolio/external-spend/`
+  wired as a tab in `PortfolioOverview.tsx` (Change sub-module).
+  Visible to all roles. Sections: KPI strip, cross-project vendor
+  summary with per-project breakdown via the matrix payload, category
+  analysis, project × vendor matrix collapsed by default and capped
+  at the top-12 vendors.
+- `PortfolioOverview` path-detection extended for
+  `/portfolio/external-spend`.
+
+### API wrapper additions (T1-owned)
+- `externalCostsApi` in `frontend/src/api/endpoints.ts` exposing the 5
+  E2 endpoints (project vendor + category, portfolio vendor +
+  category + matrix). New types in `frontend/src/types/api.ts`
+  (`ProjectVendorSummaryRow`, `ProjectCategoryRollupRow`,
+  `PortfolioVendorSummaryRow`, `PortfolioCategoryAnalysisRow`,
+  `ProjectVendorMatrixResponse`, etc.).
+- T2 owns `progress` / `milestones` wrappers; T3 owns
+  `launchpadApi.getTiles` + `capacityApi.getRoleAvailability`. T1
+  does not touch those.
+
+### Files added (15)
+- `frontend/src/modules/portfolio/run/RunDimensionRollupPanel.tsx`
+- `frontend/src/modules/portfolio/detail/ProjectDetailPage.tsx`
+- 4 files under `frontend/src/modules/portfolio/detail/sections/`
+  (`OverviewSection`, `FinancialDetailSection`,
+  `ResourcesAndCostsSection`, `HistorySection`)
+- `frontend/src/modules/portfolio/external-spend/ExternalSpendTab.tsx`
+- `frontend/src/modules/workbench/external-costs/ExternalCostsTab.tsx`
+- `frontend/src/modules/workbench/EntityWorkspace.tsx`
+
+### Files modified (8)
+- `frontend/src/api/endpoints.ts` (new `externalCostsApi`)
+- `frontend/src/types/api.ts` (new external-cost response types)
+- `frontend/src/App.tsx` (E6 route)
+- `frontend/src/modules/portfolio/PortfolioOverview.tsx` (E5 tab)
+- `frontend/src/modules/portfolio/dashboard/DashboardTab.tsx`
+  (slide-in → full-page navigation, snapshot handshake)
+- `frontend/src/modules/portfolio/run/RunPortfolioTab.tsx` (F7 KPIs +
+  rollup panels + drill-down routing)
+- `frontend/src/modules/workbench/btc/WorkbenchBTCTab.tsx`
+  (projectId or entityId entry-point)
+- `frontend/src/modules/workbench/ProjectWorkbench.tsx` + new
+  `EntityWorkspace.tsx` (entity-mode workspace)
+- `frontend/src/modules/workbench/ProjectWorkspace.tsx`
+  (E5 External Costs tab)
+
+### Files removed (1)
+- `frontend/src/modules/portfolio/dashboard/ProjectSummaryPanel.tsx`
+  (replaced by full-page detail per [E-03a])
+
+### Verification
+- `tsc -b` baseline: 82 → 81 errors after Wave 5 (one fewer; no new
+  errors introduced in any T1 file).
+- Backend untouched. Existing E2 endpoints + F2 chargeable-entities
+  endpoints exercised via `curl` to confirm wire shapes match.
+
+### Known gaps / follow-ups
+- Run Portfolio dimension rollup panels currently surface
+  entity_type aggregates because `services/rollup_query.py` falls
+  back to that grouping for region / division / country. Cluster F
+  follow-up to wire BTC-profile-aware aggregation will replace the
+  fallback labels seamlessly with no frontend change.
+- T2's E4 variance waterfall integration into
+  `FinancialDetailSection` is queued as a follow-up commit once T2
+  merges into `main`.
 
 ## v5 Session B2 — T2 Sandbox Surfaces + Version Threading (2026-04-29)
 

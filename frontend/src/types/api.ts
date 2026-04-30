@@ -80,6 +80,53 @@ export interface ModuleTile {
   sort_order: number;
 }
 
+// --- v5 Session E7 — Launchpad role-personalised tiles per [E-06d]–[E-06j] ---
+
+export type TileTone = 'neutral' | 'positive' | 'warning' | 'alert';
+
+/**
+ * One role-personalised launchpad tile. Backend payload mirror of
+ * `schemas/global_launchpad.TilePayload`. Each tile is clickable and
+ * navigates to `link_module` (+ optional `link_entity_id` / `link_tab`).
+ */
+export interface TilePayload {
+  tile_id: string;
+  title: string;
+  primary_metric: string;
+  secondary_metric: string | null;
+  link_module: string;
+  link_entity_id: string | null;
+  link_tab: string | null;
+  tone: TileTone;
+}
+
+export interface TilesResponse {
+  role: string;
+  items: TilePayload[];
+  total: number;
+}
+
+// --- v5 Session E7 — PL capacity read-only role-availability per [E-06a] ---
+
+export interface RoleAvailabilityRow {
+  role_type_id: string;
+  role_type_name: string;
+  location_id: string;
+  location_name: string;
+  month: string;
+  headcount: number;
+  standard_hours: number;
+  allocated_hours: number;
+  available_hours: number;
+  utilization_pct: number;
+}
+
+export interface RoleAvailabilityResponse {
+  items: RoleAvailabilityRow[];
+  total: number;
+  months: string[];
+}
+
 // Project creation
 export interface ResourcePlanItem {
   role_type_id: string;
@@ -1842,4 +1889,111 @@ export interface EntityAllocationBreakdownResponse {
   has_profile: boolean;
   sums_to_100: boolean;
   total: number;
+}
+
+// ===========================================================================
+// === v5 Cluster E Session E5 — External cost views [E-08a..d] ===
+// Backend: routers/workbench.py + routers/portfolio.py (E2 endpoints).
+// ===========================================================================
+
+/** Project-scoped vendor breakdown row per [E-08a]. */
+export interface ProjectVendorSummaryRow {
+  vendor_name: string;
+  expense_cost_type: string;
+  forecast_total: number;
+  actuals_total: number;
+  baseline_total: number;
+  remaining: number;
+  variance: number;
+  po_count: number;
+  line_count: number;
+}
+
+export interface ProjectVendorSummaryResponse {
+  items: ProjectVendorSummaryRow[];
+  total: number;
+  project_id: string;
+  year: number | null;
+}
+
+/** Project-scoped category rollup row per [E-08b]. */
+export interface ProjectCategoryRollupRow {
+  cost_type_id: string;
+  cost_type_name: string;
+  forecast_total: number;
+  actuals_total: number;
+  baseline_total: number;
+  remaining: number;
+  variance: number;
+  vendor_count: number;
+}
+
+export interface ProjectCategoryRollupResponse {
+  items: ProjectCategoryRollupRow[];
+  total: number;
+  project_id: string;
+  year: number | null;
+}
+
+/** Portfolio-scoped vendor summary row per [E-08c]. */
+export interface PortfolioVendorSummaryRow {
+  vendor_name: string;
+  expense_cost_type: string;
+  project_count: number;
+  forecast_total: number;
+  actuals_total: number;
+  top_project_id: string | null;
+  top_project_name: string | null;
+  top_project_amount: number;
+  po_count: number;
+}
+
+export interface PortfolioVendorSummaryResponse {
+  items: PortfolioVendorSummaryRow[];
+  total: number;
+  year: number | null;
+}
+
+/** Portfolio-scoped category analysis row per [E-08c]. */
+export interface PortfolioCategoryAnalysisRow {
+  cost_type_id: string;
+  cost_type_name: string;
+  forecast_total: number;
+  actuals_total: number;
+  project_count: number;
+  vendor_count: number;
+  pct_of_external_total: number;
+}
+
+export interface PortfolioCategoryAnalysisResponse {
+  items: PortfolioCategoryAnalysisRow[];
+  total: number;
+  year: number | null;
+}
+
+/** Portfolio project × vendor cross-tab matrix per [E-08d]. */
+export interface ProjectVendorMatrixCell {
+  project_id: string;
+  vendor_name: string;
+  forecast_total: number;
+  actuals_total: number;
+}
+
+export interface ProjectVendorMatrixProject {
+  id: string;
+  name: string;
+  row_total: number;
+}
+
+export interface ProjectVendorMatrixVendor {
+  name: string;
+  col_total: number;
+}
+
+export interface ProjectVendorMatrixResponse {
+  projects: ProjectVendorMatrixProject[];
+  vendors: ProjectVendorMatrixVendor[];
+  cells: ProjectVendorMatrixCell[];
+  total: number;
+  year: number | null;
 }
