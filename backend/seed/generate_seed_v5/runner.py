@@ -64,6 +64,19 @@ def main() -> None:
     line_count = output.count("\n") + 1
     print(f"\n  Done! Wrote {line_count} lines to {seed_path}", file=sys.stderr)
 
+    # --- Entity roster banner (Phase 1 sanity check; read by Phase 2 teams).
+    try:
+        from generate_seed_v5.config.entities import ROSTER_BANNER_LINES
+    except Exception:
+        ROSTER_BANNER_LINES = []
+    if ROSTER_BANNER_LINES:
+        print("", file=sys.stderr)
+        print("  -------------------------------------------", file=sys.stderr)
+        print("  FROZEN ChargeableEntity roster [F-DG-01..03]", file=sys.stderr)
+        print("  -------------------------------------------", file=sys.stderr)
+        for line in ROSTER_BANNER_LINES:
+            print(line, file=sys.stderr)
+
 
 if __name__ == "__main__":
     main()
