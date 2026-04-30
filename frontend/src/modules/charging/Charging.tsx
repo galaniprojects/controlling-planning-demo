@@ -13,6 +13,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
+import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { ChargingSidebar, type ChargingSection } from './ChargingSidebar';
 import { DistributionListView } from './distribution/DistributionListView';
 import { BTCProfileListView } from './btc/BTCProfileListView';
@@ -65,18 +66,11 @@ export function Charging() {
 
   return (
     <div className="px-6 py-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Charging &amp; Allocations</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Inter-service distribution, BTC profiles, and location cost rollup
-            for the IT portfolio.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <ModuleGuideButton moduleId="charging" />
-        </div>
-      </div>
+      <ModuleHeader
+        title="Charging & Allocations"
+        subtitle="Inter-service distribution, BTC profiles, and location cost rollup for the IT portfolio."
+        actions={<ModuleGuideButton moduleId="charging" />}
+      />
 
       <div className="flex gap-6 items-start">
         <ChargingSidebar selected={section} onSelect={handleSelect} />

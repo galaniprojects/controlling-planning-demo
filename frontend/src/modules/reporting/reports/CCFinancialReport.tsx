@@ -4,7 +4,7 @@ import { useRole } from '@/contexts/RoleContext';
 import { reportsApi, referenceApi } from '@/api/endpoints';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { StatusBadge } from '@/components/shared/StatusBadge';
-import { SummaryCard } from '@/modules/capacity/shared/SummaryCard';
+import { SummaryCard } from '@/components/shared/SummaryCard';
 import { ReportViewer } from '../viewer/ReportViewer';
 import { CCFinancialCharts } from './CCFinancialCharts';
 import { formatCurrency, formatPercent, formatCurrencyDetailed } from '@/lib/formatters';

@@ -12,6 +12,7 @@ import { RankedListView } from './components/ranked/RankedListView';
 import { CubeView } from './components/cube/CubeView';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
+import { ModuleHeader } from '@/components/shared/ModuleHeader';
 
 function BacklogPageInner() {
   const {
@@ -48,21 +49,16 @@ function BacklogPageInner() {
 
   return (
     <div className="px-6 py-6 space-y-6">
-      {/* Page header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">
-            Backlog
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Ranked IT project backlog with composite scoring and cutoff analysis.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <ModuleGuideButton moduleId="backlog" />
-          <BacklogViewToggle value={viewMode} onChange={setViewMode} />
-        </div>
-      </div>
+      <ModuleHeader
+        title="Backlog"
+        subtitle="Ranked IT project backlog with composite scoring and cutoff analysis."
+        actions={
+          <>
+            <ModuleGuideButton moduleId="backlog" />
+            <BacklogViewToggle value={viewMode} onChange={setViewMode} />
+          </>
+        }
+      />
 
       {/* Filters */}
       <BacklogFilterBar

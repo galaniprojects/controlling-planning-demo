@@ -25,7 +25,7 @@ import {
 } from '@/components/shared/ExpandableTreeTable';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { formatCurrency } from '@/lib/formatters';
-import { LocationLabel } from '@/modules/admin/shared/LocationLabel';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 import { chargingApi } from '@/api/endpoints';
 import {
   useChargingRollupData,

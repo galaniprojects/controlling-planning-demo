@@ -11,7 +11,7 @@ import {
 import { Skeleton } from '@/components/shared/Skeleton';
 import { adminD3Api } from '@/api/endpoints';
 import type { UMCellItem, UMVersionItem, UMRefreshStatus, UMImportResult } from '@/types/api';
-import { LocationLabel } from '../shared/LocationLabel';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 
 const QUARTERS = [1, 2, 3, 4];
 

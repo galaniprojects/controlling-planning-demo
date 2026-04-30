@@ -26,6 +26,7 @@ import {
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { Badge } from '@/components/ui/badge';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -304,7 +305,11 @@ function AllocationBreakdownTable({ entityId, year }: BreakdownTableProps) {
                 onClick={() => toggleSort(col.key)}
               >
                 <span className="inline-flex items-center gap-1">
-                  {col.label}
+                  {col.key === 'location' ? (
+                    <LocationLabel kind="charging" text={col.label} />
+                  ) : (
+                    col.label
+                  )}
                   <SortIndicator
                     active={sortBy === col.key}
                     dir={sortBy === col.key ? sortDir : undefined}

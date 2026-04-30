@@ -38,7 +38,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { LocationLabel } from '@/modules/admin/shared/LocationLabel';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 import { chargingApi, adminD3Api } from '@/api/endpoints';
 import type {
   BTCProfileItem,
@@ -458,7 +458,9 @@ export function EntityBTCProfileEditor(props: Props) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Charging location</TableHead>
+                <TableHead>
+                  <LocationLabel kind="charging" text="Charging location" />
+                </TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Region / Country</TableHead>
                 <TableHead>Division</TableHead>
@@ -720,7 +722,7 @@ function AddLineDialog({
 
           <div className="space-y-1">
             <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Charging location ({candidates.length} match)
+              <LocationLabel kind="charging" text={`Charging location (${candidates.length} match)`} />
             </label>
             <Select value={chosenId} onValueChange={setChosenId}>
               <SelectTrigger className="h-9">
@@ -940,7 +942,9 @@ function ModeChangeDialog({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs">Location</TableHead>
+                  <TableHead className="text-xs">
+                    <LocationLabel kind="charging" text="Location" />
+                  </TableHead>
                   <TableHead className="text-xs text-right">%</TableHead>
                 </TableRow>
               </TableHeader>

@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 import { formatCurrency } from '@/lib/formatters';
 import { useChargingRollupData, type PerLocationCell } from './useChargingRollupData';
 import { projectCountry, VIEWPORT_WIDTH, VIEWPORT_HEIGHT } from './countryCoords';
@@ -153,7 +154,8 @@ export function RollupMapView({ year, version }: Props) {
             Back to country view
           </Button>
           <span className="text-sm text-muted-foreground">
-            Charging locations in{' '}
+            <LocationLabel kind="charging" iconOnly />{' '}
+            <span className="text-muted-foreground">in</span>{' '}
             <span className="font-medium text-foreground">
               {countryEntries.find((c) => c.iso === drillCountry)?.name ?? drillCountry}
             </span>

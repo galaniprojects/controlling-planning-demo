@@ -1,6 +1,6 @@
 import { Users, TrendingUp, AlertTriangle, Inbox } from 'lucide-react';
 import type { TeamSummary } from '@/types/api';
-import { SummaryCard } from '../shared/SummaryCard';
+import { SummaryCard } from '@/components/shared/SummaryCard';
 
 interface TeamSummaryBarProps {
   data: TeamSummary;

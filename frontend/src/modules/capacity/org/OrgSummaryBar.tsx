@@ -1,6 +1,6 @@
 import { Users, TrendingUp, AlertTriangle, ClipboardCheck } from 'lucide-react';
 import type { OrgSummary } from '@/types/api';
-import { SummaryCard } from '../shared/SummaryCard';
+import { SummaryCard } from '@/components/shared/SummaryCard';
 
 interface OrgSummaryBarProps {
   data: OrgSummary;

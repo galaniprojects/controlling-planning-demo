@@ -5,7 +5,7 @@ import { useRole } from '@/contexts/RoleContext';
 import { reportsApi, referenceApi } from '@/api/endpoints';
 import { useActiveHierarchy, buildHierarchyFilterConfigs, getMostSpecificEntityFilter, clearLowerHierarchyFilters } from '@/hooks/useActiveHierarchy';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { SummaryCard } from '@/modules/capacity/shared/SummaryCard';
+import { SummaryCard } from '@/components/shared/SummaryCard';
 import { ReportViewer } from '../viewer/ReportViewer';
 import { VendorSpendCharts } from './VendorSpendCharts';
 import { formatCurrency, formatCurrencyDetailed } from '@/lib/formatters';

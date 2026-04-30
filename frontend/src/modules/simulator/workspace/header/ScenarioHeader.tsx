@@ -24,7 +24,7 @@ import { useScenarioContext } from '../../useScenarioContext';
 import { ADVISOR_ENABLED } from '../../flags/advisorFlag';
 import { useCanApplyToForecast } from '../../permissions/useCanApplyToForecast';
 import { ApplyButton } from '../../apply-to-forecast/ApplyButton';
-import { StatusBadge } from './StatusBadge';
+import { ScenarioStatusBadge } from './ScenarioStatusBadge';
 import { StaleIndicator } from './StaleIndicator';
 import { RecalculateButton } from './RecalculateButton';
 
@@ -89,7 +89,7 @@ export function ScenarioHeader({ onOpenAdvisor, onOpenPromote }: Props) {
               {meta?.name ?? `Scenario #${ctx.scenarioId}`}
             </h1>
             {detail && (
-              <StatusBadge
+              <ScenarioStatusBadge
                 status={meta?.status ?? 'private'}
                 visibility={ctx.visibility}
                 archived={ctx.archived}

@@ -43,6 +43,13 @@ Current focus: enhancements, bug fixes, and demo preparation — see `PROGRESS.m
 ## Established Components & Patterns
 
 ### Shared Components (`components/shared/`)
+- `ModuleHeader` — standard page header (title + optional subtitle + right-aligned actions slot + optional breadcrumb / tabs slots) per `[E-07a]`. Used by Portfolio / Workbench / Capacity / Charging / Admin / Reporting / Docs / Backlog / Simulator. Launchpad keeps its centred E7 layout as a sanctioned exception.
+- `LeftRailNav` — shared left-rail navigation (flat or grouped) per `[E-07c]`. Backs `ChargingSidebar` and `EntitySelector`; Workbench `ProjectListPanel` shares the active-state vocabulary but renders its own multi-line items.
+- `ActionCard` — interactive surface card per `[E-07d]` (action card type). Used by Workbench Overview tile grid and Launchpad pending action items.
+- `SummaryCard` — horizontal KPI card per `[E-07d]` (summary card type). Promoted to `components/shared/` in E8; used by Admin context strip and the `capacity` summary bars.
+- `EmptyState` — shared empty-state pattern per `[E-07f]` (icon + title + description + optional action button), with `sm` and `md` size variants.
+- `ConfidenceIndicator` — diamond-shaped confidence dot per `[E-07g]` (distinct from RAG circles). Used wherever next-milestone confidence is shown.
+- `LocationLabel` — qualified label + tooltip for `WorkforceLocation` / `ChargingLocation` / `LegalEntity` per `[F-MD-01]`. Use the `kind` prop and optional `text` override; `iconOnly` for column headers and inline disambiguation.
 - `ExpandableTreeTable` — generic recursive tree table with multi-column support
 - `FilterBar` — horizontal Select dropdowns with active filter display and Clear
 - `Skeleton` — pulsing loading placeholder
@@ -50,7 +57,8 @@ Current focus: enhancements, bug fixes, and demo preparation — see `PROGRESS.m
 - `DetailViewGrid` — month × line-item grid with collapsible years, "comparison" and "intake" cell patterns
 - `DetailViewKPIStrip` — 3-column KPI display strip with optional custom coloring
 - `SortableHeader` — clickable table header with sort direction indicators
-- `StatusBadge` — color-coded status badge (pending, approved, rejected, sent_back)
+- `StatusBadge` — color-coded workflow-status badge (pending, approved, rejected, sent_back). Distinct from the simulator's `ScenarioStatusBadge` (private/published/archived/tier3).
+- `DoIBadge`, `PipelineStageBadge` — DoI (numeric, neutral) and pipeline-stage (configurable colours) badges per `[E-07g]`.
 - `SubmitProjectDialog` — dialog for submitting new projects with metadata fields
 
 ### Chart Components (`components/charts/`)

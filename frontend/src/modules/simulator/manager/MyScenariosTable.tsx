@@ -2,6 +2,7 @@
  * v5 B2 — "My Scenarios" table (owner-only actions enabled).
  */
 
+import { FlaskConical } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -9,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { EmptyState } from '@/components/shared/EmptyState';
 import type { ScenarioListItem } from '@/types/api';
 import { ScenarioRow } from './ScenarioRow';
 
@@ -39,9 +41,12 @@ export function MyScenariosTable({
     <div className="space-y-2">
       <h3 className="text-sm font-semibold text-foreground">My Scenarios</h3>
       {scenarios.length === 0 ? (
-        <p className="text-xs text-muted-foreground italic py-4 text-center">
-          No scenarios yet. Click "Create New Scenario" to get started.
-        </p>
+        <EmptyState
+          icon={FlaskConical}
+          size="sm"
+          title="No scenarios yet"
+          description='Click "Create New Scenario" to get started.'
+        />
       ) : (
         <Table>
           <TableHeader>

@@ -2,9 +2,95 @@
 
 ## Current Status
 
-Phase: **v5 Wave 5 complete on `v5/wave5-f7-e3-e4-e5-e6-e7-merged` (2026-04-30)**, PR [#69](https://github.com/bill-pap/vision-demo-prototype/pull/69) open. Wave 5 lands six v5 frontend sessions in one consolidated PR via the Wave-3-style 3-team parallel pattern: **T1 Portfolio** (F7 Run dashboards + drill-down → E6 project detail full-page → E5 external cost views, serial within branch), **T2 Workbench** (E3 3×3 tile grid + E4 Progress vs. Burn / Variance Waterfall combined), **T3 Launchpad** (E7 three-zone redesign + 4 role tile grids). 23 commits, 47 files (+7,011 / −518). Frontend TypeScript: **0 errors**. Backend: **1283/1283 tests passing** (no backend code touched — Wave 5 is frontend-only, all API endpoints reused from E2 / F3 already merged in Waves 3–4). Visual verification walked all 4 roles + light/dark themes; one React `key` prop warning caught and fixed in `ExternalCostsTab` (commit `916d5dd`). Run Portfolio region/country dimension panels show "Rollup unavailable" gracefully — backend `services/rollup_query.py` falls back to entity_type for those dimensions, deferred to a later session.
+Phase: **v5 Session E8 complete on `v5/cluster-e/e8-visual-consistency` (2026-04-30)**. E8 delivers a cross-module visual consistency pass over the 10 frontend modules merged in Waves 1–5: 6 new shared primitives (`ModuleHeader`, `LeftRailNav`, `LocationLabel`, `EmptyState`, `ConfidenceIndicator`, relocated `SummaryCard`); standardised module headers across 9 modules (Portfolio, Workbench, Capacity, Charging, Admin, Reporting, Docs, Backlog, Simulator) with Launchpad's centred E7 layout and Reporting's nested builder/ai-builder routes preserved as sanctioned exceptions; shared `LeftRailNav` backing `ChargingSidebar` (flat) and Admin's `EntitySelector` (grouped); promoted `LocationLabel` from `modules/admin/shared/` to `components/shared/` and extended its rollout into Workbench BTC tab, Charging BTC editor / Reporting panel / Rollup map, and Simulator Lever-12 surfaces; renamed simulator's local `StatusBadge` → `ScenarioStatusBadge` to free the name for the shared workflow badge; extracted the diamond confidence shape from `ProgressTrackerTile` into shared `ConfidenceIndicator`; replaced ad-hoc empty-state divs in Reporting library, Simulator manager, Workbench External Costs, and Charging Distribution with the shared `EmptyState`. Frontend TypeScript: **81 errors maintained** (≤ 82 baseline — no new). Vite production build: clean (1.82 MB / 474 KB gzipped). Backend tests: **1283/1283 passing** (frontend-only session). Visual verification walked Launchpad / Portfolio / Workbench / Charging / Admin / Reporting / Simulator in light + dark; LocationLabel tooltips visible on Charging Locations admin panel and BTC editor section header + column header. No console errors observed during navigation.
 
-**v5 backlog after Wave 5:** Only **E8** (cross-module visual consistency) and **S1** (full seed reconstruction) remain — both terminal single-team sessions.
+**v5 backlog after E8:** Only **S1** (full seed reconstruction) remains — terminal single-team session.
+
+## v5 Session E8 — Cross-module visual consistency (2026-04-30)
+
+### Scope
+
+Penultimate v5 frontend session per `[E-07a..g]` and `[F-MD-01]`. Consolidates the visual vocabulary across 10 modules merged in Waves 1–5: shared module header, shared left-rail nav, formal three-card-type taxonomy, shared empty state, distinct-shape confidence indicator, location-master tooltip pattern, and badge/status-vocabulary cleanup.
+
+### New shared primitives (all under `frontend/src/components/shared/`)
+
+- `ModuleHeader.tsx` per `[E-07a]` — title + subtitle + right-aligned `actions` slot + optional `breadcrumb` and `tabs` slots. Renders `<h1 className="text-2xl font-semibold">` so all standardised modules share the same heading scale.
+- `LeftRailNav.tsx` per `[E-07c]` — flat or grouped (`items` vs `groups` prop forms), with optional per-item icon + description + badge. Width prop defaults to 240. Active-state styling matches the Cluster D Admin baseline (`bg-primary/5` + `border-l-2 border-primary` + `text-primary font-medium`).
+- `LocationLabel.tsx` per `[F-MD-01]` — promoted from `modules/admin/shared/LocationLabel.tsx` so callers outside the admin module can use it. Existing API preserved (`kind` + `text` + `iconOnly`). The legacy admin path is kept as a re-export shim during the transition.
+- `EmptyState.tsx` per `[E-07f]` — `icon` + `title` + `description` + optional primary `action`, with `sm` (in-card) and `md` (whole-tab) size variants.
+- `ConfidenceIndicator.tsx` per `[E-07g]` — extracted from the diamond SVG previously inline in `ProgressTrackerTile`. `level` prop accepts `'on_track' | 'at_risk' | 'blocked'`; emits a green/amber/red diamond.
+- `SummaryCard.tsx` — relocated from `modules/capacity/shared/SummaryCard.tsx` so all three card types per `[E-07d]` (`SummaryCard`, shadcn `Card`, `ActionCard`) live under `components/shared/`.
+
+### Module header roll-out (9 modules)
+
+Replaced bespoke `<h1>` blocks with `<ModuleHeader title=… actions={…} />` in:
+
+- `frontend/src/modules/portfolio/PortfolioOverview.tsx`
+- `frontend/src/modules/workbench/ProjectWorkbench.tsx`
+- `frontend/src/modules/capacity/CapacityManagement.tsx`
+- `frontend/src/modules/charging/Charging.tsx`
+- `frontend/src/modules/admin/Administration.tsx`
+- `frontend/src/modules/reporting/Reporting.tsx` (conditional hide on `/builder` and `/ai-builder` retained)
+- `frontend/src/modules/docs/DocumentationHub.tsx`
+- `frontend/src/modules/backlog/BacklogPage.tsx`
+- `frontend/src/modules/simulator/manager/ScenarioManagerPage.tsx`
+
+Skipped `frontend/src/modules/launchpad/Launchpad.tsx` — the centred three-zone E7 layout is a sanctioned exception.
+
+### Sidebar migration
+
+- `frontend/src/modules/charging/ChargingSidebar.tsx` rewritten as a thin adaptor that calls `<LeftRailNav items={…} />` with the four section descriptors.
+- `frontend/src/modules/admin/EntitySelector.tsx` rewritten as a thin adaptor calling `<LeftRailNav groups={ADMIN_GROUPS} />` with the five-section grouping preserved.
+- `frontend/src/modules/workbench/ProjectListPanel.tsx` retains its bespoke per-item rendering (multi-line content with RAG dot + name + type/status badges plus a header strip with collapse + "+ New" buttons) but shares the active-state vocabulary with `LeftRailNav`. A doc-comment notes the intentional special case.
+
+### Card / badge / confidence consolidation
+
+- `SummaryCard` import paths updated in 8 callers (5 reports, Admin context strip, two capacity summary bars).
+- `frontend/src/modules/simulator/workspace/header/StatusBadge.tsx` renamed to `ScenarioStatusBadge.tsx`; the lone caller in `ScenarioHeader.tsx` updated. Frees `StatusBadge` for the shared workflow-status badge in `components/shared/`.
+- `frontend/src/modules/workbench/overview/tiles/ProgressTrackerTile.tsx` no longer ships the inline diamond SVG; uses `<ConfidenceIndicator level={…} />` instead.
+
+### Empty-state roll-out
+
+`<EmptyState …/>` adopted in four high-traffic surfaces:
+
+- `frontend/src/modules/reporting/library/ReportLibrary.tsx` — "No saved views yet" (Bookmark icon).
+- `frontend/src/modules/simulator/manager/MyScenariosTable.tsx` — "No scenarios yet" (FlaskConical icon).
+- `frontend/src/modules/workbench/external-costs/ExternalCostsTab.tsx` — "No external cost data" (Receipt icon).
+- `frontend/src/modules/charging/distribution/DistributionListView.tsx` — "No distribution edges" (FilterX icon, with copy guiding the user to clear filters).
+
+Long-tail empty states (smaller in-card placeholders, individual table-row nulls) deliberately left for a follow-on cleanup.
+
+### Location-master tooltip extension `[F-MD-01]`
+
+LocationLabel applied to the following surfaces beyond the existing admin entities:
+
+- `frontend/src/modules/charging/btc/EntityBTCProfileEditor.tsx` — "Charging Locations distribution" section heading, percentage-table column header, candidate picker label, current-values column header.
+- `frontend/src/modules/charging/rollup/RollupMapView.tsx` — country drill-down hint ("Charging locations in <country>").
+- `frontend/src/modules/charging/reports/ReportingPanel.tsx` — `charging_location` and `legal_entity` dimension entries in the catalogue list.
+- `frontend/src/modules/workbench/btc/WorkbenchBTCTab.tsx` — Charging-location column header in the breakdown table.
+- `frontend/src/modules/simulator/surfaces/CostAllocationSurface.tsx` — Charging-location column in the per-location impact table.
+- `frontend/src/modules/simulator/workspace/impact/dimensions/CostAllocationDimension.tsx` — Location column in the dimension impact panel.
+
+All admin panels (`ChargingLocationsPanel`, `LegalEntitiesPanel`, `LocationsPanel`, `UserMeasurementPanel`) and existing charging surfaces (`RollupTreeTableView`) updated to import the canonical shared component.
+
+### Files added (6) / modified (≈ 24) / deleted (1)
+
+- New: `frontend/src/components/shared/{ModuleHeader,LeftRailNav,LocationLabel,EmptyState,ConfidenceIndicator,SummaryCard}.tsx`
+- Renamed: `simulator/workspace/header/StatusBadge.tsx` → `ScenarioStatusBadge.tsx`
+- Deleted: `frontend/src/modules/capacity/shared/SummaryCard.tsx`
+- Modified: 9 module entry pages (header roll-out), 2 sidebar adaptors, 8 SummaryCard import sites, 6 location-master callers, 4 empty-state callers, ProgressTrackerTile.
+
+### Verification
+
+- TypeScript: 81 errors maintained (≤ 82 baseline — no new errors from any E8 change).
+- Vite production build: clean (`vite build` → 1.82 MB / 474 KB gzipped).
+- Backend tests: 1283/1283 passing (frontend-only session, no backend touched).
+- Visual verification (Chrome DevTools MCP, 1440×900, light + dark): walked Launchpad / Portfolio / Workbench / Charging Distribution + BTC editor / Admin Charging Locations / Reporting / Simulator. ModuleHeader visually identical across the 9 standardised modules; Launchpad still uses the centred E7 layout; LeftRailNav identical between Admin (grouped) and Charging (flat); LocationLabel tooltip icon visible on the BTC editor section + column header and on the admin Charging Locations panel; EmptyState renders correctly on the Reporting "Saved views" empty + the Charging distribution empty; no React key warnings or console errors observed during navigation.
+
+### Known follow-ups
+
+- Long-tail empty-state surfaces (chart-level "no data", in-card nulls) still ad-hoc — adoption can be incremental.
+- `frontend/src/modules/workbench/ProjectListPanel.tsx` deliberately renders its own multi-line items rather than `LeftRailNav` — extending the shared component to support multi-line items is a future refactor.
 
 ## v5 Session E3 + E4 — T2 Workbench Overview tile grid + Progress vs. Burn / Variance Waterfall (2026-04-30)
 

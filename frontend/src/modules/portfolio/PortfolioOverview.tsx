@@ -20,6 +20,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
+import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { useRole } from '@/contexts/RoleContext';
 import { cn } from '@/lib/utils';
 import { DashboardTab } from './dashboard/DashboardTab';
@@ -119,17 +120,15 @@ export function PortfolioOverview() {
 
   return (
     <div className="px-6 py-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-foreground">Portfolio Overview</h1>
-          <p className="text-xs text-muted-foreground">
-            {subModule === 'change'
-              ? 'Change Portfolio — projects in transformation (DoI 0–4)'
-              : 'Run Portfolio — steady-state entities (DoI 5, offerings, internal services)'}
-          </p>
-        </div>
-        <ModuleGuideButton moduleId="portfolio_overview" />
-      </div>
+      <ModuleHeader
+        title="Portfolio Overview"
+        subtitle={
+          subModule === 'change'
+            ? 'Change Portfolio — projects in transformation (DoI 0–4)'
+            : 'Run Portfolio — steady-state entities (DoI 5, offerings, internal services)'
+        }
+        actions={<ModuleGuideButton moduleId="portfolio_overview" />}
+      />
 
       {/* Sub-module switcher per [E-11] */}
       <div

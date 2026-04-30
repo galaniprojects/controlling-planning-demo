@@ -1,7 +1,8 @@
 /**
- * v5 B2 — Workspace status badge (private / published / archived /
- * tier3-only). Mirrors the manager-table badge but with bigger type
- * for the workspace header.
+ * ScenarioStatusBadge — workspace badge for the four scenario lifecycle
+ * states (private / published / archived / tier3-only). Renamed from
+ * `StatusBadge` in v5 Session E8 per `[E-07g]` to free that name for the
+ * shared workflow-status badge in `components/shared/StatusBadge`.
  */
 
 import { Archive, Eye, Globe, Lock } from 'lucide-react';
@@ -13,7 +14,7 @@ interface Props {
   archived: boolean;
 }
 
-export function StatusBadge({ status, visibility, archived }: Props) {
+export function ScenarioStatusBadge({ status, visibility, archived }: Props) {
   if (archived) {
     return (
       <Badge className="bg-muted text-muted-foreground hover:bg-muted">

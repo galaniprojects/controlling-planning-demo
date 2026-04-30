@@ -1,3 +1,28 @@
+/**
+ * LocationLabel — qualified label + tooltip for the three location masters
+ * per `[F-MD-01]`.
+ *
+ * v5 introduces three distinct location-master entities that frequently
+ * appear in the UI under similar-looking names. The spec mandates that
+ * wherever any of the three appears as a label or column header, the UI
+ * must (1) surface a qualified short tag so the three are
+ * distinguishable, and (2) provide a hover tooltip with a one-sentence
+ * definition.
+ *
+ *   - **WorkforceLocation**  — office / site (v4 `Location`, renamed)
+ *   - **ChargingLocation**   — SAP charging code (~90 KB codes)
+ *   - **LegalEntity**        — registered company (~120, rolls up to ChargingLocation)
+ *
+ * Originally introduced by D3 (D-cluster) in `modules/admin/shared/`;
+ * promoted to the shared component bucket in v5 Session E8 so callers
+ * outside the admin module (Workbench, Charging, Portfolio, Reporting)
+ * can use it without crossing module boundaries.
+ *
+ * Usage:
+ *   <LocationLabel kind="charging" />                    // canonical column header
+ *   <LocationLabel kind="legal" text="Knorr-Bremse AG" /> // value-form
+ *   <LocationLabel kind="workforce" iconOnly />           // info-only chip
+ */
 import { HelpCircle } from 'lucide-react';
 import {
   Tooltip,
@@ -5,11 +30,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-
-/**
- * Hover tooltips for the three distinct location masters per `[F-MD-01]`.
- * The UI never uses the bare word "Location"; always qualified.
- */
 
 export type LocationKind = 'workforce' | 'charging' | 'legal';
 
