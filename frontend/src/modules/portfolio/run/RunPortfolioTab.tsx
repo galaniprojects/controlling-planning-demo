@@ -2,24 +2,30 @@
  * RunPortfolioTab — entity list for the Run Portfolio sub-module per [E-11].
  *
  * Consumes the F2 chargeable-entities data layer
- * (``GET /api/charging/chargeable-entities``) and renders a unified entity
- * list with type filter (Project / Offering / InternalService) and
- * type-aware columns:
+ * (``GET /api/admin/chargeable-entities``) and renders a unified entity list
+ * with a type filter (Project / Offering / InternalService) and type-aware
+ * columns:
  *
  * - identifier (PPM / S-code / ITF prefix)
- * - name
- * - responsible person
+ * - name + description
  * - To-Business %
  * - Annual cost (where present)
  * - Termination month (where set)
  *
- * The Run Portfolio drill-down lands on the Workbench BTC tab once F6 lands
- * (per spec). Until then this view is the scaffolding for the Run Portfolio
- * surface — clicking a row navigates the Project subtype to its workbench and
- * leaves Offering/InternalService rows non-clickable with a tooltip pointer.
+ * Wave 5 F7 (rest) wiring per [E-11] / [A-PL-07]:
  *
- * KPI strip and rollup panels are scaffolded as placeholder cards; they will
- * be wired to F5's location-cost-rollup once F5 frontend lands.
+ *   1. The 4 KPI cards now surface the spec-aligned figures: total annual
+ *      cost, To-Business vs internal split, count by entity type, and
+ *      outsourcing ratio across the active Run-portfolio set.
+ *   2. Three compact rollup panels embedded under the KPI strip aggregate
+ *      effective cost by region / division / country (reuses the F5
+ *      `chargingApi.getRollup` endpoint, scoped to Run-portfolio entities).
+ *   3. Offering and InternalService rows are now clickable; navigation
+ *      lands on the Workbench BTC tab via
+ *      ``/workbench?entity={id}&type={offering|internal_service}``.
+ *      ProjectWorkspace / ProjectWorkbench accept the new ``entity`` query
+ *      param alongside ``project`` (additive change — F6's BTC tab is
+ *      already conditional on entity presence).
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -42,8 +48,12 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { chargeableEntitiesApi } from '@/api/endpoints';
-import type { ChargeableEntityItem, ChargeableEntityType } from '@/types/runPortfolio';
+import type {
+  ChargeableEntityItem,
+  ChargeableEntityType,
+} from '@/types/runPortfolio';
 import { useRole } from '@/contexts/RoleContext';
+import { RunDimensionRollupPanel } from './RunDimensionRollupPanel';
 
 const TYPE_FILTERS: { value: '' | ChargeableEntityType; label: string }[] = [
   { value: '', label: 'All entity types' },
@@ -51,6 +61,10 @@ const TYPE_FILTERS: { value: '' | ChargeableEntityType; label: string }[] = [
   { value: 'Offering', label: 'Offerings' },
   { value: 'InternalService', label: 'Internal services' },
 ];
+
+// Demo year for the embedded rollup panels — matches the v5 demo date
+// (April 2026) and the Charging module's default year.
+const ROLLUP_YEAR = 2026;
 
 function fmtPct(n: number | null | undefined): string {
   if (n === null || n === undefined) return '—';
@@ -93,6 +107,25 @@ function entityTypeShort(type: ChargeableEntityType): string {
     default:
       return type;
   }
+}
+
+/**
+ * Build the drill-down URL for an entity row. Projects route to the
+ * existing Workbench project view; Offerings + InternalServices use the new
+ * `entity` query param so the Workbench can render an entity-only view
+ * (see ProjectWorkbench.tsx + ProjectWorkspace.tsx for the consumer side).
+ */
+function entityDrillDownPath(entity: ChargeableEntityItem): string | null {
+  if (entity.entity_type === 'Project' && entity.project_id) {
+    return `/workbench?project=${encodeURIComponent(entity.project_id)}`;
+  }
+  if (entity.entity_type === 'Offering') {
+    return `/workbench?entity=${encodeURIComponent(entity.id)}&type=offering`;
+  }
+  if (entity.entity_type === 'InternalService') {
+    return `/workbench?entity=${encodeURIComponent(entity.id)}&type=internal_service`;
+  }
+  return null;
 }
 
 export function RunPortfolioTab() {
@@ -139,8 +172,17 @@ export function RunPortfolioTab() {
     };
   }, [typeFilter]);
 
-  // KPI roll-ups computed client-side from the (small) entity list. F5 will
-  // replace these with proper rollup panels.
+  // Spec KPIs per F7 / [E-11] / [A-PL-07]:
+  //   - Total annual cost = Σ annual_cost across active Run entities
+  //   - To-Business share = Σ(annual_cost · to_business_pct) / total
+  //     Internal share is the residual; self-retained sits inside the
+  //     internal split until the F5 distribution rollup attributes it.
+  //   - Mix = count by entity_type (Projects / Offerings / Internal Svc)
+  //   - Outsourcing ratio = % of entities assigned to an external vendor.
+  //     Vendor data is not on ChargeableEntity in the demo seed; we
+  //     surrogate this with the share of Offerings (typically vendor-
+  //     supplied service catalogue items in the run portfolio) per the
+  //     spec's "outsourcing ratio for the Run Portfolio" intent.
   const kpis = useMemo(() => {
     const total = items.length;
     const totalAnnual = items.reduce(
@@ -158,6 +200,9 @@ export function RunPortfolioTab() {
     );
     const toBusinessPct =
       totalAnnual > 0 ? (totalToBusinessAmount / totalAnnual) * 100 : 0;
+    const internalPct = Math.max(0, 100 - toBusinessPct);
+    const outsourcingPct =
+      total > 0 ? (offeringCount / total) * 100 : 0;
     return {
       total,
       projectCount,
@@ -165,28 +210,58 @@ export function RunPortfolioTab() {
       internalCount,
       totalAnnual,
       toBusinessPct,
+      internalPct,
+      outsourcingPct,
     };
   }, [items]);
 
+  const entityIds = useMemo(() => items.map((e) => e.id), [items]);
+
   return (
     <div className="space-y-4">
-      {/* KPI strip — placeholder until F5 lands */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <KPICard label="Run-stage entities" value={String(kpis.total)} />
+      {/* Spec-aligned KPI strip (F7 / [E-11]) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard
           label="Total annual cost"
           value={fmtEur(kpis.totalAnnual)}
-          hint="Sum of annual_cost across active run-stage entities"
+          hint={`${kpis.total} active run-stage entities`}
         />
         <KPICard
-          label="To-Business share"
-          value={fmtPct(kpis.toBusinessPct)}
+          label="To-Business / internal"
+          value={`${fmtPct(kpis.toBusinessPct)} · ${fmtPct(kpis.internalPct)}`}
           hint="Weighted by annual cost"
         />
         <KPICard
-          label="Mix"
+          label="Mix by entity type"
           value={`${kpis.projectCount} P · ${kpis.offeringCount} O · ${kpis.internalCount} S`}
           hint="Projects · Offerings · Internal services"
+        />
+        <KPICard
+          label="Outsourcing ratio"
+          value={fmtPct(kpis.outsourcingPct)}
+          hint="Share served by external offerings"
+        />
+      </div>
+
+      {/* Embedded rollup panels — by region / division / country */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <RunDimensionRollupPanel
+          title="By region"
+          groupBy="region"
+          year={ROLLUP_YEAR}
+          entityIds={entityIds}
+        />
+        <RunDimensionRollupPanel
+          title="By division"
+          groupBy="division"
+          year={ROLLUP_YEAR}
+          entityIds={entityIds}
+        />
+        <RunDimensionRollupPanel
+          title="By country"
+          groupBy="country"
+          year={ROLLUP_YEAR}
+          entityIds={entityIds}
         />
       </div>
 
@@ -258,61 +333,63 @@ export function RunPortfolioTab() {
                 </TableCell>
               </TableRow>
             ) : (
-              items.map((entity) => (
-                <TableRow
-                  key={entity.id}
-                  className={
-                    entity.entity_type === 'Project'
-                      ? 'cursor-pointer hover:bg-accent'
-                      : 'opacity-90'
-                  }
-                  onClick={() => {
-                    if (entity.entity_type === 'Project' && entity.project_id) {
-                      navigate(`/workbench?project=${entity.project_id}`);
+              items.map((entity) => {
+                const drillTo = entityDrillDownPath(entity);
+                return (
+                  <TableRow
+                    key={entity.id}
+                    className={
+                      drillTo
+                        ? 'cursor-pointer hover:bg-accent'
+                        : 'opacity-90'
                     }
-                  }}
-                >
-                  <TableCell>
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${entityTypePill(entity.entity_type)}`}
-                    >
-                      {entityTypeShort(entity.entity_type)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {entity.identifier}
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-0.5">
-                      <div className="text-sm font-medium text-foreground">
-                        {entity.name}
-                      </div>
-                      {entity.description ? (
-                        <div className="text-xs text-muted-foreground line-clamp-1">
-                          {entity.description}
+                    onClick={() => {
+                      if (drillTo) navigate(drillTo);
+                    }}
+                  >
+                    <TableCell>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${entityTypePill(entity.entity_type)}`}
+                      >
+                        {entityTypeShort(entity.entity_type)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {entity.identifier}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-medium text-foreground">
+                          {entity.name}
                         </div>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtEur(entity.annual_cost)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtPct(entity.to_business_pct)}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {entity.termination_month ?? '—'}
-                  </TableCell>
-                </TableRow>
-              ))
+                        {entity.description ? (
+                          <div className="text-xs text-muted-foreground line-clamp-1">
+                            {entity.description}
+                          </div>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {fmtEur(entity.annual_cost)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {fmtPct(entity.to_business_pct)}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {entity.termination_month ?? '—'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Per-entity drill-down lands on the Workbench BTC tab — Offering and
-        Internal Service drill-downs become live in a follow-on session.
+        Click any row to open the Workbench BTC tab for that entity. Project
+        rows route via project id; Offerings + Internal Services route via
+        the entity id (Workbench accepts both).
       </p>
     </div>
   );
