@@ -6,6 +6,132 @@ Phase: **v5 Wave 4 complete locally on `v5/wave4-f6-e2-b2-merged` (2026-04-29)**
 Phase preceding: F6 ships the Workbench BTC tile + tab + per-entity allocation breakdown endpoint (+20 tests). E2 ships external cost aggregation endpoints + role-personalised Launchpad tiles + PL capacity read-only endpoint (+73 tests).
 Wave 3 merged on main (2026-04-29) and verified end-to-end. All five sessions landed: **B1** (scenario engine + Lever 12, +91 tests), **E1** (progress tracker + ExternalCostCategory, +92 tests), **A8** (frontend pipeline + Run Portfolio scaffolding), **C2** (frontend mixed-granularity grid + version history UI), and **F4 + F5** (frontend Charging & Allocations module — Distribution + BTC editors + Location Cost Rollup map + tree-table + Report Builder integration). Backend test count after Wave 3: **1190** (1007 baseline + 91 B1 + 92 E1). Frontend TypeScript: 0 errors. Visual verification done in light + dark themes across all four roles (~30 screenshots, prefix `w3-`).
 
+## v5 Wave 5 Session — T1 Portfolio: F7 (rest) + E6 + E5 (2026-04-30)
+
+### Scope
+Wave 5 Team 1 (Portfolio). Owns
+``frontend/src/modules/portfolio/`` plus E5's Workbench tab in
+``frontend/src/modules/workbench/external-costs/``. Three sessions
+serial on a single branch (``v5/wave5-t1-portfolio``):
+
+- **F7 (rest)** [E-11] [A-PL-07] — Portfolio Run dashboards + Run drill-down
+- **E6** [E-03a..g] — Portfolio project detail (slide-in → full-page)
+- **E5** [E-08a..d] — External cost views (Workbench tab + Portfolio tab)
+
+### F7 (rest) — what landed (commits ``da14277``, ``2ba1052``)
+- `RunPortfolioTab` 4 KPI cards rebuilt to match the F7 spec: total
+  annual cost, To-Business vs internal split, mix by entity type,
+  outsourcing ratio.
+- New `RunDimensionRollupPanel` renders compact region / division /
+  country rollup panels under the KPI strip via
+  `chargingApi.getRollup()`. Falls through gracefully when the backend
+  rollup query falls back to entity_type for these dimensions
+  (documented in `services/rollup_query.py::_dim_key_label`).
+- Offering + InternalService rows are now clickable. Drill-down route
+  `/workbench?entity={id}&type={offering|internal_service}` resolved by
+  a new `EntityWorkspace` shell that hides the project list and
+  presents the BTC tab only (label flips between *Cost Allocation* and
+  *Distribution* per the F6 BTC-tab semantics).
+- `WorkbenchBTCTab` accepts either `projectId` or `entityId` —
+  same component now backs both project and non-project drill-downs.
+- `ProjectWorkbench` detects the `entity` query param and switches
+  rendering to the entity workspace; project-list fetch is short-
+  circuited in entity mode.
+
+### E6 — what landed (commit ``daf55b7``)
+- New route `/portfolio/project/:projectId` in `App.tsx`, ahead of the
+  catch-all `/portfolio/*` so the deeper match wins.
+- `ProjectDetailPage` shell with hierarchy breadcrumb (Portfolio → LoB
+  → Programme → Project) sourced from `ProjectMetadata.hierarchy_path`.
+  Read-only banner + "Open in Workbench" CTA.
+- Four section files under `modules/portfolio/detail/sections/`:
+  `OverviewSection`, `FinancialDetailSection`, `ResourcesAndCostsSection`,
+  `HistorySection`. All read-only for every role. Reuses
+  `MixedGranularityGrid` (C2), `ProjectTrajectoryChart`,
+  `VersionHistoryPanel` + `VersionComparisonDialog` (C2),
+  `CRHistoryList` (workbench history), and the new
+  `externalCostsApi` wrapper.
+- Variance waterfall slot on Financial Detail is a documented
+  placeholder — will swap in T2's E4 chart in a follow-up integration
+  commit once T2 merges.
+- Back-button restores scroll + filters via a sessionStorage handshake
+  (`creta:portfolio:dashboard:scroll`) per [E-03b].
+- v4 deep-link `/portfolio/<projectId>` redirects to the new route.
+- `DashboardTab` loses its `useSidePanel` wiring; old
+  `ProjectSummaryPanel.tsx` removed.
+
+### E5 — what landed (commit ``ae9a084``)
+- New `ExternalCostsTab.tsx` at `modules/workbench/external-costs/`
+  wired as the 5th `TabsTrigger` in `ProjectWorkspace.tsx` between
+  Cost Allocation and Change History. Sections: 4-KPI strip,
+  clickable category breakdown (filters the vendor list), sortable
+  expandable vendor table.
+- New `ExternalSpendTab.tsx` at `modules/portfolio/external-spend/`
+  wired as a tab in `PortfolioOverview.tsx` (Change sub-module).
+  Visible to all roles. Sections: KPI strip, cross-project vendor
+  summary with per-project breakdown via the matrix payload, category
+  analysis, project × vendor matrix collapsed by default and capped
+  at the top-12 vendors.
+- `PortfolioOverview` path-detection extended for
+  `/portfolio/external-spend`.
+
+### API wrapper additions (T1-owned)
+- `externalCostsApi` in `frontend/src/api/endpoints.ts` exposing the 5
+  E2 endpoints (project vendor + category, portfolio vendor +
+  category + matrix). New types in `frontend/src/types/api.ts`
+  (`ProjectVendorSummaryRow`, `ProjectCategoryRollupRow`,
+  `PortfolioVendorSummaryRow`, `PortfolioCategoryAnalysisRow`,
+  `ProjectVendorMatrixResponse`, etc.).
+- T2 owns `progress` / `milestones` wrappers; T3 owns
+  `launchpadApi.getTiles` + `capacityApi.getRoleAvailability`. T1
+  does not touch those.
+
+### Files added (15)
+- `frontend/src/modules/portfolio/run/RunDimensionRollupPanel.tsx`
+- `frontend/src/modules/portfolio/detail/ProjectDetailPage.tsx`
+- 4 files under `frontend/src/modules/portfolio/detail/sections/`
+  (`OverviewSection`, `FinancialDetailSection`,
+  `ResourcesAndCostsSection`, `HistorySection`)
+- `frontend/src/modules/portfolio/external-spend/ExternalSpendTab.tsx`
+- `frontend/src/modules/workbench/external-costs/ExternalCostsTab.tsx`
+- `frontend/src/modules/workbench/EntityWorkspace.tsx`
+
+### Files modified (8)
+- `frontend/src/api/endpoints.ts` (new `externalCostsApi`)
+- `frontend/src/types/api.ts` (new external-cost response types)
+- `frontend/src/App.tsx` (E6 route)
+- `frontend/src/modules/portfolio/PortfolioOverview.tsx` (E5 tab)
+- `frontend/src/modules/portfolio/dashboard/DashboardTab.tsx`
+  (slide-in → full-page navigation, snapshot handshake)
+- `frontend/src/modules/portfolio/run/RunPortfolioTab.tsx` (F7 KPIs +
+  rollup panels + drill-down routing)
+- `frontend/src/modules/workbench/btc/WorkbenchBTCTab.tsx`
+  (projectId or entityId entry-point)
+- `frontend/src/modules/workbench/ProjectWorkbench.tsx` + new
+  `EntityWorkspace.tsx` (entity-mode workspace)
+- `frontend/src/modules/workbench/ProjectWorkspace.tsx`
+  (E5 External Costs tab)
+
+### Files removed (1)
+- `frontend/src/modules/portfolio/dashboard/ProjectSummaryPanel.tsx`
+  (replaced by full-page detail per [E-03a])
+
+### Verification
+- `tsc -b` baseline: 82 → 81 errors after Wave 5 (one fewer; no new
+  errors introduced in any T1 file).
+- Backend untouched. Existing E2 endpoints + F2 chargeable-entities
+  endpoints exercised via `curl` to confirm wire shapes match.
+
+### Known gaps / follow-ups
+- Run Portfolio dimension rollup panels currently surface
+  entity_type aggregates because `services/rollup_query.py` falls
+  back to that grouping for region / division / country. Cluster F
+  follow-up to wire BTC-profile-aware aggregation will replace the
+  fallback labels seamlessly with no frontend change.
+- T2's E4 variance waterfall integration into
+  `FinancialDetailSection` is queued as a follow-up commit once T2
+  merges into `main`.
+
 ## v5 Session B2 — T2 Sandbox Surfaces + Version Threading (2026-04-29)
 
 ### Scope
