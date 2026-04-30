@@ -1409,19 +1409,21 @@ function externalCostQs(params?: ExternalCostQuery): string {
 export const externalCostsApi = {
   /**
    * Project-scoped vendor breakdown per [E-08a].
-   * Routes to: GET /api/projects/{id}/external-costs/vendor-summary
+   * Routes to: GET /api/workbench/projects/{id}/external-costs/vendor-summary
+   * (the project-scoped variants live under the workbench external_costs
+   *  router which mounts at /api/workbench, not /api/projects).
    */
   getProjectVendorSummary: (projectId: string, year?: number) =>
     api.get<ProjectVendorSummaryResponse>(
-      `/api/projects/${encodeURIComponent(projectId)}/external-costs/vendor-summary${externalCostQs({ year })}`,
+      `/api/workbench/projects/${encodeURIComponent(projectId)}/external-costs/vendor-summary${externalCostQs({ year })}`,
     ),
   /**
    * Project-scoped category rollup per [E-08b].
-   * Routes to: GET /api/projects/{id}/external-costs/category-rollup
+   * Routes to: GET /api/workbench/projects/{id}/external-costs/category-rollup
    */
   getProjectCategoryRollup: (projectId: string, year?: number) =>
     api.get<ProjectCategoryRollupResponse>(
-      `/api/projects/${encodeURIComponent(projectId)}/external-costs/category-rollup${externalCostQs({ year })}`,
+      `/api/workbench/projects/${encodeURIComponent(projectId)}/external-costs/category-rollup${externalCostQs({ year })}`,
     ),
   /**
    * Portfolio-scoped vendor summary per [E-08c].
