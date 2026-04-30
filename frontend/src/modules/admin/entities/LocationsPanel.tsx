@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { referenceApi, adminApi } from '@/api/endpoints';
 import type { RefLocation } from '@/types/api';
 import { EntityFormDialog } from './EntityFormDialog';
-import { LocationLabel } from '../shared/LocationLabel';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 
 interface LocationsPanelProps {
   onDataChanged: () => void;

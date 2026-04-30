@@ -15,6 +15,7 @@
 
 import { Route } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 import { formatCurrency } from '@/lib/formatters';
 import type { CostAllocationDimensionData } from '../../../lib/impactTypes';
 import { formatDeltaWithArrow } from '../../../lib/dimensionHeadlines';
@@ -99,7 +100,9 @@ export function CostAllocationDimension({
           <thead className="bg-muted/40 text-xs text-muted-foreground">
             <tr>
               <th className="text-left px-3 py-2 font-medium">Entity</th>
-              <th className="text-left px-3 py-2 font-medium">Location</th>
+              <th className="text-left px-3 py-2 font-medium">
+                <LocationLabel kind="charging" text="Location" />
+              </th>
               <th className="text-right px-3 py-2 font-medium">Anchor</th>
               <th className="text-right px-3 py-2 font-medium">Scenario</th>
               <th className="text-right px-3 py-2 font-medium">Delta</th>

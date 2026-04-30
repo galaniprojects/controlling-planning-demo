@@ -23,6 +23,7 @@ import { ChevronLeft } from 'lucide-react';
 import { EntityDistributionEditor } from '@/modules/charging/distribution/EntityDistributionEditor';
 import { EntityBTCProfileEditor } from '@/modules/charging/btc/EntityBTCProfileEditor';
 import { RollupView } from '@/modules/charging/rollup/RollupView';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 import { useScenarioContext } from '../useScenarioContext';
 import { SurfaceCard } from './SurfaceCard';
 import { chargingApi } from '@/api/endpoints';
@@ -240,7 +241,9 @@ function CostAllocationImpactView({ year }: { year: number }) {
             <thead className="text-muted-foreground">
               <tr>
                 <th className="text-left py-1">Entity</th>
-                <th className="text-left py-1">Charging location</th>
+                <th className="text-left py-1">
+                  <LocationLabel kind="charging" text="Charging location" />
+                </th>
                 <th className="text-right py-1">Anchor</th>
                 <th className="text-right py-1">Sandbox</th>
                 <th className="text-right py-1">Delta</th>

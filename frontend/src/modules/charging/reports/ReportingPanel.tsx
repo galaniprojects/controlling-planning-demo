@@ -15,6 +15,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, BookOpen, Database, Sparkles } from 'lucide-react';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 
 const CLUSTER_F_DIMENSIONS = [
   { key: 'entity', label: 'ChargeableEntity', desc: 'Single chargeable entity (PPM / S-code / ITF id)' },
@@ -131,7 +132,15 @@ export function ReportingPanel() {
               <li key={d.key} className="text-sm">
                 <div className="flex items-baseline gap-2">
                   <span className="font-mono text-[11px] text-muted-foreground">{d.key}</span>
-                  <span className="font-medium text-foreground">{d.label}</span>
+                  <span className="font-medium text-foreground">
+                    {d.key === 'charging_location' ? (
+                      <LocationLabel kind="charging" text={d.label} />
+                    ) : d.key === 'legal_entity' ? (
+                      <LocationLabel kind="legal" text={d.label} />
+                    ) : (
+                      d.label
+                    )}
+                  </span>
                 </div>
                 <p className="text-xs text-muted-foreground">{d.desc}</p>
               </li>

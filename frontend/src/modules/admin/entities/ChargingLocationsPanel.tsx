@@ -15,7 +15,7 @@ import {
 import { Skeleton } from '@/components/shared/Skeleton';
 import { adminD3Api } from '@/api/endpoints';
 import type { ChargingLocationItem, RegionItem, CountryItem } from '@/types/api';
-import { LocationLabel } from '../shared/LocationLabel';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 
 interface FormState {
   code: string;
