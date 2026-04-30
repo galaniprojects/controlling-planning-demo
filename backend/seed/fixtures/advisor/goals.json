@@ -17,10 +17,10 @@
         },
         "constituent_actions": [
           {"scope": "project", "project_id": "proj-dwh", "action_type": "delay", "parameters": {"months": 12}},
-          {"scope": "project", "project_id": "proj-aiml", "action_type": "remove", "parameters": {}},
+          {"scope": "project", "project_id": "proj-greenedge", "action_type": "remove", "parameters": {}},
           {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"percentage": -15, "direction": "decrease", "category": "external"}},
           {"scope": "project", "project_id": "proj-sensor", "action_type": "adjust_budget", "parameters": {"percentage": -15, "direction": "decrease", "category": "external"}},
-          {"scope": "project", "project_id": "proj-sap", "action_type": "adjust_budget", "parameters": {"percentage": -15, "direction": "decrease", "category": "external"}}
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"percentage": -15, "direction": "decrease", "category": "external"}}
         ]
       },
       {
@@ -35,7 +35,7 @@
           "rag_changes": "1 project may shift Green to Amber"
         },
         "constituent_actions": [
-          {"scope": "project", "project_id": "proj-aiml", "action_type": "remove", "parameters": {}},
+          {"scope": "project", "project_id": "proj-greenedge", "action_type": "remove", "parameters": {}},
           {"scope": "project", "project_id": "proj-dwh", "action_type": "delay", "parameters": {"months": 6}},
           {"scope": "project", "project_id": "proj-telem", "action_type": "pause", "parameters": {"from_month": "2026-04"}},
           {"scope": "portfolio", "action_type": "cap_cost_category", "parameters": {"cost_type": "ext-consulting", "percentage": -10}}
@@ -114,10 +114,10 @@
           "rag_changes": "Fleet Portal may shift Green to Amber"
         },
         "constituent_actions": [
-          {"scope": "project", "project_id": "proj-raildiag", "action_type": "accelerate", "parameters": {"months": 3}},
-          {"scope": "project", "project_id": "proj-raildiag", "action_type": "adjust_budget", "parameters": {"amount": 200000, "direction": "increase"}},
-          {"scope": "project", "project_id": "proj-fleet", "action_type": "adjust_budget", "parameters": {"percentage": -10, "direction": "decrease"}},
-          {"scope": "project", "project_id": "proj-aiml", "action_type": "remove", "parameters": {}}
+          {"scope": "project", "project_id": "proj-railsafety", "action_type": "accelerate", "parameters": {"months": 3}},
+          {"scope": "project", "project_id": "proj-railsafety", "action_type": "adjust_budget", "parameters": {"amount": 200000, "direction": "increase"}},
+          {"scope": "project", "project_id": "proj-sensor", "action_type": "adjust_budget", "parameters": {"percentage": -10, "direction": "decrease"}},
+          {"scope": "project", "project_id": "proj-greenedge", "action_type": "remove", "parameters": {}}
         ]
       },
       {
@@ -134,8 +134,8 @@
         "constituent_actions": [
           {"scope": "project", "project_id": "proj-predmaint", "action_type": "adjust_budget", "parameters": {"amount": 100000, "direction": "increase"}},
           {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}},
-          {"scope": "project", "project_id": "proj-sap", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}},
-          {"scope": "project", "project_id": "proj-fleet", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}}
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}},
+          {"scope": "project", "project_id": "proj-sensor", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}}
         ]
       }
     ]
@@ -200,7 +200,7 @@
         },
         "constituent_actions": [
           {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"amount": 150000, "direction": "increase"}},
-          {"scope": "project", "project_id": "proj-aiml", "action_type": "adjust_budget", "parameters": {"amount": -150000, "direction": "decrease"}}
+          {"scope": "project", "project_id": "proj-greenedge", "action_type": "adjust_budget", "parameters": {"amount": -150000, "direction": "decrease"}}
         ]
       },
       {

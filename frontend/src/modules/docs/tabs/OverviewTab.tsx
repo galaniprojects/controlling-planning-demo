@@ -141,7 +141,7 @@ SQLite Database (creta_demo.db)
               <tr className="border-b"><td className="py-2 font-medium">Anna Meier</td><td className="py-2">Controller</td><td className="py-2 text-muted-foreground">Full access — all modules, admin, approvals, scenarios</td></tr>
               <tr className="border-b"><td className="py-2 font-medium">Thomas Brenner</td><td className="py-2">CC Owner</td><td className="py-2 text-muted-foreground">Capacity management, portfolio dashboard</td></tr>
               <tr className="border-b"><td className="py-2 font-medium">Priya Sharma</td><td className="py-2">Project Lead</td><td className="py-2 text-muted-foreground">Project workbench, forecast cycles, intake submission</td></tr>
-              <tr className="border-0"><td className="py-2 font-medium">Thomas Becker</td><td className="py-2">Executive</td><td className="py-2 text-muted-foreground">Portfolio dashboard, scenarios (read-only)</td></tr>
+              <tr className="border-0"><td className="py-2 font-medium">Dr. Klaus Weber</td><td className="py-2">Executive</td><td className="py-2 text-muted-foreground">Portfolio dashboard, scenarios (read-only)</td></tr>
             </tbody>
           </table>
         </CardContent>
