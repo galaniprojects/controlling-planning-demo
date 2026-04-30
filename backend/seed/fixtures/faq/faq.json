@@ -2,33 +2,33 @@
   {
     "id": "faq-01",
     "question": "How do I submit a change request for my project?",
-    "summary": "Navigate to Project Workbench, select your project, and use the Change Request panel to create and submit a CR.",
+    "summary": "CRs are created automatically by the 5-phase Monthly Forecast Wizard — there is no separate 'Create CR' form. Open Project Workbench, navigate to Forecast & Planning, and click Rolling Forecast Review.",
     "applicable_roles": ["project_lead"],
     "modules_involved": ["workbench"],
     "steps": [
       {"step_number": 1, "instruction": "Open the **Project Workbench** from the Launchpad or sidebar navigation.", "target_module": "workbench"},
       {"step_number": 2, "instruction": "Select the project you want to modify from the project list on the left panel."},
-      {"step_number": 3, "instruction": "Click the **Change Requests** tab in the project detail view."},
-      {"step_number": 4, "instruction": "Click **+ New Change Request** and select the change category (scope, timeline, resource, external cost, or other)."},
-      {"step_number": 5, "instruction": "Fill in the summary, justification, and detailed change lines. If a system suggestion exists, you can pre-fill from it."},
-      {"step_number": 6, "instruction": "Click **Submit** to send the CR to the Controller for review. The Controller can approve it, reject it, or request changes using an editable grid. While the CR is pending, the forecast review button will be locked to prevent overlapping submissions."},
-      {"step_number": 7, "instruction": "If the Controller requests changes, you will see the CR in your Change History tab with an 'Action Required' badge. Expand it to see a diff view comparing your original values with the controller's proposed changes, then Accept or Decline and Resubmit."},
-      {"step_number": 8, "instruction": "If the CR involves internal resource changes, it will route to the CC Owner as the final step. The CC Owner sees delta-based requests showing the change amount (not the total), making it clear exactly what needs to be allocated or de-allocated."}
+      {"step_number": 3, "instruction": "Click the **Forecast & Planning** tab, then click **Rolling Forecast Review** to open the 5-phase wizard."},
+      {"step_number": 4, "instruction": "Walk the 5 phases: Retrospective (acknowledge prior-month variances) → Suggestions (apply or dismiss AI insights) → Edit Forecast (modify the monthly + quarterly grid) → Review (verify the diff in EUR with justification) → Confirmation (Submit)."},
+      {"step_number": 5, "instruction": "On Submit, the system creates one or more CRs partitioned by affected cost centre. CRs touching internal resources route to the CC Owner first; cost-only CRs go directly to the Controller."},
+      {"step_number": 6, "instruction": "While any CR is pending, the **Rolling Forecast Review** button is locked with a status indicator showing the blocking CR number. This prevents overlapping submissions."},
+      {"step_number": 7, "instruction": "If the Controller sends back the CR with edits, you will see it in your Change History tab with an 'Action Required' amber badge. Expand it to see a diff view comparing your original values with the controller's proposed changes, then **Accept Changes** or **Decline and Resubmit**."},
+      {"step_number": 8, "instruction": "If the CR involves internal resource changes, the CC Owner sees delta-based requests showing the change amount (not the total) and can confirm, partially fulfill, counter-propose, or decline. See the full step-by-step in `docs/workflows/03-forecast-cycle.md` (W03.1) and `docs/workflows/04-change-requests.md` (W04.1)."}
     ]
   },
   {
     "id": "faq-02",
     "question": "How do I respond to a resource request?",
-    "summary": "Go to Capacity Management > Request Management, review the request details, and choose Confirm, Partially Fulfill, Counter-Propose, or Decline.",
+    "summary": "Go to Capacity Management → Resource Requests, click Review & Assign Resources on the project / CR card, then per row choose Confirm, Partially Fulfill, Counter-Propose, or Decline.",
     "applicable_roles": ["cost_center_owner"],
     "modules_involved": ["capacity"],
     "steps": [
       {"step_number": 1, "instruction": "Open **Capacity Management** from the Launchpad or sidebar.", "target_module": "capacity"},
-      {"step_number": 2, "instruction": "Click the **Request Management** tab to see incoming requests for your cost center."},
-      {"step_number": 3, "instruction": "Review the request details: project, role/cost type, hours or amount, period, priority, and for CR-linked requests the change direction (increase/decrease), delta hours, original allocation, and currently allocated person."},
-      {"step_number": 4, "instruction": "Use the **Assignment Preview** to check which team members have availability."},
-      {"step_number": 5, "instruction": "Choose your response: **Confirm** (assign a named person), **Partially Fulfill** (adjust hours or period), **Counter-Propose** (offer an alternative), or **Decline** (with reason). For decrease requests, confirming will reduce the existing person's allocation rather than creating a new one."},
-      {"step_number": 6, "instruction": "Submit your response. If you confirmed a CR-linked resource request, the CR is automatically approved and the forecast is updated. If you declined, the CR is sent back to the Project Lead."}
+      {"step_number": 2, "instruction": "Click the **Resource Requests** button (or use the 'Open Requests' tile on the Launchpad) to navigate to `/capacity/requests`. Each pending parent (project intake or CR-linked) appears as a card."},
+      {"step_number": 3, "instruction": "Click **Review & Assign Resources** on the relevant card to open the per-project assignment grid at `/capacity/project-assignment/<project-id>`."},
+      {"step_number": 4, "instruction": "Inspect each row: requested role, monthly hours, and (for CR-linked deltas) the change direction (Increase/Decrease badge), delta hours, original allocation, and currently allocated person."},
+      {"step_number": 5, "instruction": "Per row, choose your response: **Confirm** (assign a named person via the cell dropdown — Matching Role first, then Other Roles, with utilization color-coded), **Partially Fulfill** (reduce hours / shorten period — routes back to PL for sign-off), **Counter-Propose** (offer alternative person/role/split — routes back to PL for negotiation), or **Decline** (with required reason — routes back to PL). Use the All column to bulk-assign one person across every month of a row."},
+      {"step_number": 6, "instruction": "Click **Confirm All & Send to Controller** when every row is fully assigned. CR-linked requests advance the CR to `pending_controller_approval`; intake-linked requests move the project to the controller's approval queue. See full walks in `docs/workflows/05-resource-requests.md` (W05.1-W05.4)."}
     ]
   },
   {
@@ -77,15 +77,15 @@
   {
     "id": "faq-06",
     "question": "How do I approve or reject a change request?",
-    "summary": "As a Controller, go to Portfolio Overview, find pending CRs in the approval queue, review details, and approve or reject.",
+    "summary": "As a Controller, go to Portfolio Overview → CR Approvals tab, click a CR row, review the diff, and Approve / Reject / Request Changes.",
     "applicable_roles": ["controller"],
     "modules_involved": ["portfolio"],
     "steps": [
-      {"step_number": 1, "instruction": "Open the **Portfolio Overview** module.", "target_module": "portfolio"},
-      {"step_number": 2, "instruction": "Check the **Pending Approvals** section or notification badge showing CRs awaiting your review."},
-      {"step_number": 3, "instruction": "Click a CR to see its full details: summary, justification, change details, CC Owner confirmation, and comments."},
-      {"step_number": 4, "instruction": "Review the impact on the project's budget, timeline, and RAG status."},
-      {"step_number": 5, "instruction": "Click **Approve** to accept the CR (routes to CC Owner if it has resource changes, otherwise approved directly). Click **Reject** with a required reason. Click **Request Changes** to open an editable forecast grid where you can adjust specific values, add feedback, and send back to the Project Lead with your proposed modifications."}
+      {"step_number": 1, "instruction": "Open the **Portfolio Overview** module from the Launchpad's **Pending Reviews** tile, or navigate directly to `/portfolio/approvals`.", "target_module": "portfolio"},
+      {"step_number": 2, "instruction": "Select the **CR Approvals** tab. The queue lists pending CRs with columns: CR # / Project / Summary / Submitted By / Confirmed By / Impact / Date."},
+      {"step_number": 3, "instruction": "Click a CR row to open the detail panel showing the line-item-level diff (each `CRChangeDetail` with old / new / delta), the CC Owner confirmation indicator, and the full justification text."},
+      {"step_number": 4, "instruction": "Review the impact on the project's forecast in EUR. Verify the CC has confirmed (the **Approve** button stays disabled until all CCs in scope have confirmed) — for Run-portfolio CRs (DoI 5 / Offerings / InternalServices) the CC step is skipped."},
+      {"step_number": 5, "instruction": "Click **Approve** to write the deltas to the live forecast and snapshot a new ForecastVersion (`version_type='cr_approval'`). Click **Reject** with a required reason — PL is notified with the rationale. Click **Request Changes** to open an editable grid, modify specific cells, type commentary, and **Send Back to PL** — the PL sees an 'Action Required' badge in their Change History with the diff view (see `docs/workflows/04-change-requests.md` W04.4)."}
     ]
   },
   {
@@ -119,41 +119,41 @@
   {
     "id": "faq-09",
     "question": "How do I update my project's monthly forecast?",
-    "summary": "Open your project in Project Workbench, navigate to the Forecast tab, and edit the monthly values for internal or external line items.",
+    "summary": "Open your project in Project Workbench, click the Forecast & Planning tab, and start the 5-phase Rolling Forecast Review wizard.",
     "applicable_roles": ["project_lead"],
     "modules_involved": ["workbench"],
     "steps": [
       {"step_number": 1, "instruction": "Open the **Project Workbench** and select your project.", "target_module": "workbench"},
-      {"step_number": 2, "instruction": "Click the **Forecast** tab to see the monthly forecast grid."},
-      {"step_number": 3, "instruction": "Click **Rolling Forecast Review** to start the monthly review wizard. Note: if a CR is already pending for this project, the button will be disabled until the CR is resolved."},
-      {"step_number": 4, "instruction": "Walk through the 5 phases: Retrospective (review variances), Suggestions (apply AI insights), Editing (modify the grid or click 'Keep as is' to proceed without changes), Review (verify changes in full EUR format), and Submit."},
-      {"step_number": 5, "instruction": "Submitted changes become a CR routed to the Controller. If internal resource changes are included, the CR also routes to the CC Owner for final confirmation."}
+      {"step_number": 2, "instruction": "Click the **Forecast & Planning** tab to see the monthly + quarterly forecast grid (monthly for the next 12 months, quarterly thereafter; cells beyond the granularity boundary appear with a 'Provisional' flag)."},
+      {"step_number": 3, "instruction": "Click **Rolling Forecast Review** to start the wizard. Note: if a CR is already pending for this project, the button is disabled with a status indicator showing the blocking CR number."},
+      {"step_number": 4, "instruction": "Walk the 5 phases: **Retrospective** (acknowledge prior-month variances — flagged rows > 10% require text explanation before Acknowledge & Continue enables), **Suggestions** (apply or dismiss AI insights, may be silently skipped if none surface), **Edit Forecast** (modify the grid; click 'Keep as is' to proceed without changes), **Review** (verify changes in full EUR format with old / new / delta), and **Confirmation** (final Submit)."},
+      {"step_number": 5, "instruction": "On Submit, the system creates one or more CRs partitioned by affected cost centre and writes a new ForecastVersion. CRs touching internal resources route to the CC Owner first. See full walk in `docs/workflows/03-forecast-cycle.md` (W03.1)."}
     ]
   },
   {
     "id": "faq-10",
     "question": "What happens when a CR involves reducing hours for a role?",
-    "summary": "The system creates a decrease resource request showing the delta, the original allocation, and the currently assigned person. The CC Owner confirms the reduction.",
+    "summary": "The CR carries the delta (e.g. -20h). The CC Owner sees a red 'Decrease' badge with the original allocation and currently-allocated person. Confirming reduces the existing allocation rather than creating a new one.",
     "applicable_roles": ["project_lead", "cost_center_owner"],
     "modules_involved": ["workbench", "capacity"],
     "steps": [
-      {"step_number": 1, "instruction": "When a PL reduces forecasted hours for an internal role (e.g., from 60h to 40h per month), the CR captures the delta as a decrease of 20h."},
-      {"step_number": 2, "instruction": "After controller approval, a resource request is created for the CC Owner with a red 'Decrease' badge, showing: original 60h, delta -20h, resulting total 40h, and the currently allocated person."},
-      {"step_number": 3, "instruction": "The CC Owner reviews and confirms the reduction. Confirming reduces the allocated person's hours rather than creating a new allocation."},
-      {"step_number": 4, "instruction": "The CR is completed and the forecast is updated with the reduced hours."}
+      {"step_number": 1, "instruction": "When a PL reduces forecasted hours for an internal role (e.g., from 60h to 40h per month) in Phase 3 of the Rolling Forecast Review wizard, the resulting CR captures the delta as a decrease of 20h."},
+      {"step_number": 2, "instruction": "The CR routes to the CC Owner first (`pending_cc_confirmation` state). In Capacity Management → Resource Requests, the CC sees a card with a red 'Decrease' badge and these context fields: original 60h, delta -20h, resulting total 40h, and the currently allocated person."},
+      {"step_number": 3, "instruction": "The CC Owner reviews and confirms the reduction. Confirming reduces the existing person's allocation rather than creating a new one. The CR advances to `pending_controller_approval`."},
+      {"step_number": 4, "instruction": "On Controller approval, the live `Forecast` and `Allocation` rows are updated and a new ForecastVersion (`version_type='cr_approval'`) is snapshot. The PL sees a 'Change request approved' notification."}
     ]
   },
   {
     "id": "faq-11",
     "question": "How do I switch between personas in the demo?",
-    "summary": "Use the persona switcher in the top-right corner of the Launchpad to switch between the four demo personas.",
+    "summary": "Click the persona button in the top-right of the TopBar to open the dropdown, then pick one of the four demo personas.",
     "applicable_roles": ["controller", "cost_center_owner", "project_lead", "executive"],
     "modules_involved": ["launchpad"],
     "steps": [
-      {"step_number": 1, "instruction": "Look for the **persona avatar** in the top-right corner of the application header."},
-      {"step_number": 2, "instruction": "Click the avatar to open the **Persona Switcher** dropdown."},
-      {"step_number": 3, "instruction": "Select one of the four personas: {controller_name} (Controller), {cc_owner_name} (CC Owner), {pl_name} (Project Lead), or {executive_name} (Executive)."},
-      {"step_number": 4, "instruction": "The application will reload with the selected persona's view, showing role-appropriate modules, data, and actions."}
+      {"step_number": 1, "instruction": "Locate the **persona button** in the top-right of the TopBar — it shows the current persona's display name (e.g., 'Anna Meier') and a caret."},
+      {"step_number": 2, "instruction": "Click the button to open the **Persona Switcher** dropdown menu listing all four personas with display name + title on each row."},
+      {"step_number": 3, "instruction": "Select one of: **Anna Meier** / IT Controller, **Thomas Brenner** / Head of Application Development (Cost Centre Owner), **Priya Sharma** / Senior Project Lead, or **Dr. Klaus Weber** / VP IT Strategy & Governance (Executive)."},
+      {"step_number": 4, "instruction": "Page contents re-render in-place with the new persona's data within ~500ms — the URL stays the same. Tile counts, pending actions, and writeable controls all update per role. The chosen persona persists across browser sessions via the `creta-persona` localstorage key. See `docs/workflows/00-system.md` (W00.1) for the full walk."}
     ]
   },
   {
@@ -269,13 +269,13 @@
   {
     "id": "faq-20",
     "question": "How do I enable dark mode?",
-    "summary": "Click the Sun/Moon icon in the top-right corner of the application header to toggle between light, dark, and system themes.",
+    "summary": "Click the Sun / Moon icon in the top-right of the TopBar to toggle between light and dark themes. The choice persists across sessions.",
     "applicable_roles": ["controller", "cost_center_owner", "project_lead", "executive"],
     "modules_involved": ["launchpad"],
     "steps": [
-      {"step_number": 1, "instruction": "Look for the **Sun** or **Moon** icon button in the top-right area of the application header (TopBar), next to the persona switcher."},
-      {"step_number": 2, "instruction": "Click the icon to cycle through three modes: **Light** (sun icon visible), **Dark** (moon icon visible), and **System** (follows your operating system preference)."},
-      {"step_number": 3, "instruction": "The theme applies immediately across all modules, charts, and dialogs. Your preference is saved automatically and persists across sessions."}
+      {"step_number": 1, "instruction": "Locate the **Sun** or **Moon** icon button in the top-right area of the TopBar, immediately left of the persona switcher. The button's tooltip reads 'Switch to light mode' when in dark, or 'Switch to dark mode' when in light."},
+      {"step_number": 2, "instruction": "Click the icon to flip the theme. The page re-renders without a reload — `<html class=\"dark\">` is added or removed across all modules, charts, dialogs, and grids."},
+      {"step_number": 3, "instruction": "Your preference is saved to the browser's `theme` localstorage key automatically and persists across sessions. A hidden 'system' mode (which follows your OS preference) can be set programmatically by writing 'system' to that key. See `docs/workflows/00-system.md` (W00.2) for the full walk."}
     ]
   },
   {
