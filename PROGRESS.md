@@ -6,6 +6,80 @@ Phase: **v5 Wave 4 complete locally on `v5/wave4-f6-e2-b2-merged` (2026-04-29)**
 Phase preceding: F6 ships the Workbench BTC tile + tab + per-entity allocation breakdown endpoint (+20 tests). E2 ships external cost aggregation endpoints + role-personalised Launchpad tiles + PL capacity read-only endpoint (+73 tests).
 Wave 3 merged on main (2026-04-29) and verified end-to-end. All five sessions landed: **B1** (scenario engine + Lever 12, +91 tests), **E1** (progress tracker + ExternalCostCategory, +92 tests), **A8** (frontend pipeline + Run Portfolio scaffolding), **C2** (frontend mixed-granularity grid + version history UI), and **F4 + F5** (frontend Charging & Allocations module — Distribution + BTC editors + Location Cost Rollup map + tree-table + Report Builder integration). Backend test count after Wave 3: **1190** (1007 baseline + 91 B1 + 92 E1). Frontend TypeScript: 0 errors. Visual verification done in light + dark themes across all four roles (~30 screenshots, prefix `w3-`).
 
+## v5 Session E7 — Launchpad full redesign (T3, 2026-04-30)
+
+### Scope
+T3 of Wave 5's three-team split. Replaces the legacy two-column Launchpad
+(module-entry tile grid + vertical pending-actions sidebar) with a full
+three-zone vertical layout per `[E-06d]–[E-06j]`, `[E-06a]`, `[E-06b]`,
+`[E-06c]`. All backend dependencies (`/api/launchpad/tiles`,
+`/api/capacity/role-availability`) ship from Wave 4 E2 — this session is
+frontend-only.
+
+### Three zones
+1. **LaunchpadHeader** — adds a status row under the role badge with the
+   formatted current date (e.g. *Thursday, 30 April 2026*) and a Q{n}
+   {year} Cycle badge derived client-side via the same fiscal-quarter
+   mapping as `backend/services/forecast_cycle.derive_cycle_label`.
+2. **PendingActionsPanel** — full rewrite as a horizontal scrollable
+   strip per `[E-06b]`. Cards sorted urgent-first (red accent bar +
+   triangle icon for urgent); the entire strip toggles via Show/Hide;
+   when no actions exist the strip collapses into a single-line *All
+   caught up* banner. All deep-link routing preserved verbatim from the
+   v4 vertical sidebar.
+3. **RoleTileGrid + 4 role-specific tile-set components** — dispatcher
+   branches on `useRole().context?.role`. Backend returns the right
+   tile count per role (PL 7, Controller 9, CC Owner 8, Executive 7);
+   frontend layout is per-role.
+   - `PLTileGrid` (3-col, 7 tiles) — Resource Availability tile pulls
+     from `capacityApi.getRoleAvailability()` to surface the top 3 roles
+     by available hours over the next 3 months. Anonymised per `[E-06a]`
+     — no person names anywhere.
+   - `ControllerTileGrid` (3×3, 9 tiles)
+   - `CCOwnerTileGrid` (4-col, 8 tiles)
+   - `ExecutiveTileGrid` (3-col, 7 tiles)
+
+### Frontend wrappers (added)
+- `launchpadApi.getTiles()` → `TilesResponse`
+- `capacityApi.getRoleAvailability(params)` → `RoleAvailabilityResponse`
+- New types in `frontend/src/types/api.ts`: `TilePayload`, `TilesResponse`,
+  `TileTone`, `RoleAvailabilityRow`, `RoleAvailabilityResponse`
+
+### Files added (6)
+- `frontend/src/modules/launchpad/RoleTileGrid.tsx`
+- `frontend/src/modules/launchpad/tiles/TileCard.tsx`
+- `frontend/src/modules/launchpad/tiles/PLTileGrid.tsx`
+- `frontend/src/modules/launchpad/tiles/ControllerTileGrid.tsx`
+- `frontend/src/modules/launchpad/tiles/CCOwnerTileGrid.tsx`
+- `frontend/src/modules/launchpad/tiles/ExecutiveTileGrid.tsx`
+
+### Files modified (4)
+- `frontend/src/modules/launchpad/Launchpad.tsx` — 3-zone restructure
+- `frontend/src/modules/launchpad/LaunchpadHeader.tsx` — date + cycle
+- `frontend/src/modules/launchpad/PendingActionsPanel.tsx` — rewrite
+- `frontend/src/api/endpoints.ts` — two wrappers
+- `frontend/src/types/api.ts` — five new types
+
+### Files removed (1)
+- `frontend/src/modules/launchpad/ModuleTilesGrid.tsx` — orphaned after
+  RoleTileGrid takeover
+
+### Verification
+- TypeScript: **0 errors** project-wide (verified via `tsc --noEmit`)
+- Visual verification: 8 full-page screenshots captured at 1440px width
+  across the 4 roles × 2 themes (under
+  `.playwright-mcp/screenshots/w5-launchpad-{role}-{theme}.png`).
+- Tile click navigation verified for Pipeline → /backlog,
+  Pending Reviews → /portfolio?tab=approvals, Resource Availability →
+  /capacity?tab=availability, My Forecast → /workbench?tab=forecast.
+- Pending action click verified to deep-link CR #19 → /portfolio/approvals?cr=19.
+- Backend test count: **1283** (unchanged — frontend-only session).
+
+### Cross-team contract
+T3 owns `launchpadApi.getTiles` + `capacityApi.getRoleAvailability` per
+the Wave-5 plan. T1 (`externalCostsApi`) and T2 (progress / milestones
+wrappers) own their own wrapper additions; no overlapping edits.
+
 ## v5 Session B2 — T2 Sandbox Surfaces + Version Threading (2026-04-29)
 
 ### Scope
