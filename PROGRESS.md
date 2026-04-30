@@ -1,6 +1,136 @@
 # CRETA Demo — Build Progress
 
 ## Current Status
+
+## v5 Session E3 + E4 — T2 Workbench Overview tile grid + Progress vs. Burn / Variance Waterfall (2026-04-30)
+
+### Scope
+T2 of the four-team Wave 5 split. Owns the **E3** Workbench Overview 3×3
+tile grid + 9 tile components + the **E4** Progress vs. Burn chart and
+Variance Waterfall chart with their expanded dialogs. Coexists with the
+F6 BTC allocation tile (rendered separately below the grid per the
+spec's E-09 + E3 coexistence note).
+
+### Frontend deliverables
+- **9 tile components** under `frontend/src/modules/workbench/overview/tiles/`
+  (Row 1: ProjectHeaderTile, ThreePointSummaryTile, MilestoneStatusTile;
+  Row 2: ResourcePlanTile, CostMixTile, ProgressTrackerTile;
+  Row 3: ExternalCostsTile, ForecastHealthTile, TechNavigatorTile)
+  + barrel `tiles/index.ts`.
+- **2 chart components** under `frontend/src/components/charts/`:
+  `ProgressVsBurnChart.tsx` (cumulative progress + burn + baseline lines
+  with milestone zone bands and solid/highlighted/dashed milestone
+  markers per `[E-05b]`; burn-only fallback per `[E-05d]`),
+  `VarianceWaterfallChart.tsx` (stacked-spacer waterfall bridging
+  baseline → grouped CR categories → current forecast with bar-click
+  navigation per `[E-05c]`).
+- **2 dialog components** under
+  `frontend/src/modules/workbench/overview/expanded/`:
+  `ProgressVsBurnDialog.tsx`, `VarianceWaterfallDialog.tsx`. Wired to
+  the Progress Tracker tile click and Three-Point Summary tile click
+  respectively.
+- **1 shared component** at `frontend/src/components/shared/ActionCard.tsx`
+  codifying the Cluster E `[E-07d]` action-card pattern (surface card +
+  hover + click affordance) with built-in loading / error / empty
+  states.
+- **Progress tracker types + API wrappers**:
+  `frontend/src/types/progress.ts` mirrors backend's
+  `schemas/workbench.py` progress models;
+  `frontend/src/api/endpoints.ts` gains a `progressApi` block exposing
+  `get / update / getHistory / getSnapshot / getMilestoneChecklist`.
+
+### OverviewTab refactor
+`frontend/src/modules/workbench/overview/OverviewTab.tsx` rewritten
+end-to-end. The v4 vertical stack (MetadataBar +
+ProjectTimelineChart + MonthlyTimelineTable + ThreePointTable +
+ProjectTrajectoryChart + 2-col CapEx/Resource + BTCAllocationTile) is
+replaced by:
+- `responsive grid (1 / 2 / 3 cols)` of the 9 new tiles per `[E-04a]`,
+- the F6 `BTCAllocationTile` rendered as a full-width band below the
+  grid (E-09 + E3 coexistence),
+- two embedded dialogs that open from the tile click handlers.
+
+The legacy components (MetadataBar, MonthlyTimelineTable,
+ProjectTimelineChart, ThreePointTable, CapexOpexDisplay,
+ResourceSummaryTable, ProjectTrajectoryChart) are intentionally kept on
+disk — they remain in use elsewhere (intake, change history) and the
+Cluster C / E specs do not call for their removal in this session.
+
+### ProjectWorkspace wiring
+`frontend/src/modules/workbench/ProjectWorkspace.tsx` adds two new
+callbacks (`onOpenForecastTab`, `onOpenChangeHistory`) so tiles can ask
+the parent to switch tabs without coupling the Overview to react-router.
+The Three-Point Summary → waterfall click route closes the dialog
+before delegating to `onNavigateToChangeHistory(category)`.
+
+### Confidence vocabulary [E-07g]
+The Progress Tracker tile renders the next-milestone confidence as a
+**diamond** (rotated square SVG) rather than a circle, distinct from
+the RAG dot vocabulary per `[E-07g]`.
+
+### Endpoint coverage
+- `workbenchApi.getOverview()` → Project Header, Three-Point Summary,
+  Cost Mix, Resource Plan, Forecast Health summary numbers.
+- `progressApi.get()` → Progress Tracker tile + Progress vs. Burn dialog
+  current state.
+- `progressApi.getHistory()` → Progress vs. Burn dialog snapshot
+  history sidebar + chart data points.
+- `milestonesApi.list()` → Milestone Status tile + Progress vs. Burn
+  zone bands.
+- `techNavigatorApi.get()` → Tech Navigator tile + Project Header
+  badges (project type, t-shirt size).
+- `backlogApi.getBacklog()` → Tech Navigator tile peer scatter.
+- `workbenchApi.listForecastVersions()` → Forecast Health tile
+  current-version metadata.
+- `workbenchApi.getForecast()` → Cost Mix tile internal/external
+  derivation.
+- `workbenchApi.getChangeRequests()` → Variance Waterfall dialog CR
+  bridge.
+- `GET /api/projects/{id}/external-costs/vendor-summary` and
+  `category-rollup` (called via `api.get` directly to avoid racing T1's
+  `externalCostsApi` wrapper) → External Costs tile.
+
+### Files added (16) / modified (4)
+- New: `frontend/src/components/shared/ActionCard.tsx`
+- New: `frontend/src/components/charts/ProgressVsBurnChart.tsx`
+- New: `frontend/src/components/charts/VarianceWaterfallChart.tsx`
+- New: `frontend/src/types/progress.ts`
+- New: `frontend/src/modules/workbench/overview/tiles/` (10 files —
+  9 tiles + index.ts)
+- New: `frontend/src/modules/workbench/overview/expanded/`
+  (2 dialogs)
+- Modified: `frontend/src/api/endpoints.ts` (+progressApi block)
+- Modified: `frontend/src/modules/workbench/overview/OverviewTab.tsx`
+  (rewrite to 3×3 grid + dialogs)
+- Modified: `frontend/src/modules/workbench/ProjectWorkspace.tsx`
+  (+onOpenForecastTab / +onOpenChangeHistory callbacks)
+
+### Verification
+- TypeScript: 82 baseline errors maintained, **zero new errors** from
+  E3 + E4 (verified via `tsc -b tsconfig.app.json --noEmit`).
+- Vite production build: clean (`vite build` succeeds; bundle
+  ~1.77 MB / 462 KB gzipped).
+- Visual verification: Playwright MCP not available in this agent
+  session — flagged for the team-lead consolidated review.
+
+### Known gaps / follow-ups
+- **T1 owns `externalCostsApi`**: ExternalCostsTile calls the vendor /
+  category endpoints via `api.get` directly. Once T1 lands the typed
+  wrapper, this tile can migrate to `externalCostsApi.getProjectVendor
+  Summary()` etc. in a one-line change.
+- **No URL-driven Change History filter**: the `/workbench` URL does
+  not yet decode `?tab=history&category=…`. The waterfall click
+  delegates to `onNavigateToChangeHistory(category)` so a future
+  session can implement deep-linking centrally without touching the
+  dialog.
+- **Demo data has no progress snapshots seeded**: every project's
+  `/api/projects/{id}/progress` returns nulls today. The Progress
+  Tracker tile falls through to its empty state (`No progress
+  reported yet`); the Progress vs. Burn dialog renders the burn-only
+  fallback path. E1 follow-up to seed sample progress data would
+  unlock the full UI.
+
+## v5 Wave 4 (preceding) — Current Status
 Phase: **v5 Wave 4 complete locally on `v5/wave4-f6-e2-b2-merged` (2026-04-29)**, awaiting PR. Wave 4 bundles **F6 + E2 + B2**. B2 is the frontend What-If Simulator full rebuild — four-team parallel session: **T1** (shell + ScenarioContext + manager + drawer + apply-to-forecast + RoleContext.tier3_flag patch), **T2** (15 sandbox surfaces + cross-module `scenarioVersion` threading across F4/F5/C2/A6 + 3 sidebar bodies), **T3** (8-dimension impact dashboard + 3-level Compare view), **T4** (21 catalogue actions + Promote workflow + 2 Tier-3 surfaces + 2 Tier-3 sidebar sections). v4 simulator removed wholesale (zero cross-module imports). v4 AI Advisor preserved behind `VITE_ENABLE_AI_ADVISOR` flag. Backend test count: **1283** (unchanged from F6+E2 — B2 is frontend-only; T1's backend RoleContext.tier3_flag patch covered by existing tests). Frontend TS: 82 baseline errors maintained (zero new from any of the 4 slices). 30 endpoints under `/api/scenarios` (all from B1) wired through `scenariosApi` typed wrappers. Lever 12 sandbox storage pattern wired through ScenarioContext (Stage 1 distribution forks to `scenario-{id}` Distribution rows; Stage 2 BTC overlays as ScenarioAction rows). 6 merge commits on the consolidated branch + 2 integration glue commits (sidebar bodies + surfaceKey URL switch + Tier 3 surfaces + Promote button → /promote route). T2-flagged backend gap: `routers/workbench.py:1482` does not yet read the optional `version` query for sandbox forecast composition — frontend plumbing in place, B-cluster follow-up.
 
 Phase preceding: F6 ships the Workbench BTC tile + tab + per-entity allocation breakdown endpoint (+20 tests). E2 ships external cost aggregation endpoints + role-personalised Launchpad tiles + PL capacity read-only endpoint (+73 tests).
