@@ -1,3 +1,12 @@
+/**
+ * EntitySelector — Admin module left-rail nav, refactored over the
+ * shared LeftRailNav per `[E-07c]`. The five-section grouping is
+ * preserved via LeftRailNav's `groups` prop; styling and active-state
+ * treatment are delegated to the shared component.
+ *
+ * The flat key list is exported for callers that need to validate
+ * deep-link parameters without instantiating the nav.
+ */
 import {
   Building2,
   Network,
@@ -18,49 +27,55 @@ import {
   UserCog,
   KeyRound,
 } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
+import {
+  LeftRailNav,
+  type LeftRailNavGroup,
+  type LeftRailNavItem,
+} from '@/components/shared/LeftRailNav';
 
-// Section 1 — Master Data
-const MASTER_DATA_SECTIONS = [
-  { key: 'cost_centers', label: 'Cost Centers', icon: Building2 },
-  { key: 'competence_centers', label: 'Competence Centers', icon: Network },
-  { key: 'lobs', label: 'Lines of Business', icon: Briefcase },
-  { key: 'locations', label: 'Workforce Locations', icon: MapPin },
-  { key: 'people', label: 'People', icon: Users },
-  { key: 'charging_locations', label: 'Charging Locations', icon: Map },
-  { key: 'legal_entities', label: 'Legal Entities', icon: Building2 },
-  { key: 'regions', label: 'Regions', icon: Globe },
-  { key: 'countries', label: 'Countries', icon: Globe },
-  { key: 'user_measurement', label: 'User Measurement', icon: TableProperties },
-] as const;
+const MASTER_DATA_SECTIONS: LeftRailNavItem[] = [
+  { id: 'cost_centers', label: 'Cost Centers', icon: Building2 },
+  { id: 'competence_centers', label: 'Competence Centers', icon: Network },
+  { id: 'lobs', label: 'Lines of Business', icon: Briefcase },
+  { id: 'locations', label: 'Workforce Locations', icon: MapPin },
+  { id: 'people', label: 'People', icon: Users },
+  { id: 'charging_locations', label: 'Charging Locations', icon: Map },
+  { id: 'legal_entities', label: 'Legal Entities', icon: Building2 },
+  { id: 'regions', label: 'Regions', icon: Globe },
+  { id: 'countries', label: 'Countries', icon: Globe },
+  { id: 'user_measurement', label: 'User Measurement', icon: TableProperties },
+];
 
-// Section 2 — Reference Catalogues
-const REFERENCE_SECTIONS = [
-  { key: 'role_types', label: 'Role Types', icon: UserCog },
-  { key: 'external_cost_types', label: 'External Cost Types', icon: Coins },
-  { key: 'project_dependencies', label: 'Project Dependencies', icon: GitBranch },
-] as const;
+const REFERENCE_SECTIONS: LeftRailNavItem[] = [
+  { id: 'role_types', label: 'Role Types', icon: UserCog },
+  { id: 'external_cost_types', label: 'External Cost Types', icon: Coins },
+  { id: 'project_dependencies', label: 'Project Dependencies', icon: GitBranch },
+];
 
-// Section 3 — Planning & Ranking Configuration
-const PLANNING_SECTIONS = [
-  { key: 'parameters', label: 'Planning Parameters', icon: Settings },
-] as const;
+const PLANNING_SECTIONS: LeftRailNavItem[] = [
+  { id: 'parameters', label: 'Planning Parameters', icon: Settings },
+];
 
-// Section 4 — Portfolio Hierarchy
-const HIERARCHY_SECTIONS = [
-  { key: 'portfolio_hierarchy', label: 'Portfolio Hierarchy', icon: Layers },
-] as const;
+const HIERARCHY_SECTIONS: LeftRailNavItem[] = [
+  { id: 'portfolio_hierarchy', label: 'Portfolio Hierarchy', icon: Layers },
+];
 
-// Section 5 — System
-const SYSTEM_SECTIONS = [
-  { key: 'users', label: 'Users', icon: Users },
-  { key: 'role_permissions', label: 'Role Permissions', icon: KeyRound },
-  { key: 'rate_tables', label: 'Rate Tables', icon: DollarSign },
-  { key: 'workflow_templates', label: 'Workflow Templates', icon: Workflow },
-  { key: 'scheduled_changes', label: 'Scheduled Changes', icon: Calendar },
-  { key: 'audit_log', label: 'Audit Log', icon: FileText },
-] as const;
+const SYSTEM_SECTIONS: LeftRailNavItem[] = [
+  { id: 'users', label: 'Users', icon: Users },
+  { id: 'role_permissions', label: 'Role Permissions', icon: KeyRound },
+  { id: 'rate_tables', label: 'Rate Tables', icon: DollarSign },
+  { id: 'workflow_templates', label: 'Workflow Templates', icon: Workflow },
+  { id: 'scheduled_changes', label: 'Scheduled Changes', icon: Calendar },
+  { id: 'audit_log', label: 'Audit Log', icon: FileText },
+];
+
+const ADMIN_GROUPS: LeftRailNavGroup[] = [
+  { label: '1 · Master Data', items: MASTER_DATA_SECTIONS },
+  { label: '2 · Reference Catalogues', items: REFERENCE_SECTIONS },
+  { label: '3 · Planning & Ranking', items: PLANNING_SECTIONS },
+  { label: '4 · Portfolio Hierarchy', items: HIERARCHY_SECTIONS },
+  { label: '5 · System', items: SYSTEM_SECTIONS },
+];
 
 interface EntitySelectorProps {
   selected: string;
@@ -68,59 +83,21 @@ interface EntitySelectorProps {
 }
 
 export function EntitySelector({ selected, onSelect }: EntitySelectorProps) {
-  const renderItem = (item: { key: string; label: string; icon: React.ElementType }) => {
-    const Icon = item.icon;
-    const isActive = selected === item.key;
-    return (
-      <button
-        key={item.key}
-        type="button"
-        onClick={() => onSelect(item.key)}
-        className={cn(
-          'flex items-center gap-2.5 w-full px-3 py-2 text-sm rounded-md transition-colors text-left',
-          isActive
-            ? 'bg-primary/5 text-primary font-medium border-l-2 border-primary pl-2.5'
-            : 'text-muted-foreground hover:bg-accent',
-        )}
-      >
-        <Icon className="h-4 w-4 shrink-0" />
-        <span className="truncate">{item.label}</span>
-      </button>
-    );
-  };
-
-  const renderSection = (
-    label: string,
-    items: ReadonlyArray<{ key: string; label: string; icon: React.ElementType }>,
-  ) => (
-    <>
-      <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 mt-2">
-        {label}
-      </p>
-      {items.map(renderItem)}
-    </>
-  );
-
   return (
-    <nav className="w-[240px] shrink-0 space-y-0.5 overflow-y-auto pr-1">
-      {renderSection('1 · Master Data', MASTER_DATA_SECTIONS)}
-      <Separator className="my-2" />
-      {renderSection('2 · Reference Catalogues', REFERENCE_SECTIONS)}
-      <Separator className="my-2" />
-      {renderSection('3 · Planning & Ranking', PLANNING_SECTIONS)}
-      <Separator className="my-2" />
-      {renderSection('4 · Portfolio Hierarchy', HIERARCHY_SECTIONS)}
-      <Separator className="my-2" />
-      {renderSection('5 · System', SYSTEM_SECTIONS)}
-    </nav>
+    <LeftRailNav
+      ariaLabel="Administration sections"
+      width={240}
+      groups={ADMIN_GROUPS}
+      activeId={selected}
+      onSelect={onSelect}
+    />
   );
 }
 
-// Re-export the legacy item key list so consumers know what to expect
 export const ADMIN_SECTION_KEYS: string[] = [
-  ...MASTER_DATA_SECTIONS.map((s) => s.key),
-  ...REFERENCE_SECTIONS.map((s) => s.key),
-  ...PLANNING_SECTIONS.map((s) => s.key),
-  ...HIERARCHY_SECTIONS.map((s) => s.key),
-  ...SYSTEM_SECTIONS.map((s) => s.key),
-];
+  ...MASTER_DATA_SECTIONS,
+  ...REFERENCE_SECTIONS,
+  ...PLANNING_SECTIONS,
+  ...HIERARCHY_SECTIONS,
+  ...SYSTEM_SECTIONS,
+].map((s) => s.id);

@@ -1,3 +1,15 @@
+/**
+ * ProjectListPanel — Workbench left-rail project picker.
+ *
+ * Shares the active-state visual vocabulary with the shared
+ * `LeftRailNav` per `[E-07c]` (`bg-primary/5` + `border-l-2 border-primary`)
+ * but renders its own item shape because each entry surfaces multi-line
+ * content (RAG dot + name on row 1, type / status badges on row 2) plus
+ * a header strip with collapse + "New project" affordances. LeftRailNav's
+ * single-line item layout would not accommodate either without
+ * regression, so the rendering is bespoke while the active-state pattern
+ * stays aligned.
+ */
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
