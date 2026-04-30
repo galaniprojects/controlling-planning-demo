@@ -410,6 +410,19 @@ TECH_NAV_SCORES: dict[str, dict] = {
         "value_creation":  {"financial": 5, "payback": 3, "competitive": 4},
         "project_type": 2, "transformation_level": "T2",
     },
+    # Run-stage projects (DoI 5) — Tech Nav profiles per [A-TN-01]:
+    # apply regardless of status so Run-stage entities can also be
+    # ranked / scored if they're brought back into Change Portfolio.
+    "proj-cloud3-run": {
+        "complexity":      {"standardization": 4, "usage": 3, "maintenance": 4},
+        "value_creation":  {"financial": 4, "payback": 5, "competitive": 3},
+        "project_type": 1, "transformation_level": "T1",
+    },
+    "proj-iam-run": {
+        "complexity":      {"standardization": 4, "usage": 4, "maintenance": 4},
+        "value_creation":  {"financial": 4, "payback": 5, "competitive": 4},
+        "project_type": 1, "transformation_level": "T1",
+    },
 }
 
 

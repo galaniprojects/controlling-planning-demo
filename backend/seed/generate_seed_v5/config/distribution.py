@@ -55,8 +55,8 @@ STAGE1_EDGES: list[dict] = [
     {"source": "proj-iam-run",       "destination": "svc-ident-auth",       "percentage": 60.0, "year": 2026, "version": "forecast"},
 
     # --- svc-data-platform: middle node on the multi-step path
-    {"source": "svc-data-platform",  "destination": "off-bizinsights",      "percentage": 60.0, "year": 2026, "version": "forecast"},
-    {"source": "svc-data-platform",  "destination": "off-mdh",              "percentage": 20.0, "year": 2026, "version": "forecast"},
+    {"source": "svc-data-platform",  "destination": "off-bizinsights",      "percentage": 72.0, "year": 2026, "version": "forecast"},
+    {"source": "svc-data-platform",  "destination": "off-mdh",              "percentage":  8.0, "year": 2026, "version": "forecast"},
     {"source": "svc-data-platform",  "destination": "off-supplyvis",        "percentage": 20.0, "year": 2026, "version": "forecast"},
 
     # --- svc-data-stewardship: downstream of off-mdh, redistributes

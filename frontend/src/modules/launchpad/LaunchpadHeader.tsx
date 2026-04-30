@@ -14,7 +14,7 @@ const ACRONYM_WORDS = BRANDING.appAcronymWords.map((w) => ({
 
 const ROLE_LABELS: Record<string, string> = {
   controller: 'Controller',
-  cost_center_owner: 'Cost Centre Owner',
+  cost_center_owner: 'Cost Center Owner',
   project_lead: 'Project Lead',
   executive: 'Executive',
 };
@@ -27,7 +27,12 @@ function getGreeting(): string {
 }
 
 function getFirstName(fullName: string): string {
-  return fullName.split(' ')[0] || fullName;
+  // Skip honorific prefixes (Dr., Prof., Mr., Mrs., Ms.) so a persona like
+  // "Dr. Klaus Weber" greets as "Klaus" rather than "Dr.".
+  const parts = fullName.split(' ').filter(Boolean);
+  const HONORIFICS = new Set(['Dr.', 'Prof.', 'Mr.', 'Mrs.', 'Ms.', 'Dr', 'Prof', 'Mr', 'Mrs', 'Ms']);
+  const firstNonHonorific = parts.find((p) => !HONORIFICS.has(p));
+  return firstNonHonorific || fullName;
 }
 
 /**

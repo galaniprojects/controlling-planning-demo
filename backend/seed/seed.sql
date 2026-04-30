@@ -523,15 +523,15 @@ INSERT INTO users (id, username, display_name, email, role, person_id, tier3_fla
 -- =============================================================================
 
 INSERT INTO projects (id, name, description, status, rag_status, capex_opex, start_month, end_month, projected_end_month, pl_person_id, is_service, annual_budget, total_budget, last_forecast_submitted_month, ai_council_approved, progress_pct_manual_override, is_active, created_at, modified_at) VALUES
-('proj-mdh-rollout', 'Master Data Hub Rollout', NULL, 'active', 'green', 'capex', '2025-10', '2026-12', '2026-12', 'p-sharma', 0, NULL, 850000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-erp2', 'ERP Integration Phase 2', NULL, 'active', 'red', 'capex', '2024-07', '2026-09', '2026-09', 'p-sharma', 0, NULL, 1200000, '2026-02', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-sensor', 'Sensor Data Pipeline', NULL, 'active', 'amber', 'capex', '2025-03', '2026-12', '2026-12', 'p-sharma', 0, NULL, 600000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-predmaint', 'Predictive Maintenance PoC', NULL, 'active', 'amber', 'capex', '2025-06', '2027-03', '2027-03', 'p-sharma', 0, NULL, 500000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-autobrake', 'Autonomous Braking Prototype', NULL, 'pending_cc_confirmation', NULL, 'capex', '2026-06', '2027-12', '2027-12', 'p-sharma', 0, NULL, 900000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-railsafety', 'Rail Safety Compliance System', NULL, 'planned', 'green', 'capex', '2026-09', '2028-06', '2028-06', 'p-weber', 0, NULL, 650000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-dwh', 'Data Warehouse Consolidation', NULL, 'planned', 'green', 'capex', '2026-07', '2027-09', '2027-09', 'p-weber', 0, NULL, 550000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-greenedge', 'Green Edge Computing Pilot', NULL, 'draft', NULL, 'capex', '2026-11', '2027-04', '2027-04', 'p-weber', 0, NULL, 120000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-connveh', 'Connected Vehicle Platform', NULL, 'draft', NULL, 'capex', '2026-10', '2028-12', '2028-12', 'p-weber', 0, NULL, 1800000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-mdh-rollout', 'Master Data Hub Rollout', NULL, 'active', 'green', 'capex', '2025-10', '2026-12', '2026-12', 'p-sharma', 0, NULL, 880000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-erp2', 'ERP Integration Phase 2', NULL, 'active', 'red', 'capex', '2024-07', '2026-09', '2026-09', 'p-sharma', 0, NULL, 1810000, '2026-02', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-sensor', 'Sensor Data Pipeline', NULL, 'active', 'amber', 'capex', '2025-03', '2026-12', '2026-12', 'p-sharma', 0, NULL, 720000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-predmaint', 'Predictive Maintenance PoC', NULL, 'active', 'amber', 'capex', '2025-06', '2027-03', '2027-03', 'p-sharma', 0, NULL, 510000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-autobrake', 'Autonomous Braking Prototype', NULL, 'pending_cc_confirmation', NULL, 'capex', '2026-06', '2027-12', '2027-12', 'p-sharma', 0, NULL, 920000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-railsafety', 'Rail Safety Compliance System', NULL, 'planned', 'green', 'capex', '2026-09', '2028-06', '2028-06', 'p-weber', 0, NULL, 520000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-dwh', 'Data Warehouse Consolidation', NULL, 'planned', 'green', 'capex', '2026-07', '2027-09', '2027-09', 'p-weber', 0, NULL, 400000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-greenedge', 'Green Edge Computing Pilot', NULL, 'draft', NULL, 'capex', '2026-11', '2027-04', '2027-04', 'p-weber', 0, NULL, 28440, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-connveh', 'Connected Vehicle Platform', NULL, 'draft', NULL, 'capex', '2026-10', '2028-12', '2028-12', 'p-weber', 0, NULL, 1150000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-cloud3-run', 'Cloud Platform Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 240000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-iam-run', 'Identity & Access Management Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 310000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
@@ -613,8 +613,8 @@ INSERT INTO distributions (year, version, source_entity_id, destination_entity_i
 (2026, 'forecast', 'proj-iam-run', 'off-eunify', 18.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 (2026, 'forecast', 'proj-iam-run', 'off-mdh', 12.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 (2026, 'forecast', 'proj-iam-run', 'svc-ident-auth', 60.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-data-platform', 'off-bizinsights', 60.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-data-platform', 'off-mdh', 20.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'svc-data-platform', 'off-bizinsights', 72.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(2026, 'forecast', 'svc-data-platform', 'off-mdh', 8.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 (2026, 'forecast', 'svc-data-platform', 'off-supplyvis', 20.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 (2026, 'forecast', 'svc-data-stewardship', 'off-bizinsights', 70.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 (2026, 'forecast', 'svc-data-stewardship', 'off-supplyvis', 30.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
@@ -1389,16 +1389,18 @@ INSERT INTO user_measurements (year, quarter, s_code, charging_location_id, valu
 -- =============================================================================
 
 UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 4, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.4, value_creation_score = 4.4, composite_score = 3.9, tshirt_size = 'M' WHERE id = 'proj-autobrake';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 3, tn_maintenance = 4, tn_financial_benefit = 4, tn_payback = 5, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.6, value_creation_score = 4.2, composite_score = 3.9, tshirt_size = NULL WHERE id = 'proj-cloud3-run';
 UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 4, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 5, tn_payback = 3, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.4, value_creation_score = 4.0, composite_score = 3.7, tshirt_size = 'L' WHERE id = 'proj-connveh';
-UPDATE projects SET project_type = 2, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.0, value_creation_score = 3.4, composite_score = 3.2, tshirt_size = 'M' WHERE id = 'proj-dwh';
+UPDATE projects SET project_type = 2, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.0, value_creation_score = 3.4, composite_score = 3.2, tshirt_size = 'S' WHERE id = 'proj-dwh';
 UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.8, value_creation_score = 4.0, composite_score = 3.9, tshirt_size = 'L' WHERE id = 'proj-erp2';
 UPDATE projects SET project_type = 1, transformation_level = 'T0', tn_standardization = 2, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 2, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.0, value_creation_score = 2.8, composite_score = 2.4, tshirt_size = 'XS' WHERE id = 'proj-greenedge';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 4, tn_financial_benefit = 4, tn_payback = 5, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 4.0, value_creation_score = 4.4, composite_score = 4.2, tshirt_size = NULL WHERE id = 'proj-iam-run';
 UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 5, tn_usage = 4, tn_maintenance = 4, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 4.4, value_creation_score = 4.4, composite_score = 4.4, tshirt_size = 'M' WHERE id = 'proj-mdh-rollout';
-UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 2, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.8, value_creation_score = 3.8, composite_score = 3.3, tshirt_size = 'S' WHERE id = 'proj-predmaint';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 2, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.8, value_creation_score = 3.8, composite_score = 3.3, tshirt_size = 'M' WHERE id = 'proj-predmaint';
 UPDATE projects SET project_type = 3, transformation_level = 'T0', tn_standardization = 3, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 4, tn_payback = 5, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.4, value_creation_score = 4.2, composite_score = 3.3, tshirt_size = 'M' WHERE id = 'proj-railsafety';
 UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.0, value_creation_score = 3.4, composite_score = 3.2, tshirt_size = 'M' WHERE id = 'proj-sensor';
 
--- 9 projects scored; 2 Run-stage skipped.
+-- 11 projects scored; 0 Run-stage skipped.
 
 -- =============================================================================
 -- s12_pipeline — Pipeline stage + DoI gates per [A-PS-02] [A-DOI-01..03]
