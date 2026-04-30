@@ -44,7 +44,7 @@ The header column is the value sent on the `X-Current-User` header to the backen
 
 ### Cross-references
 
-- **Backend endpoint**: `routers/admin.py::list_roles()` (`GET /api/roles`)
+- **Backend endpoint**: `routers/global_launchpad.py::get_roles()` (`GET /api/roles`)
 - **Frontend**: `frontend/src/contexts/RoleContext.tsx`
 - **In-app manual**: `launchpad.json § Role Switcher`
 - **FAQ overlap**: faq.json `faq-11` ("How do I switch between personas in the demo?")

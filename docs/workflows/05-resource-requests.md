@@ -54,7 +54,7 @@ Delta-based resource requests per `[E-04b]`: when a CR reduces hours, the reques
 ### Cross-references
 
 - **Decision tags**: `[E-04b]`, `[F-AC-01]`
-- **Backend endpoint**: `routers/capacity.py::confirm_resource_requests()` → `services/allocation_service.py`
+- **Backend endpoint**: `routers/capacity.py::confirm_request()` (per-row) and `save_request_assignments()` (grid-bulk) → `services/allocation_service.py`
 - **In-app manual**: `capacity_management.json § Resource Assignment Grid`, `§ Confirming Resources`, `§ Person Dropdown`
 - **FAQ overlap**: faq.json `faq-02` ("How do I respond to a resource request?")
 - **Cross-walks**: [W04.2](./04-change-requests.md#w042-cc-owner-cr-confirmation), [W08.3](./08-capacity.md#w083-project-resource-confirmation-all-or-nothing)
@@ -92,7 +92,7 @@ Delta-based resource requests per `[E-04b]`: when a CR reduces hours, the reques
 
 ### Cross-references
 
-- **Backend endpoint**: `routers/capacity.py::partially_fulfill_request()` / `routers/workbench.py::accept_partial()`
+- **Backend endpoint**: `routers/capacity.py::partially_fulfill_request()` (PL accept-partial routes through CR-resubmit / cycle channels per `[E-04b]`)
 - **In-app manual**: `capacity_management.json § Response Actions`
 - **FAQ overlap**: faq.json `faq-02`
 
@@ -127,7 +127,7 @@ Delta-based resource requests per `[E-04b]`: when a CR reduces hours, the reques
 
 ### Cross-references
 
-- **Backend endpoint**: `routers/capacity.py::counter_propose_request()` / `routers/workbench.py::accept_counter()` / `reject_counter()`
+- **Backend endpoint**: `routers/capacity.py::counter_propose_request()` (PL accept routes through CR-resubmit / cycle channels per `[E-04b]`)
 - **In-app manual**: `capacity_management.json § Response Actions`
 - **FAQ overlap**: faq.json `faq-02`
 

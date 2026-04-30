@@ -204,7 +204,7 @@ The 7 seeded CRs as of the demo baseline:
 ### Cross-references
 
 - **Decision tags**: `[E-04b]`, `[A-BK-27]`, `[A-BK-29]`
-- **Backend endpoint**: `routers/portfolio.py::request_changes_cr()`, `routers/workbench.py::accept_cr_changes()`, `routers/workbench.py::decline_and_resubmit_cr()`
+- **Backend endpoint**: `routers/portfolio.py::approve_cr()` (with edit-grid + send-back path), `routers/workbench.py::accept_cr_changes()`, `routers/workbench.py::resubmit_cr()`
 - **In-app manual**: `project_workbench.json § Changes Requested Banner`, `§ Change History Tab`
 - **FAQ overlap**: faq.json `faq-01` (steps 7-8 cover the PL side)
 - **Cross-walk**: [W02.6](./02-project-lifecycle.md#w026-project-send-back-from-intake) (the project-intake equivalent send-back; same pattern, different entity)
@@ -246,7 +246,7 @@ The 7 seeded CRs as of the demo baseline:
 ### Cross-references
 
 - **Decision tags**: `[E-04b]`
-- **Backend endpoint**: `routers/workbench.py::list_project_change_requests()`
+- **Backend endpoint**: `routers/workbench.py::get_project_crs()`, `get_project_cr_detail()`, `get_cr_detail_view()`, `get_cr_diff()`
 - **In-app manual**: `project_workbench.json § Change History Tab`
 
 ### Known issues / caveats

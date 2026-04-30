@@ -184,7 +184,7 @@ Versioning per `[C-FV-01..07]`: every cycle submission and every CR approval wri
 ### Cross-references
 
 - **Decision tags**: `[C-FV-01..07]`
-- **Backend endpoint**: `routers/workbench.py::get_forecast_versions()`, `get_forecast_version_payload()`
+- **Backend endpoint**: `routers/workbench.py::list_forecast_versions()`, `get_forecast_version()`, `get_forecast_version_diff()`
 - **In-app manual**: `project_workbench.json § Forecast & Planning Tab`
 
 ### Known issues / caveats
