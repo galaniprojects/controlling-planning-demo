@@ -27,6 +27,8 @@ import type {
   PendingAction,
   PortfolioKPISummary,
   ModuleTile,
+  TilesResponse,
+  RoleAvailabilityResponse,
   ListResponse,
   PortfolioKPIs,
   ProjectTreeNode,
@@ -117,6 +119,8 @@ export const modulesApi = {
 export const launchpadApi = {
   getPendingActions: () =>
     api.get<ListResponse<PendingAction>>('/api/launchpad/pending-actions'),
+  // v5 E7 [E-06d-j] — role-personalised tile grid
+  getTiles: () => api.get<TilesResponse>('/api/launchpad/tiles'),
   createProject: (data: {
     name: string;
     description?: string;
@@ -576,6 +580,24 @@ export const capacityApi = {
       `/api/capacity/project-confirmation/${projectId}/decline`,
       { reason },
     ),
+
+  // v5 E7 [E-06a] — anonymised role × location availability for PL launchpad
+  getRoleAvailability: (params?: {
+    location_id?: string;
+    role_type_id?: string;
+    month_from?: string;
+    month_to?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.location_id) q.set('location_id', params.location_id);
+    if (params?.role_type_id) q.set('role_type_id', params.role_type_id);
+    if (params?.month_from) q.set('month_from', params.month_from);
+    if (params?.month_to) q.set('month_to', params.month_to);
+    const qs = q.toString();
+    return api.get<RoleAvailabilityResponse>(
+      `/api/capacity/role-availability${qs ? '?' + qs : ''}`,
+    );
+  },
 
   // Org Overview
   getOrgSummary: () => api.get<OrgSummary>('/api/capacity/org/summary'),
