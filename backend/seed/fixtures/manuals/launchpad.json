@@ -4,31 +4,35 @@
   "sections": [
     {
       "title": "Overview",
-      "body": "The Launchpad is your home screen in {app_name}. It provides a quick overview of what needs your attention and gives you access to all modules. The content you see is tailored to your role — controllers see pending approvals, cost center owners see resource requests, and project leads see forecast deadlines."
+      "body": "The Launchpad is your home screen in {app_name}. It uses a three-zone layout: a brand band with persona greeting + date / cycle indicator at the top, a Pending Actions panel in the middle, and a role-aware tile grid at the bottom. The content adapts to your role — controllers see pending approvals and pipeline health, project leads see forecast deadlines and CR status, cost centre owners see resource confirmation queues, and executives see portfolio rollups. The full step-by-step walks for each persona live in `docs/workflows/01-launchpad-by-persona.md`."
+    },
+    {
+      "title": "Tile counts by persona",
+      "body": "Each persona sees a different tile grid sized to their workflow:\\n- **Controller (Anna Meier)** — 9 tiles: Portfolio KPIs, Pipeline, Budget vs Cutoff, Reporting, Forecast Cycle, Pending Reviews, Capacity Overview, Scenario Activity, Admin.\\n- **Project Lead (Priya Sharma)** — 7 tiles: My Projects, My Budget, My Progress, My Forecast, Recent Changes, Scenario Explorer, Resource Availability.\\n- **Cost Centre Owner (Thomas Brenner)** — 8 tiles: Team Utilization, Open Requests, Headcount, CC Budget, Portfolio, My CC's Projects, Published Scenarios, CC Simulator.\\n- **Executive (Dr. Klaus Weber)** — 7 tiles: Portfolio KPIs, Investment Mix, Pipeline Health, Top Risks, Scenario Activity, Budget Trajectory, Backlog.\\n\\nTile clicks are pure navigation — they never trigger state mutations directly."
     },
     {
       "title": "Notifications & Alerts",
-      "body": "The top section displays role-aware alerts. **Controllers** see pending change requests awaiting approval and new project submissions in the intake queue. **Cost Center Owners** see incoming resource requests and CR-linked confirmations (the final stage of the CR workflow). **Project Leads** see forecast review deadlines, CR approval notifications, and sent-back CRs requiring action (with controller feedback). **Executives** see portfolio health summaries and published scenarios. Click any notification to navigate directly to the relevant screen."
+      "body": "The top section displays role-aware alerts. **Controllers** see pending change requests awaiting approval and new project submissions in the intake queue. **Cost Centre Owners** see incoming resource requests and CR-linked confirmations (the final stage of the CR workflow). **Project Leads** see forecast review deadlines, CR approval notifications, and sent-back CRs requiring action (with controller feedback). **Executives** see portfolio health summaries and published scenarios. Click any notification to navigate directly to the relevant screen."
     },
     {
       "title": "Pending Actions",
-      "body": "Below the notifications, the Pending Actions panel lists specific workflow items that require your attention. Each action shows a summary, the related module, and a timestamp. **Urgent items** are highlighted with a red bar on the left edge so you can prioritize them at a glance. Clicking any action deep-links directly to the relevant module, tab, and entity — for example, clicking a pending CR approval navigates to Portfolio Overview > CR Approvals with that specific CR selected. When all actions are resolved, the panel shows an 'All caught up' message."
+      "body": "Below the brand band, the Pending Actions panel lists specific workflow items that require your attention. Each action shows a title, summary, and chevron. **Urgent items** are highlighted with a red bar on the left edge so you can prioritize them at a glance. The panel header also shows a count of total + urgent items (e.g., 'Pending Actions · 9 · 1 urgent').\\n\\nClicking any action deep-links directly to the relevant module, tab, and entity — for example, clicking a pending CR approval navigates to Portfolio Overview > CR Approvals with that specific CR selected. When all actions are resolved, the panel shows an 'All caught up' message. The panel can be collapsed via the **Hide** button on the right."
     },
     {
       "title": "Module Tiles",
-      "body": "The middle section shows module cards ordered by relevance to your role. Each tile displays the module name, a brief description, and a contextual metric (e.g., 'Your 4 projects, 1 forecast overdue'). Click a tile to open that module full-screen. Modules you don't have access to are hidden. The **Reporting** tile provides access to five standard reports, the **Report Builder** (OLAP-style custom report composition), and the **AI Report Builder** (natural language report generation)."
+      "body": "The bottom section shows module cards ordered by relevance to your role. Each tile displays the module name, a metric (e.g. 'Portfolio KPIs · €3.410.650,00'), and a sub-line ('11 active · drift +6.1%'). Click a tile to open that module full-screen. Modules you don't have access to are hidden. The **Reporting** tile (controller / executive) provides access to five standard reports, the **Report Builder** (OLAP-style custom report composition), and the **AI Report Builder** (natural language report generation). Project Leads have a personalised set focused on their own projects — see the per-persona walks in `docs/workflows/01-launchpad-by-persona.md`."
     },
     {
       "title": "Submit New Project",
-      "body": "Project Leads see a prominent 'Submit New Project' button. This is the only entry point for creating new project proposals. Clicking it opens a structured form where you define the project scope, timeline, resource needs, and external costs. The system auto-calculates estimated costs from blended hourly rates. Once submitted, the proposal appears in the Controller's Intake Queue."
+      "body": "Project Leads can create a new project draft via the **+ New** button in the Workbench's project list panel, or via the Backlog page's **+ New** action. The system auto-calculates estimated costs from blended hourly rates. Once submitted via the 5-phase project intake wizard, the proposal appears in the Cost Centre Owner's resource confirmation queue, then in the Controller's intake queue."
     },
     {
       "title": "Role Switcher",
-      "body": "The role switcher dropdown in the top-right corner lets you switch between demo personas. Each persona has different module access, data visibility, and write permissions. Switching roles immediately updates all views to reflect that role's perspective."
+      "body": "The role switcher dropdown in the top-right corner of the TopBar lets you switch between the four demo personas: Anna Meier (IT Controller), Thomas Brenner (Cost Centre Owner), Priya Sharma (Senior Project Lead), Dr. Klaus Weber (VP IT Strategy & Governance). Each persona has different module access, data visibility, and write permissions. Switching roles immediately updates all views to reflect that role's perspective; the chosen persona persists across browser sessions via localstorage."
     },
     {
       "title": "Dark Mode Toggle",
-      "body": "Next to the role switcher in the top-right corner, the **Sun/Moon** icon button lets you switch between display themes. Click it to cycle through three modes: **Light** (default, sun icon), **Dark** (moon icon), and **System** (follows your operating system's preference). The selected theme applies immediately across all modules, charts, dialogs, and data visualizations. Your preference is saved to the browser and persists across sessions."
+      "body": "Next to the role switcher in the top-right corner, the **Sun/Moon** icon button lets you switch between display themes. Click it to toggle between **Light** (sun icon) and **Dark** (moon icon). The selected theme applies immediately across all modules, charts, dialogs, and data visualizations. Your preference is saved to the browser and persists across sessions. A hidden 'system' mode (which follows your OS preference) can also be set programmatically by writing 'system' to the `theme` localstorage key."
     }
   ]
 }

@@ -4,11 +4,11 @@
   "sections": [
     {
       "title": "Overview",
-      "body": "Capacity Management helps Cost Center Owners manage team utilization and respond to resource requests. It has two main tabs: My Team (your cost center's heatmap) and Organization Overview (cross-CC comparison). A Request Management sub-view handles incoming resource and external cost requests."
+      "body": "Capacity Management helps Cost Centre Owners manage team utilization and respond to resource requests, and gives Controllers / Executives an organization-wide capacity rollup. It has two main tabs: **My Team** (your cost centre's heatmap) and **Organization Overview** (cross-CC comparison). A **Resource Requests** sub-view (`/capacity/requests`) handles incoming resource confirmations and project intakes, with a per-project assignment grid at `/capacity/project-assignment/<project-id>`."
     },
     {
       "title": "My Team Tab",
-      "body": "Shows your cost center's utilization as a heatmap grid. Rows are people grouped by role, columns are months. Each cell is color-coded by utilization percentage. A summary bar at the top shows team-level metrics: average utilization, headcount, over/under-allocated count."
+      "body": "Shows your cost centre's utilization as a heatmap grid. Rows are people grouped by role, columns are months. Each cell is color-coded by utilization percentage. A summary bar at the top shows team-level metrics: average utilization, headcount, over/under-allocated count, and pending request count."
     },
     {
       "title": "Heatmap Colors",
@@ -19,12 +19,12 @@
       "body": "Click any person row or cell to open a bottom drawer showing their full allocation breakdown: which projects they're assigned to, hours per month, confirmed vs pending allocations, and utilization trend over time."
     },
     {
-      "title": "Project Confirmation Banner",
-      "body": "When projects are submitted and awaiting resource confirmation, a banner appears at the top of the My Team tab showing pending projects. Each project card shows the name, organizational entity, project lead, timeline, and number of resource requests. Click **Review & Assign Resources** to open the dedicated assignment page, or **Decline** to send the project back to the Project Lead with a reason."
+      "title": "Project Confirmation View",
+      "body": "When projects are submitted (intake) or CRs are routed to your CC, they appear at `/capacity/requests` as a list of cards. Each card shows the parent name (project or CR), organizational entity, project lead, timeline, and number of resource requests. The page header reads 'X Items awaiting resource confirmation'. Each card has:\\n- **Review & Assign Resources** — opens the per-project assignment grid (see next section)\\n- **Decline** — present on intake-driven cards (project submissions) but not on CR-only cards. Opens a reason modal; declining sends the project / CR back to the Project Lead.\\n\\nCR-only cards (those with '0 resource requests') are CRs that don't change resource hours but still need CC sign-off because they touch the CC's budget (e.g., AWS scaling cost added to a project under your CC). Click **Review & Assign Resources** to inspect and confirm."
     },
     {
       "title": "Resource Assignment Grid",
-      "body": "The dedicated assignment page shows a tabular grid for all internal resource requests. Rows represent requested roles (e.g., Senior Developer, QA / Test Engineer), columns represent months with collapsible year headers. Click any cell to open a person dropdown and assign an employee for that specific month. Assigned cells turn green with the person's abbreviated name; unassigned cells appear in amber. A Status column on the right shows how many months are assigned per role (e.g., 12/19)."
+      "body": "The dedicated assignment page (`/capacity/project-assignment/<project-id>`) shows a tabular grid for all internal resource requests. Rows represent requested roles (e.g., Senior Developer, QA / Test Engineer), columns represent months with collapsible year headers. Each cell shows the requested hours for that role × month. Click any cell to open a person dropdown and assign an employee for that specific month. Assigned cells turn green with the person's abbreviated name; unassigned cells appear in amber. A Status column on the right shows how many months are assigned per role (e.g., 12/19)."
     },
     {
       "title": "Assign All Column",
@@ -32,23 +32,23 @@
     },
     {
       "title": "Person Dropdown",
-      "body": "When selecting an employee, the dropdown groups people by relevance: **Matching Role** employees appear first (those whose role matches the requested role), followed by **Other Roles**. For individual month cells, each person shows their utilization percentage for that specific month, color-coded: green (below 70%), amber (70-90%), or red (above 90%). Only one employee per month per request is allowed."
+      "body": "When selecting an employee, the dropdown groups people by relevance: **Matching Role** employees appear first (those whose role matches the requested role), followed by **Other Roles**. For individual month cells, each person shows their utilization percentage for that specific month, color-coded: green (below 70%), amber (70-90%), or red (above 90%). Only one employee per month per request is allowed. The All-cell dropdown shows row-aggregated utilization across all the row's months."
     },
     {
       "title": "Confirming Resources",
-      "body": "Once all resource requests for a project have complete assignments (all months covered), the **Confirm All & Send to Controller** button becomes active. Clicking it confirms all requests, creates allocation records for each assigned employee, and moves the project to the controller's intake queue for final approval. The assigned employee names will be visible to the controller in the intake detail view."
+      "body": "Once all resource requests for a project / CR have complete assignments (all months covered), the **Confirm All & Send to Controller** button becomes active. Clicking it confirms all requests, creates `Allocation` records for each assigned employee, and:\\n- For project intakes: moves the project to the controller's intake queue for final approval. The assigned employee names will be visible to the controller in the intake detail view.\\n- For CR-linked requests: moves the parent CR to `pending_controller_approval`.\\n\\nFor CR-only items (no resource requests), the same button just confirms the CR's cost-only impact and routes it onward."
     },
     {
-      "title": "Request Management",
-      "body": "The Request Management sub-view shows incoming resource and external cost requests directed at your cost center. Requests are grouped by forecast cycle. Each request shows the project, requested role/cost type, hours or amount, period, and priority."
+      "title": "Resource Requests Sub-view",
+      "body": "The Resource Requests sub-view (`/capacity/requests`, accessible via the **Resource Requests** button on the My Team tab) shows incoming resource confirmation items directed at your cost centre: a mix of project intakes and CR-linked requests. Each item is grouped by parent project / CR. Items with explicit resource changes show their delta context; items that are CR-only (cost adjustments) appear with '0 resource requests' but still require sign-off."
     },
     {
-      "title": "Response Actions",
-      "body": "For each request, you can: **Confirm** (accept as-is, assigning a named person for resource requests), **Partially Fulfill** (adjust hours, amount, or period), **Counter-Propose** (offer an alternative such as a different person or role), or **Decline** (with required reason). The Assignment Preview shows candidate people with their current utilization to help you choose.\n\n**Delta-Based Resource Requests:** Resource requests from CRs show the change delta rather than absolute hours. Each request displays: the change direction (Increase or Decrease badge), the delta hours (e.g. +15h or -20h), the original allocation before the change, the resulting total after the change, and who is currently allocated to that role. For increases, confirming adds hours to the person's allocation. For decreases, confirming reduces the existing person's allocation.\n\n**CR-Linked Requests:** Some resource requests are linked to change requests. When you confirm a CR-linked request, the associated CR is automatically approved and the forecast is updated. If you decline, the CR is sent back to the Project Lead. This is the final stage of the CR workflow — the CC Owner confirmation completes the approval process."
+      "title": "Per-Request Actions",
+      "body": "Inside the per-project assignment grid (or in the per-request side drawer), each individual resource request supports four actions: **Confirm** (accept as-is, assigning a named person), **Partially Fulfill** (adjust hours, amount, or period — routes back to PL for sign-off), **Counter-Propose** (offer an alternative such as a different person, role, or split — routes back to PL for negotiation), or **Decline** (with required reason — routes back to PL).\\n\\n**Delta-Based Resource Requests:** Resource requests from CRs show the change delta rather than absolute hours. Each request displays: the change direction (Increase or Decrease badge), the delta hours (e.g. +15h or -20h), the original allocation before the change, the resulting total after the change, and who is currently allocated to that role. For increases, confirming adds hours to the person's allocation. For decreases, confirming reduces the existing person's allocation rather than creating a new one.\\n\\n**CR-Linked Requests:** Some resource requests are linked to change requests. When you confirm a CR-linked request, the associated CR is automatically advanced. If you decline, the CR is sent back to the Project Lead. This is the final stage of the CR workflow — the CC Owner confirmation completes the approval process. The full per-action walks are in `docs/workflows/05-resource-requests.md` (W05.1-W05.4)."
     },
     {
       "title": "Organization Overview Tab",
-      "body": "Shows utilization across all cost centers in a single heatmap. Supports three pivot dimensions: by the active portfolio hierarchy level (e.g., Line of Business if that is the configured hierarchy), by Role, and by Cost Center. Pivot labels adapt dynamically to the active hierarchy configuration set in Administration. Click any cell or row to open a bottom drawer showing project-level consumption detail for that dimension."
+      "body": "Shows utilization across all cost centres in a single heatmap. Supports three pivot dimensions: by the active portfolio hierarchy level (e.g., Line of Business if that is the configured hierarchy), by Role, and by Cost Centre. Pivot labels adapt dynamically to the active hierarchy configuration set in Administration. Click any cell or row to open a bottom drawer showing project-level consumption detail for that dimension."
     }
   ]
 }
