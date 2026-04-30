@@ -14,7 +14,7 @@
  * Data via the new `externalCostsApi` wrapper (E2 endpoints, mounted by
  * T1 in Wave 5 per the cross-team plan).
  */
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   Table,
   TableBody,
@@ -345,9 +345,8 @@ export function ExternalCostsTab({ projectId }: Props) {
                 sortedVendors.map((v) => {
                   const isOpen = expanded.has(v.vendor_name);
                   return (
-                    <>
+                    <Fragment key={v.vendor_name}>
                       <TableRow
-                        key={v.vendor_name}
                         className="cursor-pointer hover:bg-accent/40"
                         onClick={() => toggleExpand(v.vendor_name)}
                       >
@@ -390,10 +389,7 @@ export function ExternalCostsTab({ projectId }: Props) {
                         </TableCell>
                       </TableRow>
                       {isOpen && (
-                        <TableRow
-                          key={`${v.vendor_name}-detail`}
-                          className="bg-muted/30"
-                        >
+                        <TableRow className="bg-muted/30">
                           <TableCell />
                           <TableCell colSpan={7} className="py-3">
                             <dl className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-1 text-xs">
@@ -438,7 +434,7 @@ export function ExternalCostsTab({ projectId }: Props) {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })
               )}
