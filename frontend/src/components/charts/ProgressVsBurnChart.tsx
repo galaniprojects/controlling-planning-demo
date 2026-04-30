@@ -279,10 +279,13 @@ export function ProgressVsBurnChart({
           tickFormatter={(v: number) => `${v}%`}
         />
         <Tooltip
-          formatter={(value: number, name: string) => [
-            `${value?.toFixed(1) ?? 0}%`,
-            name,
-          ]}
+          formatter={(
+            value: number | string | undefined,
+            name: string | undefined,
+          ) => {
+            const v = typeof value === 'number' ? value : Number(value ?? 0);
+            return [`${v.toFixed(1)}%`, name ?? ''] as [string, string];
+          }}
           contentStyle={{
             fontSize: 12,
             borderRadius: 8,
