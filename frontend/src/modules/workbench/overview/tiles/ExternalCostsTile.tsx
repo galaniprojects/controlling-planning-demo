@@ -83,12 +83,12 @@ export function ExternalCostsTile({ projectId, onClick }: Props) {
     Promise.all([
       api
         .get<VendorSummaryResponse>(
-          `/api/projects/${projectId}/external-costs/vendor-summary`,
+          `/api/workbench/projects/${projectId}/external-costs/vendor-summary`,
         )
         .catch(() => null),
       api
         .get<CategoryRollupResponse>(
-          `/api/projects/${projectId}/external-costs/category-rollup`,
+          `/api/workbench/projects/${projectId}/external-costs/category-rollup`,
         )
         .catch(() => null),
     ])
