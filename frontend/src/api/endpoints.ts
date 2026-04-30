@@ -1327,6 +1327,53 @@ export const milestonesApi = {
 };
 
 // ---------------------------------------------------------------------------
+// === Progress Tracker (E1) [E-04c] [E-05a]
+// ---------------------------------------------------------------------------
+
+import type {
+  ProgressResponse,
+  ProgressUpdateRequest,
+  ProgressHistoryListResponse,
+  ProgressSnapshotDetail,
+  DeliverableListResponse,
+} from '@/types/progress';
+
+export const progressApi = {
+  /** GET /api/projects/{id}/progress — current live progress state. */
+  get: (projectId: string) =>
+    api.get<ProgressResponse>(`/api/projects/${projectId}/progress`),
+
+  /** PATCH /api/projects/{id}/progress — partial update (live edit). */
+  update: (projectId: string, body: ProgressUpdateRequest) =>
+    api.put<ProgressResponse>(`/api/projects/${projectId}/progress`, body),
+
+  /**
+   * GET /api/projects/{id}/progress/history — list of progress snapshots,
+   * newest first. One snapshot per forecast cycle submission.
+   */
+  getHistory: (projectId: string) =>
+    api.get<ProgressHistoryListResponse>(
+      `/api/projects/${projectId}/progress/history`,
+    ),
+
+  /** GET /api/projects/{id}/progress/history/{snapshot_id} — full snapshot. */
+  getSnapshot: (projectId: string, snapshotId: number) =>
+    api.get<ProgressSnapshotDetail>(
+      `/api/projects/${projectId}/progress/history/${snapshotId}`,
+    ),
+
+  /**
+   * GET /api/projects/{id}/milestones/{milestone_id}/checklist — deliverable
+   * checklist items for a single milestone. Useful when an external surface
+   * (e.g. the progress tracker dialog) wants the live checklist state.
+   */
+  getMilestoneChecklist: (projectId: string, milestoneId: number) =>
+    api.get<DeliverableListResponse>(
+      `/api/projects/${projectId}/milestones/${milestoneId}/checklist`,
+    ),
+};
+
+// ---------------------------------------------------------------------------
 // === Pipeline / DoI (A8) [A-PS-01..13] [A-DOI-01..11]
 // ---------------------------------------------------------------------------
 
