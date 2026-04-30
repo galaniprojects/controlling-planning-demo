@@ -1,14 +1,18 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
-import { useSidePanel } from '@/contexts/SidePanelContext';
 import { portfolioApi, referenceApi } from '@/api/endpoints';
 import { useActiveHierarchy } from '@/hooks/useActiveHierarchy';
 import { FilterBar, type FilterConfig } from '@/components/shared/FilterBar';
 import { PortfolioKPIRow } from './PortfolioKPIRow';
 import { PortfolioTree } from './PortfolioTree';
-import { ProjectSummaryPanel } from './ProjectSummaryPanel';
 import { DashboardCharts } from './DashboardCharts';
+// E6: dashboard scroll/filter handshake for back-button restoration.
+import {
+  captureDashboardSnapshot,
+  readDashboardSnapshot,
+  clearDashboardSnapshot,
+} from '../detail/ProjectDetailPage';
 import type { PortfolioKPIs, ProjectTreeNode, ChartData, LoBRef } from '@/types/api';
 
 const RAG_OPTIONS = [
@@ -30,8 +34,8 @@ const TYPE_OPTIONS = [
 
 export function DashboardTab() {
   const { currentRoleId } = useRole();
-  const { openPanel, closePanel } = useSidePanel();
   const location = useLocation();
+  const navigate = useNavigate();
   const { topLevelLabel, entityOptions, filterKey } = useActiveHierarchy();
 
   const [kpis, setKpis] = useState<PortfolioKPIs | null>(null);
@@ -41,12 +45,20 @@ export function DashboardTab() {
   const [treeLoading, setTreeLoading] = useState(true);
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>();
 
-  const [filters, setFilters] = useState<Record<string, string>>({
-    grouping_entity: '',
-    status: '',
-    rag: '',
-    type: '',
-  });
+  // E6: hydrate filters from the dashboard snapshot (set when navigating
+  // into the project detail page) on first mount, then clear it.
+  const initialFilters = (() => {
+    const snap = readDashboardSnapshot();
+    return (
+      snap?.filters ?? {
+        grouping_entity: '',
+        status: '',
+        rag: '',
+        type: '',
+      }
+    );
+  })();
+  const [filters, setFilters] = useState<Record<string, string>>(initialFilters);
 
   // Load reference data (LoBs for filter)
   useEffect(() => {
@@ -81,35 +93,49 @@ export function DashboardTab() {
       .catch(() => {});
   }, [currentRoleId, filters]);
 
-  // Handle deep link from notifications (e.g. /portfolio/proj-erp2)
+  // E6: deep-link backwards-compat — `/portfolio/<projectId>` was the v4
+  // slide-in trigger. Redirect those URLs to the new full-page detail
+  // route. Anything matching /portfolio/{intake,approvals,run,project,...}
+  // is owned by another route and bypassed.
   useEffect(() => {
-    const pathParts = location.pathname.split('/');
-    // /portfolio/someProjectId
-    if (pathParts.length >= 3 && pathParts[2] && pathParts[2] !== 'intake' && pathParts[2] !== 'approvals') {
-      setSelectedProjectId(pathParts[2]);
+    const pathParts = location.pathname.split('/').filter(Boolean);
+    const RESERVED = new Set([
+      'intake',
+      'approvals',
+      'run',
+      'project',
+      'dashboard',
+    ]);
+    if (
+      pathParts.length === 2 &&
+      pathParts[0] === 'portfolio' &&
+      !RESERVED.has(pathParts[1])
+    ) {
+      navigate(`/portfolio/project/${pathParts[1]}`, { replace: true });
     }
-  }, [location.pathname]);
+  }, [location.pathname, navigate]);
 
-  // Open side panel when project is selected
+  // E6: restore scroll position after the snapshot was set on departure.
   useEffect(() => {
-    if (selectedProjectId) {
-      openPanel(
-        'Project Summary',
-        <ProjectSummaryPanel projectId={selectedProjectId} />,
-      );
+    const snap = readDashboardSnapshot();
+    if (snap) {
+      // Defer until after layout settles
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: snap.scrollY, left: 0 });
+        clearDashboardSnapshot();
+      });
     }
-  }, [selectedProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleProjectSelect = useCallback(
     (node: ProjectTreeNode) => {
-      if (selectedProjectId === node.id) {
-        setSelectedProjectId(undefined);
-        closePanel();
-      } else {
-        setSelectedProjectId(node.id);
-      }
+      // E6: capture scroll + filters so the back button can restore them,
+      // then navigate to the full-page detail per [E-03b].
+      captureDashboardSnapshot(filters);
+      setSelectedProjectId(node.id);
+      navigate(`/portfolio/project/${node.id}`);
     },
-    [selectedProjectId, closePanel],
+    [navigate, filters],
   );
 
   const handleFilterChange = useCallback((key: string, value: string) => {
