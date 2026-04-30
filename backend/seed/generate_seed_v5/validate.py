@@ -41,7 +41,7 @@ FTE_HOURS = 160
 # warning UX. Reads from a small static list because these names are tied to
 # the seed narrative; if the names change, update both this and the seed
 # generator (no schema FK to point at).
-OVER_ALLOCATED_PERSONS = {"p-fischer", "p-szabo"}
+OVER_ALLOCATED_PERSONS = {"p-fischer", "p-szabo", "p-winter"}
 
 # BTC profile sum-rule tolerance — must match
 # ``services/btc_service.py::BTC_SUM_TOLERANCE``.
