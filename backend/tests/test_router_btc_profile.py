@@ -461,3 +461,102 @@ class TestYearRollover:
             headers={"X-Current-User": "persona-pl"},
         )
         assert resp.status_code == 403
+
+    def _seed_two_typed_active_profiles(self, db):
+        """Seed an active 2026 Offering profile (ce-off1) and an active 2026
+        Project profile (ce-proj1). _seed_base already provides ce-off1."""
+        _seed_base(db)
+        _make_active_profile(db)  # ce-off1 (Offering)
+        proj = ChargeableEntity(
+            id="ce-proj1", entity_type="Project", identifier="IT0PPM2",
+            name="Project One", to_business_pct=40.0,
+            hierarchy_node_id="lob-a", is_active=True,
+        )
+        db.add(proj)
+        db.flush()
+        prof = BTCProfile(entity_id="ce-proj1", year=2026, mode="manual", status="active")
+        db.add(prof)
+        db.flush()
+        db.add_all([
+            BTCProfileLine(profile_id=prof.id, charging_location_id="cl-a", percentage=70.0),
+            BTCProfileLine(profile_id=prof.id, charging_location_id="cl-b", percentage=30.0),
+        ])
+        db.commit()
+
+    def test_scope_all_no_filter_rolls_all(self, test_client, seed_personas, db):
+        self._seed_two_typed_active_profiles(db)
+        resp = test_client.post(
+            "/api/admin/btc-profiles/year-rollover",
+            json={"source_year": 2026, "target_year": 2027},
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["rolled_over"]) == 2
+
+    def test_scope_entity_types_offering_only(self, test_client, seed_personas, db):
+        self._seed_two_typed_active_profiles(db)
+        resp = test_client.post(
+            "/api/admin/btc-profiles/year-rollover",
+            json={
+                "source_year": 2026, "target_year": 2027,
+                "entity_types": ["offering"],
+            },
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["rolled_over"]) == 1
+        # New 2027 profile must belong to ce-off1 (Offering).
+        new_prof = db.query(BTCProfile).filter_by(year=2027).one()
+        assert new_prof.entity_id == "ce-off1"
+
+    def test_scope_entity_ids_specific_entity(self, test_client, seed_personas, db):
+        self._seed_two_typed_active_profiles(db)
+        resp = test_client.post(
+            "/api/admin/btc-profiles/year-rollover",
+            json={
+                "source_year": 2026, "target_year": 2027,
+                "entity_ids": ["ce-proj1"],
+            },
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["rolled_over"]) == 1
+        new_prof = db.query(BTCProfile).filter_by(year=2027).one()
+        assert new_prof.entity_id == "ce-proj1"
+
+    def test_validator_rejects_both_filters_set(self, test_client, seed_personas):
+        resp = test_client.post(
+            "/api/admin/btc-profiles/year-rollover",
+            json={
+                "source_year": 2026, "target_year": 2027,
+                "entity_types": ["offering"],
+                "entity_ids": ["ce-off1"],
+            },
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert resp.status_code == 422
+
+    def test_validator_rejects_unknown_entity_type(self, test_client, seed_personas):
+        resp = test_client.post(
+            "/api/admin/btc-profiles/year-rollover",
+            json={
+                "source_year": 2026, "target_year": 2027,
+                "entity_types": ["bogus_type"],
+            },
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert resp.status_code == 422
+
+    def test_validator_rejects_empty_entity_types_list(self, test_client, seed_personas):
+        resp = test_client.post(
+            "/api/admin/btc-profiles/year-rollover",
+            json={
+                "source_year": 2026, "target_year": 2027,
+                "entity_types": [],
+            },
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert resp.status_code == 422
