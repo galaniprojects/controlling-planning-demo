@@ -119,11 +119,10 @@ def seed_database() -> dict:
 
     print("[seed] Database empty — running full seed...")
     load_seed_sql()
-    # E1: progress tracker live state + checklist + history snapshots
-    # MUST run before _seed_forecast_versions so the demo flagship narrative
-    # is consistent (forecast + progress are captured in the same Q1/Q2 cycle
-    # frame).
-    _seed_progress_tracker_data()
+    # Progress tracker rows + deliverable checklists + historical snapshots are
+    # emitted directly by `generate_seed_v5/s18_progress.py` as deterministic
+    # SQL — the legacy `_seed_progress_tracker_data` Python helper has been
+    # retired by S1 [F-DG-01..03] [E-04c].
     _seed_forecast_versions()
     fixtures = load_fixtures()
     print("[seed] Seed complete.")
@@ -264,242 +263,8 @@ def _seed_forecast_versions() -> None:
         db.close()
 
 
-def _seed_progress_tracker_data() -> None:
-    """Python seed helper: populate progress tracker live state + checklist
-    + 2 historical snapshots for demo projects [E-04c].
-
-    Targets ``proj-erp2``, ``proj-sap``, ``proj-iam`` so the Backlog and
-    Workbench surfaces show non-empty progress indicators on first launch.
-
-    Critically registered in BOTH ``seed_database()`` and ``reset_database()``
-    paths per the wave-2 lesson (commit 9b7aa6d) — failure to keep both in
-    sync ships demos with empty progress data after reset-demo.
-    """
-    import sys, os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-    from datetime import datetime
-    from decimal import Decimal
-    import json
-
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-
-    engine = create_engine(
-        f"sqlite:///{get_db_path()}",
-        connect_args={"check_same_thread": False},
-    )
-    SessionLocal = sessionmaker(bind=engine)
-    db = SessionLocal()
-
-    try:
-        import models  # noqa: F401 — registers all ORM classes
-        from models.projects import (
-            MilestoneDeliverable, ProgressSnapshot, Project, ProjectMilestone,
-        )
-
-        # Demo state per project — keeps the "demo flagship" narrative aligned
-        # with the rest of the seed:
-        #   proj-erp2 (Test phase, at_risk): 60% manual override, narrative
-        #   proj-sap (Go-Live, on_track): 85% manual override
-        #   proj-iam (Rollout, blocked): 25% with reason
-        demo_state = {
-            "proj-erp2": {
-                "current_milestone_seq": 4,  # Test
-                "progress_pct": Decimal("60.0"),
-                "manual_override": True,
-                "narrative": (
-                    "UAT in progress; two open defects under triage. "
-                    "Cutover plan reviewed with TBS leadership."
-                ),
-                "confidence": "at_risk",
-                "reason": "Two P1 integration defects pending vendor fix.",
-                "checklist_milestone_seq": 4,
-                "checklist": [
-                    ("API integration suite signed off", True),
-                    ("Performance benchmarks within SLA", True),
-                    ("UAT scenarios executed", True),
-                    ("UAT defects resolved", False),
-                    ("Cutover plan rehearsal", False),
-                    ("Go/No-Go decision recorded", False),
-                ],
-            },
-            "proj-sap": {
-                "current_milestone_seq": 5,  # Go-Live
-                "progress_pct": Decimal("85.0"),
-                "manual_override": True,
-                "narrative": (
-                    "Final cutover dry-run successful. Production go-live "
-                    "tracking to plan for May."
-                ),
-                "confidence": "on_track",
-                "reason": None,
-                "checklist_milestone_seq": 5,
-                "checklist": [
-                    ("Cutover plan signed by all stakeholders", True),
-                    ("Final data load validated", True),
-                    ("End-user training delivered", True),
-                    ("Hypercare team rostered", True),
-                    ("Production sign-off captured", False),
-                ],
-            },
-            "proj-iam": {
-                "current_milestone_seq": 3,  # Rollout
-                "progress_pct": Decimal("25.0"),
-                "manual_override": True,
-                "narrative": (
-                    "Rollout paused while AD federation issue is investigated."
-                ),
-                "confidence": "blocked",
-                "reason": "Federation handshake failing in DR site; ticket open with vendor.",
-                "checklist_milestone_seq": 3,
-                "checklist": [
-                    ("Pilot user group migrated", True),
-                    ("Production federation enabled", False),
-                    ("DR-site federation enabled", False),
-                    ("Service desk runbook published", False),
-                ],
-            },
-        }
-
-        snap_count = 0
-        for project_id, cfg in demo_state.items():
-            project = db.query(Project).filter(Project.id == project_id).first()
-            if project is None:
-                continue
-
-            # Resolve current milestone by (project, sequence_number)
-            current_ms = (
-                db.query(ProjectMilestone)
-                .filter(
-                    ProjectMilestone.project_id == project_id,
-                    ProjectMilestone.sequence_number == cfg["current_milestone_seq"],
-                )
-                .first()
-            )
-            if current_ms is not None:
-                project.current_milestone_id = current_ms.id
-
-            project.progress_pct = cfg["progress_pct"]
-            project.progress_pct_manual_override = cfg["manual_override"]
-            project.status_narrative = cfg["narrative"]
-            project.next_milestone_confidence = cfg["confidence"]
-            project.confidence_reason = cfg["reason"]
-            project.progress_updated_at = datetime(2026, 4, 15, 9, 0, 0)
-            project.progress_updated_by_id = (
-                project.pl_person_id or "p-controller"
-            )
-
-            # Deliverable checklist for the current milestone
-            checklist_ms = (
-                db.query(ProjectMilestone)
-                .filter(
-                    ProjectMilestone.project_id == project_id,
-                    ProjectMilestone.sequence_number == cfg["checklist_milestone_seq"],
-                )
-                .first()
-            )
-            if checklist_ms is not None:
-                # Wipe any pre-existing deliverables (idempotent if seed runs twice)
-                (
-                    db.query(MilestoneDeliverable)
-                    .filter(MilestoneDeliverable.milestone_id == checklist_ms.id)
-                    .delete(synchronize_session=False)
-                )
-                for idx, (text, complete) in enumerate(cfg["checklist"], start=1):
-                    db.add(MilestoneDeliverable(
-                        milestone_id=checklist_ms.id,
-                        sequence=idx,
-                        text=text,
-                        is_complete=complete,
-                        completed_at=(
-                            datetime(2026, 4, 1, 0, 0, 0) if complete else None
-                        ),
-                        completed_by_id=(
-                            project.pl_person_id or "p-controller" if complete else None
-                        ),
-                    ))
-
-            # Two historical snapshots: Q1 2026 Cycle + Q2 2026 Cycle
-            db.flush()  # ensure project.current_milestone_id is visible
-            for snap_idx, (label, snap_at, pct_factor, conf) in enumerate(
-                [
-                    ("Q1 2026 Cycle", datetime(2026, 1, 15, 10, 0, 0), 0.6, "on_track"),
-                    ("Q2 2026 Cycle", datetime(2026, 4, 15, 10, 0, 0), 1.0, cfg["confidence"]),
-                ]
-            ):
-                pct = Decimal(str(round(float(cfg["progress_pct"]) * pct_factor, 2)))
-                # Build the checklist payload as it appeared at the snapshot
-                # (use current items for the demo — full history reconstruction
-                # is the engineering team's job in a real deployment).
-                checklist_payload = []
-                if checklist_ms is not None:
-                    items = (
-                        db.query(MilestoneDeliverable)
-                        .filter(MilestoneDeliverable.milestone_id == checklist_ms.id)
-                        .order_by(MilestoneDeliverable.sequence)
-                        .all()
-                    )
-                    if items:
-                        checklist_payload = [{
-                            "milestone_id": checklist_ms.id,
-                            "milestone_name": checklist_ms.name,
-                            "sequence_number": checklist_ms.sequence_number,
-                            "items": [
-                                {
-                                    "id": d.id,
-                                    "sequence": d.sequence,
-                                    "text": d.text,
-                                    "is_complete": (
-                                        d.is_complete if snap_idx == 1
-                                        else (d.is_complete and d.sequence <= 2)
-                                    ),
-                                    "completed_at": (
-                                        d.completed_at.isoformat()
-                                        if d.completed_at and snap_idx == 1
-                                        else None
-                                    ),
-                                }
-                                for d in items
-                            ],
-                        }]
-
-                snap = ProgressSnapshot(
-                    project_id=project_id,
-                    cycle_label=label,
-                    cycle_id=f"seed-{label.split()[0].lower()}-2026",
-                    snapshot_at=snap_at,
-                    created_by_id="p-controller",
-                    current_milestone_id=current_ms.id if current_ms else None,
-                    current_milestone_name=current_ms.name if current_ms else None,
-                    current_milestone_sequence=(
-                        current_ms.sequence_number if current_ms else None
-                    ),
-                    progress_pct=pct,
-                    progress_pct_manual_override=cfg["manual_override"],
-                    status_narrative=cfg["narrative"],
-                    next_milestone_confidence=conf,
-                    confidence_reason=(
-                        cfg["reason"] if conf in ("at_risk", "blocked") else None
-                    ),
-                    checklist_payload_json=(
-                        json.dumps(checklist_payload) if checklist_payload else None
-                    ),
-                )
-                db.add(snap)
-                snap_count += 1
-
-        db.commit()
-        print(
-            f"[seed] Progress tracker: seeded {len(demo_state)} projects, "
-            f"{snap_count} historical snapshots (E1 [E-04c])"
-        )
-
-    except Exception as exc:
-        db.rollback()
-        print(f"[seed] WARNING: _seed_progress_tracker_data failed: {exc}")
-    finally:
-        db.close()
+# Retired by S1: `_seed_progress_tracker_data` v4 helper is subsumed by
+# `generate_seed_v5/s18_progress.py` emitting deterministic SQL [E-04c].
 
 
 def reset_database() -> dict:
@@ -534,8 +299,7 @@ def reset_database() -> dict:
 
     # Reload seed data and fixtures
     load_seed_sql()
-    # E1: progress tracker live state + checklist + history snapshots [E-04c]
-    _seed_progress_tracker_data()
+    # Progress tracker state seeded inline by s18_progress.py (S1).
     # C1: generate 2 forecast versions per project [C-FV-05]
     _seed_forecast_versions()
     fixtures = load_fixtures()

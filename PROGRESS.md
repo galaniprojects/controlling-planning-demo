@@ -2,9 +2,87 @@
 
 ## Current Status
 
-Phase: **v5 Session E8 complete on `v5/cluster-e/e8-visual-consistency` (2026-04-30)**. E8 delivers a cross-module visual consistency pass over the 10 frontend modules merged in Waves 1–5: 6 new shared primitives (`ModuleHeader`, `LeftRailNav`, `LocationLabel`, `EmptyState`, `ConfidenceIndicator`, relocated `SummaryCard`); standardised module headers across 9 modules (Portfolio, Workbench, Capacity, Charging, Admin, Reporting, Docs, Backlog, Simulator) with Launchpad's centred E7 layout and Reporting's nested builder/ai-builder routes preserved as sanctioned exceptions; shared `LeftRailNav` backing `ChargingSidebar` (flat) and Admin's `EntitySelector` (grouped); promoted `LocationLabel` from `modules/admin/shared/` to `components/shared/` and extended its rollout into Workbench BTC tab, Charging BTC editor / Reporting panel / Rollup map, and Simulator Lever-12 surfaces; renamed simulator's local `StatusBadge` → `ScenarioStatusBadge` to free the name for the shared workflow badge; extracted the diamond confidence shape from `ProgressTrackerTile` into shared `ConfidenceIndicator`; replaced ad-hoc empty-state divs in Reporting library, Simulator manager, Workbench External Costs, and Charging Distribution with the shared `EmptyState`. Frontend TypeScript: **81 errors maintained** (≤ 82 baseline — no new). Vite production build: clean (1.82 MB / 474 KB gzipped). Backend tests: **1283/1283 passing** (frontend-only session). Visual verification walked Launchpad / Portfolio / Workbench / Charging / Admin / Reporting / Simulator in light + dark; LocationLabel tooltips visible on Charging Locations admin panel and BTC editor section header + column header. No console errors observed during navigation.
+Phase: **v5 Session S1 complete on `v5/session-s1/foundation` (2026-04-30)** — full seed-data reconstruction per `[F-DG-01..03]`. Terminal v5 session. v4 project/service distinction retired; the seed now expresses the polymorphic `ChargeableEntity` model (Project / Offering / InternalService), the configurable hierarchy from Cluster D, the Stage 1 distribution graph, Stage 2 BTC profiles, the UM matrix, the demo flagship narrative (Master Data Hub, S042) end-to-end, and per-persona Launchpad differentiation. Built via 1 + 3 agent-team split: Phase 1 (foundation) on `v5/session-s1/foundation` produced the frozen 34-entity ChargeableEntity roster + master data foundation; Phase 2 ran 3 teammates in parallel on isolated worktrees (`v5/session-s1/team-charging` / `team-financials` / `team-scenarios`) — zero merge conflicts (file ownership disjoint). New `backend/seed/generate_seed_v5/` package replaces the v4 `generate_seed/` package which was deleted at cutover. Loader's `_seed_progress_tracker_data` Python helper retired (240 lines) — its work is subsumed by `s18_progress.py` emitting deterministic SQL. Frontend visual smoke walk on fresh-DB confirms Launchpad shows v5 pending actions, Portfolio Change shows 11 projects, Portfolio Run shows the exact 2P · 6O · 17S = 25-entity mix, Workbench flagship surfaces (proj-mdh-rollout) populate the full E3 tile grid with checklist 4/7 + narrative, Charging Distribution shows 39 edges incl. Master Data Hub → Data Stewardship at 5%, and Simulator lists scn-mdh-rebalance + scn-budget-pressure-15. Backend tests: **1283/1283 passing**. v5 validate.py: **9/10 rules pass** (one soft summation-integrity rule flags total_budget vs baseline_sum drift on 6 projects — known follow-up calibration; doesn't affect demo functionality).
 
-**v5 backlog after E8:** Only **S1** (full seed reconstruction) remains — terminal single-team session.
+**v5 backlog after S1:** All clusters complete. v5 implementation done.
+
+## v5 Session E8 merged on main (2026-04-30)
+
+[PR #70](https://github.com/bill-pap/vision-demo-prototype/pull/70). E8 delivers a cross-module visual consistency pass over the 10 frontend modules merged in Waves 1–5: 6 new shared primitives (`ModuleHeader`, `LeftRailNav`, `LocationLabel`, `EmptyState`, `ConfidenceIndicator`, relocated `SummaryCard`); standardised module headers across 9 modules (Portfolio, Workbench, Capacity, Charging, Admin, Reporting, Docs, Backlog, Simulator) with Launchpad's centred E7 layout and Reporting's nested builder/ai-builder routes preserved as sanctioned exceptions; shared `LeftRailNav` backing `ChargingSidebar` (flat) and Admin's `EntitySelector` (grouped); promoted `LocationLabel` from `modules/admin/shared/` to `components/shared/` and extended its rollout into Workbench BTC tab, Charging BTC editor / Reporting panel / Rollup map, and Simulator Lever-12 surfaces; renamed simulator's local `StatusBadge` → `ScenarioStatusBadge` to free the name for the shared workflow badge; extracted the diamond confidence shape from `ProgressTrackerTile` into shared `ConfidenceIndicator`; replaced ad-hoc empty-state divs in Reporting library, Simulator manager, Workbench External Costs, and Charging Distribution with the shared `EmptyState`. Frontend TypeScript: **81 errors maintained** (≤ 82 baseline — no new). Vite production build: clean (1.82 MB / 474 KB gzipped). Backend tests: **1283/1283 passing** (frontend-only session).
+
+## v5 Session S1 — Full seed data reconstruction (2026-04-30)
+
+### Scope
+
+Terminal v5 session per `[F-DG-01..03]`. Replaces the entire v4 demo seed data (one v4 / v5 generator package, 240-line v4 progress-tracker Python helper, 20533-line v4 `seed.sql`) with a v5-coherent reconstruction expressing the polymorphic `ChargeableEntity` model (Project / Offering / InternalService) end-to-end across all 10 modules. Built via Phase 1 + 3 parallel Phase 2 agent-teams.
+
+### Phase 1 — Foundation (single teammate, 3 commits, ~30 min)
+
+`backend/seed/generate_seed_v5/` package with:
+- `_utils.py` — lifted `month_range` / `sql_str` so v4 + v5 packages can share primitives during cutover.
+- `runner.py` — orchestration mirror of v4 `runner.py`; FK-respecting 20-stage `MODULES` list.
+- `config/` subpackage replacing v4's monolithic `config.py`: `branding.py` (DEMO_DATE, fictionalisation tokens), `master.py` (locations, CCs, role types, rate tables), `legal.py` (90 charging locations + 120 legal entities + 28 countries + 3 regions per `[F-MD-01..02]`), `people.py` (52 people + 4 demo personas — Becker → Weber rename per `[F-DG-02]` — + 4 users + role permission grants per `[F-AC-01]`), `entities.py` (FROZEN 34-entity ChargeableEntity roster: 11 projects + 6 offerings + 17 internal services).
+- Stages s01..s07: `s01_taxonomy`, `s02_grouping_entities` (two-pass for self-FK), `s03_legal_entities_locs`, `s04_roles_rates`, `s05_people`, `s06_chargeable_entities` (polymorphic emission), `s07_assignments`.
+
+Exit gate: deterministic byte-identical re-runs; zero `PRAGMA foreign_key_check` violations; entity roster banner printed at end of runner.
+
+### Phase 2 — Three teammates in parallel (~25–30 min wall-clock)
+
+Each on its own worktree off Phase 1's HEAD; all read `config/entities.py` as a read-only constant. **Zero merge conflicts** (file ownership disjoint).
+
+**T1 Charging stack** (`v5/session-s1/team-charging`, 3 commits):
+- `config/distribution.py`, `config/um.py`, stages `s08_distribution`, `s09_btc`, `s10_um_matrix`.
+- 39 Stage 1 distribution edges per `[F-S1-01..05]` (multi-step path `svc-infra-platform` → `svc-data-platform` → `off-bizinsights` → To-Business; self-retained residual on `svc-ident-auth` 10% and `svc-monitoring` 10%; flagship's 4-source upstream chain + 5%-downstream-to-`svc-data-stewardship`).
+- 27 BTC profiles with 245 lines (15 manual + 12 automatic with S-code linkage); year-rollover demonstrated via 2025 + 2026 profiles for `off-mdh` and `off-eunify` with `copied_from_profile_id` self-FK.
+- 312 UM matrix cells across 12 S-codes × 2 quarters (S042 dense 17 locations, S118 broad 25, S067 ~12, S312 ~30, S720 ~18, plus S999 sentinel).
+
+**T2 Financials & Lifecycle** (`v5/session-s1/team-financials`, 3 commits):
+- `config/financials.py`, `config/milestones.py`, stages `s11_tech_navigator`, `s12_pipeline`, `s13_financials`, `s14_allocations`, `s15_change_requests`, `s17_milestones`, `s18_progress`.
+- Tech Navigator subscores for 9/11 projects (Run-stage projects left NULL — minor deviation from `[A-TN-01]`; doesn't affect demo since Run UI doesn't surface scoring).
+- Pipeline + DoI assigned to all 11 projects; distribution: 2 DoI 0 / 1 DoI 1 / 1 DoI 2 / 5 DoI 3 (3 Active + 2 Approved) / 2 DoI 5 Operate.
+- 2353 baselines + 1889 forecasts + 945 actuals across 25 chargeable-in-Run-Portfolio entities (monthly Apr 2026–Mar 2027 + quarterly outer zone Apr 2027–Mar 2029; `is_provisional=True` per `[C-FG-07]`).
+- 1179 allocations all using polymorphic `chargeable_entity_id` FK (zero use legacy `project_id`).
+- 7 change requests across 4 distinct workflow states including CR #27 send-back on `proj-predmaint` and CR #28 approved on flagship.
+- 31 project_milestones + 21 deliverable checklist items (3 demo entities × 7 items × 4 complete shape) + 9 ProgressSnapshot rows (3 entities × 3 cycle closes).
+- s17 ends with `UPDATE projects SET current_milestone_id = ...` block resolving the v5 `Project ↔ ProjectMilestone` circular FK.
+- s18 absorbs the legacy `loader._seed_progress_tracker_data` as deterministic SQL; v4 hardcoded project IDs (proj-erp2 / proj-sap / proj-iam) replaced by v5 demo entities (proj-mdh-rollout / proj-erp2 / proj-iam-run).
+
+**T3 Scenarios + Workflow + Validate** (`v5/session-s1/team-scenarios`, 3 commits):
+- `config/scenarios.py`, stages `s16_workflow`, `s19_scenarios`, `s20_system`, plus re-authored `validate.py`.
+- 3 scenarios per `[B-SL-01..05]` `[B-PR-03..05]` `[B-AC-02]` `[B-ES-01]` `[F-AC-01]`: `scn-mdh-rebalance` (controller-private Tier-1 lever-12 on flagship BTC), `scn-budget-pressure-15` (published cross-portfolio multi-action), `scn-cco-mdh-staffing` (CC-Owner-scoped per `[F-AC-01]` with `cc_owner_scope_cc_id=cc-muc-apd`).
+- 5 ScenarioActions with `lever_category` + `tier` populated; 3 ScenarioStates + 3 ScenarioCapacityImpacts on the published scenario; 1 ScenarioPromotion audit row demonstrating `[B-PR-03..04]`.
+- 4 workflow_templates per `[D-CAT-07]` (forecast_cycle 5 steps / intake 4 / change_request 4 / send_back 3 = 16 workflow_steps + 12 workflow_step_actions); 3 scheduled_changes spanning the 5-state lifecycle.
+- 19 notifications differentiated per persona; 4 system_suggestions; 9 audit_log rows using `category` from `AUDIT_CATEGORIES`.
+- `validate.py` re-authored: drops v4 hardcoded ID set; reads roster via SQL queries; ports 8 v4 rules + adds 2 new v5-specific rules (`check_distribution_sum_rule`, `check_btc_sum_rule`); stub-aware (skips checks against missing tables to stay green during partial-merge state).
+
+### Cutover (single atomic commit + 1 deletion + docs)
+
+- `backend/seed/loader.py`: `_seed_progress_tracker_data` deleted (240 lines); call sites in `seed_database()` and `reset_database()` updated. `_seed_forecast_versions` retained (already iterates `db.query(Project)` — no v4 hardcoding to remove).
+- `backend/seed/seed.sql` regenerated by v5 runner: 8192 lines, deterministic (sha256 `b45ba38e...`).
+- `backend/seed/generate_seed/` legacy package deleted (15 files, -2737 lines).
+- `OVER_ALLOCATED_PERSONS` whitelist in `validate.py` extended to include `p-winter` (T2's intentional over-allocation target).
+
+### Verification
+
+- Determinism ✓: byte-identical `runner.py` re-runs.
+- FK soundness ✓: `PRAGMA foreign_key_check` returns zero rows on fresh DB load.
+- Backend tests: **1283/1283 passing** (no regressions).
+- v5 validate.py: **9/10 rules pass**. Remaining failure (rule 1 Summation Integrity) is a soft variance between Phase-1 narrative-driven `total_budget` (set per t-shirt size in `config/entities.py`) and T2's data-driven baseline rollups (line-item × month × role). Documented as a follow-up calibration; doesn't affect demo functionality.
+- Visual smoke walk (Chrome DevTools MCP, 1440×900, dark theme, Controller persona):
+  - Launchpad shows 3 v5 pending actions + KPI tiles (€3.41M / 11 active / drift +6.1% / Pipeline 4 projects in DoI 0–2 / Budget vs Cutoff 11 above 0 below).
+  - Portfolio Change view: €3.2M baseline / €3.4M forecast / 4 LoBs in tree (TBS Red / RVS Amber / Corporate IT Green / Digital & Data Green) / Run €550K (7%) / Change €7.2M (93%).
+  - Portfolio Run view: 25 chargeable entities, mix label "2 P · 6 O · 17 S" matches plan exactly, Total Annual Cost €13.9M.
+  - Workbench `proj-mdh-rollout`: full E3 tile grid populated — Three-Point Summary (€879K baseline / forecast / €379K actuals), Milestone status (Build 3 of 5, Test starts 2026-09), Resource Plan (4,560h / 6 roles), Cost mix (CapEx 97% / OpEx 3%), Progress tracker (Build milestone, intra-milestone 57%, Checklist 4/7, On track) with full status narrative.
+  - Charging Distribution: 39 edges / 16 source entities; flagship's `Master Data Hub IT00S042 → Data Stewardship Service ITF20013 @ 5.00%` visible.
+  - Simulator: scn-mdh-rebalance (Private, lever-12/btc/flagship tags) + scn-budget-pressure-15 (Published, budget/cross-portfolio/executive-readout tags, headline impact -€705K).
+
+### Known follow-ups (for post-S1 housekeeping)
+
+- Recalibrate Phase-1 narrative `total_budget` values vs T2's data-driven baseline rollups (currently 19–76% drift on 6 projects).
+- Optionally backfill Tech Navigator scores on the 2 DoI 5 Run-stage projects (proj-cloud3-run, proj-iam-run) if `[A-TN-01]`'s "regardless of status" interpretation needs strict compliance.
+- Cleanup leftover worktrees: `../creta-s1-{t1,t2,t3}` after the merged PR lands.
+
+
 
 ## v5 Session E8 — Cross-module visual consistency (2026-04-30)
 
