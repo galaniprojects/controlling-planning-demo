@@ -699,23 +699,68 @@ class YearRolloverResult:
     errors: list[str]       # entity_ids that failed
 
 
+# Map external lowercase entity-type filter values to the DB's TitleCase form.
+_ENTITY_TYPE_FILTER_MAP = {
+    "project": "Project",
+    "offering": "Offering",
+    "internal_service": "InternalService",
+}
+
+
 def year_rollover(
     db: Session,
     source_year: int,
     target_year: int,
+    *,
+    entity_types: Optional[list[str]] = None,
+    entity_ids: Optional[list[str]] = None,
 ) -> YearRolloverResult:
     """Copy all active profiles from source_year to draft profiles for target_year.
 
     Profiles that already exist for the target year are skipped (not overwritten).
     Entities with errors are collected and reported; the rollover continues.
 
+    Optional scope filters narrow the source-year query before iteration:
+
+    - ``entity_types``: list of lowercase type names (``project`` / ``offering`` /
+      ``internal_service``). When set, only profiles whose entity belongs to one
+      of these types are rolled. Mutually exclusive with ``entity_ids``.
+    - ``entity_ids``: explicit list of chargeable-entity ids to restrict to.
+      Mutually exclusive with ``entity_types``.
+
+    When both filters are ``None``, behaviour matches the original "roll all"
+    contract.
+
     Does not commit — caller commits.
     """
-    source_profiles = (
+    if entity_types is not None and entity_ids is not None:
+        raise ValueError(
+            "year_rollover: at most one of entity_types/entity_ids may be set",
+        )
+
+    query = (
         db.query(BTCProfile)
         .filter(BTCProfile.year == source_year, BTCProfile.status == "active")
-        .all()
     )
+
+    if entity_ids:
+        query = query.filter(BTCProfile.entity_id.in_(entity_ids))
+    elif entity_types:
+        # Translate lowercase API form → DB TitleCase form. Unknown values are
+        # ignored (validator at the schema layer rejects them up-front).
+        db_types = [
+            _ENTITY_TYPE_FILTER_MAP[t]
+            for t in entity_types
+            if t in _ENTITY_TYPE_FILTER_MAP
+        ]
+        if not db_types:
+            # No recognised types → no source profiles, return empty result.
+            return YearRolloverResult(rolled_over=[], skipped=[], errors=[])
+        query = query.join(
+            ChargeableEntity, ChargeableEntity.id == BTCProfile.entity_id,
+        ).filter(ChargeableEntity.entity_type.in_(db_types))
+
+    source_profiles = query.all()
 
     rolled_over = []
     skipped = []

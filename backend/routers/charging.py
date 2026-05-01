@@ -1523,17 +1523,32 @@ def btc_year_rollover(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("controller")),
 ) -> YearRolloverResponse:
-    """Roll over all active BTC profiles from source_year to target_year per [F-S2-07]."""
+    """Roll over active BTC profiles from source_year to target_year per [F-S2-07].
+
+    Optional ``entity_types`` and ``entity_ids`` scope filters narrow the set
+    of source-year profiles considered; both ``None`` means "roll all".
+    """
     if body.source_year >= body.target_year:
         raise HTTPException(
             422, "target_year must be greater than source_year",
         )
-    result = year_rollover(db, body.source_year, body.target_year)
+    result = year_rollover(
+        db,
+        body.source_year,
+        body.target_year,
+        entity_types=body.entity_types,
+        entity_ids=body.entity_ids,
+    )
+    scope_label = "all"
+    if body.entity_ids:
+        scope_label = f"entity_ids={','.join(body.entity_ids)}"
+    elif body.entity_types:
+        scope_label = f"entity_types={','.join(body.entity_types)}"
     _audit(
         db, user, "btc_profile", "year_rollover",
-        f"year_rollover source={body.source_year} target={body.target_year}",
+        f"year_rollover source={body.source_year} target={body.target_year} scope={scope_label}",
         "year_rollover",
-        new_value=f"rolled_over={len(result.rolled_over)} skipped={len(result.skipped)} errors={len(result.errors)}",
+        new_value=f"rolled_over={len(result.rolled_over)} skipped={len(result.skipped)} errors={len(result.errors)} scope={scope_label}",
         category="master_data",
     )
     db.commit()
