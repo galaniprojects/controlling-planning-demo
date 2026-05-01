@@ -17,10 +17,10 @@
         },
         "constituent_actions": [
           {"scope": "project", "project_id": "proj-dwh", "action_type": "delay", "parameters": {"months": 12}},
-          {"scope": "project", "project_id": "proj-aiml", "action_type": "remove", "parameters": {}},
+          {"scope": "project", "project_id": "proj-greenedge", "action_type": "remove", "parameters": {}},
           {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"percentage": -15, "direction": "decrease", "category": "external"}},
           {"scope": "project", "project_id": "proj-sensor", "action_type": "adjust_budget", "parameters": {"percentage": -15, "direction": "decrease", "category": "external"}},
-          {"scope": "project", "project_id": "proj-sap", "action_type": "adjust_budget", "parameters": {"percentage": -15, "direction": "decrease", "category": "external"}}
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"percentage": -15, "direction": "decrease", "category": "external"}}
         ]
       },
       {
@@ -35,7 +35,7 @@
           "rag_changes": "1 project may shift Green to Amber"
         },
         "constituent_actions": [
-          {"scope": "project", "project_id": "proj-aiml", "action_type": "remove", "parameters": {}},
+          {"scope": "project", "project_id": "proj-greenedge", "action_type": "remove", "parameters": {}},
           {"scope": "project", "project_id": "proj-dwh", "action_type": "delay", "parameters": {"months": 6}},
           {"scope": "project", "project_id": "proj-telem", "action_type": "pause", "parameters": {"from_month": "2026-04"}},
           {"scope": "portfolio", "action_type": "cap_cost_category", "parameters": {"cost_type": "ext-consulting", "percentage": -10}}
@@ -114,10 +114,10 @@
           "rag_changes": "Fleet Portal may shift Green to Amber"
         },
         "constituent_actions": [
-          {"scope": "project", "project_id": "proj-raildiag", "action_type": "accelerate", "parameters": {"months": 3}},
-          {"scope": "project", "project_id": "proj-raildiag", "action_type": "adjust_budget", "parameters": {"amount": 200000, "direction": "increase"}},
-          {"scope": "project", "project_id": "proj-fleet", "action_type": "adjust_budget", "parameters": {"percentage": -10, "direction": "decrease"}},
-          {"scope": "project", "project_id": "proj-aiml", "action_type": "remove", "parameters": {}}
+          {"scope": "project", "project_id": "proj-railsafety", "action_type": "accelerate", "parameters": {"months": 3}},
+          {"scope": "project", "project_id": "proj-railsafety", "action_type": "adjust_budget", "parameters": {"amount": 200000, "direction": "increase"}},
+          {"scope": "project", "project_id": "proj-sensor", "action_type": "adjust_budget", "parameters": {"percentage": -10, "direction": "decrease"}},
+          {"scope": "project", "project_id": "proj-greenedge", "action_type": "remove", "parameters": {}}
         ]
       },
       {
@@ -134,8 +134,50 @@
         "constituent_actions": [
           {"scope": "project", "project_id": "proj-predmaint", "action_type": "adjust_budget", "parameters": {"amount": 100000, "direction": "increase"}},
           {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}},
-          {"scope": "project", "project_id": "proj-sap", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}},
-          {"scope": "project", "project_id": "proj-fleet", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}}
+          {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}},
+          {"scope": "project", "project_id": "proj-sensor", "action_type": "adjust_budget", "parameters": {"percentage": -5, "direction": "decrease", "category": "external"}}
+        ]
+      }
+    ]
+  },
+  {
+    "goal_id": "goal-mdh-btc-rebalance",
+    "goal_pattern": "rebalance.*mdh|shift.*btc|rebalance.*allocation|mdh.*btc|master.*data.*hub.*btc|btc.*de.*pl|btc.*rebalance|rebalance.*master.*data",
+    "goal_display": "Rebalance Master Data Hub BTC across DE/PL/CZ",
+    "paths": [
+      {
+        "path_id": "mdh-btc-de-pl-cz",
+        "name": "Conservative: Shift 10pp from DE-Munich onto PL/CZ",
+        "approach_description": "Lever 12 demo. Reduce Master Data Hub (off-mdh) BTC line for DE-Munich by 10 percentage points and split that capacity onto Poznan (+5pp) and Prague (+5pp). Promotes shifts ~€228k of annual Stage-2 charge from the DE legal entity onto PL+CZ legal entities. Stays within the existing 3 charging-location set.",
+        "trade_offs": "DE-Munich legal entity sees ~€228k less inflow next fiscal year — could trigger a margin renegotiation. PL and CZ legal entities each absorb ~€114k more cost; ensure tax & invoicing setup is in place. No project-level changes required; canonical forecast unaffected until promote.",
+        "headline_numbers": {
+          "budget_delta": 0,
+          "projects_affected": 0,
+          "capacity_impact": "No FTE shift — pure cost-allocation rebalance",
+          "rag_changes": "No RAG changes; ~€228k of annual Stage-2 charge re-routed across legal entities"
+        },
+        "constituent_actions": [
+          {"scope": "btc_profile", "entity_id": "off-mdh", "action_type": "btc_line_shift", "parameters": {"year": 2026, "charging_location_id": "cl-de-muc", "delta_pct": -10.0}},
+          {"scope": "btc_profile", "entity_id": "off-mdh", "action_type": "btc_line_shift", "parameters": {"year": 2026, "charging_location_id": "cl-pl-poz", "delta_pct": 5.0}},
+          {"scope": "btc_profile", "entity_id": "off-mdh", "action_type": "btc_line_shift", "parameters": {"year": 2026, "charging_location_id": "cl-cz-prg", "delta_pct": 5.0}}
+        ]
+      },
+      {
+        "path_id": "mdh-btc-de-emea-broad",
+        "name": "Moderate: Shift 5pp from DE-Munich onto broader EMEA",
+        "approach_description": "Lighter rebalance: reduce DE-Munich by 5pp and distribute the freed capacity across the broader EMEA footprint (Poznan +2pp, Prague +2pp, Frankfurt +1pp). Smaller magnitude shift but spreads cost across three additional charging locations.",
+        "trade_offs": "DE-Munich legal entity sees ~€114k less inflow. PL/CZ/DE-FRA share the absorption. Smaller margin impact on each landing legal entity; correspondingly smaller diversification benefit.",
+        "headline_numbers": {
+          "budget_delta": 0,
+          "projects_affected": 0,
+          "capacity_impact": "No FTE shift — pure cost-allocation rebalance",
+          "rag_changes": "No RAG changes; ~€114k of annual Stage-2 charge re-routed"
+        },
+        "constituent_actions": [
+          {"scope": "btc_profile", "entity_id": "off-mdh", "action_type": "btc_line_shift", "parameters": {"year": 2026, "charging_location_id": "cl-de-muc", "delta_pct": -5.0}},
+          {"scope": "btc_profile", "entity_id": "off-mdh", "action_type": "btc_line_shift", "parameters": {"year": 2026, "charging_location_id": "cl-pl-poz", "delta_pct": 2.0}},
+          {"scope": "btc_profile", "entity_id": "off-mdh", "action_type": "btc_line_shift", "parameters": {"year": 2026, "charging_location_id": "cl-cz-prg", "delta_pct": 2.0}},
+          {"scope": "btc_profile", "entity_id": "off-mdh", "action_type": "btc_line_shift", "parameters": {"year": 2026, "charging_location_id": "cl-de-fra", "delta_pct": 1.0}}
         ]
       }
     ]
@@ -158,7 +200,7 @@
         },
         "constituent_actions": [
           {"scope": "project", "project_id": "proj-erp2", "action_type": "adjust_budget", "parameters": {"amount": 150000, "direction": "increase"}},
-          {"scope": "project", "project_id": "proj-aiml", "action_type": "adjust_budget", "parameters": {"amount": -150000, "direction": "decrease"}}
+          {"scope": "project", "project_id": "proj-greenedge", "action_type": "adjust_budget", "parameters": {"amount": -150000, "direction": "decrease"}}
         ]
       },
       {

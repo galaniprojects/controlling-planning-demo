@@ -2,33 +2,33 @@
   {
     "id": "faq-01",
     "question": "How do I submit a change request for my project?",
-    "summary": "Navigate to Project Workbench, select your project, and use the Change Request panel to create and submit a CR.",
+    "summary": "CRs are created automatically by the 5-phase Monthly Forecast Wizard — there is no separate 'Create CR' form. Open Project Workbench, navigate to Forecast & Planning, and click Rolling Forecast Review.",
     "applicable_roles": ["project_lead"],
     "modules_involved": ["workbench"],
     "steps": [
       {"step_number": 1, "instruction": "Open the **Project Workbench** from the Launchpad or sidebar navigation.", "target_module": "workbench"},
       {"step_number": 2, "instruction": "Select the project you want to modify from the project list on the left panel."},
-      {"step_number": 3, "instruction": "Click the **Change Requests** tab in the project detail view."},
-      {"step_number": 4, "instruction": "Click **+ New Change Request** and select the change category (scope, timeline, resource, external cost, or other)."},
-      {"step_number": 5, "instruction": "Fill in the summary, justification, and detailed change lines. If a system suggestion exists, you can pre-fill from it."},
-      {"step_number": 6, "instruction": "Click **Submit** to send the CR to the Controller for review. The Controller can approve it, reject it, or request changes using an editable grid. While the CR is pending, the forecast review button will be locked to prevent overlapping submissions."},
-      {"step_number": 7, "instruction": "If the Controller requests changes, you will see the CR in your Change History tab with an 'Action Required' badge. Expand it to see a diff view comparing your original values with the controller's proposed changes, then Accept or Decline and Resubmit."},
-      {"step_number": 8, "instruction": "If the CR involves internal resource changes, it will route to the CC Owner as the final step. The CC Owner sees delta-based requests showing the change amount (not the total), making it clear exactly what needs to be allocated or de-allocated."}
+      {"step_number": 3, "instruction": "Click the **Forecast & Planning** tab, then click **Rolling Forecast Review** to open the 5-phase wizard."},
+      {"step_number": 4, "instruction": "Walk the 5 phases: Retrospective (acknowledge prior-month variances) → Suggestions (apply or dismiss AI insights) → Edit Forecast (modify the monthly + quarterly grid) → Review (verify the diff in EUR with justification) → Confirmation (Submit)."},
+      {"step_number": 5, "instruction": "On Submit, the system creates one or more CRs partitioned by affected cost centre. CRs touching internal resources route to the CC Owner first; cost-only CRs go directly to the Controller."},
+      {"step_number": 6, "instruction": "While any CR is pending, the **Rolling Forecast Review** button is locked with a status indicator showing the blocking CR number. This prevents overlapping submissions."},
+      {"step_number": 7, "instruction": "If the Controller sends back the CR with edits, you will see it in your Change History tab with an 'Action Required' amber badge. Expand it to see a diff view comparing your original values with the controller's proposed changes, then **Accept Changes** or **Decline and Resubmit**."},
+      {"step_number": 8, "instruction": "If the CR involves internal resource changes, the CC Owner sees delta-based requests showing the change amount (not the total) and can confirm, partially fulfill, counter-propose, or decline. See the full step-by-step in `docs/workflows/03-forecast-cycle.md` (W03.1) and `docs/workflows/04-change-requests.md` (W04.1)."}
     ]
   },
   {
     "id": "faq-02",
     "question": "How do I respond to a resource request?",
-    "summary": "Go to Capacity Management > Request Management, review the request details, and choose Confirm, Partially Fulfill, Counter-Propose, or Decline.",
+    "summary": "Go to Capacity Management → Resource Requests, click Review & Assign Resources on the project / CR card, then per row choose Confirm, Partially Fulfill, Counter-Propose, or Decline.",
     "applicable_roles": ["cost_center_owner"],
     "modules_involved": ["capacity"],
     "steps": [
       {"step_number": 1, "instruction": "Open **Capacity Management** from the Launchpad or sidebar.", "target_module": "capacity"},
-      {"step_number": 2, "instruction": "Click the **Request Management** tab to see incoming requests for your cost center."},
-      {"step_number": 3, "instruction": "Review the request details: project, role/cost type, hours or amount, period, priority, and for CR-linked requests the change direction (increase/decrease), delta hours, original allocation, and currently allocated person."},
-      {"step_number": 4, "instruction": "Use the **Assignment Preview** to check which team members have availability."},
-      {"step_number": 5, "instruction": "Choose your response: **Confirm** (assign a named person), **Partially Fulfill** (adjust hours or period), **Counter-Propose** (offer an alternative), or **Decline** (with reason). For decrease requests, confirming will reduce the existing person's allocation rather than creating a new one."},
-      {"step_number": 6, "instruction": "Submit your response. If you confirmed a CR-linked resource request, the CR is automatically approved and the forecast is updated. If you declined, the CR is sent back to the Project Lead."}
+      {"step_number": 2, "instruction": "Click the **Resource Requests** button (or use the 'Open Requests' tile on the Launchpad) to navigate to `/capacity/requests`. Each pending parent (project intake or CR-linked) appears as a card."},
+      {"step_number": 3, "instruction": "Click **Review & Assign Resources** on the relevant card to open the per-project assignment grid at `/capacity/project-assignment/<project-id>`."},
+      {"step_number": 4, "instruction": "Inspect each row: requested role, monthly hours, and (for CR-linked deltas) the change direction (Increase/Decrease badge), delta hours, original allocation, and currently allocated person."},
+      {"step_number": 5, "instruction": "Per row, choose your response: **Confirm** (assign a named person via the cell dropdown — Matching Role first, then Other Roles, with utilization color-coded), **Partially Fulfill** (reduce hours / shorten period — routes back to PL for sign-off), **Counter-Propose** (offer alternative person/role/split — routes back to PL for negotiation), or **Decline** (with required reason — routes back to PL). Use the All column to bulk-assign one person across every month of a row."},
+      {"step_number": 6, "instruction": "Click **Confirm All & Send to Controller** when every row is fully assigned. CR-linked requests advance the CR to `pending_controller_approval`; intake-linked requests move the project to the controller's approval queue. See full walks in `docs/workflows/05-resource-requests.md` (W05.1-W05.4)."}
     ]
   },
   {
@@ -77,15 +77,15 @@
   {
     "id": "faq-06",
     "question": "How do I approve or reject a change request?",
-    "summary": "As a Controller, go to Portfolio Overview, find pending CRs in the approval queue, review details, and approve or reject.",
+    "summary": "As a Controller, go to Portfolio Overview → CR Approvals tab, click a CR row, review the diff, and Approve / Reject / Request Changes.",
     "applicable_roles": ["controller"],
     "modules_involved": ["portfolio"],
     "steps": [
-      {"step_number": 1, "instruction": "Open the **Portfolio Overview** module.", "target_module": "portfolio"},
-      {"step_number": 2, "instruction": "Check the **Pending Approvals** section or notification badge showing CRs awaiting your review."},
-      {"step_number": 3, "instruction": "Click a CR to see its full details: summary, justification, change details, CC Owner confirmation, and comments."},
-      {"step_number": 4, "instruction": "Review the impact on the project's budget, timeline, and RAG status."},
-      {"step_number": 5, "instruction": "Click **Approve** to accept the CR (routes to CC Owner if it has resource changes, otherwise approved directly). Click **Reject** with a required reason. Click **Request Changes** to open an editable forecast grid where you can adjust specific values, add feedback, and send back to the Project Lead with your proposed modifications."}
+      {"step_number": 1, "instruction": "Open the **Portfolio Overview** module from the Launchpad's **Pending Reviews** tile, or navigate directly to `/portfolio/approvals`.", "target_module": "portfolio"},
+      {"step_number": 2, "instruction": "Select the **CR Approvals** tab. The queue lists pending CRs with columns: CR # / Project / Summary / Submitted By / Confirmed By / Impact / Date."},
+      {"step_number": 3, "instruction": "Click a CR row to open the detail panel showing the line-item-level diff (each `CRChangeDetail` with old / new / delta), the CC Owner confirmation indicator, and the full justification text."},
+      {"step_number": 4, "instruction": "Review the impact on the project's forecast in EUR. Verify the CC has confirmed (the **Approve** button stays disabled until all CCs in scope have confirmed) — for Run-portfolio CRs (DoI 5 / Offerings / InternalServices) the CC step is skipped."},
+      {"step_number": 5, "instruction": "Click **Approve** to write the deltas to the live forecast and snapshot a new ForecastVersion (`version_type='cr_approval'`). Click **Reject** with a required reason — PL is notified with the rationale. Click **Request Changes** to open an editable grid, modify specific cells, type commentary, and **Send Back to PL** — the PL sees an 'Action Required' badge in their Change History with the diff view (see `docs/workflows/04-change-requests.md` W04.4)."}
     ]
   },
   {
@@ -119,41 +119,41 @@
   {
     "id": "faq-09",
     "question": "How do I update my project's monthly forecast?",
-    "summary": "Open your project in Project Workbench, navigate to the Forecast tab, and edit the monthly values for internal or external line items.",
+    "summary": "Open your project in Project Workbench, click the Forecast & Planning tab, and start the 5-phase Rolling Forecast Review wizard.",
     "applicable_roles": ["project_lead"],
     "modules_involved": ["workbench"],
     "steps": [
       {"step_number": 1, "instruction": "Open the **Project Workbench** and select your project.", "target_module": "workbench"},
-      {"step_number": 2, "instruction": "Click the **Forecast** tab to see the monthly forecast grid."},
-      {"step_number": 3, "instruction": "Click **Rolling Forecast Review** to start the monthly review wizard. Note: if a CR is already pending for this project, the button will be disabled until the CR is resolved."},
-      {"step_number": 4, "instruction": "Walk through the 5 phases: Retrospective (review variances), Suggestions (apply AI insights), Editing (modify the grid or click 'Keep as is' to proceed without changes), Review (verify changes in full EUR format), and Submit."},
-      {"step_number": 5, "instruction": "Submitted changes become a CR routed to the Controller. If internal resource changes are included, the CR also routes to the CC Owner for final confirmation."}
+      {"step_number": 2, "instruction": "Click the **Forecast & Planning** tab to see the monthly + quarterly forecast grid (monthly for the next 12 months, quarterly thereafter; cells beyond the granularity boundary appear with a 'Provisional' flag)."},
+      {"step_number": 3, "instruction": "Click **Rolling Forecast Review** to start the wizard. Note: if a CR is already pending for this project, the button is disabled with a status indicator showing the blocking CR number."},
+      {"step_number": 4, "instruction": "Walk the 5 phases: **Retrospective** (acknowledge prior-month variances — flagged rows > 10% require text explanation before Acknowledge & Continue enables), **Suggestions** (apply or dismiss AI insights, may be silently skipped if none surface), **Edit Forecast** (modify the grid; click 'Keep as is' to proceed without changes), **Review** (verify changes in full EUR format with old / new / delta), and **Confirmation** (final Submit)."},
+      {"step_number": 5, "instruction": "On Submit, the system creates one or more CRs partitioned by affected cost centre and writes a new ForecastVersion. CRs touching internal resources route to the CC Owner first. See full walk in `docs/workflows/03-forecast-cycle.md` (W03.1)."}
     ]
   },
   {
     "id": "faq-10",
     "question": "What happens when a CR involves reducing hours for a role?",
-    "summary": "The system creates a decrease resource request showing the delta, the original allocation, and the currently assigned person. The CC Owner confirms the reduction.",
+    "summary": "The CR carries the delta (e.g. -20h). The CC Owner sees a red 'Decrease' badge with the original allocation and currently-allocated person. Confirming reduces the existing allocation rather than creating a new one.",
     "applicable_roles": ["project_lead", "cost_center_owner"],
     "modules_involved": ["workbench", "capacity"],
     "steps": [
-      {"step_number": 1, "instruction": "When a PL reduces forecasted hours for an internal role (e.g., from 60h to 40h per month), the CR captures the delta as a decrease of 20h."},
-      {"step_number": 2, "instruction": "After controller approval, a resource request is created for the CC Owner with a red 'Decrease' badge, showing: original 60h, delta -20h, resulting total 40h, and the currently allocated person."},
-      {"step_number": 3, "instruction": "The CC Owner reviews and confirms the reduction. Confirming reduces the allocated person's hours rather than creating a new allocation."},
-      {"step_number": 4, "instruction": "The CR is completed and the forecast is updated with the reduced hours."}
+      {"step_number": 1, "instruction": "When a PL reduces forecasted hours for an internal role (e.g., from 60h to 40h per month) in Phase 3 of the Rolling Forecast Review wizard, the resulting CR captures the delta as a decrease of 20h."},
+      {"step_number": 2, "instruction": "The CR routes to the CC Owner first (`pending_cc_confirmation` state). In Capacity Management → Resource Requests, the CC sees a card with a red 'Decrease' badge and these context fields: original 60h, delta -20h, resulting total 40h, and the currently allocated person."},
+      {"step_number": 3, "instruction": "The CC Owner reviews and confirms the reduction. Confirming reduces the existing person's allocation rather than creating a new one. The CR advances to `pending_controller_approval`."},
+      {"step_number": 4, "instruction": "On Controller approval, the live `Forecast` and `Allocation` rows are updated and a new ForecastVersion (`version_type='cr_approval'`) is snapshot. The PL sees a 'Change request approved' notification."}
     ]
   },
   {
     "id": "faq-11",
     "question": "How do I switch between personas in the demo?",
-    "summary": "Use the persona switcher in the top-right corner of the Launchpad to switch between the four demo personas.",
+    "summary": "Click the persona button in the top-right of the TopBar to open the dropdown, then pick one of the four demo personas.",
     "applicable_roles": ["controller", "cost_center_owner", "project_lead", "executive"],
     "modules_involved": ["launchpad"],
     "steps": [
-      {"step_number": 1, "instruction": "Look for the **persona avatar** in the top-right corner of the application header."},
-      {"step_number": 2, "instruction": "Click the avatar to open the **Persona Switcher** dropdown."},
-      {"step_number": 3, "instruction": "Select one of the four personas: {controller_name} (Controller), {cc_owner_name} (CC Owner), {pl_name} (Project Lead), or {executive_name} (Executive)."},
-      {"step_number": 4, "instruction": "The application will reload with the selected persona's view, showing role-appropriate modules, data, and actions."}
+      {"step_number": 1, "instruction": "Locate the **persona button** in the top-right of the TopBar — it shows the current persona's display name (e.g., 'Anna Meier') and a caret."},
+      {"step_number": 2, "instruction": "Click the button to open the **Persona Switcher** dropdown menu listing all four personas with display name + title on each row."},
+      {"step_number": 3, "instruction": "Select one of: **Anna Meier** / IT Controller, **Thomas Brenner** / Head of Application Development (Cost Centre Owner), **Priya Sharma** / Senior Project Lead, or **Dr. Klaus Weber** / VP IT Strategy & Governance (Executive)."},
+      {"step_number": 4, "instruction": "Page contents re-render in-place with the new persona's data within ~500ms — the URL stays the same. Tile counts, pending actions, and writeable controls all update per role. The chosen persona persists across browser sessions via the `creta-persona` localstorage key. See `docs/workflows/00-system.md` (W00.1) for the full walk."}
     ]
   },
   {
@@ -269,13 +269,13 @@
   {
     "id": "faq-20",
     "question": "How do I enable dark mode?",
-    "summary": "Click the Sun/Moon icon in the top-right corner of the application header to toggle between light, dark, and system themes.",
+    "summary": "Click the Sun / Moon icon in the top-right of the TopBar to toggle between light and dark themes. The choice persists across sessions.",
     "applicable_roles": ["controller", "cost_center_owner", "project_lead", "executive"],
     "modules_involved": ["launchpad"],
     "steps": [
-      {"step_number": 1, "instruction": "Look for the **Sun** or **Moon** icon button in the top-right area of the application header (TopBar), next to the persona switcher."},
-      {"step_number": 2, "instruction": "Click the icon to cycle through three modes: **Light** (sun icon visible), **Dark** (moon icon visible), and **System** (follows your operating system preference)."},
-      {"step_number": 3, "instruction": "The theme applies immediately across all modules, charts, and dialogs. Your preference is saved automatically and persists across sessions."}
+      {"step_number": 1, "instruction": "Locate the **Sun** or **Moon** icon button in the top-right area of the TopBar, immediately left of the persona switcher. The button's tooltip reads 'Switch to light mode' when in dark, or 'Switch to dark mode' when in light."},
+      {"step_number": 2, "instruction": "Click the icon to flip the theme. The page re-renders without a reload — `<html class=\"dark\">` is added or removed across all modules, charts, dialogs, and grids."},
+      {"step_number": 3, "instruction": "Your preference is saved to the browser's `theme` localstorage key automatically and persists across sessions. A hidden 'system' mode (which follows your OS preference) can be set programmatically by writing 'system' to that key. See `docs/workflows/00-system.md` (W00.2) for the full walk."}
     ]
   },
   {
@@ -304,6 +304,245 @@
       {"step_number": 2, "instruction": "Click the **Export** button in the toolbar."},
       {"step_number": 3, "instruction": "The system generates a CSV file with metadata comment rows (report name, export date, user, filters), column headers, data rows with subtotals and grand totals. Cross-tabulated reports are flattened into columns named by dimension value and measure."},
       {"step_number": 4, "instruction": "The file downloads automatically with the naming pattern **{app_name}_ReportBuilder_[Name]_[Date].csv**. The CSV includes a UTF-8 BOM for correct Excel compatibility."}
+    ]
+  },
+  {
+    "id": "faq-v5-01",
+    "question": "How does a project move through the DoI lifecycle (0→5)?",
+    "summary": "DoI is the Degree of Implementation (0–5) tied to pipeline stage. Projects advance through controller-driven gates: 0 Proposed → 1 Under Evaluation early → 2 Under Evaluation late → 3 Approved/Active → 4 Hyper-maintenance → 5 Operate.",
+    "applicable_roles": ["controller", "project_lead", "executive"],
+    "modules_involved": ["portfolio", "backlog", "workbench"],
+    "steps": [
+      {"step_number": 1, "instruction": "**DoI 0 — Proposed**: PL submits a new project from the Backlog page (`+ New`). Lightweight metadata only; appears unranked at the bottom of the list.", "target_module": "backlog"},
+      {"step_number": 2, "instruction": "**DoI 0 → 1**: Controller opens the Backlog detail, marks AI Council approved (if AI-related), then clicks **Advance to DoI 1** on the Scores & Ranking tab."},
+      {"step_number": 3, "instruction": "**DoI 1 → 2**: PL completes Tech Navigator scoring and the business case; controller verifies the Master Data tab is all green-checked and clicks **Advance to DoI 2**."},
+      {"step_number": 4, "instruction": "**DoI 2 → 3 (Pitch Board)**: Controller clicks **Approve at Pitch Board** → confirms locking the baseline. Project becomes Approved/Active. The first ForecastVersion is captured."},
+      {"step_number": 5, "instruction": "**DoI 3 → Active stage**: Controller clicks **Mark Active** in the Workbench Overview header (label-only transition; DoI stays 3)."},
+      {"step_number": 6, "instruction": "**DoI 3 → 4 → 5**: Post-launch the project moves to Hyper-maintenance (DoI 4) then to Operate (DoI 5). DoI 5 entities leave the Backlog and join the Run Portfolio with `is_change_or_run='Run'`."},
+      {"step_number": 7, "instruction": "**Off-path**: Pause / Cancel freezes DoI in `frozen_doi`. The project stays visible but is excluded from cutoff calculations."},
+      {"step_number": 8, "instruction": "See also: workflow W02.1–W02.8 in `docs/workflows/02-project-lifecycle.md` and W11.3 for the Backlog cutoff line."}
+    ]
+  },
+  {
+    "id": "faq-v5-02",
+    "question": "How do I score a project's Tech Navigator profile?",
+    "summary": "Open the project's Backlog detail, Scores & Ranking tab. Pick Project Type and Transformation Level, then score 3 Complexity sub-criteria (Standardization 40% / Usage 40% / Maintenance 20%) and 3 Value Creation sub-criteria (Financial 50% / Payback 40% / Competitive 10%) on a 1–5 scale.",
+    "applicable_roles": ["project_lead", "controller"],
+    "modules_involved": ["backlog"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to `/backlog/<project-id>` and open the **Scores & Ranking** tab.", "target_module": "backlog"},
+      {"step_number": 2, "instruction": "Pick **Project Type** (1 / 2 / 3). Type 3 (Legal / compliance / security / lifecycle) is exempt from the cutoff line."},
+      {"step_number": 3, "instruction": "Pick **Transformation level** (T0 just better / T1 paper to software / T2 new business). Categorical decorator only — does NOT factor into the composite score."},
+      {"step_number": 4, "instruction": "Score the 3 Complexity sub-criteria: **Standardization** (40%), **Usage** (40%), **Maintenance & support** (20%) on a 1–5 scale. Convention: a HIGHER Complexity score means LOWER real-world complexity."},
+      {"step_number": 5, "instruction": "Score the 3 Value Creation sub-criteria: **Financial benefit** (50%), **Payback** (40%), **Competitive advantage** (10%) on a 1–5 scale."},
+      {"step_number": 6, "instruction": "Each click saves immediately. The Composite (Value × 0.7 + Complexity × 0.3 by default) recomputes inline; the Backlog re-ranks accordingly."},
+      {"step_number": 7, "instruction": "See also: workflow W11.1 in `docs/workflows/11-tech-navigator-and-backlog.md` for the deep dive, and W11.2 for adjusting the ranking weights."}
+    ]
+  },
+  {
+    "id": "faq-v5-03",
+    "question": "What's the difference between Change Portfolio and Run Portfolio?",
+    "summary": "Change Portfolio = projects in motion (DoI 0–4). Run Portfolio = steady-state operations (DoI 5 + Offerings + Internal Services). The split is computed from `ChargeableEntity.is_change_or_run` and drives the Portfolio Overview view filter and many Reporting dimensions.",
+    "applicable_roles": ["controller", "executive", "project_lead", "cost_center_owner"],
+    "modules_involved": ["portfolio", "charging", "reporting"],
+    "steps": [
+      {"step_number": 1, "instruction": "**Change** = projects at DoI 0–4: Proposed, Under Evaluation, Approved, Active, Hyper-maintenance. Tracked in the Backlog and Project Workbench.", "target_module": "backlog"},
+      {"step_number": 2, "instruction": "**Run** = DoI 5 (Operate) projects + all Offerings + all Internal Services. Managed in Charging & Allocations for cost flows and BTC rather than in the Backlog ranker.", "target_module": "charging"},
+      {"step_number": 3, "instruction": "The flag is **computed**, not stored: ChargeableEntity.is_change_or_run is a Python property derived from `entity_type` + `doi`. Project DoI 0–4 = Change; DoI 5 / Offering / InternalService = Run."},
+      {"step_number": 4, "instruction": "Switch between the two portfolios in Portfolio Overview using the view selector (Run Portfolio shows DoI 5 chargeable entities)."},
+      {"step_number": 5, "instruction": "Reporting dimension `change_or_run` is exposed in the Report Builder catalog and the AI Report Builder for split queries."},
+      {"step_number": 6, "instruction": "See also: workflow W02.8 in `docs/workflows/02-project-lifecycle.md` for the DoI 4→5 transition."}
+    ]
+  },
+  {
+    "id": "faq-v5-04",
+    "question": "How do I edit a Stage 1 distribution edge?",
+    "summary": "From `/charging?section=distribution`, pick a row and click the pencil to open the per-entity editor. Edit the percentage inline or add a new destination via the Add destination dialog. Sum-rule per [F-S1-02]: to_business + Σ(edges) ≤ 100.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["charging"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to `/charging?section=distribution`. The list shows every Stage 1 edge for the selected (year, version), defaulting to (2026, forecast).", "target_module": "charging"},
+      {"step_number": 2, "instruction": "Use the filter bar to narrow by year, version, source type (Project / Offering / Internal Service), or by free-text search."},
+      {"step_number": 3, "instruction": "Click the **pencil** icon on any row → the EntityDistributionEditor opens scoped to the source entity. Three columns at the top: To-Business %, Distributed Σ, Self-retained (derived)."},
+      {"step_number": 4, "instruction": "Edit: change the To-Business % input and click Save; or click the save icon on an outgoing edge to enter inline edit. The Self-retained number recomputes per `100 − to_business − Σ edges`."},
+      {"step_number": 5, "instruction": "Add: click **Add destination** → modal with destination type filter, search, percentage input, and a live headroom indicator. Sum-rule violation is blocked client-side; cycles are blocked server-side per [F-S1-05]."},
+      {"step_number": 6, "instruction": "All saves are audited in Administration → Audit Log under category `master_data`."},
+      {"step_number": 7, "instruction": "See also: workflow W07.2 + W07.3 in `docs/workflows/07-charging.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-05",
+    "question": "How is a BTC profile's automatic mode different from manual?",
+    "summary": "Manual: controller authors lines by hand and the editor enforces sum-to-100. Automatic: profile snapshots from the User Measurement (UM) matrix for a chosen S-code. Lines are read-only in automatic; switch to manual to override.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["charging"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to `/charging?section=btc` and click **+ New profile**.", "target_module": "charging"},
+      {"step_number": 2, "instruction": "**Manual tab** → pick year + target entity → Create. The editor opens blank; click **+ Add line**, pick a charging location, enter a percentage. Save is gated until Σ = 100% (tolerance ±0.01)."},
+      {"step_number": 3, "instruction": "**Automatic (UM) tab** → enter the S-code (e.g. S042 for Master Data Hub) → Create. The editor opens populated with normalised UM values; lines are read-only."},
+      {"step_number": 4, "instruction": "Automatic profiles get two extra header buttons: **Refresh from UM** (re-snapshots the matrix with a dry-run diff preview) and **Switch to manual** (inherits the snapshot verbatim, unlocking line edits)."},
+      {"step_number": 5, "instruction": "Use manual when the BTC mix doesn't follow UM (e.g., a deal-specific carve-out). Use automatic for the standard production case where measurement data drives allocation."},
+      {"step_number": 6, "instruction": "See also: workflows W07.4 (manual) and W07.5 (automatic) in `docs/workflows/07-charging.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-06",
+    "question": "What happens when I 'Refresh from UM' on a BTC profile?",
+    "summary": "Re-snapshots the UM matrix into the profile with a dry-run diff preview (Added / Removed / Changed) before commit. Updates `um_snapshot_at` and rewrites `BTCProfileLine` rows; invalidates RollupCache for the entity's stage2 entries.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["charging"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open an automatic BTC profile (Charging → BTC Profiles → pencil on an `automatic` row).", "target_module": "charging"},
+      {"step_number": 2, "instruction": "Click **Refresh from UM** in the editor header. The system runs a dry-run against the current UM matrix for the profile's S-code."},
+      {"step_number": 3, "instruction": "A diff dialog appears with three sections: **Added** (new charging locations, emerald), **Removed** (red), **Changed** (amber — old % → new %). 'No differences' message if the snapshot already matches."},
+      {"step_number": 4, "instruction": "Click **Apply changes** to commit; the editor refetches and the lines table reflects the diff. Click Cancel to abandon."},
+      {"step_number": 5, "instruction": "Effects: `BTCProfile.um_snapshot_at` updates to now; `BTCProfileLine` rows rewritten; RollupCache stage2 entries for the entity invalidated; `audit_log` row in `master_data`."},
+      {"step_number": 6, "instruction": "Note: in scenario sandbox mode (Lever 12), the Refresh from UM button is hidden by design — UM is a canonical-only operation."},
+      {"step_number": 7, "instruction": "See also: workflow W07.7 in `docs/workflows/07-charging.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-07",
+    "question": "How do I do a year-rollover on BTC profiles?",
+    "summary": "Use the **Copy from…** tab in the New BTC profile dialog. Pick a source profile (any year) and a target year + entity; lines copy verbatim, mode is preserved, lineage is tracked via `copied_from_profile_id`. For a portfolio-wide roll, call POST `/api/admin/btc-profiles/year-rollover`.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["charging"],
+    "steps": [
+      {"step_number": 1, "instruction": "**Single profile**: from `/charging?section=btc`, click **+ New profile** → switch to **Copy from…** tab.", "target_module": "charging"},
+      {"step_number": 2, "instruction": "Pick year (target year, e.g. 2027), pick the target entity (must not yet have a 2027 profile), then search and pick the source profile in the dropdown."},
+      {"step_number": 3, "instruction": "Click **Create profile**. The new 2027 profile opens in `draft` status with all source lines populated. `copied_from_profile_id` lineage is recorded."},
+      {"step_number": 4, "instruction": "Mode is preserved: manual sources copy as manual; automatic sources copy as automatic with the same S-code."},
+      {"step_number": 5, "instruction": "**Bulk roll** for the whole portfolio: POST `/api/admin/btc-profiles/year-rollover` with `{source_year: 2026, target_year: 2027}`. v5 has no UI button for this; trigger via Swagger/curl/services call."},
+      {"step_number": 6, "instruction": "After rollover the 2027 rows have status `draft`. Edit and switch to `active` per profile to publish them."},
+      {"step_number": 7, "instruction": "See also: workflow W07.6 in `docs/workflows/07-charging.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-08",
+    "question": "What is Lever 12 and how do I use it?",
+    "summary": "Lever 12 (BTC profile shift) and Lever 10 (Stage 1 distribution edge) are the simulator's cost-allocation sandboxes per [B-LV-12]. Edits never touch canonical state — they're stored as scenario-version Distribution rows + ScenarioAction overlays — and only Promote materialises them.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["simulator", "charging"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open or create a scenario in `/simulator`. The seeded **MDH BTC Rebalance — DE/PL/CZ** is the canonical lever-12 demo.", "target_module": "simulator"},
+      {"step_number": 2, "instruction": "In the workspace, expand **Bulk Actions** in the left rail → click **Cost Allocation Sandbox**."},
+      {"step_number": 3, "instruction": "The sandbox surface mounts the Charging editors in sandbox mode: Distribution edges and BTC profile lines are editable, but UM refresh and mode-switch buttons are hidden (canonical-only operations)."},
+      {"step_number": 4, "instruction": "Edit BTC lines (Lever 11) or Distribution edges (Lever 10). Storage: Stage 1 forks into `Distribution.version='scenario-{id}'` rows; Stage 2 lives as `ScenarioAction` overlays on the scenario."},
+      {"step_number": 5, "instruction": "Click **Recalculate** to populate the impact dashboard. The Cost Allocation dimension tile shows headline numbers (e.g. '€228k of annual Stage-2 charge rebalanced')."},
+      {"step_number": 6, "instruction": "Promote: ⋯ menu → **Promote**. Permission per [F-AC-01]: controllers always allowed; other roles need an explicit RolePermissionGrant for `entity_type='btc_profile'` or `'distribution'`. Promotion materialises overlays onto canonical rows and creates a `ScenarioPromotion` audit row."},
+      {"step_number": 7, "instruction": "See also: workflow W06.5 in `docs/workflows/06-simulator.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-09",
+    "question": "How do I promote a scenario to the live forecast?",
+    "summary": "Open the scenario, click ⋯ → Promote. The system materialises all promotable actions onto canonical state (forecast cells for Tier 1/2, BTC/Distribution for Tier 3). Permission grants per [F-AC-01]; audit row in `simulator` category.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["simulator"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open the scenario workspace in `/simulator/scenarios/{id}`. Verify the action list is finalised — Promote consumes the current state.", "target_module": "simulator"},
+      {"step_number": 2, "instruction": "Click ⋯ in the page header → **Promote**. A confirmation modal opens summarising what will be materialised."},
+      {"step_number": 3, "instruction": "Permission check: Tier 3 actions (Lever 10 / 11) require `tier3_flag=true` on the user AND a `RolePermissionGrant` for the entity_type. Controllers default-have these; other roles see 'Insufficient permissions'."},
+      {"step_number": 4, "instruction": "Click **Confirm & promote**. The system applies actions one-by-one and records a `ScenarioPromotion` row with `routing_summary_json` listing the result of each (status, message, target_id)."},
+      {"step_number": 5, "instruction": "Partial promote: when only some actions match the user's grants, only those are promoted; the rest remain in the scenario. The toast reports `Promoted X actions, skipped Y`."},
+      {"step_number": 6, "instruction": "Verification: navigate to the affected canonical surface (e.g. `/charging?section=btc` for BTC profile changes) and confirm the live values now reflect the promoted shift. RollupCache for the affected (entity, year) is invalidated."},
+      {"step_number": 7, "instruction": "See also: workflow W06.5 step 7–9 in `docs/workflows/06-simulator.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-10",
+    "question": "What does 'Apply to forecast' do as a Project Lead?",
+    "summary": "Pre-populates your next forecast cycle submission with diffs from a published scenario that touches your projects. Cells beyond the granularity boundary are flagged `is_provisional=true`; you still drive the cycle submission yourself.",
+    "applicable_roles": ["project_lead"],
+    "modules_involved": ["simulator", "workbench"],
+    "steps": [
+      {"step_number": 1, "instruction": "From `/simulator`, locate a published scenario whose tags or description suggest it touches your projects (e.g. 'Budget Pressure: 15% Reduction').", "target_module": "simulator"},
+      {"step_number": 2, "instruction": "Click the scenario row. The workspace opens in **read-only** mode (PLs cannot edit non-owned scenarios)."},
+      {"step_number": 3, "instruction": "Click **Apply to forecast** in the page header. A modal lists the projects you own that the scenario touches."},
+      {"step_number": 4, "instruction": "Click **Confirm apply**. A `ScenarioApplyToForecastEvent` audit row is created. The diffs are pre-loaded onto your next forecast cycle for those projects."},
+      {"step_number": 5, "instruction": "Affected `Forecast` rows beyond the granularity boundary get `is_provisional=true` per [B-OQ-02]; the Workbench grid shows a 'Provisional' badge on those cells."},
+      {"step_number": 6, "instruction": "You still drive the forecast cycle submission afterwards (Rolling Forecast Review → 5-phase wizard). Apply-to-forecast does not auto-submit."},
+      {"step_number": 7, "instruction": "See also: workflow W06.6 in `docs/workflows/06-simulator.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-11",
+    "question": "How do I edit a workflow template's step deadlines?",
+    "summary": "Administration → Workflow Templates → pick a template tab → click the step header to expand → change Time constraint (days) → Save. Step sequence is fixed; only touchpoints (required, role, gates, notifications, time, escalation) are editable.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["administration"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to `/admin?section=workflow_templates`.", "target_module": "administration"},
+      {"step_number": 2, "instruction": "Six template tabs: Forecast Cycle (5 steps), Intake / Pipeline Progression (5), Change Request (4), Send Back (3), Milestone Baseline Override (3), Scheduled Master Data Activation (3). Click the relevant tab."},
+      {"step_number": 3, "instruction": "Each step is a collapsible card. Click the step header to expand the edit panel."},
+      {"step_number": 4, "instruction": "In the expand panel, change **Time constraint (days)** input to the desired value (e.g. 7 instead of 10). Other touchpoints in the same panel: Required, Skippable, Assigned role, Data gates (CSV), Notifications (JSON), Escalation action."},
+      {"step_number": 5, "instruction": "An **Unsaved** badge appears on the step header when fields differ from the persisted state. Click **Save** at the bottom of the expand panel."},
+      {"step_number": 6, "instruction": "Effects: `WorkflowStep.time_constraint_days` updated; `audit_log` row in `configuration` category."},
+      {"step_number": 7, "instruction": "Note: v5 ships templates as configurable data only. Live workflow execution wiring (enforcing the gates at runtime) is a follow-on session. See also: workflow W10.5 in `docs/workflows/10-administration.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-12",
+    "question": "What is a Scheduled Change and how does activation work?",
+    "summary": "Future-dated master-data or planning-parameter change with a 5-state lifecycle: pending_review → approved → activated (or rejected / cancelled). Activation runs via the manual **Apply due changes** button or a daily job. Only `planning_parameter` activation is wired through to the live entity in v5.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["administration"],
+    "steps": [
+      {"step_number": 1, "instruction": "**Create** (no UI in v5; use the API): `POST /api/admin/scheduled-changes` with `{entity_type, entity_id, description, pending_values, activation_date}`. activation_date must be today-or-future.", "target_module": "administration"},
+      {"step_number": 2, "instruction": "**Review**: navigate to `/admin?section=scheduled_changes`. Filter by status. For pending_review rows, click **Approve** (with optional comments) or **Reject** (with required reason)."},
+      {"step_number": 3, "instruction": "Approved rows wait until their `activation_date` passes. Cancel is still possible until activation. Rejected rows are terminal."},
+      {"step_number": 4, "instruction": "**Activate**: click **Apply due changes** in the panel header. The activation engine scans approved changes whose date has passed and applies each."},
+      {"step_number": 5, "instruction": "v5 only fully wires `planning_parameter` activation. Other entity types (`person`, `cost_center`, etc.) record the activation as a no-op until production handlers are added in `services/scheduled_change_activation.APPLY_HANDLERS`."},
+      {"step_number": 6, "instruction": "All four lifecycle transitions (review, activate, reject, cancel) emit `audit_log` rows under category `scheduled_change_lifecycle` (and additionally `master_data` for the activation effect)."},
+      {"step_number": 7, "instruction": "See also: workflow W10.6 in `docs/workflows/10-administration.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-13",
+    "question": "How do I import a UM matrix CSV?",
+    "summary": "Administration → User Measurement → click **Upload CSV**. Columns: year, quarter, s_code, charging_location_code, value. Imports are append-only and versioned by import timestamp; switch the version selector to view a specific snapshot.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["administration"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to `/admin?section=user_measurement`.", "target_module": "administration"},
+      {"step_number": 2, "instruction": "Pick a year + quarter in the period selector. Inspect the current matrix; the version selector defaults to **Latest import**."},
+      {"step_number": 3, "instruction": "Click **Upload CSV** and pick a file. CSV columns: `year`, `quarter`, `s_code`, `charging_location_code`, `value`. UTF-8 encoding."},
+      {"step_number": 4, "instruction": "After upload, a confirmation dialog shows: cells inserted, errors per row (if any), and the new version's import timestamp."},
+      {"step_number": 5, "instruction": "The new snapshot appears in the version selector. Pick it to view; stay on **Latest import** to keep the freshest pointer for downstream automatic profile refresh."},
+      {"step_number": 6, "instruction": "Imports are append-only — no overwrite. To rebuild from scratch, re-seed the demo via `POST /api/admin/reset-demo`."},
+      {"step_number": 7, "instruction": "Automatic BTC profiles using the affected S-code can now be refreshed via Charging → BTC → pencil → **Refresh from UM**. See also: workflow W07.7 in `docs/workflows/07-charging.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-14",
+    "question": "How does Tier 3 scenario gating work?",
+    "summary": "Scenarios containing Lever 10 or Lever 11 actions auto-set `tier3_content_flag=true`. Publish requires `tier3_flag` on the user; promote additionally requires a `RolePermissionGrant` for the entity type. Visibility levels: private / tier3_only / all_users.",
+    "applicable_roles": ["controller", "executive"],
+    "modules_involved": ["simulator", "administration"],
+    "steps": [
+      {"step_number": 1, "instruction": "Tier 3 content = anything in the `cost_allocation` lever_category — Stage 1 distribution edits (Lever 10) and Stage 2 BTC line edits (Lever 11). The first such action flips `tier3_content_flag=true` on the scenario.", "target_module": "simulator"},
+      {"step_number": 2, "instruction": "**Visibility levels** per [B-SL-03]: `private` (author only), `tier3_only` (Tier 3 users only), `all_users` (anyone authenticated)."},
+      {"step_number": 3, "instruction": "**Publish gating**: trying to publish a Tier 3 scenario without `tier3_flag` is blocked with 'Tier 3 publish requires elevated permissions'. Choose `tier3_only` to publish for Tier 3 users only."},
+      {"step_number": 4, "instruction": "**Promote gating**: promoting requires both `tier3_flag=true` AND a `RolePermissionGrant` row for `entity_type='btc_profile'` or `entity_type='distribution'`. Controllers default-have these grants per [F-AC-01]; other roles need explicit admin-issued grants."},
+      {"step_number": 5, "instruction": "Manage user `tier3_flag` in Administration → Users (read-only in v5; SSO integration in production). Manage grants in Administration → Role Permissions (audit category `access_control`)."},
+      {"step_number": 6, "instruction": "Example: 'MDH BTC Rebalance — DE/PL/CZ' is Tier 3. Anna Meier (controller, tier3_flag=true) can promote it. Priya (PL) can see it if it's published as `all_users` but cannot promote it."},
+      {"step_number": 7, "instruction": "See also: workflow W06.8 in `docs/workflows/06-simulator.md`."}
+    ]
+  },
+  {
+    "id": "faq-v5-15",
+    "question": "What's the cutoff line in the Backlog?",
+    "summary": "Two cutoff lines on the Backlog page: **Should-be cutoff** (rank where the contestable envelope runs out) and **Reality cutoff** (additional override decisions). Their gap is the misalignment zone — controller's primary attention surface.",
+    "applicable_roles": ["controller", "executive"],
+    "modules_involved": ["backlog"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to `/backlog`. Inspect the **Cutoff Summary Strip** at the top: 6 KPI cells separated by dividers — Budget envelope, Contestable, Should-be cutoff, Reality cutoff, Misaligned projects (when present), Horizon.", "target_module": "backlog"},
+      {"step_number": 2, "instruction": "**Budget envelope** = total available budget. **Contestable** = envelope minus Σ(Type 3 projects' budgets) — Type 3 projects are pre-funded off the top before ranking."},
+      {"step_number": 3, "instruction": "**Should-be cutoff** = the rank at which cumulative project budgets exhaust the contestable envelope. Below this rank: 'unfunded' under pure score-based ranking."},
+      {"step_number": 4, "instruction": "**Reality cutoff** = the rank reflecting controller override decisions on `within_cutoff` flags. May differ from Should-be when business reasons override pure-score ranking."},
+      {"step_number": 5, "instruction": "**Misalignment zone** = the gap between the two lines, rendered as an amber band. The KPI strip shows the count of misaligned projects."},
+      {"step_number": 6, "instruction": "**Jump buttons** next to each KPI scroll the list to the relevant rank. **Within cutoff** filter narrows to funded projects (above Reality + Type 3 pre-funded). Sort override (e.g. by Composite score descending) suppresses the cutoff bands."},
+      {"step_number": 7, "instruction": "See also: workflow W11.3 in `docs/workflows/11-tech-navigator-and-backlog.md` and `[A-BK-14..17]` decision tags."}
     ]
   }
 ]
