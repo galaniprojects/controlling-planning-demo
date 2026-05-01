@@ -1910,6 +1910,41 @@ export interface EntityAllocationBreakdownResponse {
   total: number;
 }
 
+// === Level-4 drill: per-charging-location breakdown ===
+
+export interface LegalEntitySummary {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface LocationBreakdownEntity {
+  entity_id: string;
+  identifier: string;
+  name: string;
+  entity_type: ChargeableEntityType;
+  doi: number | null;
+  is_change_or_run: 'Change' | 'Run';
+  percentage: number;
+  amount_eur: number;
+  share_pct: number;
+}
+
+export interface LocationBreakdownResponse {
+  charging_location_id: string;
+  charging_location_code: string;
+  charging_location_name: string;
+  region_name: string | null;
+  division: string | null;
+  country_iso_code: string | null;
+  year: number;
+  version: string;
+  total_amount_eur: number;
+  legal_entities: LegalEntitySummary[];
+  chargeable_entities: LocationBreakdownEntity[];
+  total: number;
+}
+
 // ===========================================================================
 // === v5 Cluster E Session E5 — External cost views [E-08a..d] ===
 // Backend: routers/workbench.py + routers/portfolio.py (E2 endpoints).

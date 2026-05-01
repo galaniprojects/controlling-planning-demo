@@ -1543,6 +1543,7 @@ import type {
   UpstreamChainResponse,
   AllocationBreakdownSortBy,
   EntityAllocationBreakdownResponse,
+  LocationBreakdownResponse,
 } from '@/types/api';
 
 export const chargingApi = {
@@ -1740,6 +1741,20 @@ export const chargingApi = {
     if (params.sort_dir) q.set('sort_dir', params.sort_dir);
     return api.get<EntityAllocationBreakdownResponse>(
       `/api/charging/entities/${params.entity_id}/allocation-breakdown?${q.toString()}`,
+    );
+  },
+
+  // === Per-charging-location breakdown (rollup map level-4 drill) ===
+  getLocationBreakdown: (params: {
+    cl_id: string;
+    year: number;
+    version?: string;
+  }) => {
+    const q = new URLSearchParams();
+    q.set('year', String(params.year));
+    if (params.version) q.set('version', params.version);
+    return api.get<LocationBreakdownResponse>(
+      `/api/charging/locations/${params.cl_id}/breakdown?${q.toString()}`,
     );
   },
 };
