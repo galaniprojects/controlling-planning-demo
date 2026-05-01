@@ -10,6 +10,33 @@ Five caveats surfaced during the v5 S1 seed reconstruction + workflow catalogue 
 
 ---
 
+## Status (2026-05-01)
+
+Items 6, 8, 9 implemented in parallel via three sub-agents on isolated branches off `main`. Item 7 closed by design. Item 10 still open.
+
+| Item | Status | Branch / disposition |
+|---|---|---|
+| 6 — BTC year-rollover UI + scope filter | Implemented (5 commits, +13 backend tests, 1296 passing). Backend extended with optional `entity_types` / `entity_ids` mutually-exclusive filters; new `YearRolloverDialog.tsx` with All / By type / Specific entities scope tabs and live count strip. | `feature/btc-year-rollover-ui` |
+| 7 — Tech Nav rubric labels for levels 2/3/4 | Closed by design. The placeholders in `frontend/src/modules/backlog/data/rubricLabels.ts` are intentional — they showcase that the rubric matrix will be admin-editable via `[D-CAT-04]`. | n/a |
+| 8 — Lever-12 impact-tile bug | Implemented (4 commits, +2 tests, 1285 passing). **Reframed**: the MDH BTC Rebalance scenario *was* seeded as id=1 but with `action_type='btc_profile_change'` (not the lever-12-recognised `'btc_profile_line_change'`) and a deltas-style `parameters_json`. Action converted to the lever-12 schema. **Bonus real bug found and fixed**: `compute_effective_cost` walking only `version='scenario-N'` Distribution rows misses upstream inflows for BTC-only scenarios; new `_compute_scenario_effective_cost` helper in `services/scenario_lever12.py` walks a union of scenario edges + anchor edges where the source wasn't forked. Cost Allocation tile now shows DE-Munich -283k / PL-Poznan +141k / CZ-Prague +141k (anchor=scenario=2.83M EUR, delta=0). | `fix/mdh-btc-rebalance-seed-and-impact` |
+| 9 — Scheduled Changes Create UI | Implemented (3 commits, no backend changes, build clean). New `CreateScheduledChangeDialog.tsx` with type-aware inputs, parameter autocomplete, justification min-20 char counter, inline error display (no toast lib in project). | `feature/scheduled-changes-create-ui` |
+| 10 — Rollup map deeper drill-down | Open. Needs product input on the level-4 view before any code work. See item detail below. | n/a |
+
+**Schema corrections discovered during implementation** (this doc was inaccurate):
+
+- Item 9: `pending_values` for planning_parameter activation must be `{"current_value": <value>}`, **not** `{"value": <value>}`. The activation handler in `services/scheduled_change_activation.py::_apply_planning_parameter` raises `ValueError` if `current_value` is missing. The schema accepts arbitrary dicts so the create call would succeed silently with `{"value": ...}`, but Apply-due-changes would fail. The dialog uses the correct field.
+- Item 9: date field is `activation_date`, not `effective_date`.
+- Item 9: `tshirt_xs_max_eur` is not exposed via `/api/admin/parameters` (it lives under `param_group='tech_navigator'`). Only 6 parameters are exposed: `fiscal_year_start`, `planning_horizon`, `forecast_deadline`, `rag_amber_threshold`, `rag_red_threshold`, `max_utilization`.
+- Item 8: scenario id=1 was already named "MDH BTC Rebalance — DE/PL/CZ" on `main`; the original "scenario was never seeded" framing was incorrect.
+- Item 9: persona id used by the demo is `persona-controller`, not `p-meier` (`p-meier` is the `person_id` underneath).
+
+**Pending decisions**:
+- PR strategy (4 PRs vs bundled). All three branches push to `origin` and don't conflict with each other on file ownership.
+- Workflow Known Issues callouts in `docs/workflows/06-simulator.md` (W06.5), `docs/workflows/07-charging.md` (W07.6), `docs/workflows/10-administration.md` (W10.6) still describe `main`'s state and should be removed once each branch merges.
+- Item 8's seeded `headline_impact_json` says `rebalanced_amount_eur=228000` but the real computed delta after the union-aware fix is ~283k (off-mdh has upstream inflows that lift its 2.4M own-cost to 2.83M effective cost). Either tweak the headline to match (~228k → 283k) or accept the discrepancy.
+
+---
+
 ## Item 6: Bulk year-rollover UI button on BTC Profiles page
 
 **Status**: Backend exists, frontend missing.
