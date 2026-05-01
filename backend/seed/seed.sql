@@ -815,16 +815,20 @@ INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VAL
 (6, 'cl-us-det', 20.0);
 
 -- Profile 7: off-mdh 2026 (automatic, s_code=S042) — 17 lines
+-- DEMO TUNING (Item 8 follow-up): cl-de-muc bumped +10pp and cl-fr-par cut -10pp
+-- vs. the raw UM snapshot so the seeded MDH BTC Rebalance scenario (id=1) can
+-- shift 10pp off DE-Munich onto PL-Poznan + CZ-Prague without driving any line
+-- negative. Sum still = 100; storyline matches the lever 12 demo headline.
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
 (7, 'cl-de-ber', 1.13),
 (7, 'cl-de-fra', 4.93),
 (7, 'cl-de-ham', 1.59),
-(7, 'cl-de-muc', 6.19),
+(7, 'cl-de-muc', 16.19),
 (7, 'cl-de-stg', 2.21),
 (7, 'cl-de-wol', 2.52),
 (7, 'cl-es-mad', 6.09),
 (7, 'cl-fr-lyo', 7.52),
-(7, 'cl-fr-par', 15.62),
+(7, 'cl-fr-par', 5.62),
 (7, 'cl-hu-bud', 3.48),
 (7, 'cl-in-pun', 11.28),
 (7, 'cl-it-mil', 9.38),
@@ -8130,7 +8134,12 @@ INSERT INTO scenarios (id, name, description, author_id, status, headline_impact
 (3, 'MDH Staffing Mix — MUC/APD', 'CC Owner sandbox: rebalance Master Data Hub Rollout staffing from senior developers onto a 60/40 senior/mid mix to free senior capacity for incoming intakes. Scoped to MUC/APD per [F-AC-01] CC-Owner authoring rules.', 'p-brenner', 'private', '{"total_capacity_shift_fte": 0.0, "senior_to_mid_swap_pct": 40, "action_count": 1}', '2026-04-02 14:00:00', '2026-04-02 14:00:00', NULL, NULL, 'private', 1, 0, NULL, '["staffing", "cco-sandbox", "mdh"]', '2026-04-02 14:00:00', 'cc-muc-apd');
 
 INSERT INTO scenario_actions (id, scenario_id, action_order, scope, action_type, project_id, parameters_json, impact_delta_json, group_label, created_at, promoted_at, promoted_by_id, lever_category, tier) VALUES
-(1, 1, 1, 'project', 'btc_profile_change', 'proj-mdh-rollout', '{"entity_id": "off-mdh", "year": 2026, "changes": [{"charging_location_id": "cl-de-muc", "from_pct": 28.0, "to_pct": 18.0}, {"charging_location_id": "cl-pl-poz", "from_pct": 3.0,  "to_pct": 8.0}, {"charging_location_id": "cl-cz-prg", "from_pct": 2.0,  "to_pct": 7.0}]}', '{"to_business_pct_delta": 0, "location_amount_delta_eur": [{"charging_location_id": "cl-de-muc", "delta": -228000}, {"charging_location_id": "cl-pl-poz", "delta":  114000}, {"charging_location_id": "cl-cz-prg", "delta":  114000}]}', 'Lever 12 / Stage 2 BTC', '2026-03-25 10:00:00', NULL, NULL, 'cost_allocation', 1),
+-- Scenario 1 / action 1: Lever 12 BTC line shift on off-mdh (Item 8 follow-up).
+-- action_type = 'btc_profile_line_change' so services/scenario_lever12.py picks
+-- this up via _collect_btc_overlay(). parameters_json carries the COMPLETE
+-- post-rebalance line set (lever12 schema requires full state, not deltas).
+-- Sum-to-100 enforced; cl-cz-prg added as a new line so DE shifts onto PL+CZ.
+(1, 1, 1, 'project', 'btc_profile_line_change', 'proj-mdh-rollout', '{"entity_id": "off-mdh", "year": 2026, "lines": [{"charging_location_id": "cl-de-ber", "percentage": 1.13}, {"charging_location_id": "cl-de-fra", "percentage": 4.93}, {"charging_location_id": "cl-de-ham", "percentage": 1.59}, {"charging_location_id": "cl-de-muc", "percentage": 6.19}, {"charging_location_id": "cl-de-stg", "percentage": 2.21}, {"charging_location_id": "cl-de-wol", "percentage": 2.52}, {"charging_location_id": "cl-es-mad", "percentage": 6.09}, {"charging_location_id": "cl-fr-lyo", "percentage": 7.52}, {"charging_location_id": "cl-fr-par", "percentage": 5.62}, {"charging_location_id": "cl-hu-bud", "percentage": 3.48}, {"charging_location_id": "cl-in-pun", "percentage": 11.28}, {"charging_location_id": "cl-it-mil", "percentage": 9.38}, {"charging_location_id": "cl-nl-ams", "percentage": 3.79}, {"charging_location_id": "cl-pl-poz", "percentage": 11.11}, {"charging_location_id": "cl-uk-lon", "percentage": 7.85}, {"charging_location_id": "cl-uk-man", "percentage": 1.15}, {"charging_location_id": "cl-us-det", "percentage": 9.16}, {"charging_location_id": "cl-cz-prg", "percentage": 5.0}]}', '{"to_business_pct_delta": 0, "location_amount_delta_eur": [{"charging_location_id": "cl-de-muc", "delta": -228000}, {"charging_location_id": "cl-pl-poz", "delta":  114000}, {"charging_location_id": "cl-cz-prg", "delta":  114000}]}', 'Lever 12 / Stage 2 BTC', '2026-03-25 10:00:00', NULL, NULL, 'cost_allocation', 1),
 (2, 2, 1, 'project', 'delay_project', 'proj-connveh', '{"delay_months": 6, "reason": "Budget pressure — 15% directive"}', '{"budget_delta": -540000, "schedule_shift_months": 6}', 'Budget pressure response', '2026-03-12 09:30:00', NULL, NULL, 'forecast_grid', 1),
 (3, 2, 2, 'project', 'reduce_budget', 'proj-dwh', '{"cut_pct": 30, "scope": "external_consulting"}', '{"budget_delta": -165000}', 'Budget pressure response', '2026-03-12 09:30:00', NULL, NULL, 'forecast_grid', 1),
 (4, 2, 3, 'project', 'accelerate_project', 'proj-railsafety', '{"advance_months": 2, "from_start": "2026-09", "to_start": "2026-07", "reason": "Recover regulatory window"}', '{"budget_delta": 0, "schedule_shift_months": -2}', 'Regulatory recovery', '2026-03-12 09:30:00', NULL, NULL, 'milestone', 1),
