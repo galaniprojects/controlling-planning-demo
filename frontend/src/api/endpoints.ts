@@ -1535,6 +1535,8 @@ import type {
   BTCMode,
   BTCStatus,
   BTCRefreshDiffResult,
+  BTCYearRolloverRequest,
+  BTCYearRolloverResult,
   RollupListResponse as ChargingRollupListResponse,
   RollupGroupBy,
   RollupDrillDownResponse,
@@ -1686,6 +1688,13 @@ export const chargingApi = {
     target_status?: BTCStatus;
   }) =>
     api.post<BTCProfileItem>(`/api/charging/btc-profiles/${data.source_profile_id}/copy-from`, data),
+  // POST /api/admin/btc-profiles/year-rollover [F-S2-07]
+  // Item 6: optional entity_types/entity_ids scope filters narrow the set of
+  // source-year profiles considered. Both null/undefined → roll all.
+  yearRolloverBTCProfiles: (data: BTCYearRolloverRequest) =>
+    api.post<BTCYearRolloverResult>(
+      '/api/admin/btc-profiles/year-rollover', data,
+    ),
 
   // === Rollup query + drill-down [F-RV-01..06] ===
   getRollup: (params: {

@@ -1787,6 +1787,25 @@ export interface BTCRefreshDiffResult {
   committed: boolean;
 }
 
+// Lowercase entity-type values accepted by the year-rollover scope filter
+// per Item 6. Mirrors the schemas/btc_profile.py YearRolloverRequest Literal.
+export type BTCRolloverEntityType = 'project' | 'offering' | 'internal_service';
+
+export interface BTCYearRolloverRequest {
+  source_year: number;
+  target_year: number;
+  entity_types?: BTCRolloverEntityType[] | null;
+  entity_ids?: string[] | null;
+}
+
+export interface BTCYearRolloverResult {
+  source_year: number;
+  target_year: number;
+  rolled_over: number[];
+  skipped: string[];
+  errors: string[];
+}
+
 // === Rollup (Stage 1+2 effective costs) [F-RV-01..06] ===
 
 export type RollupGroupBy =
