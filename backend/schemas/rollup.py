@@ -94,3 +94,43 @@ class EntityAllocationBreakdownResponse(BaseModel):
     has_profile: bool = False
     sums_to_100: bool = False
     total: int
+
+
+# ---------------------------------------------------------------------------
+# Level-4 drill: per-charging-location breakdown
+# ---------------------------------------------------------------------------
+
+class LegalEntitySummary(BaseModel):
+    id: str
+    code: str
+    name: str
+
+
+class LocationBreakdownEntity(BaseModel):
+    entity_id: str
+    identifier: str
+    name: str
+    entity_type: str  # 'Project' | 'Offering' | 'InternalService'
+    doi: Optional[int] = None
+    is_change_or_run: str  # 'Change' | 'Run'
+    percentage: float
+    amount_eur: float
+    share_pct: float
+
+
+class LocationBreakdownResponse(BaseModel):
+    """Per-charging-location breakdown returned by
+    ``GET /api/charging/locations/{cl_id}/breakdown``.
+    """
+    charging_location_id: str
+    charging_location_code: str
+    charging_location_name: str
+    region_name: Optional[str] = None
+    division: Optional[str] = None
+    country_iso_code: Optional[str] = None
+    year: int
+    version: str
+    total_amount_eur: float
+    legal_entities: list[LegalEntitySummary]
+    chargeable_entities: list[LocationBreakdownEntity]
+    total: int
