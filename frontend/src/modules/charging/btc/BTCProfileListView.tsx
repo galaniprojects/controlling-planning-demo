@@ -17,17 +17,19 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { Pencil, Search, Plus, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Pencil, Search, Plus, AlertTriangle, CheckCircle2, CalendarRange, X } from 'lucide-react';
 import { chargingApi } from '@/api/endpoints';
 import type {
   BTCProfileItem,
   BTCMode,
   BTCStatus,
+  BTCYearRolloverResult,
   ChargeableEntityItem,
   ChargeableEntityType,
 } from '@/types/api';
 import { EntityBTCProfileEditor } from './EntityBTCProfileEditor';
 import { CreateBTCProfileDialog } from './CreateBTCProfileDialog';
+import { YearRolloverDialog } from './YearRolloverDialog';
 
 const DEFAULT_YEAR = 2026;
 
@@ -45,6 +47,8 @@ export function BTCProfileListView() {
   const [search, setSearch] = useState('');
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [rolloverOpen, setRolloverOpen] = useState(false);
+  const [rolloverResult, setRolloverResult] = useState<BTCYearRolloverResult | null>(null);
 
   const fetchData = () => {
     setLoading(true);
@@ -92,6 +96,14 @@ export function BTCProfileListView() {
   const activeCount = filtered.filter((p) => p.status === 'active').length;
   const draftCount = filtered.filter((p) => p.status === 'draft').length;
 
+  // Year dropdown options — union of seeded defaults, the current selection,
+  // and any year present on a profile (so a fresh rollover target shows up).
+  const yearOptions = useMemo(() => {
+    const base = new Set<number>([2025, 2026, 2027, year]);
+    profiles.forEach((p) => base.add(p.year));
+    return Array.from(base).sort((a, b) => a - b);
+  }, [profiles, year]);
+
   if (selectedProfileId !== null) {
     return (
       <EntityBTCProfileEditor
@@ -134,7 +146,7 @@ export function BTCProfileListView() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {[2025, 2026, 2027].map((y) => (
+                {yearOptions.map((y) => (
                   <SelectItem key={y} value={String(y)}>
                     {y}
                   </SelectItem>
@@ -202,12 +214,45 @@ export function BTCProfileListView() {
               />
             </div>
           </div>
+          <Button variant="outline" onClick={() => setRolloverOpen(true)}>
+            <CalendarRange className="h-3.5 w-3.5 mr-1" />
+            Year rollover
+          </Button>
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="h-3.5 w-3.5 mr-1" />
             New profile
           </Button>
         </div>
       </Card>
+
+      {/* Year-rollover result strip — appears after a successful rollover.
+          Inline message rather than a toast (no toast library in use). */}
+      {rolloverResult && (
+        <Card className="border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 p-3 flex items-start gap-3">
+          <CheckCircle2 className="h-4 w-4 text-emerald-700 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 text-sm text-emerald-800 dark:text-emerald-300">
+            Rolled {rolloverResult.rolled_over.length} profile
+            {rolloverResult.rolled_over.length === 1 ? '' : 's'}{' '}
+            {rolloverResult.source_year} → {rolloverResult.target_year}
+            {' '}({rolloverResult.rolled_over.length} created
+            {rolloverResult.skipped.length > 0
+              ? `, ${rolloverResult.skipped.length} skipped — already exist${rolloverResult.skipped.length === 1 ? 's' : ''}`
+              : ''}
+            {rolloverResult.errors.length > 0
+              ? `, ${rolloverResult.errors.length} error${rolloverResult.errors.length === 1 ? '' : 's'}`
+              : ''}
+            ).
+          </div>
+          <button
+            type="button"
+            onClick={() => setRolloverResult(null)}
+            className="text-emerald-700 dark:text-emerald-400 hover:opacity-70"
+            aria-label="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </Card>
+      )}
 
       {/* Table */}
       <Card>
@@ -321,6 +366,20 @@ export function BTCProfileListView() {
           setCreateOpen(false);
           setSelectedProfileId(id);
           fetchData();
+        }}
+      />
+
+      <YearRolloverDialog
+        open={rolloverOpen}
+        onClose={() => setRolloverOpen(false)}
+        existingProfiles={profiles}
+        entities={entities}
+        onCompleted={(result) => {
+          setRolloverOpen(false);
+          setRolloverResult(result);
+          // Snap year filter to the target year so the new drafts surface.
+          if (result.target_year !== year) setYear(result.target_year);
+          else fetchData();
         }}
       />
     </div>
