@@ -1,5 +1,20 @@
 # CRETA Demo — Build Progress
 
+## Demo polish — Item 10: Rollup map level-4 drill-down (2026-05-01)
+
+Branch: `feature/rollup-map-location-drill`. Closes the last open item in `docs/followups/demo-polish-followups.md` — clicking a charging-location bubble on the rollup map (after drilling into a country) now opens a side panel with the per-location BTC-weighted breakdown.
+
+- **New backend endpoint**: `GET /api/charging/locations/{cl_id}/breakdown?year=&version=` returns `{ charging_location, year, version, total_amount_eur, legal_entities[], chargeable_entities[], total }`. Stage-2 math mirrors `query_entity_allocation_breakdown`: per BTC line, `amount = effective_cost × to_business_pct/100 × line.percentage/100`. Cache-backed via `services.rollup_cache.get_stage1_effective`. Active BTC profiles only.
+- **New schema**: `LocationBreakdownResponse` (+ `LegalEntitySummary`, `LocationBreakdownEntity`) appended to `backend/schemas/rollup.py`.
+- **New service function**: `get_location_breakdown` in `backend/services/rollup_query.py`.
+- **New frontend component**: `LocationBreakdownPanel.tsx` — header with total stat, two parallel info blocks. Block A is a chip list of legal entities at the location (informational only, with a one-line note that BTC Stage 2 splits to a charging location, not to a legal entity — `cl-de-muc` has 4 LEs). Block B is a table of chargeable entities with Amount + Share %. Loading skeleton + inline error path; no toast lib.
+- **Map wiring**: `RollupMapView.tsx` location bubble `<g>` gains an `onClick` that calls `useSidePanel().openPanel(...)`. Map state (`drillCountry`) is local `useState` and survives the panel mount, so users can close and drill another location without losing context.
+- **Prerequisite bug found and fixed**: `frontend/src/modules/charging/rollup/countryCoords.ts` keys were ISO-3 (`DEU`/`FRA`/...) but the seed surfaces `country.iso_code` as ISO-2 (`DE`/`FR`/...). Result: every `projectCountry()` call was returning null and the rollup map was rendering with no country bubbles at all. Rewriting the lookup keys to ISO-2 restores the bubbles. Committed separately so the fix is recoverable in isolation if needed.
+- **Backend tests**: +5 new tests in `tests/test_rollup_query.py::TestGetLocationBreakdown` (happy path / legal-entity active-only filter / no-inflows / unknown-location / draft-profile-skip). Suite: **1303/1303 passing** (1298 baseline + 5).
+- **Visual verification**: Anna Meier on `/charging?section=rollup` → drill EMEA → Germany → click `CL-DE-MUC` bubble. Side panel opens titled "Germany → TBS Operations Germany Munich" with total €1.7M, 4 legal-entity chips (LE-DE-001..004), and 6 chargeable entities (Business Insights Platform 28.1%, Master Data Hub 27.4%, Enterprise Collaboration Suite 24.4%, Field Diagnostics Service 9.6%, Supply Chain Visibility 8.1%, Enterprise Unified Workspace 2.5%). Verified in both light and dark themes at 1440px viewport. Close panel preserves the Germany-drill state.
+
+Five commits in the branch (1 prerequisite fix + 4 Item-10 commits split atomically across service+schema / endpoint / tests / types+API / panel / map wiring).
+
 ## Demo polish follow-ups (post-S1) — Item 6 (2026-05-01)
 
 Followups Item 6 — Bulk year-rollover UI button on BTC Profiles page (`feature/btc-year-rollover-ui`). Backend `POST /api/admin/btc-profiles/year-rollover` extended with optional mutually-exclusive `entity_types` / `entity_ids` scope filters (Pydantic `model_validator`-rejected if both set; both null preserves the original "roll all" behaviour). Frontend adds `YearRolloverDialog` (shadcn Dialog + Tabs mirroring `CreateBTCProfileDialog`) with All / By type / Specific entities scope choice, reachable via a new "Year rollover" button next to "+ New profile" on `BTCProfileListView`. Inline emerald result strip replaces the missing toast pattern. Backend tests: **1296 passed** (was 1283; +13 new across `TestYearRollover` in both `test_btc_service.py` and `test_router_btc_profile.py`). Frontend TypeScript baseline maintained (-3 errors net by resolving the new dialog's imports).

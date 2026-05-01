@@ -12,7 +12,7 @@ Five caveats surfaced during the v5 S1 seed reconstruction + workflow catalogue 
 
 ## Status (2026-05-01)
 
-Items 6, 8, 9 implemented in parallel via three sub-agents on isolated branches off `main`. Item 7 closed by design. Item 10 still open.
+All five items closed.
 
 | Item | Status | Branch / disposition |
 |---|---|---|
@@ -20,7 +20,7 @@ Items 6, 8, 9 implemented in parallel via three sub-agents on isolated branches 
 | 7 — Tech Nav rubric labels for levels 2/3/4 | Closed by design. The placeholders in `frontend/src/modules/backlog/data/rubricLabels.ts` are intentional — they showcase that the rubric matrix will be admin-editable via `[D-CAT-04]`. | n/a |
 | 8 — Lever-12 impact-tile bug | Implemented (4 commits, +2 tests, 1285 passing). **Reframed**: the MDH BTC Rebalance scenario *was* seeded as id=1 but with `action_type='btc_profile_change'` (not the lever-12-recognised `'btc_profile_line_change'`) and a deltas-style `parameters_json`. Action converted to the lever-12 schema. **Bonus real bug found and fixed**: `compute_effective_cost` walking only `version='scenario-N'` Distribution rows misses upstream inflows for BTC-only scenarios; new `_compute_scenario_effective_cost` helper in `services/scenario_lever12.py` walks a union of scenario edges + anchor edges where the source wasn't forked. Cost Allocation tile now shows DE-Munich -283k / PL-Poznan +141k / CZ-Prague +141k (anchor=scenario=2.83M EUR, delta=0). | `fix/mdh-btc-rebalance-seed-and-impact` |
 | 9 — Scheduled Changes Create UI | Implemented (3 commits, no backend changes, build clean). New `CreateScheduledChangeDialog.tsx` with type-aware inputs, parameter autocomplete, justification min-20 char counter, inline error display (no toast lib in project). | `feature/scheduled-changes-create-ui` |
-| 10 — Rollup map deeper drill-down | Open. Needs product input on the level-4 view before any code work. See item detail below. | n/a |
+| 10 — Rollup map deeper drill-down | Implemented (5 commits incl. 1 prerequisite fix, +5 backend tests). Click a charging-location bubble (after drilling into a country) → side panel opens with total cost, legal-entity chips at the location, and BTC-weighted chargeable-entity rows (amount + share %). New `GET /api/charging/locations/{cl_id}/breakdown` endpoint, `LocationBreakdownPanel.tsx` component. **Prerequisite bug found and fixed**: `countryCoords.ts` keys were ISO-3 (DEU/FRA/...) but seed delivers ISO-2 (DE/FR/...) — every `projectCountry()` was returning null and the map was rendering with no bubbles at all. Rewriting the lookup keys to ISO-2 restores the bubbles. | `feature/rollup-map-location-drill` |
 
 **Schema corrections discovered during implementation** (this doc was inaccurate):
 
@@ -171,7 +171,7 @@ Items 6, 8, 9 implemented in parallel via three sub-agents on isolated branches 
 
 ## Item 10: Rollup map deeper drill-down (location → ?)
 
-**Status**: Open product question.
+**Status**: Closed — implemented on `feature/rollup-map-location-drill`. Side panel grouped by chargeable entity (BTC-weighted Stage-2 amount + share %) with legal entities as an informational chip list. Per-LE attribution intentionally not shown — BTC Stage 2 splits to a charging location, and the data model has no per-LE allocation rule (one charging location can have several legal entities operating at it, e.g. `cl-de-muc` has 4). Map state preserved underneath the panel so users can drill several locations in succession.
 
 **Problem**: The Charging Rollup map (`/charging?section=rollup`) currently drills region → country → charging location. Beyond the location level, there's no UI — but the data model supports going further (a charging location has many legal entities per `[F-MD-02]`, and each legal entity has its own cost flow under it).
 
