@@ -309,6 +309,7 @@ No DB change — the offending insert is rejected by `services/distribution_serv
 | 5 | Any | Click the **Back** button to return to country view | Map returns to country bubbles | Drill state clears |
 | 6 | Any | Switch tab to **Tree table** | Tree-table view renders: Region → Country → Charging location → Entity | Each level expandable; leaf rows show entity-level Stage 2 amount |
 | 7 | Any | Click a charging-location row to drill into the entity rollup chain | Drill state changes; tree-table view shows the upstream chain ("which entities contribute to this location's amount") | Reads from `routers/charging.py::get_rollup_drill_down` (`/api/charging/rollup/drill-down/charging-location/{cl_id}`) |
+| 8 | Any | Back on **Map view**, click a charging-location bubble after drilling into a country | Side panel opens titled `<Country> → <Location>` showing total cost flowing through this location, the legal entities operating there (chip list), and the chargeable entities flowing in (Amount + Share % per row) | Reads from `routers/charging.py::get_location_breakdown_endpoint` (`/api/charging/locations/{cl_id}/breakdown`). Map state preserved underneath — close the panel to drill another location without losing context. |
 
 ### Alternative paths
 
@@ -325,13 +326,14 @@ No state change — read-only. First query primes `RollupCache` per `services/ro
 - **Backend endpoints**:
   - `routers/charging.py::get_rollup` (GET `/api/charging/rollup`)
   - `routers/charging.py::get_rollup_drill_down` (GET `/api/charging/rollup/drill-down/charging-location/{cl_id}`)
-  - Service: `services/rollup_query.query_rollup`, `drill_down_charging_location`
+  - `routers/charging.py::get_location_breakdown_endpoint` (GET `/api/charging/locations/{cl_id}/breakdown`)
+  - Service: `services/rollup_query.query_rollup`, `drill_down_charging_location`, `get_location_breakdown`
 - **In-app manual**: `charging.json § Location Cost Rollup`
 
 ### Known issues / caveats
 
 - Country bubbles are positioned via a fixed centroid lookup (`countryCoords.ts`); a country present in the data but missing from the lookup falls through to the "(Other)" cluster — not a bug but worth flagging during a hand-off.
-- Drill-down beyond charging location (e.g. into legal-entity slice) is not yet wired in v5 — the map view stops at charging location.
+- Legal entities are returned alongside the level-4 breakdown for context, but BTC Stage 2 splits costs to a charging location (not to a legal entity), so per-LE attribution is intentionally not shown.
 
 ---
 

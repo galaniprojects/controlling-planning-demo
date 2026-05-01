@@ -22,7 +22,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from models.charging import (
-    BTCProfile, ChargingLocation, ChargeableEntity,
+    BTCProfile, BTCProfileLine, ChargingLocation, ChargeableEntity,
     LegalEntity, Region,
 )
 
@@ -465,4 +465,163 @@ def query_entity_allocation_breakdown(
         profile_mode=profile.mode if profile is not None else None,
         has_profile=profile is not None,
         sums_to_100=abs(sum_pct - 100.0) < 0.01,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Per-charging-location breakdown (level-4 drill on the rollup map)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class LegalEntitySummary:
+    id: str
+    code: str
+    name: str
+
+
+@dataclass
+class LocationBreakdownEntity:
+    """One chargeable-entity row in a charging-location breakdown."""
+    entity_id: str
+    identifier: str
+    name: str
+    entity_type: str
+    doi: Optional[int]
+    is_change_or_run: str
+    percentage: float
+    amount_eur: float
+    share_pct: float
+
+
+@dataclass
+class LocationBreakdownResponse:
+    """Per-charging-location BTC-weighted breakdown.
+
+    BTC Stage 2 splits to a ``ChargingLocation``; ``LegalEntity`` is a 1:N
+    rollup with no per-entity attribution rule per [F-MD-01], so legal
+    entities are returned as informational metadata only — never as a cost
+    split.
+    """
+    charging_location_id: str
+    charging_location_code: str
+    charging_location_name: str
+    region_name: Optional[str]
+    division: Optional[str]
+    country_iso_code: Optional[str]
+    year: int
+    version: str
+    total_amount_eur: float
+    legal_entities: list[LegalEntitySummary]
+    chargeable_entities: list[LocationBreakdownEntity]
+
+
+def get_location_breakdown(
+    db: Session,
+    charging_location_id: str,
+    year: int,
+    version: str = "forecast",
+) -> LocationBreakdownResponse:
+    """Aggregate BTC-weighted Stage-2 cost for one charging location.
+
+    Algorithm:
+      - Look up the ``ChargingLocation`` (raises ``ValueError`` if missing).
+      - Find every ``BTCProfileLine`` targeting this location whose parent
+        profile is active for ``year``. Each line contributes one
+        (entity, percentage) pair.
+      - For each entity, resolve effective cost via the rollup cache and
+        compute the per-location amount as
+        ``effective_cost × to_business_pct/100 × line.percentage/100`` —
+        identical to the Stage-2 math used in
+        :func:`query_entity_allocation_breakdown`.
+      - Sort rows by amount descending, populate ``share_pct`` once the
+        location total is known.
+      - Attach legal entities at this location for the panel's
+        informational chip list.
+    """
+    from services.rollup_cache import get_stage1_effective
+
+    cl = db.query(ChargingLocation).filter_by(id=charging_location_id).first()
+    if cl is None:
+        raise ValueError(
+            f"ChargingLocation '{charging_location_id}' not found",
+        )
+
+    lines = (
+        db.query(BTCProfileLine, BTCProfile)
+        .join(BTCProfile, BTCProfileLine.profile_id == BTCProfile.id)
+        .filter(
+            BTCProfileLine.charging_location_id == charging_location_id,
+            BTCProfile.year == year,
+            BTCProfile.status == "active",
+        )
+        .all()
+    )
+
+    rows: list[LocationBreakdownEntity] = []
+    total = 0.0
+    for line, profile in lines:
+        entity = db.query(ChargeableEntity).filter_by(id=profile.entity_id).first()
+        if entity is None or not entity.is_active:
+            continue
+        try:
+            eff = get_stage1_effective(db, year, version, entity.id)
+        except Exception:
+            eff = {"effective_cost": 0.0}
+        effective_cost = float(eff.get("effective_cost", 0.0) or 0.0)
+        to_business_pct = float(entity.to_business_pct or 0.0)
+        line_pct = float(line.percentage or 0.0)
+        amount = round(
+            effective_cost * to_business_pct / 100.0 * line_pct / 100.0, 2,
+        )
+        if amount <= 0:
+            continue
+        doi: Optional[int] = None
+        if entity.entity_type == "Project" and entity.project is not None:
+            doi = entity.project.doi
+        rows.append(LocationBreakdownEntity(
+            entity_id=entity.id,
+            identifier=entity.identifier,
+            name=entity.name,
+            entity_type=entity.entity_type,
+            doi=doi,
+            is_change_or_run=entity.is_change_or_run,
+            percentage=line_pct,
+            amount_eur=amount,
+            share_pct=0.0,
+        ))
+        total += amount
+
+    total = round(total, 2)
+    if total > 0:
+        for r in rows:
+            r.share_pct = round(r.amount_eur / total * 100.0, 2)
+
+    rows.sort(key=lambda r: r.amount_eur, reverse=True)
+
+    legal_entities = [
+        LegalEntitySummary(id=le.id, code=le.code, name=le.name)
+        for le in (
+            db.query(LegalEntity)
+            .filter(LegalEntity.charging_location_id == charging_location_id)
+            .filter(LegalEntity.is_active.is_(True))
+            .order_by(LegalEntity.code)
+            .all()
+        )
+    ]
+
+    region_name = cl.region.name if cl.region is not None else None
+    country_iso = cl.country.iso_code if cl.country is not None else None
+
+    return LocationBreakdownResponse(
+        charging_location_id=cl.id,
+        charging_location_code=cl.code,
+        charging_location_name=cl.name,
+        region_name=region_name,
+        division=cl.division,
+        country_iso_code=country_iso,
+        year=year,
+        version=version,
+        total_amount_eur=total,
+        legal_entities=legal_entities,
+        chargeable_entities=rows,
     )

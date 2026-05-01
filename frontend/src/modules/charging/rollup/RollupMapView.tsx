@@ -19,9 +19,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LocationLabel } from '@/components/shared/LocationLabel';
 import { formatCurrency } from '@/lib/formatters';
+import { useSidePanel } from '@/contexts/SidePanelContext';
 import { useChargingRollupData, type PerLocationCell } from './useChargingRollupData';
 import { projectCountry, VIEWPORT_WIDTH, VIEWPORT_HEIGHT } from './countryCoords';
 import { WorldMap } from './worldMapPaths';
+import { LocationBreakdownPanel } from './LocationBreakdownPanel';
 
 interface Props {
   year: number;
@@ -53,6 +55,7 @@ function bubbleRadius(amount: number, max: number): number {
 
 export function RollupMapView({ year, version }: Props) {
   const data = useChargingRollupData({ year, version });
+  const { openPanel } = useSidePanel();
   const [drillCountry, setDrillCountry] = useState<string | null>(null);
   const [hover, setHover] = useState<{
     x: number;
@@ -242,17 +245,31 @@ export function RollupMapView({ year, version }: Props) {
                 const r = bubbleRadius(loc.total, maxBubble);
                 if (r === 0) return null;
                 const col = colorFor(loc.division);
+                const countryName =
+                  countryEntries.find((c) => c.iso === drillCountry)?.name ??
+                  drillCountry;
                 return (
                   <g
                     key={loc.cl_id}
                     style={{ pointerEvents: 'all', cursor: 'pointer' }}
+                    onClick={() => {
+                      setHover(null);
+                      openPanel(
+                        `${countryName} → ${loc.cl_name}`,
+                        <LocationBreakdownPanel
+                          chargingLocationId={loc.cl_id}
+                          year={year}
+                          version={version}
+                        />,
+                      );
+                    }}
                     onMouseEnter={(e) => {
                       const target = e.currentTarget.getBoundingClientRect();
                       setHover({
                         x: target.left + target.width / 2,
                         y: target.top,
                         title: loc.cl_name,
-                        subtitle: `${loc.cl_code} · ${loc.division ?? '—'}`,
+                        subtitle: `${loc.cl_code} · ${loc.division ?? '—'} · click for details`,
                         breakdown: loc.cells
                           .map((cell) => ({ label: cell.entity_name, value: cell.amount_eur }))
                           .sort((a, b) => b.value - a.value)

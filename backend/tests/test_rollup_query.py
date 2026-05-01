@@ -5,10 +5,14 @@ from __future__ import annotations
 import pytest
 
 from models.charging import (
-    BTCProfile, BTCProfileLine, ChargeableEntity, ChargingLocation, Distribution,
+    BTCProfile, BTCProfileLine, ChargeableEntity, ChargingLocation,
+    Country, Distribution, LegalEntity, Region,
 )
 from models.organization import GroupingEntityType, GroupingEntity
-from services.rollup_query import SUPPORTED_DIMS, drill_down_charging_location, query_rollup
+from services.rollup_query import (
+    SUPPORTED_DIMS, drill_down_charging_location, get_location_breakdown,
+    query_rollup,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -168,3 +172,118 @@ class TestDrillDownChargingLocation:
         result = drill_down_charging_location(db, "ce-0", 2026, "forecast", "cl-a")
         for path in result.paths:
             assert len(path.path_labels) == len(path.path)
+
+
+# ---------------------------------------------------------------------------
+# get_location_breakdown — level-4 drill on rollup map
+# ---------------------------------------------------------------------------
+
+def _make_btc_profile(db, entity_id, year, lines):
+    """Insert an active BTC profile with the given (cl_id, percentage) lines."""
+    profile = BTCProfile(
+        entity_id=entity_id, year=year, mode="manual", status="active",
+    )
+    db.add(profile)
+    db.flush()
+    for cl_id, pct in lines:
+        db.add(BTCProfileLine(
+            profile_id=profile.id, charging_location_id=cl_id, percentage=pct,
+        ))
+    db.flush()
+    return profile
+
+
+class TestGetLocationBreakdown:
+    def test_happy_path_aggregates_inflows(self, db):
+        # Two locations; two entities each routing some BTC to cl-muc.
+        _make_cl(db, "cl-muc", "DE-MUC")
+        _make_cl(db, "cl-stg", "DE-STG")
+        entities = _setup_entities(db, count=2)
+        # Bump to_business_pct so amounts are non-zero (helper sets 0/10).
+        for ent in entities:
+            ent.to_business_pct = 50.0
+        db.flush()
+
+        # Each entity sends 60% of its to_business pool to MUC, 40% to STG.
+        _make_btc_profile(db, "ce-0", 2026, [("cl-muc", 60), ("cl-stg", 40)])
+        _make_btc_profile(db, "ce-1", 2026, [("cl-muc", 60), ("cl-stg", 40)])
+        db.commit()
+
+        result = get_location_breakdown(db, "cl-muc", 2026, "forecast")
+
+        assert result.charging_location_id == "cl-muc"
+        assert result.charging_location_code == "DE-MUC"
+        assert len(result.chargeable_entities) == 2
+        # Sum of per-row amounts equals the location total.
+        row_sum = round(
+            sum(r.amount_eur for r in result.chargeable_entities), 2,
+        )
+        assert abs(row_sum - result.total_amount_eur) < 0.01
+        # Share percentages sum to ~100.
+        share_sum = sum(r.share_pct for r in result.chargeable_entities)
+        assert abs(share_sum - 100.0) < 0.5
+        # Row math sanity: ce-0 amount = 100k * 0.5 * 0.6 = 30k.
+        ce0 = next(r for r in result.chargeable_entities if r.entity_id == "ce-0")
+        assert abs(ce0.amount_eur - 30000.0) < 0.01
+
+    def test_returns_legal_entities_at_location(self, db):
+        _make_cl(db, "cl-muc", "DE-MUC")
+        # Two LEs at cl-muc, one at cl-stg, one inactive at cl-muc.
+        _make_cl(db, "cl-stg", "DE-STG")
+        db.add_all([
+            LegalEntity(id="le-1", code="LE-001", name="Konstrukt-Werke",
+                        charging_location_id="cl-muc", is_active=True),
+            LegalEntity(id="le-2", code="LE-002", name="Konstrukt Mobility",
+                        charging_location_id="cl-muc", is_active=True),
+            LegalEntity(id="le-3", code="LE-003", name="Other Co",
+                        charging_location_id="cl-stg", is_active=True),
+            LegalEntity(id="le-4", code="LE-004", name="Retired",
+                        charging_location_id="cl-muc", is_active=False),
+        ])
+        db.commit()
+
+        result = get_location_breakdown(db, "cl-muc", 2026, "forecast")
+
+        codes = {le.code for le in result.legal_entities}
+        assert codes == {"LE-001", "LE-002"}
+        # Sorted by code.
+        assert [le.code for le in result.legal_entities] == ["LE-001", "LE-002"]
+
+    def test_no_inflows_returns_zero_total(self, db):
+        # Location exists but no BTC profile lines target it.
+        _make_cl(db, "cl-empty", "DE-EMPTY")
+        db.add(LegalEntity(
+            id="le-x", code="LE-X", name="Sole tenant",
+            charging_location_id="cl-empty", is_active=True,
+        ))
+        db.commit()
+
+        result = get_location_breakdown(db, "cl-empty", 2026, "forecast")
+        assert result.chargeable_entities == []
+        assert result.total_amount_eur == 0.0
+        # Legal entity list still populated.
+        assert len(result.legal_entities) == 1
+
+    def test_unknown_location_raises(self, db):
+        with pytest.raises(ValueError, match="not found"):
+            get_location_breakdown(db, "cl-nonexistent", 2026, "forecast")
+
+    def test_only_active_btc_profiles_count(self, db):
+        _make_cl(db, "cl-muc", "DE-MUC")
+        entities = _setup_entities(db, count=1)
+        entities[0].to_business_pct = 50.0
+        db.flush()
+        # Draft profile should be ignored.
+        draft = BTCProfile(
+            entity_id="ce-0", year=2026, mode="manual", status="draft",
+        )
+        db.add(draft)
+        db.flush()
+        db.add(BTCProfileLine(
+            profile_id=draft.id, charging_location_id="cl-muc", percentage=100.0,
+        ))
+        db.commit()
+
+        result = get_location_breakdown(db, "cl-muc", 2026, "forecast")
+        assert result.chargeable_entities == []
+        assert result.total_amount_eur == 0.0
