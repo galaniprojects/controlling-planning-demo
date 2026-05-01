@@ -549,6 +549,110 @@ class TestYearRollover:
         assert len(result.skipped) == 1
         assert len(result.rolled_over) == 0
 
+    def _seed_three_typed_entities(self, db):
+        """Seed one Project, one Offering, one InternalService entity, each
+        with an active 2026 profile. Returns (proj_id, off_id, svc_id)."""
+        _make_cl(db, "cl-a", "DE-A-001")
+        _make_cl(db, "cl-b", "DE-B-001")
+        # Make the LoB grouping rows (helper builds them when called once).
+        _make_entity(db, "ce-off", entity_type="Offering", to_business_pct=60.0)
+        # Add a Project entity. Project rows still go into ChargeableEntity
+        # via the polymorphic root per [F-DM-01]. The full v4 Project FK is
+        # only required by entity_type='Project' rows when the WBS path joins;
+        # year_rollover's filter only reads entity_type, so leaving project_id
+        # NULL is acceptable for this unit test.
+        proj = ChargeableEntity(
+            id="ce-proj", entity_type="Project", identifier="IT0PPM1",
+            name="Project Alpha", to_business_pct=40.0,
+            hierarchy_node_id="lob-t", is_active=True,
+        )
+        svc = ChargeableEntity(
+            id="ce-svc", entity_type="InternalService", identifier="ITF00001",
+            name="Internal Service Z", to_business_pct=20.0,
+            hierarchy_node_id="lob-t", is_active=True,
+        )
+        db.add_all([proj, svc])
+        db.flush()
+        # Active 2026 profiles for all three.
+        for ent_id in ("ce-off", "ce-proj", "ce-svc"):
+            create_manual_profile(
+                db, ent_id, 2026,
+                [{"charging_location_id": "cl-a", "percentage": 60.0},
+                 {"charging_location_id": "cl-b", "percentage": 40.0}],
+                status="active",
+            )
+        db.commit()
+        return ("ce-proj", "ce-off", "ce-svc")
+
+    def test_scope_all_no_filter_rolls_all(self, db):
+        """No filters → preserves the original 'roll all' behaviour."""
+        proj_id, off_id, svc_id = self._seed_three_typed_entities(db)
+        result = year_rollover(db, 2026, 2027)
+        assert len(result.rolled_over) == 3
+        assert len(result.skipped) == 0
+        assert len(result.errors) == 0
+
+    def test_scope_entity_types_offering_only(self, db):
+        proj_id, off_id, svc_id = self._seed_three_typed_entities(db)
+        result = year_rollover(
+            db, 2026, 2027, entity_types=["offering"],
+        )
+        assert len(result.rolled_over) == 1
+        # Only the offering profile should now have a 2027 row.
+        new_profiles_2027 = list_profiles(db, year=2027)
+        assert len(new_profiles_2027) == 1
+        assert new_profiles_2027[0].entity_id == off_id
+
+    def test_scope_entity_types_multiple(self, db):
+        proj_id, off_id, svc_id = self._seed_three_typed_entities(db)
+        result = year_rollover(
+            db, 2026, 2027, entity_types=["project", "internal_service"],
+        )
+        assert len(result.rolled_over) == 2
+        new_entity_ids = {
+            p.entity_id for p in list_profiles(db, year=2027)
+        }
+        assert new_entity_ids == {proj_id, svc_id}
+
+    def test_scope_entity_ids_specific_entity(self, db):
+        proj_id, off_id, svc_id = self._seed_three_typed_entities(db)
+        result = year_rollover(
+            db, 2026, 2027, entity_ids=[off_id],
+        )
+        assert len(result.rolled_over) == 1
+        new_profiles_2027 = list_profiles(db, year=2027)
+        assert len(new_profiles_2027) == 1
+        assert new_profiles_2027[0].entity_id == off_id
+
+    def test_scope_entity_ids_unknown_id_returns_empty(self, db):
+        self._seed_three_typed_entities(db)
+        result = year_rollover(
+            db, 2026, 2027, entity_ids=["ce-does-not-exist"],
+        )
+        assert result.rolled_over == []
+        assert result.skipped == []
+        assert result.errors == []
+
+    def test_scope_both_filters_set_raises(self, db):
+        self._seed_three_typed_entities(db)
+        with pytest.raises(ValueError, match="at most one"):
+            year_rollover(
+                db, 2026, 2027,
+                entity_types=["offering"],
+                entity_ids=["ce-off"],
+            )
+
+    def test_scope_unknown_entity_type_returns_empty(self, db):
+        """Unknown lowercase types map to nothing; query short-circuits."""
+        self._seed_three_typed_entities(db)
+        # Bypass the schema validator to confirm the service is defensive.
+        result = year_rollover(
+            db, 2026, 2027, entity_types=["bogus_type"],
+        )
+        assert result.rolled_over == []
+        assert result.skipped == []
+        assert result.errors == []
+
 
 # ---------------------------------------------------------------------------
 # assert_btc_required (BTC gate for DoI 2→3)
