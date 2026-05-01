@@ -502,6 +502,156 @@ class TestComputeCostAllocationImpact:
 
 
 # ---------------------------------------------------------------------------
+# Union-aware effective cost — Item 8 follow-up regression test
+# Pre-fix bug: BTC-only scenarios lost upstream inflows on the scenario side
+# because compute_effective_cost(version='scenario-N') queried only the
+# (empty, pre-fork) scenario-version Distribution rows. The union-aware walker
+# falls back to anchor edges for any source the scenario hasn't forked.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def lever12_with_upstream(db, author_person):
+    """ent_src receives 50% of an upstream's cost; scenario touches BTC only.
+
+    Topology:
+        ent_up (annual_cost=80k) --50%--> ent_src (annual_cost=100k)
+        ent_src.to_business_pct = 50%
+        BTCProfile on ent_src (year=2026, manual, active):
+          cl_a → 100%
+
+    ent_src effective_cost (anchor) = 100k + 80k*0.5 = 140k
+    to_business_value = 140k * 0.5 = 70k → cl_a anchor_amount = 70k
+    """
+    cl_a = ChargingLocation(id="cl-up-a", code="CL-UP-A", name="Up Loc A")
+    cl_b = ChargingLocation(id="cl-up-b", code="CL-UP-B", name="Up Loc B")
+    db.add_all([cl_a, cl_b])
+
+    ent_up = ChargeableEntity(
+        id="ent-up", entity_type="InternalService", identifier="ITF00200",
+        name="Upstream Service", annual_cost=Decimal("80000"),
+        to_business_pct=Decimal("0"),
+    )
+    ent_src = ChargeableEntity(
+        id="ent-src-up", entity_type="Offering", identifier="IT00S200",
+        name="Source Offering With Upstream", annual_cost=Decimal("100000"),
+        to_business_pct=Decimal("50"),
+    )
+    db.add_all([ent_up, ent_src])
+    db.flush()
+
+    # Upstream → ent_src 50% (anchor / forecast version).
+    db.add(Distribution(
+        year=2026, version="forecast",
+        source_entity_id="ent-up", destination_entity_id="ent-src-up",
+        percentage=Decimal("50"),
+    ))
+
+    profile = BTCProfile(
+        entity_id="ent-src-up", year=2026, mode="manual", status="active",
+    )
+    db.add(profile)
+    db.flush()
+    db.add(BTCProfileLine(
+        profile_id=profile.id, charging_location_id="cl-up-a",
+        percentage=Decimal("100"),
+    ))
+
+    scenario = Scenario(
+        name="BTC-only Scenario (upstream test)",
+        author_id=author_person.id, status="private",
+    )
+    db.add(scenario)
+    db.commit()
+    db.refresh(scenario)
+    return {
+        "scenario_id": scenario.id,
+        "ent_src_id": "ent-src-up",
+        "ent_up_id": "ent-up",
+        "cl_a_id": "cl-up-a",
+        "cl_b_id": "cl-up-b",
+        "year": 2026,
+    }
+
+
+class TestUnionAwareEffectiveCost:
+    """Regression coverage for the BTC-only scenario inflow-loss bug."""
+
+    def test_btc_only_scenario_preserves_upstream_inflows(
+        self, db, lever12_with_upstream,
+    ):
+        """Anchor and scenario totals must balance when only BTC was touched.
+
+        Before fix: compute_effective_cost(version='scenario-N') ignored
+        anchor edges for unforked sources, so the scenario side computed
+        100k*0.5=50k while the anchor side computed 140k*0.5=70k — a phantom
+        -20k delta caused by losing the upstream inflow rather than by any
+        real change. After fix: both sides see 140k effective cost; only the
+        intentional BTC line shift drives the per-location delta.
+        """
+        # Replace 100/0 with 0/100 — pure cl_a→cl_b BTC swap, no inflow change.
+        apply_btc_lines_change(
+            db, lever12_with_upstream["scenario_id"],
+            entity_id="ent-src-up", year=2026,
+            lines=[{"charging_location_id": "cl-up-b", "percentage": 100.0}],
+        )
+        db.commit()
+
+        out = compute_cost_allocation_impact(
+            db, lever12_with_upstream["scenario_id"], year=2026,
+        )
+        # Both sides must agree on the to_business value (140k * 0.5 = 70k);
+        # delta must net to zero across the BTC swap.
+        assert out["totals"]["anchor_total"] == 70000.0
+        assert out["totals"]["scenario_total"] == 70000.0
+        assert out["totals"]["delta"] == 0.0
+
+        items = {(i["entity_id"], i["charging_location_id"]): i for i in out["items"]}
+        # cl_a: 70k → 0 (delta -70k)
+        assert items[("ent-src-up", "cl-up-a")]["anchor_amount"] == 70000.0
+        assert items[("ent-src-up", "cl-up-a")]["scenario_amount"] == 0.0
+        assert items[("ent-src-up", "cl-up-a")]["delta"] == -70000.0
+        # cl_b: 0 → 70k (delta +70k)
+        assert items[("ent-src-up", "cl-up-b")]["anchor_amount"] == 0.0
+        assert items[("ent-src-up", "cl-up-b")]["scenario_amount"] == 70000.0
+        assert items[("ent-src-up", "cl-up-b")]["delta"] == 70000.0
+
+    def test_btc_overlay_with_partial_stage1_fork_uses_scenario_edges(
+        self, db, lever12_with_upstream,
+    ):
+        """When Stage 1 IS forked, scenario must use scenario edges for
+        forked sources and anchor edges for unforked sources (union)."""
+        sid = lever12_with_upstream["scenario_id"]
+
+        # 1) Fork the upstream edge and reduce 50% → 20% so inflow drops by 24k.
+        #    New inflow contribution = 80k * 0.20 = 16k → ent_src eff = 116k.
+        from services.scenario_lever12 import (
+            apply_distribution_update,
+        )
+        anchor_edge = (
+            db.query(Distribution)
+            .filter(
+                Distribution.year == 2026, Distribution.version == "forecast",
+                Distribution.source_entity_id == "ent-up",
+            )
+            .one()
+        )
+        apply_distribution_update(db, sid, edge_id=anchor_edge.id, percentage=20.0)
+        db.commit()
+
+        out = compute_cost_allocation_impact(db, sid, year=2026)
+        # Both ent-src AND ent-up are touched (dest of edge change). ent-up
+        # has no BTC profile so contributes no per-loc rows. ent-src:
+        #   anchor: 140k * 0.5 = 70k → cl_a 70k
+        #   scenario: 116k * 0.5 = 58k → cl_a 58k (BTC unchanged at 100/0)
+        # cl_a delta = -12k.
+        assert out["touched_entity_count"] == 2
+        items = {(i["entity_id"], i["charging_location_id"]): i for i in out["items"]}
+        assert items[("ent-src-up", "cl-up-a")]["anchor_amount"] == 70000.0
+        assert items[("ent-src-up", "cl-up-a")]["scenario_amount"] == 58000.0
+        assert items[("ent-src-up", "cl-up-a")]["delta"] == -12000.0
+
+
+# ---------------------------------------------------------------------------
 # Cleanup on scenario delete
 # ---------------------------------------------------------------------------
 
