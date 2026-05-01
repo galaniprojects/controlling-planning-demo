@@ -1,10 +1,40 @@
 # CRETA Demo — Build Progress
 
+## Demo polish follow-ups (post-S1) — Item 6 (2026-05-01)
+
+Followups Item 6 — Bulk year-rollover UI button on BTC Profiles page (`feature/btc-year-rollover-ui`). Backend `POST /api/admin/btc-profiles/year-rollover` extended with optional mutually-exclusive `entity_types` / `entity_ids` scope filters (Pydantic `model_validator`-rejected if both set; both null preserves the original "roll all" behaviour). Frontend adds `YearRolloverDialog` (shadcn Dialog + Tabs mirroring `CreateBTCProfileDialog`) with All / By type / Specific entities scope choice, reachable via a new "Year rollover" button next to "+ New profile" on `BTCProfileListView`. Inline emerald result strip replaces the missing toast pattern. Backend tests: **1296 passed** (was 1283; +13 new across `TestYearRollover` in both `test_btc_service.py` and `test_router_btc_profile.py`). Frontend TypeScript baseline maintained (-3 errors net by resolving the new dialog's imports).
+
 ## Current Status
 
 Phase: **v5 Session S1 complete on `v5/session-s1/foundation` (2026-04-30)** — full seed-data reconstruction per `[F-DG-01..03]`. Terminal v5 session. v4 project/service distinction retired; the seed now expresses the polymorphic `ChargeableEntity` model (Project / Offering / InternalService), the configurable hierarchy from Cluster D, the Stage 1 distribution graph, Stage 2 BTC profiles, the UM matrix, the demo flagship narrative (Master Data Hub, S042) end-to-end, and per-persona Launchpad differentiation. Built via 1 + 3 agent-team split: Phase 1 (foundation) on `v5/session-s1/foundation` produced the frozen 34-entity ChargeableEntity roster + master data foundation; Phase 2 ran 3 teammates in parallel on isolated worktrees (`v5/session-s1/team-charging` / `team-financials` / `team-scenarios`) — zero merge conflicts (file ownership disjoint). New `backend/seed/generate_seed_v5/` package replaces the v4 `generate_seed/` package which was deleted at cutover. Loader's `_seed_progress_tracker_data` Python helper retired (240 lines) — its work is subsumed by `s18_progress.py` emitting deterministic SQL. Frontend visual smoke walk on fresh-DB confirms Launchpad shows v5 pending actions, Portfolio Change shows 11 projects, Portfolio Run shows the exact 2P · 6O · 17S = 25-entity mix, Workbench flagship surfaces (proj-mdh-rollout) populate the full E3 tile grid with checklist 4/7 + narrative, Charging Distribution shows 39 edges incl. Master Data Hub → Data Stewardship at 5%, and Simulator lists scn-mdh-rebalance + scn-budget-pressure-15. Backend tests: **1283/1283 passing**. v5 validate.py: **9/10 rules pass** (one soft summation-integrity rule flags total_budget vs baseline_sum drift on 6 projects — known follow-up calibration; doesn't affect demo functionality).
 
 **v5 backlog after S1:** All clusters complete. v5 implementation done.
+
+## Demo polish — Item 8: MDH BTC Rebalance impact tile (2026-05-01)
+
+Branch: `fix/mdh-btc-rebalance-seed-and-impact`. Closes Item 8 from `docs/followups/demo-polish-followups.md` — the seeded "MDH BTC Rebalance — DE/PL/CZ" scenario produced an empty Cost Allocation impact tile because (a) the scenario's seeded action used `action_type='btc_profile_change'` while the lever-12 engine only recognises `btc_profile_line_change`, and (b) once that was fixed a second pre-existing bug surfaced in the lever-12 rollup itself.
+
+Three commits on the branch:
+
+1. **Rewire seed scenario_action to lever12 schema** — convert `scenario_actions` row id=1 to `action_type='btc_profile_line_change'` with the COMPLETE post-rebalance line set (18 lines summing to 100, with `cl-cz-prg` added as a new line). Bump off-mdh 2026 BTC `cl-de-muc` 6.19→16.19 and `cl-fr-par` 15.62→5.62 so the -10pp shift on DE-Munich stays positive after rebalance. Headline impact (228k EUR rebalanced) preserved (`off-mdh` annual_cost=2.4M × to_business 95% = 2.28M; 10pp of 2.28M = 228k naively; the actual delta with upstream inflows is ~283k).
+
+2. **Keep seed generator in sync** — `backend/seed/generate_seed_v5/config/scenarios.py` updated to the new action shape; `backend/seed/generate_seed_v5/s09_btc.py` gains a `DEMO_TUNING_OVERRIDES` map applied after UM-derived lines, with the off-mdh 2026 override matching the seed.sql edit. So `python -m generate_seed_v5.runner` reproduces the shipped state byte-identically.
+
+3. **Union-aware effective cost in lever-12 rollup** — fix `services/scenario_lever12.compute_cost_allocation_impact()` so BTC-only scenarios stop losing upstream inflows on the scenario side. Added private helper `_compute_scenario_effective_cost` that mirrors `_check_cycle_across_versions` semantics: for each visited entity, build the incoming-edge union of `(scenario edges where source forked) + (anchor edges where source NOT forked)` and recurse. Two new tests in `TestUnionAwareEffectiveCost` lock in: (a) BTC-only scenario preserves upstream inflows and balances totals, (b) Stage 1 + BTC mixed scenario uses scenario edges for forked sources while keeping anchor edges visible for the rest.
+
+Verification: GET `/api/scenarios/1/impact` (seeded MDH BTC Rebalance) now returns `touched_entity_count=1`, balanced totals (anchor_total = scenario_total = 2,832,816 EUR, delta 0) and three non-zero items: CL-DE-MUC -283,281, CL-PL-POZ +141,640, CL-CZ-PRG +141,640. Backend tests: **1285/1285 passing** (1283 + 2 new). Frontend: vite build clean (1.82 MB / 474 KB gzip); pre-existing TS strict-mode errors on main remain unchanged. Branch left for visual verification by lead before PR.
+
+## Demo polish — Item 9: Scheduled Changes Create UI (2026-05-01)
+
+Branch: `feature/scheduled-changes-create-ui`. Frontend-only — closes the documented W10.6 gap where the 5-state scheduled-change lifecycle was wired backend-side (`models/scheduled_changes.py`, `services/scheduled_change_activation.py`, `routers/scheduled_changes.py`) but the admin UI had list / approve / reject / cancel surfaces only and forced controllers to curl the create endpoint.
+
+- New `frontend/src/modules/admin/scheduled/CreateScheduledChangeDialog.tsx`. Fields: entity type (Select — only `planning_parameter` enabled; other types `rate_table` / `cost_center` / `role_type` / `person` / `competence_center` shown disabled with a "Coming soon — not wired in v5" tooltip), parameter (Select pulling from `adminApi.getParameters()` — same source the Planning Parameters panel uses), new value (type-aware Input — switches to `type='number'` when the parameter's current value is numeric, otherwise plain text), activation date (date picker, `min={today}`), justification (Textarea, required, ≥ 20 chars and ≤ 255 — submitted as the schema's `description` field). Live char count + min indicator. Inline error surface for 4xx responses.
+- `ScheduledChangesPanel` header gets a `+ New scheduled change` outline button next to `Apply due changes`. Submission closes the dialog and refetches the list (no toast — matches existing panel pattern).
+- `pending_values` is serialised as `{"current_value": "<string>"}` to match the activation handler in `services/scheduled_change_activation.py::_apply_planning_parameter`. The followups doc suggested `{"value": ...}` but that key would silently fail at activation time — the activation path requires `current_value`. Documented in the dialog file's docstring.
+- Frontend TypeScript: 81 errors maintained (≤ 81 baseline — no new errors introduced; pre-existing errors in `workbench/forecast/useForecastCycle.ts`, `workbench/overview/ProjectTimelineChart.tsx`, `workbench/submission/SubmissionDiffView.tsx` etc. unchanged). Vite production build: clean (1.83 MB / 475 KB gzipped).
+- Backend tests: **1283/1283 passing** (no backend changes).
+- Endpoint smoke-tested via curl: `POST /api/admin/scheduled-changes` accepts the payload and returns the row at `pending_review`; `cancel` reverses cleanly.
+- Visual verification deferred to lead per session brief.
 
 ## v5 Session E8 merged on main (2026-04-30)
 

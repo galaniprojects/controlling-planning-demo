@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Calendar, CheckCircle2, XCircle, AlertCircle, Clock, Play, RefreshCw,
+  Calendar, CheckCircle2, XCircle, AlertCircle, Clock, Play, Plus, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ import {
 import { Skeleton } from '@/components/shared/Skeleton';
 import { adminD3Api } from '@/api/endpoints';
 import type { ScheduledChangeItem, ApplyScheduledChangesSummary } from '@/types/api';
+import { CreateScheduledChangeDialog } from './CreateScheduledChangeDialog';
 
 const STATUS_CONFIG: Record<string, { label: string; class: string; icon: React.ElementType }> = {
   pending_review: {
@@ -65,6 +66,7 @@ export function ScheduledChangesPanel() {
   const [applyDialogOpen, setApplyDialogOpen] = useState(false);
   const [applyResult, setApplyResult] = useState<ApplyScheduledChangesSummary | null>(null);
   const [applying, setApplying] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const fetchData = () => {
     setLoading(true);
@@ -143,6 +145,10 @@ export function ScheduledChangesPanel() {
               ))}
             </SelectContent>
           </Select>
+          <Button size="sm" variant="outline" onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            New scheduled change
+          </Button>
           <Button size="sm" onClick={() => { setApplyDialogOpen(true); handleApplyDue(); }}>
             <Play className="h-4 w-4 mr-1.5" />
             Apply due changes
@@ -323,6 +329,13 @@ export function ScheduledChangesPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Create dialog (Item 9 of demo polish follow-ups) */}
+      <CreateScheduledChangeDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onCreated={fetchData}
+      />
 
       <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
         <Calendar className="h-3 w-3" />

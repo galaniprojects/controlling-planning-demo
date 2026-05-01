@@ -237,7 +237,7 @@ PL access attempt: an "Access Restricted" card with shield icon and copy "The Ad
 
 | # | Persona | Action | Expected UI Result | Verification Cue |
 |---|---|---|---|---|
-| 1 | Controller | Create a scheduled change via the API (v5 has no UI button — see Known issues): POST `/api/admin/scheduled-changes` with body `{entity_type: "planning_parameter", entity_id: "tshirt_xs_max_eur", description: "Raise XS threshold for FY27", pending_values: {"value": 150000}, activation_date: "2026-07-01"}` | API returns 201 with the new change in `pending_review` state | The `activation_date` must be today-or-future (past dates rejected with 400) |
+| 1 | Controller | On the Scheduled Changes panel, click **+ New scheduled change**. Pick entity type `planning_parameter`, parameter `rag_amber_threshold` (or any of the 6 admin-exposed parameters), enter a new value, pick an activation date today-or-later, write a justification (≥ 20 chars), submit | Dialog closes; new row appears in the list at `pending_review` state | Activation date picker enforces today-or-future client-side; backend rejects past dates with 400. Equivalent payload via API: POST `/api/admin/scheduled-changes` body `{entity_type: "planning_parameter", entity_id: "rag_amber_threshold", description: "<justification>", pending_values: {"current_value": "4"}, activation_date: "2026-05-15"}` (note `current_value` key — the activation handler requires it). |
 | 2 | Controller | Navigate to `/admin?section=scheduled_changes` | ScheduledChangesPanel loads with header "Scheduled Changes" + status filter dropdown + "Apply due changes" button | Subheader: "Future-dated master-data and parameter changes pending review or activation. Second-admin review required before activation." |
 | 3 | Controller | Find the new row (filter "Pending Review"); inspect: Status badge `Pending Review`, Activation date, Entity type / id, Description, pending_values JSON, Created by | Row populated as expected | Action buttons visible: **Approve**, **Reject**, **Cancel** |
 | 4 | Controller (second admin in production; same persona ok in demo) | Click **Approve** | Dialog opens "Approve scheduled change" with subtext "Once approved, the change will be eligible for activation on its scheduled date. Activation runs via the daily job (or 'Apply due changes')." + comments field | Comments optional |
@@ -271,8 +271,8 @@ PL access attempt: an "Access Restricted" card with shield icon and copy "The Ad
 
 ### Known issues / caveats
 
-- v5 has no UI for *creating* a scheduled change — only listing / approve / reject / cancel / apply. New rows must be POSTed via API or seeded. A "+ New scheduled change" UI is on the Cluster D follow-on backlog.
-- Only `planning_parameter` activation is fully wired in v5. Other entity types (`person`, `cost_center`, etc.) record the activation as a no-op for the demo. Production extension would add handlers in `APPLY_HANDLERS`.
+- Only `planning_parameter` activation is fully wired in v5. Other entity types (`person`, `cost_center`, etc.) are shown disabled in the Create dialog with a "Coming soon — not wired in v5" tooltip; production extension would add handlers in `APPLY_HANDLERS`.
+- Only 6 planning parameters are exposed via `/api/admin/parameters` (the ones surfaced in the Planning Parameters admin panel): `fiscal_year_start`, `planning_horizon`, `forecast_deadline`, `rag_amber_threshold`, `rag_red_threshold`, `max_utilization`. Tech-Navigator parameters (e.g. `tshirt_xs_max_eur`) live under `param_group='tech_navigator'` and are not exposed to the Scheduled Changes Create dialog by design — they have their own admin surface.
 
 ---
 

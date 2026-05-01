@@ -6,9 +6,9 @@ Per [F-S2-01..08], [F-OQ-05].
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -174,8 +174,34 @@ class WBSMatrixResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class YearRolloverRequest(BaseModel):
+    """Request body for POST /api/admin/btc-profiles/year-rollover.
+
+    Optional scope filters narrow the set of source-year profiles considered:
+
+    - ``entity_types``: only roll over profiles whose entity belongs to one of
+      the listed types (``project`` / ``offering`` / ``internal_service``).
+    - ``entity_ids``: only roll over profiles for the listed entity ids.
+
+    At most one of ``entity_types`` and ``entity_ids`` may be set; both
+    ``None`` means "all profiles" (preserves the original behaviour).
+    """
     source_year: int = Field(..., ge=2020, le=2040)
     target_year: int = Field(..., ge=2020, le=2040)
+    entity_types: Optional[list[Literal["project", "offering", "internal_service"]]] = None
+    entity_ids: Optional[list[str]] = None
+
+    @model_validator(mode="after")
+    def _validate_scope_exclusive(self) -> "YearRolloverRequest":
+        if self.entity_types is not None and self.entity_ids is not None:
+            raise ValueError(
+                "At most one of entity_types and entity_ids may be set; "
+                "leave both None to roll over all profiles.",
+            )
+        if self.entity_types is not None and len(self.entity_types) == 0:
+            raise ValueError("entity_types must contain at least one type when set.")
+        if self.entity_ids is not None and len(self.entity_ids) == 0:
+            raise ValueError("entity_ids must contain at least one id when set.")
+        return self
 
 
 class YearRolloverResponse(BaseModel):

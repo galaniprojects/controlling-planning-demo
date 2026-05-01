@@ -76,28 +76,54 @@ SCENARIOS: list[dict] = [
         "modified_at": _CREATED_REBALANCE,
         "last_recalculated_at": _CREATED_REBALANCE,
         "actions": [
+            # Lever 12 BTC line shift on off-mdh per [B-ES-01] / [F-S2-*].
+            # action_type MUST be 'btc_profile_line_change' so
+            # services.scenario_lever12._collect_btc_overlay() picks this up
+            # and feeds compute_cost_allocation_impact(). parameters_json
+            # carries the COMPLETE post-rebalance line set (lever12 schema is
+            # full state, not deltas) — sum-to-100 is enforced.
+            #
+            # Demo storyline: shift 10pp off cl-de-muc onto cl-pl-poz (+5pp)
+            # and cl-cz-prg (+5pp, new line). The other 15 lines mirror the
+            # live off-mdh 2026 profile (s09_btc Profile 7) so only the
+            # touched locations show non-zero deltas in the Cost Allocation
+            # impact tile.
             {
                 "action_order": 1,
                 "scope": "project",
-                "action_type": "btc_profile_change",
+                "action_type": "btc_profile_line_change",
                 "project_id": "proj-mdh-rollout",  # FK target — flagship project
                 "lever_category": "cost_allocation",
                 "tier": 1,
                 "group_label": "Lever 12 / Stage 2 BTC",
                 "parameters_json": (
-                    '{"entity_id": "off-mdh", "year": 2026, '
-                    '"changes": ['
-                    '{"charging_location_id": "cl-de-muc", "from_pct": 28.0, "to_pct": 18.0}, '
-                    '{"charging_location_id": "cl-pl-poz", "from_pct": 3.0,  "to_pct": 8.0}, '
-                    '{"charging_location_id": "cl-cz-prg", "from_pct": 2.0,  "to_pct": 7.0}'
+                    '{"entity_id": "off-mdh", "year": 2026, "lines": ['
+                    '{"charging_location_id": "cl-de-ber", "percentage": 1.13}, '
+                    '{"charging_location_id": "cl-de-fra", "percentage": 4.93}, '
+                    '{"charging_location_id": "cl-de-ham", "percentage": 1.59}, '
+                    '{"charging_location_id": "cl-de-muc", "percentage": 6.19}, '
+                    '{"charging_location_id": "cl-de-stg", "percentage": 2.21}, '
+                    '{"charging_location_id": "cl-de-wol", "percentage": 2.52}, '
+                    '{"charging_location_id": "cl-es-mad", "percentage": 6.09}, '
+                    '{"charging_location_id": "cl-fr-lyo", "percentage": 7.52}, '
+                    '{"charging_location_id": "cl-fr-par", "percentage": 5.62}, '
+                    '{"charging_location_id": "cl-hu-bud", "percentage": 3.48}, '
+                    '{"charging_location_id": "cl-in-pun", "percentage": 11.28}, '
+                    '{"charging_location_id": "cl-it-mil", "percentage": 9.38}, '
+                    '{"charging_location_id": "cl-nl-ams", "percentage": 3.79}, '
+                    '{"charging_location_id": "cl-pl-poz", "percentage": 11.11}, '
+                    '{"charging_location_id": "cl-uk-lon", "percentage": 7.85}, '
+                    '{"charging_location_id": "cl-uk-man", "percentage": 1.15}, '
+                    '{"charging_location_id": "cl-us-det", "percentage": 9.16}, '
+                    '{"charging_location_id": "cl-cz-prg", "percentage": 5.0}'
                     ']}'
                 ),
                 "impact_delta_json": (
                     '{"to_business_pct_delta": 0, '
                     '"location_amount_delta_eur": ['
-                    '{"charging_location_id": "cl-de-muc", "delta": -228000}, '
-                    '{"charging_location_id": "cl-pl-poz", "delta":  114000}, '
-                    '{"charging_location_id": "cl-cz-prg", "delta":  114000}'
+                    '{"charging_location_id": "cl-de-muc", "delta": -283282}, '
+                    '{"charging_location_id": "cl-pl-poz", "delta":  141641}, '
+                    '{"charging_location_id": "cl-cz-prg", "delta":  141641}'
                     ']}'
                 ),
             },

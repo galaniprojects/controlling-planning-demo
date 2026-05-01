@@ -691,6 +691,101 @@ def _per_location_amount(
     return out
 
 
+def _compute_scenario_effective_cost(
+    db: Session, year: int, scenario_version_str: str, anchor_version: str,
+    entity_id: str, *, _seen: Optional[set[str]] = None,
+):
+    """Union-aware effective cost for the lever-12 sandbox.
+
+    Lever 12's lazy-fork pattern means scenario-version Distribution rows
+    only exist for entities the user actually mutated — every other entity
+    inherits its anchor edges. The vanilla ``compute_effective_cost`` walks
+    only one version at a time, so calling it with ``version='scenario-N'``
+    against an entity that wasn't forked returns own_cost only (no inflows)
+    — that's the bug the cost-allocation tile previously surfaced.
+
+    This walker mirrors ``_check_cycle_across_versions`` semantics: for
+    each visited entity, prefer scenario edges (post-fork state) and fall
+    back to anchor edges if nothing was forked from that source.
+    """
+    from services.dag_resolver import EffectiveCostResult, InflowContribution, get_own_cost
+
+    if _seen is None:
+        _seen = set()
+
+    entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if entity is None:
+        return EffectiveCostResult(
+            entity_id=entity_id, entity_name="<unknown>", year=year,
+            version=scenario_version_str, own_cost=0.0,
+        )
+
+    if entity_id in _seen:
+        # Defensive cycle bottom-out — cycle detection happens at write time.
+        return EffectiveCostResult(
+            entity_id=entity.id, entity_name=entity.name, year=year,
+            version=scenario_version_str, own_cost=get_own_cost(entity),
+        )
+    _seen.add(entity_id)
+
+    own = get_own_cost(entity)
+    result = EffectiveCostResult(
+        entity_id=entity.id, entity_name=entity.name, year=year,
+        version=scenario_version_str, own_cost=own,
+    )
+
+    # Sources for which the scenario forked Stage 1 edges. We use this set
+    # to decide which version to query for each incoming edge's source.
+    forked_sources = {
+        row[0] for row in
+        db.query(Distribution.source_entity_id)
+        .filter(
+            Distribution.year == year,
+            Distribution.version == scenario_version_str,
+        )
+        .distinct()
+        .all()
+    }
+
+    # Incoming edges into this entity = union of (scenario edges where the
+    # source was forked) + (anchor edges where the source was NOT forked).
+    incoming_scenario = (
+        db.query(Distribution)
+        .filter(
+            Distribution.year == year,
+            Distribution.version == scenario_version_str,
+            Distribution.destination_entity_id == entity_id,
+        )
+        .all()
+    )
+    incoming_anchor_all = (
+        db.query(Distribution)
+        .filter(
+            Distribution.year == year,
+            Distribution.version == anchor_version,
+            Distribution.destination_entity_id == entity_id,
+        )
+        .all()
+    )
+    incoming_anchor = [
+        e for e in incoming_anchor_all if e.source_entity_id not in forked_sources
+    ]
+
+    for edge in [*incoming_scenario, *incoming_anchor]:
+        upstream = _compute_scenario_effective_cost(
+            db, year, scenario_version_str, anchor_version,
+            edge.source_entity_id, _seen=_seen,
+        )
+        amount = upstream.effective_cost * float(edge.percentage) / 100.0
+        result.inflows.append(InflowContribution(
+            source_entity_id=upstream.entity_id,
+            source_entity_name=upstream.entity_name,
+            percentage=float(edge.percentage),
+            amount=round(amount, 2),
+        ))
+    return result
+
+
 def _entities_touched_by_scenario(
     db: Session, scenario_id: int, year: int,
 ) -> set[str]:
@@ -789,7 +884,12 @@ def compute_cost_allocation_impact(
             continue
 
         anchor_eff = compute_effective_cost(db, year, anchor_version, entity_id)
-        scenario_eff = compute_effective_cost(db, year, sv, entity_id)
+        # Union-aware walk: any unforked source falls back to its anchor edges.
+        # Without this, BTC-only scenarios (no Stage 1 fork) lose every
+        # upstream inflow on the scenario side, producing misleading deltas.
+        scenario_eff = _compute_scenario_effective_cost(
+            db, year, sv, anchor_version, entity_id,
+        )
 
         # to_business overlay: scenario value if set, else anchor.
         anchor_tb = float(entity.to_business_pct)

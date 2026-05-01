@@ -224,7 +224,7 @@ No DB change — the offending insert is rejected by `services/distribution_serv
 
 ### Alternative paths
 
-- **Bulk year rollover**: For a portfolio-wide year-end roll, the controller can call the dedicated `/api/admin/btc-profiles/year-rollover` endpoint (POST with `{source_year, target_year}`) which copies all active profiles in one shot. The Charging UI does not yet expose this as a button — use the API or trigger from a `services/btc_service.year_rollover` invocation.
+- **Bulk year rollover**: For a portfolio-wide year-end roll, the controller can click **Year rollover** in the BTC Profile list view header. The dialog offers three scope tabs: All profiles, By entity type (Project / Offering / Internal Service multi-select), or Specific entities (searchable multi-select). Live count strip shows how many profiles will be rolled before confirm. Backed by `POST /api/charging/btc-profiles/year-rollover` with optional mutually-exclusive `entity_types` / `entity_ids` filters.
 - **Mode preservation**: Manual sources copy as manual; automatic sources copy as automatic with the same `s_code` and a fresh UM snapshot timestamp.
 
 ### Post-conditions

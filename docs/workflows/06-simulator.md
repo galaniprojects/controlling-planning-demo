@@ -202,7 +202,7 @@ Scenario sandbox for evaluating portfolio + cost-allocation changes before commi
 
 - **No Tier 3 access**: Step 7 confirmation modal is replaced with "Insufficient permissions — Tier 3 promotion of cost allocation scenarios requires the `tier3_flag` user attribute. Contact your administrator."
 - **Partial promote**: in scenarios with mixed-tier actions, Promote only applies actions the user has permission for; non-promoted actions stay in the scenario for future Promote.
-- **Impact preview shows zero**: see Known Issues — the dimension tile may say "No allocation changes" even when the scenario has a valid lever-12 action; the action is still stored and Promote materialises correctly.
+- **Impact preview is unbalanced or empty**: indicates the scenario action's `parameters_json` schema does not match what `services/scenario_lever12.py::_collect_btc_overlay()` expects — the engine wants the COMPLETE post-rebalance `lines` array (sum=100), not a deltas-style `changes` array. Check the action's `action_type` is `btc_profile_line_change` (not the v4 `btc_profile_change`).
 
 ### Post-conditions
 
@@ -219,7 +219,7 @@ Scenario sandbox for evaluating portfolio + cost-allocation changes before commi
 
 ### Known issues / caveats
 
-- The Cost Allocation dimension tile in the impact dashboard may currently show "No allocation changes" even after a valid lever-12 action is stored. The discrepancy is in the impact-preview rollup, not the scenario action storage. Promote still materialises the change correctly. Tracked as a follow-up calibration.
+- None. (The Cost Allocation impact tile bug — empty deltas for BTC-only scenarios — was resolved by the union-aware effective-cost rewrite in `services/scenario_lever12.py::_compute_scenario_effective_cost`. The seeded MDH BTC Rebalance now shows balanced totals and three non-zero per-location deltas.)
 
 ---
 

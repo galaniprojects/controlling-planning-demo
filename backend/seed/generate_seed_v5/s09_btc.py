@@ -56,6 +56,41 @@ BTC_SUM_TOLERANCE = 0.01
 # percentage) sums to exactly 100.00. Designed to spread cost across major
 # DACH hubs + region-specific spillovers, matching the entity narrative.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Per-(entity, year) DEMO_TUNING_OVERRIDES for automatic profiles.
+# Applied AFTER the UM-derived lines are computed; replaces the entire line
+# set for the matching profile. Keep these tightly-scoped — every override
+# diverges the seeded BTC from the UM matrix and weakens the "automatic mode
+# mirrors UM" promise. Add a comment justifying each entry.
+# ---------------------------------------------------------------------------
+DEMO_TUNING_OVERRIDES: dict[tuple[str, int], list[tuple[str, float]]] = {
+    # Item 8 follow-up: bump cl-de-muc up by 10pp (and cut cl-fr-par 10pp)
+    # so the seeded "MDH BTC Rebalance — DE/PL/CZ" scenario can shift 10pp
+    # off DE-Munich onto PL-Poznan + CZ-Prague without driving any line
+    # negative. Sum still = 100. The other 15 lines mirror the raw UM
+    # snapshot for S042 / 2026.
+    ("off-mdh", 2026): [
+        ("cl-de-ber",  1.13),
+        ("cl-de-fra",  4.93),
+        ("cl-de-ham",  1.59),
+        ("cl-de-muc", 16.19),
+        ("cl-de-stg",  2.21),
+        ("cl-de-wol",  2.52),
+        ("cl-es-mad",  6.09),
+        ("cl-fr-lyo",  7.52),
+        ("cl-fr-par",  5.62),
+        ("cl-hu-bud",  3.48),
+        ("cl-in-pun", 11.28),
+        ("cl-it-mil",  9.38),
+        ("cl-nl-ams",  3.79),
+        ("cl-pl-poz",  6.11),
+        ("cl-uk-lon",  7.85),
+        ("cl-uk-man",  1.15),
+        ("cl-us-det",  9.16),
+    ],
+}
+
+
 MANUAL_BTC_LINES: dict[str, list[tuple[str, float]]] = {
     # --- Internal services (manual mode) ---
     "svc-ident-auth": [
@@ -305,6 +340,9 @@ def _build_planned_profiles() -> list[_PlannedProfile]:
         else:
             lines = _manual_lines_for(ent["id"])
             um_snap = None
+        # Apply demo-tuning overrides (Item 8 — see DEMO_TUNING_OVERRIDES doc).
+        if (ent["id"], 2026) in DEMO_TUNING_OVERRIDES:
+            lines = list(DEMO_TUNING_OVERRIDES[(ent["id"], 2026)])
         _assert_sums_to_100(ent["id"], 2026, lines)
         copied_from = ent["id"] if ent["id"] in _FLAGSHIP_ROLLOVER_ENTITIES else None
         plans.append(_PlannedProfile(
