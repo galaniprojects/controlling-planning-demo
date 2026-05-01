@@ -148,13 +148,13 @@
       {
         "path_id": "mdh-btc-de-pl-cz",
         "name": "Conservative: Shift 10pp from DE-Munich onto PL/CZ",
-        "approach_description": "Lever 12 demo. Reduce Master Data Hub (off-mdh) BTC line for DE-Munich by 10 percentage points and split that capacity onto Poznan (+5pp) and Prague (+5pp). Promotes shifts ~€228k of annual Stage-2 charge from the DE legal entity onto PL+CZ legal entities. Stays within the existing 3 charging-location set.",
-        "trade_offs": "DE-Munich legal entity sees ~€228k less inflow next fiscal year — could trigger a margin renegotiation. PL and CZ legal entities each absorb ~€114k more cost; ensure tax & invoicing setup is in place. No project-level changes required; canonical forecast unaffected until promote.",
+        "approach_description": "Lever 12 demo. Reduce Master Data Hub (off-mdh) BTC line for DE-Munich by 10 percentage points and split that capacity onto Poznan (+5pp) and Prague (+5pp). Promotes shifts ~€283k of annual Stage-2 charge from the DE legal entity onto PL+CZ legal entities. Stays within the existing 3 charging-location set.",
+        "trade_offs": "DE-Munich legal entity sees ~€283k less inflow next fiscal year — could trigger a margin renegotiation. PL and CZ legal entities each absorb ~€142k more cost; ensure tax & invoicing setup is in place. No project-level changes required; canonical forecast unaffected until promote.",
         "headline_numbers": {
           "budget_delta": 0,
           "projects_affected": 0,
           "capacity_impact": "No FTE shift — pure cost-allocation rebalance",
-          "rag_changes": "No RAG changes; ~€228k of annual Stage-2 charge re-routed across legal entities"
+          "rag_changes": "No RAG changes; ~€283k of annual Stage-2 charge re-routed across legal entities"
         },
         "constituent_actions": [
           {"scope": "btc_profile", "entity_id": "off-mdh", "action_type": "btc_line_shift", "parameters": {"year": 2026, "charging_location_id": "cl-de-muc", "delta_pct": -10.0}},

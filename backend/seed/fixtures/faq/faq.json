@@ -428,7 +428,7 @@
       {"step_number": 2, "instruction": "In the workspace, expand **Bulk Actions** in the left rail → click **Cost Allocation Sandbox**."},
       {"step_number": 3, "instruction": "The sandbox surface mounts the Charging editors in sandbox mode: Distribution edges and BTC profile lines are editable, but UM refresh and mode-switch buttons are hidden (canonical-only operations)."},
       {"step_number": 4, "instruction": "Edit BTC lines (Lever 11) or Distribution edges (Lever 10). Storage: Stage 1 forks into `Distribution.version='scenario-{id}'` rows; Stage 2 lives as `ScenarioAction` overlays on the scenario."},
-      {"step_number": 5, "instruction": "Click **Recalculate** to populate the impact dashboard. The Cost Allocation dimension tile shows headline numbers (e.g. '€228k of annual Stage-2 charge rebalanced')."},
+      {"step_number": 5, "instruction": "Click **Recalculate** to populate the impact dashboard. The Cost Allocation dimension tile shows headline numbers (e.g. '€283k of annual Stage-2 charge rebalanced')."},
       {"step_number": 6, "instruction": "Promote: ⋯ menu → **Promote**. Permission per [F-AC-01]: controllers always allowed; other roles need an explicit RolePermissionGrant for `entity_type='btc_profile'` or `'distribution'`. Promotion materialises overlays onto canonical rows and creates a `ScenarioPromotion` audit row."},
       {"step_number": 7, "instruction": "See also: workflow W06.5 in `docs/workflows/06-simulator.md`."}
     ]

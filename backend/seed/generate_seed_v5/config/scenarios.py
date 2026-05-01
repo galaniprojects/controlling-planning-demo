@@ -121,9 +121,9 @@ SCENARIOS: list[dict] = [
                 "impact_delta_json": (
                     '{"to_business_pct_delta": 0, '
                     '"location_amount_delta_eur": ['
-                    '{"charging_location_id": "cl-de-muc", "delta": -228000}, '
-                    '{"charging_location_id": "cl-pl-poz", "delta":  114000}, '
-                    '{"charging_location_id": "cl-cz-prg", "delta":  114000}'
+                    '{"charging_location_id": "cl-de-muc", "delta": -283282}, '
+                    '{"charging_location_id": "cl-pl-poz", "delta":  141641}, '
+                    '{"charging_location_id": "cl-cz-prg", "delta":  141641}'
                     ']}'
                 ),
             },
