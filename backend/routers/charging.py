@@ -35,6 +35,7 @@ from schemas.chargeable_entity import (
 )
 from schemas.rollup import (
     EntityAllocationBreakdownResponse, EntityAllocationBreakdownRow,
+    LocationBreakdownResponse,
     RollupCacheStatusResponse, RollupDrillDownResponse, RollupListResponse,
 )
 from schemas.charging import (
@@ -69,7 +70,8 @@ from services.rollup_cache import (
     invalidate_for_distribution_write, invalidate_for_entity_cost_write,
 )
 from services.rollup_query import (
-    drill_down_charging_location, query_entity_allocation_breakdown, query_rollup,
+    drill_down_charging_location, get_location_breakdown,
+    query_entity_allocation_breakdown, query_rollup,
 )
 from services.wbs_generator import build_wbs_element
 
@@ -1650,6 +1652,60 @@ def get_rollup_drill_down(
             {"path": p.path, "path_labels": p.path_labels}
             for p in result.paths
         ],
+    )
+
+
+@charging_router.get(
+    "/locations/{cl_id}/breakdown",
+    response_model=LocationBreakdownResponse,
+)
+def get_location_breakdown_endpoint(
+    cl_id: str,
+    year: int,
+    version: str = "forecast",
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> LocationBreakdownResponse:
+    """Per-charging-location BTC-weighted breakdown for the rollup map's
+    level-4 drill. Returns chargeable-entity inflows + legal entities at the
+    location.
+    """
+    try:
+        result = get_location_breakdown(db, cl_id, year, version)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+    return LocationBreakdownResponse(
+        charging_location_id=result.charging_location_id,
+        charging_location_code=result.charging_location_code,
+        charging_location_name=result.charging_location_name,
+        region_name=result.region_name,
+        division=result.division,
+        country_iso_code=result.country_iso_code,
+        year=result.year,
+        version=result.version,
+        total_amount_eur=result.total_amount_eur,
+        legal_entities=[
+            {"id": le.id, "code": le.code, "name": le.name}
+            for le in result.legal_entities
+        ],
+        chargeable_entities=[
+            {
+                "entity_id": e.entity_id,
+                "identifier": e.identifier,
+                "name": e.name,
+                "entity_type": e.entity_type,
+                "doi": e.doi,
+                "is_change_or_run": e.is_change_or_run,
+                "percentage": e.percentage,
+                "amount_eur": e.amount_eur,
+                "share_pct": e.share_pct,
+            }
+            for e in result.chargeable_entities
+        ],
+        total=len(result.chargeable_entities),
     )
 
 
