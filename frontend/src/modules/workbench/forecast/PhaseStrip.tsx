@@ -17,7 +17,7 @@
  * forecast boundary. Colours follow the same semantic convention used by
  * `MilestonesTab` (gray for baseline marker, red for slip).
  */
-import { Fragment, useMemo } from 'react';
+import { Fragment, useMemo, type ReactNode } from 'react';
 import { TableHead, TableRow } from '@/components/ui/table';
 import {
   Tooltip,
@@ -104,8 +104,8 @@ export function PhaseStrip({ columns, milestones }: PhaseStripProps) {
 function renderSegmentCells(
   columns: readonly PhaseStripColumn[],
   segments: readonly PhaseSegment[],
-): React.ReactNode[] {
-  const cells: React.ReactNode[] = [];
+): ReactNode[] {
+  const cells: ReactNode[] = [];
   // Map from startIndex → segment for O(1) jump-skip during iteration.
   const segByStart = new Map<number, PhaseSegment>();
   for (const s of segments) segByStart.set(s.startIndex, s);
@@ -207,7 +207,7 @@ function PhaseSegmentCell({ segment }: PhaseSegmentCellProps) {
  * "right-edge of phase" anchoring which still communicates the slip
  * direction at a glance. Hover tooltip carries the precise dates.
  */
-function renderSlipIndicator(phase: PhaseInfo, span: number): React.ReactNode {
+function renderSlipIndicator(phase: PhaseInfo, span: number): ReactNode {
   if (span <= 0) return null;
   if (phase.slipMonths > 0) {
     // Baseline triangle sits left of the trailing edge by `slipMonths` months
