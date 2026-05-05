@@ -544,5 +544,46 @@
       {"step_number": 6, "instruction": "**Jump buttons** next to each KPI scroll the list to the relevant rank. **Within cutoff** filter narrows to funded projects (above Reality + Type 3 pre-funded). Sort override (e.g. by Composite score descending) suppresses the cutoff bands."},
       {"step_number": 7, "instruction": "See also: workflow W11.3 in `docs/workflows/11-tech-navigator-and-backlog.md` and `[A-BK-14..17]` decision tags."}
     ]
+  },
+  {
+    "id": "faq-v5-16",
+    "question": "How does cost flow end-to-end from an internal service to a charged legal entity?",
+    "summary": "v5's two-stage cost model: Stage 1 distributes own-cost across services via percentage edges (DAG-resolved); Stage 2 splits each entity's effective cost across charging locations via BTC profiles. The Charging module visualises both stages.",
+    "applicable_roles": ["controller", "executive", "cost_center_owner", "project_lead"],
+    "modules_involved": ["charging"],
+    "steps": [
+      {"step_number": 1, "instruction": "Open the **Charging & Allocations** module. The four left-rail sections walk top-to-bottom through the cost flow: Distribution → BTC Profiles → Location Cost Rollup → Reporting bridge.", "target_module": "charging"},
+      {"step_number": 2, "instruction": "**Stage 1 — Distribution.** Each ChargeableEntity (Project / Offering / InternalService) has an own-cost (annual_cost or project budget). It can route portions of cost to other entities via percentage edges. The DAG resolver computes effective_cost = own_cost + Σ(upstream.effective_cost × edge_percentage). Cycles are hard-blocked at save."},
+      {"step_number": 3, "instruction": "**Stage 2 — BTC Profile.** The remaining `to_business_pct` × effective_cost is split across charging locations using a BTC profile. Manual mode: controller authors lines summing to 100. Automatic mode: snapshotted from the User Measurement matrix for the entity's S-code."},
+      {"step_number": 4, "instruction": "**Location Cost Rollup.** The map view visualises Stage 2 totals per country. Click a country to drill into its charging-location bubbles. Click a location to open a side panel showing chargeable-entity inflows + the legal entities operating at that location."},
+      {"step_number": 5, "instruction": "**Worked example: Master Data Hub.** off-mdh has a 4-edge upstream chain (Identity Auth 30%, Infra Platform 18%, Data Platform 20%, IAM Run 12%) → effective cost ≈ €2.83M → 95% to-business → BTC splits across 17 charging locations including CL-DE-MUC (Munich) at 16.19%. The DE-Munich legal entities (LE-DE-001..004) ultimately receive that share of MDH's running cost."}
+    ]
+  },
+  {
+    "id": "faq-v5-17",
+    "question": "How do I filter the audit log by category?",
+    "summary": "Admin → Audit Log groups events into 8 categories: master_data, configuration, hierarchy, forecast_actions, pipeline_transitions, simulator, access_control, scheduled_change_lifecycle. Filter chips at the top let you focus on one category at a time.",
+    "applicable_roles": ["controller"],
+    "modules_involved": ["admin"],
+    "steps": [
+      {"step_number": 1, "instruction": "As **Anna Meier** (Controller), navigate to **Admin → Audit Log**.", "target_module": "admin"},
+      {"step_number": 2, "instruction": "The category filter chips along the top let you isolate events. Most demo-relevant: **pipeline_transitions** (project send-back / resubmit / DoI advancement), **simulator** (scenario create / promote / archive), **scheduled_change_lifecycle** (the 5-state lifecycle), **master_data** (entity CRUD)."},
+      {"step_number": 3, "instruction": "Combine category with date range and entity_type filters to narrow further. Use Export CSV to hand off the filtered slice."},
+      {"step_number": 4, "instruction": "Every write site in the codebase passes `category=` keyword-only at audit time, so coverage is exhaustive — there is no 'uncategorised' bucket."}
+    ]
+  },
+  {
+    "id": "faq-v5-18",
+    "question": "How do I drill into a specific charging location on the rollup map?",
+    "summary": "On the Charging Rollup map, click a country bubble to drill into per-location bubbles, then click a location bubble to open a side panel with chargeable-entity inflows + legal entities. Map state is preserved underneath so you can drill multiple locations in sequence.",
+    "applicable_roles": ["controller", "executive", "cost_center_owner"],
+    "modules_involved": ["charging"],
+    "steps": [
+      {"step_number": 1, "instruction": "Navigate to **Charging & Allocations → Location Cost Rollup**. The map view loads by default, country bubbles sized by total Stage-2 € and coloured by dominant division.", "target_module": "charging"},
+      {"step_number": 2, "instruction": "Click a country bubble (e.g. Germany). The map redraws with charging-location bubbles arranged around the country centroid. A 'Back to country view' button appears at the top."},
+      {"step_number": 3, "instruction": "Click any charging-location bubble. A side panel opens titled `<Country> → <Location>` with: Total cost flowing through this location, the legal entities operating there (chip list), and the chargeable entities flowing in (Amount + Share % per row)."},
+      {"step_number": 4, "instruction": "**Why aren't legal-entity costs split?** BTC Stage 2 splits to a charging location, not to a legal entity. One charging location commonly hosts several legal entities (e.g. CL-DE-MUC has 4: LE-DE-001..004). The data model has no per-LE allocation rule, so legal entities are shown as informational metadata."},
+      {"step_number": 5, "instruction": "Close the panel — the map stays drilled into the country so you can click another location bubble immediately."}
+    ]
   }
 ]
