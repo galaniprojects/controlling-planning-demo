@@ -503,6 +503,138 @@ class TestBuildMixedGridBaselineActuals:
 
 
 # ---------------------------------------------------------------------------
+# 4c. build_mixed_grid with lookback_months (v5.1 W3 pre-work)
+# ---------------------------------------------------------------------------
+
+class TestBuildMixedGridLookback:
+    """v5.1 W3: lookback_months extends the inner monthly window backwards
+    so past months render alongside future ones. Capture-version snapshots
+    keep the v5 column model (lookback defaults to None).
+    """
+
+    def test_default_starts_at_demo_date(self, db, seeded_project_with_history, horizon_params):
+        """No lookback → first column == demo_date (v5 behaviour preserved)."""
+        grid = build_mixed_grid(
+            db, "proj-c08", "2026-04",
+            include_baseline_actuals=True,
+            boundary_months=12, horizon_months=12,
+        )
+        first_monthly = next(c for c in grid["columns"] if c["cell_type"] == "monthly")
+        assert first_monthly["key"] == "2026-04"
+        assert "2026-03" not in {c["key"] for c in grid["columns"]}
+
+    def test_lookback_zero_equivalent_to_default(
+        self, db, seeded_project_with_history, horizon_params,
+    ):
+        """lookback_months=0 must be byte-identical to the no-lookback path."""
+        baseline = build_mixed_grid(
+            db, "proj-c08", "2026-04",
+            include_baseline_actuals=True,
+            boundary_months=12, horizon_months=12,
+        )
+        explicit = build_mixed_grid(
+            db, "proj-c08", "2026-04",
+            include_baseline_actuals=True,
+            boundary_months=12, horizon_months=12,
+            lookback_months=0,
+        )
+        assert [c["key"] for c in baseline["columns"]] == [c["key"] for c in explicit["columns"]]
+        assert baseline["grand_total"] == explicit["grand_total"]
+
+    def test_lookback_three_adds_three_past_columns(
+        self, db, seeded_project_with_history, horizon_params,
+    ):
+        """lookback_months=3 surfaces 2026-01..2026-03 ahead of demo_date."""
+        grid = build_mixed_grid(
+            db, "proj-c08", "2026-04",
+            include_baseline_actuals=True,
+            boundary_months=12, horizon_months=12,
+            lookback_months=3,
+        )
+        keys = [c["key"] for c in grid["columns"] if c["cell_type"] == "monthly"]
+        assert keys[:4] == ["2026-01", "2026-02", "2026-03", "2026-04"]
+        # All of the lookback columns are monthly — quarterly outer zone
+        # only ever sits beyond boundary_month.
+        for k in ["2026-01", "2026-02", "2026-03"]:
+            col = next(c for c in grid["columns"] if c["key"] == k)
+            assert col["cell_type"] == "monthly"
+
+    def test_past_columns_carry_forecast_baseline_actuals(
+        self, db, seeded_project_with_history, horizon_params,
+    ):
+        """Each past month surfaces all three series — the C-08 frontend
+        decides which is primary based on the cell key vs demo_date."""
+        grid = build_mixed_grid(
+            db, "proj-c08", "2026-04",
+            include_baseline_actuals=True,
+            boundary_months=12, horizon_months=12,
+            lookback_months=3,
+        )
+        row = next(r for r in grid["rows"] if r["sub_category"] == "role-dev")
+        for k in ["2026-01", "2026-02"]:
+            cell = next(c for c in row["cells"] if c["key"] == k)
+            assert cell["baseline_amount_eur"] == 10000.0
+            assert cell["actuals_amount_eur"] == 10500.0  # past kind
+            assert cell["amount_eur"] == 11000.0
+            # Past months are fully closed → not partial.
+            assert cell["actuals_partial"] in (None, False)
+
+    def test_past_overrun_month_visible(
+        self, db, seeded_project_with_history, horizon_params,
+    ):
+        """The seeded 2026-03 overrun (actuals > forecast) surfaces in
+        the lookback window so the warm-tint cell can render."""
+        grid = build_mixed_grid(
+            db, "proj-c08", "2026-04",
+            include_baseline_actuals=True,
+            boundary_months=12, horizon_months=12,
+            lookback_months=3,
+        )
+        row = next(r for r in grid["rows"] if r["sub_category"] == "role-dev")
+        cell = next(c for c in row["cells"] if c["key"] == "2026-03")
+        assert cell["actuals_amount_eur"] == 13500.0
+        assert cell["amount_eur"] == 11000.0
+        assert cell["actuals_amount_eur"] > cell["amount_eur"]
+
+    def test_lookback_does_not_create_quarterly_past(
+        self, db, seeded_project_with_history, horizon_params,
+    ):
+        """Quarterly outer zone must remain forward-only even with lookback."""
+        grid = build_mixed_grid(
+            db, "proj-c08", "2026-04",
+            include_baseline_actuals=True,
+            boundary_months=3, horizon_months=12,
+            lookback_months=3,
+        )
+        for col in grid["columns"]:
+            if col["cell_type"] == "quarterly":
+                # Quarter key is YYYY-QN — extract the year and quarter.
+                year, q = col["key"].split("-Q")
+                # First quarter past boundary_month=2026-06 → 2026-Q3.
+                assert (int(year), int(q)) >= (2026, 3)
+
+    def test_capture_version_unaffected_by_lookback_default(
+        self, db, seeded_project, horizon_params, controller,
+    ):
+        """capture_version doesn't pass lookback_months — payloads stay v5."""
+        from services.forecast_versioning import capture_version
+        fv = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.commit()
+        payload = json.loads(fv.payload_json)
+        # All cells in the snapshot should sit at or after demo_date.
+        for row in payload["rows"]:
+            for cell in row["cells"]:
+                key = cell["key"]
+                if cell["cell_type"] == "monthly":
+                    assert key >= "2026-04"
+                else:
+                    # Quarter key like 2027-Q1 — first month must be >= demo.
+                    year, q = key.split("-Q")
+                    first_month = f"{year}-{(int(q) - 1) * 3 + 1:02d}"
+                    assert first_month >= "2026-04"
+
+
+# ---------------------------------------------------------------------------
 # 5. serialize_forecast_payload
 # ---------------------------------------------------------------------------
 

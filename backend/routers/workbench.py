@@ -1494,6 +1494,17 @@ def get_forecast_grid(
         default=None,
         description="Override for planning_horizon_months",
     ),
+    lookback_months: int = Query(
+        default=12,
+        ge=0,
+        le=36,
+        description=(
+            "v5.1 W3: number of past months rendered before demo_date in "
+            "the inner monthly window. Default 12 covers the prior calendar "
+            "year of actuals. 0 reverts to the v5 column model "
+            "(start at demo_date)."
+        ),
+    ),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -1518,6 +1529,8 @@ def get_forecast_grid(
     # v5.1 C-08: include baseline + actuals overlays so the UI can render
     # the three-point cell stack. capture_version() still defaults to
     # include_baseline_actuals=False so version snapshots stay forecast-only.
+    # v5.1 W3: lookback_months extends the inner monthly window backwards
+    # so past months (with full actuals) render alongside future ones.
     grid = build_mixed_grid(
         db=db,
         project_id=project_id,
@@ -1526,6 +1539,7 @@ def get_forecast_grid(
         boundary_months=boundary_months,
         horizon_months=horizon_months,
         include_baseline_actuals=True,
+        lookback_months=lookback_months,
     )
     return grid
 

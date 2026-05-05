@@ -227,3 +227,124 @@ class TestForecastGrid:
         assert future_cell["actuals_hours"] is None
         assert future_cell["baseline_amount_eur"] == 900.0
         assert future_cell["amount_eur"] == 1100.0
+
+    # ------------------------------------------------------------------
+    # v5.1 W3 — lookback_months query parameter
+    # ------------------------------------------------------------------
+
+    def _make_project_with_history(
+        self, db, seed_personas, create_test_project, project_id="proj-alpha"
+    ):
+        """Project with baseline + forecast + actuals from 2026-01 through 2026-06."""
+        from models.system import PlanningParameter
+        existing_keys = {r.key for r in db.query(PlanningParameter).all()}
+        if "granularity_boundary_months" not in existing_keys:
+            db.add(PlanningParameter(
+                key="granularity_boundary_months", name="Boundary",
+                description="", current_value="12", default_value="12",
+                data_type="integer", param_group="planning",
+            ))
+        if "planning_horizon_months" not in existing_keys:
+            db.add(PlanningParameter(
+                key="planning_horizon_months", name="Horizon",
+                description="", current_value="60", default_value="60",
+                data_type="integer", param_group="planning",
+            ))
+        db.commit()
+        return create_test_project(
+            project_id,
+            months=[
+                "2026-01", "2026-02", "2026-03",  # past (lookback target)
+                "2026-04",                         # current
+                "2026-05", "2026-06",              # future
+            ],
+            baseline_amt=900,
+            forecast_amt=1100,
+            actuals_amt=950,
+        )
+
+    def test_grid_default_lookback_renders_past_months(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """Default lookback (12 months) means past months render alongside future."""
+        self._make_project_with_history(db, seed_personas, create_test_project)
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid?granularity=monthly",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        keys = [c["key"] for c in data["columns"]]
+        assert "2026-01" in keys
+        assert "2026-03" in keys
+        assert "2026-04" in keys
+
+    def test_grid_lookback_zero_starts_at_demo(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """lookback_months=0 reverts to the v5 column model (start at demo_date)."""
+        self._make_project_with_history(db, seed_personas, create_test_project)
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid?granularity=monthly&lookback_months=0",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        keys = [c["key"] for c in data["columns"]]
+        assert keys[0] == "2026-04"
+        assert "2026-03" not in keys
+
+    def test_grid_lookback_three_yields_three_past_months(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """lookback_months=3 surfaces 2026-01..2026-03."""
+        self._make_project_with_history(db, seed_personas, create_test_project)
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid?granularity=monthly&lookback_months=3",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        monthly_keys = [c["key"] for c in data["columns"] if c["cell_type"] == "monthly"]
+        assert monthly_keys[:4] == ["2026-01", "2026-02", "2026-03", "2026-04"]
+
+    def test_grid_past_cells_carry_actuals_overlay(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """Past months carry baseline + forecast + actuals so the C-08
+        three-point past-month layout has data to render."""
+        self._make_project_with_history(db, seed_personas, create_test_project)
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid?granularity=monthly&lookback_months=3",
+            headers=HEADERS_CTRL,
+        )
+        data = resp.json()
+        row = data["rows"][0]
+        past_cell = next(c for c in row["cells"] if c["key"] == "2026-02")
+        assert past_cell["baseline_amount_eur"] == 900.0
+        assert past_cell["amount_eur"] == 1100.0
+        assert past_cell["actuals_amount_eur"] == 950.0
+        # Past months are fully closed — not partial.
+        assert past_cell["actuals_partial"] in (None, False)
+
+    def test_grid_lookback_above_max_rejected(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """lookback_months is bounded to 36 — anything larger is a 422."""
+        self._make_project_with_history(db, seed_personas, create_test_project)
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid?lookback_months=120",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 422
+
+    def test_grid_lookback_negative_rejected(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """Negative lookback_months must be rejected by the FastAPI Query gate."""
+        self._make_project_with_history(db, seed_personas, create_test_project)
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid?lookback_months=-1",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 422
