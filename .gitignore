@@ -31,3 +31,14 @@ Thumbs.db
 
 # Local guide/spec documents (not synced to GitHub)
 guides/
+
+# QA / screenshots — local-only artefacts from manual + MCP visual verification.
+# Keep the directory itself (via .gitkeep) but never commit screenshots.
+qa/screenshots/*
+!qa/screenshots/.gitkeep
+
+# Playwright / Chrome DevTools MCP session artefacts
+.playwright-mcp/
+
+# Agent-team worktrees scratch dir
+.claude/worktrees/
