@@ -124,7 +124,7 @@ export function VarianceWaterfallChart({
     <ResponsiveContainer width="100%" height={height}>
       <BarChart
         data={rows}
-        margin={{ top: 16, right: 16, left: 0, bottom: 16 }}
+        margin={{ top: 16, right: 16, left: 0, bottom: 64 }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
         <XAxis
@@ -133,6 +133,9 @@ export function VarianceWaterfallChart({
           axisLine={{ stroke: 'var(--chart-grid)' }}
           tickLine={false}
           interval={0}
+          angle={-45}
+          textAnchor="end"
+          height={70}
         />
         <YAxis
           tick={{ fontSize: 11, fill: 'var(--chart-axis)' }}

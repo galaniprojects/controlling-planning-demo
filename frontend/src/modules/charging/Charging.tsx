@@ -9,6 +9,23 @@
  *
  * Sidebar pattern matches the Cluster D admin module per [E-07c]. Section
  * persists in the `?section=` query param so deep links and back/forward work.
+ *
+ * Access policy [A-05] / [F-AC-01]:
+ *  - **Controller** (Anna Meier) — full access, may create / edit / delete
+ *    distributions, BTC profiles, rollups.
+ *  - **CC Owner / Project Lead / Executive** — read-only. The module shell
+ *    mounts and read endpoints render normally; mutation buttons within
+ *    subsections are progressively hidden as the relevant subsection
+ *    components add the `readOnly` prop. Backend enforcement
+ *    (`require_role("controller")` on POST/PUT/DELETE) is the source of
+ *    truth — even if a stray edit control slips through, the API will
+ *    reject the request with 403.
+ *
+ * TODO [A-05]: thread `readOnly` (computed from `useRole().context?.role`)
+ * into the four sub-views so Save / Delete / Add buttons hide for
+ * non-controllers. Out of scope for the wave-1 frontend gate flip; the
+ * backend role gate (Teammate C) already prevents mutation regardless of
+ * UI state.
  */
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
