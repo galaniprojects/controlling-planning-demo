@@ -16,9 +16,11 @@
  * carries the canonical `entity_type`).
  */
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WorkbenchBTCTab } from './btc/WorkbenchBTCTab';
 import { chargingApi } from '@/api/endpoints';
@@ -46,9 +48,25 @@ function entityTypeLabel(type: string): string {
 }
 
 export function EntityWorkspace({ entityId }: Props) {
+  const navigate = useNavigate();
   const [entity, setEntity] = useState<ChargeableEntityItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // v5.1 [A-01 fix] — top-level Back to Run Portfolio. EntityWorkspace is
+  // routed via /workbench?entity=<id>&type=<...> from the Run Portfolio list,
+  // so the back affordance has to navigate the URL itself; the inner
+  // EntityDistributionEditor / EntityBTCProfileEditor "Back" buttons are
+  // no-ops in this context (they assume a parent list inside the Charging
+  // module). Using navigate(-1) preserves filter + scroll state from the
+  // Run list, falling forward to /portfolio/run if there's no history entry.
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/portfolio/run');
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -84,17 +102,25 @@ export function EntityWorkspace({ entityId }: Props) {
 
   if (error || !entity) {
     return (
-      <Card className="border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4 flex items-start gap-2">
-        <AlertTriangle className="h-4 w-4 text-red-700 dark:text-red-400 mt-0.5" />
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-red-800 dark:text-red-300">
-            Entity unavailable
-          </p>
-          <p className="text-xs text-red-700 dark:text-red-400">
-            {error ?? 'No chargeable entity matches this id.'}
-          </p>
+      <div className="space-y-3">
+        <div className="flex items-center">
+          <Button variant="ghost" size="sm" onClick={handleBack} className="-ml-2">
+            <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+            Back to Run Portfolio
+          </Button>
         </div>
-      </Card>
+        <Card className="border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-red-700 dark:text-red-400 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">
+              Entity unavailable
+            </p>
+            <p className="text-xs text-red-700 dark:text-red-400">
+              {error ?? 'No chargeable entity matches this id.'}
+            </p>
+          </div>
+        </Card>
+      </div>
     );
   }
 
@@ -105,6 +131,14 @@ export function EntityWorkspace({ entityId }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* v5.1 [A-01 fix] — Back to Run Portfolio. Sits above the entity
+          header strip so it's the first interactive element on the page. */}
+      <div className="flex items-center">
+        <Button variant="ghost" size="sm" onClick={handleBack} className="-ml-2">
+          <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+          Back to Run Portfolio
+        </Button>
+      </div>
       {/* Entity header strip */}
       <Card className="px-5 py-4">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
