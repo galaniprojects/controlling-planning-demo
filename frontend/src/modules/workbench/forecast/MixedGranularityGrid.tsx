@@ -35,13 +35,14 @@ import {
 } from '@/components/ui/tooltip';
 import { ChevronDown, ChevronRight, Info } from 'lucide-react';
 import { formatCurrencyCompact, formatNumber } from '@/lib/formatters';
+import { isElapsedMonth } from '@/lib/yearColumns';
 import { workbenchApi } from '@/api/endpoints';
 import {
   lookupDelta as lookupDeltaHelper,
   isMeaningfulDelta,
 } from '@/modules/simulator/lib/cellDiffHelpers';
 import { useCollapsibleMixedYears } from '@/hooks/useCollapsibleYears';
-import { ForecastCell } from './ForecastCell';
+import { ForecastCell, type CellTemporalContext } from './ForecastCell';
 import type {
   CellDelta,
   MixedGridCell,
@@ -72,6 +73,11 @@ const MONTH_SHORT = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
+
+// v5.1 C-08 — demo date for temporal-context classification. Mirrors the
+// backend `config.DEMO_DATE` and `lib/yearColumns` constant; April 2026 is
+// the canonical demo "today" per CLAUDE.md.
+const DEMO_DATE = '2026-04';
 
 function formatColumnLabel(col: MixedGridColumn): string {
   if (col.cell_type === 'monthly') {
@@ -321,17 +327,32 @@ export function MixedGranularityGrid({
     return lookupDeltaHelper(deltaIndex, comparisonActive, category, sub, key);
   }
 
-  function getDisplayCell(
-    row: MixedGridRow,
-    col: MixedGridColumn,
-  ): { hours: number; amount: number; provisional: boolean; lookupKey: string } {
+  interface DisplayCell {
+    hours: number;
+    amount: number;
+    provisional: boolean;
+    lookupKey: string;
+    // v5.1 C-08 overlays + temporal context
+    baselineHours: number | null;
+    baselineAmount: number | null;
+    actualsHours: number | null;
+    actualsAmount: number | null;
+    actualsPartial: boolean | null;
+    temporalContext: CellTemporalContext;
+  }
+
+  function getDisplayCell(row: MixedGridRow, col: MixedGridColumn): DisplayCell {
     if (col.key.includes('::expanded::')) {
       // Synthesised monthly cell from an expanded quarter: divide quarterly
-      // total by 3 to give an indicative monthly value (UI-only).
+      // total by 3 to give an indicative monthly value (UI-only). The
+      // overlay series follow the same proportional divide so the stack
+      // stays consistent across expanded sub-cells.
       const [parentQuarter, , month] = col.key.split('::');
       const parentCell = findCell(row, parentQuarter);
       const constituent = quarterMonths(parentQuarter);
       const n = constituent.length;
+      const div = (v: number | null | undefined) =>
+        v === null || v === undefined ? null : Math.round((v / n) * 100) / 100;
       const hours = parentCell ? parentCell.hours / n : 0;
       const amount = parentCell ? parentCell.amount_eur / n : 0;
       return {
@@ -339,6 +360,12 @@ export function MixedGranularityGrid({
         amount: Math.round(amount * 100) / 100,
         provisional: parentCell?.is_provisional ?? false,
         lookupKey: month,
+        baselineHours: div(parentCell?.baseline_hours),
+        baselineAmount: div(parentCell?.baseline_amount_eur),
+        actualsHours: div(parentCell?.actuals_hours),
+        actualsAmount: div(parentCell?.actuals_amount_eur),
+        actualsPartial: parentCell?.actuals_partial ?? null,
+        temporalContext: classifyTemporalContext(month),
       };
     }
     const cell = findCell(row, col.key);
@@ -347,7 +374,44 @@ export function MixedGranularityGrid({
       amount: cell?.amount_eur ?? 0,
       provisional: cell?.is_provisional ?? false,
       lookupKey: col.key,
+      baselineHours: cell?.baseline_hours ?? null,
+      baselineAmount: cell?.baseline_amount_eur ?? null,
+      actualsHours: cell?.actuals_hours ?? null,
+      actualsAmount: cell?.actuals_amount_eur ?? null,
+      actualsPartial: cell?.actuals_partial ?? null,
+      temporalContext: classifyTemporalContext(col.key, cell?.actuals_partial ?? null),
     };
+  }
+
+  /**
+   * Map a cell key to its temporal context relative to the demo date.
+   *
+   * - Monthly key strictly < demo date → past
+   * - Monthly key === demo date OR cell flagged actuals_partial → current
+   * - Otherwise → future
+   *
+   * Quarterly keys ('YYYY-QN'): if the backend marked the cell partial it
+   * means the demo month is one of the constituents → current. If the entire
+   * quarter is in the past (last constituent month < demo date) → past.
+   * Anything else → future.
+   */
+  function classifyTemporalContext(
+    key: string,
+    actualsPartial: boolean | null = null,
+  ): CellTemporalContext {
+    if (actualsPartial) return 'current';
+    if (key.length === 7 && key[5] === 'Q') {
+      // Quarterly: derive last constituent month for past detection
+      const year = parseInt(key.slice(0, 4), 10);
+      const qNum = parseInt(key.slice(6), 10);
+      const lastMonthNum = qNum * 3;
+      const lastMonth = `${year}-${String(lastMonthNum).padStart(2, '0')}`;
+      if (isElapsedMonth(lastMonth)) return 'past';
+      return 'future';
+    }
+    if (isElapsedMonth(key)) return 'past';
+    if (key === DEMO_DATE) return 'current';
+    return 'future';
   }
 
   function isBoundaryColumn(col: MixedGridColumn, idx: number): boolean {
@@ -588,6 +652,11 @@ export function MixedGranularityGrid({
                 hours: display.hours,
                 amount: display.amount,
                 provisional: display.provisional,
+                baselineHours: display.baselineHours,
+                baselineAmount: display.baselineAmount,
+                actualsHours: display.actualsHours,
+                actualsAmount: display.actualsAmount,
+                actualsPartial: display.actualsPartial,
               }}
               delta={delta}
               hasChange={hasChange}
@@ -595,6 +664,7 @@ export function MixedGranularityGrid({
               boundary={boundary}
               isQuarterly={isQuarterly}
               isExpandedSub={isExpandedSub}
+              temporalContext={display.temporalContext}
             />
           );
         })}
