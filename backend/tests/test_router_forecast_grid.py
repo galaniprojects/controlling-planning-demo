@@ -139,3 +139,91 @@ class TestForecastGrid:
         data = resp.json()
         col_sum = round(sum(data["totals_by_column"].values()), 2)
         assert col_sum == data["grand_total"]
+
+    # ------------------------------------------------------------------
+    # v5.1 C-08 — three-point cell payload (baseline + forecast + actuals)
+    # ------------------------------------------------------------------
+
+    def _make_project_with_three_series(
+        self, db, seed_personas, create_test_project, project_id="proj-alpha"
+    ):
+        """Variant that also seeds actuals so the C-08 overlay is exercised."""
+        from models.system import PlanningParameter
+        existing_keys = {r.key for r in db.query(PlanningParameter).all()}
+        if "granularity_boundary_months" not in existing_keys:
+            db.add(PlanningParameter(
+                key="granularity_boundary_months", name="Boundary",
+                description="", current_value="12", default_value="12",
+                data_type="integer", param_group="planning",
+            ))
+        if "planning_horizon_months" not in existing_keys:
+            db.add(PlanningParameter(
+                key="planning_horizon_months", name="Horizon",
+                description="", current_value="60", default_value="60",
+                data_type="integer", param_group="planning",
+            ))
+        db.commit()
+        # Pass actuals_amt so create_test_project also seeds Actuals rows.
+        return create_test_project(
+            project_id,
+            months=["2026-04", "2026-05", "2026-06"],
+            baseline_amt=900,
+            forecast_amt=1100,
+            actuals_amt=950,
+        )
+
+    def test_grid_cells_carry_three_point_overlay_keys(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """Live grid response must include the C-08 overlay fields on every cell."""
+        self._make_project_with_three_series(db, seed_personas, create_test_project)
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid?granularity=monthly",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        rows = data["rows"]
+        assert rows
+        first_cell = rows[0]["cells"][0]
+        for key in (
+            "baseline_amount_eur", "baseline_hours",
+            "actuals_amount_eur", "actuals_hours",
+            "actuals_partial",
+        ):
+            assert key in first_cell
+
+    def test_grid_demo_month_marks_partial_actuals(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """The demo month (2026-04) must report actuals_partial=True."""
+        self._make_project_with_three_series(db, seed_personas, create_test_project)
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid?granularity=monthly",
+            headers=HEADERS_CTRL,
+        )
+        data = resp.json()
+        row = data["rows"][0]
+        demo_cell = next(c for c in row["cells"] if c["key"] == "2026-04")
+        assert demo_cell["actuals_amount_eur"] == 950.0
+        assert demo_cell["baseline_amount_eur"] == 900.0
+        assert demo_cell["amount_eur"] == 1100.0
+        assert demo_cell["actuals_partial"] is True
+
+    def test_grid_future_months_have_no_actuals(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """Months strictly after the demo date must omit actuals."""
+        self._make_project_with_three_series(db, seed_personas, create_test_project)
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid?granularity=monthly",
+            headers=HEADERS_CTRL,
+        )
+        data = resp.json()
+        row = data["rows"][0]
+        future_cell = next(c for c in row["cells"] if c["key"] == "2026-05")
+        # Future month: forecast + baseline only, no actuals.
+        assert future_cell["actuals_amount_eur"] is None
+        assert future_cell["actuals_hours"] is None
+        assert future_cell["baseline_amount_eur"] == 900.0
+        assert future_cell["amount_eur"] == 1100.0

@@ -27,7 +27,7 @@ from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from models.financial import Forecast, ForecastVersion
+from models.financial import Actuals, Baseline, Forecast, ForecastVersion
 from models.projects import Project
 from models.system import PlanningParameter
 from schemas.common import CurrentUser
@@ -153,6 +153,7 @@ def build_mixed_grid(
     granularity: str = "mixed",
     boundary_months: int | None = None,
     horizon_months: int | None = None,
+    include_baseline_actuals: bool = False,
 ) -> dict:
     """Build the mixed-granularity forecast grid for a project.
 
@@ -160,6 +161,11 @@ def build_mixed_grid(
         granularity: 'mixed' (default), 'monthly', or 'quarterly'.
         boundary_months: override for granularity_boundary_months.
         horizon_months: override for planning_horizon_months.
+        include_baseline_actuals: when True (v5.1 C-08), each cell carries
+            ``baseline_*`` / ``actuals_*`` overlays alongside the forecast
+            values so the UI can render the three-point stack. Default False
+            keeps ForecastVersion snapshots forecast-only (smaller payloads,
+            no behavioural change for v4 / v5 callers).
 
     Returns a dict matching the MixedGridResponse schema.
     """
@@ -169,6 +175,20 @@ def build_mixed_grid(
 
     boundary_month = compute_boundary_month(demo_date, b_months)
     horizon_end_month = compute_horizon_end_month(demo_date, h_months)
+
+    # ---------------------------------------------------------------------
+    # v5.1 C-08: derive the inclusive month range we need to fetch. For the
+    # forecast we follow the existing rule (demo_date .. horizon_end_month),
+    # but baseline + actuals can pre-date demo_date — past actuals/baselines
+    # belong to the elapsed past months we render alongside future data when
+    # the caller asks for them. The router never goes earlier than demo_date
+    # in the column model, so for the live grid the past-month branch only
+    # surfaces cells whose key falls inside the column window. We still
+    # query from demo_date forward for the live grid; the past-zone display
+    # rule lives in the frontend (cell key < demo_date → show actuals as
+    # primary). When the live grid evolves to render past months the same
+    # query pattern extends naturally.
+    # ---------------------------------------------------------------------
 
     # Fetch all forecast rows for this project
     fc_rows = (
@@ -203,6 +223,66 @@ def build_mixed_grid(
             }
         rows_map[key]["cells"][cell_key]["hours"] += float(f.hours or 0)
         rows_map[key]["cells"][cell_key]["amount_eur"] += float(f.amount_eur)
+
+    # ---------------------------------------------------------------------
+    # v5.1 C-08: optionally fetch baseline + actuals so cells can carry the
+    # three-point stack. We index by (category, sub_category, month) to
+    # match the forecast row grouping. Hours are summed when present.
+    # ---------------------------------------------------------------------
+    baseline_index: dict[tuple[str, str, str], dict[str, float]] = {}
+    actuals_index: dict[tuple[str, str, str], dict[str, float]] = {}
+    if include_baseline_actuals:
+        # Baseline can extend past demo_date — pull everything <= horizon
+        # so the row grouping picks up line items that have a baseline but
+        # no forecast (and vice versa).
+        bl_rows = (
+            db.query(Baseline)
+            .filter(
+                Baseline.project_id == project_id,
+                Baseline.month <= horizon_end_month,
+            )
+            .all()
+        )
+        for b in bl_rows:
+            k = (b.category, b.sub_category, b.month)
+            entry = baseline_index.setdefault(k, {"hours": 0.0, "amount_eur": 0.0})
+            entry["hours"] += float(b.hours or 0)
+            entry["amount_eur"] += float(b.amount_eur)
+            # Make sure the row exists in rows_map even if no forecast row
+            # touched this (category, sub_category) — the UI still wants to
+            # show the baseline column.
+            row_key = (b.category, b.sub_category)
+            if row_key not in rows_map:
+                rows_map[row_key] = {
+                    "category": b.category,
+                    "sub_category": b.sub_category,
+                    "capex_opex": b.capex_opex,
+                    "cells": {},
+                }
+
+        # Actuals are historical — strictly past months are fully closed,
+        # the current month (demo_date) is partial.
+        ac_rows = (
+            db.query(Actuals)
+            .filter(
+                Actuals.project_id == project_id,
+                Actuals.month <= demo_date,
+            )
+            .all()
+        )
+        for a in ac_rows:
+            k = (a.category, a.sub_category, a.month)
+            entry = actuals_index.setdefault(k, {"hours": 0.0, "amount_eur": 0.0})
+            entry["hours"] += float(a.hours or 0)
+            entry["amount_eur"] += float(a.amount_eur)
+            row_key = (a.category, a.sub_category)
+            if row_key not in rows_map:
+                rows_map[row_key] = {
+                    "category": a.category,
+                    "sub_category": a.sub_category,
+                    "capex_opex": a.capex_opex,
+                    "cells": {},
+                }
 
     # Determine column headers
     monthly_months = generate_month_range(demo_date, boundary_month)
@@ -259,6 +339,26 @@ def build_mixed_grid(
                     "amount_eur": raw.get("amount_eur", 0.0),
                     "is_provisional": raw.get("is_provisional", False),
                 }
+                if include_baseline_actuals:
+                    bl = baseline_index.get((category, sub_cat, col_key))
+                    ac = actuals_index.get((category, sub_cat, col_key))
+                    cell["baseline_hours"] = (
+                        round(bl["hours"], 2) if bl is not None else None
+                    )
+                    cell["baseline_amount_eur"] = (
+                        round(bl["amount_eur"], 2) if bl is not None else None
+                    )
+                    cell["actuals_hours"] = (
+                        round(ac["hours"], 2) if ac is not None else None
+                    )
+                    cell["actuals_amount_eur"] = (
+                        round(ac["amount_eur"], 2) if ac is not None else None
+                    )
+                    # Partial = the cell month equals the demo date (current
+                    # month is in progress). Past months are fully closed.
+                    cell["actuals_partial"] = (
+                        ac is not None and col_key == demo_date
+                    )
             else:
                 # Quarterly: sum constituent months
                 q_months = quarter_constituent_months(col_key, horizon_end_month)
@@ -275,6 +375,32 @@ def build_mixed_grid(
                     "amount_eur": round(total_amt, 2),
                     "is_provisional": any_provisional,
                 }
+                if include_baseline_actuals:
+                    bl_h = 0.0
+                    bl_a = 0.0
+                    bl_seen = False
+                    ac_h = 0.0
+                    ac_a = 0.0
+                    ac_seen = False
+                    ac_partial_q = False
+                    for m in q_months:
+                        bl = baseline_index.get((category, sub_cat, m))
+                        if bl is not None:
+                            bl_seen = True
+                            bl_h += bl["hours"]
+                            bl_a += bl["amount_eur"]
+                        ac = actuals_index.get((category, sub_cat, m))
+                        if ac is not None:
+                            ac_seen = True
+                            ac_h += ac["hours"]
+                            ac_a += ac["amount_eur"]
+                            if m == demo_date:
+                                ac_partial_q = True
+                    cell["baseline_hours"] = round(bl_h, 2) if bl_seen else None
+                    cell["baseline_amount_eur"] = round(bl_a, 2) if bl_seen else None
+                    cell["actuals_hours"] = round(ac_h, 2) if ac_seen else None
+                    cell["actuals_amount_eur"] = round(ac_a, 2) if ac_seen else None
+                    cell["actuals_partial"] = ac_partial_q if ac_seen else None
 
             output_cells.append(cell)
             totals_by_column[col_key] = round(

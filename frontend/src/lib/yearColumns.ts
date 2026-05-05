@@ -49,6 +49,37 @@ export function isJanuary(month: string): boolean {
 }
 
 /**
+ * Returns true if a column key represents the start of a year — either a
+ * January monthly column ("YYYY-01") or a Q1 quarterly column ("YYYY-Q1").
+ * Used by mixed-granularity grids to apply the year-boundary visual treatment
+ * (heavier left border, bold/darker label).
+ */
+export function isYearStartColumnKey(key: string): boolean {
+  if (key.length < 7) return false;
+  const tail = key.slice(5);
+  return tail === '01' || tail === 'Q1';
+}
+
+/**
+ * Group an array of mixed-granularity column keys (mix of "YYYY-MM" and
+ * "YYYY-QN") by year. Used by the mixed-granularity grid's collapsible
+ * year columns. Synthesised "::expanded::" sub-keys are NOT expected here;
+ * collapse logic operates on the canonical column list.
+ */
+export function groupMixedKeysByYear(keys: string[]): Map<number, string[]> {
+  const map = new Map<number, string[]>();
+  for (const k of keys) {
+    if (k.length < 4) continue;
+    const year = parseInt(k.slice(0, 4), 10);
+    if (Number.isNaN(year)) continue;
+    if (!map.has(year)) map.set(year, []);
+    map.get(year)!.push(k);
+  }
+  // Preserve column order within each year (caller passes ordered keys).
+  return new Map(Array.from(map.entries()).sort(([a], [b]) => a - b));
+}
+
+/**
  * Determine which year to expand by default based on project status.
  * - Running/active projects: current year (2026)
  * - Future projects (not yet started): starting year
