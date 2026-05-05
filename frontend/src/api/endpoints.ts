@@ -288,6 +288,19 @@ export interface ModuleManual {
   sections: ModuleManualSection[];
 }
 
+export interface ChangelogSection {
+  title: string;
+  body: string;
+}
+
+export interface ChangelogEntry {
+  version: string;
+  date: string;
+  title: string;
+  summary: string;
+  sections: ChangelogSection[];
+}
+
 export const docsApi = {
   getModuleManual: (moduleId: string) =>
     api.get<ModuleManual>(`/api/docs/modules/${moduleId}`),
@@ -296,6 +309,7 @@ export const docsApi = {
   getFAQs: () => api.get<ListResponse<FAQSummary>>('/api/docs/faq'),
   getFAQDetail: (faqId: string) => api.get<FAQDetail>(`/api/docs/faq/${faqId}`),
   getAllFAQs: () => api.get<ListResponse<FAQDetail>>('/api/docs/faq/all'),
+  getChangelog: () => api.get<ListResponse<ChangelogEntry>>('/api/docs/changelog'),
 };
 
 // --- Project Workbench ---
