@@ -154,6 +154,7 @@ def build_mixed_grid(
     boundary_months: int | None = None,
     horizon_months: int | None = None,
     include_baseline_actuals: bool = False,
+    lookback_months: int | None = None,
 ) -> dict:
     """Build the mixed-granularity forecast grid for a project.
 
@@ -166,6 +167,13 @@ def build_mixed_grid(
             values so the UI can render the three-point stack. Default False
             keeps ForecastVersion snapshots forecast-only (smaller payloads,
             no behavioural change for v4 / v5 callers).
+        lookback_months: when set and > 0 (v5.1 W3 pre-work), the inner
+            monthly column window extends backwards from demo_date by this
+            many months so past months render alongside future ones. The
+            past zone is always monthly — boundary_month / quarterly outer
+            zone semantics for the future are unchanged. Default None keeps
+            the v5 column model (start at demo_date), so capture_version
+            payload shapes stay byte-identical for existing callers.
 
     Returns a dict matching the MixedGridResponse schema.
     """
@@ -176,18 +184,24 @@ def build_mixed_grid(
     boundary_month = compute_boundary_month(demo_date, b_months)
     horizon_end_month = compute_horizon_end_month(demo_date, h_months)
 
+    # v5.1 W3: lookback_start is the inclusive lower bound for the monthly
+    # column window. Defaults to demo_date (v5 behaviour). When the caller
+    # passes lookback_months > 0, we step back that many months so the F&P
+    # grid renders elapsed months alongside future ones — needed for the
+    # C-08 three-point past-month layout (actuals primary / forecast
+    # secondary / baseline tertiary) and the C-03/C-04 phase-band + chart.
+    lb_months = lookback_months if (lookback_months and lookback_months > 0) else 0
+    lookback_start = add_months(demo_date, -lb_months) if lb_months else demo_date
+
     # ---------------------------------------------------------------------
-    # v5.1 C-08: derive the inclusive month range we need to fetch. For the
-    # forecast we follow the existing rule (demo_date .. horizon_end_month),
-    # but baseline + actuals can pre-date demo_date — past actuals/baselines
-    # belong to the elapsed past months we render alongside future data when
-    # the caller asks for them. The router never goes earlier than demo_date
-    # in the column model, so for the live grid the past-month branch only
-    # surfaces cells whose key falls inside the column window. We still
-    # query from demo_date forward for the live grid; the past-zone display
-    # rule lives in the frontend (cell key < demo_date → show actuals as
-    # primary). When the live grid evolves to render past months the same
-    # query pattern extends naturally.
+    # v5.1 W3: forecast rows are fetched from lookback_start (defaults to
+    # demo_date) through horizon_end_month, so the inner monthly window can
+    # cover past months when lookback_months > 0. Baseline + actuals queries
+    # below intentionally have no lower bound (Baseline.month <=
+    # horizon_end_month, Actuals.month <= demo_date) — they already cover
+    # any lookback window the caller requests. The past-zone display rule
+    # (actuals primary / forecast secondary / baseline tertiary) lives in
+    # the frontend; the backend just needs to surface the cells.
     # ---------------------------------------------------------------------
 
     # Fetch all forecast rows for this project
@@ -195,7 +209,7 @@ def build_mixed_grid(
         db.query(Forecast)
         .filter(
             Forecast.project_id == project_id,
-            Forecast.month >= demo_date,
+            Forecast.month >= lookback_start,
             Forecast.month <= horizon_end_month,
         )
         .order_by(Forecast.month)
@@ -284,8 +298,11 @@ def build_mixed_grid(
                     "cells": {},
                 }
 
-    # Determine column headers
-    monthly_months = generate_month_range(demo_date, boundary_month)
+    # Determine column headers. v5.1 W3: monthly window starts at
+    # lookback_start (= demo_date when lookback_months is None/0), runs
+    # through boundary_month. Past zone is always monthly — quarterly
+    # outer-zone columns only sit beyond boundary_month, never in the past.
+    monthly_months = generate_month_range(lookback_start, boundary_month)
     # Cap to horizon
     monthly_months = [m for m in monthly_months if m <= horizon_end_month]
 
@@ -302,11 +319,13 @@ def build_mixed_grid(
 
     # Build column definitions
     if granularity == "monthly":
-        all_monthly = generate_month_range(demo_date, horizon_end_month)
+        all_monthly = generate_month_range(lookback_start, horizon_end_month)
         columns = [{"key": m, "label": m, "cell_type": "monthly"} for m in all_monthly]
     elif granularity == "quarterly":
-        # All columns as quarters
-        all_months = generate_month_range(demo_date, horizon_end_month)
+        # All columns as quarters. Past months (before demo_date) collapse
+        # into their containing quarter just like future ones — quarterly
+        # mode is a uniform aggregation, not the mixed past/future split.
+        all_months = generate_month_range(lookback_start, horizon_end_month)
         seen_quarters: list[str] = []
         for m in all_months:
             qk = month_to_quarter_key(m)

@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ForecastWizard } from './ForecastWizard';
 import { MixedGranularityGrid } from './MixedGranularityGrid';
+import { ForecastComparisonChart } from './ForecastComparisonChart';
 import { VersionSelector } from './VersionSelector';
 import { VersionHistoryPanel } from './VersionHistoryPanel';
 import { VersionComparisonDialog } from './VersionComparisonDialog';
@@ -35,6 +36,13 @@ export function ForecastTab({ projectId, role }: Props) {
   const [pendingCR, setPendingCR] = useState<PendingCR | null>(null);
   const [diffDialogVersionId, setDiffDialogVersionId] = useState<number | null>(null);
   const [snapshotDialogOpen, setSnapshotDialogOpen] = useState(false);
+
+  // v5.1 [C-04]: shared scroll container ref so the F&P grid and the
+  // comparison chart below can scroll in lockstep on the same time axis.
+  // Teammate A wires this onto MixedGranularityGrid's `<div ... overflow-auto>`
+  // wrapper; ForecastComparisonChart attaches scroll listeners and mirrors
+  // scrollLeft bidirectionally.
+  const gridScrollRef = useRef<HTMLDivElement | null>(null);
 
   const {
     versions,
@@ -147,6 +155,14 @@ export function ForecastTab({ projectId, role }: Props) {
         nameMap={nameMap}
         deltaIndex={deltaIndex}
         comparisonActive={comparisonActive}
+        // v5.1 W3 [C-04] — lockstep scroll seam, paired with C-03's
+        // scrollContainerRef prop on MixedGranularityGrid.
+        scrollContainerRef={gridScrollRef}
+      />
+
+      <ForecastComparisonChart
+        projectId={projectId}
+        scrollContainerRef={gridScrollRef}
       />
 
       <VersionHistoryPanel

@@ -81,9 +81,16 @@ type CommonProps = {
   ) => Promise<void>;
 };
 
+/**
+ * `onBack` is optional. List-view callers (BTCProfileListView,
+ * Charging Distribution surface) provide it to return to the parent list.
+ * Workbench / Run Portfolio embed the editor with its own page-level Back
+ * button and omit this prop so the inner Back button is suppressed
+ * (per v5.1 user feedback — duplicate dead Back button next to the title).
+ */
 type Props =
-  | (CommonProps & { profileId: number; entityId?: never; year?: never; onBack: () => void })
-  | (CommonProps & { profileId?: never; entityId: string; year: number; onBack: () => void });
+  | (CommonProps & { profileId: number; entityId?: never; year?: never; onBack?: () => void })
+  | (CommonProps & { profileId?: never; entityId: string; year: number; onBack?: () => void });
 
 interface DraftLine {
   charging_location_id: string;
@@ -269,9 +276,11 @@ export function EntityBTCProfileEditor(props: Props) {
     return (
       <Card className="p-6">
         <p className="text-sm text-muted-foreground">Failed to load BTC profile.</p>
-        <Button variant="outline" size="sm" onClick={onBack} className="mt-4">
-          <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
-        </Button>
+        {onBack && (
+          <Button variant="outline" size="sm" onClick={onBack} className="mt-4">
+            <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+          </Button>
+        )}
       </Card>
     );
   }
@@ -289,9 +298,11 @@ export function EntityBTCProfileEditor(props: Props) {
             Charging & Allocations module.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={onBack}>
-          <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
-        </Button>
+        {onBack && (
+          <Button variant="outline" size="sm" onClick={onBack}>
+            <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+          </Button>
+        )}
       </Card>
     );
   }
@@ -300,9 +311,11 @@ export function EntityBTCProfileEditor(props: Props) {
     return (
       <Card className="p-6">
         <p className="text-sm text-muted-foreground">Failed to load BTC profile.</p>
-        <Button variant="outline" size="sm" onClick={onBack} className="mt-4">
-          <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
-        </Button>
+        {onBack && (
+          <Button variant="outline" size="sm" onClick={onBack} className="mt-4">
+            <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+          </Button>
+        )}
       </Card>
     );
   }
@@ -311,9 +324,11 @@ export function EntityBTCProfileEditor(props: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={onBack}>
-            <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
-          </Button>
+          {onBack && (
+            <Button variant="ghost" size="sm" onClick={onBack}>
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+            </Button>
+          )}
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold text-foreground">{entity.name}</h2>

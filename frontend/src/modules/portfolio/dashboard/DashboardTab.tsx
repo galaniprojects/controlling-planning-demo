@@ -105,6 +105,7 @@ export function DashboardTab() {
       'run',
       'project',
       'dashboard',
+      'external-spend',
     ]);
     if (
       pathParts.length === 2 &&

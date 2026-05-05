@@ -71,7 +71,14 @@ interface Props extends DistributionSandboxHandlers {
   entityId: string;
   year: number;
   version: string;
-  onBack: () => void;
+  /**
+   * Optional. Provided by the Charging list view (returns to the list) and
+   * the Simulator surface (collapses the inline editor). Workbench / Run
+   * Portfolio embed the editor as the page's only content with a top-level
+   * Back button on the page itself, so they omit `onBack` to suppress the
+   * inner button per v5.1 user feedback.
+   */
+  onBack?: () => void;
 }
 
 const ENTITY_TYPE_OPTIONS: { value: 'all' | ChargeableEntityType; label: string }[] = [
@@ -222,9 +229,11 @@ export function EntityDistributionEditor({
     return (
       <Card className="p-6">
         <p className="text-sm text-muted-foreground">Failed to load distribution profile.</p>
-        <Button variant="outline" size="sm" onClick={onBack} className="mt-4">
-          <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to list
-        </Button>
+        {onBack && (
+          <Button variant="outline" size="sm" onClick={onBack} className="mt-4">
+            <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to list
+          </Button>
+        )}
       </Card>
     );
   }
@@ -237,9 +246,11 @@ export function EntityDistributionEditor({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={onBack}>
-            <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
-          </Button>
+          {onBack && (
+            <Button variant="ghost" size="sm" onClick={onBack}>
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+            </Button>
+          )}
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold text-foreground">{entity.name}</h2>
