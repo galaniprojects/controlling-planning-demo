@@ -6,7 +6,7 @@ Active spec: `guides/CRETA_v5_1_Change_Specification.md` (16 items: 5 bug fixes,
 
 - [x] **Wave 1** — Reorg + bug fixes (A-01..A-05) + seed expansion (B-01, B-02) — branch `fix/v5_1-batch-1-bugs-and-seed` (PR #80 merged 2026-05-05)
 - [x] **Wave 2** — Grid foundation (C-02 collapsible years + C-08 three-point cells) — branch `feat/v5_1-grid-foundation` (PR #81 merged 2026-05-05)
-- [ ] **Wave 3** — Phase highlighting + comparison chart (C-03 + C-04) + past-months follow-up — branch `feat/v5_1-phase-and-chart` (in flight; backend pre-work landed)
+- [x] **Wave 3** — Phase highlighting (C-03) + comparison chart (C-04) + past-months lookback follow-up — branch `feat/v5_1-phase-and-chart` (PR pending)
 - [ ] **Wave 4** — Role FK + row expansions (C-07 + C-05 + C-06) — branch `feat/v5_1-roles-and-expand`
 - [ ] **Wave 5** — External Costs tab overhaul (C-09) — branch `feat/v5_1-external-costs-grid`
 - [ ] **Wave 6** — Launchpad revert (C-01) — branch `feat/v5_1-launchpad-modules`
@@ -17,21 +17,52 @@ Refactoring opportunities (deferred — no unsolicited refactoring):
 - `DashboardTab.tsx` carries a hand-maintained `RESERVED` set of Portfolio segment names for its legacy `/portfolio/<projectId>` redirect. Brittle: every new top-level Portfolio tab must be added or the same A-04 class of bug recurs. Worth retiring the redirect entirely when DashboardTab gets its next refresh.
 - Charging sub-views (`DistributionListView`, `BTCProfileListView`, `RollupView`, `ReportingPanel`) still show Save/Delete/Add buttons regardless of role. Backend `require_role("controller")` rejects mutations with 403, but the buttons should be hidden for non-Controllers per `[A-05]`. Tracked as a Wave 1 follow-up; threading a `readOnly` prop derived from `useRole().context?.role` is a small targeted change for a follow-up wave.
 
-## v5.1 Wave 3 — Phase highlighting + comparison chart (in flight, 2026-05-05)
+## v5.1 Wave 3 — Phase highlighting + comparison chart (2026-05-05)
 
-Branch: `feat/v5_1-phase-and-chart`. Closes spec items C-03 (milestone phase highlighting in the F&P grid) and C-04 (three-point comparison chart below the F&P grid), plus the Wave 2 deferred follow-up "past months are not in the live grid columns" — fixed by a backend pre-work commit so C-03 + C-04 render against the full timeline rather than just the future window.
+Branch: `feat/v5_1-phase-and-chart`. Closes spec items C-03 (milestone phase highlighting in the F&P grid) and C-04 (three-point comparison chart below the F&P grid), plus the Wave 2 deferred follow-up "past months are not in the live grid columns" — fixed by a backend pre-work commit so C-03 + C-04 render against the full timeline rather than just the future window. Built via 1+2 agent-team split: lead did a backend pre-work commit, then 2 teammates worked in parallel on disjoint files in isolated worktrees.
 
-**Lead pre-work — backend lookback parameter (1 commit):**
+**Lead pre-work — backend lookback parameter (`189413e`):**
 - Extends `services.forecast_versioning.build_mixed_grid` with `lookback_months: int | None = None`. When set and `> 0`, the inner monthly window starts at `add_months(demo_date, -lookback_months)` instead of `demo_date` — the forecast filter, `monthly_months` generation, and the `monthly`/`quarterly` granularity branches all use the new `lookback_start` lower bound. Past zone is always monthly: quarterly outer-zone semantics for the future are untouched, and `_first_quarter_start(boundary_month)` still drives the `quarterly_keys` list. `include_baseline_actuals=True` already had no lower bound on its baseline / actuals queries, so the C-08 overlay series light up automatically for the new past-month columns.
-- Wires the parameter through `GET /api/projects/{id}/forecast/grid` as a bounded `lookback_months: int = Query(default=12, ge=0, le=36)` query param. Default 12 covers the prior calendar year of actuals; `0` reverts to the v5 column model. `capture_version()` does not pass the kwarg, so ForecastVersion snapshots stay forecast-only and byte-identical to v5 — the 1481 pre-Wave-2 / 1491 post-Wave-2 test counts are preserved.
+- Wires the parameter through `GET /api/projects/{id}/forecast/grid` as a bounded `lookback_months: int = Query(default=12, ge=0, le=36)` query param. Default 12 covers the prior calendar year of actuals; `0` reverts to the v5 column model. `capture_version()` does not pass the kwarg, so ForecastVersion snapshots stay forecast-only and byte-identical to v5.
 - 13 new tests: 7 service-level (`TestBuildMixedGridLookback` — default-starts-at-demo, lookback=0 ≡ default, three past columns, three-series past cells, overrun visible, no-quarterly-past, capture_version snapshot still post-demo) + 6 router-level (default lookback renders past, lookback=0 starts at demo, lookback=3 yields three past months, past cells carry actuals overlay, lookback>36 → 422, negative lookback → 422). Backend pytest: 1491 → 1504, all passing.
 
-**Planned teammate split (next):**
-- **Teammate A — C-03 milestone phase highlighting.** Phase strip row + per-column tinted backgrounds + baseline-vs-forecast slip markers. Owns `MixedGranularityGrid.tsx` header territory and a new `<PhaseStrip>` component. Backend: read existing `ProjectMilestone` rows; no schema change.
-- **Teammate B — C-04 three-point comparison chart.** New `<ForecastComparisonChart>` rendered below the F&P grid, scrollable in lockstep with the grid. Recharts grouped bars (monthly) + line chart (cumulative toggle), today-line, year separators, summary strip. Owns the new chart component + its mount point inside the F&P tab.
-- File-ownership boundary holds: A is in the grid header layer, B is in a new sibling component below the grid; the only shared seam is the horizontal scroll position (lifted to a shared parent in pre-work or in B's commit).
+**Teammate A — C-03 phase highlighting (`worktree-agent-a642d…`, 3 commits):**
+- `9da14df` — Add `PhaseStrip` component + `phaseHelpers.ts` (~490 LOC). Phase mapping helpers project milestone date ranges onto column keys (monthly, quarterly, expanded-quarter monthlies); month-level overlap detection picks the dominant phase by month coverage when a column straddles two phases.
+- `b41ca66` — Wire milestone fetch via `milestonesApi.getMilestones(projectId)` into `MixedGranularityGrid`. New `useMemo` builds a `Map<columnKey, { color, phaseId, phaseName }>` for tinting lookup; on milestone fetch failure the strip silently degrades.
+- `10290c6` — Render the phase strip + per-column tinting + scroll seam. Strip is a third sticky `<TableHeader>` row at `top-20` (sitting below year `top-0` and month `top-10` rows). Per-column tinting applied via a `<colgroup>` with `<col style={{ backgroundColor }}>` — keeps `ForecastCell` untouched (Wave 2 ownership rule); existing cell-level backgrounds (boundary blue, hasChange amber, isQuarterly blue, sticky labels) naturally mask the tint. Slip indicator: gray triangle at the trailing edge for no-slip phases; for slipped phases the triangle is anchored at the proportional baseline position with a thin red line connecting it to the segment's right edge. Tooltip shows precise `baseline_end` / `forecast_end` / `slip_months`. Adds `scrollContainerRef?: RefObject<HTMLDivElement | null>` prop attached to the existing scroll wrapper for the C-04 lockstep seam.
 
+**Teammate B — C-04 comparison chart (`worktree-agent-a67ee…`, 3 commits):**
+- `f18643e` — Add `lookback_months` to `workbenchApi.getForecastGrid` so the chart can request the same past+future window the grid uses.
+- `2099305` — Add `ForecastComparisonChart.tsx` (~1029 LOC). Monthly view: Recharts `<BarChart>` with three `<Bar>` series (baseline `#cbd5e1`, forecast `#3b82f6`, actuals `#059669`); custom dot via `Bar.shape` for past-month overrun (red marker where actuals > forecast); `<ReferenceArea>` for elapsed-month tint; `<ReferenceLine>` for TODAY (red dashed) and year separators. Cumulative view: `<LineChart>` with three lines + a red dashed `<ReferenceLine y={budgetCeiling}>` from total baseline. Phase strip rendered as a sibling `<div>` overlaid on the chart's data range using milestone-color segments (same palette family as C-03). Summary strip below chart: BASELINE / FORECAST / YTD ACTUALS / PLAN DRIFT / EXECUTION VARIANCE. Default scroll position centred on demo_date − 3 months. Bar `shape` prop and Recharts `tick` prop required `unknown` casts (consistent with existing workarounds in `ProgressVsBurnChart`).
+- `06fc416` — Mount in `ForecastTab`. New `gridScrollRef = useRef<HTMLDivElement>(null)` shared between `MixedGranularityGrid` and `ForecastComparisonChart`. Bidirectional lockstep scroll listeners with `isMirroringRef` guard mirror `scrollLeft` between grid container and chart container; chart degrades gracefully when no `scrollContainerRef` is supplied.
 
+### Integration
+
+Lead merged Teammate A first (clean ort merge, no conflicts). Teammate B's branch contained a duplicate of the lead's pre-work commit (different SHA, byte-identical content) — git detected it as already-applied and merged the other three commits cleanly (no overlapping files between A and B). Post-merge cleanup: B had added a localised `// @ts-expect-error` directive in `ForecastTab.tsx` above the `scrollContainerRef={gridScrollRef}` prop while A's prop wasn't yet on the grid; lead removed the directive once the merged grid carried the prop.
+
+### Verification
+
+- **Backend pytest:** 1491 → 1504 (+13 lookback tests, all passing).
+- **Frontend tsc (touched files):** 0 new errors. The two pre-existing baseline errors in `endpoints.ts` (unused `OrgDetailItem` export) and `ForecastTab.tsx` (`pending_cr` not on `ProjectMetadata`) are unchanged from `feat/v5_1-grid-foundation` HEAD.
+- **Vite build:** succeeds (1.88 MB / 491 KB gzip), only pre-existing chunk-size warnings.
+- **Visual (Anna Meier / Controller, ERP Integration Phase 2):**
+  - F&P tab renders the phase strip below year + month headers; segments labelled "Build" / "Test" / "Rollout"; per-column tinting visible on Rollout months.
+  - Past months Jan–Mar 2026 show the C-08 three-point stack (forecast primary, actuals partial, baseline tertiary) — the lookback follow-up is rendering as intended.
+  - Apr 2026 (current) shows `(partial)` actuals indicator.
+  - Comparison chart Monthly view shows three-bar grouped chart with red overrun dots on past months, TODAY line at Apr, phase strip aligned along the X axis, summary strip with BASELINE 2,2M€ / FORECAST 2,38M€ / YTD ACTUALS 1,02M€ / PLAN DRIFT +7,9% / EXECUTION VARIANCE 36,07k€.
+  - Cumulative toggle renders three running-total lines + red dashed Budget Ceiling.
+  - Lockstep seam verified: `gridScrollLeft = 600` propagates to chart scrollLeft (with proportional offset due to differing pixel-per-month between grid and chart).
+  - Light + dark themes both render cleanly. Console: 0 errors during navigation.
+  - Screenshots: `qa/screenshots/wave3-erp-fp-default.png` (dark, monthly), `wave3-erp-fp-cumulative.png` (dark, cumulative), `wave3-erp-fp-scrolled.png` (dark, lockstep), `wave3-erp-fp-light.png` (light, monthly), `wave3-erp-overview.png` (overview tab unaffected).
+
+### Open / deferred
+
+- **Phase tint opacity is louder than spec target.** C-03 spec calls for ~5–8% alpha on per-column tinting; the current implementation produces a more saturated tint (especially the Rollout phase pink in dark mode) — readable but visually heavy. Tweak in a polish pass: lower the `withAlpha()` cell-tint multiplier from ~7% to ~3–4%, or apply tint only to the strip row and skip the per-column tint on rows.
+- **Chart-to-grid pixel alignment is approximate.** Chart uses fixed `PX_PER_MONTH = 90`; the grid's column widths are min-content driven (≥ 90px monthly cells per the grid's `min-w-[90px]` class) and don't necessarily match. Lockstep scroll mirrors `scrollLeft` 1:1, so the two surfaces drift slightly at large scroll offsets. Acceptable per the spec's "perfect alignment is not required as long as the chart roughly tracks the grid"; tighter alignment is a follow-up.
+- **Phase strip slip-indicator pixel positioning is span-proportional**, not month-accurate, on quarter columns (true month-level introspection would have required wider helper changes). The hover tooltip carries precise dates, so the visual is directionally correct without deceptive precision.
+- **Summary columns** (Baseline Total / Forecast Total / Actuals YTD / Variance) on the right edge of the grid still deferred from Wave 2 — not in scope for Wave 3 either. Suggested follow-up: add a dedicated `summary_columns` field to `MixedGridResponse` plus a sibling `<ForecastSummaryColumn>` component.
+
+## v5.1 Wave 2 — F&P grid foundation (2026-05-05)
 
 Branch: `feat/v5_1-grid-foundation`. Closes spec items C-02 (collapsible year columns) and C-08 (three-point baseline/forecast/actuals cell display) — the two infrastructure pieces every later F&P-grid wave builds on. Built via 1+2 agent-team split: lead did a pure-refactor pre-work commit extracting `ForecastCell` from `MixedGranularityGrid`, then 2 teammates worked in parallel on disjoint files.
 

@@ -155,11 +155,8 @@ export function ForecastTab({ projectId, role }: Props) {
         nameMap={nameMap}
         deltaIndex={deltaIndex}
         comparisonActive={comparisonActive}
-        // v5.1 [C-04] lockstep scroll seam — Teammate A's C-03 work adds
-        // this optional prop to MixedGranularityGrid. The merge will reconcile
-        // the prop signature; in the meantime the suppression keeps this
-        // worktree green.
-        // @ts-expect-error scrollContainerRef is added by Teammate A's C-03 PR
+        // v5.1 W3 [C-04] — lockstep scroll seam, paired with C-03's
+        // scrollContainerRef prop on MixedGranularityGrid.
         scrollContainerRef={gridScrollRef}
       />
 
