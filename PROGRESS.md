@@ -1,5 +1,19 @@
 # CRETA Demo — Build Progress
 
+## v5.1 Implementation — wave status
+
+Active spec: `guides/CRETA_v5_1_Change_Specification.md` (16 items: 5 bug fixes, 2 seed enrichments, 9 features). Plan: 6 waves, one wave per session, PR review gate between every wave. Agent teams used within each wave. v5 spec + impl guide archived to `docs_archive/`.
+
+- [ ] **Wave 1** — Reorg + bug fixes (A-01..A-05) + seed expansion (B-01, B-02) — branch `fix/v5_1-batch-1-bugs-and-seed`
+- [ ] **Wave 2** — Grid foundation (C-02 collapsible years + C-08 three-point cells) — branch `feat/v5_1-grid-foundation`
+- [ ] **Wave 3** — Phase highlighting + comparison chart (C-03 + C-04) — branch `feat/v5_1-phase-and-chart`
+- [ ] **Wave 4** — Role FK + row expansions (C-07 + C-05 + C-06) — branch `feat/v5_1-roles-and-expand`
+- [ ] **Wave 5** — External Costs tab overhaul (C-09) — branch `feat/v5_1-external-costs-grid`
+- [ ] **Wave 6** — Launchpad revert (C-01) — branch `feat/v5_1-launchpad-modules`
+
+Refactoring opportunities (deferred — no unsolicited refactoring):
+- Legacy `frontend/src/modules/workbench/forecast/ForecastGrid.tsx` may still be mounted alongside `MixedGranularityGrid.tsx`. Audit during Wave 2.
+
 ## Number-formatting consolidation sweep (2026-05-05)
 
 Branch: `fix/number-formatting-sweep`. Audit of frontend number-rendering surfaced a locale-correctness bug and ~30 hand-rolled European-formatting patterns reinventing what `lib/formatters.ts` already provided. Sweep brings everything onto the central utility.

@@ -226,13 +226,14 @@ Keep this section updated whenever models or schema change.
 6. **Document:** Update `PROGRESS.md`, `README.md`, and in-app documentation module (`backend/seed/fixtures/` manuals) if features changed
 7. **End:** Commit all changes with descriptive messages
 
-## v5 Implementation Protocol
-CRETA v5 is implemented using a session-based approach. Two documents govern the work:
+## v5.1 Implementation Protocol
+CRETA v5.1 is implemented using a wave-based approach (one wave per session, PR review gate between waves). The active spec is:
 
-- **Spec:** `guides/CRETA_v5_Workshop_Spec.md` — the source of truth for what to build and why
-- **Implementation guide:** `guides/CRETA_v5_Implementation_Guide.md` — the operational guide for how and when. Contains session definitions, dependency graph, and protocol rules
+- **Spec:** `guides/CRETA_v5_1_Change_Specification.md` — self-contained source of truth for the 16 v5.1 items (5 bug fixes, 2 seed enrichments, 9 features). No companion implementation guide; wave progress lives in `PROGRESS.md`.
 
-Before starting any v5 session, read the implementation guide's session protocol section in full. The protocol is: **orient → plan (with extended thinking) → implement → verify → update PROGRESS.md**. No code before the plan is complete.
+The previous v5 spec + implementation guide have been archived to `docs_archive/CRETA_v5_Workshop_Spec.md` and `docs_archive/CRETA_v5_Implementation_Guide.md`.
+
+The session protocol remains: **orient → plan (with extended thinking) → implement → verify → update PROGRESS.md**. No code before the plan is complete.
 
 ### Pull requests
 - Do NOT create a PR at the end of implementation without first asking about it
