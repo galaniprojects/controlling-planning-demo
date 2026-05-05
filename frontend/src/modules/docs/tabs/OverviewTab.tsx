@@ -3,13 +3,16 @@ import { Badge } from '@/components/ui/badge';
 import { BRANDING } from '@/config/branding';
 
 const MODULES = [
-  { name: 'Launchpad', route: '/launchpad', description: 'Home screen with role-aware notifications, pending actions with deep-linking, module tiles, dark mode toggle, project submission' },
-  { name: 'Portfolio Overview', route: '/portfolio', description: 'KPI dashboard, project tree, intake queue with editable grid and diff view, change request approvals' },
-  { name: 'Project Workbench', route: '/workbench', description: 'Master-detail project view, forecast grid, rolling forecast wizard, project submission workflow, change history' },
-  { name: 'Capacity Management', route: '/capacity', description: 'Team utilization heatmaps, cell drill-down, org overview, resource requests' },
-  { name: 'What-If Simulator', route: '/simulator', description: 'Scenario planning with 12 action types, impact dashboard, AI Advisor' },
-  { name: 'Reporting', route: '/reporting', description: 'Report Library (5 standard reports), Report Builder (OLAP-style custom reports), AI Report Builder (natural language), sharing & publishing' },
-  { name: 'Administration', route: '/admin', description: 'Entity management, portfolio hierarchy, rate tables, planning parameters, audit log' },
+  { name: 'Launchpad', route: '/launchpad', description: 'Role-personalised KPI tiles, pending actions strip, persona-aware greeting and forecast cycle status.' },
+  { name: 'Portfolio Overview', route: '/portfolio', description: 'Change vs Run sub-modules with pill switcher, KPI dashboard, configurable hierarchy tree, full-page project detail, External Spend tab on Change.' },
+  { name: 'Backlog', route: '/backlog', description: 'Ranked intake list (DoI 0–2 demand pipeline), Tech Navigator scoring, cube view + list view, send-back/resubmit cycle, cutoff line.' },
+  { name: 'Project Workbench', route: '/workbench', description: 'Overview tile grid, mixed-granularity forecast grid, 5-phase forecast cycle wizard, External Costs tab, Cost Allocation tab, version history + diff.' },
+  { name: 'Capacity Management', route: '/capacity', description: 'Team utilization heatmaps, cell drill-down, org overview pivots, resource requests, role × location × month availability.' },
+  { name: 'What-If Simulator', route: '/simulator', description: 'Scenarios anchored to a forecast version; Tier 1/2/3 levers across 17+ surfaces incl. Lever 12 BTC sandbox; Promote-with-routing; Apply-to-Forecast.' },
+  { name: 'Charging & Allocations', route: '/charging', description: 'Two-stage cost flow: Stage 1 inter-service distribution edges (DAG, cycle-detected), Stage 2 BTC profiles (manual/automatic), Location Cost Rollup map + tree, Reporting bridge.' },
+  { name: 'Reporting', route: '/reporting', description: 'Report Library (5 standard reports), Report Builder (OLAP-style custom reports), AI Report Builder (natural language), sharing & publishing.' },
+  { name: 'Administration', route: '/admin', description: 'Configurable hierarchy editor, charging master data, UM matrix viewer, workflow templates, scheduled changes, audit log (8 categories), role-permission grants.' },
+  { name: 'Documentation Hub', route: '/docs', description: 'Module guides, API reference, data model, FAQ, and v5 changelog (this hub).' },
 ];
 
 const TECH_STACK = [
