@@ -67,6 +67,48 @@ const TYPE_FILTERS: { value: '' | ChargeableEntityType; label: string }[] = [
 // (April 2026) and the Charging module's default year.
 const ROLLUP_YEAR = 2026;
 
+// Session-storage keys for preserving the Run Portfolio filter + scroll
+// position across an entity drill-down (browser back returns the user to
+// the same view they left, per A-01).
+const RUN_FILTER_KEY = 'creta:portfolio:run:typeFilter';
+const RUN_SCROLL_KEY = 'creta:portfolio:run:scrollY';
+
+function readPersistedFilter(): '' | ChargeableEntityType {
+  if (typeof window === 'undefined') return '';
+  const v = window.sessionStorage.getItem(RUN_FILTER_KEY);
+  if (
+    v === 'Project' ||
+    v === 'Offering' ||
+    v === 'InternalService'
+  ) {
+    return v;
+  }
+  return '';
+}
+
+function persistFilter(value: '' | ChargeableEntityType) {
+  if (typeof window === 'undefined') return;
+  if (value === '') window.sessionStorage.removeItem(RUN_FILTER_KEY);
+  else window.sessionStorage.setItem(RUN_FILTER_KEY, value);
+}
+
+function readPersistedScroll(): number {
+  if (typeof window === 'undefined') return 0;
+  const v = window.sessionStorage.getItem(RUN_SCROLL_KEY);
+  const n = v ? parseInt(v, 10) : 0;
+  return Number.isFinite(n) ? n : 0;
+}
+
+function persistScroll(y: number) {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.setItem(RUN_SCROLL_KEY, String(y));
+}
+
+function clearPersistedScroll() {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.removeItem(RUN_SCROLL_KEY);
+}
+
 function fmtPct(n: number | null | undefined): string {
   if (n === null || n === undefined) return '—';
   return formatPercent(n, { signed: false });
@@ -129,7 +171,32 @@ export function RunPortfolioTab() {
   const [items, setItems] = useState<ChargeableEntityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [typeFilter, setTypeFilter] = useState<'' | ChargeableEntityType>('');
+  // A-01: hydrate the type filter from sessionStorage so a back-navigation
+  // from an entity drill-down lands the user on the same filtered view.
+  const [typeFilter, setTypeFilter] = useState<'' | ChargeableEntityType>(
+    () => readPersistedFilter(),
+  );
+
+  // A-01: persist the filter on every change so the view can be rehydrated
+  // after a remount (e.g. back-navigation from /workbench?entity=…).
+  useEffect(() => {
+    persistFilter(typeFilter);
+  }, [typeFilter]);
+
+  // A-01: restore scroll position once the entity list has rendered. We
+  // wait until `loading` flips to false so the table has actually laid out
+  // before scrolling. The persisted value is consumed (cleared) so
+  // subsequent fresh visits always start at the top.
+  useEffect(() => {
+    if (loading) return;
+    const y = readPersistedScroll();
+    if (y > 0) {
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: y, left: 0 });
+        clearPersistedScroll();
+      });
+    }
+  }, [loading]);
 
   useEffect(() => {
     let cancelled = false;
@@ -338,7 +405,12 @@ export function RunPortfolioTab() {
                         : 'opacity-90'
                     }
                     onClick={() => {
-                      if (drillTo) navigate(drillTo);
+                      if (drillTo) {
+                        // A-01: capture scroll so back-navigation can
+                        // restore the user's previous viewport.
+                        persistScroll(window.scrollY);
+                        navigate(drillTo);
+                      }
                     }}
                   >
                     <TableCell>
