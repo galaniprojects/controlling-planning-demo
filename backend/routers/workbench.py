@@ -1515,6 +1515,9 @@ def get_forecast_grid(
         raise HTTPException(422, "granularity must be 'mixed', 'monthly', or 'quarterly'")
 
     from services.forecast_versioning import build_mixed_grid
+    # v5.1 C-08: include baseline + actuals overlays so the UI can render
+    # the three-point cell stack. capture_version() still defaults to
+    # include_baseline_actuals=False so version snapshots stay forecast-only.
     grid = build_mixed_grid(
         db=db,
         project_id=project_id,
@@ -1522,6 +1525,7 @@ def get_forecast_grid(
         granularity=granularity,
         boundary_months=boundary_months,
         horizon_months=horizon_months,
+        include_baseline_actuals=True,
     )
     return grid
 

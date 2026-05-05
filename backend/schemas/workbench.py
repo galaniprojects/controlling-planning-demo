@@ -78,12 +78,25 @@ class CRHistoryItem(BaseModel):
 # ---------------------------------------------------------------------------
 
 class GridCell(BaseModel):
-    """One cell in the mixed-granularity grid — either monthly or quarterly."""
+    """One cell in the mixed-granularity grid — either monthly or quarterly.
+
+    v5.1 C-08: in addition to the live forecast value, cells optionally carry
+    baseline and actuals values so the UI can render the three-point stack
+    (baseline / forecast / actuals) per temporal context. The fields stay
+    nullable so legacy callers + ForecastVersion snapshots remain compatible.
+    """
     key: str               # YYYY-MM or YYYY-QN
     cell_type: str         # 'monthly' | 'quarterly'
     hours: float
     amount_eur: float
     is_provisional: bool   # True for outer-zone cells [C-FG-07]
+    # v5.1 C-08 — three-point overlay (nullable)
+    baseline_hours: Optional[float] = None
+    baseline_amount_eur: Optional[float] = None
+    actuals_hours: Optional[float] = None
+    actuals_amount_eur: Optional[float] = None
+    # True when actuals exist but only cover part of the cell (current month)
+    actuals_partial: Optional[bool] = None
 
 
 class GridRow(BaseModel):
