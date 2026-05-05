@@ -506,6 +506,14 @@ export interface MixedGridCell {
   hours: number;
   amount_eur: number;
   is_provisional: boolean;       // [C-FG-07]
+  // v5.1 C-08 — three-point overlay (nullable). Populated only by the live
+  // grid endpoint; ForecastVersion snapshots stay forecast-only.
+  baseline_hours?: number | null;
+  baseline_amount_eur?: number | null;
+  actuals_hours?: number | null;
+  actuals_amount_eur?: number | null;
+  // True when actuals exist but only cover part of the cell (current month).
+  actuals_partial?: boolean | null;
 }
 
 export interface MixedGridRow {
