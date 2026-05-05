@@ -5,8 +5,8 @@
 Active spec: `guides/CRETA_v5_1_Change_Specification.md` (16 items: 5 bug fixes, 2 seed enrichments, 9 features). Plan: 6 waves, one wave per session, PR review gate between every wave. Agent teams used within each wave. v5 spec + impl guide archived to `docs_archive/`.
 
 - [x] **Wave 1** — Reorg + bug fixes (A-01..A-05) + seed expansion (B-01, B-02) — branch `fix/v5_1-batch-1-bugs-and-seed` (PR #80 merged 2026-05-05)
-- [x] **Wave 2** — Grid foundation (C-02 collapsible years + C-08 three-point cells) — branch `feat/v5_1-grid-foundation` (PR pending)
-- [ ] **Wave 3** — Phase highlighting + comparison chart (C-03 + C-04) — branch `feat/v5_1-phase-and-chart`
+- [x] **Wave 2** — Grid foundation (C-02 collapsible years + C-08 three-point cells) — branch `feat/v5_1-grid-foundation` (PR #81 merged 2026-05-05)
+- [ ] **Wave 3** — Phase highlighting + comparison chart (C-03 + C-04) + past-months follow-up — branch `feat/v5_1-phase-and-chart` (in flight; backend pre-work landed)
 - [ ] **Wave 4** — Role FK + row expansions (C-07 + C-05 + C-06) — branch `feat/v5_1-roles-and-expand`
 - [ ] **Wave 5** — External Costs tab overhaul (C-09) — branch `feat/v5_1-external-costs-grid`
 - [ ] **Wave 6** — Launchpad revert (C-01) — branch `feat/v5_1-launchpad-modules`
@@ -17,7 +17,21 @@ Refactoring opportunities (deferred — no unsolicited refactoring):
 - `DashboardTab.tsx` carries a hand-maintained `RESERVED` set of Portfolio segment names for its legacy `/portfolio/<projectId>` redirect. Brittle: every new top-level Portfolio tab must be added or the same A-04 class of bug recurs. Worth retiring the redirect entirely when DashboardTab gets its next refresh.
 - Charging sub-views (`DistributionListView`, `BTCProfileListView`, `RollupView`, `ReportingPanel`) still show Save/Delete/Add buttons regardless of role. Backend `require_role("controller")` rejects mutations with 403, but the buttons should be hidden for non-Controllers per `[A-05]`. Tracked as a Wave 1 follow-up; threading a `readOnly` prop derived from `useRole().context?.role` is a small targeted change for a follow-up wave.
 
-## v5.1 Wave 2 — F&P grid foundation (2026-05-05)
+## v5.1 Wave 3 — Phase highlighting + comparison chart (in flight, 2026-05-05)
+
+Branch: `feat/v5_1-phase-and-chart`. Closes spec items C-03 (milestone phase highlighting in the F&P grid) and C-04 (three-point comparison chart below the F&P grid), plus the Wave 2 deferred follow-up "past months are not in the live grid columns" — fixed by a backend pre-work commit so C-03 + C-04 render against the full timeline rather than just the future window.
+
+**Lead pre-work — backend lookback parameter (1 commit):**
+- Extends `services.forecast_versioning.build_mixed_grid` with `lookback_months: int | None = None`. When set and `> 0`, the inner monthly window starts at `add_months(demo_date, -lookback_months)` instead of `demo_date` — the forecast filter, `monthly_months` generation, and the `monthly`/`quarterly` granularity branches all use the new `lookback_start` lower bound. Past zone is always monthly: quarterly outer-zone semantics for the future are untouched, and `_first_quarter_start(boundary_month)` still drives the `quarterly_keys` list. `include_baseline_actuals=True` already had no lower bound on its baseline / actuals queries, so the C-08 overlay series light up automatically for the new past-month columns.
+- Wires the parameter through `GET /api/projects/{id}/forecast/grid` as a bounded `lookback_months: int = Query(default=12, ge=0, le=36)` query param. Default 12 covers the prior calendar year of actuals; `0` reverts to the v5 column model. `capture_version()` does not pass the kwarg, so ForecastVersion snapshots stay forecast-only and byte-identical to v5 — the 1481 pre-Wave-2 / 1491 post-Wave-2 test counts are preserved.
+- 13 new tests: 7 service-level (`TestBuildMixedGridLookback` — default-starts-at-demo, lookback=0 ≡ default, three past columns, three-series past cells, overrun visible, no-quarterly-past, capture_version snapshot still post-demo) + 6 router-level (default lookback renders past, lookback=0 starts at demo, lookback=3 yields three past months, past cells carry actuals overlay, lookback>36 → 422, negative lookback → 422). Backend pytest: 1491 → 1504, all passing.
+
+**Planned teammate split (next):**
+- **Teammate A — C-03 milestone phase highlighting.** Phase strip row + per-column tinted backgrounds + baseline-vs-forecast slip markers. Owns `MixedGranularityGrid.tsx` header territory and a new `<PhaseStrip>` component. Backend: read existing `ProjectMilestone` rows; no schema change.
+- **Teammate B — C-04 three-point comparison chart.** New `<ForecastComparisonChart>` rendered below the F&P grid, scrollable in lockstep with the grid. Recharts grouped bars (monthly) + line chart (cumulative toggle), today-line, year separators, summary strip. Owns the new chart component + its mount point inside the F&P tab.
+- File-ownership boundary holds: A is in the grid header layer, B is in a new sibling component below the grid; the only shared seam is the horizontal scroll position (lifted to a shared parent in pre-work or in B's commit).
+
+
 
 Branch: `feat/v5_1-grid-foundation`. Closes spec items C-02 (collapsible year columns) and C-08 (three-point baseline/forecast/actuals cell display) — the two infrastructure pieces every later F&P-grid wave builds on. Built via 1+2 agent-team split: lead did a pure-refactor pre-work commit extracting `ForecastCell` from `MixedGranularityGrid`, then 2 teammates worked in parallel on disjoint files.
 
@@ -46,7 +60,7 @@ Lead merged Teammate A first (clean, ort strategy), then Teammate B with one tri
 
 ### Open / deferred
 
-- **Past months are not in the live grid columns.** `build_mixed_grid` filters at `Forecast.month >= demo_date`, so the F&P grid currently shows columns starting at April 2026 forward. This means the past-month three-point layout (actuals primary / forecast secondary / baseline tertiary) and the warm-tint overrun visualisation are unreachable today. The B-02 seed (Wave 1) added baseline / actuals rows back to Jan 2024 for the four flagship projects — that data is in the DB, just not rendered. Suggested follow-up: extend `build_mixed_grid` to support a configurable lookback window (e.g. project start month, capped at 12 months back) so past months render alongside future ones. Out of scope for Wave 2 (would have stretched the wave).
+- ~~**Past months are not in the live grid columns.**~~ Fixed by the Wave 3 backend pre-work commit (see Wave 3 section above): `build_mixed_grid` now accepts `lookback_months` and the F&P grid endpoint defaults it to 12, so the past-month three-point layout and the warm-tint overrun rendering have data to land on.
 - **Summary columns (Baseline Total / Forecast Total / Actuals YTD / Variance) deferred.** The C-08 spec calls for these on the right edge of the grid, with the variance column applying green/red/blue delta colours. Implementing them cleanly would have required a new column kind in the column model (Teammate A territory) plus updates to `renderSubtotalRow` and the column header rows, which would have broken the disjoint-file-ownership rule. Suggested follow-up: add a dedicated `summary_columns` field to `MixedGridResponse` plus a sibling `<ForecastSummaryColumn>` component.
 - **External-cost vendor/PO context not threaded into actuals overlays.** `Baseline` and `Actuals` rows for external categories carry `description` / `vendor` / `ext_status`; the C-08 overlays only carry numeric series. If the UI needs vendor context for the historical actuals series too, that's a small additional payload extension. Likely revisited as part of Wave 4 (C-06 vendor row expansion) or Wave 5 (C-09 external-costs grid overhaul).
 
