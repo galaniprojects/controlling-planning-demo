@@ -9,7 +9,7 @@
  */
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { formatCurrency, formatPercent } from '@/lib/formatters';
+import { formatCurrency, formatPercent, formatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import {
   AreaChart,
@@ -199,7 +199,7 @@ export function OverviewSection({ projectId, summary, overview, loading }: Props
                       {row.role_name}
                     </span>
                     <span className="font-mono tabular-nums text-muted-foreground">
-                      {row.total_hours.toLocaleString('de-DE')} h
+                      {formatNumber(row.total_hours)} h
                     </span>
                   </li>
                 ))}

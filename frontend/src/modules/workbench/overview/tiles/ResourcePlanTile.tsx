@@ -7,6 +7,7 @@
  * (resource view) — wired by parent.
  */
 import { ActionCard } from '@/components/shared/ActionCard';
+import { formatNumber } from '@/lib/formatters';
 import type { ResourcePlanSummaryItem } from '@/types/api';
 
 interface Props {
@@ -41,7 +42,7 @@ export function ResourcePlanTile({ title, items, onClick }: Props) {
               Total hours
             </p>
             <p className="text-2xl font-semibold text-foreground tabular-nums">
-              {total.toLocaleString('de-DE')}
+              {formatNumber(total)}
             </p>
             <p className="text-[11px] text-muted-foreground">
               {sorted.length} role{sorted.length === 1 ? '' : 's'}
@@ -62,7 +63,7 @@ export function ResourcePlanTile({ title, items, onClick }: Props) {
                       {r.role_name}
                     </span>
                     <span className="text-muted-foreground tabular-nums">
-                      {r.total_hours.toLocaleString('de-DE')}h
+                      {formatNumber(r.total_hours)}h
                     </span>
                   </div>
                   <div className="h-1 bg-muted rounded-full overflow-hidden">
@@ -78,7 +79,7 @@ export function ResourcePlanTile({ title, items, onClick }: Props) {
 
           {remainder > 0 && (
             <p className="text-[11px] text-muted-foreground tabular-nums">
-              +{remainder} more · {remainderHours.toLocaleString('de-DE')}h
+              +{remainder} more · {formatNumber(remainderHours)}h
             </p>
           )}
         </div>

@@ -10,7 +10,7 @@
 
 import { PieChart } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatPercent } from '@/lib/formatters';
 import type { InvestmentMixDimensionData } from '../../../lib/impactTypes';
 import { formatDeltaWithArrow } from '../../../lib/dimensionHeadlines';
 
@@ -64,10 +64,10 @@ export function InvestmentMixDimension({ data }: InvestmentMixDimensionProps) {
                 {formatCurrency(row.scenario_total)}
               </td>
               <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                {row.anchor_pct.toFixed(1).replace('.', ',')}%
+                {formatPercent(row.anchor_pct, { signed: false })}
               </td>
               <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                {row.scenario_pct.toFixed(1).replace('.', ',')}%
+                {formatPercent(row.scenario_pct, { signed: false })}
               </td>
               <td className="px-3 py-2 text-right tabular-nums font-semibold text-foreground">
                 {row.delta === 0 ? '±€0' : formatDeltaWithArrow(row.delta)}

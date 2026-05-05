@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Users } from 'lucide-react';
 import { capacityApi } from '@/api/endpoints';
+import { formatNumber } from '@/lib/formatters';
 import type { TilePayload, RoleAvailabilityResponse } from '@/types/api';
 import { TileCard } from './TileCard';
 
@@ -68,7 +69,7 @@ function ResourceAvailabilityFooter() {
         <div key={row.name} className="flex items-center justify-between text-xs">
           <span className="text-foreground truncate">{row.name}</span>
           <span className="text-muted-foreground tabular-nums">
-            {Math.round(row.available).toLocaleString('de-DE')}h
+            {formatNumber(row.available)}h
           </span>
         </div>
       ))}

@@ -7,7 +7,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SummaryCard } from '@/components/shared/SummaryCard';
 import { ReportViewer } from '../viewer/ReportViewer';
 import { CCFinancialCharts } from './CCFinancialCharts';
-import { formatCurrency, formatPercent, formatCurrencyDetailed } from '@/lib/formatters';
+import { formatCurrency, formatPercent, formatCurrencyDetailed, formatNumber } from '@/lib/formatters';
 import type { FilterConfig } from '@/components/shared/FilterBar';
 import type { CCFinancialResponse, RefCostCenter } from '@/types/api';
 import { SortableHeader } from '@/components/shared/SortableHeader';
@@ -183,7 +183,7 @@ export function CCFinancialReport() {
               <td className="px-3 py-2 text-foreground">{r.cost_center_name ?? '—'}</td>
               <td className="px-3 py-2 text-foreground">{r.project_name}</td>
               <td className="px-3 py-2 text-right font-mono text-xs">
-                {r.internal_hours.toLocaleString('de-DE')}
+                {formatNumber(r.internal_hours)}
               </td>
               <td className="px-3 py-2 text-right font-mono text-xs">
                 {formatCurrencyDetailed(r.internal_cost)}
@@ -195,7 +195,7 @@ export function CCFinancialReport() {
                 {formatCurrencyDetailed(r.total_cost)}
               </td>
               <td className="px-3 py-2 text-right font-mono text-xs">
-                {r.pct_of_cc_budget.toFixed(1).replace('.', ',')}%
+                {formatPercent(r.pct_of_cc_budget, { signed: false })}
               </td>
               <td className="px-3 py-2 text-center">
                 <StatusBadge status={r.status} />
@@ -209,7 +209,7 @@ export function CCFinancialReport() {
               Total ({sortedRows.length} projects)
             </td>
             <td className="px-3 py-2 text-right font-mono text-xs">
-              {sortedRows.reduce((s, r) => s + r.internal_hours, 0).toLocaleString('de-DE')}
+              {formatNumber(sortedRows.reduce((s, r) => s + r.internal_hours, 0))}
             </td>
             <td className="px-3 py-2 text-right font-mono text-xs">
               {formatCurrencyDetailed(kpis.total_internal_cost)}

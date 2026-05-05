@@ -11,7 +11,7 @@
  */
 
 import { Card, CardContent } from '@/components/ui/card';
-import { formatCurrencyDetailed, formatNumber } from '@/lib/formatters';
+import { formatCurrencyDetailed, formatNumber, formatDecimal } from '@/lib/formatters';
 import type {
   TechNavigatorWeights,
   TshirtSize,
@@ -33,7 +33,7 @@ interface Props {
 /** Format a 1-5 weighted score as European-style "x,xx / 5". */
 function formatScore(value: number | null): string {
   if (value === null || value === undefined) return '—';
-  return `${value.toFixed(2).replace('.', ',')} / 5`;
+  return `${formatDecimal(value, 2)} / 5`;
 }
 
 /** Plain "70 % / 30 %" style attribution for the composite formula. */

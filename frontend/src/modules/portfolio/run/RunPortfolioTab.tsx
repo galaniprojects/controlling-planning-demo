@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { chargeableEntitiesApi } from '@/api/endpoints';
+import { formatPercent, formatCurrency } from '@/lib/formatters';
 import type {
   ChargeableEntityItem,
   ChargeableEntityType,
@@ -68,19 +69,12 @@ const ROLLUP_YEAR = 2026;
 
 function fmtPct(n: number | null | undefined): string {
   if (n === null || n === undefined) return '—';
-  return n.toFixed(1).replace('.', ',') + '%';
+  return formatPercent(n, { signed: false });
 }
 
 function fmtEur(n: number | null | undefined): string {
   if (n === null || n === undefined) return '—';
-  if (n === 0) return '€0';
-  if (n >= 1_000_000) {
-    return '€' + (n / 1_000_000).toFixed(1).replace('.', ',') + 'M';
-  }
-  if (n >= 1_000) {
-    return '€' + (n / 1_000).toFixed(0) + 'K';
-  }
-  return '€' + Math.round(n).toString();
+  return formatCurrency(n);
 }
 
 function entityTypePill(type: ChargeableEntityType): string {

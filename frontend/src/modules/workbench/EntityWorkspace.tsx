@@ -22,6 +22,7 @@ import { AlertTriangle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WorkbenchBTCTab } from './btc/WorkbenchBTCTab';
 import { chargingApi } from '@/api/endpoints';
+import { formatPercent, formatCurrency } from '@/lib/formatters';
 import type { ChargeableEntityItem } from '@/types/api';
 
 interface Props {
@@ -30,19 +31,12 @@ interface Props {
 
 function fmtPct(n: number | null | undefined): string {
   if (n === null || n === undefined) return '—';
-  return n.toFixed(1).replace('.', ',') + '%';
+  return formatPercent(n, { signed: false });
 }
 
 function fmtEur(n: number | null | undefined): string {
   if (n === null || n === undefined) return '—';
-  if (n === 0) return '€0';
-  if (n >= 1_000_000) {
-    return '€' + (n / 1_000_000).toFixed(1).replace('.', ',') + 'M';
-  }
-  if (n >= 1_000) {
-    return '€' + (n / 1_000).toFixed(0) + 'K';
-  }
-  return '€' + Math.round(n).toString();
+  return formatCurrency(n);
 }
 
 function entityTypeLabel(type: string): string {

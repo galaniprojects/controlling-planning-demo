@@ -260,7 +260,7 @@ function formatCellValue(value: unknown, type: string): string {
       case 'currency':
         return formatCurrencyDetailed(value);
       case 'percent':
-        return `${value.toFixed(1).replace('.', ',')}%`;
+        return formatPercent(value, { signed: false });
       case 'number':
         return formatNumber(value);
       default:

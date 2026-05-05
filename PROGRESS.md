@@ -1,5 +1,16 @@
 # CRETA Demo — Build Progress
 
+## Number-formatting consolidation sweep (2026-05-05)
+
+Branch: `fix/number-formatting-sweep`. Audit of frontend number-rendering surfaced a locale-correctness bug and ~30 hand-rolled European-formatting patterns reinventing what `lib/formatters.ts` already provided. Sweep brings everything onto the central utility.
+
+Changes:
+- **`lib/formatters.ts`** — extended `formatPercent(value, options?: { signed?: boolean; decimals?: number })` (default `signed: true`, `decimals: 1` — backwards-compatible with the existing 51 call-sites). Added `formatDecimal(value, decimals)` for unitless European-decimal numbers (scores, FTE). Removed `formatCurrencyDetailedDelta` (only 4 call-sites in `Phase4Review.tsx`, replaced with inline `+`-prefix + `formatCurrencyDetailed`).
+- **`.toLocaleString()` cleanup** — 9 number-formatting sites across 7 files swept onto `formatNumber`. Notable bug fix: `ResourceSummaryTable.tsx` was calling `.toLocaleString()` with no locale, falling back to the browser default — broken on non-DE browsers. Date-formatting `.toLocaleString('en-GB', {...})` calls left alone (intentional ISO-style date display, separate concern).
+- **`.toFixed().replace()` cleanup** — 17 hand-rolled percentage / score sites swept onto `formatPercent` (with `signed: false` for share/portion percentages) or `formatDecimal`. Local `fmtScore` / `fmtPct` helpers in 7 files now delegate to the central utility instead of duplicating the regex pattern. Local `fmtEur` helpers in `EntityWorkspace.tsx` and `RunPortfolioTab.tsx` (functionally identical to `formatCurrency` modulo a null-guard) now call through. `fmtBudget` helpers in backlog `RankedRow` / `DetailHeader` deliberately preserved — they use verbose dotted-thousands (`€50.000`) below 1M instead of the `K` abbreviation, a separate UX choice.
+
+Verification: `npx tsc --noEmit` clean; visual spot-check across `/backlog` (scores), `/portfolio` (KPI strip), `/simulator` impact dashboard (percentages + delta arrows) at 1440px in dark mode — all numbers render correctly with European separators.
+
 ## Documentation Hub v5 sweep + Changelog tab (2026-05-05)
 
 Branch: `feat/docs-v5-sweep-and-changelog`. The in-app `/docs` hub had drifted from the v5 implementation — Module Guides, FAQ, and the new Charging manual were already current, but Overview was missing 3 modules (Backlog, Charging & Allocations, Documentation Hub itself), the Data Model tab was almost entirely v4, the API Reference's `TAG_ORDER` listed v4-era tags that don't exist in the live OpenAPI spec (so v5 endpoint groups silently appended at the bottom), and there was no Changelog surface at all. This commit set closes those gaps and adds a Changelog tab.

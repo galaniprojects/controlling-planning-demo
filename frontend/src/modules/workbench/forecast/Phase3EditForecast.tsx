@@ -39,7 +39,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { ChevronDown, ChevronRight, Info } from 'lucide-react';
-import { formatCurrency, formatCurrencyCompact, formatCurrencyDetailed } from '@/lib/formatters';
+import { formatCurrency, formatCurrencyCompact, formatCurrencyDetailed, formatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { workbenchApi } from '@/api/endpoints';
 import type {
@@ -450,7 +450,7 @@ export function Phase3EditForecast({
           <span className="text-sm text-muted-foreground inline-flex items-center">
             {display.isProvisional && renderProvisionalDot()}
             {isInternal
-              ? `${display.displayValue.toLocaleString('de-DE')} hrs`
+              ? `${formatNumber(display.displayValue)} hrs`
               : formatCurrency(display.displayValue)}
           </span>
         </div>
@@ -473,7 +473,7 @@ export function Phase3EditForecast({
           <span className="inline-flex items-center justify-end gap-1">
             {display.isProvisional && renderProvisionalDot()}
             {isInternal
-              ? `${display.displayValue.toLocaleString('de-DE')} hrs`
+              ? `${formatNumber(display.displayValue)} hrs`
               : formatCurrency(display.displayValue)}
           </span>
         </button>

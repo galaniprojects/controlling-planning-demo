@@ -7,6 +7,7 @@
 
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { formatDecimal } from '@/lib/formatters';
 import type { RankedProjectItem } from '@/types/api';
 
 interface Props {
@@ -36,7 +37,7 @@ const TLEVEL_BADGE: Record<string, string> = {
 
 function fmtScore(n: number | null): string {
   if (n === null) return '—';
-  return n.toFixed(2).replace('.', ',');
+  return formatDecimal(n, 2);
 }
 
 function fmtBudget(n: number | null): string {

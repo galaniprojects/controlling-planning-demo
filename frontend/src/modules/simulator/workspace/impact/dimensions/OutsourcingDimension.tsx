@@ -6,7 +6,7 @@
  */
 
 import { Card } from '@/components/ui/card';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatPercent } from '@/lib/formatters';
 import type { OutsourcingDimensionData } from '../../../lib/impactTypes';
 
 interface OutsourcingDimensionProps {
@@ -68,7 +68,7 @@ export function OutsourcingDimension({ data }: OutsourcingDimensionProps) {
             {formatCurrency(data.internal_total)}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {data.internal_pct.toFixed(1).replace('.', ',')}% of total
+            {formatPercent(data.internal_pct, { signed: false })} of total
           </p>
         </Card>
         <Card className="px-4 py-3 bg-card">
@@ -82,7 +82,7 @@ export function OutsourcingDimension({ data }: OutsourcingDimensionProps) {
             {formatCurrency(data.external_total)}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {data.external_pct.toFixed(1).replace('.', ',')}% of total
+            {formatPercent(data.external_pct, { signed: false })} of total
           </p>
         </Card>
       </div>

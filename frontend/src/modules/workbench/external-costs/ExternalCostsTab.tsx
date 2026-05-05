@@ -178,7 +178,7 @@ export function ExternalCostsTab({ projectId }: Props) {
         <KPI
           label="Actuals YTD"
           value={formatCurrency(kpis.actuals)}
-          hint={`${kpis.consumedPct.toFixed(1).replace('.', ',')}% consumed`}
+          hint={`${formatPercent(kpis.consumedPct, { signed: false })} consumed`}
         />
         <KPI
           label="Open POs"

@@ -30,7 +30,7 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { externalCostsApi } from '@/api/endpoints';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatPercent } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import type {
   PortfolioVendorSummaryRow,
@@ -171,7 +171,7 @@ export function ExternalSpendTab() {
         <KPI
           label="Actuals YTD"
           value={formatCurrency(kpis.actuals)}
-          hint={`${kpis.consumedPct.toFixed(1).replace('.', ',')}% consumed`}
+          hint={`${formatPercent(kpis.consumedPct, { signed: false })} consumed`}
         />
         <KPI label="Vendors" value={String(kpis.vendorCount)} />
         <KPI label="Projects" value={String(kpis.projectCount)} />
@@ -363,7 +363,7 @@ export function ExternalSpendTab() {
                     {c.vendor_count}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {c.pct_of_external_total.toFixed(1).replace('.', ',')}%
+                    {formatPercent(c.pct_of_external_total, { signed: false })}
                   </TableCell>
                 </TableRow>
               ))}
