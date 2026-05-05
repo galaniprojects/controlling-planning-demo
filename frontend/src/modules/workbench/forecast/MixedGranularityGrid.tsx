@@ -36,13 +36,16 @@ import {
 import { ChevronDown, ChevronRight, Info } from 'lucide-react';
 import { formatCurrencyCompact, formatNumber } from '@/lib/formatters';
 import { isElapsedMonth } from '@/lib/yearColumns';
-import { workbenchApi } from '@/api/endpoints';
+import { milestonesApi, workbenchApi } from '@/api/endpoints';
 import {
   lookupDelta as lookupDeltaHelper,
   isMeaningfulDelta,
 } from '@/modules/simulator/lib/cellDiffHelpers';
 import { useCollapsibleMixedYears } from '@/hooks/useCollapsibleYears';
 import { ForecastCell, type CellTemporalContext } from './ForecastCell';
+import { PhaseStrip, type PhaseStripColumn } from './PhaseStrip';
+import { mapColumnsToPhases, withAlpha, type PhaseInfo } from './phaseHelpers';
+import type { MilestoneResponse } from '@/types/milestones';
 import type {
   CellDelta,
   MixedGridCell,
@@ -67,6 +70,13 @@ interface Props {
    * change for v4 / C2 callers).
    */
   scenarioVersion?: string;
+  /**
+   * v5.1 W3 [C-04] — lockstep scroll seam. When provided the parent attaches
+   * the same ref to the comparison-chart scroll wrapper so horizontal scroll
+   * stays synchronised between the F&P grid and the C-04 chart below it.
+   * Defaults to undefined (no-op) so existing call sites are unaffected.
+   */
+  scrollContainerRef?: React.RefObject<HTMLDivElement>;
 }
 
 const MONTH_SHORT = [
@@ -140,11 +150,16 @@ export function MixedGranularityGrid({
   deltaIndex,
   comparisonActive,
   scenarioVersion,
+  scrollContainerRef,
 }: Props) {
   const [grid, setGrid] = useState<MixedGridResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedQuarters, setExpandedQuarters] = useState<Set<string>>(new Set());
+  // v5.1 C-03 — milestone phase highlighting. Loaded async, with silent
+  // degradation: if the fetch fails or returns nothing, the strip simply
+  // doesn't render and per-column tints aren't applied.
+  const [milestones, setMilestones] = useState<MilestoneResponse[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,6 +192,26 @@ export function MixedGranularityGrid({
   // Reset expanded quarters when project changes
   useEffect(() => {
     setExpandedQuarters(new Set());
+  }, [projectId]);
+
+  // v5.1 C-03 — load milestones for phase highlighting. Failures are silent:
+  // we leave `milestones` as the empty array so the strip + tinting fall back
+  // to the no-milestone behaviour (graceful degradation per spec).
+  useEffect(() => {
+    let cancelled = false;
+    milestonesApi
+      .list(projectId)
+      .then((res) => {
+        if (cancelled) return;
+        setMilestones(res.items ?? []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setMilestones([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [projectId]);
 
   const toggleQuarter = useCallback((qKey: string) => {
@@ -272,6 +307,30 @@ export function MixedGranularityGrid({
     }
     return out;
   }, [grid, collapsedColumns, expandedQuarters, colByKey]);
+
+  // v5.1 C-03 — phase map keyed by display-column key. Quarter-expanded
+  // sub-cells share their parent quarter's range so the tint reads cleanly
+  // even when the user expands a quarter that straddles a phase boundary.
+  // yearTotal columns are intentionally excluded (no key passed in).
+  const phaseMap = useMemo<Map<string, PhaseInfo>>(() => {
+    if (milestones.length === 0) return new Map();
+    const dataKeys: string[] = [];
+    for (const entry of displayColumns) {
+      if (entry.kind === 'data') dataKeys.push(entry.col.key);
+    }
+    return mapColumnsToPhases(dataKeys, milestones);
+  }, [milestones, displayColumns]);
+
+  // Strip-row column descriptor list: data entries carry the column key,
+  // yearTotal entries supply `null` so the strip breaks segments at year
+  // boundaries.
+  const phaseStripColumns = useMemo<PhaseStripColumn[]>(() => {
+    return displayColumns.map((entry) =>
+      entry.kind === 'data'
+        ? { key: entry.col.key, kind: 'data' as const }
+        : { key: null, kind: 'yearTotal' as const },
+    );
+  }, [displayColumns]);
 
   // Identify the boundary column index — last monthly column among the
   // *canonical* columns. Used for the zone-boundary divider; the divider
