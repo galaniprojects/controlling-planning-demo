@@ -8,7 +8,7 @@ import json
 import pytest
 from decimal import Decimal
 
-from models.financial import Forecast, ForecastVersion
+from models.financial import Actuals, Baseline, Forecast, ForecastVersion
 from models.projects import Project
 from models.people import RoleType, Person
 from models.organization import Location, CompetenceCenter, CostCenter
@@ -286,6 +286,220 @@ class TestBuildMixedGrid:
         grid = build_mixed_grid(db, "proj-alpha", "2026-04", boundary_months=6)
         assert grid["granularity_boundary_months"] == 6
         assert grid["boundary_month"] == "2026-09"
+
+
+# ---------------------------------------------------------------------------
+# 4b. build_mixed_grid with include_baseline_actuals=True (v5.1 C-08)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def seeded_project_with_history(db):
+    """Project with baseline + forecast + actuals across past, current, future months.
+
+    Demo date is 2026-04. Months span 2026-01..2026-08 to cover:
+      - Past months (2026-01..2026-03): all three series populated
+      - Current month (2026-04): forecast + baseline + partial actuals
+      - Future months (2026-05..2026-08): forecast + baseline only
+
+    Includes one month where actuals exceed forecast so the warm-tint case
+    is exercisable.
+    """
+    loc = Location(id="loc-muc", city="Munich", country="Germany")
+    cc = CompetenceCenter(id="comp-dev", name="Dev")
+    cost_c = CostCenter(id="cc-muc-dev", name="Munich Dev",
+                        location_id="loc-muc", competence_center_id="comp-dev")
+    role = RoleType(id="role-dev", name="Developer")
+    person = Person(id="p-ctrl", name="Anna Meier", role_type_id="role-dev",
+                    cost_center_id="cc-muc-dev", competence_center_id="comp-dev")
+    project = Project(
+        id="proj-c08", name="C-08 Test", status="active", capex_opex="capex",
+        start_month="2026-01", is_service=False, is_active=True,
+    )
+    db.add_all([loc, cc, cost_c, role, person, project])
+    db.commit()
+
+    months = [
+        ("2026-01", "past"),
+        ("2026-02", "past"),
+        ("2026-03", "past_overrun"),  # actuals > forecast
+        ("2026-04", "current"),
+        ("2026-05", "future"),
+        ("2026-06", "future"),
+        ("2026-07", "future"),
+        ("2026-08", "future"),
+    ]
+    for month, kind in months:
+        # Internal hours row — same line item across all series.
+        db.add(Baseline(
+            project_id="proj-c08", month=month,
+            category="internal", sub_category="role-dev",
+            hours=100, amount_eur=10000, capex_opex="capex",
+        ))
+        db.add(Forecast(
+            project_id="proj-c08", month=month,
+            category="internal", sub_category="role-dev",
+            hours=110, amount_eur=11000, capex_opex="capex",
+        ))
+        if kind == "past":
+            db.add(Actuals(
+                project_id="proj-c08", month=month,
+                category="internal", sub_category="role-dev",
+                hours=105, amount_eur=10500, capex_opex="capex",
+            ))
+        elif kind == "past_overrun":
+            db.add(Actuals(
+                project_id="proj-c08", month=month,
+                category="internal", sub_category="role-dev",
+                hours=130, amount_eur=13500, capex_opex="capex",
+            ))
+        elif kind == "current":
+            # Partial — half of forecast already booked.
+            db.add(Actuals(
+                project_id="proj-c08", month=month,
+                category="internal", sub_category="role-dev",
+                hours=55, amount_eur=5500, capex_opex="capex",
+            ))
+    db.commit()
+    return {"project_id": "proj-c08"}
+
+
+class TestBuildMixedGridBaselineActuals:
+    """v5.1 C-08: include_baseline_actuals overlay shape + temporal rules."""
+
+    def test_default_omits_overlays(self, db, seeded_project, horizon_params):
+        """Default call leaves snapshots forecast-only; new fields stay None
+        (or absent) so existing version_payload consumers don't see drift."""
+        grid = build_mixed_grid(db, "proj-alpha", "2026-04")
+        for row in grid["rows"]:
+            for cell in row["cells"]:
+                assert cell.get("baseline_amount_eur") is None
+                assert cell.get("actuals_amount_eur") is None
+
+    def test_flag_populates_three_series_on_demo_month(
+        self, db, seeded_project_with_history, horizon_params,
+    ):
+        """The demo month carries baseline, forecast and (partial) actuals."""
+        grid = build_mixed_grid(
+            db, "proj-c08", "2026-04",
+            include_baseline_actuals=True,
+            boundary_months=12, horizon_months=12,
+        )
+        row = next(r for r in grid["rows"]
+                   if r["category"] == "internal" and r["sub_category"] == "role-dev")
+        cell = next(c for c in row["cells"] if c["key"] == "2026-04")
+        assert cell["baseline_amount_eur"] == 10000.0
+        assert cell["baseline_hours"] == 100.0
+        assert cell["actuals_amount_eur"] == 5500.0
+        assert cell["actuals_hours"] == 55.0
+        assert cell["amount_eur"] == 11000.0  # forecast still primary
+        # demo month → partial
+        assert cell["actuals_partial"] is True
+
+    def test_current_month_marks_actuals_partial(
+        self, db, seeded_project_with_history, horizon_params,
+    ):
+        # demo_date == current month
+        grid = build_mixed_grid(
+            db, "proj-c08", "2026-04",
+            include_baseline_actuals=True,
+            boundary_months=12, horizon_months=12,
+        )
+        row = next(r for r in grid["rows"] if r["sub_category"] == "role-dev")
+        cell = next(c for c in row["cells"] if c["key"] == "2026-04")
+        assert cell["actuals_amount_eur"] == 5500.0
+        assert cell["actuals_partial"] is True
+        assert cell["amount_eur"] == 11000.0  # forecast remains primary
+        assert cell["baseline_amount_eur"] == 10000.0
+
+    def test_future_month_has_no_actuals(
+        self, db, seeded_project_with_history, horizon_params,
+    ):
+        grid = build_mixed_grid(
+            db, "proj-c08", "2026-04",
+            include_baseline_actuals=True,
+            boundary_months=12, horizon_months=12,
+        )
+        row = next(r for r in grid["rows"] if r["sub_category"] == "role-dev")
+        # 2026-05 is one month past the demo date — no actuals.
+        cell = next(c for c in row["cells"] if c["key"] == "2026-05")
+        assert cell["actuals_amount_eur"] is None
+        assert cell["actuals_hours"] is None
+        # actuals_partial is None when no actuals exist
+        assert cell["actuals_partial"] in (None, False)
+        # Baseline + forecast still present
+        assert cell["baseline_amount_eur"] == 10000.0
+        assert cell["amount_eur"] == 11000.0
+
+    def test_actuals_exceed_forecast_visible(
+        self, db, seeded_project_with_history, horizon_params,
+    ):
+        """Warm-tint scenario: month with actuals > forecast surfaces both."""
+        # demo_date == 2026-03 places the overrun cell at the start of the
+        # column window (current month) so we can read both series.
+        grid = build_mixed_grid(
+            db, "proj-c08", "2026-03",
+            include_baseline_actuals=True,
+            boundary_months=12, horizon_months=12,
+        )
+        row = next(r for r in grid["rows"] if r["sub_category"] == "role-dev")
+        cell = next(c for c in row["cells"] if c["key"] == "2026-03")
+        assert cell["actuals_amount_eur"] == 13500.0
+        assert cell["amount_eur"] == 11000.0
+        assert cell["actuals_amount_eur"] > cell["amount_eur"]
+
+    def test_quarterly_aggregates_baseline_and_actuals(
+        self, db, seeded_project_with_history, horizon_params,
+    ):
+        """Quarterly cells sum the underlying months for each series.
+
+        Demo date is 2026-04 with boundary=1 → 2026-04 is the only monthly
+        column, then 2026-Q3 (Jul/Aug/Sep) appears as a quarterly column.
+        2026-Q3 has forecasts for Jul + Aug, baselines for Jul + Aug, and
+        no actuals (all future months).
+        """
+        grid = build_mixed_grid(
+            db, "proj-c08", "2026-04",
+            include_baseline_actuals=True,
+            boundary_months=1, horizon_months=12,
+        )
+        row = next(r for r in grid["rows"] if r["sub_category"] == "role-dev")
+        # 2026-Q3: Jul + Aug forecast/baseline (Sep has no rows in the fixture)
+        q_cell = next(c for c in row["cells"] if c["key"] == "2026-Q3")
+        assert q_cell["cell_type"] == "quarterly"
+        # 2 months × 10000 baseline = 20000
+        assert q_cell["baseline_amount_eur"] == 20000.0
+        # 2 months × 11000 forecast = 22000
+        assert q_cell["amount_eur"] == 22000.0
+        # All months in Q3 are future → no actuals
+        assert q_cell["actuals_amount_eur"] is None
+        assert q_cell["actuals_partial"] in (None, False)
+
+    def test_baseline_only_line_still_creates_row(
+        self, db, seeded_project_with_history, horizon_params,
+    ):
+        """A line item with baseline but no forecast (e.g., scope removed) still
+        appears in the grid so the user sees the planned-but-not-forecast value."""
+        # Add a Baseline-only line item
+        db.add(Baseline(
+            project_id="proj-c08", month="2026-04",
+            category="external", sub_category="ext-removed",
+            hours=None, amount_eur=2000, capex_opex="capex",
+        ))
+        db.commit()
+        grid = build_mixed_grid(
+            db, "proj-c08", "2026-04",
+            include_baseline_actuals=True,
+            boundary_months=12, horizon_months=12,
+        )
+        row = next(
+            (r for r in grid["rows"] if r["sub_category"] == "ext-removed"),
+            None,
+        )
+        assert row is not None
+        cell = next(c for c in row["cells"] if c["key"] == "2026-04")
+        assert cell["baseline_amount_eur"] == 2000.0
+        # Forecast is zero (no forecast row)
+        assert cell["amount_eur"] == 0.0
 
 
 # ---------------------------------------------------------------------------
