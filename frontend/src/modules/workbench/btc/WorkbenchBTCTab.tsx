@@ -63,7 +63,6 @@ export function WorkbenchBTCTab({ projectId, entityId }: Props) {
   const [entity, setEntity] = useState<ChargeableEntityItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editorRefreshKey, setEditorRefreshKey] = useState(0);
   const year = new Date().getFullYear();
 
   useEffect(() => {
@@ -146,9 +145,6 @@ export function WorkbenchBTCTab({ projectId, entityId }: Props) {
           entityId={entity.id}
           year={year}
           version="forecast"
-          onBack={() => {
-            /* parent tab persists — onBack is a noop */
-          }}
         />
       </div>
     );
@@ -162,10 +158,8 @@ export function WorkbenchBTCTab({ projectId, entityId }: Props) {
           BTC Profile
         </h2>
         <EntityBTCProfileEditor
-          key={editorRefreshKey}
           entityId={entity.id}
           year={year}
-          onBack={() => setEditorRefreshKey((k) => k + 1)}
         />
       </section>
 

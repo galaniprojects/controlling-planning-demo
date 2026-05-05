@@ -55,11 +55,13 @@ export function EntityWorkspace({ entityId }: Props) {
 
   // v5.1 [A-01 fix] — top-level Back to Run Portfolio. EntityWorkspace is
   // routed via /workbench?entity=<id>&type=<...> from the Run Portfolio list,
-  // so the back affordance has to navigate the URL itself; the inner
-  // EntityDistributionEditor / EntityBTCProfileEditor "Back" buttons are
-  // no-ops in this context (they assume a parent list inside the Charging
-  // module). Using navigate(-1) preserves filter + scroll state from the
-  // Run list, falling forward to /portfolio/run if there's no history entry.
+  // so the back affordance has to navigate the URL itself. The inner
+  // EntityDistributionEditor / EntityBTCProfileEditor each render their own
+  // Back button only when the parent passes `onBack` — Workbench callers
+  // omit it so the inner buttons are suppressed and this top-level button
+  // is the single source of truth. navigate(-1) preserves filter + scroll
+  // state from the Run list, falling forward to /portfolio/run if there's
+  // no history entry.
   const handleBack = () => {
     if (window.history.length > 1) {
       navigate(-1);
