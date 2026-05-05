@@ -15,7 +15,7 @@
  * live in `simulator/lib/cellDiffHelpers` so Compare L3 + the change-summary
  * drawer can reuse the same lookup + indicator semantics.
  */
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, type RefObject } from 'react';
 import {
   Table,
   TableBody,
@@ -36,13 +36,16 @@ import {
 import { ChevronDown, ChevronRight, Info } from 'lucide-react';
 import { formatCurrencyCompact, formatNumber } from '@/lib/formatters';
 import { isElapsedMonth } from '@/lib/yearColumns';
-import { workbenchApi } from '@/api/endpoints';
+import { milestonesApi, workbenchApi } from '@/api/endpoints';
 import {
   lookupDelta as lookupDeltaHelper,
   isMeaningfulDelta,
 } from '@/modules/simulator/lib/cellDiffHelpers';
 import { useCollapsibleMixedYears } from '@/hooks/useCollapsibleYears';
 import { ForecastCell, type CellTemporalContext } from './ForecastCell';
+import { PhaseStrip, type PhaseStripColumn } from './PhaseStrip';
+import { mapColumnsToPhases, withAlpha, type PhaseInfo } from './phaseHelpers';
+import type { MilestoneResponse } from '@/types/milestones';
 import type {
   CellDelta,
   MixedGridCell,
@@ -67,6 +70,13 @@ interface Props {
    * change for v4 / C2 callers).
    */
   scenarioVersion?: string;
+  /**
+   * v5.1 W3 [C-04] — lockstep scroll seam. When provided the parent attaches
+   * the same ref to the comparison-chart scroll wrapper so horizontal scroll
+   * stays synchronised between the F&P grid and the C-04 chart below it.
+   * Defaults to undefined (no-op) so existing call sites are unaffected.
+   */
+  scrollContainerRef?: RefObject<HTMLDivElement | null>;
 }
 
 const MONTH_SHORT = [
@@ -140,11 +150,16 @@ export function MixedGranularityGrid({
   deltaIndex,
   comparisonActive,
   scenarioVersion,
+  scrollContainerRef,
 }: Props) {
   const [grid, setGrid] = useState<MixedGridResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedQuarters, setExpandedQuarters] = useState<Set<string>>(new Set());
+  // v5.1 C-03 — milestone phase highlighting. Loaded async, with silent
+  // degradation: if the fetch fails or returns nothing, the strip simply
+  // doesn't render and per-column tints aren't applied.
+  const [milestones, setMilestones] = useState<MilestoneResponse[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,6 +192,26 @@ export function MixedGranularityGrid({
   // Reset expanded quarters when project changes
   useEffect(() => {
     setExpandedQuarters(new Set());
+  }, [projectId]);
+
+  // v5.1 C-03 — load milestones for phase highlighting. Failures are silent:
+  // we leave `milestones` as the empty array so the strip + tinting fall back
+  // to the no-milestone behaviour (graceful degradation per spec).
+  useEffect(() => {
+    let cancelled = false;
+    milestonesApi
+      .list(projectId)
+      .then((res) => {
+        if (cancelled) return;
+        setMilestones(res.items ?? []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setMilestones([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [projectId]);
 
   const toggleQuarter = useCallback((qKey: string) => {
@@ -272,6 +307,30 @@ export function MixedGranularityGrid({
     }
     return out;
   }, [grid, collapsedColumns, expandedQuarters, colByKey]);
+
+  // v5.1 C-03 — phase map keyed by display-column key. Quarter-expanded
+  // sub-cells share their parent quarter's range so the tint reads cleanly
+  // even when the user expands a quarter that straddles a phase boundary.
+  // yearTotal columns are intentionally excluded (no key passed in).
+  const phaseMap = useMemo<Map<string, PhaseInfo>>(() => {
+    if (milestones.length === 0) return new Map();
+    const dataKeys: string[] = [];
+    for (const entry of displayColumns) {
+      if (entry.kind === 'data') dataKeys.push(entry.col.key);
+    }
+    return mapColumnsToPhases(dataKeys, milestones);
+  }, [milestones, displayColumns]);
+
+  // Strip-row column descriptor list: data entries carry the column key,
+  // yearTotal entries supply `null` so the strip breaks segments at year
+  // boundaries.
+  const phaseStripColumns = useMemo<PhaseStripColumn[]>(() => {
+    return displayColumns.map((entry) =>
+      entry.kind === 'data'
+        ? { key: entry.col.key, kind: 'data' as const }
+        : { key: null, kind: 'yearTotal' as const },
+    );
+  }, [displayColumns]);
 
   // Identify the boundary column index — last monthly column among the
   // *canonical* columns. Used for the zone-boundary divider; the divider
@@ -461,6 +520,44 @@ export function MixedGranularityGrid({
       else if (entry.kind === 'yearTotal' && entry.year === year) n += 1;
     }
     return n;
+  }
+
+  /**
+   * v5.1 C-03 — render a `<colgroup>` with one `<col>` per visible column
+   * (line-item label first, then every displayColumn entry). Tinted columns
+   * carry an inline `backgroundColor` derived from the milestone palette at
+   * very low alpha (~7%) so the phase context reads across every data row
+   * without overwhelming the foreground. Cells that already paint their own
+   * background (boundary blue, hasChange amber, isQuarterly blue, sticky
+   * left labels) will mask this tint where they apply — which is the
+   * intended behaviour: phase tint is the lowest visual layer.
+   *
+   * We use `<col>` here (rather than per-cell inline styles) so the tint
+   * spans every body row uniformly, including subtotal rows, without
+   * touching ForecastCell — preserving Wave 2's strict file-ownership rule.
+   */
+  function renderColGroup() {
+    if (phaseMap.size === 0) return null;
+    return (
+      <colgroup>
+        {/* Line-item label column — never tinted. */}
+        <col />
+        {displayColumns.map((entry, idx) => {
+          if (entry.kind === 'yearTotal') {
+            return <col key={`col-yt-${entry.year}-${idx}`} />;
+          }
+          const phase = phaseMap.get(entry.col.key);
+          if (!phase) return <col key={`col-${entry.col.key}`} />;
+          const tint = withAlpha(phase.color, 0.07);
+          return (
+            <col
+              key={`col-${entry.col.key}`}
+              style={{ backgroundColor: tint }}
+            />
+          );
+        })}
+      </colgroup>
+    );
   }
 
   function renderHeaderRow1() {
@@ -790,12 +887,20 @@ export function MixedGranularityGrid({
         </Button>
       </div>
       {/* C-02: viewport-bound scroll container with sticky header + sticky left column.
-          max-h is the F&P grid budget; horizontal scroll engages when content exceeds width. */}
-      <div className="border border-border rounded-lg overflow-auto max-h-[calc(100vh-260px)]">
+          max-h is the F&P grid budget; horizontal scroll engages when content exceeds width.
+          v5.1 W3 [C-04] — lockstep scroll seam: when a parent supplies
+          `scrollContainerRef` we attach it here so the comparison-chart
+          scroll wrapper below the grid can be kept in sync. */}
+      <div
+        ref={scrollContainerRef}
+        className="border border-border rounded-lg overflow-auto max-h-[calc(100vh-260px)]"
+      >
         <Table>
+          {renderColGroup()}
           <TableHeader>
             {renderHeaderRow1()}
             {renderHeaderRow2()}
+            <PhaseStrip columns={phaseStripColumns} milestones={milestones} />
           </TableHeader>
           <TableBody>
             {renderSubtotalRow('Grand Total', grid.rows, 'grand')}
