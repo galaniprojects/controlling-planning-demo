@@ -186,7 +186,7 @@ vision-demo-prototype/
 
 The backend serves interactive API documentation via Swagger UI at **http://localhost:8000/docs** when the server is running.
 
-The app also includes a built-in Documentation Hub accessible from the Launchpad, with module guides, API reference, data model overview, and FAQ.
+The app also includes a built-in Documentation Hub at `/docs` with six tabs: Overview, Module Guides (10 manuals incl. Backlog and Charging & Allocations), API Reference (live OpenAPI groupings), Data Model (entity reference grouped by cluster, refreshed for the v5 polymorphic ChargeableEntity + configurable hierarchy redesign), FAQ (40+ entries, role-filtered), and **Changelog** (v5 release notes for demo storytelling).
 
 ### Key API Groups
 
@@ -206,7 +206,7 @@ The app also includes a built-in Documentation Hub accessible from the Launchpad
 | **AI Report Builder** | `/api/reports/ai-builder` | 4 | Status check, conversation start, message, cleanup |
 | **BTC Profiles + Rollup** | `/api/charging`, `/api/admin` | 20 | BTCProfile CRUD, UM refresh, mode change, copy/year-rollover, WBS matrix, rollup query (11 dims), drill-down, per-location breakdown (level-4), cache invalidate/status, F6 per-entity allocation breakdown + read-only entity / charging-locations |
 | **Admin** | `/api/admin` | 20 | Entity CRUD (cost centers, CCs, grouping entities, locations, people), rates, parameters, hierarchy management, audit log, demo reset, Tech Navigator score recompute, milestone-types catalogue |
-| **Docs** | `/api/docs` | 3 | Module manuals, FAQ |
+| **Docs** | `/api/docs` | 8 | Module manuals (list / detail / all), FAQ (list / detail / all), Changelog, OpenAPI proxy |
 | **Reference** | `/api/reference` | 4 | Roles, cost types, grouping entities, cost centers |
 
 ### Submission Workflow Endpoints
