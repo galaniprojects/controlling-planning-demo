@@ -34,13 +34,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { ChevronDown, ChevronRight, Info } from 'lucide-react';
-import { formatCurrencyCompact, formatNumber } from '@/lib/formatters';
+import { formatCurrencyCompact } from '@/lib/formatters';
 import { workbenchApi } from '@/api/endpoints';
 import {
   lookupDelta as lookupDeltaHelper,
-  renderDeltaIndicator as renderDeltaIndicatorHelper,
   isMeaningfulDelta,
 } from '@/modules/simulator/lib/cellDiffHelpers';
+import { ForecastCell } from './ForecastCell';
 import type {
   CellDelta,
   MixedGridCell,
@@ -251,26 +251,6 @@ export function MixedGranularityGrid({
     return lookupDeltaHelper(deltaIndex, comparisonActive, category, sub, key);
   }
 
-  function renderProvisionalDot() {
-    return (
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span
-              aria-label="Provisional value"
-              className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 dark:bg-amber-400 mr-1 align-middle"
-            />
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            <span className="text-xs">
-              Provisional value (auto-distributed or pre-populated). Edit to confirm.
-            </span>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-
   function getDisplayCell(
     row: MixedGridRow,
     col: MixedGridColumn,
@@ -434,39 +414,21 @@ export function MixedGranularityGrid({
           const delta = lookupDelta(row.category, row.sub_category, display.lookupKey);
           const hasChange = isMeaningfulDelta(delta);
           return (
-            <TableCell
+            <ForecastCell
               key={`${row.sub_category}-${col.key}`}
-              className={`text-right text-xs ${
-                yearStart ? 'border-l-2 border-border' : ''
-              } ${
-                boundary ? 'border-l-4 border-l-blue-400 dark:border-l-blue-500' : ''
-              } ${isQuarterly ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''} ${
-                isExpandedSub ? 'bg-blue-50/10 dark:bg-blue-900/5' : ''
-              } ${
-                hasChange
-                  ? 'bg-amber-50 dark:bg-amber-900/20 ring-1 ring-amber-300/40 dark:ring-amber-600/30'
-                  : ''
-              }`}
-            >
-              {display.amount === 0 && display.hours === 0 ? (
-                <span className="text-muted-foreground/40">&mdash;</span>
-              ) : (
-                <div className="flex flex-col items-end">
-                  <span className="font-tabular font-medium inline-flex items-center">
-                    {display.provisional && renderProvisionalDot()}
-                    {row.category === 'internal'
-                      ? `${formatNumber(display.hours)}h`
-                      : formatCurrencyCompact(display.amount)}
-                  </span>
-                  {row.category === 'internal' && (
-                    <span className="text-[10px] text-muted-foreground font-tabular">
-                      {formatCurrencyCompact(display.amount)}
-                    </span>
-                  )}
-                  {hasChange && renderDeltaIndicatorHelper(delta?.delta ?? null)}
-                </div>
-              )}
-            </TableCell>
+              category={row.category}
+              display={{
+                hours: display.hours,
+                amount: display.amount,
+                provisional: display.provisional,
+              }}
+              delta={delta}
+              hasChange={hasChange}
+              yearStart={yearStart}
+              boundary={boundary}
+              isQuarterly={isQuarterly}
+              isExpandedSub={isExpandedSub}
+            />
           );
         })}
       </TableRow>
