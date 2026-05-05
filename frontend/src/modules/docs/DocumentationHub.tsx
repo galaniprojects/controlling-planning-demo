@@ -6,6 +6,7 @@ import { ModulesTab } from './tabs/ModulesTab';
 import { ApiReferenceTab } from './tabs/ApiReferenceTab';
 import { DataModelTab } from './tabs/DataModelTab';
 import { FaqTab } from './tabs/FaqTab';
+import { ChangelogTab } from './tabs/ChangelogTab';
 
 export function DocumentationHub() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -21,6 +22,7 @@ export function DocumentationHub() {
           <TabsTrigger value="api">API Reference</TabsTrigger>
           <TabsTrigger value="data-model">Data Model</TabsTrigger>
           <TabsTrigger value="faq">FAQ</TabsTrigger>
+          <TabsTrigger value="changelog">Changelog</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -37,6 +39,9 @@ export function DocumentationHub() {
         </TabsContent>
         <TabsContent value="faq">
           <FaqTab />
+        </TabsContent>
+        <TabsContent value="changelog">
+          <ChangelogTab />
         </TabsContent>
       </Tabs>
     </div>

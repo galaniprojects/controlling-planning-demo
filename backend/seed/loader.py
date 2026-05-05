@@ -54,8 +54,9 @@ def load_fixtures() -> dict:
       - "manuals": list of module manual dicts
       - "faq": list of FAQ entry dicts
       - "advisor_goals": list of AI Advisor goal dicts
+      - "changelog": list of release entries (version → sections)
     """
-    fixtures = {"manuals": [], "faq": [], "advisor_goals": []}
+    fixtures = {"manuals": [], "faq": [], "advisor_goals": [], "changelog": []}
 
     # Load module manuals
     manuals_dir = os.path.join(FIXTURES_DIR, "manuals")
@@ -82,6 +83,14 @@ def load_fixtures() -> dict:
             raw = f.read()
         fixtures["advisor_goals"] = json.loads(apply_branding(raw))
         print(f"[seed] Loaded {len(fixtures['advisor_goals'])} AI Advisor goals")
+
+    # Load Changelog
+    changelog_path = os.path.join(FIXTURES_DIR, "changelog", "changelog.json")
+    if os.path.exists(changelog_path):
+        with open(changelog_path, "r") as f:
+            raw = f.read()
+        fixtures["changelog"] = json.loads(apply_branding(raw))
+        print(f"[seed] Loaded {len(fixtures['changelog'])} changelog entries")
 
     return fixtures
 

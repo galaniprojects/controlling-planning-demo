@@ -43,3 +43,16 @@ class FAQDetail(BaseModel):
     applicable_roles: list[str]
     modules_involved: list[str]
     steps: list[FAQStep]
+
+
+class ChangelogSection(BaseModel):
+    title: str
+    body: str
+
+
+class ChangelogEntry(BaseModel):
+    version: str
+    date: str
+    title: str
+    summary: str
+    sections: list[ChangelogSection]

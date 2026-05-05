@@ -48,14 +48,34 @@ const METHOD_COLORS: Record<string, string> = {
 };
 
 const TAG_ORDER = [
-  'Global & Launchpad',
+  // Top-level user-facing modules
+  'Global / Launchpad',
   'Portfolio Overview',
+  'Backlog',
+  'Pipeline',
+  'Tech Navigator',
   'Project Workbench',
+  'Project Workbench External Costs',
+  'Project Milestones',
+  'Progress Tracker',
+  'Forecast Versions',
   'Capacity Management',
-  'Scenarios',
-  'Reports',
+  'What-If Simulator',
+  'Charging & Allocations',
+  // Reporting
+  'Reporting',
+  'Report Builder',
+  'AI Report Builder',
+  // Admin & governance
   'Administration',
+  'Administration: Charging',
+  'Administration: UserMeasurement',
+  'Workflow Templates',
+  'Scheduled Changes',
+  'Intake (v5)',
+  'Audit',
   'Reference Data',
+  // Docs
   'Documentation',
 ];
 

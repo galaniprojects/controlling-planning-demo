@@ -1,0 +1,74 @@
+[
+  {
+    "version": "v5.0",
+    "date": "2026-05-01",
+    "title": "Polymorphic ChargeableEntity, two-stage cost flow, configurable hierarchy",
+    "summary": "v5 reshapes the demo across seven paradigm shifts. Cost is no longer attached only to projects — Project / Offering / InternalService all share one polymorphic root. Cost flows in two stages with cycle-detected DAG resolution and Business-Transfer-Charging splits. The portfolio hierarchy that used to be hard-coded LineOfBusiness + Programme tables is now a configurable n-level node graph. Plus immutable forecast versioning, the Tech Navigator scoring rubric, and Change-vs-Run portfolio sub-modules.",
+    "sections": [
+      {
+        "title": "Headline shift 1 — The cost-allocation root is no longer 'a project'",
+        "body": "v4 allocated cost only to projects. v5 introduces a **polymorphic ChargeableEntity** with three subtypes — **Project** (`IT0<PPM>`), **Offering** (`IT00<S-code>`), **InternalService** (`ITF<NNNNN>`) — that share a single cost-flow model. Same DAG resolution, same BTC profiles, same rollup view.\nLets the demo express not just 'this project costs X' but 'this internal service flows into this offering, which charges these locations.' Spec tags: `[F-DM-01..04]`."
+      },
+      {
+        "title": "Headline shift 2 — Two-stage cost flow",
+        "body": "**Stage 1 — Inter-service distribution.** Sparse percentage edges between chargeable entities; DAG-resolved effective cost (own + sum of inflows); cycle detection blocks save with the cycle chain in the error body. `[F-S1-01..05]`\n**Stage 2 — BTC profiles.** Per-entity Business-Transfer-Charging splits cost across charging locations. Manual or automatic (snapshotted from the User Measurement matrix). Sums to 100. `[F-S2-01..08]`\n**WBS Element is algorithmic, never stored** — generated at request time as `<identifier>-64-99-<charging_location_code>`. `[F-DM-03]`"
+      },
+      {
+        "title": "Headline shift 3 — Pipeline + DoI lifecycle",
+        "body": "Projects now carry a **pipeline stage** (working names) and a **DoI** (Degree of Implementation, 0–5) in addition to the v4 `status` field. DoI 0–4 = Change; DoI 5 = Run. Two new gates: AI Council approval (`ai_council_approved` + doc URL) and a `within_cutoff` flag that drives ranking. v4 intake retired in A5. Spec tags: `[A-PS-02]` `[A-DOI-01]`."
+      },
+      {
+        "title": "Headline shift 4 — Tech Navigator scoring rubric",
+        "body": "Every transformation project now carries a **scoring profile**: 3 Complexity sub-criteria + 3 Value Creation sub-criteria + 2 reserved slots, each scored 1–5, producing a weighted **Composite Score** plus a **t-shirt size** (XS/S/M/L/XL) derived from total budget. Rubric weights and thresholds are admin-configurable. `[A-TN-01..09]`"
+      },
+      {
+        "title": "Headline shift 5 — Portfolio splits into Change vs Run",
+        "body": "The Portfolio module now has **two sibling sub-modules** with a top-level pill switcher.\n- **Change Portfolio** — DoI 0–4 transformation projects with the existing dashboards, tabs, and tree.\n- **Run Portfolio** — DoI 5 / Offerings / Internal Services, with KPIs, dimension rollup panels (region / division / country), type-filtered entity list, and drill-down to the slim **EntityWorkspace**.\n\nProject clicks now open a **full-page detail view** (`/portfolio/project/{id}`) replacing the v4 slide-in panel. `[E-11]`"
+      },
+      {
+        "title": "Headline shift 6 — Forecast cycle + immutable versioning",
+        "body": "**Mixed-granularity grid** — monthly inner zone + quarterly outer zone, with an `is_provisional` flag on outer-zone cells. `[C-FG-01..07]`\n**5-phase forecast cycle wizard** replaces the v4 ad-hoc forecast edits.\n**ForecastVersion immutable snapshots** — captured automatically on CR approval and on cycle close. Sequential `version_number` per project; ~70 KB per snapshot. Version history + diff view per project. `[C-FV-01..07]`"
+      },
+      {
+        "title": "Headline shift 7 — Hierarchy and master data go configurable",
+        "body": "v4's hard-coded LineOfBusiness and Programme tables are gone. The portfolio hierarchy is now a **configurable n-level node graph**: `GroupingEntityType` defines the kinds of levels (LoB, Programme, custom), `GroupingEntity` rows are the nodes, `GroupingHierarchy` rows form the parent-child edges. Controllers can rename or add levels from Admin → Hierarchy without a code change.\nCluster F also adds **charging master data**: ChargingLocation (~90 codes), LegalEntity (~120 entities, many-to-one rollup), Region, Country, ExternalCostType, plus the User Measurement matrix viewer. `[F-MD-01..03]`"
+      },
+      {
+        "title": "Demo flagship — Master Data Hub narrative",
+        "body": "The whole demo can hang off one offering: **Master Data Hub** (`off-mdh`, S-code `S042`, identifier `IT00S042`). It hits every v5 surface in one walk:\n- **Stage 1**: 4-edge upstream chain (Identity Auth 30%, Infrastructure Platform 18%, Data Platform 20%, IAM Run-stage project 12%) rolling into a 1-edge downstream (Data Stewardship 5%) plus 95% to-business.\n- **Stage 2**: BTC profile in automatic mode, snapshotted from S042's UM column; 17 charging-location lines summing to 100.\n- **Workbench Overview**: full E3 tile grid populated — Three-Point Summary €879K, Build milestone 3 of 5, Resource Plan 4560h / 6 roles, CapEx 97% / OpEx 3%, Progress tracker Build / 57% / Checklist 4 of 7 / On track.\n- **Simulator**: seeded `MDH BTC Rebalance — DE/PL/CZ` lever-12 scenario with -10pp on DE-Munich and +5pp each to PL-Poznan / CZ-Prague.\n- **Charging Rollup map**: drill EMEA → Germany → click `CL-DE-MUC` → side panel shows Master Data Hub at 27.4% of the location's €1.7M total."
+      },
+      {
+        "title": "New module — Backlog",
+        "body": "v5 introduces a dedicated **Backlog** module at `/backlog` for the demand pipeline. It replaces v4's portfolio intake with a richer surface:\n- Cube view + list view of every project on the demand pipeline.\n- Tech Navigator scoring detail panel: Scores tab (with rubric weights), Financial tab, Master Data tab, Milestones tab.\n- Filters: pipeline stage, DoI, within-cutoff, t-shirt size.\n- Sortable by Composite Score / Complexity / Value Creation / total budget.\n- Send-back / resubmit cycle with Controller → PL audit trail."
+      },
+      {
+        "title": "New module — Charging & Allocations",
+        "body": "The single biggest v5 module. Lives at `/charging` with four left-rail sections:\n- **Inter-service Distribution** (Stage 1) — sortable table of edges with sum-rule indicator + cycle detection on save.\n- **BTC Profiles** (Stage 2) — per-entity profile editor with Manual / Automatic modes, Refresh-from-UM with dry-run diff, Switch-mode confirmation gate, Copy-from year, Bulk Year-Rollover dialog (All / By type / Specific entities scope).\n- **Location Cost Rollup** — static SVG world map with country bubbles → drill into per-location bubbles → click a location to open a side panel with chargeable-entity inflows + legal entities at that location. Tree-table view as alternative.\n- **Reporting bridge** — quick-prompt buttons jump into the AI Report Builder with pre-filled Cluster F prompts."
+      },
+      {
+        "title": "Workbench — new tabs and tiles",
+        "body": "- **Overview tile grid** (T2 layout): Three-Point Summary, Milestones, Resource Plan, CapEx/OpEx, Variance Waterfall (Plan → Forecast → Actuals as a dialog), Progress Tracker with checklist + narrative + confidence.\n- **External Costs tab** — KPI strip + sortable category breakdown + sortable expandable vendor table.\n- **Cost Allocation tab** (called 'Distribution' when an entity has zero to-business share) — embeds the BTC editor + sortable allocation breakdown table + per-entity audit history. Entity-keyed Distribution editor for internal services.\n- **Mixed-granularity forecast grid** — monthly inner zone + quarterly outer zone, granularity boundary visualised.\n- **Forecast cycle 5-phase wizard** — Submit Forecast workflow.\n- **Version history + diff** — every approved CR and every cycle close creates a `ForecastVersion`; UI compares any two versions.\n- **EntityWorkspace** — slim variant for Run-Portfolio entities with the BTC tab as the primary surface."
+      },
+      {
+        "title": "Administration — what's new",
+        "body": "- **Configurable hierarchy editor** — replaces v4's hard-coded LineOfBusiness/Programme.\n- **Charging master data** browsers — Cost Centers, Locations, Charging Locations, Legal Entities, Regions, Countries, External Cost Types.\n- **User Measurement matrix viewer** — sparse 99×90 grid, CSV upload + stubbed automatic-refresh hook.\n- **Workflow Templates** — six configurable workflows (forecast cycle, intake, change request, send-back, milestone baseline override, scheduled-change activation) with editable per-step touchpoints (required, role, gates, notifications, time, escalation).\n- **Scheduled Changes** — 5-state lifecycle (`pending_review` → `approved` → `activated` / `rejected` / `cancelled`); admin Create dialog; manual-trigger activation engine.\n- **Audit Log** — 8 categories (`master_data`, `configuration`, `hierarchy`, `forecast_actions`, `pipeline_transitions`, `simulator`, `access_control`, `scheduled_change_lifecycle`); query + export.\n- **Role-Permission Grants** — explicit per-(role, entity_type) grants for non-controller roles.\n- **Planning Parameters** — admin-editable (fiscal year start, planning horizon, forecast deadline, RAG thresholds, max utilization, etc.)."
+      },
+      {
+        "title": "What-If Simulator — what's new",
+        "body": "- **Anchor-against-version** — scenarios are diffed against an explicit `anchor_forecast_version_id` rather than rebased.\n- **Tier 1 / 2 / 3 levers** across 17+ surfaces (forecast grid, cost allocation, people, rate table, pipeline stage, tech navigator, milestone, ...). Tier 3 visibility-gated.\n- **Lever 12 — BTC Rebalance** sandbox — Stage 1 distribution edges fork into `version='scenario-{id}'` rows; Stage 2 BTC line and `to_business_pct` mutations live as `ScenarioAction` overlays.\n- **Promote-with-routing** — per-action audit row capturing routing summary + counts.\n- **Apply-to-forecast** for PLs — diffs carry forward into the next cycle as provisional cells.\n- **Stale indicator** + `last_recalculated_at`; soft archive; tags.\n- **Visibility levels** — `private` / `tier3_only` / `all_users`."
+      },
+      {
+        "title": "Personas — Klaus replaces Becker",
+        "body": "v4's Executive persona Thomas Becker (`p-becker-exec`) was renamed to **Dr. Klaus Weber** (`p-weber`). All other personas unchanged: Anna Meier (Controller), Priya Sharma (PL), Thomas Brenner (CC Owner)."
+      },
+      {
+        "title": "Demo seed — full reconstruction (Session S1)",
+        "body": "v5 ships a freshly reconstructed demo seed expressing the polymorphic model end-to-end: 34 chargeable entities (11 Projects + 6 Offerings + 17 Internal Services), 39 distribution edges, 27 BTC profiles, 312 UM cells, 4 personas, 3 scenarios (incl. the MDH BTC Rebalance flagship), 4 workflow templates with 16 steps, 19 persona-differentiated notifications. Built deterministically by the v5 generator package — re-runs produce a byte-identical `seed.sql`."
+      },
+      {
+        "title": "Demo polish (May 2026)",
+        "body": "Five follow-ups closed after S1:\n- **Item 6** — BTC year-rollover bulk UI: scope All / By type / Specific entities.\n- **Item 7** — Tech Navigator rubric labels: closed by design (placeholders intentional, will be admin-editable).\n- **Item 8** — Lever-12 impact-tile fix: MDH BTC Rebalance scenario rewired; **bonus** union-aware effective-cost helper preserves upstream inflows for BTC-only scenarios.\n- **Item 9** — Scheduled Changes Create UI: type-aware dialog with parameter autocomplete.\n- **Item 10** — Rollup map level-4 drill: click a location bubble → side panel with chargeable-entity inflows + legal entities; **bonus** pre-existing `countryCoords.ts` ISO-3 vs ISO-2 bug fixed (without it the map had no country bubbles at all)."
+      }
+    ]
+  }
+]

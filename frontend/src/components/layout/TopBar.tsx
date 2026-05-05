@@ -1,5 +1,10 @@
 import { useNavigate } from 'react-router-dom';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, BookOpen } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Breadcrumb } from './Breadcrumb';
 import { RoleSwitcher } from './RoleSwitcher';
 import { HelpButton } from './HelpButton';
@@ -30,6 +35,18 @@ export function TopBar() {
           {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
         <HelpButton />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => navigate('/docs')}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+              aria-label="Open Documentation Hub"
+            >
+              <BookOpen className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Documentation Hub</TooltipContent>
+        </Tooltip>
         <RoleSwitcher />
       </div>
     </header>

@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 from dependencies import get_current_user
 from schemas.common import CurrentUser
 from schemas.documentation import (
+    ChangelogEntry,
+    ChangelogSection,
     FAQDetail,
     FAQStep,
     FAQSummary,
@@ -155,6 +157,29 @@ def get_faq_detail(
                 ],
             )
     raise HTTPException(status_code=404, detail=f"FAQ not found: {faq_id}")
+
+
+@router.get("/changelog")
+def get_changelog(
+    request: Request,
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Get the v5+ changelog — version-grouped sections rendered in the Documentation Hub's Changelog tab."""
+    entries = request.app.state.fixtures.get("changelog", [])
+    items = [
+        ChangelogEntry(
+            version=e["version"],
+            date=e["date"],
+            title=e["title"],
+            summary=e["summary"],
+            sections=[
+                ChangelogSection(title=s["title"], body=s["body"])
+                for s in e.get("sections", [])
+            ],
+        )
+        for e in entries
+    ]
+    return {"items": items, "total": len(items)}
 
 
 @router.get("/openapi")
