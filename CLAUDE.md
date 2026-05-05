@@ -28,15 +28,17 @@
 - **Dark Mode:** Always use semantic Tailwind color classes — never hardcoded colors like `bg-white`, `text-slate-700`, or `border-slate-200`. Use `bg-background`, `bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`, `bg-accent`, `text-primary`, etc. For status/semantic colors (RAG: red/amber/green), keep the light variant AND add a `dark:` variant (e.g. `bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400`). For chart/SVG inline styles, use CSS custom properties (`var(--chart-grid)`, `var(--foreground)`) — never hex values. Test every new component in both light and dark themes.
 
 ## Build Status
-All phases are complete. The application is fully built with 8 modules:
-1. **Launchpad** — personalized hub, pending actions with deep-linking, KPI summaries
-2. **Portfolio Overview** — KPI dashboard, hierarchical project tree, intake queue, CR approvals
-3. **Project Workbench** — master-detail workspace, 5-phase rolling forecast wizard, submission workflow, change requests
-4. **Capacity Management** — team utilization heatmaps, org-wide pivot views, resource request management
-5. **What-If Simulator** — 12 action types, real-time KPI impact, scenario comparison, AI Advisor
-6. **Reporting** — 5 standard reports + AI Report Builder (natural language with Claude), saved views, export
-7. **Administration** — entity CRUD, rate tables, hierarchy configuration, audit logging, planning parameters
-8. **Documentation Hub** — module guides, FAQ, API reference, data model overview
+All phases are complete. The application is fully built with 10 modules:
+1. **Launchpad** — role-personalised KPI tiles + pending actions strip, persona-aware greeting and forecast cycle status (E7 redesign)
+2. **Portfolio Overview** — Change vs Run sub-modules with pill switcher, KPI dashboard, configurable hierarchy tree, full-page project detail, External Spend tab on Change
+3. **Backlog** — ranked intake list (DoI 0–2 demand pipeline), Tech Navigator scoring, cube view + list view, send-back/resubmit cycle, cutoff line (v5)
+4. **Project Workbench** — Overview tile grid (T2 layout), mixed-granularity forecast grid, 5-phase forecast cycle wizard, External Costs tab, Cost Allocation tab, version history + diff
+5. **Capacity Management** — team utilization heatmaps, cell drill-down, org-wide pivot views, resource request management, role × location × month availability
+6. **What-If Simulator** — anchor-against-version scenarios, Tier 1/2/3 levers across 17+ surfaces incl. Lever 12 BTC sandbox, Promote-with-routing, Apply-to-Forecast for PLs
+7. **Charging & Allocations** — two-stage cost flow: Stage 1 inter-service distribution edges (DAG, cycle-detected), Stage 2 BTC profiles (manual/automatic), Location Cost Rollup map + tree, Reporting bridge (v5)
+8. **Reporting** — 5 standard reports + AI Report Builder (natural language with Claude), saved views, export
+9. **Administration** — configurable hierarchy editor, charging master data, UM matrix viewer, workflow templates, scheduled changes, audit log (8 categories), role-permission grants, planning parameters
+10. **Documentation Hub** — Overview, Module Guides, API Reference, Data Model, FAQ, and Changelog (6 tabs)
 
 Current focus: enhancements, bug fixes, and demo preparation — see `PROGRESS.md` for specifics.
 
@@ -259,6 +261,8 @@ After implementing any UI changes, you MUST visually verify your work:
 4. Describe what you see in the screenshot before declaring the work complete
 5. Compare what you see against the spec requirements for the session
 6. If something looks wrong, fix it and screenshot again
+
+**Screenshots go in `qa/screenshots/`, never the project root.** The directory is gitignored (only `.gitkeep` is tracked); both Playwright MCP and Chrome DevTools MCP screenshot tools should pass `filePath: qa/screenshots/<descriptive-name>.png`. The `.playwright-mcp/` directory at the repo root is also gitignored — leave any artefacts the MCP server writes there alone.
 
 Do NOT declare a frontend session complete without having taken and reviewed at least one screenshot. "It should look correct" is not verification — you must actually look at the page.
 
