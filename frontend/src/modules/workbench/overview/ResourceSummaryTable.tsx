@@ -6,6 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { formatNumber } from '@/lib/formatters';
 import type { ResourcePlanSummaryItem } from '@/types/api';
 
 interface Props {
@@ -42,7 +43,7 @@ export function ResourceSummaryTable({ title, items }: Props) {
             <TableRow key={item.role_id}>
               <TableCell className="text-sm">{item.role_name}</TableCell>
               <TableCell className="text-sm text-right">
-                {item.total_hours.toLocaleString()}
+                {formatNumber(item.total_hours)}
               </TableCell>
             </TableRow>
           ))}

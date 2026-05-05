@@ -14,6 +14,7 @@ import { PipelineStageBadge } from '@/components/shared/PipelineStageBadge';
 import { DoIBadge } from '@/components/shared/DoIBadge';
 import { PipelineTransitionMenu } from '@/components/shared/PipelineTransitionMenu';
 import { usePipelineState } from '@/hooks/usePipelineState';
+import { formatDecimal } from '@/lib/formatters';
 import type { RankedProjectItem } from '@/types/api';
 
 interface Props {
@@ -24,7 +25,7 @@ interface Props {
 
 function fmtScore(n: number | null): string {
   if (n === null) return '—';
-  return n.toFixed(2).replace('.', ',') + ' / 5';
+  return formatDecimal(n, 2) + ' / 5';
 }
 
 function fmtBudget(n: number | null): string {

@@ -6,6 +6,7 @@
 import type { RankedProjectItem } from '@/types/api';
 import { TechNavigatorRubric } from '../../components/TechNavigatorRubric';
 import { cn } from '@/lib/utils';
+import { formatDecimal } from '@/lib/formatters';
 
 interface Props {
   projectId: string;
@@ -15,7 +16,7 @@ interface Props {
 
 function fmtScore(n: number | null): string {
   if (n === null) return '—';
-  return n.toFixed(2).replace('.', ',');
+  return formatDecimal(n, 2);
 }
 
 export function ScoresAndRankingTab({

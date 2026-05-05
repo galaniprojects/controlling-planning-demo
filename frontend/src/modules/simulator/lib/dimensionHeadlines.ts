@@ -7,7 +7,7 @@
  * not colour. European number formatting via shared `formatters.ts`.
  */
 
-import { formatCurrency, formatCurrencyDelta } from '@/lib/formatters';
+import { formatCurrency, formatCurrencyDelta, formatPercent } from '@/lib/formatters';
 import type {
   BacklogRankingDimensionData,
   CapacityDimensionData,
@@ -41,8 +41,7 @@ export function formatDeltaWithArrow(delta: number): string {
 /** Format a percentage delta as "+5,2%" / "-2,8%" / "±0%". */
 export function formatPctDelta(pct: number): string {
   if (pct === 0) return '±0%';
-  const sign = pct > 0 ? '+' : '';
-  return `${sign}${pct.toFixed(1).replace('.', ',')}%`;
+  return formatPercent(pct);
 }
 
 // ---------------------------------------------------------------------------

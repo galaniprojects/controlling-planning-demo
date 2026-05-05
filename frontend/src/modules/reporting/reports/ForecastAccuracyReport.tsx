@@ -187,7 +187,7 @@ export function ForecastAccuracyReport() {
     <div className="grid grid-cols-4 gap-3">
       <SummaryCard
         label="Avg Accuracy"
-        value={`${kpis.avg_accuracy_pct.toFixed(1).replace('.', ',')}%`}
+        value={formatPercent(kpis.avg_accuracy_pct, { signed: false })}
         icon={<Target className="h-5 w-5" />}
       />
       <SummaryCard

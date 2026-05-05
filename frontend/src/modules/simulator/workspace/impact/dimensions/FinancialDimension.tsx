@@ -9,7 +9,7 @@
  * Directional indicators use arrows + +/- prefixes (NOT colour) per CLAUDE.md.
  */
 
-import { formatCurrency, formatCurrencyDelta } from '@/lib/formatters';
+import { formatCurrency, formatCurrencyDelta, formatPercent } from '@/lib/formatters';
 import { Card } from '@/components/ui/card';
 import type { FinancialDimensionData } from '../../../lib/impactTypes';
 import { formatDeltaWithArrow } from '../../../lib/dimensionHeadlines';
@@ -75,7 +75,7 @@ export function FinancialDimension({ data }: FinancialDimensionProps) {
           sub={
             pct === 0
               ? 'No change'
-              : `${pct > 0 ? '+' : ''}${pct.toFixed(1).replace('.', ',')}% vs anchor`
+              : `${formatPercent(pct)} vs anchor`
           }
         />
       </div>

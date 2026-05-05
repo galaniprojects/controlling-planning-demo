@@ -16,7 +16,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { GitCompare, ChevronDown, ChevronRight } from 'lucide-react';
-import { formatCurrencyCompact } from '@/lib/formatters';
+import { formatCurrencyCompact, formatNumber } from '@/lib/formatters';
 import type { ForecastVersionMeta } from '@/types/api';
 import { useState } from 'react';
 
@@ -155,7 +155,7 @@ export function VersionHistoryPanel({
                         {v.created_by_name && <span>· {v.created_by_name}</span>}
                         {v.cell_count !== null && v.cell_count !== undefined && (
                           <span className="font-tabular">
-                            · {v.cell_count.toLocaleString('de-DE')} cells
+                            · {formatNumber(v.cell_count)} cells
                           </span>
                         )}
                       </div>

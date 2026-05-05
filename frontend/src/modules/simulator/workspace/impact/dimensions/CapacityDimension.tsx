@@ -12,7 +12,7 @@
 
 import { Users } from 'lucide-react';
 import { Card } from '@/components/ui/card';
-import { formatNumber } from '@/lib/formatters';
+import { formatNumber, formatDecimal } from '@/lib/formatters';
 import type { CapacityDimensionData } from '../../../lib/impactTypes';
 
 interface CapacityDimensionProps {
@@ -129,7 +129,7 @@ export function CapacityDimension({ data }: CapacityDimensionProps) {
                   <td className="px-3 py-2 text-right tabular-nums font-semibold text-foreground">
                     {row.fte_delta_total === 0
                       ? '±0'
-                      : `${row.fte_delta_total > 0 ? '+' : ''}${row.fte_delta_total.toFixed(2).replace('.', ',')}`}
+                      : `${row.fte_delta_total > 0 ? '+' : ''}${formatDecimal(row.fte_delta_total, 2)}`}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                     {formatNumber(row.month_count)}

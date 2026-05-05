@@ -4,6 +4,7 @@
  */
 
 import type { TooltipProps } from 'recharts';
+import { formatDecimal } from '@/lib/formatters';
 import type { RankedProjectItem } from '@/types/api';
 
 interface Props extends TooltipProps<number, string> {
@@ -12,7 +13,7 @@ interface Props extends TooltipProps<number, string> {
 
 function fmtScore(n: number | null): string {
   if (n === null) return '—';
-  return n.toFixed(2).replace('.', ',');
+  return formatDecimal(n, 2);
 }
 
 export function CubeTooltipCard({ active, payload, items }: Props) {

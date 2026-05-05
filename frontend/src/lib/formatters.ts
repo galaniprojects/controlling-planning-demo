@@ -42,15 +42,6 @@ export function formatCurrencyDetailed(value: number): string {
 }
 
 /**
- * Detailed European currency with explicit +/- sign for deltas.
- * Examples: +2.050 €  -1.200 €
- */
-export function formatCurrencyDetailedDelta(value: number): string {
-  const formatted = formatCurrencyDetailed(value);
-  return value > 0 ? `+${formatted}` : formatted;
-}
-
-/**
  * Compact European currency for grid cells — k with up to 2 decimals.
  * Examples: 6,35k€  14,4k€  850€  1,2M€
  */
@@ -79,7 +70,27 @@ export function formatNumber(value: number): string {
   }).format(value);
 }
 
-export function formatPercent(value: number): string {
-  const sign = value > 0 ? '+' : '';
-  return `${sign}${value.toFixed(1).replace('.', ',')}%`;
+/**
+ * European percentage format.
+ *
+ * Default behaviour (signed: true, decimals: 1) renders deltas: "+3,5%", "-1,2%".
+ * Pass `{ signed: false }` for share / portion percentages: "82,5%".
+ * Pass `decimals` to override the precision (default 1).
+ */
+export function formatPercent(
+  value: number,
+  options?: { signed?: boolean; decimals?: number },
+): string {
+  const decimals = options?.decimals ?? 1;
+  const signed = options?.signed ?? true;
+  const sign = signed && value > 0 ? '+' : '';
+  return `${sign}${value.toFixed(decimals).replace('.', ',')}%`;
+}
+
+/**
+ * Unitless decimal number with European separator. For scores, ratios, FTE.
+ * Examples: formatDecimal(3.45, 2) => "3,45"; formatDecimal(1.2, 1) => "1,2".
+ */
+export function formatDecimal(value: number, decimals: number = 2): string {
+  return value.toFixed(decimals).replace('.', ',');
 }

@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { formatCurrencyDetailedDelta, formatCurrencyDetailed } from '@/lib/formatters';
+import { formatCurrencyDetailed } from '@/lib/formatters';
 import { formatMonthShort } from '@/lib/yearColumns';
 import { Sparkles } from 'lucide-react';
 import type { ReviewGroup, ReviewGridData, CostCentreGroup } from '@/types/api';
@@ -70,7 +70,7 @@ export function Phase4Review({
                 Total Impact
               </span>
               <span className="text-lg font-semibold text-primary">
-                {formatCurrencyDetailedDelta(totalImpact)}
+                {totalImpact > 0 ? '+' : ''}{formatCurrencyDetailed(totalImpact)}
               </span>
             </div>
           </CardContent>
@@ -165,7 +165,7 @@ export function Phase4Review({
                                     mv.delta_eur > 0 ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400'
                                   }`}
                                 >
-                                  {formatCurrencyDetailedDelta(mv.delta_eur)}
+                                  {mv.delta_eur > 0 ? '+' : ''}{formatCurrencyDetailed(mv.delta_eur)}
                                 </div>
                               )}
                             </div>
