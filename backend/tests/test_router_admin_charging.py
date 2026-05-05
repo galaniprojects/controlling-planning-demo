@@ -88,8 +88,17 @@ class TestCountry:
         assert resp.status_code == 200
         assert resp.json()["is_active"] is False
 
-    def test_pl_forbidden(self, test_client, seed_personas):
+    def test_pl_can_read(self, test_client, seed_personas):
+        # [A-05]: Charging master-data reads are open to all four roles —
+        # mutations remain controller-only. PL must succeed on the GET.
         resp = test_client.get("/api/admin/countries", headers=HEADERS_PL)
+        assert resp.status_code == 200
+
+    def test_pl_forbidden_on_mutation(self, test_client, seed_personas):
+        resp = test_client.post(
+            "/api/admin/countries", headers=HEADERS_PL,
+            json={"iso_code": "FR", "name": "France"},
+        )
         assert resp.status_code == 403
 
 
