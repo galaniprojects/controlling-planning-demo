@@ -4,8 +4,8 @@
 
 Active spec: `guides/CRETA_v5_1_Change_Specification.md` (16 items: 5 bug fixes, 2 seed enrichments, 9 features). Plan: 6 waves, one wave per session, PR review gate between every wave. Agent teams used within each wave. v5 spec + impl guide archived to `docs_archive/`.
 
-- [x] **Wave 1** — Reorg + bug fixes (A-01..A-05) + seed expansion (B-01, B-02) — branch `fix/v5_1-batch-1-bugs-and-seed` (PR pending)
-- [ ] **Wave 2** — Grid foundation (C-02 collapsible years + C-08 three-point cells) — branch `feat/v5_1-grid-foundation`
+- [x] **Wave 1** — Reorg + bug fixes (A-01..A-05) + seed expansion (B-01, B-02) — branch `fix/v5_1-batch-1-bugs-and-seed` (PR #80 merged 2026-05-05)
+- [x] **Wave 2** — Grid foundation (C-02 collapsible years + C-08 three-point cells) — branch `feat/v5_1-grid-foundation` (PR pending)
 - [ ] **Wave 3** — Phase highlighting + comparison chart (C-03 + C-04) — branch `feat/v5_1-phase-and-chart`
 - [ ] **Wave 4** — Role FK + row expansions (C-07 + C-05 + C-06) — branch `feat/v5_1-roles-and-expand`
 - [ ] **Wave 5** — External Costs tab overhaul (C-09) — branch `feat/v5_1-external-costs-grid`
@@ -16,6 +16,39 @@ Refactoring opportunities (deferred — no unsolicited refactoring):
 - `BacklogProjectDetailPage.tsx` declares `const navigate = useNavigate();` but never calls it. Pre-existing dead code observed during Wave 1 A-02 work.
 - `DashboardTab.tsx` carries a hand-maintained `RESERVED` set of Portfolio segment names for its legacy `/portfolio/<projectId>` redirect. Brittle: every new top-level Portfolio tab must be added or the same A-04 class of bug recurs. Worth retiring the redirect entirely when DashboardTab gets its next refresh.
 - Charging sub-views (`DistributionListView`, `BTCProfileListView`, `RollupView`, `ReportingPanel`) still show Save/Delete/Add buttons regardless of role. Backend `require_role("controller")` rejects mutations with 403, but the buttons should be hidden for non-Controllers per `[A-05]`. Tracked as a Wave 1 follow-up; threading a `readOnly` prop derived from `useRole().context?.role` is a small targeted change for a follow-up wave.
+
+## v5.1 Wave 2 — F&P grid foundation (2026-05-05)
+
+Branch: `feat/v5_1-grid-foundation`. Closes spec items C-02 (collapsible year columns) and C-08 (three-point baseline/forecast/actuals cell display) — the two infrastructure pieces every later F&P-grid wave builds on. Built via 1+2 agent-team split: lead did a pure-refactor pre-work commit extracting `ForecastCell` from `MixedGranularityGrid`, then 2 teammates worked in parallel on disjoint files.
+
+**Lead pre-work (1 commit):**
+- `394a84c` — Extract `ForecastCell.tsx` as a presentational component receiving pre-computed layout flags + display data. Pure structural refactor, no behaviour change. Sets up clean file ownership: C-02 edits the parent grid (column model), C-08 extends the cell component.
+
+**Teammate A — C-02 collapsible year columns (`feat/v5_1-w2-c02`, 2 commits):**
+- `29bd410` — New `useCollapsibleMixedYears` hook (parallel to the existing `useCollapsibleYears` so the 11 other v3-era callers keep working byte-identically). Operates on the mixed-granularity column-key list; defaults only the demo current year (2026) to expanded.
+- `bc1ea18` — Wire the hook into `MixedGranularityGrid`. New `DisplayColumn` discriminator (`{ kind: 'data' | 'yearTotal' }`); `yearTotal` columns sum the year's underlying canonical cells inline and bypass `<ForecastCell>` so Teammate B's territory stays untouched. Year-label headers became chevron-prefixed buttons styled `text-blue-400`. January monthly + Q1 quarterly columns get the heavier left border + bold/darker label treatment via a new `isYearStartColumnKey` helper. Both header rows are now `position: sticky` (top-0 / top-10) inside an `overflow-auto` container with viewport-bound `max-h`.
+
+**Teammate B — C-08 three-point cell rendering (`feat/v5_1-w2-c08`, 3 commits):**
+- `0ed072b` — Backend payload extension. `MixedGridCell` schema gained 5 nullable fields (`baseline_hours`, `baseline_amount_eur`, `actuals_hours`, `actuals_amount_eur`, `actuals_partial`). New `include_baseline_actuals: bool = False` kwarg on `services.forecast_versioning.build_mixed_grid` — default off so version snapshots stay forecast-only and 1481 existing tests are unaffected. The forecast-grid router endpoint passes `True`; `capture_version` leaves it at the default. Lines that exist in baseline or actuals but not in forecast now create rows so the grid never drops planned-but-unforecasted lines.
+- `c0d4ea5` — 10 new tests across `test_forecast_versioning_service.py` (7) and `test_router_forecast_grid.py` (3) covering quarterly aggregation of overlay series, partial-actuals on the demo current month, and absent-series fallback.
+- `adacb90` — Frontend three-point stack. `ForecastCell` rewritten around a `temporalContext: 'past' | 'current' | 'future'` prop (default `future` preserves v4 callers). Past months: actuals (primary, bold) / forecast (secondary muted) / baseline (tertiary smaller). Current month: forecast (primary editable) / actuals italic with `(partial)` label / baseline. Future months: forecast (primary) / baseline (secondary). Internal-resource hours rows preserve the dual-unit hours-on-top / euro-below pattern within each line. Subtle warm tint (`bg-amber-50 dark:bg-amber-900/10`) marks past-month cells where actuals exceed forecast. Zero-everything cells short-circuit to a single em-dash. `MixedGranularityGrid` got a minimal wiring change: `getDisplayCell` threads the overlay fields through (with quarter-expansion division for synthesised sub-month cells), and a local `classifyTemporalContext` picks the layout — using the cell's `actuals_partial` flag as the authoritative "current" signal for quarterly cells that straddle the demo month.
+
+### Integration
+
+Lead merged Teammate A first (clean, ort strategy), then Teammate B with one trivial conflict on `MixedGranularityGrid.tsx` imports — both teammates touched the import block, resolved by union (`formatNumber` from A + `isElapsedMonth` + `CellTemporalContext` from B). Body-level changes auto-merged because Teammate B's modifications were structurally minimal and Teammate A's structural changes were in different code regions.
+
+### Verification
+
+- **Backend pytest:** 1481 → 1491 (+10 new C-08 tests, all passing).
+- **Frontend tsc:** `npx tsc --noEmit` clean.
+- **Vite build:** succeeds (1.86 MB / 485 KB gzip), only pre-existing chunk-size warnings.
+- **Visual:** Teammate A captured 4 screenshots (default state, 2027 expanded as "non-current year toggled" stand-in, outer-zone year expanded into quarters, dark theme). Teammate B captured 7 (current-month partial, future-month two-point, hours-row stacking, full grid, dark theme). All under `qa/screenshots/wave2-c0[28]-*.png`.
+
+### Open / deferred
+
+- **Past months are not in the live grid columns.** `build_mixed_grid` filters at `Forecast.month >= demo_date`, so the F&P grid currently shows columns starting at April 2026 forward. This means the past-month three-point layout (actuals primary / forecast secondary / baseline tertiary) and the warm-tint overrun visualisation are unreachable today. The B-02 seed (Wave 1) added baseline / actuals rows back to Jan 2024 for the four flagship projects — that data is in the DB, just not rendered. Suggested follow-up: extend `build_mixed_grid` to support a configurable lookback window (e.g. project start month, capped at 12 months back) so past months render alongside future ones. Out of scope for Wave 2 (would have stretched the wave).
+- **Summary columns (Baseline Total / Forecast Total / Actuals YTD / Variance) deferred.** The C-08 spec calls for these on the right edge of the grid, with the variance column applying green/red/blue delta colours. Implementing them cleanly would have required a new column kind in the column model (Teammate A territory) plus updates to `renderSubtotalRow` and the column header rows, which would have broken the disjoint-file-ownership rule. Suggested follow-up: add a dedicated `summary_columns` field to `MixedGridResponse` plus a sibling `<ForecastSummaryColumn>` component.
+- **External-cost vendor/PO context not threaded into actuals overlays.** `Baseline` and `Actuals` rows for external categories carry `description` / `vendor` / `ext_status`; the C-08 overlays only carry numeric series. If the UI needs vendor context for the historical actuals series too, that's a small additional payload extension. Likely revisited as part of Wave 4 (C-06 vendor row expansion) or Wave 5 (C-09 external-costs grid overhaul).
 
 ## v5.1 Wave 1 — bug-fix + seed-expansion batch (2026-05-05)
 
