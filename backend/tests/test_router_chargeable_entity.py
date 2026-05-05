@@ -88,13 +88,14 @@ class TestListChargeableEntities:
         )
         assert r.status_code == 422
 
-    def test_pl_role_rejected(self, test_client, seed_chargeable_entities):
-        # ChargeableEntity admin CRUD is controller-only.
+    def test_pl_role_can_read(self, test_client, seed_chargeable_entities):
+        # [A-05]: Charging reads are open to all four roles — mutations remain
+        # controller-only. PL must succeed on the GET.
         r = test_client.get(
             "/api/admin/chargeable-entities",
             headers={"X-Current-User": "persona-pl"},
         )
-        assert r.status_code == 403
+        assert r.status_code == 200
 
     def test_response_includes_is_change_or_run(self, test_client, seed_chargeable_entities):
         r = test_client.get(

@@ -15,7 +15,7 @@
  * visits land in the same place per [E-11].
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -71,12 +71,21 @@ export function PortfolioOverview() {
   const role = context?.role;
   const showApprovals = role === 'controller';
 
-  // Sub-module: hydrated from URL first, then localStorage fallback.
-  const [subModule, setSubModule] = useState<SubModule>(() => {
-    return getSubModuleFromPath(location.pathname) ?? readPersistedSubModule();
-  });
-
-  const [activeTab, setActiveTab] = useState(() => getTabFromPath(location.pathname));
+  // Derive sub-module + active tab DIRECTLY from the URL on every render so
+  // the rendered Tabs content is always in sync with the location pathname.
+  // Falling back to localStorage only when the URL itself does not pin a
+  // sub-module. This eliminates the brief window where DashboardTab could
+  // mount under a `/portfolio/external-spend` URL and (via its legacy
+  // `/portfolio/<projectId>` redirect) misinterpret the segment as a project
+  // id — which surfaced as the A-04 "Project not found" crash on the back
+  // button from the External Spend tab.
+  const subModule: SubModule =
+    getSubModuleFromPath(location.pathname) ?? readPersistedSubModule();
+  const urlTab = getTabFromPath(location.pathname);
+  // Hide the approvals tab from non-controllers — falls back to dashboard
+  // when the URL pins approvals but the role doesn't allow it.
+  const activeTab =
+    urlTab === 'approvals' && !showApprovals ? 'dashboard' : urlTab;
 
   // v4 intake URL → redirect to backlog (intake retired per [A-PS-13]).
   useEffect(() => {
@@ -85,35 +94,23 @@ export function PortfolioOverview() {
     }
   }, [location.pathname, navigate]);
 
-  // Sync sub-module + tab from URL.
+  // Persist whichever sub-module the URL is currently pinning so a fresh
+  // visit without a deep-link lands on the user's last sub-module.
   useEffect(() => {
     const urlSub = getSubModuleFromPath(location.pathname);
-    if (urlSub && urlSub !== subModule) {
-      setSubModule(urlSub);
-    }
-    const tab = getTabFromPath(location.pathname);
-    if (tab !== activeTab) setActiveTab(tab);
-  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Reset to dashboard if current tab is no longer available for this role
-  useEffect(() => {
-    if (!role) return;
-    if (activeTab === 'approvals' && !showApprovals) setActiveTab('dashboard');
-  }, [activeTab, role, showApprovals]);
+    if (urlSub) persistSubModule(urlSub);
+  }, [location.pathname]);
 
   function handleSubModuleChange(next: SubModule) {
-    setSubModule(next);
     persistSubModule(next);
     if (next === 'run') {
       navigate('/portfolio/run', { replace: true });
     } else {
       navigate('/portfolio', { replace: true });
-      setActiveTab('dashboard');
     }
   }
 
   const handleTabChange = (value: string) => {
-    setActiveTab(value);
     if (value === 'dashboard') navigate('/portfolio', { replace: true });
     else navigate(`/portfolio/${value}`, { replace: true });
   };

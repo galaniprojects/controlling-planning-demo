@@ -84,11 +84,17 @@ export function BacklogProjectDetailPage() {
   }, [projectId, currentRoleId]);
 
   function setTab(tab: TabId) {
-    setSearchParams((p) => {
-      const next = new URLSearchParams(p);
-      next.set('tab', tab);
-      return next;
-    });
+    // Use { replace: true } so tab changes do not stack history entries.
+    // Otherwise the DetailHeader's navigate(-1) Back button only goes back
+    // one tab instead of returning to the backlog list.
+    setSearchParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        next.set('tab', tab);
+        return next;
+      },
+      { replace: true },
+    );
   }
 
   if (!projectId) {

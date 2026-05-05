@@ -125,9 +125,14 @@ def _audit(
 @router.get("/countries", response_model=dict)
 def list_countries(
     db: Session = Depends(get_db),
-    _user: CurrentUser = Depends(require_role("controller")),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
 ):
-    """List all countries (active and inactive). [F-MD-02]"""
+    """List all countries (active and inactive). [F-MD-02]
+
+    Read-open to all four roles per [A-05]. Mutations remain controller-only.
+    """
     rows = db.query(Country).order_by(Country.name).all()
     items = [
         CountryResponse(id=c.id, iso_code=c.iso_code, name=c.name, is_active=c.is_active)
@@ -201,8 +206,11 @@ def deactivate_country(
 @router.get("/regions", response_model=dict)
 def list_regions(
     db: Session = Depends(get_db),
-    _user: CurrentUser = Depends(require_role("controller")),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
 ):
+    """List all regions. Read-open to all four roles per [A-05]."""
     rows = db.query(Region).order_by(Region.name).all()
     items = [
         RegionResponse(id=r.id, code=r.code, name=r.name, is_active=r.is_active) for r in rows
@@ -287,9 +295,14 @@ def _serialize_charging_location(cl: ChargingLocation) -> ChargingLocationRespon
 @router.get("/charging-locations", response_model=dict)
 def list_charging_locations(
     db: Session = Depends(get_db),
-    _user: CurrentUser = Depends(require_role("controller")),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
 ):
-    """List all charging locations [F-MD-01]."""
+    """List all charging locations [F-MD-01].
+
+    Read-open to all four roles per [A-05]. Mutations remain controller-only.
+    """
     rows = db.query(ChargingLocation).order_by(ChargingLocation.code).all()
     items = [_serialize_charging_location(cl) for cl in rows]
     return {"items": [i.model_dump() for i in items], "total": len(items)}
@@ -420,9 +433,14 @@ def _serialize_legal_entity(le: LegalEntity) -> LegalEntityResponse:
 def list_legal_entities(
     charging_location_id: str | None = None,
     db: Session = Depends(get_db),
-    _user: CurrentUser = Depends(require_role("controller")),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
 ):
-    """List legal entities, optionally filtered by charging-location rollup. [F-MD-01]"""
+    """List legal entities, optionally filtered by charging-location rollup. [F-MD-01]
+
+    Read-open to all four roles per [A-05]. Mutations remain controller-only.
+    """
     query = db.query(LegalEntity)
     if charging_location_id:
         query = query.filter(LegalEntity.charging_location_id == charging_location_id)
@@ -548,14 +566,17 @@ def list_chargeable_entities(
     hierarchy_node_id: str | None = None,
     is_active: bool | None = True,
     db: Session = Depends(get_db),
-    _user: CurrentUser = Depends(require_role("controller")),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
 ) -> ChargeableEntityListResponse:
     """List chargeable entities with optional filters per [F-DM-01].
 
     Default filter is ``is_active=True`` — pass ``is_active=null`` (literal
     ``null`` in querystring) to include deactivated rows. ``entity_type`` and
     ``hierarchy_node_id`` filter on the dimensions surfaced in the F4 module
-    sidebar.
+    sidebar. Read-open to all four roles per [A-05] — Charging & Allocations
+    is read-visible across personas; mutations remain controller-only.
     """
     if entity_type is not None and entity_type not in CHARGEABLE_ENTITY_TYPES:
         raise HTTPException(
@@ -582,8 +603,11 @@ def list_chargeable_entities(
 def get_chargeable_entity(
     entity_id: str,
     db: Session = Depends(get_db),
-    _user: CurrentUser = Depends(require_role("controller")),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
 ) -> ChargeableEntityResponse:
+    """Read a single ChargeableEntity. Open to all four roles per [A-05]."""
     ce = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if ce is None:
         raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
@@ -1846,8 +1870,14 @@ def invalidate_rollup_cache(
 @router.get("/rollup-cache/status", response_model=RollupCacheStatusResponse)
 def get_rollup_cache_status(
     db: Session = Depends(get_db),
-    _user: CurrentUser = Depends(require_role("controller")),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
 ) -> RollupCacheStatusResponse:
-    """Diagnostic: return rollup cache entry counts per layer."""
+    """Diagnostic: return rollup cache entry counts per layer.
+
+    Read-open to all four roles per [A-05]. The companion mutation endpoint
+    (``POST /api/admin/rollup-cache/invalidate``) remains controller-only.
+    """
     status = get_cache_status(db)
     return RollupCacheStatusResponse(**status)
