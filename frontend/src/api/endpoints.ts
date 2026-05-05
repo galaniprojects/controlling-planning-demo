@@ -344,6 +344,10 @@ export const workbenchApi = {
       boundary_months?: number;
       horizon_months?: number;
       version?: string;
+      // v5.1 W3 [C-04]: extends inner monthly window backwards so past
+      // months (with full actuals) render alongside future ones. Default
+      // server-side is 12. Pass 0 to revert to demo_date as the lower bound.
+      lookback_months?: number;
     },
   ) => {
     const qs = new URLSearchParams();
@@ -351,6 +355,7 @@ export const workbenchApi = {
     if (params?.boundary_months !== undefined) qs.append('boundary_months', String(params.boundary_months));
     if (params?.horizon_months !== undefined) qs.append('horizon_months', String(params.horizon_months));
     if (params?.version) qs.append('version', params.version);
+    if (params?.lookback_months !== undefined) qs.append('lookback_months', String(params.lookback_months));
     const suffix = qs.toString();
     return api.get<MixedGridResponse>(
       `/api/projects/${projectId}/forecast/grid${suffix ? `?${suffix}` : ''}`,
