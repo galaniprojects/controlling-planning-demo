@@ -4,7 +4,7 @@
 
 Active spec: `guides/CRETA_v5_1_Change_Specification.md` (16 items: 5 bug fixes, 2 seed enrichments, 9 features). Plan: 6 waves, one wave per session, PR review gate between every wave. Agent teams used within each wave. v5 spec + impl guide archived to `docs_archive/`.
 
-- [ ] **Wave 1** — Reorg + bug fixes (A-01..A-05) + seed expansion (B-01, B-02) — branch `fix/v5_1-batch-1-bugs-and-seed`
+- [x] **Wave 1** — Reorg + bug fixes (A-01..A-05) + seed expansion (B-01, B-02) — branch `fix/v5_1-batch-1-bugs-and-seed` (PR pending)
 - [ ] **Wave 2** — Grid foundation (C-02 collapsible years + C-08 three-point cells) — branch `feat/v5_1-grid-foundation`
 - [ ] **Wave 3** — Phase highlighting + comparison chart (C-03 + C-04) — branch `feat/v5_1-phase-and-chart`
 - [ ] **Wave 4** — Role FK + row expansions (C-07 + C-05 + C-06) — branch `feat/v5_1-roles-and-expand`
@@ -13,6 +13,48 @@ Active spec: `guides/CRETA_v5_1_Change_Specification.md` (16 items: 5 bug fixes,
 
 Refactoring opportunities (deferred — no unsolicited refactoring):
 - Legacy `frontend/src/modules/workbench/forecast/ForecastGrid.tsx` may still be mounted alongside `MixedGranularityGrid.tsx`. Audit during Wave 2.
+- `BacklogProjectDetailPage.tsx` declares `const navigate = useNavigate();` but never calls it. Pre-existing dead code observed during Wave 1 A-02 work.
+- `DashboardTab.tsx` carries a hand-maintained `RESERVED` set of Portfolio segment names for its legacy `/portfolio/<projectId>` redirect. Brittle: every new top-level Portfolio tab must be added or the same A-04 class of bug recurs. Worth retiring the redirect entirely when DashboardTab gets its next refresh.
+- Charging sub-views (`DistributionListView`, `BTCProfileListView`, `RollupView`, `ReportingPanel`) still show Save/Delete/Add buttons regardless of role. Backend `require_role("controller")` rejects mutations with 403, but the buttons should be hidden for non-Controllers per `[A-05]`. Tracked as a Wave 1 follow-up; threading a `readOnly` prop derived from `useRole().context?.role` is a small targeted change for a follow-up wave.
+
+## v5.1 Wave 1 — bug-fix + seed-expansion batch (2026-05-05)
+
+Branch: `fix/v5_1-batch-1-bugs-and-seed`. Closes the v5.1 spec's Phase 1 (bug fixes A-01..A-05) and Phase 2 (seed enrichments B-01, B-02). Built via 4-teammate agent team in isolated worktrees:
+
+- **Teammate A** (`fix/wave1-nav-bugs-a`, 3 commits) — three navigation regressions:
+  - **A-01** Run Portfolio back: persist typeFilter to sessionStorage and capture window.scrollY at entity drill-in; hydrate filter on remount and restore scroll once the table renders. Filter + scroll preserved on round-trip; fresh visits start clean.
+  - **A-02** Backlog "Back to Backlog" from non-default tabs: tab transitions in `BacklogProjectDetailPage.setTab` were defaulting to `setSearchParams` history-push, stacking entries. Fix: `setSearchParams(..., { replace: true })`.
+  - **A-04** Portfolio External Spend back-to-Dashboard crash: `PortfolioOverview` held local `activeTab`/`subModule` state alongside `location.pathname`, so during a transition `DashboardTab` could mount under `/portfolio/external-spend` and its legacy `/portfolio/<projectId>` redirect (with a `RESERVED` set that doesn't include `external-spend`) would push `/portfolio/project/external-spend` and crash. Fix: derive both pieces of state directly from `location.pathname` on every render.
+
+- **Teammate B** (`fix/wave1-a03-a05-frontend`, 2 commits) — chart legibility + Charging frontend audit:
+  - **A-03** Variance Waterfall column overlap: `<XAxis>` got `angle={-45}`, `textAnchor="end"`, `height={70}`; chart bottom margin 16→64. Single change covers both the Workbench Overview tile and `VarianceWaterfallDialog`. Verified light + dark.
+  - **A-05** (frontend half) Charging access policy: audit found there was never a frontend role gate on `/charging` — module mounts for all four personas already. The "only Executive can access" symptom was actually backend (Teammate C's territory). Added an explicit access-policy docblock + a `TODO [A-05]` for threading `readOnly` into the four Charging sub-views to hide mutation buttons for non-Controllers (deferred per the bullet above).
+
+- **Teammate C** (`session/a05-charging-access-control`, 2 commits) — backend role gate audit:
+  - **A-05** (backend half): The `/api/charging/*` endpoints were already correctly gated. The actual mis-gating lived on `/api/admin/*` charging master-data — country / region / charging-location / legal-entity / chargeable-entity / rollup-cache-status reads were `require_role("controller")` so all non-controllers got 403 on the very GETs the Charging UI calls during initial load. Reads opened to all four roles; mutations (POST/PUT/PATCH/DELETE) remain `controller` only.
+  - New `backend/tests/test_charging_access_control.py` parametrises 22 reads × 4 personas + 28 mutations × 3 non-controller personas + 4 controller spot-checks (177 assertions). Two existing test cases that asserted "PL forbidden on read" updated to "PL allowed on read; PL forbidden on mutation."
+  - Pytest: 1303 → 1481 (+178 net). Two follow-ups noted: PL/CC per-row scoping for non-controller reads needs new infrastructure (`pl_project_filter` only handles `Project` subtype today, not Offerings / InternalServices; no `cc_filter()` dependency exists yet for ChargeableEntity).
+
+- **Teammate D** (`worktree-agent-a20da883bbf5a6320`, 1 commit, +1904 LOC seed.sql) — backlog density and multi-year horizons:
+  - **B-01:** 18 new DoI 0–2 projects (target was 15–20). DoI 0–2 pipeline now totals 22 projects: 7 Proposed (DoI 0), 9 Under Evaluation (DoI 1), 6 Under Evaluation (DoI 2). Composite-score distribution clusters 12 projects in the 3.2–3.8 reorganisation zone; 4 projects below 3.1 are clearly below-cutoff. T-shirt spread XS=2 / S=5 / M=9 / L=5 / XL=1 maximises cube-view cell coverage. 10 T2-level projects ensure the cube view has T2 density. Each new project carries a `chargeable_entity` row, `grouping_assignment`, all 6 Tech Navigator subscores, `pipeline_stage` + `doi`, and 2–3 milestones.
+  - **B-02:** 4 flagship projects extended to Jan 2024 → Dec 2029 with non-overlapping ranges:
+    - `proj-erp2`: 2024-07 → 2029-12 (actuals through 2026-04)
+    - `proj-mdh-rollout`: 2024-01 → 2029-12 (actuals through 2026-04)
+    - `proj-connveh`: 2026-10 → 2029-12 (future-only project, no actuals)
+    - `proj-railsafety`: 2024-01 → 2029-12 (actuals through 2026-04)
+  - 724 outer-zone forecast rows marked `is_provisional=1` (months outside the Oct 2025 – Sep 2027 inner zone) so Wave 2's collapsible-year + provisional-marker work has data to render against.
+
+### Doc reorg (lead, 1 commit at branch start)
+- `guides/CRETA_v5_Workshop_Spec.md` and `guides/CRETA_v5_Implementation_Guide.md` moved to `docs_archive/` (note: `guides/` is gitignored, archived versions are tracked).
+- v5.1 self-contained spec now at `guides/CRETA_v5_1_Change_Specification.md` (gitignored — local working spec, matches existing convention).
+- `CLAUDE.md` "v5 Implementation Protocol" section updated to "v5.1 Implementation Protocol" pointing at the new spec.
+- This wave checklist added to PROGRESS.md.
+
+### Verification
+- Backend: pytest 1481/1481 passing on the integrated branch (was 1303 baseline pre-Teammate-C).
+- Frontend: `npx tsc --noEmit` clean (0 errors, baseline preserved).
+- Seed: Teammate D verified `validate.py` 8/10 (2 expected: draft B-01 projects without baselines yet, pre-existing staff-rate issue).
+- Visual: Teammate B captured A-03 (waterfall light + dark) and A-05 (Charging across all 4 personas). Teammate A could not capture A-01 / A-02 / A-04 screenshots because Playwright/Chrome MCP was not exposed in the spawn environment — these are deferred to live PR review.
 
 ## Number-formatting consolidation sweep (2026-05-05)
 
