@@ -672,6 +672,11 @@ class TestBuildMixedGridSubRowsDefault:
         """When the flags ARE set, the stubs return empty sub_rows so the
         response shape is stable. Teammates A/B fill the bodies without
         touching this contract.
+
+        v5.1 W4 C-05 (Teammate A): the seeded_project fixture has no
+        Allocation rows, so the per-employee collector still returns an
+        empty list even with the flag on. External rows share the same
+        story until C-06 lands.
         """
         grid = build_mixed_grid(
             db, "proj-alpha", "2026-04",
@@ -680,12 +685,364 @@ class TestBuildMixedGridSubRowsDefault:
         )
         for row in grid["rows"]:
             if row["category"] == "internal":
-                # C-05 stub → empty list
+                # C-05 with no Allocation rows → empty list
                 assert row.get("sub_rows") == []
             elif row["category"] == "external":
                 # C-06 stub → empty list, role_name still null
                 assert row.get("sub_rows") == []
                 assert row.get("role_name") is None
+
+
+# ---------------------------------------------------------------------------
+# 4d. v5.1 W4 C-05 — per-employee sub-rows for internal rows
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def seeded_breakdown_project(db):
+    """Project with internal forecast + matching allocations for two people.
+
+    Lay out:
+      - One role 'role-dev', two people (Anna, Ben) sharing competence centre.
+      - Forecast hours per month = 100 (60 from Anna, 40 from Ben).
+      - Hourly rate = 100 EUR/h via a single RateTable row.
+      - Months span 2026-01..2027-06 to give monthly + quarterly columns.
+    """
+    from models.capacity import Allocation
+    from models.financial import Forecast
+    from models.people import RateTable
+
+    loc = Location(id="loc-muc", city="Munich", country="Germany")
+    cc = CompetenceCenter(id="comp-dev", name="Dev")
+    cost_c = CostCenter(
+        id="cc-muc-dev", name="Munich Dev",
+        location_id="loc-muc", competence_center_id="comp-dev",
+    )
+    role = RoleType(id="role-dev", name="Developer")
+    anna = Person(
+        id="p-anna", name="Anna Meier", role_type_id="role-dev",
+        cost_center_id="cc-muc-dev", competence_center_id="comp-dev",
+    )
+    ben = Person(
+        id="p-ben", name="Ben Smith", role_type_id="role-dev",
+        cost_center_id="cc-muc-dev", competence_center_id="comp-dev",
+    )
+    project = Project(
+        id="proj-erp2", name="ERP2",
+        status="active", capex_opex="capex",
+        start_month="2026-01", is_service=False, is_active=True,
+    )
+    db.add_all([loc, cc, cost_c, role, anna, ben, project])
+    db.commit()
+
+    db.add(RateTable(
+        role_type_id="role-dev", competence_center_id="comp-dev",
+        hourly_rate=100, effective_date="2024-01-01",
+    ))
+    db.commit()
+
+    months = [
+        "2026-01", "2026-02", "2026-03",  # past
+        "2026-04",                         # demo
+        "2026-05", "2026-06", "2026-07",   # near future (monthly window)
+        "2027-04",                         # outer-zone (quarterly)
+    ]
+    for mo in months:
+        # 60 + 40 = 100 hours/month * 100 EUR/h = 10000 EUR
+        db.add(Forecast(
+            project_id="proj-erp2", month=mo,
+            category="internal", sub_category="role-dev",
+            hours=100, amount_eur=10000.00, capex_opex="capex",
+        ))
+        db.add(Allocation(
+            person_id="p-anna", project_id="proj-erp2",
+            month=mo, hours=60, is_confirmed=True,
+        ))
+        db.add(Allocation(
+            person_id="p-ben", project_id="proj-erp2",
+            month=mo, hours=40, is_confirmed=True,
+        ))
+    db.commit()
+    return {
+        "project_id": "proj-erp2",
+        "role_type_id": "role-dev",
+        "people": ["p-anna", "p-ben"],
+        "months": months,
+    }
+
+
+class TestPersonBreakdown:
+    """v5.1 C-05: per-employee sub-rows on internal rows.
+
+    Strongest regression guard is the column-level sum invariant: across
+    all sub-rows under a parent role row, summed hours and EUR per column
+    must equal the parent row's column-level totals.
+    """
+
+    def test_person_breakdown_aggregates_to_parent(
+        self, db, seeded_breakdown_project, horizon_params,
+    ):
+        """Sum of sub-row cells == parent row cells, per column.
+
+        Strictest invariant for C-05 — if forecast hours and allocation
+        hours are aligned (same per-(role, month) totals) and EUR uses
+        the same hourly_rate resolution, sub-row totals must add up.
+        """
+        grid = build_mixed_grid(
+            db, "proj-erp2", "2026-04",
+            boundary_months=12, horizon_months=24,
+            include_person_breakdown=True,
+            lookback_months=3,
+        )
+        internal_rows = [r for r in grid["rows"] if r["category"] == "internal"]
+        assert internal_rows, "expected an internal parent row in the grid"
+        for parent in internal_rows:
+            sub_rows = parent.get("sub_rows") or []
+            assert sub_rows, (
+                f"expected sub_rows on parent {parent['sub_category']}"
+            )
+            for i, parent_cell in enumerate(parent["cells"]):
+                summed_hours = round(
+                    sum(s["cells"][i]["hours"] for s in sub_rows), 2
+                )
+                summed_amount = round(
+                    sum(s["cells"][i]["amount_eur"] for s in sub_rows), 2
+                )
+                assert summed_hours == parent_cell["hours"], (
+                    f"col {parent_cell['key']}: sub-row hours sum "
+                    f"{summed_hours} != parent {parent_cell['hours']}"
+                )
+                assert summed_amount == parent_cell["amount_eur"], (
+                    f"col {parent_cell['key']}: sub-row EUR sum "
+                    f"{summed_amount} != parent {parent_cell['amount_eur']}"
+                )
+
+    def test_person_breakdown_uses_effective_rate(self, db, horizon_params):
+        """A rate change mid-window changes the per-month EUR.
+
+        Two RateTable rows for the same (role, CC) with different
+        effective dates: cells before the new effective date use the old
+        rate; cells from the effective date onwards use the new rate.
+        """
+        from models.capacity import Allocation
+        from models.financial import Forecast
+        from models.people import RateTable
+
+        loc = Location(id="loc-muc", city="Munich", country="Germany")
+        cc = CompetenceCenter(id="comp-dev", name="Dev")
+        cost_c = CostCenter(
+            id="cc-muc-dev", name="Munich Dev",
+            location_id="loc-muc", competence_center_id="comp-dev",
+        )
+        role = RoleType(id="role-dev", name="Developer")
+        anna = Person(
+            id="p-anna", name="Anna Meier", role_type_id="role-dev",
+            cost_center_id="cc-muc-dev", competence_center_id="comp-dev",
+        )
+        project = Project(
+            id="proj-rate", name="Rate Test",
+            status="active", capex_opex="capex",
+            start_month="2026-01", is_service=False, is_active=True,
+        )
+        db.add_all([loc, cc, cost_c, role, anna, project])
+        db.commit()
+
+        # Old rate 100 from 2024-01-01, new rate 150 from 2026-05-01.
+        db.add(RateTable(
+            role_type_id="role-dev", competence_center_id="comp-dev",
+            hourly_rate=100, effective_date="2024-01-01",
+        ))
+        db.add(RateTable(
+            role_type_id="role-dev", competence_center_id="comp-dev",
+            hourly_rate=150, effective_date="2026-05-01",
+        ))
+        db.commit()
+
+        for mo in ["2026-04", "2026-05"]:
+            db.add(Allocation(
+                person_id="p-anna", project_id="proj-rate",
+                month=mo, hours=10, is_confirmed=True,
+            ))
+            # Forecast EUR aligned with the rate at that month so the
+            # parent row carries the expected cell totals.
+            f_amount = 10 * (100 if mo == "2026-04" else 150)
+            db.add(Forecast(
+                project_id="proj-rate", month=mo,
+                category="internal", sub_category="role-dev",
+                hours=10, amount_eur=f_amount, capex_opex="capex",
+            ))
+        db.commit()
+
+        grid = build_mixed_grid(
+            db, "proj-rate", "2026-04",
+            boundary_months=12, horizon_months=12,
+            include_person_breakdown=True,
+        )
+        parent = next(r for r in grid["rows"] if r["category"] == "internal")
+        sub_rows = parent["sub_rows"]
+        anna_row = next(s for s in sub_rows if s["person_id"] == "p-anna")
+
+        cell_apr = next(c for c in anna_row["cells"] if c["key"] == "2026-04")
+        cell_may = next(c for c in anna_row["cells"] if c["key"] == "2026-05")
+        # 10 h × 100 = 1000 (old rate), 10 h × 150 = 1500 (new rate)
+        assert cell_apr["amount_eur"] == 1000.0
+        assert cell_may["amount_eur"] == 1500.0
+        assert cell_apr["hours"] == 10.0
+        assert cell_may["hours"] == 10.0
+
+    def test_person_breakdown_quarterly_summation(self, db, horizon_params):
+        """Quarterly EUR equals the sum of constituent monthly EURs.
+
+        Critical when rates shift mid-quarter — applying a single rate to
+        the quarter's hours total would mis-price the cell.
+        """
+        from models.capacity import Allocation
+        from models.financial import Forecast
+        from models.people import RateTable
+
+        loc = Location(id="loc-muc", city="Munich", country="Germany")
+        cc = CompetenceCenter(id="comp-dev", name="Dev")
+        cost_c = CostCenter(
+            id="cc-muc-dev", name="Munich Dev",
+            location_id="loc-muc", competence_center_id="comp-dev",
+        )
+        role = RoleType(id="role-dev", name="Developer")
+        anna = Person(
+            id="p-anna", name="Anna Meier", role_type_id="role-dev",
+            cost_center_id="cc-muc-dev", competence_center_id="comp-dev",
+        )
+        project = Project(
+            id="proj-q", name="Quarterly Test",
+            status="active", capex_opex="capex",
+            start_month="2026-01", is_service=False, is_active=True,
+        )
+        db.add_all([loc, cc, cost_c, role, anna, project])
+        db.commit()
+
+        # Rate jumps 100 → 200 mid-Q3 2026 (effective 2026-08-01).
+        db.add(RateTable(
+            role_type_id="role-dev", competence_center_id="comp-dev",
+            hourly_rate=100, effective_date="2024-01-01",
+        ))
+        db.add(RateTable(
+            role_type_id="role-dev", competence_center_id="comp-dev",
+            hourly_rate=200, effective_date="2026-08-01",
+        ))
+        db.commit()
+
+        # 10 h/month × 3 months in 2026-Q3 (Jul / Aug / Sep).
+        # Jul → 10×100 = 1000. Aug → 10×200 = 2000. Sep → 10×200 = 2000.
+        # Quarter total = 5000 EUR.
+        for mo in ["2026-07", "2026-08", "2026-09"]:
+            db.add(Allocation(
+                person_id="p-anna", project_id="proj-q",
+                month=mo, hours=10, is_confirmed=True,
+            ))
+            f_amount = 10 * (100 if mo == "2026-07" else 200)
+            db.add(Forecast(
+                project_id="proj-q", month=mo,
+                category="internal", sub_category="role-dev",
+                hours=10, amount_eur=f_amount, capex_opex="capex",
+            ))
+        db.commit()
+
+        # boundary_months=3 means Apr/May/Jun monthly, then 2026-Q3 quarterly.
+        grid = build_mixed_grid(
+            db, "proj-q", "2026-04",
+            boundary_months=3, horizon_months=12,
+            include_person_breakdown=True,
+        )
+        parent = next(r for r in grid["rows"] if r["category"] == "internal")
+        sub_rows = parent["sub_rows"]
+        assert sub_rows, "expected an Anna sub-row"
+        anna_row = next(s for s in sub_rows if s["person_id"] == "p-anna")
+
+        q_cell = next(
+            (c for c in anna_row["cells"] if c["key"] == "2026-Q3"),
+            None,
+        )
+        assert q_cell is not None
+        assert q_cell["cell_type"] == "quarterly"
+        assert q_cell["hours"] == 30.0
+        # 1000 + 2000 + 2000 = 5000 — sum of per-month EUR, NOT 30 × 200.
+        assert q_cell["amount_eur"] == 5000.0
+        # Sanity: applying the late-quarter rate to the whole quarter
+        # would have given 6000 EUR; our calc must avoid that mistake.
+        assert q_cell["amount_eur"] != 30 * 200
+
+    def test_person_breakdown_off_when_flag_false(
+        self, db, seeded_breakdown_project, horizon_params,
+    ):
+        """Flag off → payload identical to today (sub_rows omitted).
+
+        Allocation rows still exist in the DB, but the kwargs default
+        keeps the response byte-equivalent to Wave 3.
+        """
+        grid_off = build_mixed_grid(
+            db, "proj-erp2", "2026-04",
+            boundary_months=12, horizon_months=24,
+        )
+        for row in grid_off["rows"]:
+            assert "sub_rows" not in row, (
+                f"row {row['sub_category']} carried sub_rows with flag off"
+            )
+
+        # Confirm the flag-on path WOULD produce sub_rows so this test
+        # can fail loudly if the default ever flips.
+        grid_on = build_mixed_grid(
+            db, "proj-erp2", "2026-04",
+            boundary_months=12, horizon_months=24,
+            include_person_breakdown=True,
+        )
+        parent = next(
+            r for r in grid_on["rows"] if r["category"] == "internal"
+        )
+        assert parent.get("sub_rows"), (
+            "expected sub_rows when include_person_breakdown=True"
+        )
+
+    def test_person_breakdown_with_lookback(
+        self, db, seeded_breakdown_project, horizon_params,
+    ):
+        """lookback_months extends the sub-row cell range backwards.
+
+        Past-month allocations still render as their own monthly columns
+        (the past zone is always monthly per Wave 3 rules) and contribute
+        cells with hours + EUR.
+        """
+        grid = build_mixed_grid(
+            db, "proj-erp2", "2026-04",
+            boundary_months=12, horizon_months=12,
+            include_person_breakdown=True,
+            lookback_months=3,
+        )
+        parent = next(r for r in grid["rows"] if r["category"] == "internal")
+        sub_rows = parent["sub_rows"]
+        anna_row = next(s for s in sub_rows if s["person_id"] == "p-anna")
+        keys = [c["key"] for c in anna_row["cells"]]
+        # Past months (2026-01..2026-03) appear ahead of the demo month.
+        for k in ["2026-01", "2026-02", "2026-03", "2026-04"]:
+            assert k in keys, f"expected lookback column {k} in sub-row"
+
+        cell_jan = next(c for c in anna_row["cells"] if c["key"] == "2026-01")
+        # Anna was allocated 60 h/month at 100 EUR/h.
+        assert cell_jan["hours"] == 60.0
+        assert cell_jan["amount_eur"] == 6000.0
+
+    def test_person_breakdown_sorted_by_row_total_desc(
+        self, db, seeded_breakdown_project, horizon_params,
+    ):
+        """Largest contributor renders first under the parent."""
+        grid = build_mixed_grid(
+            db, "proj-erp2", "2026-04",
+            boundary_months=12, horizon_months=24,
+            include_person_breakdown=True,
+        )
+        parent = next(r for r in grid["rows"] if r["category"] == "internal")
+        sub_rows = parent["sub_rows"]
+        # Anna 60h > Ben 40h on every month, so Anna sorts first.
+        assert sub_rows[0]["person_id"] == "p-anna"
+        assert sub_rows[1]["person_id"] == "p-ben"
+        assert sub_rows[0]["row_total"] > sub_rows[1]["row_total"]
 
 
 # ---------------------------------------------------------------------------
