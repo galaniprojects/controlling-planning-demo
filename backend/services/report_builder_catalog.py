@@ -64,7 +64,7 @@ DIMENSIONS: list[DimensionDef] = [
     ),
     # --- Organisation ---
     DimensionDef(
-        id="D05", display_name="Line of Business", category="Organisation",
+        id="D05", display_name="Business Unit", category="Organisation",
         data_type="text", source="grouping_entities", column="name",
         join_path="project_grouping_assignments → grouping_entities (walk to top-level)",
     ),

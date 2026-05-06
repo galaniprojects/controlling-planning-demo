@@ -874,7 +874,7 @@ def get_active_hierarchy(
     """Get the currently active hierarchy with full entity tree and project assignments."""
     h = db.query(GroupingHierarchy).filter(GroupingHierarchy.is_active_hierarchy.is_(True)).first()
     if not h:
-        return {"hierarchy": None, "levels": [], "top_level_label": "Line of Business", "entities": []}
+        return {"hierarchy": None, "levels": [], "top_level_label": "Business Unit", "entities": []}
 
     if not h.levels:
         return {"hierarchy": {"id": h.id, "name": h.name}, "levels": [], "top_level_label": "Group", "entities": []}

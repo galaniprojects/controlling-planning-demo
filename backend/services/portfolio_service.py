@@ -69,8 +69,8 @@ def get_project_hierarchy_path(db: Session, project_id: str) -> list[dict]:
     """Return the full hierarchy path from root to the project's assigned entity.
 
     Returns a list like:
-      [{"type_name": "Line of Business", "entity_name": "Truck & Bus Systems (TBS)"},
-       {"type_name": "Program", "entity_name": "Digital Braking Platform"}]
+      [{"type_name": "Business Unit", "entity_name": "Manufacturing Systems"},
+       {"type_name": "Initiative", "entity_name": "Smart Factory Platform"}]
     """
     assignment = (
         db.query(ProjectGroupingAssignment)

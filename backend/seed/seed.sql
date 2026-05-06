@@ -6,12 +6,12 @@
 -- =============================================================================
 
 -- =============================================================================
--- s01_taxonomy / 1. Grouping Entity Types (LoB, Program)
+-- s01_taxonomy / 1. Grouping Entity Types (Business Unit, Initiative)
 -- =============================================================================
 
 INSERT INTO grouping_entity_types (id, name, is_active, created_at) VALUES
-('get-lob', 'Line of Business', 1, '2026-01-15 10:00:00'),
-('get-prog', 'Program', 1, '2026-01-15 10:00:00');
+('get-lob', 'Business Unit', 1, '2026-01-15 10:00:00'),
+('get-prog', 'Initiative', 1, '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- s01_taxonomy / 2. Workforce Locations (Munich, Budapest, Pune)

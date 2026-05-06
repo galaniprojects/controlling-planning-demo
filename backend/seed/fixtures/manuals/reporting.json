@@ -12,7 +12,7 @@
     },
     {
       "title": "Standard Reports",
-      "body": "Five standard reports are available: **Programme / Multi-Project Rollup** for consolidated financials, **Cost Center Financial Summary** for per-CC analysis, **Vendor Spend Analysis** for external cost tracking, **Forecast Accuracy** for retrospective forecast quality, and **Year-over-Year Comparison** for spending trajectory analysis."
+      "body": "Five standard reports are available: **Initiative / Multi-Project Rollup** for consolidated financials, **Cost Center Financial Summary** for per-CC analysis, **Vendor Spend Analysis** for external cost tracking, **Forecast Accuracy** for retrospective forecast quality, and **Year-over-Year Comparison** for spending trajectory analysis."
     },
     {
       "title": "Report Viewer",

@@ -23,13 +23,13 @@ def generate() -> str:
 
     # --- Grouping Entity Types ---------------------------------------------
     lines.append("-- =============================================================================")
-    lines.append("-- s01_taxonomy / 1. Grouping Entity Types (LoB, Program)")
+    lines.append("-- s01_taxonomy / 1. Grouping Entity Types (Business Unit, Initiative)")
     lines.append("-- =============================================================================")
     lines.append("")
     lines.append("INSERT INTO grouping_entity_types (id, name, is_active, created_at) VALUES")
     rows = [
-        f"({sql_str('get-lob')}, 'Line of Business', 1, '{CREATED_AT}')",
-        f"({sql_str('get-prog')}, 'Program', 1, '{CREATED_AT}')",
+        f"({sql_str('get-lob')}, 'Business Unit', 1, '{CREATED_AT}')",
+        f"({sql_str('get-prog')}, 'Initiative', 1, '{CREATED_AT}')",
     ]
     lines.append(",\n".join(rows) + ";")
     lines.append("")
