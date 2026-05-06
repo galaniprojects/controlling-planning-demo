@@ -116,11 +116,24 @@ class OrgSummary(BaseModel):
     pending_controller_approval_count: int
 
 
+class OrgExternalSummary(BaseModel):
+    """v5.1 C-07 — lightweight external-resource roll-up surfaced inside the
+    org-heatmap role pivot. ``count`` is the number of distinct projects that
+    contribute external spend with this role assignment over the visible
+    window; ``total_fte`` is the average monthly FTE-equivalent across the
+    same window. Both default to zero when no external lines match the role.
+    """
+    count: int = 0
+    total_fte: float = 0.0
+
+
 class OrgHeatmapRow(BaseModel):
     id: str
     name: str
     utilization: list[UtilizationCell]
     children: list[dict] = []
+    # v5.1 C-07 — only populated for ``pivot=role``; None elsewhere.
+    external_summary: Optional[OrgExternalSummary] = None
 
 
 # ---------------------------------------------------------------------------

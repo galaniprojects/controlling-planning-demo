@@ -17,14 +17,15 @@ from models.people import Person, RoleType
 from models.projects import Project
 from schemas.capacity import (
     CapacityContext, ConfirmRequest, CounterProposeRequest, DeclineRequest,
-    OrgHeatmapRow, OrgSummary, PartialFulfillRequest, PersonHeatmapRow,
-    RequestItem, RoleAvailabilityResponse, RoleAvailabilityRow, RoleHeatmapRow,
+    ExternalCapacityRow, OrgExternalSummary, OrgHeatmapRow, OrgSummary,
+    PartialFulfillRequest, PersonHeatmapRow, RequestItem,
+    RoleAvailabilityResponse, RoleAvailabilityRow, RoleHeatmapRow,
     SaveAssignmentsRequest, TeamSummary, UtilizationCell,
 )
 from schemas.common import CurrentUser
 from services.calculations import (
     FTE_HOURS, add_months, compute_utilization_pct, generate_month_range,
-    get_standard_hours, utilization_color_bucket,
+    get_standard_hours, resolve_hourly_rate, utilization_color_bucket,
 )
 
 router = APIRouter(prefix="/api/capacity", tags=["Capacity Management"])
@@ -34,6 +35,153 @@ def _verify_cc_access(user: CurrentUser, cost_center_id: str):
     """Verify user owns the cost center (CC owners only see their own CC)."""
     if user.role == "cost_center_owner" and user.cost_center_id != cost_center_id:
         raise HTTPException(403, "Forbidden: cannot access other cost centers")
+
+
+# ---------------------------------------------------------------------------
+# v5.1 C-07 — synthetic 'External' row inside team-heatmap role groups
+# ---------------------------------------------------------------------------
+
+def compute_external_role_rows(
+    db: Session,
+    cost_center_id: str,
+    role_ids: list[str],
+    months: list[str],
+) -> dict[str, ExternalCapacityRow]:
+    """Compute one ``ExternalCapacityRow`` per role for the team heatmap.
+
+    Aggregates ``Forecast`` rows where ``category='external'`` and
+    ``role_type_id`` is one of ``role_ids``, scoped to projects that the
+    cost-center's people are allocated to. For each (role, month) it sums
+    ``amount_eur`` and converts to FTE-equivalent via
+    ``amount_eur / hourly_rate / FTE_HOURS``. Hourly rate is resolved via
+    ``resolve_hourly_rate(role_id, competence_center_id=None, month)``
+    because external resources have no Person.competence_center_id.
+
+    Returns a mapping ``{role_id: ExternalCapacityRow}``. Roles with no
+    matching external forecast across the entire window are omitted from
+    the result so the caller can leave ``RoleHeatmapRow.external = None``.
+    """
+    if not role_ids or not months:
+        return {}
+
+    # Scope: projects this cost-center's people are allocated to in the window.
+    cc_person_ids = [
+        p.id for p in db.query(Person.id)
+        .filter(Person.cost_center_id == cost_center_id, Person.is_active.is_(True))
+        .all()
+    ]
+    if not cc_person_ids:
+        return {}
+
+    project_id_rows = (
+        db.query(Allocation.project_id)
+        .filter(
+            Allocation.person_id.in_(cc_person_ids),
+            Allocation.month >= months[0],
+            Allocation.month <= months[-1],
+        )
+        .distinct()
+        .all()
+    )
+    project_ids = [r[0] for r in project_id_rows if r[0]]
+    if not project_ids:
+        return {}
+
+    # Pull all matching external Forecast rows in one query.
+    ext_rows = (
+        db.query(Forecast)
+        .filter(
+            Forecast.project_id.in_(project_ids),
+            Forecast.category == "external",
+            Forecast.role_type_id.in_(role_ids),
+            Forecast.month.in_(months),
+        )
+        .all()
+    )
+    if not ext_rows:
+        return {}
+
+    # Aggregate amount_eur per (role_id, month).
+    sums: dict[tuple[str, str], float] = {}
+    for f in ext_rows:
+        key = (f.role_type_id, f.month)
+        sums[key] = sums.get(key, 0.0) + float(f.amount_eur or 0)
+
+    # Build ExternalCapacityRow per role with cells for ALL months in the
+    # window (zero-fill for months without any matching forecast). Only emit
+    # the row if at least one month is non-zero.
+    result: dict[str, ExternalCapacityRow] = {}
+    for role_id in role_ids:
+        cells: list[UtilizationCell] = []
+        any_nonzero = False
+        for m in months:
+            amt = sums.get((role_id, m), 0.0)
+            if amt > 0:
+                rate = float(resolve_hourly_rate(db, role_id, None, m))
+                fte = amt / rate / FTE_HOURS if (rate and FTE_HOURS) else 0.0
+                fte = round(fte, 2)
+                if fte > 0:
+                    any_nonzero = True
+            else:
+                fte = 0.0
+            cells.append(UtilizationCell(
+                month=m,
+                value=fte,
+                color=utilization_color_bucket(fte * 100),
+                allocated_hours=None,
+                standard_hours=None,
+            ))
+        if any_nonzero:
+            result[role_id] = ExternalCapacityRow(label="External", fte_equivalent=cells)
+
+    return result
+
+
+def _compute_org_role_external_summary(
+    db: Session,
+    role_id: str,
+    months: list[str],
+) -> OrgExternalSummary:
+    """Lightweight roll-up surfaced by the org-heatmap role pivot.
+
+    Counts the number of distinct projects with external Forecast lines
+    tagged with this ``role_id`` in the visible window, and computes the
+    average monthly FTE-equivalent across the same window using
+    ``resolve_hourly_rate(role_id, None, month)``. Returns a zeroed summary
+    when nothing matches.
+    """
+    if not months:
+        return OrgExternalSummary()
+
+    rows = (
+        db.query(Forecast)
+        .filter(
+            Forecast.category == "external",
+            Forecast.role_type_id == role_id,
+            Forecast.month.in_(months),
+        )
+        .all()
+    )
+    if not rows:
+        return OrgExternalSummary()
+
+    project_ids = {r.project_id for r in rows if r.project_id}
+    # Aggregate amount per month, then convert to FTE per month, then average.
+    per_month: dict[str, float] = {}
+    for r in rows:
+        per_month[r.month] = per_month.get(r.month, 0.0) + float(r.amount_eur or 0)
+
+    total_fte = 0.0
+    for m, amt in per_month.items():
+        rate = float(resolve_hourly_rate(db, role_id, None, m))
+        if rate and FTE_HOURS:
+            total_fte += amt / rate / FTE_HOURS
+    avg_fte = total_fte / len(months) if months else 0.0
+
+    return OrgExternalSummary(
+        count=len(project_ids),
+        total_fte=round(avg_fte, 2),
+    )
 
 
 @router.get("/context")
@@ -170,6 +318,16 @@ def get_team_heatmap(
             role_id=role_id, role_name=role.name if role else role_id,
             aggregate_utilization=agg, people=people_rows,
         ))
+
+    # v5.1 C-07: attach synthetic 'External' rows for roles that have
+    # external-cost forecast lines tagged with role_type_id in the same
+    # in-scope projects.
+    external_by_role = compute_external_role_rows(
+        db, cost_center_id, list(role_groups.keys()), months,
+    )
+    for row in role_rows:
+        if row.role_id in external_by_role:
+            row.external = external_by_role[row.role_id]
 
     return {"items": role_rows, "total": len(role_rows)}
 
@@ -1030,7 +1188,13 @@ def get_org_heatmap(
                     month=m, value=pct, color=utilization_color_bucket(pct),
                     allocated_hours=round(total, 1), standard_hours=round(total_std, 1),
                 ))
-            rows.append(OrgHeatmapRow(id=role.id, name=role.name, utilization=cells))
+
+            # v5.1 C-07 — lightweight external roll-up for the role pivot.
+            ext_summary = _compute_org_role_external_summary(db, role.id, months)
+            rows.append(OrgHeatmapRow(
+                id=role.id, name=role.name, utilization=cells,
+                external_summary=ext_summary,
+            ))
 
     elif pivot == "lob":
         top_type = get_top_level_entity_type_id(db)
