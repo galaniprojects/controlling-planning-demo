@@ -97,30 +97,7 @@ class ProjectCreate(BaseModel):
 
 # ---------------------------------------------------------------------------
 # v5 Session E2 — Launchpad role tiles per [E-06d]–[E-06j]
+# Retired in v5.1 W6 [C-01]: TilePayload + TilesResponse removed alongside the
+# /api/launchpad/tiles endpoint. The launchpad now renders module-launch cards
+# with subtitle KPIs (see ModuleTile.subtitle_kpis above).
 # ---------------------------------------------------------------------------
-
-
-class TilePayload(BaseModel):
-    """A single role-personalised launchpad tile.
-
-    Each tile carries one primary metric (always populated), an optional
-    secondary metric, and a deep-link target (module + optional entity / tab)
-    for the front-end to navigate to on click.
-    """
-
-    tile_id: str
-    title: str
-    primary_metric: str
-    secondary_metric: str | None = None
-    link_module: str
-    link_entity_id: str | None = None
-    link_tab: str | None = None
-    tone: str = "neutral"  # "neutral" | "positive" | "warning" | "alert"
-
-
-class TilesResponse(BaseModel):
-    """Wrapper for `GET /api/launchpad/tiles`."""
-
-    role: str
-    items: list[TilePayload]
-    total: int
