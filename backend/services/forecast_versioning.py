@@ -185,9 +185,6 @@ def _collect_vendor_breakdown(
 ) -> tuple[list[dict], str | None]:
     """v5.1 C-06 / C-07 — per-vendor sub-rows + parent role_name for one external row.
 
-    Teammate B fills this in (`feat/v5_1-roles-and-expand-w4-c06-c07`).
-    Until that lands, returns `([], None)` so the response shape is stable.
-
     Returns:
         (sub_rows, role_name) where `role_name` is set when all
         contributing line items share a single non-null `role_type_id`,
@@ -198,7 +195,225 @@ def _collect_vendor_breakdown(
     cells (no hours). Baseline/Actuals rows always group under "No PO"
     since `po_number` only exists on Forecast.
     """
-    return [], None
+    from models.people import RoleType
+
+    # ------------------------------------------------------------------
+    # Fetch source rows. Forecast always; Baseline + Actuals only when the
+    # caller explicitly asks for the three-source overlay (mirrors the
+    # parent build_mixed_grid contract — capture_version stays single-source
+    # so payload_json snapshots remain byte-identical to Wave 3).
+    # ------------------------------------------------------------------
+    fc_rows = (
+        db.query(Forecast)
+        .filter(
+            Forecast.project_id == project_id,
+            Forecast.category == "external",
+            Forecast.sub_category == cost_type_id,
+            Forecast.month >= lookback_start,
+            Forecast.month <= horizon_end_month,
+        )
+        .all()
+    )
+
+    bl_rows: list[Baseline] = []
+    ac_rows: list[Actuals] = []
+    if include_baseline_actuals:
+        bl_rows = (
+            db.query(Baseline)
+            .filter(
+                Baseline.project_id == project_id,
+                Baseline.category == "external",
+                Baseline.sub_category == cost_type_id,
+                Baseline.month <= horizon_end_month,
+            )
+            .all()
+        )
+        ac_rows = (
+            db.query(Actuals)
+            .filter(
+                Actuals.project_id == project_id,
+                Actuals.category == "external",
+                Actuals.sub_category == cost_type_id,
+                Actuals.month <= demo_date,
+            )
+            .all()
+        )
+
+    # Parent role_name derivation per [v5.1 C-07]: collect every distinct
+    # non-null role_type_id contributing to the row. Single role → the parent
+    # gets `[Category] — [Role Name]`; mixed (>=2 distinct) or all null →
+    # role_name=None and the frontend falls back to `[Category]` only.
+    distinct_roles: set[str] = set()
+    for r in fc_rows:
+        if r.role_type_id:
+            distinct_roles.add(r.role_type_id)
+    for r in bl_rows:
+        if r.role_type_id:
+            distinct_roles.add(r.role_type_id)
+    for r in ac_rows:
+        if r.role_type_id:
+            distinct_roles.add(r.role_type_id)
+
+    parent_role_name: str | None = None
+    if len(distinct_roles) == 1:
+        only_role = next(iter(distinct_roles))
+        rt = db.query(RoleType).filter(RoleType.id == only_role).first()
+        if rt is not None:
+            parent_role_name = rt.name
+
+    if not fc_rows and not bl_rows and not ac_rows:
+        return [], parent_role_name
+
+    # Pre-load role_name lookup for all roles seen across the three sources
+    # so the per-sub-row label can carry the role even when the parent has
+    # mixed roles. Single round-trip per parent row.
+    all_role_ids = {r.role_type_id for r in fc_rows if r.role_type_id}
+    all_role_ids.update(r.role_type_id for r in bl_rows if r.role_type_id)
+    all_role_ids.update(r.role_type_id for r in ac_rows if r.role_type_id)
+    role_name_map: dict[str, str] = {}
+    if all_role_ids:
+        for rt in db.query(RoleType).filter(RoleType.id.in_(all_role_ids)).all():
+            role_name_map[rt.id] = rt.name
+
+    # ------------------------------------------------------------------
+    # Group by (vendor, po_number, role_type_id) per [C-06]. Baseline + Actuals
+    # have no po_number column on the model, so they always bucket as "No PO".
+    # We track per-(group, source, month) cells separately so the C-08
+    # three-source overlay survives quarterly aggregation.
+    # ------------------------------------------------------------------
+    SourceKey = tuple[str, str | None, str | None]  # (vendor, po_number, role_id)
+
+    # group_key → {"vendor", "po_number", "role_type_id", "fc": {month: amount},
+    #              "bl": {month: amount}, "ac": {month: amount}, "ac_partial_months": set}
+    groups: dict[SourceKey, dict] = {}
+
+    def _ensure(vendor: str | None, po: str | None, role: str | None) -> dict:
+        # Normalise vendor key — None / "" → "Unspecified" so they bucket
+        # together (matches the existing vendor_summary behaviour).
+        v_key = vendor if vendor else "Unspecified"
+        key: SourceKey = (v_key, po, role)
+        if key not in groups:
+            groups[key] = {
+                "vendor": v_key,
+                "po_number": po,
+                "role_type_id": role,
+                "fc": {},
+                "bl": {},
+                "ac": {},
+                "ac_partial_months": set(),
+            }
+        return groups[key]
+
+    for r in fc_rows:
+        g = _ensure(r.vendor, r.po_number, r.role_type_id)
+        g["fc"][r.month] = g["fc"].get(r.month, 0.0) + float(r.amount_eur or 0)
+
+    for r in bl_rows:
+        # Baseline has no po_number — always group under None
+        g = _ensure(r.vendor, None, r.role_type_id)
+        g["bl"][r.month] = g["bl"].get(r.month, 0.0) + float(r.amount_eur or 0)
+
+    for r in ac_rows:
+        g = _ensure(r.vendor, None, r.role_type_id)
+        g["ac"][r.month] = g["ac"].get(r.month, 0.0) + float(r.amount_eur or 0)
+        if r.month == demo_date:
+            g["ac_partial_months"].add(r.month)
+
+    # ------------------------------------------------------------------
+    # Build sub-rows: project per-month buckets through the parent grid's
+    # column shape (monthly cells stay verbatim; quarterly cells sum the
+    # constituent months). EUR-only cells — `hours` is set to 0.0 to match
+    # the GridCell schema's required field.
+    # ------------------------------------------------------------------
+    sub_rows: list[dict] = []
+    for key, g in groups.items():
+        cells: list[dict] = []
+        row_total = 0.0
+        for col in columns:
+            col_key = col["key"]
+            cell_type = col["cell_type"]
+            if cell_type == "monthly":
+                fc_amt = g["fc"].get(col_key, 0.0)
+                cell = {
+                    "key": col_key,
+                    "cell_type": "monthly",
+                    "hours": 0.0,
+                    "amount_eur": round(fc_amt, 2),
+                    "is_provisional": False,
+                }
+                if include_baseline_actuals:
+                    bl_amt = g["bl"].get(col_key)
+                    ac_amt = g["ac"].get(col_key)
+                    cell["baseline_hours"] = None
+                    cell["baseline_amount_eur"] = (
+                        round(bl_amt, 2) if bl_amt is not None else None
+                    )
+                    cell["actuals_hours"] = None
+                    cell["actuals_amount_eur"] = (
+                        round(ac_amt, 2) if ac_amt is not None else None
+                    )
+                    cell["actuals_partial"] = (
+                        ac_amt is not None and col_key == demo_date
+                    )
+            else:
+                # Quarterly: sum constituent months
+                q_months = quarter_constituent_months(col_key, horizon_end_month)
+                fc_total = sum(g["fc"].get(m, 0.0) for m in q_months)
+                cell = {
+                    "key": col_key,
+                    "cell_type": "quarterly",
+                    "hours": 0.0,
+                    "amount_eur": round(fc_total, 2),
+                    "is_provisional": False,
+                }
+                if include_baseline_actuals:
+                    bl_total = 0.0
+                    bl_seen = False
+                    ac_total = 0.0
+                    ac_seen = False
+                    ac_partial_q = False
+                    for m in q_months:
+                        if m in g["bl"]:
+                            bl_seen = True
+                            bl_total += g["bl"][m]
+                        if m in g["ac"]:
+                            ac_seen = True
+                            ac_total += g["ac"][m]
+                            if m == demo_date:
+                                ac_partial_q = True
+                    cell["baseline_hours"] = None
+                    cell["baseline_amount_eur"] = round(bl_total, 2) if bl_seen else None
+                    cell["actuals_hours"] = None
+                    cell["actuals_amount_eur"] = round(ac_total, 2) if ac_seen else None
+                    cell["actuals_partial"] = ac_partial_q if ac_seen else None
+
+            cells.append(cell)
+            row_total += cell["amount_eur"]
+
+        vendor = g["vendor"]
+        po_number = g["po_number"]
+        role_id = g["role_type_id"]
+        role_name = role_name_map.get(role_id) if role_id else None
+
+        po_label = po_number if po_number else "No PO"
+        role_label = role_name if role_name else "—"
+        label = f"{vendor} · {role_label} · {po_label}"
+
+        sub_rows.append({
+            "label": label,
+            "sub_label": None,
+            "cells": cells,
+            "row_total": round(row_total, 2),
+            "vendor": vendor,
+            "po_number": po_number,
+            "role_type_id": role_id,
+            "role_name": role_name,
+        })
+
+    # Sort by descending row_total for deterministic output
+    sub_rows.sort(key=lambda r: r["row_total"], reverse=True)
+
+    return sub_rows, parent_role_name
 
 
 def build_mixed_grid(
