@@ -29,7 +29,7 @@
 
 ## Build Status
 All phases are complete. The application is fully built with 10 modules:
-1. **Launchpad** — role-personalised KPI tiles + pending actions strip, persona-aware greeting and forecast cycle status (E7 redesign)
+1. **Launchpad** — fixed 3-column module-card grid (Controller 9 / PL 8 / CC Owner 7 / Executive 6) with role-differentiated subtitle KPIs + pending actions strip, persona-aware greeting and forecast cycle status (v5.1 W6 [C-01]; replaced the v5 E7 KPI tile grid)
 2. **Portfolio Overview** — Change vs Run sub-modules with pill switcher, KPI dashboard, configurable hierarchy tree, full-page project detail, External Spend tab on Change
 3. **Backlog** — ranked intake list (DoI 0–2 demand pipeline), Tech Navigator scoring, cube view + list view, send-back/resubmit cycle, cutoff line (v5)
 4. **Project Workbench** — Overview tile grid (T2 layout), mixed-granularity forecast grid, 5-phase forecast cycle wizard, External Costs tab, Cost Allocation tab, version history + diff
@@ -107,7 +107,7 @@ Four personas, each with different access and capabilities:
 | **Controller** | Anna Meier | Full access. Approves/rejects intakes and CRs, manages admin settings, creates scenarios |
 | **CC Owner** | Thomas Brenner | Confirms/declines resource requests for their cost center, proposes counter-offers |
 | **Project Lead** | Priya Sharma | Creates projects, submits forecasts via wizard, requests resources. Sees only own projects |
-| **Executive** | Thomas Becker | Read-only portfolio and reports, creates/compares what-if scenarios |
+| **Executive** | Dr. Klaus Weber | Read-only portfolio and reports, creates/compares what-if scenarios |
 
 Role is resolved from `X-Current-User` header → `DemoPersona` table → `CurrentUser` context. Access enforced via `require_role()` dependency.
 
@@ -363,7 +363,7 @@ This project uses two tiers of agent parallelization. All agent role definitions
 - `backend/seed/fixtures/` — JSON fixtures (manuals, FAQ, AI Advisor goals)
 - `backend/models/` — `capacity.py`, `change_requests.py`, `charging.py`, `financial.py`, `organization.py`, `people.py`, `projects.py`, `reporting.py`, `scenarios.py`, `scheduled_changes.py`, `submissions.py`, `system.py`, `users.py`, `workflow_templates.py`
 - `backend/routers/` — `admin.py`, `ai_reports.py`, `audit.py`, `capacity.py`, `charging.py`, `documentation.py`, `global_launchpad.py`, `intake.py`, `milestones.py`, `pipeline.py`, `portfolio.py`, `ranking.py`, `reference.py`, `report_builder.py`, `reports.py`, `scenarios.py`, `scheduled_changes.py`, `tech_navigator.py`, `user_measurement.py`, `workbench.py`, `workflow_templates.py`
-- `backend/services/` — `advisor.py`, `ai_report_service.py`, `allocation_service.py`, `audit_export.py`, `audit_query.py`, `btc_service.py`, `calculations.py`, `dag_resolver.py`, `distribution_service.py`, `forecast_cycle.py`, `forecast_versioning.py`, `intake_workflow.py`, `pipeline.py`, `portfolio_service.py`, `progress_tracker.py`, `report_builder_catalog.py`, `report_builder_engine.py`, `report_builder_export.py`, `report_builder_saved.py`, `report_service.py`, `rollup_cache.py`, `rollup_query.py`, `scenario_apply_forecast.py`, `scenario_engine.py`, `scenario_impact.py`, `scenario_lever12.py`, `scenario_promote.py`, `scheduled_change_activation.py`, `tech_navigator.py`, `user_measurement_import.py`, `wbs_generator.py`
+- `backend/services/` — `advisor.py`, `ai_report_service.py`, `allocation_service.py`, `audit_export.py`, `audit_query.py`, `btc_service.py`, `calculations.py`, `dag_resolver.py`, `distribution_service.py`, `forecast_cycle.py`, `forecast_versioning.py`, `intake_workflow.py`, `module_card_kpis.py`, `pipeline.py`, `portfolio_service.py`, `progress_tracker.py`, `report_builder_catalog.py`, `report_builder_engine.py`, `report_builder_export.py`, `report_builder_saved.py`, `report_service.py`, `rollup_cache.py`, `rollup_query.py`, `scenario_apply_forecast.py`, `scenario_engine.py`, `scenario_impact.py`, `scenario_lever12.py`, `scenario_promote.py`, `scheduled_change_activation.py`, `tech_navigator.py`, `user_measurement_import.py`, `wbs_generator.py`
 - `backend/schemas/` — `admin.py`, `ai_reports.py`, `btc_profile.py`, `capacity.py`, `chargeable_entity.py`, `charging.py`, `common.py`, `distribution.py`, `documentation.py`, `global_launchpad.py`, `intake.py`, `milestones.py`, `pipeline.py`, `portfolio.py`, `ranking.py`, `reference.py`, `report_builder.py`, `reports.py`, `rollup.py`, `scenarios.py`, `tech_navigator.py`, `user_measurement.py`, `workbench.py`
 - `backend/tests/` — unit tests (Wave 3 B1 in flight: 1098 tests; see PROGRESS.md for breakdown)
 

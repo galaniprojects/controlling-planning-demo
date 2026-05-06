@@ -78,32 +78,8 @@ export interface ModuleTile {
   contextual_metric: string;
   visible: boolean;
   sort_order: number;
-}
-
-// --- v5 Session E7 — Launchpad role-personalised tiles per [E-06d]–[E-06j] ---
-
-export type TileTone = 'neutral' | 'positive' | 'warning' | 'alert';
-
-/**
- * One role-personalised launchpad tile. Backend payload mirror of
- * `schemas/global_launchpad.TilePayload`. Each tile is clickable and
- * navigates to `link_module` (+ optional `link_entity_id` / `link_tab`).
- */
-export interface TilePayload {
-  tile_id: string;
-  title: string;
-  primary_metric: string;
-  secondary_metric: string | null;
-  link_module: string;
-  link_entity_id: string | null;
-  link_tab: string | null;
-  tone: TileTone;
-}
-
-export interface TilesResponse {
-  role: string;
-  items: TilePayload[];
-  total: number;
+  /** v5.1 W6 [C-01] — 1–2 role-differentiated subtitle KPIs. */
+  subtitle_kpis: string[];
 }
 
 // --- v5 Session E7 — PL capacity read-only role-availability per [E-06a] ---

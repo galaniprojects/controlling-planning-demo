@@ -4,17 +4,17 @@ import { launchpadApi } from '@/api/endpoints';
 import type { PendingAction } from '@/types/api';
 import { LaunchpadHeader } from './LaunchpadHeader';
 import { PendingActionsPanel } from './PendingActionsPanel';
-import { RoleTileGrid } from './RoleTileGrid';
+import { ModuleCardGrid } from './ModuleCardGrid';
 
 /**
- * v5 E7 [E-06d-j] — Three-zone Launchpad.
+ * v5.1 W6 [C-01] — Three-zone Launchpad.
  *
  *   Zone 1: LaunchpadHeader — greeting, role badge, date + forecast cycle
- *   Zone 2: PendingActionsPanel — horizontal scrollable strip (was vertical)
- *   Zone 3: RoleTileGrid — role-personalised KPI tile grid (was modules)
+ *   Zone 2: PendingActionsPanel — horizontal scrollable strip
+ *   Zone 3: ModuleCardGrid — fixed 3-column module-launch card grid
+ *           (was the role-personalised KPI tile grid before v5.1 W6 [C-01])
  *
- * Zones 2 and 3 are full-width below the header. Tile grid layout is
- * delegated to per-role components (PL/Controller/CC Owner/Executive).
+ * Zones 2 and 3 are full-width below the header.
  */
 export function Launchpad() {
   const { currentRoleId, context } = useRole();
@@ -41,8 +41,8 @@ export function Launchpad() {
       {/* Zone 2: Pending Actions (horizontal strip, full-width) */}
       <PendingActionsPanel actions={actions} loading={actionsLoading} />
 
-      {/* Zone 3: Role-personalised tile grid (full-width) */}
-      <RoleTileGrid />
+      {/* Zone 3: Module-launch card grid (full-width, fixed 3 columns) */}
+      <ModuleCardGrid />
     </div>
   );
 }
