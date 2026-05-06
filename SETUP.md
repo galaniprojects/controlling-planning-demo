@@ -1,11 +1,32 @@
 # CRETA Demo App — Setup Guide
 
+This guide covers fresh-clone setup for **macOS** and **Windows** side by side. The codebase itself is platform-agnostic — only the install commands and venv-activation paths differ.
+
 ## Prerequisites
 
-| Tool | Required Version | Check Command | Install |
-|------|-----------------|---------------|---------|
-| **Python** | 3.12+ | `python3.12 --version` | `brew install python@3.12` or [python.org](https://python.org) |
-| **Node.js** | 20 LTS+ | `node --version` | [nodejs.org](https://nodejs.org) |
+| Tool | Required version | macOS install | Windows install |
+|------|------------------|---------------|-----------------|
+| **Python** | 3.12+ | `brew install python@3.12` or [python.org installer](https://www.python.org/downloads/macos/) | [python.org installer](https://www.python.org/downloads/windows/) — tick **"Add python.exe to PATH"** during setup |
+| **Node.js** | 20 LTS+ | `brew install node@20` or [nodejs.org installer](https://nodejs.org) | [nodejs.org installer](https://nodejs.org) (or `winget install OpenJS.NodeJS.LTS`) |
+| **Git** | any recent | preinstalled / `brew install git` | [git-scm.com](https://git-scm.com) (ships **Git Bash** which we'll use for `start.sh`) |
+
+Verify the installs in a terminal:
+
+```bash
+# macOS / Linux
+python3.12 --version
+node --version
+git --version
+```
+
+```powershell
+# Windows (PowerShell or cmd) — Python ships a `py` launcher on Windows
+py -3.12 --version
+node --version
+git --version
+```
+
+> **Where this guide diverges:** macOS uses `python3.12` and `source .venv/bin/activate`; Windows uses `py -3.12` and `.venv\Scripts\activate`. Where a step is identical on both, only one block is shown.
 
 ---
 
@@ -18,6 +39,8 @@ cd vision-demo-prototype
 
 ### One-time setup
 
+#### macOS / Linux
+
 ```bash
 # Backend — Python venv + dependencies
 cd backend
@@ -28,6 +51,21 @@ python3.12 -m venv .venv
 cd ../frontend
 npm install
 ```
+
+#### Windows (PowerShell)
+
+```powershell
+# Backend — Python venv + dependencies
+cd backend
+py -3.12 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+
+# Frontend — Node packages
+cd ..\frontend
+npm install
+```
+
+> Windows tip: if PowerShell blocks the `Activate.ps1` script later, run once per machine: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. We don't need `Activate.ps1` for install (we call `.venv\Scripts\python` directly), but it's needed for `activate` in the manual-start path below.
 
 The backend creates `creta_demo.db` (SQLite) on first launch from `backend/seed/seed.sql`. There is no separate database server to install.
 
@@ -40,9 +78,29 @@ The demo runs end-to-end with no environment variables set. Two optional knobs:
 | `ANTHROPIC_API_KEY` | Administration → Planning Parameters → Integrations (preferred) **or** shell env | unset | The AI Report Builder feature requires it. Get a key at [console.anthropic.com](https://console.anthropic.com). Without it the AI Report Builder UI loads but reports a "missing API key" error on submit. |
 | `VITE_APP_TITLE` | `frontend/.env` | `CRETA — Controlling, Reporting, Estimation, Tracking & Allocations` | Override the browser tab title; useful for demo whitelabeling. |
 
-The preferred way to set the Anthropic key is via the Administration UI (Controller persona → Administration → Planning Parameters → Integrations) — it persists in the database alongside other planning parameters and survives `reset-demo`. The env-var path is a headless fallback for CI / scripted runs.
+Setting the Anthropic key:
+
+```bash
+# macOS / Linux — for the current shell only
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# macOS / Linux — persistent (zsh)
+echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.zshrc
+```
+
+```powershell
+# Windows — for the current PowerShell session
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+
+# Windows — persistent (writes to user environment)
+setx ANTHROPIC_API_KEY "sk-ant-..."
+```
+
+The preferred path is still the Administration UI (Controller persona → Administration → Planning Parameters → Integrations) — it persists in the database alongside other planning parameters and survives `reset-demo`. The env-var path is a headless fallback for CI / scripted runs.
 
 ### Run the app
+
+#### macOS / Linux
 
 From the project root:
 
@@ -50,7 +108,18 @@ From the project root:
 ./start.sh
 ```
 
-This script:
+#### Windows
+
+`start.sh` is a bash script. The simplest way to run it on Windows is **Git Bash** (installed alongside Git for Windows):
+
+```bash
+# In Git Bash, from the project root
+./start.sh
+```
+
+Alternatively, run the two servers manually (see below) — there is no `start.bat` equivalent in the repo.
+
+`start.sh` (or the manual-start sequence):
 1. Starts the backend (FastAPI on port 8000)
 2. Waits for the backend health check to pass
 3. Resets demo data to a clean state
@@ -60,7 +129,9 @@ Once running, open **http://localhost:5173** in your browser. Press `Ctrl+C` to 
 
 ### Manual Start (alternative)
 
-If you prefer to run each server in a separate terminal:
+If you prefer to run each server in a separate terminal — or you're on Windows without Git Bash — start them by hand:
+
+#### macOS / Linux
 
 **Terminal 1 — Backend:**
 ```bash
@@ -77,9 +148,35 @@ npm run dev
 # Runs on http://localhost:5173
 ```
 
+#### Windows (PowerShell)
+
+**Terminal 1 — Backend:**
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+python main.py
+# Runs on http://localhost:8000
+```
+
+**Terminal 2 — Frontend:**
+```powershell
+cd frontend
+npm run dev
+# Runs on http://localhost:5173
+```
+
+If PowerShell rejects `Activate.ps1`, you can skip activation entirely:
+
+```powershell
+cd backend
+.\.venv\Scripts\python main.py
+```
+
 ---
 
 ## Run the tests
+
+#### macOS / Linux
 
 ```bash
 # Backend — unit tests (1554 tests as of v5.1 Wave 6)
@@ -88,6 +185,19 @@ source .venv/bin/activate
 python -m pytest tests/ -v
 
 # Frontend — type check (the canonical type gate)
+cd frontend
+npx tsc --noEmit       # expects 0 errors
+```
+
+#### Windows (PowerShell)
+
+```powershell
+# Backend
+cd backend
+.\.venv\Scripts\Activate.ps1
+python -m pytest tests/ -v
+
+# Frontend
 cd frontend
 npx tsc --noEmit       # expects 0 errors
 ```
@@ -208,18 +318,44 @@ Visual verification uses **Playwright MCP** and **Chrome DevTools MCP** via the 
 
 ## Troubleshooting
 
-### "python3.12: command not found"
+### "python3.12: command not found" (macOS)
 - Install via Homebrew: `brew install python@3.12`
-- Or check the full path: `/usr/local/bin/python3.12`
+- Or check the full path: `/opt/homebrew/bin/python3.12` (Apple Silicon) or `/usr/local/bin/python3.12` (Intel)
+
+### "py: command not found" or `'py' is not recognized…` (Windows)
+- Reinstall Python from [python.org](https://www.python.org/downloads/windows/) and tick **"Add python.exe to PATH"** + **"Install launcher for all users"**
+- The `py` command is the Python launcher; if you used the Microsoft Store installer it may not be present — fall back to `python` if `python --version` reports 3.12+
 
 ### "No module named 'fastapi'"
-- Make sure you ran `.venv/bin/pip install -r requirements.txt`
-- If using `activate`, verify the venv is active (prompt shows `(.venv)`)
+- Make sure dependencies installed: `.venv/bin/pip install -r requirements.txt` (macOS) or `.\.venv\Scripts\python -m pip install -r requirements.txt` (Windows)
+- If using `activate`, verify the venv is active — the shell prompt should show `(.venv)`
 
 ### "Address already in use" (port 8000 or 5173)
-- Find the process: `lsof -i :8000` (or `:5173`)
-- Kill it: `kill <PID>`
-- Or kill all Node/Python dev servers: `pkill -f "python main.py"; pkill -f "vite"`
+
+```bash
+# macOS / Linux
+lsof -i :8000                           # find the process
+kill <PID>                              # stop it
+pkill -f "python main.py"               # blanket-stop the backend
+pkill -f vite                           # blanket-stop the frontend
+```
+
+```powershell
+# Windows (PowerShell)
+Get-NetTCPConnection -LocalPort 8000    # find the owning PID
+Stop-Process -Id <PID>                  # stop it
+# Or in cmd:
+#   netstat -ano | findstr :8000
+#   taskkill /PID <PID> /F
+```
+
+### Windows-only: PowerShell refuses to run `Activate.ps1`
+- Run once per machine in an elevated PowerShell: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+- Or sidestep activation entirely by calling `.\.venv\Scripts\python` directly
+
+### Windows-only: line-ending warnings during `git clone`
+- Set `git config --global core.autocrlf input` before cloning to avoid CRLF noise on commits
+- The repo uses LF line endings; mixing them can confuse `start.sh` if you edit it on Windows
 
 ### Database issues
 - Delete and restart: `rm backend/creta_demo.db` then start the backend again
@@ -244,7 +380,9 @@ Visual verification uses **Playwright MCP** and **Chrome DevTools MCP** via the 
 
 ## Fresh clone smoke test
 
-A 5-minute walkthrough to verify a clean clone is healthy:
+A 5-minute walkthrough to verify a clean clone is healthy.
+
+#### macOS / Linux
 
 ```bash
 git clone https://github.com/bill-pap/vision-demo-prototype.git
@@ -258,6 +396,28 @@ cd ../frontend && npm install
 cd ..
 ./start.sh
 ```
+
+#### Windows (PowerShell + Git Bash)
+
+```powershell
+# In PowerShell — clone and install
+git clone https://github.com/bill-pap/vision-demo-prototype.git
+cd vision-demo-prototype
+
+cd backend
+py -3.12 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+cd ..\frontend
+npm install
+cd ..
+```
+
+```bash
+# Switch to Git Bash to launch (start.sh is bash)
+./start.sh
+```
+
+If you'd rather stay in PowerShell, open two terminals and run the manual-start commands shown earlier (backend in one, frontend in the other).
 
 In the browser at **http://localhost:5173**, you should see:
 
