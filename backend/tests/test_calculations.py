@@ -343,3 +343,94 @@ class TestGetStandardHours:
         db = MagicMock()
         db.query.return_value.filter.return_value.first.return_value = mock_param
         assert get_standard_hours(db, location_id="loc-muc") == 150.0
+
+
+# ---------------------------------------------------------------------------
+# resolve_hourly_rate (v5.1 W4 pre-work)
+# ---------------------------------------------------------------------------
+
+class TestResolveHourlyRate:
+    """resolve_hourly_rate centralises the latest-effective-on-or-before lookup
+    so the C-05 per-employee aggregator and the C-07 capacity FTE-equivalent
+    calc share one rate-resolution pattern.
+    """
+
+    @pytest.fixture
+    def db_with_rates(self):
+        """In-memory DB seeded with two rate rows for one role."""
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+
+        from database import Base
+        from models.organization import CompetenceCenter
+        from models.people import RateTable, RoleType
+
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        s = Session()
+        s.add(RoleType(id="role-dev", name="Developer"))
+        s.add(CompetenceCenter(id="cc-apd", name="APD"))
+        s.add(CompetenceCenter(id="cc-bso", name="BSO"))
+        s.add(RateTable(
+            role_type_id="role-dev", competence_center_id="cc-apd",
+            hourly_rate=100, effective_date="2024-01-01",
+        ))
+        s.add(RateTable(
+            role_type_id="role-dev", competence_center_id="cc-apd",
+            hourly_rate=110, effective_date="2026-01-01",
+        ))
+        s.add(RateTable(
+            role_type_id="role-dev", competence_center_id="cc-bso",
+            hourly_rate=130, effective_date="2024-01-01",
+        ))
+        s.commit()
+        return s
+
+    def test_effective_date_lookup(self, db_with_rates):
+        """The 2026-01-01 rate applies from January 2026 onwards."""
+        from decimal import Decimal
+        from services.calculations import resolve_hourly_rate
+
+        # Cell month before the new rate effective date → old rate
+        assert resolve_hourly_rate(
+            db_with_rates, "role-dev", "cc-apd", "2025-12"
+        ) == Decimal("100.00")
+        # Cell month at the effective date → new rate
+        assert resolve_hourly_rate(
+            db_with_rates, "role-dev", "cc-apd", "2026-01"
+        ) == Decimal("110.00")
+        # Cell month after the effective date → new rate
+        assert resolve_hourly_rate(
+            db_with_rates, "role-dev", "cc-apd", "2026-04"
+        ) == Decimal("110.00")
+
+    def test_competence_center_filter(self, db_with_rates):
+        """Different CC → different rate even on the same day."""
+        from decimal import Decimal
+        from services.calculations import resolve_hourly_rate
+
+        assert resolve_hourly_rate(
+            db_with_rates, "role-dev", "cc-bso", "2026-04"
+        ) == Decimal("130.00")
+        # No CC → falls back to any rate for the role (latest by effective date)
+        # In this seed the latest rate overall is the cc-apd 2026-01-01 row
+        # (110), but cc-bso also has 2024-01-01 (130). With effective <= 2026-04
+        # the candidates are 100 (apd, 2024-01-01), 130 (bso, 2024-01-01), and
+        # 110 (apd, 2026-01-01). Latest by effective_date is cc-apd 110.
+        assert resolve_hourly_rate(
+            db_with_rates, "role-dev", None, "2026-04"
+        ) == Decimal("110.00")
+
+    def test_fallback_to_default_when_no_rate(self, db_with_rates):
+        """Unknown role → DEFAULT_HOURLY_RATE (€120.00)."""
+        from decimal import Decimal
+        from services.calculations import resolve_hourly_rate
+
+        assert resolve_hourly_rate(
+            db_with_rates, "role-unknown", "cc-apd", "2026-04"
+        ) == Decimal("120.00")
+        # And when no row exists with effective_date <= target month
+        assert resolve_hourly_rate(
+            db_with_rates, "role-dev", "cc-apd", "2023-06"
+        ) == Decimal("120.00")

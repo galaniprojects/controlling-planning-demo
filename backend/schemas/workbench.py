@@ -99,13 +99,54 @@ class GridCell(BaseModel):
     actuals_partial: Optional[bool] = None
 
 
+class GridSubRow(BaseModel):
+    """One sub-row under an expandable line item (v5.1 C-05 / C-06).
+
+    For internal rows (category='internal'), each sub-row represents one
+    employee assigned to the parent role. For external rows
+    (category='external'), each sub-row represents one
+    (vendor, po_number, role_type_id) tuple. Cell shape mirrors GridCell so
+    the UI can route sub-row cells through the same renderer.
+
+    Discriminator fields are nullable so a single shape covers both shapes
+    without a Pydantic union. The frontend reads `category` from the parent.
+    """
+    label: str                              # primary display name
+    sub_label: Optional[str] = None         # secondary line (e.g. cost-centre)
+    cells: list[GridCell]
+    row_total: float
+    # Internal sub-row fields
+    person_id: Optional[str] = None
+    cost_center_id: Optional[str] = None
+    # External sub-row fields
+    vendor: Optional[str] = None
+    po_number: Optional[str] = None
+    role_type_id: Optional[str] = None
+    role_name: Optional[str] = None
+
+
 class GridRow(BaseModel):
-    """One line item row (category × sub_category) in the mixed grid."""
+    """One line item row (category × sub_category) in the mixed grid.
+
+    v5.1 C-05 / C-06: rows can carry expandable `sub_rows` — per-employee
+    breakdowns for internal rows or per-vendor breakdowns for external
+    rows. Default None preserves byte-identical payloads for callers
+    (notably ForecastVersion snapshots) that don't request the breakdown.
+
+    v5.1 C-07: external rows can carry a derived `role_name` when all
+    contributing line items share a single role assignment; the F&P grid
+    renders `[Category] — [Role Name]` in that case. Falls back to None
+    when the row has mixed roles or no role assignment.
+    """
     category: str
     sub_category: str
     capex_opex: Optional[str] = None
     cells: list[GridCell]
     row_total: float
+    # v5.1 C-05 / C-06
+    sub_rows: Optional[list[GridSubRow]] = None
+    # v5.1 C-07 (external rows only — derived from contributing line items)
+    role_name: Optional[str] = None
 
 
 class MixedGridResponse(BaseModel):

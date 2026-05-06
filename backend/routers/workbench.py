@@ -1505,6 +1505,22 @@ def get_forecast_grid(
             "(start at demo_date)."
         ),
     ),
+    include_person_breakdown: bool = Query(
+        default=True,
+        description=(
+            "v5.1 C-05: when True, internal rows carry per-employee "
+            "sub_rows for the F&P grid expand affordance. Default True "
+            "(frontend always shows the chevron)."
+        ),
+    ),
+    include_vendor_breakdown: bool = Query(
+        default=True,
+        description=(
+            "v5.1 C-06 / C-07: when True, external rows carry per-vendor "
+            "sub_rows and a derived role_name for the F&P grid label. "
+            "Default True."
+        ),
+    ),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -1531,6 +1547,8 @@ def get_forecast_grid(
     # include_baseline_actuals=False so version snapshots stay forecast-only.
     # v5.1 W3: lookback_months extends the inner monthly window backwards
     # so past months (with full actuals) render alongside future ones.
+    # v5.1 W4 C-05/C-06/C-07: include_*_breakdown thread per-employee /
+    # per-vendor sub_rows + the derived role_name.
     grid = build_mixed_grid(
         db=db,
         project_id=project_id,
@@ -1540,6 +1558,8 @@ def get_forecast_grid(
         horizon_months=horizon_months,
         include_baseline_actuals=True,
         lookback_months=lookback_months,
+        include_person_breakdown=include_person_breakdown,
+        include_vendor_breakdown=include_vendor_breakdown,
     )
     return grid
 

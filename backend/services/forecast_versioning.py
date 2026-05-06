@@ -146,6 +146,61 @@ def _first_quarter_start(boundary_month: str) -> str:
         probe = add_months(months[-1], 1)  # one month after last month of this quarter
 
 
+# ---------------------------------------------------------------------------
+# Sub-row collectors (v5.1 W4 — lead-declared seam, teammates fill bodies)
+# ---------------------------------------------------------------------------
+
+def _collect_person_breakdown(
+    db: Session,
+    project_id: str,
+    role_type_id: str,
+    columns: list[dict],
+    demo_date: str,
+    horizon_end_month: str,
+    lookback_start: str,
+    include_baseline_actuals: bool,
+) -> list[dict]:
+    """v5.1 C-05 — return per-employee sub-rows for one internal role row.
+
+    Teammate A fills this in (`feat/v5_1-roles-and-expand-w4-c05`). Until
+    that lands, returns an empty list so the response shape is stable.
+
+    Each returned dict is a `GridSubRow` payload: `label`, `sub_label`,
+    `cells` (mirroring the parent row's column list), `row_total`,
+    `person_id`, `cost_center_id`. EUR is computed via
+    `services.calculations.resolve_hourly_rate`.
+    """
+    return []
+
+
+def _collect_vendor_breakdown(
+    db: Session,
+    project_id: str,
+    cost_type_id: str,
+    columns: list[dict],
+    demo_date: str,
+    horizon_end_month: str,
+    lookback_start: str,
+    include_baseline_actuals: bool,
+) -> tuple[list[dict], str | None]:
+    """v5.1 C-06 / C-07 — per-vendor sub-rows + parent role_name for one external row.
+
+    Teammate B fills this in (`feat/v5_1-roles-and-expand-w4-c06-c07`).
+    Until that lands, returns `([], None)` so the response shape is stable.
+
+    Returns:
+        (sub_rows, role_name) where `role_name` is set when all
+        contributing line items share a single non-null `role_type_id`,
+        otherwise None (see C-07 spec — mixed-role parent rows fall back
+        to `[Category]` only).
+
+    Each sub-row groups by `(vendor, po_number, role_type_id)`. EUR-only
+    cells (no hours). Baseline/Actuals rows always group under "No PO"
+    since `po_number` only exists on Forecast.
+    """
+    return [], None
+
+
 def build_mixed_grid(
     db: Session,
     project_id: str,
@@ -155,6 +210,8 @@ def build_mixed_grid(
     horizon_months: int | None = None,
     include_baseline_actuals: bool = False,
     lookback_months: int | None = None,
+    include_person_breakdown: bool = False,
+    include_vendor_breakdown: bool = False,
 ) -> dict:
     """Build the mixed-granularity forecast grid for a project.
 
@@ -174,6 +231,15 @@ def build_mixed_grid(
             zone semantics for the future are unchanged. Default None keeps
             the v5 column model (start at demo_date), so capture_version
             payload shapes stay byte-identical for existing callers.
+        include_person_breakdown: when True (v5.1 C-05), internal rows
+            carry ``sub_rows`` listing each assigned employee with
+            per-column hours + EUR. Default False so capture_version
+            snapshots stay forecast-only.
+        include_vendor_breakdown: when True (v5.1 C-06), external rows
+            carry ``sub_rows`` listing each (vendor, po_number, role)
+            tuple. C-07 also derives ``role_name`` on the parent row when
+            all contributing line items share a single role. Default
+            False so capture_version snapshots stay forecast-only.
 
     Returns a dict matching the MixedGridResponse schema.
     """
@@ -426,13 +492,44 @@ def build_mixed_grid(
                 totals_by_column.get(col_key, 0.0) + cell["amount_eur"], 2
             )
 
-        output_rows.append({
+        out_row = {
             "category": category,
             "sub_category": sub_cat,
             "capex_opex": row_data["capex_opex"],
             "cells": output_cells,
             "row_total": round(sum(c["amount_eur"] for c in output_cells), 2),
-        })
+        }
+
+        # v5.1 C-05 — Teammate A: per-employee sub-rows for internal rows.
+        if include_person_breakdown and category == "internal":
+            out_row["sub_rows"] = _collect_person_breakdown(
+                db=db,
+                project_id=project_id,
+                role_type_id=sub_cat,
+                columns=columns,
+                demo_date=demo_date,
+                horizon_end_month=horizon_end_month,
+                lookback_start=lookback_start,
+                include_baseline_actuals=include_baseline_actuals,
+            )
+
+        # v5.1 C-06 / C-07 — Teammate B: per-vendor sub-rows + role_name on
+        # the parent for external rows.
+        if include_vendor_breakdown and category == "external":
+            sub_rows, role_name = _collect_vendor_breakdown(
+                db=db,
+                project_id=project_id,
+                cost_type_id=sub_cat,
+                columns=columns,
+                demo_date=demo_date,
+                horizon_end_month=horizon_end_month,
+                lookback_start=lookback_start,
+                include_baseline_actuals=include_baseline_actuals,
+            )
+            out_row["sub_rows"] = sub_rows
+            out_row["role_name"] = role_name
+
+        output_rows.append(out_row)
 
     grand_total = round(sum(totals_by_column.values()), 2)
 

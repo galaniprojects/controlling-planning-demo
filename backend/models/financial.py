@@ -33,6 +33,14 @@ class Baseline(Base):
     capex_opex: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # Per-line-item CapEx/OpEx
     vendor: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     ext_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    # v5.1 C-07: optional role attribution for external cost line items.
+    # Links to the same role_types catalogue used for internal resources so
+    # consulting / leased-staff items can carry "Senior Consultant" etc. and
+    # the F&P grid can render `[Category] — [Role Name]` labels. Always null
+    # for category='internal' rows (the role lives in sub_category there).
+    role_type_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("role_types.id"), nullable=True
+    )
 
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="baselines")
@@ -55,6 +63,11 @@ class Forecast(Base):
     ext_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     po_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     vendor: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    # v5.1 C-07: optional role attribution for external cost line items.
+    # See Baseline.role_type_id for semantics.
+    role_type_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("role_types.id"), nullable=True
+    )
     # C1 [C-FG-07]: provisional flag — True for months beyond the granularity boundary
     is_provisional: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0"
@@ -79,6 +92,11 @@ class Actuals(Base):
     capex_opex: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # Per-line-item CapEx/OpEx
     vendor: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     ext_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    # v5.1 C-07: optional role attribution for external cost line items.
+    # See Baseline.role_type_id for semantics.
+    role_type_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("role_types.id"), nullable=True
+    )
 
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="actuals")

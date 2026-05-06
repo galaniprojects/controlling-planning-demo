@@ -635,6 +635,60 @@ class TestBuildMixedGridLookback:
 
 
 # ---------------------------------------------------------------------------
+# Wave 4 pre-work — sub-row plumbing regression guards
+# ---------------------------------------------------------------------------
+
+class TestBuildMixedGridSubRowsDefault:
+    """The new C-05 / C-06 kwargs default to False so existing callers and
+    ForecastVersion snapshots are byte-identical to Wave 3.
+    """
+
+    def test_default_kwargs_omit_sub_rows(self, db, seeded_project, horizon_params):
+        """Without the flags, rows do not carry sub_rows."""
+        grid = build_mixed_grid(db, "proj-alpha", "2026-04")
+        for row in grid["rows"]:
+            assert "sub_rows" not in row, (
+                f"row {row['category']}/{row['sub_category']} carried sub_rows "
+                f"with default kwargs — should be opt-in"
+            )
+            assert "role_name" not in row
+
+    def test_capture_version_payload_omits_sub_rows(
+        self, db, seeded_project, horizon_params, controller,
+    ):
+        """capture_version doesn't pass sub-row flags — snapshot stays
+        forecast-only and byte-identical to Wave 3."""
+        from services.forecast_versioning import capture_version
+        fv = capture_version(db, "proj-alpha", controller, version_type="manual")
+        db.commit()
+        payload = json.loads(fv.payload_json)
+        for row in payload["rows"]:
+            assert "sub_rows" not in row
+            assert "role_name" not in row
+
+    def test_flags_on_with_stub_collectors_attach_empty_sub_rows(
+        self, db, seeded_project, horizon_params,
+    ):
+        """When the flags ARE set, the stubs return empty sub_rows so the
+        response shape is stable. Teammates A/B fill the bodies without
+        touching this contract.
+        """
+        grid = build_mixed_grid(
+            db, "proj-alpha", "2026-04",
+            include_person_breakdown=True,
+            include_vendor_breakdown=True,
+        )
+        for row in grid["rows"]:
+            if row["category"] == "internal":
+                # C-05 stub → empty list
+                assert row.get("sub_rows") == []
+            elif row["category"] == "external":
+                # C-06 stub → empty list, role_name still null
+                assert row.get("sub_rows") == []
+                assert row.get("role_name") is None
+
+
+# ---------------------------------------------------------------------------
 # 5. serialize_forecast_payload
 # ---------------------------------------------------------------------------
 
