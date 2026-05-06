@@ -27,7 +27,6 @@ import type {
   PendingAction,
   PortfolioKPISummary,
   ModuleTile,
-  TilesResponse,
   RoleAvailabilityResponse,
   ListResponse,
   PortfolioKPIs,
@@ -119,8 +118,6 @@ export const modulesApi = {
 export const launchpadApi = {
   getPendingActions: () =>
     api.get<ListResponse<PendingAction>>('/api/launchpad/pending-actions'),
-  // v5 E7 [E-06d-j] — role-personalised tile grid
-  getTiles: () => api.get<TilesResponse>('/api/launchpad/tiles'),
   createProject: (data: {
     name: string;
     description?: string;
