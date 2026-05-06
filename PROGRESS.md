@@ -7,8 +7,8 @@ Active spec: `guides/CRETA_v5_1_Change_Specification.md` (16 items: 5 bug fixes,
 - [x] **Wave 1** — Reorg + bug fixes (A-01..A-05) + seed expansion (B-01, B-02) — branch `fix/v5_1-batch-1-bugs-and-seed` (PR #80 merged 2026-05-05)
 - [x] **Wave 2** — Grid foundation (C-02 collapsible years + C-08 three-point cells) — branch `feat/v5_1-grid-foundation` (PR #81 merged 2026-05-05)
 - [x] **Wave 3** — Phase highlighting (C-03) + comparison chart (C-04) + past-months lookback follow-up — branch `feat/v5_1-phase-and-chart` (PR #82 merged 2026-05-06)
-- [x] **Wave 4** — Role FK + row expansions (C-05 + C-06 + C-07 grid label / External Costs tab / Capacity External badge) — branch `feat/v5_1-roles-and-expand` (PR pending)
-- [ ] **Wave 5** — External Costs tab overhaul (C-09) — branch `feat/v5_1-external-costs-grid`
+- [x] **Wave 4** — Role FK + row expansions (C-05 + C-06 + C-07 grid label / External Costs tab / Capacity External badge) — branch `feat/v5_1-roles-and-expand` (PR #83 merged 2026-05-06)
+- [x] **Wave 5** — External Costs tab overhaul (C-09) — branch `feat/v5_1-external-costs-grid` (PR pending)
 - [ ] **Wave 6** — Launchpad revert (C-01) — branch `feat/v5_1-launchpad-modules`
 
 Refactoring opportunities (deferred — no unsolicited refactoring):
@@ -16,6 +16,51 @@ Refactoring opportunities (deferred — no unsolicited refactoring):
 - `BacklogProjectDetailPage.tsx` declares `const navigate = useNavigate();` but never calls it. Pre-existing dead code observed during Wave 1 A-02 work.
 - `DashboardTab.tsx` carries a hand-maintained `RESERVED` set of Portfolio segment names for its legacy `/portfolio/<projectId>` redirect. Brittle: every new top-level Portfolio tab must be added or the same A-04 class of bug recurs. Worth retiring the redirect entirely when DashboardTab gets its next refresh.
 - Charging sub-views (`DistributionListView`, `BTCProfileListView`, `RollupView`, `ReportingPanel`) still show Save/Delete/Add buttons regardless of role. Backend `require_role("controller")` rejects mutations with 403, but the buttons should be hidden for non-Controllers per `[A-05]`. Tracked as a Wave 1 follow-up; threading a `readOnly` prop derived from `useRole().context?.role` is a small targeted change for a follow-up wave.
+
+## v5.1 Wave 5 — External Costs tab overhaul (2026-05-06)
+
+Branch: `feat/v5_1-external-costs-grid`. Closes spec item C-09 — the largest item in v5.1 (External Costs tab gets a NEW monthly grid as primary view, 2 KPI strip additions, 4 vendor-table column additions, expanded delivery + invoice content per the user's max-scope choice). Built via the 1+3 agent-team split.
+
+**Lead pre-work (`01e106d`):**
+- `models/financial.py` — added 5 nullable columns: `Forecast.po_amount`, `Forecast.accrual_amount`, `Forecast.contract_end_month`, `Actuals.invoiced_amount`, `Actuals.po_number`. All numerics carry `server_default="0"`.
+- New `ExternalCostDelivery` and `ExternalCostInvoice` models for row-expansion content (delivery schedule + invoice history). Implicit key `(project_id, vendor, po_number)`. Registered in `models/__init__.py`.
+- `seed/seed.sql` — mechanical `ext_status` vocabulary remap (sed-style): `accrued`→`accrual`, `committed`→`ordered`, `delivered`→`goods_received`, `requested`→`planned`. `invoiced` unchanged. Sixth value `open` introduced by Teammate C's top-up.
+- `routers/workbench.py` — registered `GET /api/workbench/projects/{id}/external-costs/monthly-grid` returning a typed empty payload. Widened `vendor-summary` response with a top-level `kpis` block (zero-filled).
+- `schemas/external_costs.py` — new Pydantic schemas: `ExternalCostStatus` literal, `MonthlyGridCell`/`Item`/`Response`, `DeliveryScheduleRow`, `InvoiceHistoryRow`, `ExternalCostsKpis`, `VendorSummaryResponse`. Extended `VendorSummaryItem` with 4 optional fields (`contract_reference`, `contract_end`, `open_po`, `remaining_not_invoiced`).
+- `services/external_cost_aggregation.py` — service stubs `compute_project_monthly_grid` and `compute_project_external_kpis` returning typed empty/zero values. Existing `compute_project_vendor_summary` extended to populate the 4 new row fields with None/0 defaults.
+- Frontend tab decomposition: `ExternalCostsTab.tsx` (620 LOC) split into 3 sibling files (`ExternalCostsKPIStrip.tsx`, `VendorBreakdownTable.tsx`, `CategoryBreakdownTable.tsx`); tab shrinks to a thin orchestrator owning shared filters (category, role) + role catalogue.
+- Stub files for `ExternalCostsMonthlyGrid.tsx` and `ExternalCostCell.tsx` so Teammate B has clean creation surfaces.
+- `types/api.ts` — new types pinned to the contract: `ExternalCostStatus`, `ExternalCostMonthlyCell`/`Item`/`Response`, `ExternalCostsKpis`. Extended `ProjectVendorSummaryRow` with the 4 new optional fields.
+- `api/endpoints.ts` — new client function `externalCostsApi.getProjectExternalCostsMonthlyGrid(projectId, year?, roleTypeId?, category?)`.
+- Dedupe `DEMO_DATE` — exported from `lib/yearColumns.ts`; `MixedGranularityGrid.tsx` imports instead of redeclaring.
+
+**Teammate A — KPI strip + vendor table enhancement (`127caa2`, 1 commit, 137/19 LOC):**
+- `ExternalCostsKPIStrip.tsx` — extended from 4 to 6 KPIs: Total Forecast / Actuals YTD / **Open POs (now currency, was count)** / **Remaining Not Invoiced** (NEW) / **Accruals** (NEW) / Variance vs Baseline. Layout `grid-cols-2 md:grid-cols-3 lg:grid-cols-6`.
+- `VendorBreakdownTable.tsx` — added 4 new sortable columns: Contract reference / Contract end (formatted `MMM YYYY`) / Open PO / Remaining not invoiced. Extended `SortKey` union, refined default sort direction (text columns asc, numeric columns desc), bumped empty-state colspan 9→13. Added local `formatContractEnd` helper.
+
+**Teammate B — Monthly grid frontend (`008b2d6`, 1 commit, 842/25 LOC):**
+- `ExternalCostsMonthlyGrid.tsx` (NEW, 769 LOC) — vendor-by-month grid sitting between the KPI strip and vendor table. Owns its own data fetch via `getProjectExternalCostsMonthlyGrid`; refetches on roleFilter / year change. Sticky-left vendor name column, **multi-column sticky-right band** (Role / PO # / Contract end / Status / Open PO) — NEW pattern for the codebase, hard-coded width offsets summing to ~510px with cumulative `right` styles + bg-card backgrounds. Year columns expand/collapse via `useCollapsibleMixedYears` (current year expanded by default); collapsed years render as a single sum cell. Section dividers emit uppercase muted category headers. Row expansion shows delivery_schedule + invoice_history side-by-side `<dl>` blocks. EmptyState fallback when payload is empty.
+- `ExternalCostCell.tsx` (NEW, 101 LOC) — 4-line stacked currency cell (Forecast / Actuals / Accrual / PO-Obligo) with temporal-context visibility rules (past = all 4 / current = all non-null / future = forecast + PO-obligo only). Skips null/zero. Empty cell renders muted `—`. Uses `formatCurrencyCompact` for cell density.
+- Reuses `ExternalCostStatusBadge.tsx` from forecast/ as-is — already supported all 6 spec statuses.
+
+**Teammate C — Backend aggregation + seed top-up + tests (4 atomic commits):**
+- `e3d4cda` — `compute_project_monthly_grid` aggregation: groups Forecast/Actuals rows by `(vendor, sub_category, po_number, role_type_id)`; per-cell forecast/actuals/accrual/po_obligo from the new columns (omits zero); per-cell status from `Forecast.ext_status`; line-level status = latest non-null past-month status; `open_po`, `remaining_not_invoiced` clamped at 0; `delivery_schedule` + `invoice_history` loaded from new tables. KPI math (`compute_project_external_kpis`) replaces the placeholders. Vendor-summary extended to populate the 4 new row fields. Reuses `_load_role_names`, `_load_cost_type_names` helpers. New `_demo_date(db)` helper resolves the canonical demo "today" with PlanningParameter fallback.
+- `c75788a` — per-PO clamping fix for KPI + vendor `open_po` (a fully-invoiced PO doesn't subsidise an under-invoiced PO in aggregate).
+- `532cd1f` — seed top-up: populates `po_amount`/`accrual_amount`/`invoiced_amount`/`contract_end_month` on existing rows; adds rows with the new `open` status (1 line on Accenture PO-2026-9000 / Master Data Hub Rollout); inserts `external_cost_deliveries` (2–4 per PO) and `external_cost_invoices` (1–3 per PO). PO numbers in `PO-{YYYY}-{NNNN}` format; contract end dates distributed `2026-06`/`2027-03`/`2027-09`/`2028-06`. Generated by `backend/seed/generate_seed_v5/s21_v5_1_external_costs.py` (Python helper).
+- `885d33a` — tests: 14 new in `test_external_cost_monthly_grid.py` (basic shape, cell zero-omission, role/category filters, status per cell + per line, open_po arithmetic, delivery + invoice presence) and `test_router_external_costs.py` (KPI block, contract reference / contract end / open_po / remaining_not_invoiced, status remap canary).
+
+**Integration:**
+- Merged C → A → B in sequence on `feat/v5_1-external-costs-grid`. No conflicts.
+- Backend pytest: 1547 passed (Wave 4 baseline 1533 + 14 new from Teammate C).
+- Frontend tsc: 0 new errors in touched files; pre-existing baseline errors (`OrgDetailItem` unused export in `endpoints.ts`) unchanged.
+- Visual verification: 4 screenshots saved to `qa/screenshots/wave-5-c09/` (default view + light, row expansion, dark mode). All 6 KPIs populate (Forecast €417K / Accruals €81K / Open POs €8K / Remaining Not Invoiced €5K / etc. for `proj-mdh-rollout`). Monthly grid renders 5 lines across 4 categories with proper stacked cells, sticky-right metadata, status badges (including the new `open` status on Accenture PO-2026-9000), expansion drawer showing delivery + invoice content. Both light and dark themes render cleanly.
+
+**DB ritual:** schema change requires `rm backend/creta_demo.db` after pulling the branch (no Alembic). Wave 5 is the second wave to add columns to existing tables; PR description should call this out.
+
+**Out of scope (deferred):**
+- Portfolio-scoped external cost endpoints (`portfolio/external-costs/*`) — already exist, not touched by C-09.
+- Refactoring `ForecastCell.tsx` into a generic line-builder — Wave 5 budget is tight; copy patterns instead.
+- Lifting `MixedGranularityGrid`'s sticky/colgroup machinery into a shared util — worth revisiting if a third grid surface appears later.
 
 ## v5.1 Wave 4 — Role FK + row expansions (2026-05-06)
 

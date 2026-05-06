@@ -394,8 +394,9 @@ External cost vendor and category breakdowns at project and portfolio scopes per
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
-| `GET` | `/api/workbench/projects/{id}/external-costs/vendor-summary` | any role (visibility-checked) | Vendor breakdown for one project; forecast / actuals / baseline / remaining / variance per vendor |
+| `GET` | `/api/workbench/projects/{id}/external-costs/vendor-summary` | any role (visibility-checked) | Vendor breakdown for one project; forecast / actuals / baseline / remaining / variance per vendor. v5.1 C-09: row carries `contract_reference`, `contract_end`, `open_po`, `remaining_not_invoiced`; response wraps a top-level `kpis` block with the 6 KPI strip values |
 | `GET` | `/api/workbench/projects/{id}/external-costs/category-rollup` | any role (visibility-checked) | Per-cost-type rollup for one project |
+| `GET` | `/api/workbench/projects/{id}/external-costs/monthly-grid` | any role (visibility-checked) | v5.1 C-09: monthly grid for the External Costs tab — one item per (vendor, sub_category, po_number, role) line with stacked monthly cells (Forecast / Actuals / Accrual / PO-Obligo), procurement status, sticky-right metadata, and row-expansion `delivery_schedule` + `invoice_history` |
 | `GET` | `/api/portfolio/external-costs/vendor-summary` | any role | Cross-project vendor table with `project_count`, `top_project_id`, top spend |
 | `GET` | `/api/portfolio/external-costs/category-analysis` | any role | Portfolio-level cost-type breakdown with `pct_of_external_total` |
 | `GET` | `/api/portfolio/external-costs/project-vendor-matrix` | any role | Cross-tab grid (rows = projects, columns = vendors, cells = forecast + actuals) |

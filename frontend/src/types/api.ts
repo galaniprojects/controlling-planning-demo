@@ -2024,6 +2024,23 @@ export interface ProjectVendorSummaryRow {
   // parent-label fallback rule per spec).
   role_type_id?: string | null;
   role_name?: string | null;
+  // v5.1 C-09 — vendor-table column additions. Optional in pre-work
+  // (backend zero-fills); Teammate A tightens optionality once Teammate C
+  // populates the values from the new schema columns.
+  contract_reference?: string | null;
+  contract_end?: string | null; // YYYY-MM
+  open_po?: number;
+  remaining_not_invoiced?: number;
+}
+
+/** v5.1 C-09 — six top-level KPIs returned alongside vendor-summary rows. */
+export interface ExternalCostsKpis {
+  total_forecast: number;
+  actuals_ytd: number;
+  open_pos: number;
+  remaining_not_invoiced: number;
+  accruals: number;
+  variance_vs_baseline: number;
 }
 
 export interface ProjectVendorSummaryResponse {
@@ -2031,6 +2048,8 @@ export interface ProjectVendorSummaryResponse {
   total: number;
   project_id: string;
   year: number | null;
+  // v5.1 C-09 — single round-trip surfaces both rows and KPIs.
+  kpis?: ExternalCostsKpis;
 }
 
 /** Project-scoped category rollup row per [E-08b]. */
@@ -2050,6 +2069,77 @@ export interface ProjectCategoryRollupResponse {
   total: number;
   project_id: string;
   year: number | null;
+}
+
+// ===========================================================================
+// === v5.1 C-09 — External Costs monthly grid ===
+// Backend: routers/workbench.py + services/external_cost_aggregation.py.
+// Lead pre-work pins the contract; Teammate B builds the grid against
+// these stubs and Teammate C makes the response match byte-for-byte.
+// ===========================================================================
+
+/** Single source of truth for the procurement-status enum. Mirrored on the
+ * backend in `schemas/external_costs.py::ExternalCostStatus`. The status
+ * badge component (`ExternalCostStatusBadge.tsx`) decides the visual
+ * mapping — backend just emits these literals. */
+export type ExternalCostStatus =
+  | 'planned'
+  | 'ordered'
+  | 'goods_received'
+  | 'invoiced'
+  | 'accrual'
+  | 'open';
+
+/** One cell in the External Costs monthly grid. Only `month` is required;
+ * stack lines (`forecast`, `actuals`, `accrual`, `po_obligo`) are omitted
+ * when zero/null and are skipped in the frontend render. */
+export interface ExternalCostMonthlyCell {
+  month: string; // YYYY-MM
+  forecast?: number | null;
+  actuals?: number | null;
+  accrual?: number | null;
+  po_obligo?: number | null;
+  status?: ExternalCostStatus | null;
+}
+
+export interface ExternalCostDeliveryRow {
+  milestone_name: string;
+  expected_month: string; // YYYY-MM
+  expected_amount: number;
+  delivered_month?: string | null; // null = not yet delivered
+}
+
+export interface ExternalCostInvoiceRow {
+  invoice_number: string;
+  invoice_date: string; // ISO date
+  amount: number;
+  status: string; // 'received' | 'paid'
+}
+
+/** One external cost line item, grouped by (vendor, sub_category, po_number, role). */
+export interface ExternalCostMonthlyGridItem {
+  line_id: string; // f"{vendor}|{sub_category}|{po_number ?? 'no-po'}"
+  vendor: string;
+  role_type_id?: string | null;
+  role_name?: string | null;
+  sub_category: string;
+  sub_category_name: string;
+  po_number?: string | null;
+  contract_end_month?: string | null; // YYYY-MM
+  status?: ExternalCostStatus | null;
+  open_po: number;
+  remaining_not_invoiced: number;
+  monthly_cells: ExternalCostMonthlyCell[];
+  delivery_schedule?: ExternalCostDeliveryRow[];
+  invoice_history?: ExternalCostInvoiceRow[];
+}
+
+export interface ExternalCostMonthlyGridResponse {
+  items: ExternalCostMonthlyGridItem[];
+  year_columns: string[]; // ordered list of YYYY-MM keys for the grid axis
+  year: number | null;
+  project_id: string;
+  total: number;
 }
 
 /** Portfolio-scoped vendor summary row per [E-08c]. */

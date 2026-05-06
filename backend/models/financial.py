@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text,
+    Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -63,6 +63,16 @@ class Forecast(Base):
     ext_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     po_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     vendor: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    # v5.1 C-09: monthly committed PO amount (forward-looking obligation).
+    po_amount: Mapped[Optional[float]] = mapped_column(
+        Numeric(14, 2), nullable=True, server_default="0"
+    )
+    # v5.1 C-09: monthly accrual estimate (cost recognised, invoice pending).
+    accrual_amount: Mapped[Optional[float]] = mapped_column(
+        Numeric(14, 2), nullable=True, server_default="0"
+    )
+    # v5.1 C-09: contract end month (YYYY-MM) — denormalised across the line's monthly rows.
+    contract_end_month: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
     # v5.1 C-07: optional role attribution for external cost line items.
     # See Baseline.role_type_id for semantics.
     role_type_id: Mapped[Optional[str]] = mapped_column(
@@ -92,6 +102,13 @@ class Actuals(Base):
     capex_opex: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # Per-line-item CapEx/OpEx
     vendor: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     ext_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    # v5.1 C-09: PO number for reconciling actuals against forecast PO commitments.
+    po_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    # v5.1 C-09: subset of amount_eur that has actually been invoiced
+    # (vs. only goods-received). Drives Remaining Not Invoiced KPI.
+    invoiced_amount: Mapped[Optional[float]] = mapped_column(
+        Numeric(14, 2), nullable=True, server_default="0"
+    )
     # v5.1 C-07: optional role attribution for external cost line items.
     # See Baseline.role_type_id for semantics.
     role_type_id: Mapped[Optional[str]] = mapped_column(
@@ -161,3 +178,49 @@ class ForecastVersion(Base):
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="forecast_versions")
     created_by: Mapped["Person"] = relationship(foreign_keys=[created_by_id])
+
+
+# ---------------------------------------------------------------------------
+# v5.1 C-09 — External cost row-expansion content
+# ---------------------------------------------------------------------------
+
+class ExternalCostDelivery(Base):
+    """One row per scheduled delivery milestone for an external-cost PO line.
+
+    Loaded only by the row-expansion path of the External Costs monthly grid.
+    Keyed implicitly by (project_id, vendor, po_number) — composite lookup.
+    """
+
+    __tablename__ = "external_cost_deliveries"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    vendor: Mapped[str] = mapped_column(String(200), nullable=False)
+    po_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    sub_category: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("external_cost_types.id"), nullable=True
+    )
+    milestone_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    expected_month: Mapped[str] = mapped_column(String(7), nullable=False)  # YYYY-MM
+    expected_amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    delivered_month: Mapped[Optional[str]] = mapped_column(
+        String(7), nullable=True
+    )  # YYYY-MM, null = not yet delivered
+
+
+class ExternalCostInvoice(Base):
+    """One row per invoice received against an external-cost PO line.
+
+    Loaded only by the row-expansion path of the External Costs monthly grid.
+    """
+
+    __tablename__ = "external_cost_invoices"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    vendor: Mapped[str] = mapped_column(String(200), nullable=False)
+    po_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    invoice_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    invoice_date: Mapped[date] = mapped_column(Date, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)  # 'received' | 'paid'

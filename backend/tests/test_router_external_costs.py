@@ -19,7 +19,13 @@ HEADERS_EXEC = {"X-Current-User": "persona-exec"}
 
 @pytest.fixture
 def seed_external_costs(db, seed_org_base, seed_personas):
-    """Seed two projects with external cost lines across multiple vendors and types."""
+    """Seed two projects with external cost lines across multiple vendors and types.
+
+    v5.1 C-09: Acme's 'ordered' rows now also carry ``po_amount`` so the
+    open_po / remaining_not_invoiced KPI math has signal. The single Acme
+    actuals row carries the matching ``po_number`` + ``invoiced_amount``
+    so the per-PO clamp can be exercised end-to-end.
+    """
     from models.financial import (
         Actuals, Baseline, ExternalCostType, Forecast,
     )
@@ -53,6 +59,8 @@ def seed_external_costs(db, seed_org_base, seed_personas):
             project_id="proj-alpha", month=m, category="external",
             sub_category="ect-consulting", amount_eur=10000.0,
             vendor="Acme", po_number=f"PO-A-{m}", ext_status="ordered",
+            po_amount=10000.0,  # v5.1 C-09 — committed PO amount
+            contract_end_month="2026-12",
         ))
         db.add(Baseline(
             project_id="proj-alpha", month=m, category="external",
@@ -62,10 +70,11 @@ def seed_external_costs(db, seed_org_base, seed_personas):
             project_id="proj-alpha", month=m, category="external",
             sub_category="ect-cloud", amount_eur=5000.0, vendor="AWS",
         ))
-    # Single actuals row for Alpha
+    # Single actuals row for Alpha — tagged to the PO and partially invoiced.
     db.add(Actuals(
         project_id="proj-alpha", month="2026-01", category="external",
         sub_category="ect-consulting", amount_eur=9500.0, vendor="Acme",
+        po_number="PO-A-2026-01", invoiced_amount=4000.0,
     ))
 
     # Project Beta: Cloud via AWS + Licenses via Contoso
@@ -415,3 +424,101 @@ class TestProjectVendorMatrix:
             "/api/portfolio/external-costs/project-vendor-matrix",
         )
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# v5.1 C-09 — KPI block + new vendor-row fields
+# ---------------------------------------------------------------------------
+
+class TestVendorSummaryKpiBlock:
+    """v5.1 C-09: vendor-summary response carries a top-level ``kpis`` block
+    plus four new fields on each vendor row.
+    """
+
+    EXPECTED_KPI_KEYS = {
+        "total_forecast", "actuals_ytd", "open_pos",
+        "remaining_not_invoiced", "accruals", "variance_vs_baseline",
+    }
+
+    def test_kpi_block_present_and_correct(
+        self, test_client, seed_external_costs,
+    ):
+        """Top-level ``kpis`` block has all 6 keys with sane values."""
+        resp = test_client.get(
+            "/api/workbench/projects/proj-alpha/external-costs/vendor-summary",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "kpis" in data
+        kpis = data["kpis"]
+        assert set(kpis.keys()) == self.EXPECTED_KPI_KEYS
+        # total_forecast must equal Σ(forecast_total) across vendors.
+        sum_fc = sum(r["forecast_total"] for r in data["items"])
+        assert abs(kpis["total_forecast"] - sum_fc) < 0.01
+        # actuals_ytd must match Σ(actuals_total).
+        sum_ac = sum(r["actuals_total"] for r in data["items"])
+        assert abs(kpis["actuals_ytd"] - sum_ac) < 0.01
+
+    def test_remaining_not_invoiced_arithmetic(
+        self, test_client, seed_external_costs,
+    ):
+        """remaining_not_invoiced = Σ max(0, open_po_per_PO - invoiced_per_PO).
+
+        Acme has 3 POs: PO-A-2026-01 (po=10k, actuals=9.5k, invoiced=4k);
+        PO-A-2026-02 (po=10k, no actuals); PO-A-2026-03 (po=10k, no actuals).
+        Per-PO opens: 500, 10000, 10000 → open_pos = 20500.
+        Per-PO remaining_ni: max(0, 500-4000)=0, 10000, 10000 → total 20000.
+        """
+        resp = test_client.get(
+            "/api/workbench/projects/proj-alpha/external-costs/vendor-summary",
+            headers=HEADERS_CTRL,
+        )
+        kpis = resp.json()["kpis"]
+        assert kpis["open_pos"] == 20500.0
+        assert kpis["remaining_not_invoiced"] == 20000.0
+
+    def test_status_remap_applied(self, test_client, seed_external_costs):
+        """The legacy 'accrued' value should never appear in any external
+        response — canary against seed regression after the lead pre-work
+        renamed the vocabulary (accrued → accrual).
+        """
+        # Hit both shapes that surface ext_status: vendor-summary doesn't
+        # expose it directly, but the monthly-grid does, both at the cell
+        # and line level.
+        resp = test_client.get(
+            "/api/workbench/projects/proj-alpha/external-costs/monthly-grid",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        for item in items:
+            assert item.get("status") != "accrued"
+            for cell in item["monthly_cells"]:
+                assert cell.get("status") != "accrued"
+
+    def test_vendor_row_has_new_fields(
+        self, test_client, seed_external_costs,
+    ):
+        """Acme (PO-tagged) row populates contract_reference, contract_end,
+        open_po, remaining_not_invoiced. AWS (no PO data) carries the
+        defaults so the schema contract holds for both shapes.
+        """
+        resp = test_client.get(
+            "/api/workbench/projects/proj-alpha/external-costs/vendor-summary",
+            headers=HEADERS_CTRL,
+        )
+        rows = {r["vendor_name"]: r for r in resp.json()["items"]}
+        acme = rows["Acme"]
+        # PO numbers in fixture: PO-A-2026-01 / -02 / -03 → smallest is -01.
+        assert acme["contract_reference"] == "PO-A-2026-01"
+        assert acme["contract_end"] == "2026-12"
+        assert acme["open_po"] == 20500.0
+        assert acme["remaining_not_invoiced"] == 20000.0
+
+        aws = rows["AWS"]
+        # AWS rows have no po_number / no po_amount → all C-09 fields zero
+        assert aws["contract_reference"] is None
+        assert aws["contract_end"] is None
+        assert aws["open_po"] == 0.0
+        assert aws["remaining_not_invoiced"] == 0.0

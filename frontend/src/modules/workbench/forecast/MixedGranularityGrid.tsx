@@ -25,17 +25,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { ChevronDown, ChevronRight, Info } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { formatCurrencyCompact, formatNumber } from '@/lib/formatters';
-import { isElapsedMonth } from '@/lib/yearColumns';
+import { DEMO_DATE, isElapsedMonth } from '@/lib/yearColumns';
 import { milestonesApi, workbenchApi } from '@/api/endpoints';
 import {
   lookupDelta as lookupDeltaHelper,
@@ -43,6 +36,7 @@ import {
 } from '@/modules/simulator/lib/cellDiffHelpers';
 import { useCollapsibleMixedYears } from '@/hooks/useCollapsibleYears';
 import { ForecastCell, type CellTemporalContext } from './ForecastCell';
+import { ForecastGridLegend } from './ForecastGridLegend';
 import { PhaseStrip, type PhaseStripColumn } from './PhaseStrip';
 import { mapColumnsToPhases, withAlpha, type PhaseInfo } from './phaseHelpers';
 import type { MilestoneResponse } from '@/types/milestones';
@@ -84,11 +78,6 @@ const MONTH_SHORT = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
-
-// v5.1 C-08 — demo date for temporal-context classification. Mirrors the
-// backend `config.DEMO_DATE` and `lib/yearColumns` constant; April 2026 is
-// the canonical demo "today" per CLAUDE.md.
-const DEMO_DATE = '2026-04';
 
 function formatColumnLabel(col: MixedGridColumn): string {
   if (col.cell_type === 'monthly') {
@@ -993,51 +982,23 @@ export function MixedGranularityGrid({
     );
   }
 
+  const handleToggleAllQuarters = () => {
+    setExpandedQuarters((prev) => {
+      if (prev.size > 0) return new Set();
+      return new Set(
+        grid.columns.filter((c) => c.cell_type === 'quarterly').map((c) => c.key),
+      );
+    });
+  };
+
   return (
     <div className="space-y-2 min-w-0">
-      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-3 w-6 rounded bg-card border border-border" />
-          Monthly zone (next {grid.granularity_boundary_months} months)
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-3 w-6 rounded bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800" />
-          Quarterly zone (out to {grid.horizon_end_month})
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
-          Provisional
-        </span>
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-1 cursor-help">
-                <Info className="h-3.5 w-3.5" />
-                Quarterly columns can be expanded
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <span className="text-xs">
-                Click a quarter header (e.g. "Q2") to reveal its three constituent
-                months. Per [C-FG-03] the quarterly aggregate is distributed equally.
-              </span>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-auto h-7 text-xs"
-          onClick={() =>
-            setExpandedQuarters((prev) => {
-              if (prev.size > 0) return new Set();
-              return new Set(grid.columns.filter((c) => c.cell_type === 'quarterly').map((c) => c.key));
-            })
-          }
-        >
-          {expandedQuarters.size > 0 ? 'Collapse all quarters' : 'Expand all quarters'}
-        </Button>
-      </div>
+      <ForecastGridLegend
+        granularityBoundaryMonths={grid.granularity_boundary_months}
+        horizonEndMonth={grid.horizon_end_month}
+        expandedQuartersCount={expandedQuarters.size}
+        onToggleAllQuarters={handleToggleAllQuarters}
+      />
       {/* C-02: viewport-bound scroll container with sticky header + sticky left column.
           max-h is the F&P grid budget; horizontal scroll engages when content exceeds width.
           v5.1 W3 [C-04] — lockstep scroll seam: when a parent supplies
