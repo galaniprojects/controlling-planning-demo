@@ -1500,11 +1500,23 @@ export const externalCostsApi = {
    * Routes to: GET /api/workbench/projects/{id}/external-costs/vendor-summary
    * (the project-scoped variants live under the workbench external_costs
    *  router which mounts at /api/workbench, not /api/projects).
+   *
+   * v5.1 C-07: optional `roleTypeId` filters vendors by role attribution.
+   * Vendors with mixed or no roles are excluded when the filter is set.
    */
-  getProjectVendorSummary: (projectId: string, year?: number) =>
-    api.get<ProjectVendorSummaryResponse>(
-      `/api/workbench/projects/${encodeURIComponent(projectId)}/external-costs/vendor-summary${externalCostQs({ year })}`,
-    ),
+  getProjectVendorSummary: (
+    projectId: string,
+    year?: number,
+    roleTypeId?: string | null,
+  ) => {
+    const q = new URLSearchParams();
+    if (year !== undefined) q.set('year', String(year));
+    if (roleTypeId) q.set('role_type_id', roleTypeId);
+    const qs = q.toString();
+    return api.get<ProjectVendorSummaryResponse>(
+      `/api/workbench/projects/${encodeURIComponent(projectId)}/external-costs/vendor-summary${qs ? '?' + qs : ''}`,
+    );
+  },
   /**
    * Project-scoped category rollup per [E-08b].
    * Routes to: GET /api/workbench/projects/{id}/external-costs/category-rollup

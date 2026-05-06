@@ -2263,18 +2263,31 @@ def _verify_project_visible(db: Session, project_id: str, user: CurrentUser) -> 
 def get_project_external_cost_vendor_summary(
     project_id: str,
     year: int | None = Query(None, description="Optional fiscal year filter (YYYY)"),
+    role_type_id: str | None = Query(
+        None,
+        description=(
+            "v5.1 C-07: optional role_type_id filter — restricts the result "
+            "to vendors whose contributing line items share the given role. "
+            "Vendors with mixed roles or no role assignment are excluded "
+            "when this filter is set."
+        ),
+    ),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
     """Vendor breakdown for a single project per [E-08a].
 
     Returns one row per vendor with forecast/actuals/baseline totals plus
-    derived remaining and variance figures.
+    derived remaining and variance figures. v5.1 C-07: each row carries
+    `role_type_id` + `role_name` denormalised from the contributing line
+    items (null when the vendor's lines have mixed or no roles).
     """
     from services.external_cost_aggregation import compute_project_vendor_summary
 
     _verify_project_visible(db, project_id, user)
-    rows = compute_project_vendor_summary(db, project_id, year=year)
+    rows = compute_project_vendor_summary(
+        db, project_id, year=year, role_type_id=role_type_id,
+    )
     return {
         "items": rows,
         "total": len(rows),
@@ -2289,6 +2302,15 @@ def get_project_external_cost_vendor_summary(
 def get_project_external_cost_category_rollup(
     project_id: str,
     year: int | None = Query(None, description="Optional fiscal year filter (YYYY)"),
+    role_type_id: str | None = Query(
+        None,
+        description=(
+            "v5.1 C-07: accepted for symmetry with vendor-summary. The "
+            "category-rollup aggregates across all line items regardless of "
+            "role and currently does not narrow on this param; reserved for "
+            "future role-aware breakdowns."
+        ),
+    ),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):

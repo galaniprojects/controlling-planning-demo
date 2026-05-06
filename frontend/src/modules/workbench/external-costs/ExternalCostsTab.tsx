@@ -26,22 +26,32 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { ChevronDown, ChevronRight, Receipt, X } from 'lucide-react';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { externalCostsApi } from '@/api/endpoints';
+import { externalCostsApi, referenceApi } from '@/api/endpoints';
 import { formatCurrency, formatPercent } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import type {
   ProjectVendorSummaryRow,
   ProjectCategoryRollupRow,
+  RefRole,
 } from '@/types/api';
 
 interface Props {
   projectId: string;
 }
 
-type SortKey = 'vendor' | 'forecast' | 'actuals' | 'remaining' | 'variance';
+type SortKey = 'vendor' | 'role' | 'forecast' | 'actuals' | 'remaining' | 'variance';
+
+const ROLE_ALL = '__all__';  // sentinel for the "All roles" Select option
 
 export function ExternalCostsTab({ projectId }: Props) {
   const [vendors, setVendors] = useState<ProjectVendorSummaryRow[]>([]);
@@ -52,6 +62,10 @@ export function ExternalCostsTab({ projectId }: Props) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  // v5.1 C-07 — Role filter chip per spec; visible to all four personas.
+  // Catalogue lazy-loaded once on mount via /api/reference/roles.
+  const [roles, setRoles] = useState<RefRole[]>([]);
+  const [roleFilter, setRoleFilter] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +96,24 @@ export function ExternalCostsTab({ projectId }: Props) {
     };
   }, [projectId]);
 
+  // v5.1 C-07: load role catalogue once for the Role filter dropdown.
+  useEffect(() => {
+    let cancelled = false;
+    referenceApi
+      .getRoles()
+      .then((res) => {
+        if (cancelled) return;
+        setRoles(res.items ?? []);
+      })
+      .catch(() => {
+        // Non-fatal — Role filter falls back to "All roles" only.
+        if (!cancelled) setRoles([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // KPI rollup
   const kpis = useMemo(() => {
     const forecast = vendors.reduce((s, v) => s + v.forecast_total, 0);
@@ -95,14 +127,23 @@ export function ExternalCostsTab({ projectId }: Props) {
 
   // Filter + sort vendors
   const sortedVendors = useMemo(() => {
-    const arr = categoryFilter
+    let arr = categoryFilter
       ? vendors.filter((v) => v.expense_cost_type === categoryFilter)
       : vendors.slice();
+    if (roleFilter) {
+      arr = arr.filter((v) => v.role_type_id === roleFilter);
+    }
     const dir = sortDir === 'asc' ? 1 : -1;
     arr.sort((a, b) => {
       switch (sortKey) {
         case 'vendor':
           return a.vendor_name.localeCompare(b.vendor_name) * dir;
+        case 'role':
+          // Sort by role_name; null/empty roles last in asc, first in desc
+          // for consistency with other locale-aware columns.
+          return (
+            (a.role_name ?? '').localeCompare(b.role_name ?? '') * dir
+          );
         case 'forecast':
           return (a.forecast_total - b.forecast_total) * dir;
         case 'actuals':
@@ -116,7 +157,12 @@ export function ExternalCostsTab({ projectId }: Props) {
       }
     });
     return arr;
-  }, [vendors, sortKey, sortDir, categoryFilter]);
+  }, [vendors, sortKey, sortDir, categoryFilter, roleFilter]);
+
+  const activeRoleName = useMemo(() => {
+    if (!roleFilter) return null;
+    return roles.find((r) => r.id === roleFilter)?.name ?? null;
+  }, [roleFilter, roles]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -278,14 +324,53 @@ export function ExternalCostsTab({ projectId }: Props) {
 
       {/* Vendor table */}
       <section className="space-y-2">
-        <h3 className="text-sm font-medium text-foreground">
-          By vendor
-          {categoryFilter && (
-            <Badge variant="outline" className="ml-2 text-[10px]">
-              filtered: {categoryFilter}
-            </Badge>
-          )}
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-foreground">
+            By vendor
+            {categoryFilter && (
+              <Badge variant="outline" className="ml-2 text-[10px]">
+                filtered: {categoryFilter}
+              </Badge>
+            )}
+            {activeRoleName && (
+              <Badge variant="outline" className="ml-2 text-[10px]">
+                role: {activeRoleName}
+              </Badge>
+            )}
+          </h3>
+          {/* v5.1 C-07: Role filter — visible to all four personas */}
+          <div className="flex items-center gap-2">
+            <Select
+              value={roleFilter ?? ROLE_ALL}
+              onValueChange={(v) =>
+                setRoleFilter(v === ROLE_ALL ? null : v)
+              }
+            >
+              <SelectTrigger className="h-8 w-[180px] text-xs">
+                <SelectValue placeholder="All roles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ROLE_ALL}>All roles</SelectItem>
+                {roles.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {roleFilter && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7"
+                onClick={() => setRoleFilter(null)}
+              >
+                <X className="h-3.5 w-3.5 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
         <Card>
           <Table>
             <TableHeader>
@@ -299,6 +384,13 @@ export function ExternalCostsTab({ projectId }: Props) {
                   label="Vendor"
                 />
                 <TableHead>Cost type</TableHead>
+                <SortHead
+                  current={sortKey}
+                  dir={sortDir}
+                  k="role"
+                  toggle={toggleSort}
+                  label="Role"
+                />
                 <SortHead
                   current={sortKey}
                   dir={sortDir}
@@ -338,7 +430,7 @@ export function ExternalCostsTab({ projectId }: Props) {
               {sortedVendors.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     className="text-center text-xs text-muted-foreground py-8"
                   >
                     No vendors match the current filter.
@@ -365,6 +457,15 @@ export function ExternalCostsTab({ projectId }: Props) {
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {v.expense_cost_type}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {v.role_name ? (
+                            <span className="text-foreground">
+                              {v.role_name}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {formatCurrency(v.forecast_total)}
@@ -394,7 +495,7 @@ export function ExternalCostsTab({ projectId }: Props) {
                       {isOpen && (
                         <TableRow className="bg-muted/30">
                           <TableCell />
-                          <TableCell colSpan={7} className="py-3">
+                          <TableCell colSpan={8} className="py-3">
                             <dl className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-1 text-xs">
                               <div>
                                 <dt className="text-muted-foreground">

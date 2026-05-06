@@ -20,9 +20,20 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from models.financial import Actuals, Baseline, ExternalCostType, Forecast
+from models.people import RoleType
 from models.projects import Project
 from schemas.common import CurrentUser
 from services.report_service import _get_scoped_project_ids
+
+
+def _load_role_names(db: Session) -> dict[str, str]:
+    """Return a {role_type_id: name} map covering all role types.
+
+    Cached per call — used by the v5.1 C-07 vendor-summary role denormalisation
+    so each output row carries `role_name` alongside `role_type_id`. Single
+    round-trip per request (the catalogue is ~12 rows in the demo seed).
+    """
+    return {rt.id: rt.name for rt in db.query(RoleType).all()}
 
 
 def _load_cost_type_names(db: Session) -> dict[str, str]:
@@ -63,9 +74,18 @@ def compute_project_vendor_summary(
     db: Session,
     project_id: str,
     year: int | None = None,
+    role_type_id: str | None = None,
 ) -> list[dict]:
-    """Vendor list for a single project. Caller is responsible for access checks."""
+    """Vendor list for a single project. Caller is responsible for access checks.
+
+    v5.1 C-07: each output row carries `role_type_id` + `role_name` denormalised
+    from the contributing line items. When the (vendor, project) tuple has
+    multiple distinct roles, the row's `role_type_id` is None (matches the
+    parent-label rule used by the F&P grid). When `role_type_id` is passed in,
+    the result is filtered to vendors whose dominant/sole role matches.
+    """
     cost_type_names = _load_cost_type_names(db)
+    role_names = _load_role_names(db)
 
     fc_q = db.query(Forecast).filter(
         Forecast.project_id == project_id,
@@ -108,6 +128,7 @@ def compute_project_vendor_summary(
                 "baseline_total": 0.0,
                 "po_numbers": set(),
                 "cost_type_counts": {},
+                "role_ids": set(),  # v5.1 C-07: distinct non-null role_type_ids
                 "line_count": 0,
             }
         return vendor_map[vendor]
@@ -121,6 +142,8 @@ def compute_project_vendor_summary(
         ct = f.sub_category or ""
         if ct:
             rec["cost_type_counts"][ct] = rec["cost_type_counts"].get(ct, 0) + 1
+        if f.role_type_id:
+            rec["role_ids"].add(f.role_type_id)
 
     for b in baseline_rows:
         rec = _ensure(b.vendor)
@@ -128,10 +151,14 @@ def compute_project_vendor_summary(
         ct = b.sub_category or ""
         if ct:
             rec["cost_type_counts"][ct] = rec["cost_type_counts"].get(ct, 0) + 1
+        if b.role_type_id:
+            rec["role_ids"].add(b.role_type_id)
 
     for a in actuals_rows:
         rec = _ensure(a.vendor)
         rec["actuals_total"] += float(a.amount_eur or 0)
+        if a.role_type_id:
+            rec["role_ids"].add(a.role_type_id)
 
     rows: list[dict] = []
     for rec in vendor_map.values():
@@ -141,6 +168,18 @@ def compute_project_vendor_summary(
         forecast_total = round(rec["forecast_total"], 2)
         actuals_total = round(rec["actuals_total"], 2)
         baseline_total = round(rec["baseline_total"], 2)
+
+        # v5.1 C-07 — role denormalisation. Single non-null role → row-level
+        # role_type_id + role_name set; mixed (>=2 distinct) or all null →
+        # both fields None. Mirrors the F&P grid parent-label rule.
+        role_ids = rec["role_ids"]
+        if len(role_ids) == 1:
+            row_role_id = next(iter(role_ids))
+            row_role_name = role_names.get(row_role_id)
+        else:
+            row_role_id = None
+            row_role_name = None
+
         rows.append({
             "vendor_name": rec["vendor_name"],
             "expense_cost_type": dominant_ct_name,
@@ -151,7 +190,17 @@ def compute_project_vendor_summary(
             "variance": round(forecast_total - baseline_total, 2),
             "po_count": len(rec["po_numbers"]),
             "line_count": rec["line_count"],
+            # v5.1 C-07
+            "role_type_id": row_role_id,
+            "role_name": row_role_name,
         })
+
+    # v5.1 C-07: optional role filter — applied after rollup so the
+    # mixed-role exclusion semantics are obvious. Vendors with `role_type_id`
+    # null (no role / mixed roles) are excluded when a specific role is
+    # requested.
+    if role_type_id is not None:
+        rows = [r for r in rows if r["role_type_id"] == role_type_id]
 
     rows.sort(key=lambda r: r["forecast_total"], reverse=True)
     return rows
