@@ -8,6 +8,30 @@ CRETA is a working demo of an end-to-end IT financial planning and portfolio man
 
 ---
 
+## A quick look
+
+<p align="center">
+  <img src="docs/screenshots/launchpad.png" alt="Launchpad — module-card grid with role-aware KPIs and a pending-actions strip" width="100%">
+  <br><em>Launchpad — persona greeting, pending actions, and a 3-column module-card grid with role-aware KPIs</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/workbench-overview.png" alt="Project Workbench — Overview tab showing the 3×3 tile grid for a single project" width="100%">
+  <br><em>Project Workbench — Overview tab with three-point summary, milestones, resource plan, cost mix, progress tracker, and Tech Navigator tiles</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/forecast-grid.png" alt="Forecast & Planning — mixed-granularity grid with phase highlighting and three-point cells" width="100%">
+  <br><em>Forecast &amp; Planning — mixed-granularity grid (monthly inner zone, quarterly outer zone) with milestone phase tinting and Baseline / Forecast / Actuals stacked in each cell</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/charging-rollup.png" alt="Charging & Allocations — world map of location costs" width="100%">
+  <br><em>Charging &amp; Allocations — world map of location costs, drillable from country down to individual charging-location bubbles</em>
+</p>
+
+---
+
 ## What's inside
 
 CRETA is organised as ten modules. They share a left-rail navigation, a role-aware top bar, and a configurable n-level portfolio hierarchy.
