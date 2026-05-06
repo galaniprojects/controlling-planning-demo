@@ -27,7 +27,7 @@ Cluster F's two-stage cost-flow model: **Stage 1** routes own-cost between charg
 
 ### Post-conditions
 
-No state change — read-only view. The default `(year=2026, version='forecast')` selection is the canonical view; other (year, version) tuples expose the standard CRETA baseline/forecast/actuals lifecycle per `[F-S1-04]`.
+No state change — read-only view. The default `(year=2026, version='forecast')` selection is the canonical view; other (year, version) tuples expose the standard CPC baseline/forecast/actuals lifecycle per `[F-S1-04]`.
 
 ### Cross-references
 

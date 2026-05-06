@@ -1,8 +1,8 @@
-# CRETA
+# CPC
 
-**Controlling, Reporting, Estimation, Tracking & Allocations**
+**Controlling & Planning Center**
 
-CRETA is a working demo of an end-to-end IT financial planning and portfolio management application. It covers the full controller's life-cycle — intake, ranking, planning, forecasting, capacity, charging, scenario analysis, and reporting — for an IT organisation that runs a mix of transformation projects, productised offerings, and internal services.
+CPC is a working demo of an end-to-end IT financial planning and portfolio management application. It covers the full controller's life-cycle — intake, ranking, planning, forecasting, capacity, charging, scenario analysis, and reporting — for an IT organisation that runs a mix of transformation projects, productised offerings, and internal services.
 
 > This is a **demo** with realistic, hand-curated mock data. It is not connected to any production system, and it can be reset to its initial state at any time.
 
@@ -34,7 +34,7 @@ CRETA is a working demo of an end-to-end IT financial planning and portfolio man
 
 ## What's inside
 
-CRETA is organised as ten modules. They share a left-rail navigation, a role-aware top bar, and a configurable n-level portfolio hierarchy.
+CPC is organised as ten modules. They share a left-rail navigation, a role-aware top bar, and a configurable n-level portfolio hierarchy.
 
 ### Launchpad
 The home screen. A persona-aware greeting, the current date and forecast cycle status, a horizontal pending-actions strip (urgent items first), and a fixed 3-column **module-card grid** that doubles as the primary navigation entry. Each card carries a one-line description and 1–2 live KPIs computed for your role — the Workbench card, for example, reads "Forecast cycle: Q2 2026 Cycle · 4 projects overdue" for a Controller and "Your 5 projects" for a Project Lead. Cards you don't have access to are hidden entirely rather than greyed.
@@ -142,8 +142,8 @@ In-app `/docs` route with six tabs:
 ### Setup — macOS / Linux
 
 ```bash
-git clone https://github.com/bill-pap/vision-demo-prototype.git
-cd vision-demo-prototype
+git clone https://github.com/galaniprojects/controlling-planning-demo.git
+cd controlling-planning-demo
 
 # Backend
 cd backend
@@ -158,8 +158,8 @@ npm install
 ### Setup — Windows (PowerShell)
 
 ```powershell
-git clone https://github.com/bill-pap/vision-demo-prototype.git
-cd vision-demo-prototype
+git clone https://github.com/galaniprojects/controlling-planning-demo.git
+cd controlling-planning-demo
 
 # Backend
 cd backend
@@ -218,7 +218,7 @@ Switch personas via the role dropdown in the top-right corner. Each persona has 
 ## Project Structure
 
 ```
-vision-demo-prototype/
+controlling-planning-demo/
 ├── backend/              # FastAPI + SQLAlchemy + SQLite
 │   ├── models/           # SQLAlchemy ORM models (Project, ChargeableEntity, BTCProfile, ...)
 │   ├── routers/          # Route handlers (~22 routers, 200+ endpoints)

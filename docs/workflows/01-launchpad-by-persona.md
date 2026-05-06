@@ -2,7 +2,7 @@
 
 The Launchpad is the home screen for every persona — `/` route, no submenu. It uses a three-zone layout established in the E7 redesign:
 
-1. **Brand band** (top): the rotating CRETA acrostic, persona greeting ("Good evening, Anna"), role pill, and date / cycle indicator ("Thursday, 30 April 2026 · Q2 2026 Cycle").
+1. **Brand band** (top): the rotating CPC acrostic, persona greeting ("Good evening, Anna"), role pill, and date / cycle indicator ("Thursday, 30 April 2026 · Q2 2026 Cycle").
 2. **Pending Actions panel** (middle): a per-persona inbox of items requiring action. Urgent items get a red left edge.
 3. **Module tile grid** (bottom): role-aware cards linking to the canonical entry point of each module.
 

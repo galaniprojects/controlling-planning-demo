@@ -1,4 +1,4 @@
-# CRETA Demo App — Setup Guide
+# CPC Demo App — Setup Guide
 
 This guide covers fresh-clone setup for **macOS** and **Windows** side by side. The codebase itself is platform-agnostic — only the install commands and venv-activation paths differ.
 
@@ -33,8 +33,8 @@ git --version
 ## Quick Start
 
 ```bash
-git clone https://github.com/bill-pap/vision-demo-prototype.git
-cd vision-demo-prototype
+git clone https://github.com/galaniprojects/controlling-planning-demo.git
+cd controlling-planning-demo
 ```
 
 ### One-time setup
@@ -76,7 +76,7 @@ The demo runs end-to-end with no environment variables set. Two optional knobs:
 | Variable | Where | Default | When you need it |
 |----------|-------|---------|------------------|
 | `ANTHROPIC_API_KEY` | Administration → Planning Parameters → Integrations (preferred) **or** shell env | unset | The AI Report Builder feature requires it. Get a key at [console.anthropic.com](https://console.anthropic.com). Without it the AI Report Builder UI loads but reports a "missing API key" error on submit. |
-| `VITE_APP_TITLE` | `frontend/.env` | `CRETA — Controlling, Reporting, Estimation, Tracking & Allocations` | Override the browser tab title; useful for demo whitelabeling. |
+| `VITE_APP_TITLE` | `frontend/.env` | `CPC — Controlling & Planning Center` | Override the browser tab title; useful for demo whitelabeling. |
 
 Setting the Anthropic key:
 
@@ -211,7 +211,7 @@ For visual regression and feature verification, the team uses Playwright MCP and
 ## Project Structure
 
 ```
-vision-demo-prototype/
+controlling-planning-demo/
 ├── backend/                # FastAPI + SQLAlchemy + SQLite
 │   ├── main.py             # App entry point (port 8000)
 │   ├── models/             # SQLAlchemy ORM models
@@ -385,8 +385,8 @@ A 5-minute walkthrough to verify a clean clone is healthy.
 #### macOS / Linux
 
 ```bash
-git clone https://github.com/bill-pap/vision-demo-prototype.git
-cd vision-demo-prototype
+git clone https://github.com/galaniprojects/controlling-planning-demo.git
+cd controlling-planning-demo
 
 # Install
 cd backend && python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
@@ -401,8 +401,8 @@ cd ..
 
 ```powershell
 # In PowerShell — clone and install
-git clone https://github.com/bill-pap/vision-demo-prototype.git
-cd vision-demo-prototype
+git clone https://github.com/galaniprojects/controlling-planning-demo.git
+cd controlling-planning-demo
 
 cd backend
 py -3.12 -m venv .venv

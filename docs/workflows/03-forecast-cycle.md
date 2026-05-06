@@ -1,6 +1,6 @@
 # 03 — Forecast Cycle
 
-The monthly forecast cycle is the heartbeat of the CRETA demo: every active project's PL submits a fresh 12-month + quarterly outlook each cycle, the controller reviews + approves, the system snapshots the result as an immutable `ForecastVersion`, and the cycle closes.
+The monthly forecast cycle is the heartbeat of the CPC demo: every active project's PL submits a fresh 12-month + quarterly outlook each cycle, the controller reviews + approves, the system snapshots the result as an immutable `ForecastVersion`, and the cycle closes.
 
 Five-phase wizard per `[E-04a]`:
 

@@ -35,7 +35,7 @@ PL access attempt: an "Access Restricted" card with shield icon and copy "The Ad
 
 ### Alternative paths
 
-- **Deactivate (not delete)**: Editing an existing row offers a **Deactivate** action (soft delete). Per CRETA's non-negotiable rule, deactivated rows are hidden from active views but preserved in the DB so historical allocations stay valid.
+- **Deactivate (not delete)**: Editing an existing row offers a **Deactivate** action (soft delete). Per CPC's non-negotiable rule, deactivated rows are hidden from active views but preserved in the DB so historical allocations stay valid.
 - **Edit role / CC reassignment**: Same dialog, just editing fields. Historical cost calculations continue to use the rate-in-effect at the time per the Rate Tables effective-date model (W10.2).
 
 ### Post-conditions
