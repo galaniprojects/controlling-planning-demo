@@ -6,8 +6,8 @@ Active spec: `guides/CRETA_v5_1_Change_Specification.md` (16 items: 5 bug fixes,
 
 - [x] **Wave 1** — Reorg + bug fixes (A-01..A-05) + seed expansion (B-01, B-02) — branch `fix/v5_1-batch-1-bugs-and-seed` (PR #80 merged 2026-05-05)
 - [x] **Wave 2** — Grid foundation (C-02 collapsible years + C-08 three-point cells) — branch `feat/v5_1-grid-foundation` (PR #81 merged 2026-05-05)
-- [x] **Wave 3** — Phase highlighting (C-03) + comparison chart (C-04) + past-months lookback follow-up — branch `feat/v5_1-phase-and-chart` (PR pending)
-- [ ] **Wave 4** — Role FK + row expansions (C-07 + C-05 + C-06) — branch `feat/v5_1-roles-and-expand`
+- [x] **Wave 3** — Phase highlighting (C-03) + comparison chart (C-04) + past-months lookback follow-up — branch `feat/v5_1-phase-and-chart` (PR #82 merged 2026-05-06)
+- [x] **Wave 4** — Role FK + row expansions (C-05 + C-06 + C-07 grid label / External Costs tab / Capacity External badge) — branch `feat/v5_1-roles-and-expand` (PR pending)
 - [ ] **Wave 5** — External Costs tab overhaul (C-09) — branch `feat/v5_1-external-costs-grid`
 - [ ] **Wave 6** — Launchpad revert (C-01) — branch `feat/v5_1-launchpad-modules`
 
@@ -16,6 +16,71 @@ Refactoring opportunities (deferred — no unsolicited refactoring):
 - `BacklogProjectDetailPage.tsx` declares `const navigate = useNavigate();` but never calls it. Pre-existing dead code observed during Wave 1 A-02 work.
 - `DashboardTab.tsx` carries a hand-maintained `RESERVED` set of Portfolio segment names for its legacy `/portfolio/<projectId>` redirect. Brittle: every new top-level Portfolio tab must be added or the same A-04 class of bug recurs. Worth retiring the redirect entirely when DashboardTab gets its next refresh.
 - Charging sub-views (`DistributionListView`, `BTCProfileListView`, `RollupView`, `ReportingPanel`) still show Save/Delete/Add buttons regardless of role. Backend `require_role("controller")` rejects mutations with 403, but the buttons should be hidden for non-Controllers per `[A-05]`. Tracked as a Wave 1 follow-up; threading a `readOnly` prop derived from `useRole().context?.role` is a small targeted change for a follow-up wave.
+
+## v5.1 Wave 4 — Role FK + row expansions (2026-05-06)
+
+Branch: `feat/v5_1-roles-and-expand`. Closes spec items C-05 (internal-resource F&P grid row expansion → per-employee sub-rows), C-06 (external-resource expansion → per-vendor/PO/role sub-rows), and C-07 (nullable `role_type_id` FK on external cost line items, F&P grid label `[Category] — [Role Name]`, External Costs tab Role column + filter, Capacity heatmap External row with FTE-equivalent). Built via the proven 1+3 agent-team split: lead pre-work commit + 3 teammates working in parallel isolated worktrees with disjoint file ownership.
+
+**Lead pre-work (`5b7ee35`):**
+- `models/financial.py` — added nullable `role_type_id` FK to all three of `Baseline`, `Forecast`, `Actuals` (symmetric with `vendor`/`ext_status`; per user answer: all three tables, not just Forecast).
+- `services/forecast_versioning.py::build_mixed_grid` — added two kwargs in the established `include_baseline_actuals` style: `include_person_breakdown: bool = False` and `include_vendor_breakdown: bool = False`. Default False so `capture_version` snapshots stay byte-identical to Wave 3 (regression-tested). Stub `_collect_person_breakdown` + `_collect_vendor_breakdown` declared at the top of the file with empty-payload returns so teammates fill bodies without touching the call site.
+- `services/calculations.py::resolve_hourly_rate(db, role_type_id, competence_center_id, month)` — centralised the latest-effective-on-or-before lookup that workbench routers had inline. Falls back to `DEFAULT_HOURLY_RATE` (€120) when no row matches.
+- `schemas/workbench.py` — `GridSubRow` Pydantic model with internal-side and external-side discriminator fields; `GridRow` gains optional `sub_rows` and `role_name` (only set on external rows when uniquely derivable per C-07).
+- `schemas/capacity.py` — `ExternalCapacityRow` + `RoleHeatmapRow.external` for the C-07 capacity 'External' badge.
+- `routers/workbench.py` — F&P grid endpoint exposes `include_person_breakdown` + `include_vendor_breakdown` query params (default True).
+- `seed/generate_seed_v5/s13_financials.py` — column tuples extended for all three financial tables; external rows pick up an optional role from `PROJECT_EXTERNALS[].role` (Teammate B owns the actual assignments).
+- `seed/seed.sql` regenerated against the new column tuples.
+- Frontend `types/api.ts` — `MixedGridSubRow` + `MixedGridRow.sub_rows` + `role_name`; `ExternalCapacityRow` + `RoleHeatmapRow.external`.
+- Frontend `MixedGranularityGrid.tsx` — `expandedRows: Set<string>` state, `toggleRow` callback, ChevronRight in `renderRow` (only when `row.sub_rows` non-empty), `renderSubRow` helper, `Fragment`-wrapped row maps so sub-rows emit immediately under expanded parents. Refactored `getDisplayCell` into `getDisplayCellFromCells(cells, col)` so sub-rows reuse cell-rendering logic without touching `ForecastCell`.
+- 6 new pre-work tests (3 in `test_calculations.py::TestResolveHourlyRate`, 3 in `test_forecast_versioning_service.py::TestBuildMixedGridSubRowsDefault`).
+
+**Teammate A — C-05 (`23b2c86`):**
+- Implemented `_collect_person_breakdown` body in `services/forecast_versioning.py`. Queries `Allocation` joined to `Person` and `CostCenter`, groups by `person_id`, computes EUR per cell via `resolve_hourly_rate`. Quarterly cells sum per-month EUR (rates can shift mid-quarter, so quarter-hours × single-rate would mis-price). Sub-row label = person name; sub_label = cost center name; sorted by descending row_total.
+- Backend embeds person.name into `GridSubRow.label` so the lead-installed `renderSubRow` consumes it as-is — Teammate A touches **zero frontend files**.
+- 8 new tests (6 service-level + 2 router-level) covering: column-sum invariant, effective-date rate lookup, quarterly summation correctness, flag-off byte-identity, lookback compatibility, sort order, end-to-end via `/forecast/grid` query param.
+
+**Teammate B — C-06 + C-07 frontend + seed (`0efbe12`, `c6f93f5`, `552d0a9`, `591e811`):**
+- Implemented `_collect_vendor_breakdown` body. Groups by `(vendor or 'Unspecified', po_number or None, role_type_id or None)`. EUR-only cells (no hours). Three-source consistency (baseline/forecast/actuals overlays when `include_baseline_actuals=True`). Parent `role_name` derivation: when all contributing line items share a single non-null `role_type_id`, populate; otherwise None (mixed-roles fallback per C-07 spec / user answer).
+- `services/external_cost_aggregation.py` — denormalised `role_type_id` + `role_name` into each `ProjectVendorSummaryRow` via a new `_load_role_names` helper; added optional `role_type_id` filter param.
+- `routers/workbench.py` — threaded `role_type_id` query param into `/external-costs/vendor-summary` and `/external-costs/category-rollup`.
+- `seed/generate_seed_v5/config/financials.py` — added 5 role-tagged consulting line items: Accenture/MDH (role-sr-arch), Thoughtworks/MDH (role-data-eng), Deloitte/ERP2 (role-sr-arch), Thoughtworks/Sensor (role-data-eng), McKinsey/PredMaint (role-data-sci). The two roles on MDH exercise the C-07 mixed-roles fallback.
+- `MixedGranularityGrid.tsx` — single ternary at the row label: when `row.role_name` is set, renders `${baseLabel} — ${row.role_name}`; otherwise `baseLabel`. (Lead's chevron + sub-row infra is reused untouched.)
+- `ExternalCostsTab.tsx` — Role column between Cost-type and Forecast (sortable), Role filter chip mirroring the existing category filter pattern; driven by `/api/reference/roles`.
+- 11 new tests covering: vendor breakdown (4 in `TestVendorBreakdown`), role denormalisation in aggregation (4 in new `test_external_cost_aggregation_role.py`), seed assignments (2 in new `test_seed_role_assignments.py`), router query-param threading (1 in `test_router_forecast_grid.py`).
+
+**Teammate C — C-07 capacity External badge (`04fb88d`, `f315287`, `c36ff05`):**
+- `routers/capacity.py::compute_external_role_rows()` — aggregates `Forecast.category='external' AND role_type_id IS NOT NULL` per role × month, scoped to projects the cost-center's people are allocated to. FTE-equivalent = `amount_eur / resolve_hourly_rate(role, None, month) / FTE_HOURS`. Roles without external spend in the window stay `external=None`.
+- `_compute_org_role_external_summary()` — lightweight `{count, total_fte}` roll-up for the OrgHeatmap `pivot=role` branch.
+- `schemas/capacity.py::OrgExternalSummary` + `OrgHeatmapRow.external_summary` (only populated on `pivot=role`).
+- `TeamHeatmap.tsx` injects a synthetic External child row inside each role group when `role.external` is non-null. `OrgHeatmap.tsx` renders a `+ N.N External` Badge per role row when `external_summary.count > 0`. `HeatmapGrid.tsx` and `UtilizationCell.tsx` learned `cellFormat='fte'` (renders `1.5` instead of `1%`), `isExternal` flag, and per-cell `title` tooltips for the FTE-equivalent formula.
+- 4 new tests in `test_router_capacity.py::TestC07ExternalBadge` — synthetic-fixture-driven (don't depend on Teammate B's seed): row presence when external role assignment exists, FTE arithmetic correctness (€19,200 / €120/h / 160h = 1.0), absence when no role assignment, multi-vendor aggregation per role.
+
+### Integration
+
+Lead merged Teammate A first (clean ort merge, no conflicts). Teammate C merged second (clean — disjoint files in capacity domain). Teammate B last; two trivial conflicts in test files where both A and B updated the lead's pre-work test (`test_flags_on_attach_sub_rows`) and added new test classes back-to-back (`TestPersonBreakdown` + `TestVendorBreakdown`). Resolved by combining the docstring + assertion of the shared test (now covers both collectors live) and concatenating the two test classes into adjacent sections. Router test had A's `_make_project_with_person_allocations` helper + 2 person-breakdown tests + B's vendor-breakdown test — all kept.
+
+Post-merge polish: caught a small visual bug during integration verification — sub-row sticky-left cell used `bg-muted/30` (30% opacity), so past-month columns scrolled behind the label and bled through. Single-character fix to `bg-muted` (opaque) (`e5ec7d5`).
+
+### Verification
+
+- **Backend pytest:** 1510 (Wave 4 baseline post-pre-work) → **1533 passing** on the integrated branch (+23: 6 lead + 8 A + 11 B + 4 C, with one pre-work test rewritten by B since the stub assertion no longer holds once the body is implemented). Full suite re-run from a fresh-DB seed.
+- **Frontend tsc:** `npx tsc --noEmit` clean.
+- **DB ritual:** confirmed `rm backend/creta_demo.db && python main.py` auto-seeds correctly. Backups saved as `creta_demo.db.preW4-leadprework` and `creta_demo.db.preW4-postmerge` alongside existing `.preS1` / `.preWAVE3`.
+- **Visual (Anna Meier / Controller):**
+  - F&P grid on `proj-erp2`: `Senior Developer ▼` parent → expanded sub-rows for Lena Fischer (MUC / Application Development) and Rajesh Patel (PUN / Application Development) with hours + EUR per month. Consulting row label shows `Consulting — Senior Solution Architect` (single role: Deloitte). Light + dark themes both render cleanly.
+  - F&P grid on `proj-mdh-rollout`: Consulting label stays `Consulting` (mixed-roles fallback active), expanded sub-rows show `Accenture · Senior Solution Architect · No PO` and `Thoughtworks · Data Engineer · No PO` with sums (12k + 6k = 18k) verifying the column-level invariant.
+  - External Costs tab on `proj-erp2`: Role column visible between Cost-type and Forecast; Deloitte row shows "Senior Solution Architect", others show "—"; "All roles" filter dropdown active. Sortable.
+  - Capacity heatmap (MUC / Application Development): Senior Solution Architect role group includes Thomas Brenner (internal, 25% / 50% / 25%) plus an **External** synthetic row with **External** badge showing FTE-equivalents `1.9 1.9 1.9 1.9 1.9 1.9 0.7 0.7 0.7 0.0 0.0 0.0` across the months. Outsourcing-ratio context exactly as the spec calls for.
+  - Screenshots: `qa/screenshots/wave4-erp2-fp-internal-expanded-dark.png`, `wave4-mdh-fp-consulting-expanded-dark.png`, `wave4-mdh-fp-consulting-expanded-light.png`, `wave4-erp2-fp-consulting-role-label-dark.png`, `wave4-erp2-external-costs-tab-role-column-dark.png`, `wave4-erp2-external-costs-tab-vendor-table-dark.png`, `wave4-capacity-external-badge-dark.png`, `wave4-capacity-external-badge-light.png`, `wave4-prework-erp2-fp-grid{,-dark}.png`.
+- **Live API spot-check:** `/forecast/grid?include_person_breakdown=true&include_vendor_breakdown=true` returns sub_rows on internal + external rows with discriminator fields populated; flag-off matches Wave 3 shape exactly.
+
+### Open / deferred
+
+- **Sub-row baseline/actuals overlays for internal rows.** C-05 sub-rows are forecast-only — three-point overlays on per-employee cells would require Allocation × Baseline / Allocation × Actuals joins that the seed doesn't currently express. Acceptable for Wave 4 scope (spec only required per-month hours + EUR on the sub-rows). Future enhancement: add baseline_/actuals_ overlays to the per-employee aggregator if demo feedback wants the three-point stack on sub-rows too.
+- **OrgHeatmap external row (vs. chip).** OrgHeatmap shows a lightweight `+ N.N External` Badge per role group; full external row (like TeamHeatmap) deferred. The OrgHeatmap is a roll-up surface and the chip-only treatment is consistent with its visual density.
+- **No external location attribution.** External Forecast rows have no Person → CostCenter → Location chain. The Capacity External row uses the project's primary location implicitly (or "—"). If demo feedback wants location splits for external resources, that's a follow-on aggregation change.
+- **`_make_project_with_forecast` helper convention.** Teammate B's vendor-breakdown router test reuses the `_make_project_with_forecast` helper; Teammate A's person-breakdown test added `_make_project_with_person_allocations`. Both share the same test class; if a future test wants both surfaces, the two helpers compose.
+- **PR description must call out DB ritual.** `rm backend/creta_demo.db` is required before testing this branch (no Alembic). Wave 4 is the first wave that adds a column to existing tables (Wave 1–3 only added rows / new tables). PR title + description should highlight this prominently.
 
 ## v5.1 Wave 3 — Phase highlighting + comparison chart (2026-05-05)
 
