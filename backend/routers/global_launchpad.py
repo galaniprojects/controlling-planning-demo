@@ -71,17 +71,23 @@ MODULES = [
     {"id": "backlog", "name": "Backlog", "description": "Ranked IT project backlog with composite scoring, cutoff analysis, and Tech Navigator cube view."},
 ]
 
+# v5.1 W6 [C-01] — module-card visibility per the C-01 card-availability table.
+# - Controller sees all 9 cards.
+# - PL gains Capacity (read-only) and Simulator (read-only) per spec lines 197 + 205.
+# - CC Owner gains Simulator (scoped) and loses Backlog per spec lines 181 + 205.
+# - Executive sees Portfolio / Backlog / Simulator / Charging / Reporting / Documentation
+#   (Capacity is Controller / CC Owner / PL only — Executive not listed).
 MODULE_VISIBILITY = {
     "controller": ["portfolio", "workbench", "charging", "capacity", "simulator", "reporting", "admin", "documentation", "backlog"],
-    "cost_center_owner": ["portfolio", "workbench", "charging", "capacity", "reporting", "documentation", "backlog"],
-    "project_lead": ["portfolio", "workbench", "charging", "reporting", "documentation", "backlog"],
+    "cost_center_owner": ["portfolio", "workbench", "charging", "capacity", "simulator", "reporting", "documentation"],
+    "project_lead": ["portfolio", "workbench", "charging", "capacity", "simulator", "reporting", "documentation", "backlog"],
     "executive": ["portfolio", "charging", "simulator", "reporting", "documentation", "backlog"],
 }
 
 MODULE_SORT = {
     "controller": {"portfolio": 1, "backlog": 2, "workbench": 3, "charging": 4, "capacity": 5, "simulator": 6, "reporting": 7, "admin": 8, "documentation": 9},
-    "cost_center_owner": {"capacity": 1, "workbench": 2, "portfolio": 3, "backlog": 4, "charging": 5, "reporting": 6, "documentation": 7},
-    "project_lead": {"workbench": 1, "portfolio": 2, "backlog": 3, "charging": 4, "reporting": 5, "documentation": 6},
+    "cost_center_owner": {"capacity": 1, "workbench": 2, "portfolio": 3, "simulator": 4, "charging": 5, "reporting": 6, "documentation": 7},
+    "project_lead": {"workbench": 1, "portfolio": 2, "backlog": 3, "capacity": 4, "simulator": 5, "charging": 6, "reporting": 7, "documentation": 8},
     "executive": {"portfolio": 1, "backlog": 2, "charging": 3, "simulator": 4, "reporting": 5, "documentation": 6},
 }
 

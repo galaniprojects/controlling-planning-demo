@@ -183,19 +183,21 @@ def _visible_modules(payload: dict) -> list[dict]:
     return [m for m in payload["items"] if m["visible"]]
 
 
-# Spec line 76 (CLAUDE.md MODULE_VISIBILITY):
+# v5.1 W6 [C-01] — card-availability table from spec lines 175–234.
+# Controller: 9 (all). PL: 8 (no admin). CC Owner: 7 (no backlog, no admin).
+# Executive: 6 (no workbench, no capacity, no admin).
 EXPECTED_VISIBLE = {
     "controller": {
         "portfolio", "workbench", "charging", "capacity",
         "simulator", "reporting", "admin", "documentation", "backlog",
     },
     "project_lead": {
-        "portfolio", "workbench", "charging",
+        "portfolio", "workbench", "charging", "capacity", "simulator",
         "reporting", "documentation", "backlog",
     },
     "cost_center_owner": {
-        "portfolio", "workbench", "charging", "capacity",
-        "reporting", "documentation", "backlog",
+        "portfolio", "workbench", "charging", "capacity", "simulator",
+        "reporting", "documentation",
     },
     "executive": {
         "portfolio", "charging", "simulator",
