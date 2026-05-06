@@ -52,6 +52,10 @@ class ModuleTile(BaseModel):
     contextual_metric: str
     visible: bool
     sort_order: int
+    # v5.1 W6 [C-01]: 1–2 role-differentiated subtitle KPIs rendered under
+    # the description on each module card. Default empty so any module that
+    # has no live KPI source still serialises cleanly.
+    subtitle_kpis: list[str] = []
 
 
 class PendingAction(BaseModel):

@@ -78,6 +78,8 @@ export interface ModuleTile {
   contextual_metric: string;
   visible: boolean;
   sort_order: number;
+  /** v5.1 W6 [C-01] — 1–2 role-differentiated subtitle KPIs. */
+  subtitle_kpis: string[];
 }
 
 // --- v5 Session E7 — Launchpad role-personalised tiles per [E-06d]–[E-06j] ---
