@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/tooltip';
 import { ChevronDown, ChevronRight, Info } from 'lucide-react';
 import { formatCurrencyCompact, formatNumber } from '@/lib/formatters';
-import { isElapsedMonth } from '@/lib/yearColumns';
+import { DEMO_DATE, isElapsedMonth } from '@/lib/yearColumns';
 import { milestonesApi, workbenchApi } from '@/api/endpoints';
 import {
   lookupDelta as lookupDeltaHelper,
@@ -84,11 +84,6 @@ const MONTH_SHORT = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
-
-// v5.1 C-08 — demo date for temporal-context classification. Mirrors the
-// backend `config.DEMO_DATE` and `lib/yearColumns` constant; April 2026 is
-// the canonical demo "today" per CLAUDE.md.
-const DEMO_DATE = '2026-04';
 
 function formatColumnLabel(col: MixedGridColumn): string {
   if (col.cell_type === 'monthly') {

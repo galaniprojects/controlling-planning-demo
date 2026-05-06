@@ -3,7 +3,15 @@
  * and month formatting. Used by collapsible year columns and monthly grids.
  */
 
-const DEMO_DATE = '2026-04';
+/**
+ * Demo "today" — pinned to April 2026 to mirror the backend's
+ * planning-parameter constant. Drives elapsed-month tinting, three-point
+ * cell stack temporal context, and forecast-cycle phase boundaries.
+ *
+ * Exported so other grid components (External Costs monthly grid, etc.)
+ * share a single source of truth instead of redeclaring the literal.
+ */
+export const DEMO_DATE = '2026-04';
 
 const MONTH_SHORT = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',

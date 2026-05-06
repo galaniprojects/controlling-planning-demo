@@ -1474,6 +1474,7 @@ import type {
   PortfolioVendorSummaryResponse,
   PortfolioCategoryAnalysisResponse,
   ProjectVendorMatrixResponse,
+  ExternalCostMonthlyGridResponse,
 } from '@/types/api';
 
 interface ExternalCostQuery {
@@ -1525,6 +1526,33 @@ export const externalCostsApi = {
     api.get<ProjectCategoryRollupResponse>(
       `/api/workbench/projects/${encodeURIComponent(projectId)}/external-costs/category-rollup${externalCostQs({ year })}`,
     ),
+  /**
+   * v5.1 C-09 — monthly grid for the Workbench External Costs tab.
+   * Routes to: GET /api/workbench/projects/{id}/external-costs/monthly-grid
+   *
+   * Returns one item per external cost line (grouped by vendor +
+   * sub_category + po_number + role) with stacked monthly cells
+   * (Forecast / Actuals / Accrual / PO-Obligo) plus sticky-right metadata
+   * and row-expansion content (delivery_schedule + invoice_history).
+   *
+   * Lead pre-work scaffolds the call; the backend currently returns an
+   * empty payload until Teammate C wires the aggregation.
+   */
+  getProjectExternalCostsMonthlyGrid: (
+    projectId: string,
+    year?: number,
+    roleTypeId?: string | null,
+    category?: string | null,
+  ) => {
+    const q = new URLSearchParams();
+    if (year !== undefined) q.set('year', String(year));
+    if (roleTypeId) q.set('role_type_id', roleTypeId);
+    if (category) q.set('category', category);
+    const qs = q.toString();
+    return api.get<ExternalCostMonthlyGridResponse>(
+      `/api/workbench/projects/${encodeURIComponent(projectId)}/external-costs/monthly-grid${qs ? '?' + qs : ''}`,
+    );
+  },
   /**
    * Portfolio-scoped vendor summary per [E-08c].
    * Routes to: GET /api/portfolio/external-costs/vendor-summary

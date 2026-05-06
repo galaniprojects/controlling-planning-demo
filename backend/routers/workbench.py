@@ -2280,19 +2280,28 @@ def get_project_external_cost_vendor_summary(
     Returns one row per vendor with forecast/actuals/baseline totals plus
     derived remaining and variance figures. v5.1 C-07: each row carries
     `role_type_id` + `role_name` denormalised from the contributing line
-    items (null when the vendor's lines have mixed or no roles).
+    items (null when the vendor's lines have mixed or no roles). v5.1 C-09:
+    response wraps a top-level `kpis` block for the 6 KPI strip values
+    (single round-trip for the External Costs tab).
     """
-    from services.external_cost_aggregation import compute_project_vendor_summary
+    from services.external_cost_aggregation import (
+        compute_project_external_kpis,
+        compute_project_vendor_summary,
+    )
 
     _verify_project_visible(db, project_id, user)
     rows = compute_project_vendor_summary(
         db, project_id, year=year, role_type_id=role_type_id,
+    )
+    kpis = compute_project_external_kpis(
+        db, project_id, vendor_rows=rows, year=year,
     )
     return {
         "items": rows,
         "total": len(rows),
         "project_id": project_id,
         "year": year,
+        "kpis": kpis,
     }
 
 
@@ -2325,3 +2334,49 @@ def get_project_external_cost_category_rollup(
         "project_id": project_id,
         "year": year,
     }
+
+
+@external_costs_workbench_router.get(
+    "/projects/{project_id}/external-costs/monthly-grid",
+)
+def get_project_external_cost_monthly_grid(
+    project_id: str,
+    year: int | None = Query(None, description="Optional fiscal year filter (YYYY)"),
+    role_type_id: str | None = Query(
+        None,
+        description=(
+            "v5.1 C-09: optional role filter — same C-07 semantics as "
+            "vendor-summary. Lines with mixed roles or no role assignment "
+            "are excluded when set."
+        ),
+    ),
+    category: str | None = Query(
+        None,
+        description=(
+            "v5.1 C-09: optional cost type filter (sub_category id, e.g. "
+            "'ext-consulting'). Narrows to that category only."
+        ),
+    ),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Monthly grid payload for the External Costs tab (v5.1 C-09).
+
+    Returns one item per external cost line item (grouped by vendor +
+    sub_category + po_number + role) with stacked monthly cells
+    (Forecast / Actuals / Accrual / PO-Obligo) plus sticky-right metadata
+    (status, contract_end, open_po, remaining_not_invoiced) and row-expansion
+    content (delivery_schedule + invoice_history).
+
+    Lead pre-work returns an empty payload with the contract pinned;
+    Teammate C fills the aggregation in the same service module.
+    """
+    from services.external_cost_aggregation import compute_project_monthly_grid
+
+    _verify_project_visible(db, project_id, user)
+    return compute_project_monthly_grid(
+        db, project_id,
+        year=year,
+        role_type_id=role_type_id,
+        category=category,
+    )

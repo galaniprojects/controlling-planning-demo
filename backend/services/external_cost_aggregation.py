@@ -193,6 +193,13 @@ def compute_project_vendor_summary(
             # v5.1 C-07
             "role_type_id": row_role_id,
             "role_name": row_role_name,
+            # v5.1 C-09 — vendor-table column additions (zero-filled in
+            # pre-work; Teammate C populates real values once the new
+            # columns and seed data are wired through).
+            "contract_reference": None,
+            "contract_end": None,
+            "open_po": 0.0,
+            "remaining_not_invoiced": 0.0,
         })
 
     # v5.1 C-07: optional role filter — applied after rollup so the
@@ -556,4 +563,85 @@ def compute_project_vendor_matrix(
         "vendors": vendors_out,
         "cells": cells,
         "total": round(grand_total, 2),
+    }
+
+
+# ---------------------------------------------------------------------------
+# v5.1 C-09 — KPI block + monthly grid (lead pre-work pins shape; Teammate C
+# fills the real aggregation in the same files).
+# ---------------------------------------------------------------------------
+
+
+def compute_project_external_kpis(
+    db: Session,
+    project_id: str,
+    vendor_rows: list[dict],
+    year: int | None = None,
+) -> dict:
+    """Six top-level KPIs derived from vendor rows + cheap scalar queries.
+
+    Lead pre-work returns zero-filled values for `accruals`, `open_pos`, and
+    `remaining_not_invoiced`. Teammate C swaps these for real sums once the
+    seed top-up populates `forecast.po_amount`, `forecast.accrual_amount`,
+    and `actuals.invoiced_amount`.
+    """
+    total_forecast = round(
+        sum(r.get("forecast_total", 0.0) for r in vendor_rows), 2
+    )
+    actuals_ytd = round(
+        sum(r.get("actuals_total", 0.0) for r in vendor_rows), 2
+    )
+    variance_vs_baseline = round(
+        total_forecast - sum(r.get("baseline_total", 0.0) for r in vendor_rows),
+        2,
+    )
+
+    # Placeholder — Teammate C wires these to the new columns.
+    open_pos = 0.0
+    remaining_not_invoiced = 0.0
+    accruals = 0.0
+
+    return {
+        "total_forecast": total_forecast,
+        "actuals_ytd": actuals_ytd,
+        "open_pos": open_pos,
+        "remaining_not_invoiced": remaining_not_invoiced,
+        "accruals": accruals,
+        "variance_vs_baseline": variance_vs_baseline,
+    }
+
+
+def compute_project_monthly_grid(
+    db: Session,
+    project_id: str,
+    year: int | None = None,
+    role_type_id: str | None = None,
+    category: str | None = None,
+) -> dict:
+    """Monthly grid payload for the External Costs tab (v5.1 C-09).
+
+    Lead pre-work stub — returns an empty payload with the response shape
+    fixed. Teammate C implements the real aggregation:
+
+      - Group external rows by (vendor, sub_category, po_number, role_type_id).
+      - Per cell: assemble forecast/actuals/accrual/po_obligo (omit zero).
+      - Per cell status: from Forecast.ext_status.
+      - Per line status: latest non-null past-month status.
+      - open_po: sum(forecast.po_amount) - sum(actuals.amount_eur)
+        clamped at 0.
+      - remaining_not_invoiced: open_po - sum(actuals.invoiced_amount)
+        clamped at 0.
+      - delivery_schedule / invoice_history loaded from
+        ExternalCostDelivery / ExternalCostInvoice tables.
+
+    `category` filters by `sub_category` (cost_type_id) when provided.
+    `role_type_id` narrows to lines with the given role (mixed-role lines
+    excluded, mirrors the C-07 vendor-summary semantics).
+    """
+    return {
+        "items": [],
+        "year_columns": [],
+        "year": year,
+        "project_id": project_id,
+        "total": 0,
     }

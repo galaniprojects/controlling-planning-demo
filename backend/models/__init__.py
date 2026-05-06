@@ -11,7 +11,10 @@ from models.projects import (
     Project, ProjectMilestone, MilestoneType, ProjectDependency,
     MilestoneDeliverable, ProgressSnapshot,
 )
-from models.financial import ExternalCostType, Baseline, Forecast, Actuals, ForecastVersion
+from models.financial import (
+    ExternalCostType, Baseline, Forecast, Actuals, ForecastVersion,
+    ExternalCostDelivery, ExternalCostInvoice,
+)
 from models.capacity import Allocation, ResourceRequest, ResourceRequestAssignment
 from models.change_requests import ChangeRequest, CRChangeDetail, CRSubmissionSnapshot
 from models.scenarios import (
@@ -40,6 +43,7 @@ __all__ = [
     "Project", "ProjectMilestone", "MilestoneType", "ProjectDependency",
     "MilestoneDeliverable", "ProgressSnapshot",
     "ExternalCostType", "Baseline", "Forecast", "Actuals", "ForecastVersion",
+    "ExternalCostDelivery", "ExternalCostInvoice",
     "Allocation", "ResourceRequest", "ResourceRequestAssignment",
     "ChangeRequest", "CRChangeDetail", "CRSubmissionSnapshot",
     "Scenario", "ScenarioAction", "ScenarioState", "ScenarioCapacityImpact",
