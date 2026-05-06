@@ -10,18 +10,42 @@ interface TeamHeatmapProps {
 }
 
 function normalizeRows(roles: RoleHeatmapRow[]): HeatmapRow[] {
-  return roles.map((r) => ({
-    id: r.role_id,
-    label: r.role_name,
-    utilization: r.aggregate_utilization,
-    isAggregate: true,
-    children: r.people.map((p) => ({
+  return roles.map((r) => {
+    const peopleRows: HeatmapRow[] = r.people.map((p) => ({
       id: p.person_id,
       label: p.name,
       utilization: p.utilization,
       isAggregate: false,
-    })),
-  }));
+    }));
+
+    // v5.1 C-07 — append a synthetic 'External' child row when the role
+    // has external-cost forecast lines tagged with role_type_id == role_id.
+    if (r.external) {
+      const ext = r.external;
+      const tooltips = ext.fte_equivalent.map((c) =>
+        c.value > 0
+          ? `${c.value.toFixed(2)} FTE-equivalent (sum of external €/month ÷ hourly rate ÷ 160h)`
+          : 'No external spend with role assignment this month',
+      );
+      peopleRows.push({
+        id: `${r.role_id}__external`,
+        label: ext.label,
+        utilization: ext.fte_equivalent,
+        isAggregate: false,
+        isExternal: true,
+        cellFormat: 'fte',
+        cellTooltips: tooltips,
+      });
+    }
+
+    return {
+      id: r.role_id,
+      label: r.role_name,
+      utilization: r.aggregate_utilization,
+      isAggregate: true,
+      children: peopleRows,
+    };
+  });
 }
 
 export function TeamHeatmap({ ccId, onPersonClick }: TeamHeatmapProps) {
