@@ -155,10 +155,13 @@ def compute_project_vendor_summary(
                 "cost_type_counts": {},
                 "role_ids": set(),  # v5.1 C-07: distinct non-null role_type_ids
                 "line_count": 0,
-                # v5.1 C-09 — column populations
-                "po_amount_total": 0.0,
-                "actuals_against_po": 0.0,
-                "invoiced_against_po": 0.0,
+                # v5.1 C-09 — per-PO buckets so open_po clamps per group
+                # (a fully-invoiced PO doesn't subsidise an under-invoiced
+                # PO in aggregate). po_amounts[po] / actuals_amounts[po] /
+                # invoiced_amounts[po] each accumulate the matching scalar.
+                "po_amounts": {},
+                "actuals_amounts": {},
+                "invoiced_amounts": {},
                 "contract_end_max": None,  # YYYY-MM string, max across line PO rows
             }
         return vendor_map[vendor]
@@ -174,9 +177,12 @@ def compute_project_vendor_summary(
             rec["cost_type_counts"][ct] = rec["cost_type_counts"].get(ct, 0) + 1
         if f.role_type_id:
             rec["role_ids"].add(f.role_type_id)
-        # v5.1 C-09 column population
-        if f.po_amount:
-            rec["po_amount_total"] += float(f.po_amount or 0)
+        # v5.1 C-09 column population — bucket per PO when one is set.
+        if f.po_amount and f.po_number:
+            rec["po_amounts"][f.po_number] = (
+                rec["po_amounts"].get(f.po_number, 0.0)
+                + float(f.po_amount or 0)
+            )
         if f.contract_end_month:
             cur_max = rec["contract_end_max"]
             if cur_max is None or f.contract_end_month > cur_max:
@@ -196,12 +202,17 @@ def compute_project_vendor_summary(
         rec["actuals_total"] += float(a.amount_eur or 0)
         if a.role_type_id:
             rec["role_ids"].add(a.role_type_id)
-        # v5.1 C-09 — sum actuals against any PO (the spec assumes PO-tracked
-        # actuals share the line's PO number; in the demo seed an actuals
-        # row only carries po_number when the underlying forecast did).
+        # v5.1 C-09 — bucket actuals + invoiced per PO so we can clamp per
+        # group below.
         if a.po_number:
-            rec["actuals_against_po"] += float(a.amount_eur or 0)
-            rec["invoiced_against_po"] += float(a.invoiced_amount or 0)
+            rec["actuals_amounts"][a.po_number] = (
+                rec["actuals_amounts"].get(a.po_number, 0.0)
+                + float(a.amount_eur or 0)
+            )
+            rec["invoiced_amounts"][a.po_number] = (
+                rec["invoiced_amounts"].get(a.po_number, 0.0)
+                + float(a.invoiced_amount or 0)
+            )
 
     rows: list[dict] = []
     for rec in vendor_map.values():
@@ -224,14 +235,26 @@ def compute_project_vendor_summary(
             row_role_name = None
 
         # v5.1 C-09 — derived per-vendor column values:
-        #   open_po = sum(forecast.po_amount) - sum(actuals.amount_eur tied
-        #     to a PO), clamped at 0.
-        #   remaining_not_invoiced = open_po - sum(actuals.invoiced_amount
-        #     tied to a PO), clamped at 0.
+        #   open_po: Σ max(0, po_amount - actuals.amount_eur) per PO group
+        #     so a fully-invoiced PO doesn't subsidise an under-invoiced PO.
+        #   remaining_not_invoiced: Σ max(0, open_po_per_group - invoiced)
+        #     over the same groups.
         #   contract_reference = lexicographically smallest PO# (or None)
         #   contract_end = max contract_end_month (YYYY-MM string compare).
-        open_po = max(0.0, rec["po_amount_total"] - rec["actuals_against_po"])
-        remaining_ni = max(0.0, open_po - rec["invoiced_against_po"])
+        open_po = 0.0
+        remaining_ni = 0.0
+        all_po_groups = (
+            set(rec["po_amounts"].keys())
+            | set(rec["actuals_amounts"].keys())
+        )
+        for po in all_po_groups:
+            grp_po_amt = rec["po_amounts"].get(po, 0.0)
+            grp_actuals = rec["actuals_amounts"].get(po, 0.0)
+            grp_invoiced = rec["invoiced_amounts"].get(po, 0.0)
+            grp_open = max(0.0, grp_po_amt - grp_actuals)
+            open_po += grp_open
+            remaining_ni += max(0.0, grp_open - grp_invoiced)
+
         po_numbers_sorted = sorted(rec["po_numbers"])
         contract_reference = po_numbers_sorted[0] if po_numbers_sorted else None
 
@@ -631,15 +654,20 @@ def compute_project_external_kpis(
     vendor_rows: list[dict],
     year: int | None = None,
 ) -> dict:
-    """Six top-level KPIs derived from vendor rows + scalar column sums.
+    """Six top-level KPIs derived from vendor rows + per-PO column sums.
 
     The first three (total_forecast, actuals_ytd, variance_vs_baseline) come
-    from the already-aggregated vendor rows; the new three (accruals,
-    open_pos, remaining_not_invoiced) are scalar SQL sums against the
-    Forecast / Actuals tables so the formula is independent of vendor
-    grouping.
+    from the already-aggregated vendor rows. The new three are computed as:
 
-    All sums respect the optional `year` filter.
+      - ``accruals``: scalar sum of ``Forecast.accrual_amount`` across the
+        project's external rows.
+      - ``open_pos``: ``Σ max(0, po_amount - actuals.amount_eur)`` grouped
+        by ``(vendor, po_number)`` so a fully-invoiced PO doesn't subsidise
+        an under-invoiced one in aggregate.
+      - ``remaining_not_invoiced``: ``Σ max(0, open_po_per_group -
+        invoiced_amount_per_group)`` over the same groups.
+
+    All sums respect the optional ``year`` filter.
     """
     from sqlalchemy import func as sa_func
 
@@ -654,19 +682,42 @@ def compute_project_external_kpis(
         2,
     )
 
-    # Scalar sums for the v5.1 C-09 columns.
-    fc_q = db.query(
-        sa_func.coalesce(sa_func.sum(Forecast.accrual_amount), 0.0),
-        sa_func.coalesce(sa_func.sum(Forecast.po_amount), 0.0),
+    # Accruals — single scalar sum.
+    accr_q = db.query(
+        sa_func.coalesce(sa_func.sum(Forecast.accrual_amount), 0.0)
     ).filter(
         Forecast.project_id == project_id,
         Forecast.category == "external",
     )
     if year is not None:
-        fc_q = fc_q.filter(sa_func.substr(Forecast.month, 1, 4) == str(year))
-    accruals_sum, po_sum = fc_q.one()
+        accr_q = accr_q.filter(
+            sa_func.substr(Forecast.month, 1, 4) == str(year)
+        )
+    accruals_sum = float(accr_q.scalar() or 0.0)
 
-    ac_q = db.query(
+    # Per-(vendor, po_number) PO commitment sums.
+    fc_grouped_q = db.query(
+        Forecast.vendor, Forecast.po_number,
+        sa_func.coalesce(sa_func.sum(Forecast.po_amount), 0.0),
+    ).filter(
+        Forecast.project_id == project_id,
+        Forecast.category == "external",
+        Forecast.po_number.isnot(None),
+    )
+    if year is not None:
+        fc_grouped_q = fc_grouped_q.filter(
+            sa_func.substr(Forecast.month, 1, 4) == str(year)
+        )
+    po_by_group: dict[tuple, float] = {
+        (vendor, po): float(po_amt or 0.0)
+        for vendor, po, po_amt in fc_grouped_q.group_by(
+            Forecast.vendor, Forecast.po_number
+        ).all()
+    }
+
+    # Per-(vendor, po_number) actuals + invoiced sums.
+    ac_grouped_q = db.query(
+        Actuals.vendor, Actuals.po_number,
         sa_func.coalesce(sa_func.sum(Actuals.amount_eur), 0.0),
         sa_func.coalesce(sa_func.sum(Actuals.invoiced_amount), 0.0),
     ).filter(
@@ -675,18 +726,32 @@ def compute_project_external_kpis(
         Actuals.po_number.isnot(None),
     )
     if year is not None:
-        ac_q = ac_q.filter(sa_func.substr(Actuals.month, 1, 4) == str(year))
-    actuals_against_po, invoiced_sum = ac_q.one()
+        ac_grouped_q = ac_grouped_q.filter(
+            sa_func.substr(Actuals.month, 1, 4) == str(year)
+        )
+    actuals_by_group: dict[tuple, tuple[float, float]] = {
+        (vendor, po): (float(amt or 0.0), float(inv or 0.0))
+        for vendor, po, amt, inv in ac_grouped_q.group_by(
+            Actuals.vendor, Actuals.po_number
+        ).all()
+    }
 
-    open_pos = max(0.0, float(po_sum) - float(actuals_against_po))
-    remaining_not_invoiced = max(0.0, open_pos - float(invoiced_sum))
+    open_pos = 0.0
+    remaining_not_invoiced = 0.0
+    all_groups = set(po_by_group.keys()) | set(actuals_by_group.keys())
+    for group in all_groups:
+        po_amt = po_by_group.get(group, 0.0)
+        amt_eur, invoiced = actuals_by_group.get(group, (0.0, 0.0))
+        group_open = max(0.0, po_amt - amt_eur)
+        open_pos += group_open
+        remaining_not_invoiced += max(0.0, group_open - invoiced)
 
     return {
         "total_forecast": total_forecast,
         "actuals_ytd": actuals_ytd,
         "open_pos": round(open_pos, 2),
         "remaining_not_invoiced": round(remaining_not_invoiced, 2),
-        "accruals": round(float(accruals_sum), 2),
+        "accruals": round(accruals_sum, 2),
         "variance_vs_baseline": variance_vs_baseline,
     }
 
