@@ -1,15 +1,19 @@
 /**
  * KPI strip for the Workbench External Costs tab.
  *
- * v5.1 C-09 lead pre-work — extracted from `ExternalCostsTab.tsx` so
- * Teammate A can extend the strip with the 2 new KPIs (Remaining Not
- * Invoiced, Accruals) without touching the tab's data-fetch / state
- * orchestration.
+ * v5.1 C-09 — six top-level KPIs per spec lines 466–476:
+ *   1. Total External Forecast
+ *   2. Actuals YTD
+ *   3. Open POs            (currency value, not count)
+ *   4. Remaining Not Invoiced
+ *   5. Accruals
+ *   6. Variance vs Baseline
  *
  * Reads values from the backend-derived `kpis` block when present; falls
- * back to per-vendor row sums (the Wave 4 behaviour) when the block is
- * absent — keeps the component compatible during the lead pre-work
- * commit, before Teammate C populates the real KPI math.
+ * back to per-vendor row sums (the Wave 4 behaviour) for forecast / actuals
+ * / variance only — the three "new" KPIs (Open POs as currency, Remaining
+ * Not Invoiced, Accruals) have no row-sum fallback and render `€0` until
+ * Teammate C populates the values.
  */
 import { Card, CardContent } from '@/components/ui/card';
 import { formatCurrency, formatPercent } from '@/lib/formatters';
@@ -34,11 +38,15 @@ export function ExternalCostsKPIStrip({ vendors, kpis }: Props) {
     ?? vendors.reduce((s, v) => s + v.actuals_total, 0);
   const variance = kpis?.variance_vs_baseline
     ?? forecast - vendors.reduce((s, v) => s + v.baseline_total, 0);
-  const pos = vendors.reduce((s, v) => s + v.po_count, 0);
+  // No row-sum fallback for the new KPIs — Teammate C wires the math.
+  const openPos = kpis?.open_pos ?? 0;
+  const remainingNotInvoiced = kpis?.remaining_not_invoiced ?? 0;
+  const accruals = kpis?.accruals ?? 0;
+  const distinctPos = vendors.reduce((s, v) => s + v.po_count, 0);
   const consumedPct = forecast > 0 ? (actuals / forecast) * 100 : 0;
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
       <KPI
         label="Forecast"
         value={formatCurrency(forecast)}
@@ -51,8 +59,18 @@ export function ExternalCostsKPIStrip({ vendors, kpis }: Props) {
       />
       <KPI
         label="Open POs"
-        value={String(pos)}
-        hint="Distinct purchase orders"
+        value={formatCurrency(openPos)}
+        hint={`${distinctPos} distinct PO${distinctPos === 1 ? '' : 's'}`}
+      />
+      <KPI
+        label="Remaining Not Invoiced"
+        value={formatCurrency(remainingNotInvoiced)}
+        hint="Open PO minus actuals"
+      />
+      <KPI
+        label="Accruals"
+        value={formatCurrency(accruals)}
+        hint="Estimated, invoices pending"
       />
       <KPI
         label="Variance vs baseline"
