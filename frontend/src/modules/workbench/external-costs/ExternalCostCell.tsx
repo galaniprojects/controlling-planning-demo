@@ -23,6 +23,18 @@ import { formatCurrencyCompact } from '@/lib/formatters';
 
 export type CellTemporalContext = 'past' | 'current' | 'future';
 
+/**
+ * Tailwind classes for each line in the 4-stack cell. Single source of
+ * truth — the legend component reads from this same constant so a sample
+ * "12k€" chip in the legend looks identical to a real cell line.
+ */
+export const EC_CELL_LINE_STYLES = {
+  forecast: 'text-foreground font-semibold tabular-nums',
+  actuals: 'text-emerald-700 dark:text-emerald-400 tabular-nums',
+  accrual: 'text-purple-700 dark:text-purple-400 italic tabular-nums',
+  po_obligo: 'text-blue-700 dark:text-blue-400 tabular-nums',
+} as const;
+
 interface Props {
   forecast?: number | null;
   actuals?: number | null;
@@ -58,28 +70,28 @@ export function ExternalCostCell({
     lines.push({
       key: 'forecast',
       text: formatCurrencyCompact(forecast as number),
-      className: 'text-foreground font-semibold tabular-nums',
+      className: EC_CELL_LINE_STYLES.forecast,
     });
   }
   if (showActuals) {
     lines.push({
       key: 'actuals',
       text: formatCurrencyCompact(actuals as number),
-      className: 'text-emerald-700 dark:text-emerald-400 tabular-nums',
+      className: EC_CELL_LINE_STYLES.actuals,
     });
   }
   if (showAccrual) {
     lines.push({
       key: 'accrual',
       text: formatCurrencyCompact(accrual as number),
-      className: 'text-purple-700 dark:text-purple-400 italic tabular-nums',
+      className: EC_CELL_LINE_STYLES.accrual,
     });
   }
   if (showPO) {
     lines.push({
       key: 'po_obligo',
       text: formatCurrencyCompact(poObligo as number),
-      className: 'text-blue-700 dark:text-blue-400 tabular-nums',
+      className: EC_CELL_LINE_STYLES.po_obligo,
     });
   }
 

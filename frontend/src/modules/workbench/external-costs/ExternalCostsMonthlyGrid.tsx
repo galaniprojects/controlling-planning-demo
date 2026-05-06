@@ -27,10 +27,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ChevronDown, ChevronRight, Receipt } from 'lucide-react';
 import { useCollapsibleMixedYears } from '@/hooks/useCollapsibleYears';
+import { useLegendStyle } from '@/hooks/useLegendStyle';
+import { ExternalCostsGridLegend } from './ExternalCostsGridLegend';
 import {
   DEMO_DATE,
   formatMonthShort,
@@ -174,6 +177,7 @@ export function ExternalCostsMonthlyGrid({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const { style: legendStyle, toggle: toggleLegendStyle } = useLegendStyle();
 
   useEffect(() => {
     let cancelled = false;
@@ -262,6 +266,21 @@ export function ExternalCostsMonthlyGrid({
 
   return (
     <Card className="p-0 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-card">
+        <span className="text-xs font-medium text-muted-foreground">
+          External cost lines
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
+          onClick={toggleLegendStyle}
+          title="Switch legend style (A/B compare)"
+        >
+          Legend: {legendStyle === 'chips' ? 'sample chips ⇄ dots' : 'dots ⇄ sample chips'}
+        </Button>
+      </div>
+      <ExternalCostsGridLegend style={legendStyle} />
       <div className="overflow-x-auto">
         <Table className="border-separate border-spacing-0">
           {/*
