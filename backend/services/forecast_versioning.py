@@ -162,15 +162,162 @@ def _collect_person_breakdown(
 ) -> list[dict]:
     """v5.1 C-05 — return per-employee sub-rows for one internal role row.
 
-    Teammate A fills this in (`feat/v5_1-roles-and-expand-w4-c05`). Until
-    that lands, returns an empty list so the response shape is stable.
+    Walks the `allocations` table for the given project + role and groups
+    rows by person. For each person, builds a list of cells matching the
+    parent row's `columns` list:
 
-    Each returned dict is a `GridSubRow` payload: `label`, `sub_label`,
-    `cells` (mirroring the parent row's column list), `row_total`,
-    `person_id`, `cost_center_id`. EUR is computed via
-    `services.calculations.resolve_hourly_rate`.
+    - Monthly cells: hours = month total from allocations, EUR = hours ×
+      `resolve_hourly_rate(role_type_id, person.competence_center_id, month)`.
+    - Quarterly cells: per-month EUR is summed (rates can shift mid-quarter,
+      so quarter-hours × single-rate would mis-price the cell).
+
+    The strict invariant is that across all sub-rows for a given parent
+    role row, the sum of `cells[i].hours` (and `cells[i].amount_eur`)
+    equals the parent row's column-level totals. This holds when the seed
+    aligns allocation hours with forecast hours per (project, role,
+    month) and the same hourly_rate resolution is used everywhere.
+
+    Sub-row cells are forecast-only — `baseline_*` / `actuals_*` overlays
+    are intentionally absent (three-source overlays on sub-rows is a
+    follow-on enhancement; the C-05 spec only requires per-month hours +
+    EUR). The `include_baseline_actuals` flag is accepted for signature
+    symmetry with `_collect_vendor_breakdown` but doesn't change the
+    per-sub-row payload.
+
+    Returns a list of dicts conforming to `schemas.workbench.GridSubRow`,
+    sorted by `row_total` descending so the largest contributor renders
+    first under the parent.
     """
-    return []
+    from models.capacity import Allocation
+    from models.organization import CostCenter
+    from models.people import Person
+    from services.calculations import resolve_hourly_rate
+
+    # Pre-compute the union of months we actually need to price so we can
+    # cache rate lookups (one per (cc, month) pair). The columns list drives
+    # this — monthly columns use their own key, quarterly columns expand to
+    # their constituent months.
+    needed_months: set[str] = set()
+    for col in columns:
+        if col["cell_type"] == "monthly":
+            needed_months.add(col["key"])
+        else:
+            for m in quarter_constituent_months(col["key"], horizon_end_month):
+                needed_months.add(m)
+
+    # Pull allocations with person + cost_center joined. Filtering on
+    # `Person.role_type_id` keeps this scoped to the parent row's role.
+    rows = (
+        db.query(Allocation, Person, CostCenter)
+        .join(Person, Person.id == Allocation.person_id)
+        .outerjoin(CostCenter, CostCenter.id == Person.cost_center_id)
+        .filter(
+            Allocation.project_id == project_id,
+            Person.role_type_id == role_type_id,
+            Allocation.month >= lookback_start,
+            Allocation.month <= horizon_end_month,
+        )
+        .all()
+    )
+
+    if not rows:
+        return []
+
+    # Group by person — keep the Person + CostCenter once, sum hours per month.
+    people_data: dict[str, dict] = {}
+    for alloc, person, cost_center in rows:
+        entry = people_data.setdefault(
+            person.id,
+            {
+                "person": person,
+                "cost_center": cost_center,
+                "hours_by_month": {},
+            },
+        )
+        entry["hours_by_month"][alloc.month] = (
+            entry["hours_by_month"].get(alloc.month, 0.0) + float(alloc.hours or 0.0)
+        )
+
+    # Resolve rates once per (competence_center_id, month) pair across all
+    # months that any column actually consumes.
+    rate_cache: dict[tuple[str | None, str], float] = {}
+
+    def _rate(cc_id: str | None, month: str) -> float:
+        key = (cc_id, month)
+        if key not in rate_cache:
+            rate_cache[key] = float(
+                resolve_hourly_rate(db, role_type_id, cc_id, month)
+            )
+        return rate_cache[key]
+
+    sub_rows: list[dict] = []
+    for person_id, entry in people_data.items():
+        person = entry["person"]
+        cost_center = entry["cost_center"]
+        hours_by_month: dict[str, float] = entry["hours_by_month"]
+        cc_id = person.competence_center_id
+
+        cells: list[dict] = []
+        row_total = 0.0
+        for col in columns:
+            col_key = col["key"]
+            cell_type = col["cell_type"]
+
+            if cell_type == "monthly":
+                month_hours = hours_by_month.get(col_key, 0.0)
+                amount = month_hours * _rate(cc_id, col_key)
+                cell_hours = round(month_hours, 2)
+                cell_amount = round(amount, 2)
+                is_provisional = col_key > horizon_end_month  # always False here
+                cells.append({
+                    "key": col_key,
+                    "cell_type": "monthly",
+                    "hours": cell_hours,
+                    "amount_eur": cell_amount,
+                    "is_provisional": is_provisional,
+                })
+                row_total += cell_amount
+            else:
+                # Quarterly: sum per-month EUR rather than apply a single
+                # rate to the quarter's hours total — rates can shift inside
+                # a quarter and the quarterly cell must reflect that.
+                q_months = quarter_constituent_months(col_key, horizon_end_month)
+                q_hours = 0.0
+                q_amount = 0.0
+                for m in q_months:
+                    mh = hours_by_month.get(m, 0.0)
+                    if mh == 0.0:
+                        continue
+                    q_hours += mh
+                    q_amount += mh * _rate(cc_id, m)
+                cell_hours = round(q_hours, 2)
+                cell_amount = round(q_amount, 2)
+                cells.append({
+                    "key": col_key,
+                    "cell_type": "quarterly",
+                    "hours": cell_hours,
+                    "amount_eur": cell_amount,
+                    "is_provisional": False,
+                })
+                row_total += cell_amount
+
+        # Skip persons whose entire window is zero — they show up as a
+        # noise row otherwise (no actual contribution to the parent).
+        if row_total == 0.0 and all(c["hours"] == 0.0 for c in cells):
+            continue
+
+        sub_rows.append({
+            "label": person.name,
+            "sub_label": cost_center.name if cost_center is not None else None,
+            "cells": cells,
+            "row_total": round(row_total, 2),
+            "person_id": person.id,
+            "cost_center_id": person.cost_center_id,
+        })
+
+    # Largest contributor first.
+    sub_rows.sort(key=lambda r: r["row_total"], reverse=True)
+    return sub_rows
 
 
 def _collect_vendor_breakdown(
