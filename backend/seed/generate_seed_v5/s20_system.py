@@ -91,7 +91,7 @@ _NOTIFICATIONS: list[tuple] = [
      "action", "capacity", "proj-predmaint", "requests", False,
      "2026-04-02 10:00:00"),
     ("p-brenner",
-     "Resource request: Autonomous Braking Prototype is requesting capacity confirmation from MUC/APD",
+     "Resource request: Smart Logistics Pilot is requesting capacity confirmation from MUC/APD",
      "action", "capacity", "proj-autobrake", "requests", False,
      "2026-04-04 10:00:00"),
     ("p-brenner",
@@ -101,7 +101,7 @@ _NOTIFICATIONS: list[tuple] = [
 
     # --- p-weber (Executive) — 2 rows ---
     ("p-weber",
-     "Scenario published: 'Budget Pressure: 15% Reduction' published by Anna Meier — executive readout available",
+     "Scenario published: 'Budget Pressure: 15% Reduction' published by Sarah Mitchell — executive readout available",
      "info", "simulator", None, None, False,
      "2026-03-12 10:00:00"),
     ("p-weber",
@@ -153,10 +153,10 @@ _SUGGESTIONS: list[tuple] = [
 # ---------------------------------------------------------------------------
 _AUDIT_LOG: list[tuple] = [
     # --- 4 last-login rows (one per persona) ---
-    ("2026-04-29 07:55:00", "p-meier",   "user", "user-anna",   "Anna Meier",        "login", None, None, None, "access_control"),
-    ("2026-04-29 08:02:00", "p-brenner", "user", "user-thomas", "Thomas Brenner",    "login", None, None, None, "access_control"),
-    ("2026-04-29 08:11:00", "p-sharma",  "user", "user-priya",  "Priya Sharma",      "login", None, None, None, "access_control"),
-    ("2026-04-29 08:24:00", "p-weber",   "user", "user-klaus",  "Dr. Klaus Weber",   "login", None, None, None, "access_control"),
+    ("2026-04-29 07:55:00", "p-meier",   "user", "user-sarah",   "Sarah Mitchell",        "login", None, None, None, "access_control"),
+    ("2026-04-29 08:02:00", "p-brenner", "user", "user-james", "James Cooper",    "login", None, None, None, "access_control"),
+    ("2026-04-29 08:11:00", "p-sharma",  "user", "user-anita",  "Anita Desai",      "login", None, None, None, "access_control"),
+    ("2026-04-29 08:24:00", "p-weber",   "user", "user-robert",  "Robert Chen",   "login", None, None, None, "access_control"),
 
     # --- 5 representative master-data / lifecycle events ---
     ("2026-04-05 10:30:00", "p-meier", "project", "proj-mdh-rollout", "Master Data Hub Rollout",
@@ -166,7 +166,7 @@ _AUDIT_LOG: list[tuple] = [
     ("2026-04-12 10:00:00", "p-meier", "scenario", "1", "MDH BTC Rebalance — DE/PL/CZ",
      "create", None, None, None, "simulator"),
     ("2026-04-15 10:00:00", "p-meier", "scenario_action", "scn-budget-pressure-15:3",
-     "Accelerate Rail Safety", "promote", "promoted_at", None, "2026-04-15T10:00:00", "simulator"),
+     "Accelerate Supply Compliance", "promote", "promoted_at", None, "2026-04-15T10:00:00", "simulator"),
     ("2026-04-22 10:00:00", "p-meier", "planning_parameter", "rag_amber_threshold",
      "RAG Amber Threshold", "create", None, None, "scheduled_change_pending", "scheduled_change_lifecycle"),
 ]

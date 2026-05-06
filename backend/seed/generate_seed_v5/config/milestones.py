@@ -120,7 +120,7 @@ PROJECT_MILESTONES: dict[str, list[dict]] = {
         {"n": 3, "name": "Pilot",         "bs": "2026-10", "be": "2027-03", "fs": "2026-11", "fe": "2027-03", "color": "amber"},
     ],
 
-    # Under Evaluation late (DoI 2 intake) — Autonomous Braking (Jun 2026 – Dec 2027)
+    # Under Evaluation late (DoI 2 intake) — Smart Logistics (Jun 2026 – Dec 2027)
     "proj-autobrake": [
         {"n": 1, "name": "Concept",       "bs": "2026-06", "be": "2026-09", "fs": "2026-06", "fe": "2026-09", "color": "blue"},
         {"n": 2, "name": "Design",        "bs": "2026-10", "be": "2027-02", "fs": "2026-10", "fe": "2027-02", "color": "teal"},
@@ -128,7 +128,7 @@ PROJECT_MILESTONES: dict[str, list[dict]] = {
         {"n": 4, "name": "Test",          "bs": "2027-10", "be": "2027-12", "fs": "2027-10", "fe": "2027-12", "color": "amber"},
     ],
 
-    # Approved — Rail Safety Compliance (Sep 2026 – Jun 2028)
+    # Approved — Supply Chain Compliance (Sep 2026 – Jun 2028)
     "proj-railsafety": [
         {"n": 1, "name": "Requirements",  "bs": "2026-09", "be": "2027-01", "fs": "2026-09", "fe": "2027-01", "color": "blue"},
         {"n": 2, "name": "Implementation","bs": "2027-02", "be": "2027-12", "fs": "2027-02", "fe": "2027-12", "color": "teal"},

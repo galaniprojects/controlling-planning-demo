@@ -1,11 +1,10 @@
 """People roster + demo personas + role permission grants.
 
-Per [F-DG-02]: rename ``p-becker-exec`` → ``p-weber`` (Dr. Klaus Weber).
 The four demo personas are:
-- ``persona-controller``  → Anna Meier (p-meier)
-- ``persona-cc-owner``    → Thomas Brenner (p-brenner)
-- ``persona-pl``          → Priya Sharma (p-sharma)
-- ``persona-exec``        → Dr. Klaus Weber (p-weber)
+- ``persona-controller``  → Sarah Mitchell (p-meier)
+- ``persona-cc-owner``    → James Cooper (p-brenner)
+- ``persona-pl``          → Anita Desai (p-sharma)
+- ``persona-exec``        → Robert Chen (p-weber)
 
 The ``owned_projects`` JSON for the PL persona references the v5 project IDs
 from ``config/entities.py``.
@@ -21,7 +20,7 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 PEOPLE: list[dict] = [
     # --- MUC / APD (8) — German names ---
-    {"id": "p-brenner",   "name": "Thomas Brenner",     "role": "role-sr-arch",  "cc": "cc-muc-apd"},  # CC Owner persona
+    {"id": "p-brenner",   "name": "James Cooper",     "role": "role-sr-arch",  "cc": "cc-muc-apd"},  # CC Owner persona
     {"id": "p-fischer",   "name": "Lena Fischer",       "role": "role-sr-dev",   "cc": "cc-muc-apd"},
     {"id": "p-wolf",      "name": "Markus Wolf",        "role": "role-sr-dev",   "cc": "cc-muc-apd"},
     {"id": "p-keller",    "name": "Felix Keller",       "role": "role-sr-dev",   "cc": "cc-muc-apd"},
@@ -70,8 +69,8 @@ PEOPLE: list[dict] = [
     {"id": "p-papp",      "name": "Janos Papp",         "role": "role-qa",       "cc": "cc-bud-apd"},
     {"id": "p-lukacs",    "name": "Marta Lukacs",       "role": "role-qa",       "cc": "cc-bud-apd"},
 
-    # --- PUN / APD (9) — Indian names (Priya Sharma is the PL persona — no CC) ---
-    {"id": "p-sharma",    "name": "Priya Sharma",       "role": "role-sr-arch",  "cc": None},
+    # --- PUN / APD (9) — Indian names (Anita Desai is the PL persona — no CC) ---
+    {"id": "p-sharma",    "name": "Anita Desai",       "role": "role-sr-arch",  "cc": None},
     {"id": "p-patel",     "name": "Rajesh Patel",       "role": "role-sr-dev",   "cc": "cc-pun-apd"},
     {"id": "p-kumar",     "name": "Amit Kumar",         "role": "role-sr-dev",   "cc": "cc-pun-apd"},
     {"id": "p-gupta",     "name": "Sneha Gupta",        "role": "role-dev",      "cc": "cc-pun-apd"},
@@ -91,8 +90,8 @@ PEOPLE: list[dict] = [
     {"id": "p-desai",     "name": "Nikhil Desai",       "role": "role-ba",       "cc": "cc-pun-bso"},
 
     # --- Portfolio-level personas (no CC) ---
-    {"id": "p-meier",     "name": "Anna Meier",         "role": "role-sr-arch",  "cc": None},  # Controller
-    {"id": "p-weber",     "name": "Dr. Klaus Weber",    "role": "role-sr-arch",  "cc": None},  # Executive (renamed from p-becker-exec per [F-DG-02])
+    {"id": "p-meier",     "name": "Sarah Mitchell",         "role": "role-sr-arch",  "cc": None},  # Controller
+    {"id": "p-weber",     "name": "Robert Chen",    "role": "role-sr-arch",  "cc": None},  # Executive (renamed from p-becker-exec per [F-DG-02])
 ]
 
 
@@ -106,7 +105,7 @@ DEMO_PERSONAS: list[dict] = [
         "id": "persona-controller",
         "person_id": "p-meier",
         "role": "controller",
-        "display_name": "Anna Meier",
+        "display_name": "Sarah Mitchell",
         "title": "IT Controller",
         "default_module": "portfolio",
         "managed_cc": None,
@@ -116,7 +115,7 @@ DEMO_PERSONAS: list[dict] = [
         "id": "persona-cc-owner",
         "person_id": "p-brenner",
         "role": "cost_center_owner",
-        "display_name": "Thomas Brenner",
+        "display_name": "James Cooper",
         "title": "Head of Application Development",
         "default_module": "capacity",
         "managed_cc": "cc-muc-apd",
@@ -126,7 +125,7 @@ DEMO_PERSONAS: list[dict] = [
         "id": "persona-pl",
         "person_id": "p-sharma",
         "role": "project_lead",
-        "display_name": "Priya Sharma",
+        "display_name": "Anita Desai",
         "title": "Senior Project Lead",
         "default_module": "workbench",
         "managed_cc": None,
@@ -137,7 +136,7 @@ DEMO_PERSONAS: list[dict] = [
         "id": "persona-exec",
         "person_id": "p-weber",
         "role": "executive",
-        "display_name": "Dr. Klaus Weber",
+        "display_name": "Robert Chen",
         "title": "VP IT Strategy & Governance",
         "default_module": "portfolio",
         "managed_cc": None,
@@ -153,40 +152,40 @@ DEMO_PERSONAS: list[dict] = [
 # ---------------------------------------------------------------------------
 USERS: list[dict] = [
     {
-        "id": "user-anna",
-        "username": "anna.meier",
-        "display_name": "Anna Meier",
-        "email": "anna.meier@konstrukt.example",
+        "id": "user-sarah",
+        "username": "sarah.mitchell",
+        "display_name": "Sarah Mitchell",
+        "email": "sarah.mitchell@example.com",
         "role": "controller",
         "person_id": "p-meier",
         "tier3_flag": True,
         "change_reviewer_flag": True,
     },
     {
-        "id": "user-thomas",
-        "username": "thomas.brenner",
-        "display_name": "Thomas Brenner",
-        "email": "thomas.brenner@konstrukt.example",
+        "id": "user-james",
+        "username": "james.cooper",
+        "display_name": "James Cooper",
+        "email": "james.cooper@example.com",
         "role": "cost_center_owner",
         "person_id": "p-brenner",
         "tier3_flag": False,
         "change_reviewer_flag": False,
     },
     {
-        "id": "user-priya",
-        "username": "priya.sharma",
-        "display_name": "Priya Sharma",
-        "email": "priya.sharma@konstrukt.example",
+        "id": "user-anita",
+        "username": "anita.desai",
+        "display_name": "Anita Desai",
+        "email": "anita.desai@example.com",
         "role": "project_lead",
         "person_id": "p-sharma",
         "tier3_flag": False,
         "change_reviewer_flag": False,
     },
     {
-        "id": "user-klaus",
-        "username": "klaus.weber",
-        "display_name": "Dr. Klaus Weber",
-        "email": "klaus.weber@konstrukt.example",
+        "id": "user-robert",
+        "username": "robert.chen",
+        "display_name": "Robert Chen",
+        "email": "robert.chen@example.com",
         "role": "executive",
         "person_id": "p-weber",
         "tier3_flag": True,

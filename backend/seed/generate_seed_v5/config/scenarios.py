@@ -24,7 +24,7 @@ T3 owns this file. Three scenarios drive the simulator demo:
 
 3. ``scn-cco-mdh-staffing`` — CC-Owner-scoped private scenario per
    [F-AC-01] / [E-06b]: scoped to ``cc-muc-apd`` so only resource-mix
-   levers within that CC are editable by Thomas Brenner. One people-tier
+   levers within that CC are editable by James Cooper. One people-tier
    action targeting the Master Data Hub project (``proj-mdh-rollout``).
 
 All ScenarioAction rows carry the v5 ``lever_category`` + ``tier`` columns.
@@ -138,7 +138,7 @@ SCENARIOS: list[dict] = [
         "description": (
             "Cross-portfolio response to the 15% budget reduction directive. "
             "Defers Connected Vehicle Platform 6 months, descopes Data "
-            "Warehouse Consolidation 30%, accelerates Rail Safety to recover "
+            "Warehouse Consolidation 30%, accelerates Supply Compliance to recover "
             "regulatory window. Published portfolio-wide for executive review."
         ),
         "author_id": "p-meier",
@@ -270,7 +270,7 @@ SCENARIOS: list[dict] = [
                 "promoted_by_id": "p-meier",
                 "promoted_count": 1,
                 "skipped_count": 2,
-                "notes": "Partial promote — accelerate Rail Safety only.",
+                "notes": "Partial promote — accelerate Supply Compliance only.",
                 "routing_summary_json": (
                     '[{"action_id": "scn-budget-pressure-15:3", '
                     '"routing_type": "direct_forecast_update", '

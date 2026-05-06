@@ -11,14 +11,14 @@ FIXTURES_DIR = os.path.join(SEED_DIR, "fixtures")
 # ---------------------------------------------------------------------------
 
 BRANDING = {
-    "app_name": "CRETA",
-    "app_full_name": "Controlling, Reporting, Estimation, Tracking & Allocations",
-    "app_acronym_words": ["Controlling", "Reporting", "Estimation", "Tracking", "Allocations"],
-    "company_name": "Knorr-Bremse",
-    "csv_export_prefix": "CRETA",
+    "app_name": "CPC",
+    "app_full_name": "Controlling & Planning Center",
+    "app_acronym_words": ["Controlling", "Planning", "Center"],
+    "company_name": "",
+    "csv_export_prefix": "CPC",
     # Persona display names (used in fixture templates)
-    "controller_name": "Anna Meier",
-    "cc_owner_name": "Thomas Brenner",
-    "pl_name": "Priya Sharma",
-    "executive_name": "Thomas Becker",
+    "controller_name": "Sarah Mitchell",
+    "cc_owner_name": "James Cooper",
+    "pl_name": "Anita Desai",
+    "executive_name": "Robert Chen",
 }

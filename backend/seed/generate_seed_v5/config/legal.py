@@ -76,7 +76,7 @@ COUNTRIES: list[dict] = [
 # Division is one of the four FICTIONAL_DIVISIONS from branding.py — assigned
 # in a deterministic round-robin based on the location's index in the list.
 # ---------------------------------------------------------------------------
-_DIVISIONS = ["TBS Operations", "RVS Engineering", "CIT Shared Services", "DND Analytics"]
+_DIVISIONS = ["Manufacturing Operations", "Logistics Engineering", "Enterprise Shared Services", "Digital Innovation"]
 
 
 def _div_for_index(idx: int) -> str:
@@ -245,10 +245,10 @@ CHARGING_LOCATIONS: list[dict] = [
 # the four roots from branding.py.
 # ---------------------------------------------------------------------------
 _LE_CORP_ROOTS = [
-    "Konstrukt-Werke",
-    "Konstrukt Mobility",
-    "Konstrukt Industrial",
-    "Konstrukt Rail",
+    "Apex Industries",
+    "Apex Mobility",
+    "Apex Manufacturing",
+    "Apex Logistics",
 ]
 
 # How many legal entities to seed at each charging location. Hubs get extras

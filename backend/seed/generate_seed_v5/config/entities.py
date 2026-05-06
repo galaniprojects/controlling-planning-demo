@@ -121,7 +121,7 @@ PROJECTS: list[dict] = [
     {
         "id": "proj-autobrake",
         "identifier": "IT015902",
-        "name": "Autonomous Braking Prototype",
+        "name": "Smart Logistics Pilot",
         "pl_id": "p-sharma",
         "hierarchy_id": "he-tbs",
         "tshirt": "M",
@@ -139,7 +139,7 @@ PROJECTS: list[dict] = [
     {
         "id": "proj-railsafety",
         "identifier": "IT016045",
-        "name": "Rail Safety Compliance System",
+        "name": "Supply Chain Compliance System",
         "pl_id": "p-weber",
         "hierarchy_id": "he-rvs",
         "tshirt": "M",

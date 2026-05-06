@@ -1,9 +1,8 @@
 """Stage 5 — people, demo_personas, users.
 
-Per [F-DG-02]: the executive persona is renamed from ``p-becker-exec`` to
-``p-weber`` (Dr. Klaus Weber). Owned-projects JSON for the PL persona is
-generated from ``entities.PL_OWNED_PROJECT_IDS`` so the FK references stay
-in sync with the entity roster.
+Owned-projects JSON for the PL persona is generated from
+``entities.PL_OWNED_PROJECT_IDS`` so the FK references stay in sync with the
+entity roster.
 """
 from __future__ import annotations
 

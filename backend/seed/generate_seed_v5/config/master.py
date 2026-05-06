@@ -150,17 +150,17 @@ KPI_DEFINITIONS: list[dict] = [
 # the configurable hierarchy graph).
 # ---------------------------------------------------------------------------
 LOBS: list[dict] = [
-    {"id": "he-tbs", "name": "Truck & Bus Systems (TBS)", "description": "Largest LoB by budget."},
-    {"id": "he-rvs", "name": "Rail Vehicle Systems (RVS)", "description": "Rail division."},
-    {"id": "he-cit", "name": "Corporate IT",              "description": "Shared/cross-divisional IT."},
-    {"id": "he-dnd", "name": "Digital & Data",            "description": "Analytics, AI, IoT initiatives."},
+    {"id": "he-tbs", "name": "Manufacturing Systems",     "description": "Largest business unit by budget. Factory and production line IT."},
+    {"id": "he-rvs", "name": "Supply Chain & Logistics",  "description": "Second business unit. Fewer but bigger projects."},
+    {"id": "he-cit", "name": "Enterprise Services",       "description": "Shared/cross-divisional IT. Infrastructure, platforms, security."},
+    {"id": "he-dnd", "name": "Digital & Innovation",      "description": "Emerging business unit. Analytics, AI, IoT initiatives."},
 ]
 
 # Tier-2 programmes (parent_entity_id = LoB).
 PROGRAMMES: list[dict] = [
-    {"id": "he-tbs-prog-dbp",   "name": "Digital Braking Platform",     "lob_id": "he-tbs"},
-    {"id": "he-tbs-prog-fleet", "name": "Fleet Intelligence",           "lob_id": "he-tbs"},
-    {"id": "he-rvs-prog-rail",  "name": "Rail Modernization",           "lob_id": "he-rvs"},
-    {"id": "he-cit-prog-infra", "name": "Infrastructure Optimization",  "lob_id": "he-cit"},
-    {"id": "he-dnd-prog-data",  "name": "Data Platform & Analytics",    "lob_id": "he-dnd"},
+    {"id": "he-tbs-prog-dbp",   "name": "Smart Factory Platform",       "lob_id": "he-tbs"},
+    {"id": "he-tbs-prog-fleet", "name": "Production Analytics",         "lob_id": "he-tbs"},
+    {"id": "he-rvs-prog-rail",  "name": "Logistics Optimization",       "lob_id": "he-rvs"},
+    {"id": "he-cit-prog-infra", "name": "Infrastructure Modernization", "lob_id": "he-cit"},
+    {"id": "he-dnd-prog-data",  "name": "Data Intelligence",            "lob_id": "he-dnd"},
 ]
