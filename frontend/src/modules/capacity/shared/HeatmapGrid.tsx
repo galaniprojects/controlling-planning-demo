@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 import type { UtilizationCell } from '@/types/api';
 import { UtilizationCellView } from './UtilizationCell';
 
@@ -10,6 +11,15 @@ export interface HeatmapRow {
   utilization: UtilizationCell[];
   children?: HeatmapRow[];
   isAggregate: boolean;
+  // v5.1 C-07 — when true, renders an "External" badge next to the label
+  // for the synthetic external-resource row inside a role group.
+  isExternal?: boolean;
+  // v5.1 C-07 — cell value format. 'fte' shows e.g. "1.5" instead of "1%"
+  // for the External row's FTE-equivalent counts.
+  cellFormat?: 'percent' | 'fte';
+  // v5.1 C-07 — optional formula text shown as a tooltip on each cell.
+  // For the External row this carries `€X / €rate / 160h = Y FTE`.
+  cellTooltips?: string[];
 }
 
 interface HeatmapGridProps {
@@ -91,6 +101,14 @@ export function HeatmapGrid({
             expandable && <span className="w-4.5 shrink-0" />
           )}
           <span className="whitespace-nowrap">{row.label}</span>
+          {row.isExternal && (
+            <Badge
+              variant="outline"
+              className="ml-1 h-4 px-1.5 text-[10px] font-medium"
+            >
+              External
+            </Badge>
+          )}
         </div>
 
         {/* Utilization cells */}
@@ -101,6 +119,8 @@ export function HeatmapGrid({
           >
             <UtilizationCellView
               cell={cell}
+              format={row.cellFormat}
+              title={row.cellTooltips?.[i]}
               onClick={
                 onCellClick
                   ? () => onCellClick(row, months[i])

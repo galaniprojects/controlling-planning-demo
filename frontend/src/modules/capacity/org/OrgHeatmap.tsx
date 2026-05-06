@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { capacityApi } from '@/api/endpoints';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { Badge } from '@/components/ui/badge';
 import { useCollapsibleYears, type VisibleColumn } from '@/hooks/useCollapsibleYears';
 import { formatMonthShort, isElapsedMonth } from '@/lib/yearColumns';
 import { cn } from '@/lib/utils';
@@ -144,10 +145,25 @@ export function OrgHeatmap({ pivot, onRowClick, onCellClick }: OrgHeatmapProps) 
         {data.map((row) => (
           <div key={row.id} className="contents group" role="row">
             <div
-              className="flex items-center gap-1 border-b border-border/50 px-3 py-2 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50 whitespace-nowrap"
+              className="flex items-center gap-1.5 border-b border-border/50 px-3 py-2 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50 whitespace-nowrap"
               onClick={() => onRowClick({ id: row.id, label: row.name })}
             >
-              {row.name}
+              <span>{row.name}</span>
+              {/* v5.1 C-07 — '+ N External' chip on the role pivot when
+                  external-cost lines are tagged with this role. */}
+              {row.external_summary && row.external_summary.count > 0 && (
+                <Badge
+                  variant="outline"
+                  className="h-4 px-1.5 text-[10px] font-medium"
+                  title={`${row.external_summary.count} project${
+                    row.external_summary.count === 1 ? '' : 's'
+                  } with external ${row.name} spend (~${row.external_summary.total_fte.toFixed(
+                    1,
+                  )} FTE-eq avg/month)`}
+                >
+                  + {row.external_summary.total_fte.toFixed(1)} External
+                </Badge>
+              )}
             </div>
             {visibleColumns.map((col, i) => {
               const cell = getCellForColumn(row, col);

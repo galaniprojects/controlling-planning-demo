@@ -891,11 +891,23 @@ export interface OrgSummary {
   pending_controller_approval_count: number;
 }
 
+export interface OrgExternalSummary {
+  // v5.1 C-07 — lightweight external-resource roll-up surfaced inside the
+  // org-heatmap role pivot. ``count`` is the number of distinct projects
+  // contributing external spend with this role assignment over the visible
+  // window; ``total_fte`` is the avg monthly FTE-equivalent across the same
+  // window.
+  count: number;
+  total_fte: number;
+}
+
 export interface OrgHeatmapRow {
   id: string;
   name: string;
   utilization: UtilizationCell[];
   children: OrgHeatmapRow[];
+  // v5.1 C-07 — only present when the heatmap is pivoted by ``role``.
+  external_summary?: OrgExternalSummary | null;
 }
 
 export interface OrgDetailEmployee {

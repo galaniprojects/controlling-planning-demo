@@ -11,13 +11,26 @@ const COLOR_MAP: Record<string, string> = {
 interface UtilizationCellProps {
   cell: CellType;
   onClick?: () => void;
+  // v5.1 C-07 — 'fte' renders the value as a 1-decimal FTE-equivalent
+  // (e.g. "1.5") instead of an integer percentage. Used by the synthetic
+  // External row inside team-heatmap role groups.
+  format?: 'percent' | 'fte';
+  // Optional tooltip text — used by the External row to expose the
+  // FTE-equivalent formula breakdown on hover.
+  title?: string;
 }
 
-export function UtilizationCellView({ cell, onClick }: UtilizationCellProps) {
+export function UtilizationCellView({
+  cell,
+  onClick,
+  format = 'percent',
+  title,
+}: UtilizationCellProps) {
   return (
     <button
       type="button"
       onClick={onClick}
+      title={title}
       className={cn(
         'w-full px-1.5 py-1.5 text-xs text-center rounded transition-colors',
         COLOR_MAP[cell.color] ?? 'bg-muted text-muted-foreground',
@@ -25,7 +38,7 @@ export function UtilizationCellView({ cell, onClick }: UtilizationCellProps) {
         !onClick && 'cursor-default',
       )}
     >
-      {cell.value.toFixed(0)}%
+      {format === 'fte' ? cell.value.toFixed(1) : `${cell.value.toFixed(0)}%`}
     </button>
   );
 }
