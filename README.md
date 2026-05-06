@@ -133,12 +133,13 @@ In-app `/docs` route with six tabs:
 
 ### Prerequisites
 
-| Tool | Version | Install |
-|------|---------|---------|
-| Python | 3.12+ | `brew install python@3.12` or [python.org](https://python.org) |
-| Node.js | 20 LTS+ | [nodejs.org](https://nodejs.org) |
+| Tool | Version | macOS install | Windows install |
+|------|---------|---------------|-----------------|
+| Python | 3.12+ | `brew install python@3.12` or [python.org](https://www.python.org/downloads/macos/) | [python.org installer](https://www.python.org/downloads/windows/) — tick **"Add python.exe to PATH"** |
+| Node.js | 20 LTS+ | `brew install node@20` or [nodejs.org](https://nodejs.org) | [nodejs.org installer](https://nodejs.org) (or `winget install OpenJS.NodeJS.LTS`) |
+| Git | any recent | preinstalled / `brew install git` | [git-scm.com](https://git-scm.com) — also installs **Git Bash**, needed to run `start.sh` |
 
-### Setup
+### Setup — macOS / Linux
 
 ```bash
 git clone https://github.com/bill-pap/vision-demo-prototype.git
@@ -154,15 +155,37 @@ cd ../frontend
 npm install
 ```
 
+### Setup — Windows (PowerShell)
+
+```powershell
+git clone https://github.com/bill-pap/vision-demo-prototype.git
+cd vision-demo-prototype
+
+# Backend
+cd backend
+py -3.12 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+
+# Frontend
+cd ..\frontend
+npm install
+```
+
 ### Run
 
+From the project root:
+
 ```bash
+# macOS / Linux — runs natively
+./start.sh
+
+# Windows — run from Git Bash (ships with Git for Windows)
 ./start.sh
 ```
 
 This starts both servers, resets demo data, and opens the app at **http://localhost:5173**.
 
-For manual start, environment variables, troubleshooting, and a fresh-clone smoke test, see [SETUP.md](SETUP.md).
+If you'd rather not use Git Bash on Windows, open two PowerShell terminals and start each server manually — see [SETUP.md](SETUP.md) for the exact commands plus environment variables, troubleshooting, and a fresh-clone smoke test.
 
 ---
 
