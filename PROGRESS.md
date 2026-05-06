@@ -8,14 +8,52 @@ Active spec: `guides/CRETA_v5_1_Change_Specification.md` (16 items: 5 bug fixes,
 - [x] **Wave 2** — Grid foundation (C-02 collapsible years + C-08 three-point cells) — branch `feat/v5_1-grid-foundation` (PR #81 merged 2026-05-05)
 - [x] **Wave 3** — Phase highlighting (C-03) + comparison chart (C-04) + past-months lookback follow-up — branch `feat/v5_1-phase-and-chart` (PR #82 merged 2026-05-06)
 - [x] **Wave 4** — Role FK + row expansions (C-05 + C-06 + C-07 grid label / External Costs tab / Capacity External badge) — branch `feat/v5_1-roles-and-expand` (PR #83 merged 2026-05-06)
-- [x] **Wave 5** — External Costs tab overhaul (C-09) — branch `feat/v5_1-external-costs-grid` (PR pending)
-- [ ] **Wave 6** — Launchpad revert (C-01) — branch `feat/v5_1-launchpad-modules`
+- [x] **Wave 5** — External Costs tab overhaul (C-09) — branch `feat/v5_1-external-costs-grid` (PR #84 merged 2026-05-06)
+- [x] **Wave 6** — Launchpad revert (C-01) — branch `feat/v5_1-launchpad-modules` (PR pending)
 
 Refactoring opportunities (deferred — no unsolicited refactoring):
 - Legacy `frontend/src/modules/workbench/forecast/ForecastGrid.tsx` may still be mounted alongside `MixedGranularityGrid.tsx`. Audit during Wave 2.
 - `BacklogProjectDetailPage.tsx` declares `const navigate = useNavigate();` but never calls it. Pre-existing dead code observed during Wave 1 A-02 work.
 - `DashboardTab.tsx` carries a hand-maintained `RESERVED` set of Portfolio segment names for its legacy `/portfolio/<projectId>` redirect. Brittle: every new top-level Portfolio tab must be added or the same A-04 class of bug recurs. Worth retiring the redirect entirely when DashboardTab gets its next refresh.
 - Charging sub-views (`DistributionListView`, `BTCProfileListView`, `RollupView`, `ReportingPanel`) still show Save/Delete/Add buttons regardless of role. Backend `require_role("controller")` rejects mutations with 403, but the buttons should be hidden for non-Controllers per `[A-05]`. Tracked as a Wave 1 follow-up; threading a `readOnly` prop derived from `useRole().context?.role` is a small targeted change for a follow-up wave.
+
+## v5.1 Wave 6 — Launchpad revert to module cards (2026-05-06)
+
+Branch: `feat/v5_1-launchpad-modules`. Closes the final v5.1 spec item C-01 — replace Launchpad Zone 3 (role-personalised KPI tile grid, 7–9 tiles per persona via `/api/launchpad/tiles` + four `_build_tiles_for_*` builders) with a fixed 3-column **module-card grid** that doubles as the primary navigation entry. Zones 1 (header) and 2 (pending actions strip) untouched. Per-user direction confirmed Option 1: delete the dormant tile surface entirely. Built via the 1+2 agent-team split.
+
+**Lead pre-work (`7695067`):**
+- `backend/schemas/global_launchpad.py` — extended `ModuleTile` with `subtitle_kpis: list[str] = []` (default empty so any unconverted module still serialises cleanly).
+- `frontend/src/types/api.ts` — mirrored `subtitle_kpis: string[]` on the `ModuleTile` interface.
+- `frontend/src/modules/launchpad/moduleCardIcons.ts` (NEW) — single source of truth for the Lucide icon per module id (`LayoutDashboard`, `ListChecks`, `Briefcase`, `Users`, `Sparkles`, `Network`, `BarChart3`, `Settings`, `BookOpen`).
+- `frontend/src/modules/launchpad/ModuleCardGrid.tsx` (NEW, stub) — clean creation surface for Teammate B.
+
+**Teammate A — backend subtitle KPIs + retire tile endpoint (4 atomic commits, `b3d937a`/`32c7f22`/`42c8582`/`dd4364a`):**
+- `backend/services/module_card_kpis.py` (NEW) — `compute_module_subtitle_kpis(db, role, module_id, user)` returning the per-card subtitle strings per spec table at lines 175–234. Reuses `services/portfolio_service.compute_portfolio_kpis` for the (cross-role identical) Portfolio line and lifts the forecast-cycle-status helper out of the retired tile builders. Internal helpers `_format_currency` (full European EUR formatting) + `_format_currency_millions` (`€X,Xm` for the Portfolio compact line).
+- `backend/routers/global_launchpad.py` — wired `subtitle_kpis` into `GET /api/modules`; `contextual_metric` mirrors the first subtitle string (or empty); deleted ~620 LOC of `_build_tiles_for_*`, `_format_currency`, and the `GET /api/launchpad/tiles` route.
+- `backend/schemas/global_launchpad.py` — removed `TilePayload` + `TilesResponse`.
+- `backend/tests/test_router_launchpad_tiles.py` — DELETED (23 tests retired).
+- `backend/tests/test_module_subtitle_kpis.py` — NEW, 30 tests across all 4 roles + cross-role canary on Portfolio line + format regex per module.
+- Spec ambiguity resolved: "BTC profiles needing review" → mapped to `BTCProfile.status='draft'`; "Data quality: [indicator]" → `OK | review` keyed on whether any `pending_review` scheduled changes exist.
+
+**Teammate B — frontend ModuleCardGrid + retire tile components (2 commits, `ece49ab`/`3e8dda3`):**
+- `frontend/src/modules/launchpad/ModuleCardGrid.tsx` — full implementation. Fixed `grid grid-cols-3 gap-4` wrapped in `max-w-screen-2xl mx-auto`. Fetches via `modulesApi.getAll()`, filters `tile.visible`, sorts by `sort_order`. Each card uses shared `ActionCard` (per `[E-07d]`) with `title` overridden to `text-foreground font-semibold` per spec; Lucide icon rendered top-left inside `children` (not `headerRight`) so the spec's "icon top-left" requirement holds; description (line-clamp-1) + subtitle KPI rows below. 3×3 skeleton loading state; shared `EmptyState` defensive fallback; click navigation via `MODULE_ROUTES`.
+- `frontend/src/modules/launchpad/Launchpad.tsx` — swapped `RoleTileGrid` import + JSX for `ModuleCardGrid`. Zones 1 and 2 untouched.
+- DELETED: `RoleTileGrid.tsx` and the entire `tiles/` subdirectory (`TileCard.tsx`, `PLTileGrid.tsx`, `ControllerTileGrid.tsx`, `CCOwnerTileGrid.tsx`, `ExecutiveTileGrid.tsx`).
+- `frontend/src/api/endpoints.ts` — removed `launchpadApi.getTiles()`.
+- `frontend/src/types/api.ts` — removed `TilePayload`, `TileTone`, `TilesResponse`.
+
+**Lead integration (`8f9de47`):**
+- `MODULE_VISIBILITY` and `MODULE_SORT` in `backend/routers/global_launchpad.py` aligned with the C-01 spec card-availability table — PL gained Capacity (read-only) and Simulator (read-only); CC Owner gained Simulator (scoped) and lost Backlog (spec line 181 doesn't include CCO). Controller (9) and Executive (6) unchanged. Final card counts: Controller 9 / PL 8 / CC Owner 7 / Executive 6.
+- `EXPECTED_VISIBLE` in `test_module_subtitle_kpis.py` updated to match the corrected visibility map.
+
+**Verification:**
+- Backend pytest: **1554 passing** (W5 baseline 1547 − 23 retired tile tests + 30 new subtitle KPI tests = 1554).
+- Frontend `tsc --noEmit`: 0 errors (W5 baseline maintained). Pre-existing `npm run build` type error in `IntakeDetail`/`DiffData` is unchanged on `main` and unrelated to Wave 6.
+- Visual verification: 8 screenshots saved to `qa/screenshots/wave-6-c01/` (`<role>-<theme>.png` for the four personas × light + dark). Card counts confirmed (9 / 8 / 7 / 6); subtitle KPIs role-differentiated (Workbench: PL "Your 5 projects" vs Controller "4 projects overdue" vs CCO "5 projects in your CC"; Backlog: PL "Your 1 projects in pipeline" vs Controller/Executive "4 projects in pipeline"; Capacity: PL "Role availability · 9 open requests" vs Controller/CCO "My team: X% · Org: 15% · 9 open requests"). Click navigation verified for Portfolio card (lands on `/portfolio`).
+
+**Out of scope (deferred):**
+- The `npm run build` `IntakeDetail`/`DiffData` type narrowing error is pre-existing on `main` and predates Wave 6 — flagged for a future cleanup wave.
+- `services/forecast_cycle.derive_cycle_label` is now used by both `routers/workbench.py` and `services/module_card_kpis.py`; no consolidation needed.
 
 ## v5.1 Wave 5 — External Costs tab overhaul (2026-05-06)
 

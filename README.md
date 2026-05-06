@@ -30,7 +30,7 @@ A full-featured IT financial planning and portfolio management demo application 
 ## Features
 
 ### Launchpad
-Personalised home page with role-aware content. **v5 Cluster E (Session E7 frontend, Wave 5):** Three-zone redesign per `[E-06a..j]`: **Zone 1** header (greeting + role badge + current date + Q{n} {year} forecast cycle badge), **Zone 2** horizontal pending-actions strip (urgent-first sort with red accent / triangle icon, Show/Hide toggle, "All caught up" empty state), **Zone 3** role-personalised KPI tile grid — PL=7 tiles, Controller=9 (3×3), CC Owner=8, Executive=7. Each tile renders from a single role-gated `GET /api/launchpad/tiles` endpoint with `tile_id, title, primary_metric, secondary_metric, link_module, tone`. PL **Resource Availability** tile pulls from `GET /api/capacity/role-availability` to surface top 3 roles by available hours over the next 3 months, anonymised per `[E-06a]` (no person names anywhere).
+Personalised home page with role-aware content. **v5.1 Wave 6 (C-01):** Three-zone layout — **Zone 1** header (greeting + role badge + current date + Q{n} {year} forecast cycle badge), **Zone 2** horizontal pending-actions strip (urgent-first sort with red accent / triangle icon, Show/Hide toggle, "All caught up" empty state), **Zone 3** **fixed 3-column module-card grid** (replaces the v5 KPI tile grid) — Controller 9 cards / PL 8 / CC Owner 7 / Executive 6. Each card shows a Lucide icon, module name, one-line description, and 1–2 role-differentiated subtitle KPIs computed live and served via `GET /api/modules` (`subtitle_kpis: string[]`). Cards inaccessible to the current role are hidden entirely (not greyed). Click navigates to the corresponding module route.
 
 ### Portfolio Overview
 IT portfolio dashboard with KPI tiles (CY-scoped to current fiscal year), hierarchical project tree grouped by configurable organizational hierarchy (e.g., Line of Business → Program → Project), budget/forecast/actuals tracking, RAG status indicators, **v5 ranked backlog with cutoff-line walk** (compose budget envelope, project type 1/2/3 driving cutoff exemption, real-time within-cutoff flag), change request approvals, and controller review with editable grids and diff comparison views. **v5 intake replaces the v4 intake queue**: new projects land at DoI 0 in the ranked backlog; controller actions (approve / send back / reject) and PL Send-Back ↔ Resubmit cycle drive lifecycle transitions. **v5 Cluster E (Session E2 backend):** portfolio-wide external cost aggregation — vendor summary across projects (top project per vendor, project count), category analysis with `pct_of_external_total`, and a project-vendor cross-tab matrix (rows = projects, columns = vendors).
@@ -192,7 +192,7 @@ The app also includes a built-in Documentation Hub at `/docs` with six tabs: Ove
 
 | Router | Prefix | Endpoints | Description |
 |--------|--------|-----------|-------------|
-| **Launchpad** | `/api` | 9 | Roles, modules, KPIs, pending actions, role-personalised tiles (E2), project create/submit |
+| **Launchpad** | `/api` | 8 | Roles, modules (with role-differentiated subtitle KPIs per W6 [C-01]), KPIs, pending actions, project create/submit |
 | **Portfolio** | `/api/portfolio` | 21 | Dashboard KPIs, project tree, intake queue (approve/reject/send-back/diff/accept-changes), CR approvals (approve/reject/send-back/editable-grid), external cost vendor / category / project-vendor matrix (E2) |
 | **Workbench** | `/api/projects`, `/api/workbench` | 20 | Project list, overview, timeline, forecast grid (v4), mixed-granularity grid (C1), 5-phase forecast cycle, CR diff/accept-changes/resubmit, forecast version history + diff, per-project external cost vendor / category rollup (E2) |
 | **Forecast Versions** | `/api/forecast` | 1 | Cross-project version diff (C1) |
@@ -403,15 +403,15 @@ External cost vendor and category breakdowns at project and portfolio scopes per
 
 All endpoints accept an optional `?year=YYYY` filter; portfolio endpoints additionally accept `lob`, `status`, `rag` filters identical to the rest of `/api/portfolio/`.
 
-### Launchpad Role Tiles (v5 Cluster E — Session E2)
+### Launchpad Module Cards (v5.1 W6 — C-01)
 
-Role-personalised tile payload for the Launchpad home page per `[E-06d]`–`[E-06j]`. Tile shape is identical across all four roles so the front-end renders them with one component.
+Module-card payload powering Launchpad Zone 3 per `[C-01]`. The same `GET /api/modules` endpoint that gates module visibility per role now also returns 1–2 role-differentiated subtitle KPI strings per visible card, computed live from the same queries that previously powered the retired tile grid.
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
-| `GET` | `/api/launchpad/tiles` | any role | Returns role-appropriate tiles: PL = 7 (My Projects, My Budget, My Progress, My Forecast, Recent Changes, Scenario Explorer, Resource Availability); Controller = 9 (Portfolio KPIs, Pipeline, Budget vs Cutoff, Reporting, Forecast Cycle, Pending Reviews, Capacity Overview, Scenario Activity, Admin); CC Owner = 8 (Team Utilization, Open Requests, Headcount, CC Budget, Portfolio, My CC's Projects, Published Scenarios, CC Simulator); Executive = 7 (Portfolio KPIs, Investment Mix, Pipeline Health, Top Risks, Scenario Activity, Budget Trajectory, Backlog) |
+| `GET` | `/api/modules` | any role | Returns the role-visible module cards (Controller 9 / PL 8 / CC Owner 7 / Executive 6), each with `id`, `name`, `description`, `contextual_metric`, `visible`, `sort_order`, and `subtitle_kpis: string[]`. Subtitle KPI examples: Portfolio "Forecast: €3,4m · Run/Change: 7%/93% · Plan drift: +7.3%" (cross-role identical); Workbench "Forecast cycle: Q2 2026 Cycle · 4 projects overdue" (Controller) / "Your 5 projects" (PL) / "5 projects in your CC" (CC Owner); Capacity "My team: 22% · Org: 15% · 9 open requests" (Controller / CC Owner) / "Role availability · 9 open requests" (PL). |
 
-Tile shape: `{ tile_id, title, primary_metric, secondary_metric?, link_module, link_entity_id?, link_tab?, tone }`. `tone` is one of `neutral` / `positive` / `warning` / `alert` and is computed server-side from the metric (e.g. `> 5` overdue forecasts → `alert`).
+The legacy `GET /api/launchpad/tiles` endpoint and its `TilePayload` / `TilesResponse` schemas were retired in Wave 6 alongside the four `_build_tiles_for_*` per-role tile builders. Frontend rendering is owned by `frontend/src/modules/launchpad/ModuleCardGrid.tsx` (fixed 3-column grid with shared `ActionCard`).
 
 ### PL Capacity Read-Only (v5 Cluster E — Session E2)
 
