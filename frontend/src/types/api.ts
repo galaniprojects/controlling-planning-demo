@@ -2006,6 +2006,12 @@ export interface ProjectVendorSummaryRow {
   variance: number;
   po_count: number;
   line_count: number;
+  // v5.1 C-07 — denormalised role attribution for the External Costs tab
+  // Role column / filter chip. Null when the vendor's contributing line
+  // items have mixed roles or no role assignment (matches the F&P grid
+  // parent-label fallback rule per spec).
+  role_type_id?: string | null;
+  role_name?: string | null;
 }
 
 export interface ProjectVendorSummaryResponse {
