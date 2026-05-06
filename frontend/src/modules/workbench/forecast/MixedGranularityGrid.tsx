@@ -832,7 +832,7 @@ export function MixedGranularityGrid({
         key={`${parent.category}-${parent.sub_category}-sub-${idx}`}
         className="bg-muted/30"
       >
-        <TableCell className="sticky left-0 bg-muted/30 text-xs z-10 border-r border-border whitespace-nowrap pl-8">
+        <TableCell className="sticky left-0 bg-muted text-xs z-10 border-r border-border whitespace-nowrap pl-8">
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{sub.label}</span>
             {sub.sub_label && (
