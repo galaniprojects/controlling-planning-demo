@@ -63,26 +63,6 @@ export const STATUS_SUMMARY_ORDER = [
   'open',
 ] as const;
 
-/**
- * Solid Tailwind dot colours per status, parallel to the badge bg/text
- * intent in STATUS_CONFIG. Used by the dots-variant of the grid legend
- * so a small ● in front of a label reads as the same procurement stage
- * the chip badge would render.
- *
- * Throwaway: this constant only exists for the legend A/B test. If the
- * 'chips' variant wins, this map can be deleted along with the dots
- * variant code.
- */
-export const STATUS_DOT_COLORS: Record<string, string> = {
-  planned: 'bg-muted-foreground/60',
-  in_basket: 'bg-amber-500',
-  ordered: 'bg-blue-600 dark:bg-blue-400',
-  goods_received: 'bg-indigo-600 dark:bg-indigo-400',
-  invoiced: 'bg-emerald-600 dark:bg-emerald-400',
-  accrual: 'bg-orange-600 dark:bg-orange-400',
-  open: 'bg-purple-600 dark:bg-purple-400',
-};
-
 export function getStatusLabel(status: string): string {
   return STATUS_CONFIG[status]?.label ?? status;
 }

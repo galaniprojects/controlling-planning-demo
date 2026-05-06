@@ -1,22 +1,15 @@
 /**
  * Two-row legend for the F&P MixedGranularityGrid.
  *
- * Row 1 — Cell values: Forecast / Baseline / Actuals (3-stack from C-08).
- *         The F&P cell uses role-based styling (primary / secondary / tertiary),
- *         not per-series colours, so the chips here render each series in its
- *         most common role to give the user a visual anchor for the size +
- *         weight hierarchy they'll see in real cells.
+ * Row 1 — Cell values: ● Forecast / ● Actuals / ● Baseline (3-stack from C-08).
+ *         Coloured dots matching the per-series cell colours. Order in each
+ *         real cell shifts based on past / current / future month, so this
+ *         legend only labels the colours, not the ordering.
  *
- * Row 2 — Grid hints: lifted as-is from the previous inline legend block at
- *         MixedGranularityGrid.tsx — Monthly zone / Quarterly zone swatches,
- *         Provisional dot, the "Quarterly columns can be expanded" tooltip,
- *         and the "Expand all quarters" / "Collapse all quarters" toggle.
- *
- * Two visual variants behind a `style` prop. The dots variant is greyscale —
- * the F&P stack doesn't use distinct colours per series, so the dots are all
- * muted-foreground with subtle opacity gradation matching the role hierarchy.
- *
- * v5.1 C-09 follow-up. Throwaway loser-deletes once the user picks.
+ * Row 2 — Grid hints: Monthly zone / Quarterly zone swatches, Provisional dot,
+ *         "Quarterly columns can be expanded" tooltip, plus the
+ *         "Expand / Collapse all quarters" toggle button. Lifted as-is from
+ *         the previous inline legend block at MixedGranularityGrid.tsx.
  */
 import { Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,43 +19,31 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import type { LegendStyle } from '@/hooks/useLegendStyle';
 
 interface Props {
-  style: LegendStyle;
   granularityBoundaryMonths: number;
   horizonEndMonth: string;
   expandedQuartersCount: number;
   onToggleAllQuarters: () => void;
 }
 
-const SAMPLE_VALUE = '120h';
-
-/**
- * Role-typical Tailwind classes per series. The F&P cell renders each series
- * with primary/secondary/tertiary classes depending on temporal context;
- * here we pick the most common role for each so the legend chips look like
- * what users will see most of the time.
- */
-const FP_CELL_LINE_STYLES = {
-  // Forecast is most often the primary value (current/future months).
-  forecast: 'font-medium text-foreground',
-  // Actuals is primary in past months, secondary in current.
-  actuals: 'text-[11px] text-muted-foreground',
-  // Baseline is always tertiary — smallest and most muted.
-  baseline: 'text-[10px] text-muted-foreground/80',
-} as const;
-
-const CELL_DOT_STYLES = {
-  forecast: 'bg-foreground',
-  actuals: 'bg-muted-foreground',
-  baseline: 'bg-muted-foreground/50',
-} as const;
-
-const CELL_ITEMS: Array<{ key: keyof typeof FP_CELL_LINE_STYLES; label: string }> = [
-  { key: 'forecast', label: 'Forecast' },
-  { key: 'actuals', label: 'Actuals' },
-  { key: 'baseline', label: 'Baseline' },
+const CELL_ITEMS: Array<{
+  key: 'forecast' | 'actuals' | 'baseline';
+  label: string;
+  /** Dot bg colour. Must mirror the cell-text colour used in ForecastCell. */
+  dotColor: string;
+}> = [
+  { key: 'forecast', label: 'Forecast', dotColor: 'bg-foreground' },
+  {
+    key: 'actuals',
+    label: 'Actuals',
+    dotColor: 'bg-emerald-700 dark:bg-emerald-400',
+  },
+  {
+    key: 'baseline',
+    label: 'Baseline',
+    dotColor: 'bg-indigo-600 dark:bg-indigo-400',
+  },
 ];
 
 function Dot({ color }: { color: string }) {
@@ -75,7 +56,6 @@ function Dot({ color }: { color: string }) {
 }
 
 export function ForecastGridLegend({
-  style,
   granularityBoundaryMonths,
   horizonEndMonth,
   expandedQuartersCount,
@@ -83,23 +63,14 @@ export function ForecastGridLegend({
 }: Props) {
   return (
     <div className="flex flex-col gap-1.5 text-xs">
-      {/* Row 1 — cell values */}
+      {/* Row 1 — cell values (dots) */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <span className="text-muted-foreground font-medium w-24 shrink-0">
           Cell values
         </span>
         {CELL_ITEMS.map((item) => (
-          <span
-            key={item.key}
-            className="inline-flex items-center gap-1.5"
-          >
-            {style === 'chips' ? (
-              <span className={`${FP_CELL_LINE_STYLES[item.key]} font-mono`}>
-                {SAMPLE_VALUE}
-              </span>
-            ) : (
-              <Dot color={CELL_DOT_STYLES[item.key]} />
-            )}
+          <span key={item.key} className="inline-flex items-center gap-1.5">
+            <Dot color={item.dotColor} />
             <span className="text-foreground/80">{item.label}</span>
           </span>
         ))}

@@ -240,18 +240,48 @@ export function ForecastCell({
     }
   }
 
+  // v5.1 C-09 follow-up — per-series colour. Forecast stays foreground (the
+  // primary planning value), Actuals picks up the same emerald the External
+  // Costs grid uses for its actuals column, Baseline gets indigo so the
+  // immutable approved plan reads distinctly without competing with the
+  // PO/Obligo blue used on the External Costs side. Size + weight still
+  // varies by role so primary values remain dominant.
+  function seriesHoursColor(key: string): string {
+    switch (key) {
+      case 'actuals':
+        return 'text-emerald-700 dark:text-emerald-400';
+      case 'baseline':
+        return 'text-indigo-600 dark:text-indigo-400';
+      case 'forecast':
+      default:
+        return 'text-foreground';
+    }
+  }
+  function seriesEurColor(key: string): string {
+    switch (key) {
+      case 'actuals':
+        return 'text-emerald-700/70 dark:text-emerald-400/70';
+      case 'baseline':
+        return 'text-indigo-600/70 dark:text-indigo-400/70';
+      case 'forecast':
+      default:
+        return 'text-muted-foreground';
+    }
+  }
+
   function renderLine(line: Line) {
-    const roleClass =
+    const sizeClass =
       line.role === 'primary'
-        ? 'font-tabular font-medium text-foreground'
+        ? 'font-tabular font-medium'
         : line.role === 'secondary'
-          ? 'font-tabular text-[11px] text-muted-foreground'
-          : 'font-tabular text-[10px] text-muted-foreground/80';
+          ? 'font-tabular text-[11px]'
+          : 'font-tabular text-[10px]';
+    const colorClass = seriesHoursColor(line.key);
     const isItalic = line.key === 'actuals' && display.actualsPartial;
     return (
       <span
         key={`v-${line.key}`}
-        className={`${roleClass} ${isItalic ? 'italic' : ''} inline-flex items-center justify-end gap-1`}
+        className={`${sizeClass} ${colorClass} ${isItalic ? 'italic' : ''} inline-flex items-center justify-end gap-1`}
       >
         {line.role === 'primary' && display.provisional && line.key === 'forecast' && (
           <ProvisionalDot />
@@ -266,16 +296,17 @@ export function ForecastCell({
 
   // Internal-resource rows include a euro line directly under each hours
   // line; this preserves the v4 / C2 dual-unit pattern within the stack.
+  // EUR uses the same series colour as hours but at reduced opacity so
+  // hours reads as the primary metric and EUR as a derived companion.
   function renderEurUnderHours(line: Line) {
     if (category !== 'internal') return null;
-    const eurClass =
+    const sizeClass =
       line.role === 'primary'
-        ? 'text-[10px] text-muted-foreground font-tabular'
-        : line.role === 'secondary'
-          ? 'text-[9px] text-muted-foreground/80 font-tabular'
-          : 'text-[9px] text-muted-foreground/60 font-tabular';
+        ? 'text-[10px] font-tabular'
+        : 'text-[9px] font-tabular';
+    const colorClass = seriesEurColor(line.key);
     return (
-      <span key={`e-${line.key}`} className={eurClass}>
+      <span key={`e-${line.key}`} className={`${sizeClass} ${colorClass}`}>
         {formatSeriesEur(line.series)}
       </span>
     );

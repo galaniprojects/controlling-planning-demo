@@ -25,7 +25,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { formatCurrencyCompact, formatNumber } from '@/lib/formatters';
@@ -36,7 +35,6 @@ import {
   isMeaningfulDelta,
 } from '@/modules/simulator/lib/cellDiffHelpers';
 import { useCollapsibleMixedYears } from '@/hooks/useCollapsibleYears';
-import { useLegendStyle } from '@/hooks/useLegendStyle';
 import { ForecastCell, type CellTemporalContext } from './ForecastCell';
 import { ForecastGridLegend } from './ForecastGridLegend';
 import { PhaseStrip, type PhaseStripColumn } from './PhaseStrip';
@@ -152,8 +150,6 @@ export function MixedGranularityGrid({
   // and C-06 (vendor sub-rows under external categories). Key shape mirrors
   // the existing lookupDelta keying: `${category}|${sub_category}`.
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  // v5.1 C-09 follow-up — A/B legend style toggle (chips vs dots).
-  const { style: legendStyle, toggle: toggleLegendStyle } = useLegendStyle();
   // v5.1 C-03 — milestone phase highlighting. Loaded async, with silent
   // degradation: if the fetch fails or returns nothing, the strip simply
   // doesn't render and per-column tints aren't applied.
@@ -997,19 +993,7 @@ export function MixedGranularityGrid({
 
   return (
     <div className="space-y-2 min-w-0">
-      <div className="flex items-center justify-end">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
-          onClick={toggleLegendStyle}
-          title="Switch legend style (A/B compare)"
-        >
-          Legend: {legendStyle === 'chips' ? 'sample chips ⇄ dots' : 'dots ⇄ sample chips'}
-        </Button>
-      </div>
       <ForecastGridLegend
-        style={legendStyle}
         granularityBoundaryMonths={grid.granularity_boundary_months}
         horizonEndMonth={grid.horizon_end_month}
         expandedQuartersCount={expandedQuarters.size}
