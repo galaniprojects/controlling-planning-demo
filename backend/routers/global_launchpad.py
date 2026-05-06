@@ -35,6 +35,7 @@ from schemas.global_launchpad import (
     TilesResponse,
 )
 from services.calculations import add_months
+from services.module_card_kpis import compute_module_subtitle_kpis
 from services.portfolio_service import compute_portfolio_kpis, get_project_entity_info, get_top_level_entity_type_id
 
 router = APIRouter(prefix="/api", tags=["Global / Launchpad"])
@@ -193,7 +194,17 @@ def get_modules(
     for mod in MODULES:
         visible = mod["id"] in visible_ids
         sort_order = sort_map.get(mod["id"], 99)
-        metric = _compute_module_metric(db, mod["id"], user)
+        # v5.1 W6 [C-01]: subtitle KPIs power the new module-launch card
+        # subtitle row. Skip computation for hidden modules (defensive — the
+        # frontend already filters by ``visible``).
+        subtitle_kpis = (
+            compute_module_subtitle_kpis(db, user.role, mod["id"], user)
+            if visible else []
+        )
+        # Keep ``contextual_metric`` populated with the first subtitle string
+        # so legacy single-string consumers still render. Falls back to the
+        # original computed metric when subtitles are empty (hidden modules).
+        metric = subtitle_kpis[0] if subtitle_kpis else _compute_module_metric(db, mod["id"], user)
         items.append(
             ModuleTile(
                 id=mod["id"],
@@ -202,6 +213,7 @@ def get_modules(
                 contextual_metric=metric,
                 visible=visible,
                 sort_order=sort_order,
+                subtitle_kpis=subtitle_kpis,
             )
         )
     items.sort(key=lambda m: m.sort_order)
