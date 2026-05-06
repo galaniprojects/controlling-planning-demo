@@ -188,15 +188,24 @@ PROJECT_STAFFING: dict[str, list[dict]] = {
 # ---------------------------------------------------------------------------
 PROJECT_EXTERNALS: dict[str, list[dict]] = {
     # Detailed lines on demo-narrative entities -----------------------------
+    # v5.1 C-07: optional `role` key links external cost line items into the
+    # role_types catalogue. Used for the F&P grid `[Category] — [Role Name]`
+    # label, the External Costs tab Role column/filter, and the Capacity
+    # External badge. Available role IDs come from seed.sql role_types insert
+    # (Senior Solution Architect, Senior Developer, Developer, Junior
+    # Developer, QA, Cloud, SysAdmin, Network, SAP, BA, Data Engineer, Data
+    # Scientist). For consulting / advisory items we approximate
+    # "Senior Consultant" as `role-sr-arch` (Senior Solution Architect, the
+    # closest senior advisory role) and "Data Architect" as the same.
     "proj-mdh-rollout": [
-        {"desc": "MDH Implementation Consulting",     "cat": "ext-consulting",   "vendor": "Accenture",        "co": "capex", "base": 12000},
-        {"desc": "Data Modelling Advisory",           "cat": "ext-consulting",   "vendor": "Thoughtworks",     "co": "capex", "base": 6000},
+        {"desc": "MDH Implementation Consulting",     "cat": "ext-consulting",   "vendor": "Accenture",        "co": "capex", "base": 12000, "role": "role-sr-arch"},
+        {"desc": "Data Modelling Advisory",           "cat": "ext-consulting",   "vendor": "Thoughtworks",     "co": "capex", "base": 6000,  "role": "role-data-eng"},
         {"desc": "Snowflake Enterprise",              "cat": "ext-cloud",        "vendor": "Snowflake",        "co": "capex", "base": 5000},
         {"desc": "Master Data Governance Toolkit",    "cat": "ext-sw-licenses",  "vendor": "Informatica",      "co": "capex", "base": 4000},
         {"desc": "Cross-location Workshops",          "cat": "ext-travel",       "vendor": None,               "co": "opex",  "base": 1500},
     ],
     "proj-erp2": [
-        {"desc": "SAP Implementation Support",        "cat": "ext-consulting",   "vendor": "Deloitte",         "co": "capex", "base": 15000},
+        {"desc": "SAP Implementation Support",        "cat": "ext-consulting",   "vendor": "Deloitte",         "co": "capex", "base": 15000, "role": "role-sr-arch"},
         {"desc": "Process Advisory",                  "cat": "ext-consulting",   "vendor": "MHP Consulting",   "co": "capex", "base": 5000},
         {"desc": "Application Developers (3 FTE)",    "cat": "ext-leased-staff", "vendor": "TCS",              "co": "capex", "base": 12000},
         {"desc": "Azure DevOps Licenses",             "cat": "ext-sw-licenses",  "vendor": "Microsoft",        "co": "opex",  "base": 2000},
@@ -205,7 +214,7 @@ PROJECT_EXTERNALS: dict[str, list[dict]] = {
         {"desc": "Penetration Testing",               "cat": "ext-other",        "vendor": "SecureWorks",      "co": "opex",  "base": 2000},
     ],
     "proj-sensor": [
-        {"desc": "Data Engineering Consulting",       "cat": "ext-consulting",   "vendor": "Thoughtworks",     "co": "capex", "base": 10000},
+        {"desc": "Data Engineering Consulting",       "cat": "ext-consulting",   "vendor": "Thoughtworks",     "co": "capex", "base": 10000, "role": "role-data-eng"},
         {"desc": "AWS Kinesis + S3 Pipeline",         "cat": "ext-cloud",        "vendor": "AWS",              "co": "capex", "base": 6000},
         {"desc": "Kafka License",                     "cat": "ext-sw-licenses",  "vendor": "Confluent",        "co": "capex", "base": 3000},
         {"desc": "IoT Sensor Calibration",            "cat": "ext-other",        "vendor": "Bosch Sensortec",  "co": "capex", "base": 2000},
@@ -225,7 +234,7 @@ PROJECT_EXTERNALS: dict[str, list[dict]] = {
     # Other Change-stage Projects -------------------------------------------
     "proj-predmaint": [
         {"desc": "ML Platform License",               "cat": "ext-sw-licenses",  "vendor": "Databricks",       "co": "capex", "base": 4000},
-        {"desc": "Predictive Analytics Consulting",   "cat": "ext-consulting",   "vendor": "McKinsey Digital", "co": "capex", "base": 6000},
+        {"desc": "Predictive Analytics Consulting",   "cat": "ext-consulting",   "vendor": "McKinsey Digital", "co": "capex", "base": 6000, "role": "role-data-sci"},
         {"desc": "Sensor Data Cloud Storage",         "cat": "ext-cloud",        "vendor": "AWS",              "co": "capex", "base": 3000},
     ],
     "proj-autobrake": [
