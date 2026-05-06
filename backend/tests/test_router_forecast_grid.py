@@ -348,3 +348,183 @@ class TestForecastGrid:
             headers=HEADERS_CTRL,
         )
         assert resp.status_code == 422
+
+    # ------------------------------------------------------------------
+    # v5.1 W4 C-05 — include_person_breakdown query parameter
+    # ------------------------------------------------------------------
+
+    def _make_project_with_person_allocations(
+        self, db, seed_personas, create_test_project, project_id="proj-alpha"
+    ):
+        """Project with internal forecast + matching allocations.
+
+        Builds on the create_test_project factory and adds Allocation
+        rows so the C-05 collector has data to chew through. Hours are
+        aligned with forecast hours so the column-level invariant holds.
+        """
+        from models.system import PlanningParameter
+        from models.capacity import Allocation
+        from models.financial import Forecast
+        from models.people import RateTable
+
+        existing_keys = {r.key for r in db.query(PlanningParameter).all()}
+        if "granularity_boundary_months" not in existing_keys:
+            db.add(PlanningParameter(
+                key="granularity_boundary_months", name="Boundary",
+                description="", current_value="12", default_value="12",
+                data_type="integer", param_group="planning",
+            ))
+        if "planning_horizon_months" not in existing_keys:
+            db.add(PlanningParameter(
+                key="planning_horizon_months", name="Horizon",
+                description="", current_value="60", default_value="60",
+                data_type="integer", param_group="planning",
+            ))
+        db.commit()
+
+        # Use the factory to lay down the project shell + forecasts.
+        # create_test_project seeds 11 hours/month (factory default) so we
+        # match that for the allocation total to keep the invariant tight.
+        proj = create_test_project(
+            project_id,
+            months=["2026-04", "2026-05"],
+            baseline_amt=900,
+            forecast_amt=1100,
+        )
+
+        # Realign forecast hours/EUR to a clean 100 h × 100 EUR for both
+        # months so the rate-cache path produces stable numbers.
+        for f in db.query(Forecast).filter(Forecast.project_id == project_id).all():
+            f.hours = 100
+            f.amount_eur = 10000
+        db.commit()
+
+        # Single rate row for the seeded role-dev/comp-dev pair.
+        existing_rate = db.query(RateTable).filter(
+            RateTable.role_type_id == "role-dev",
+            RateTable.competence_center_id == "comp-dev",
+        ).first()
+        if existing_rate is None:
+            db.add(RateTable(
+                role_type_id="role-dev", competence_center_id="comp-dev",
+                hourly_rate=100, effective_date="2024-01-01",
+            ))
+            db.commit()
+
+        # Allocate 60 + 40 hours to two devs that conftest already seeded.
+        for mo in ["2026-04", "2026-05"]:
+            db.add(Allocation(
+                person_id="p-dev-1", project_id=project_id,
+                month=mo, hours=60, is_confirmed=True,
+            ))
+            db.add(Allocation(
+                person_id="p-dev-2", project_id=project_id,
+                month=mo, hours=40, is_confirmed=True,
+            ))
+        db.commit()
+        return proj
+
+    def test_grid_endpoint_threads_person_breakdown_flag(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """`include_person_breakdown=true` produces sub_rows on internal rows.
+
+        Verifies the query-param wiring through the router and confirms
+        the per-employee fields land on the response. Sub-rows under the
+        same parent must sum to the parent's column-level totals.
+        """
+        self._make_project_with_person_allocations(
+            db, seed_personas, create_test_project,
+        )
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid"
+            "?granularity=monthly&include_person_breakdown=true&lookback_months=0",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        internal_rows = [r for r in data["rows"] if r["category"] == "internal"]
+        assert internal_rows
+        parent = internal_rows[0]
+        sub_rows = parent.get("sub_rows") or []
+        assert sub_rows, "expected sub_rows on the internal parent"
+
+        # Discriminator fields are present on sub-rows.
+        for s in sub_rows:
+            assert "person_id" in s
+            assert "cost_center_id" in s
+            assert "label" in s
+            assert s["person_id"] in {"p-dev-1", "p-dev-2"}
+
+        # Column-level invariant — sum of sub-row hours/EUR == parent.
+        for i, parent_cell in enumerate(parent["cells"]):
+            summed_hours = round(
+                sum(s["cells"][i]["hours"] for s in sub_rows), 2
+            )
+            summed_amount = round(
+                sum(s["cells"][i]["amount_eur"] for s in sub_rows), 2
+            )
+            assert summed_hours == parent_cell["hours"]
+            assert summed_amount == parent_cell["amount_eur"]
+
+    def test_grid_endpoint_default_omits_sub_rows_when_flag_off(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """`include_person_breakdown=false` keeps the legacy payload shape."""
+        self._make_project_with_person_allocations(
+            db, seed_personas, create_test_project,
+        )
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid"
+            "?granularity=monthly&include_person_breakdown=false&lookback_months=0",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        for row in data["rows"]:
+            assert row.get("sub_rows") is None
+
+    # -----------------------------------------------------------------
+    # v5.1 W4 C-06 / C-07 — vendor breakdown query param threading
+    # -----------------------------------------------------------------
+
+    def test_grid_endpoint_threads_vendor_breakdown_flag(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """The router accepts include_vendor_breakdown and the response
+        carries sub_rows on external rows when the flag is True (default)
+        and omits them when explicitly set to False.
+        """
+        from models.financial import Forecast
+        self._make_project_with_forecast(db, seed_personas, create_test_project)
+        # Add an external Forecast row so there's something for the
+        # vendor breakdown to chew on.
+        db.add(Forecast(
+            project_id="proj-alpha", month="2026-04", category="external",
+            sub_category="ect-cloud", amount_eur=4000.0,
+            vendor="AWS", po_number="PO-1",
+        ))
+        db.commit()
+
+        # Default — flag True → external rows carry sub_rows
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        ext_rows = [r for r in data["rows"] if r["category"] == "external"]
+        assert len(ext_rows) == 1
+        assert ext_rows[0].get("sub_rows") is not None
+        assert any(s["vendor"] == "AWS" for s in ext_rows[0]["sub_rows"])
+
+        # Explicit False → sub_rows absent (or null)
+        resp2 = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid?include_vendor_breakdown=false",
+            headers=HEADERS_CTRL,
+        )
+        data2 = resp2.json()
+        ext_rows2 = [r for r in data2["rows"] if r["category"] == "external"]
+        assert len(ext_rows2) == 1
+        # Pydantic excludes None by default — accept both None and missing
+        assert ext_rows2[0].get("sub_rows") in (None, [])

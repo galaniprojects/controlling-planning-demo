@@ -15,7 +15,7 @@
  * live in `simulator/lib/cellDiffHelpers` so Compare L3 + the change-summary
  * drawer can reuse the same lookup + indicator semantics.
  */
-import { useEffect, useMemo, useState, useCallback, type RefObject } from 'react';
+import { Fragment, useEffect, useMemo, useState, useCallback, type RefObject } from 'react';
 import {
   Table,
   TableBody,
@@ -52,6 +52,7 @@ import type {
   MixedGridColumn,
   MixedGridResponse,
   MixedGridRow,
+  MixedGridSubRow,
 } from '@/types/api';
 
 interface Props {
@@ -156,6 +157,10 @@ export function MixedGranularityGrid({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedQuarters, setExpandedQuarters] = useState<Set<string>>(new Set());
+  // v5.1 W4 — per-row expand state for C-05 (employees under internal roles)
+  // and C-06 (vendor sub-rows under external categories). Key shape mirrors
+  // the existing lookupDelta keying: `${category}|${sub_category}`.
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   // v5.1 C-03 — milestone phase highlighting. Loaded async, with silent
   // degradation: if the fetch fails or returns nothing, the strip simply
   // doesn't render and per-column tints aren't applied.
@@ -219,6 +224,19 @@ export function MixedGranularityGrid({
       const next = new Set(prev);
       if (next.has(qKey)) next.delete(qKey);
       else next.add(qKey);
+      return next;
+    });
+  }, []);
+
+  // v5.1 W4 — chevron toggle for per-row expansion. Same pattern as
+  // toggleQuarter but the key is the parent row identity. Memoised so the
+  // chevron button doesn't re-render on every grid state change.
+  const toggleRow = useCallback((category: string, sub: string) => {
+    const key = `${category}|${sub}`;
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }, []);
@@ -369,6 +387,10 @@ export function MixedGranularityGrid({
     return row.cells.find((c) => c.key === key);
   }
 
+  function findSubCell(sub: MixedGridSubRow, key: string): MixedGridCell | undefined {
+    return sub.cells.find((c) => c.key === key);
+  }
+
   function quarterMonths(qKey: string): string[] {
     const year = parseInt(qKey.slice(0, 4), 10);
     const qNum = parseInt(qKey.slice(6), 10);
@@ -400,14 +422,13 @@ export function MixedGranularityGrid({
     temporalContext: CellTemporalContext;
   }
 
-  function getDisplayCell(row: MixedGridRow, col: MixedGridColumn): DisplayCell {
+  function getDisplayCellFromCells(
+    cells: MixedGridCell[],
+    col: MixedGridColumn,
+  ): DisplayCell {
     if (col.key.includes('::expanded::')) {
-      // Synthesised monthly cell from an expanded quarter: divide quarterly
-      // total by 3 to give an indicative monthly value (UI-only). The
-      // overlay series follow the same proportional divide so the stack
-      // stays consistent across expanded sub-cells.
       const [parentQuarter, , month] = col.key.split('::');
-      const parentCell = findCell(row, parentQuarter);
+      const parentCell = cells.find((c) => c.key === parentQuarter);
       const constituent = quarterMonths(parentQuarter);
       const n = constituent.length;
       const div = (v: number | null | undefined) =>
@@ -427,7 +448,7 @@ export function MixedGranularityGrid({
         temporalContext: classifyTemporalContext(month),
       };
     }
-    const cell = findCell(row, col.key);
+    const cell = cells.find((c) => c.key === col.key);
     return {
       hours: cell?.hours ?? 0,
       amount: cell?.amount_eur ?? 0,
@@ -440,6 +461,10 @@ export function MixedGranularityGrid({
       actualsPartial: cell?.actuals_partial ?? null,
       temporalContext: classifyTemporalContext(col.key, cell?.actuals_partial ?? null),
     };
+  }
+
+  function getDisplayCell(row: MixedGridRow, col: MixedGridColumn): DisplayCell {
+    return getDisplayCellFromCells(row.cells, col);
   }
 
   /**
@@ -685,11 +710,38 @@ export function MixedGranularityGrid({
   }
 
   function renderRow(row: MixedGridRow) {
+    // v5.1 W4 — chevron toggle for per-employee / per-vendor sub-rows.
+    const rowKey = `${row.category}|${row.sub_category}`;
+    const hasSubRows = !!row.sub_rows && row.sub_rows.length > 0;
+    const isExpanded = expandedRows.has(rowKey);
+    // v5.1 C-07 — when external row carries a single derived role, the
+    // grid label shows `[Category] — [Role]`. Mixed-role rows fall back
+    // to the bare category label per spec answer.
+    const baseLabel = nameMap[row.sub_category] ?? row.sub_category;
+    const displayLabel =
+      row.category === 'external' && row.role_name
+        ? `${baseLabel} — ${row.role_name}`
+        : baseLabel;
     return (
       <TableRow key={`${row.category}-${row.sub_category}`}>
         <TableCell className="sticky left-0 bg-card font-medium text-sm z-10 border-r border-border whitespace-nowrap">
           <div className="flex items-center gap-1.5">
-            <span>{nameMap[row.sub_category] ?? row.sub_category}</span>
+            {hasSubRows ? (
+              <button
+                type="button"
+                onClick={() => toggleRow(row.category, row.sub_category)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
+                aria-expanded={isExpanded}
+              >
+                <ChevronRight
+                  className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                />
+              </button>
+            ) : (
+              <span className="inline-block w-3.5" aria-hidden />
+            )}
+            <span>{displayLabel}</span>
             {row.capex_opex && (
               <Badge
                 variant="outline"
@@ -767,6 +819,106 @@ export function MixedGranularityGrid({
         })}
       </TableRow>
     );
+  }
+
+  /**
+   * v5.1 W4 — render one sub-row under an expanded parent row. Inherits the
+   * parent's category for cell formatting (internal → hours/EUR, external →
+   * EUR only). Year-totals computed by summing the sub-row's own cells.
+   */
+  function renderSubRow(parent: MixedGridRow, sub: MixedGridSubRow, idx: number) {
+    return (
+      <TableRow
+        key={`${parent.category}-${parent.sub_category}-sub-${idx}`}
+        className="bg-muted/30"
+      >
+        <TableCell className="sticky left-0 bg-muted text-xs z-10 border-r border-border whitespace-nowrap pl-8">
+          <div className="flex flex-col">
+            <span className="font-medium text-foreground">{sub.label}</span>
+            {sub.sub_label && (
+              <span className="text-[10px] text-muted-foreground">{sub.sub_label}</span>
+            )}
+          </div>
+        </TableCell>
+        {displayColumns.map((entry, cidx) => {
+          if (entry.kind === 'yearTotal') {
+            const totals = sumCellsAcrossKeys(sub.cells, entry.keys);
+            const empty = totals.amount === 0 && totals.hours === 0;
+            return (
+              <TableCell
+                key={`${parent.sub_category}-sub-${idx}-yt-${entry.year}`}
+                className="text-right text-[11px] border-l-4 border-foreground/30 dark:border-foreground/40 bg-muted/20 dark:bg-muted/30"
+              >
+                {empty ? (
+                  <span className="text-muted-foreground/40">&mdash;</span>
+                ) : (
+                  <div className="flex flex-col items-end">
+                    <span className="font-tabular">
+                      {parent.category === 'internal'
+                        ? `${formatNumber(totals.hours)}h`
+                        : formatCurrencyCompact(totals.amount)}
+                    </span>
+                    {parent.category === 'internal' && (
+                      <span className="text-[9px] text-muted-foreground font-tabular">
+                        {formatCurrencyCompact(totals.amount)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </TableCell>
+            );
+          }
+          const col = entry.col;
+          const isJanColumn = !col.key.includes('::expanded::') && isJanuaryColumnKey(col.key);
+          const yearStart = entry.isYearStart || isJanColumn;
+          const boundary = isBoundaryColumn(col, cidx);
+          const isQuarterly = col.cell_type === 'quarterly' && !col.key.includes('::expanded::');
+          const isExpandedSub = col.key.includes('::expanded::');
+          const display = getDisplayCellFromCells(sub.cells, col);
+          // Sub-rows do not participate in comparison overlays — the
+          // canonical cell-delta keys are at the parent (category, sub) level.
+          return (
+            <ForecastCell
+              key={`${parent.sub_category}-sub-${idx}-${col.key}`}
+              category={parent.category}
+              display={{
+                hours: display.hours,
+                amount: display.amount,
+                provisional: display.provisional,
+                baselineHours: display.baselineHours,
+                baselineAmount: display.baselineAmount,
+                actualsHours: display.actualsHours,
+                actualsAmount: display.actualsAmount,
+                actualsPartial: display.actualsPartial,
+              }}
+              delta={undefined}
+              hasChange={false}
+              yearStart={yearStart}
+              boundary={boundary}
+              isQuarterly={isQuarterly}
+              isExpandedSub={isExpandedSub}
+              temporalContext={display.temporalContext}
+            />
+          );
+        })}
+      </TableRow>
+    );
+  }
+
+  function sumCellsAcrossKeys(
+    cells: MixedGridCell[],
+    keys: string[],
+  ): { hours: number; amount: number } {
+    let hours = 0;
+    let amount = 0;
+    for (const k of keys) {
+      const c = cells.find((x) => x.key === k);
+      if (c) {
+        hours += c.hours;
+        amount += c.amount_eur;
+      }
+    }
+    return { hours: Math.round(hours * 100) / 100, amount: Math.round(amount * 100) / 100 };
   }
 
   function renderSubtotalRow(label: string, targetRows: MixedGridRow[], style: 'subtotal' | 'grand') {
@@ -915,7 +1067,16 @@ export function MixedGranularityGrid({
                     Internal Resources (Hours / EUR)
                   </TableCell>
                 </TableRow>
-                {internalRows.map(renderRow)}
+                {internalRows.map((row) => {
+                  const rowKey = `${row.category}|${row.sub_category}`;
+                  const expanded = expandedRows.has(rowKey);
+                  return (
+                    <Fragment key={rowKey}>
+                      {renderRow(row)}
+                      {expanded && row.sub_rows?.map((sub, i) => renderSubRow(row, sub, i))}
+                    </Fragment>
+                  );
+                })}
                 {renderSubtotalRow('Subtotal Internal', internalRows, 'subtotal')}
               </>
             )}
@@ -930,7 +1091,16 @@ export function MixedGranularityGrid({
                     External Costs (EUR)
                   </TableCell>
                 </TableRow>
-                {externalRows.map(renderRow)}
+                {externalRows.map((row) => {
+                  const rowKey = `${row.category}|${row.sub_category}`;
+                  const expanded = expandedRows.has(rowKey);
+                  return (
+                    <Fragment key={rowKey}>
+                      {renderRow(row)}
+                      {expanded && row.sub_rows?.map((sub, i) => renderSubRow(row, sub, i))}
+                    </Fragment>
+                  );
+                })}
                 {renderSubtotalRow('Subtotal External', externalRows, 'subtotal')}
               </>
             )}

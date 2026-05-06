@@ -516,12 +516,39 @@ export interface MixedGridCell {
   actuals_partial?: boolean | null;
 }
 
+export interface MixedGridSubRow {
+  // v5.1 C-05 / C-06 — one expandable child under a MixedGridRow.
+  // Internal sub-rows: one per assigned employee; External sub-rows: one per
+  // (vendor, po_number, role_type_id) tuple. Cell shape mirrors MixedGridCell
+  // so the same renderer handles both.
+  label: string;                 // primary display name
+  sub_label?: string | null;     // secondary line (e.g. cost-centre)
+  cells: MixedGridCell[];
+  row_total: number;
+  // Internal-only
+  person_id?: string | null;
+  cost_center_id?: string | null;
+  // External-only
+  vendor?: string | null;
+  po_number?: string | null;
+  role_type_id?: string | null;
+  role_name?: string | null;
+}
+
 export interface MixedGridRow {
   category: string;              // 'internal' | 'external'
   sub_category: string;          // role/cost-type id
   capex_opex?: string | null;
   cells: MixedGridCell[];
   row_total: number;
+  // v5.1 C-05 / C-06 — populated only when the grid endpoint is called with
+  // include_person_breakdown / include_vendor_breakdown (default True from
+  // the F&P grid; null elsewhere so ForecastVersion snapshots stay slim).
+  sub_rows?: MixedGridSubRow[] | null;
+  // v5.1 C-07 — derived role name on external rows when all contributing
+  // line items share a single role_type_id; null otherwise (mixed roles
+  // fall back to the [Category] label per spec).
+  role_name?: string | null;
 }
 
 export interface MixedGridResponse {
@@ -752,11 +779,21 @@ export interface PersonHeatmapRow {
   utilization: UtilizationCell[];
 }
 
+export interface ExternalCapacityRow {
+  // v5.1 C-07 — synthetic 'External' resource row inside a role group.
+  // FTE-equivalent count per month (external_amount_eur ÷ hourly_rate ÷ 160h).
+  label: string;
+  fte_equivalent: UtilizationCell[];
+}
+
 export interface RoleHeatmapRow {
   role_id: string;
   role_name: string;
   aggregate_utilization: UtilizationCell[];
   people: PersonHeatmapRow[];
+  // v5.1 C-07 — optional external child row when the role has consulting /
+  // leased-staff line items with role_type_id === role_id in scope.
+  external?: ExternalCapacityRow | null;
 }
 
 export interface PersonMonthAllocation {
@@ -854,11 +891,23 @@ export interface OrgSummary {
   pending_controller_approval_count: number;
 }
 
+export interface OrgExternalSummary {
+  // v5.1 C-07 — lightweight external-resource roll-up surfaced inside the
+  // org-heatmap role pivot. ``count`` is the number of distinct projects
+  // contributing external spend with this role assignment over the visible
+  // window; ``total_fte`` is the avg monthly FTE-equivalent across the same
+  // window.
+  count: number;
+  total_fte: number;
+}
+
 export interface OrgHeatmapRow {
   id: string;
   name: string;
   utilization: UtilizationCell[];
   children: OrgHeatmapRow[];
+  // v5.1 C-07 — only present when the heatmap is pivoted by ``role``.
+  external_summary?: OrgExternalSummary | null;
 }
 
 export interface OrgDetailEmployee {
@@ -1969,6 +2018,12 @@ export interface ProjectVendorSummaryRow {
   variance: number;
   po_count: number;
   line_count: number;
+  // v5.1 C-07 — denormalised role attribution for the External Costs tab
+  // Role column / filter chip. Null when the vendor's contributing line
+  // items have mixed roles or no role assignment (matches the F&P grid
+  // parent-label fallback rule per spec).
+  role_type_id?: string | null;
+  role_name?: string | null;
 }
 
 export interface ProjectVendorSummaryResponse {

@@ -180,7 +180,7 @@ def _emit_internal_rows(
         for mo in baseline_months:
             rows_baseline.append(
                 f"({sql_str(pid)}, {sql_str(mo)}, 'internal', {sql_str(role)}, "
-                f"{base_hours}, {base_amount:.2f}, NULL, {sql_str(co)}, NULL, NULL)"
+                f"{base_hours}, {base_amount:.2f}, NULL, {sql_str(co)}, NULL, NULL, NULL)"
             )
 
         # --- Forecasts (monthly inner + quarterly outer) ---
@@ -196,7 +196,7 @@ def _emit_internal_rows(
             rows_forecast.append(
                 f"({sql_str(pid)}, {sql_str(mo)}, 'internal', {sql_str(role)}, "
                 f"{cell_hours}, {cell_amount:.2f}, NULL, {sql_str(co)}, "
-                f"NULL, NULL, NULL, {provisional})"
+                f"NULL, NULL, NULL, NULL, {provisional})"
             )
 
         # --- Actuals (monthly, through ACTUALS_FULL_END + partial April) ---
@@ -210,7 +210,7 @@ def _emit_internal_rows(
                 a_amount = (a_hours * rate) if a_hours is not None else (f_amount * var)
                 rows_actuals.append(
                     f"({sql_str(pid)}, {sql_str(mo)}, 'internal', {sql_str(role)}, "
-                    f"{a_hours}, {a_amount:.2f}, NULL, {sql_str(co)}, NULL, NULL)"
+                    f"{a_hours}, {a_amount:.2f}, NULL, {sql_str(co)}, NULL, NULL, NULL)"
                 )
             elif _should_have_partial_actuals(mo, proj):
                 partial = random.uniform(0.40, 0.60)
@@ -218,7 +218,7 @@ def _emit_internal_rows(
                 a_amount = (a_hours * rate) if a_hours is not None else (f_amount * partial)
                 rows_actuals.append(
                     f"({sql_str(pid)}, {sql_str(mo)}, 'internal', {sql_str(role)}, "
-                    f"{a_hours}, {a_amount:.2f}, NULL, {sql_str(co)}, NULL, NULL)"
+                    f"{a_hours}, {a_amount:.2f}, NULL, {sql_str(co)}, NULL, NULL, NULL)"
                 )
 
 
@@ -243,12 +243,17 @@ def _emit_external_rows(
         co = ext["co"]
         base_amount = ext["base"]
 
+        # v5.1 C-07: optional role assignment (Teammate B owns the actual
+        # assignments; pre-work emits NULL for every row so the column
+        # exists once the FK lands).
+        role_id = ext.get("role")
+
         for mo in baseline_months:
             status = _ext_status(mo)
             rows_baseline.append(
                 f"({sql_str(pid)}, {sql_str(mo)}, 'external', {sql_str(cat)}, "
                 f"NULL, {base_amount:.2f}, {sql_str(desc)}, {sql_str(co)}, "
-                f"{sql_str(vendor)}, {sql_str(status)})"
+                f"{sql_str(vendor)}, {sql_str(status)}, {sql_str(role_id)})"
             )
 
         for mo in forecast_months:
@@ -263,7 +268,8 @@ def _emit_external_rows(
             rows_forecast.append(
                 f"({sql_str(pid)}, {sql_str(mo)}, 'external', {sql_str(cat)}, "
                 f"NULL, {cell_amount:.2f}, {sql_str(desc)}, {sql_str(co)}, "
-                f"{sql_str(status)}, NULL, {sql_str(vendor)}, {provisional})"
+                f"{sql_str(status)}, NULL, {sql_str(vendor)}, {sql_str(role_id)}, "
+                f"{provisional})"
             )
 
         for mo in baseline_months:
@@ -277,7 +283,7 @@ def _emit_external_rows(
                 rows_actuals.append(
                     f"({sql_str(pid)}, {sql_str(mo)}, 'external', {sql_str(cat)}, "
                     f"NULL, {a_amount:.2f}, {sql_str(desc)}, {sql_str(co)}, "
-                    f"{sql_str(vendor)}, {sql_str(status)})"
+                    f"{sql_str(vendor)}, {sql_str(status)}, {sql_str(role_id)})"
                 )
             elif _should_have_partial_actuals(mo, proj):
                 partial = random.uniform(0.40, 0.60)
@@ -286,7 +292,7 @@ def _emit_external_rows(
                 rows_actuals.append(
                     f"({sql_str(pid)}, {sql_str(mo)}, 'external', {sql_str(cat)}, "
                     f"NULL, {a_amount:.2f}, {sql_str(desc)}, {sql_str(co)}, "
-                    f"{sql_str(vendor)}, {sql_str(status)})"
+                    f"{sql_str(vendor)}, {sql_str(status)}, {sql_str(role_id)})"
                 )
 
 
@@ -319,10 +325,14 @@ def generate() -> str:
         _emit_internal_rows(proj, rows_baseline, rows_forecast, rows_actuals)
         _emit_external_rows(proj, rows_baseline, rows_forecast, rows_actuals)
 
+    # v5.1 C-07: role_type_id column added to all three financial tables
+    # (nullable FK → role_types). Internal rows always emit NULL; external
+    # rows pick up role assignments from PROJECT_EXTERNALS[].role.
     cols_bl = ("(project_id, month, category, sub_category, hours, amount_eur, "
-               "description, capex_opex, vendor, ext_status)")
+               "description, capex_opex, vendor, ext_status, role_type_id)")
     cols_fc = ("(project_id, month, category, sub_category, hours, amount_eur, "
-               "description, capex_opex, ext_status, po_number, vendor, is_provisional)")
+               "description, capex_opex, ext_status, po_number, vendor, "
+               "role_type_id, is_provisional)")
     cols_ac = cols_bl
 
     parts.append(f"\n-- Baselines ({len(rows_baseline)} rows)")

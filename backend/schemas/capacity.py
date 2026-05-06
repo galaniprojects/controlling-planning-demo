@@ -1,5 +1,6 @@
 """Pydantic schemas for Capacity Management endpoints (Section 10.5)."""
 from __future__ import annotations
+from typing import Optional
 from pydantic import BaseModel
 
 
@@ -30,11 +31,28 @@ class PersonHeatmapRow(BaseModel):
     utilization: list[UtilizationCell]
 
 
+class ExternalCapacityRow(BaseModel):
+    """v5.1 C-07 — synthetic 'External' resource row inside a role group.
+
+    Carries the FTE-equivalent count per month for vendor / consultant
+    line items (Forecast.category='external' AND role_type_id IS NOT NULL)
+    aggregated to the role. The team heatmap renders one row per role
+    group with an 'External' badge so users can see outsourcing-ratio
+    context alongside internal people. FTE-equivalent is computed as
+    `external_amount_eur / hourly_rate / standard_fte_hours`.
+    """
+    label: str                                  # display label (e.g. "External")
+    fte_equivalent: list[UtilizationCell]       # month → FTE-equivalent count
+
+
 class RoleHeatmapRow(BaseModel):
     role_id: str
     role_name: str
     aggregate_utilization: list[UtilizationCell]
     people: list[PersonHeatmapRow]
+    # v5.1 C-07 — optional external resource row (None when no external
+    # line items with role_type_id == role_id are in scope)
+    external: Optional["ExternalCapacityRow"] = None
 
 
 class PersonAllocation(BaseModel):
@@ -98,11 +116,24 @@ class OrgSummary(BaseModel):
     pending_controller_approval_count: int
 
 
+class OrgExternalSummary(BaseModel):
+    """v5.1 C-07 — lightweight external-resource roll-up surfaced inside the
+    org-heatmap role pivot. ``count`` is the number of distinct projects that
+    contribute external spend with this role assignment over the visible
+    window; ``total_fte`` is the average monthly FTE-equivalent across the
+    same window. Both default to zero when no external lines match the role.
+    """
+    count: int = 0
+    total_fte: float = 0.0
+
+
 class OrgHeatmapRow(BaseModel):
     id: str
     name: str
     utilization: list[UtilizationCell]
     children: list[dict] = []
+    # v5.1 C-07 — only populated for ``pivot=role``; None elsewhere.
+    external_summary: Optional[OrgExternalSummary] = None
 
 
 # ---------------------------------------------------------------------------

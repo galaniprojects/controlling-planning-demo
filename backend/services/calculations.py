@@ -2,12 +2,17 @@
 
 All functions take plain numeric/string inputs and return computed values.
 No database access — these are called by routers and services.
-The get_standard_hours helper is the one exception (needs DB access).
+The get_standard_hours and resolve_hourly_rate helpers are the exceptions
+(both need DB access).
 """
 
 from __future__ import annotations
 
+from decimal import Decimal
+from typing import Optional
+
 FTE_HOURS = 160.0
+DEFAULT_HOURLY_RATE = Decimal("120.00")  # fallback when no RateTable row matches
 
 
 def get_standard_hours(db, location_id: str | None = None) -> float:
@@ -166,6 +171,54 @@ def utilization_color_bucket(pct: float) -> str:
     if pct >= 70:
         return "green"
     return "amber"
+
+
+# ---------------------------------------------------------------------------
+# Hourly-rate resolution (v5.1 W4 pre-work)
+# ---------------------------------------------------------------------------
+
+def resolve_hourly_rate(
+    db,
+    role_type_id: str,
+    competence_center_id: Optional[str],
+    month: str,
+) -> Decimal:
+    """Resolve the hourly rate for a (role, competence-centre, month) tuple.
+
+    Walks `RateTable` and picks the row with the latest `effective_date`
+    that is on-or-before the first day of `month`. Filters by
+    `competence_center_id` when provided; otherwise falls back to any rate
+    for the role. Returns DEFAULT_HOURLY_RATE (€120.00) when no match.
+
+    Args:
+        db: SQLAlchemy session.
+        role_type_id: Role catalogue id (e.g. 'role-senior-consultant').
+        competence_center_id: Optional CC scope. None → any CC.
+        month: 'YYYY-MM' — the cell month being priced.
+
+    Returns:
+        Decimal hourly rate.
+    """
+    from models.people import RateTable
+
+    target_date = f"{month}-01"
+    q = db.query(RateTable).filter(
+        RateTable.role_type_id == role_type_id,
+        RateTable.effective_date <= target_date,
+    )
+    if competence_center_id:
+        q_cc = q.filter(
+            RateTable.competence_center_id == competence_center_id
+        ).order_by(RateTable.effective_date.desc())
+        row = q_cc.first()
+        if row is not None:
+            return Decimal(str(row.hourly_rate))
+        # No CC-specific rate before target date — try without the CC filter
+        # so we don't return DEFAULT for a role that does have rates elsewhere.
+    row = q.order_by(RateTable.effective_date.desc()).first()
+    if row is not None:
+        return Decimal(str(row.hourly_rate))
+    return DEFAULT_HOURLY_RATE
 
 
 # ---------------------------------------------------------------------------

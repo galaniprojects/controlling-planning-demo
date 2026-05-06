@@ -146,6 +146,423 @@ def _first_quarter_start(boundary_month: str) -> str:
         probe = add_months(months[-1], 1)  # one month after last month of this quarter
 
 
+# ---------------------------------------------------------------------------
+# Sub-row collectors (v5.1 W4 — lead-declared seam, teammates fill bodies)
+# ---------------------------------------------------------------------------
+
+def _collect_person_breakdown(
+    db: Session,
+    project_id: str,
+    role_type_id: str,
+    columns: list[dict],
+    demo_date: str,
+    horizon_end_month: str,
+    lookback_start: str,
+    include_baseline_actuals: bool,
+) -> list[dict]:
+    """v5.1 C-05 — return per-employee sub-rows for one internal role row.
+
+    Walks the `allocations` table for the given project + role and groups
+    rows by person. For each person, builds a list of cells matching the
+    parent row's `columns` list:
+
+    - Monthly cells: hours = month total from allocations, EUR = hours ×
+      `resolve_hourly_rate(role_type_id, person.competence_center_id, month)`.
+    - Quarterly cells: per-month EUR is summed (rates can shift mid-quarter,
+      so quarter-hours × single-rate would mis-price the cell).
+
+    The strict invariant is that across all sub-rows for a given parent
+    role row, the sum of `cells[i].hours` (and `cells[i].amount_eur`)
+    equals the parent row's column-level totals. This holds when the seed
+    aligns allocation hours with forecast hours per (project, role,
+    month) and the same hourly_rate resolution is used everywhere.
+
+    Sub-row cells are forecast-only — `baseline_*` / `actuals_*` overlays
+    are intentionally absent (three-source overlays on sub-rows is a
+    follow-on enhancement; the C-05 spec only requires per-month hours +
+    EUR). The `include_baseline_actuals` flag is accepted for signature
+    symmetry with `_collect_vendor_breakdown` but doesn't change the
+    per-sub-row payload.
+
+    Returns a list of dicts conforming to `schemas.workbench.GridSubRow`,
+    sorted by `row_total` descending so the largest contributor renders
+    first under the parent.
+    """
+    from models.capacity import Allocation
+    from models.organization import CostCenter
+    from models.people import Person
+    from services.calculations import resolve_hourly_rate
+
+    # Pre-compute the union of months we actually need to price so we can
+    # cache rate lookups (one per (cc, month) pair). The columns list drives
+    # this — monthly columns use their own key, quarterly columns expand to
+    # their constituent months.
+    needed_months: set[str] = set()
+    for col in columns:
+        if col["cell_type"] == "monthly":
+            needed_months.add(col["key"])
+        else:
+            for m in quarter_constituent_months(col["key"], horizon_end_month):
+                needed_months.add(m)
+
+    # Pull allocations with person + cost_center joined. Filtering on
+    # `Person.role_type_id` keeps this scoped to the parent row's role.
+    rows = (
+        db.query(Allocation, Person, CostCenter)
+        .join(Person, Person.id == Allocation.person_id)
+        .outerjoin(CostCenter, CostCenter.id == Person.cost_center_id)
+        .filter(
+            Allocation.project_id == project_id,
+            Person.role_type_id == role_type_id,
+            Allocation.month >= lookback_start,
+            Allocation.month <= horizon_end_month,
+        )
+        .all()
+    )
+
+    if not rows:
+        return []
+
+    # Group by person — keep the Person + CostCenter once, sum hours per month.
+    people_data: dict[str, dict] = {}
+    for alloc, person, cost_center in rows:
+        entry = people_data.setdefault(
+            person.id,
+            {
+                "person": person,
+                "cost_center": cost_center,
+                "hours_by_month": {},
+            },
+        )
+        entry["hours_by_month"][alloc.month] = (
+            entry["hours_by_month"].get(alloc.month, 0.0) + float(alloc.hours or 0.0)
+        )
+
+    # Resolve rates once per (competence_center_id, month) pair across all
+    # months that any column actually consumes.
+    rate_cache: dict[tuple[str | None, str], float] = {}
+
+    def _rate(cc_id: str | None, month: str) -> float:
+        key = (cc_id, month)
+        if key not in rate_cache:
+            rate_cache[key] = float(
+                resolve_hourly_rate(db, role_type_id, cc_id, month)
+            )
+        return rate_cache[key]
+
+    sub_rows: list[dict] = []
+    for person_id, entry in people_data.items():
+        person = entry["person"]
+        cost_center = entry["cost_center"]
+        hours_by_month: dict[str, float] = entry["hours_by_month"]
+        cc_id = person.competence_center_id
+
+        cells: list[dict] = []
+        row_total = 0.0
+        for col in columns:
+            col_key = col["key"]
+            cell_type = col["cell_type"]
+
+            if cell_type == "monthly":
+                month_hours = hours_by_month.get(col_key, 0.0)
+                amount = month_hours * _rate(cc_id, col_key)
+                cell_hours = round(month_hours, 2)
+                cell_amount = round(amount, 2)
+                is_provisional = col_key > horizon_end_month  # always False here
+                cells.append({
+                    "key": col_key,
+                    "cell_type": "monthly",
+                    "hours": cell_hours,
+                    "amount_eur": cell_amount,
+                    "is_provisional": is_provisional,
+                })
+                row_total += cell_amount
+            else:
+                # Quarterly: sum per-month EUR rather than apply a single
+                # rate to the quarter's hours total — rates can shift inside
+                # a quarter and the quarterly cell must reflect that.
+                q_months = quarter_constituent_months(col_key, horizon_end_month)
+                q_hours = 0.0
+                q_amount = 0.0
+                for m in q_months:
+                    mh = hours_by_month.get(m, 0.0)
+                    if mh == 0.0:
+                        continue
+                    q_hours += mh
+                    q_amount += mh * _rate(cc_id, m)
+                cell_hours = round(q_hours, 2)
+                cell_amount = round(q_amount, 2)
+                cells.append({
+                    "key": col_key,
+                    "cell_type": "quarterly",
+                    "hours": cell_hours,
+                    "amount_eur": cell_amount,
+                    "is_provisional": False,
+                })
+                row_total += cell_amount
+
+        # Skip persons whose entire window is zero — they show up as a
+        # noise row otherwise (no actual contribution to the parent).
+        if row_total == 0.0 and all(c["hours"] == 0.0 for c in cells):
+            continue
+
+        sub_rows.append({
+            "label": person.name,
+            "sub_label": cost_center.name if cost_center is not None else None,
+            "cells": cells,
+            "row_total": round(row_total, 2),
+            "person_id": person.id,
+            "cost_center_id": person.cost_center_id,
+        })
+
+    # Largest contributor first.
+    sub_rows.sort(key=lambda r: r["row_total"], reverse=True)
+    return sub_rows
+
+
+def _collect_vendor_breakdown(
+    db: Session,
+    project_id: str,
+    cost_type_id: str,
+    columns: list[dict],
+    demo_date: str,
+    horizon_end_month: str,
+    lookback_start: str,
+    include_baseline_actuals: bool,
+) -> tuple[list[dict], str | None]:
+    """v5.1 C-06 / C-07 — per-vendor sub-rows + parent role_name for one external row.
+
+    Returns:
+        (sub_rows, role_name) where `role_name` is set when all
+        contributing line items share a single non-null `role_type_id`,
+        otherwise None (see C-07 spec — mixed-role parent rows fall back
+        to `[Category]` only).
+
+    Each sub-row groups by `(vendor, po_number, role_type_id)`. EUR-only
+    cells (no hours). Baseline/Actuals rows always group under "No PO"
+    since `po_number` only exists on Forecast.
+    """
+    from models.people import RoleType
+
+    # ------------------------------------------------------------------
+    # Fetch source rows. Forecast always; Baseline + Actuals only when the
+    # caller explicitly asks for the three-source overlay (mirrors the
+    # parent build_mixed_grid contract — capture_version stays single-source
+    # so payload_json snapshots remain byte-identical to Wave 3).
+    # ------------------------------------------------------------------
+    fc_rows = (
+        db.query(Forecast)
+        .filter(
+            Forecast.project_id == project_id,
+            Forecast.category == "external",
+            Forecast.sub_category == cost_type_id,
+            Forecast.month >= lookback_start,
+            Forecast.month <= horizon_end_month,
+        )
+        .all()
+    )
+
+    bl_rows: list[Baseline] = []
+    ac_rows: list[Actuals] = []
+    if include_baseline_actuals:
+        bl_rows = (
+            db.query(Baseline)
+            .filter(
+                Baseline.project_id == project_id,
+                Baseline.category == "external",
+                Baseline.sub_category == cost_type_id,
+                Baseline.month <= horizon_end_month,
+            )
+            .all()
+        )
+        ac_rows = (
+            db.query(Actuals)
+            .filter(
+                Actuals.project_id == project_id,
+                Actuals.category == "external",
+                Actuals.sub_category == cost_type_id,
+                Actuals.month <= demo_date,
+            )
+            .all()
+        )
+
+    # Parent role_name derivation per [v5.1 C-07]: collect every distinct
+    # non-null role_type_id contributing to the row. Single role → the parent
+    # gets `[Category] — [Role Name]`; mixed (>=2 distinct) or all null →
+    # role_name=None and the frontend falls back to `[Category]` only.
+    distinct_roles: set[str] = set()
+    for r in fc_rows:
+        if r.role_type_id:
+            distinct_roles.add(r.role_type_id)
+    for r in bl_rows:
+        if r.role_type_id:
+            distinct_roles.add(r.role_type_id)
+    for r in ac_rows:
+        if r.role_type_id:
+            distinct_roles.add(r.role_type_id)
+
+    parent_role_name: str | None = None
+    if len(distinct_roles) == 1:
+        only_role = next(iter(distinct_roles))
+        rt = db.query(RoleType).filter(RoleType.id == only_role).first()
+        if rt is not None:
+            parent_role_name = rt.name
+
+    if not fc_rows and not bl_rows and not ac_rows:
+        return [], parent_role_name
+
+    # Pre-load role_name lookup for all roles seen across the three sources
+    # so the per-sub-row label can carry the role even when the parent has
+    # mixed roles. Single round-trip per parent row.
+    all_role_ids = {r.role_type_id for r in fc_rows if r.role_type_id}
+    all_role_ids.update(r.role_type_id for r in bl_rows if r.role_type_id)
+    all_role_ids.update(r.role_type_id for r in ac_rows if r.role_type_id)
+    role_name_map: dict[str, str] = {}
+    if all_role_ids:
+        for rt in db.query(RoleType).filter(RoleType.id.in_(all_role_ids)).all():
+            role_name_map[rt.id] = rt.name
+
+    # ------------------------------------------------------------------
+    # Group by (vendor, po_number, role_type_id) per [C-06]. Baseline + Actuals
+    # have no po_number column on the model, so they always bucket as "No PO".
+    # We track per-(group, source, month) cells separately so the C-08
+    # three-source overlay survives quarterly aggregation.
+    # ------------------------------------------------------------------
+    SourceKey = tuple[str, str | None, str | None]  # (vendor, po_number, role_id)
+
+    # group_key → {"vendor", "po_number", "role_type_id", "fc": {month: amount},
+    #              "bl": {month: amount}, "ac": {month: amount}, "ac_partial_months": set}
+    groups: dict[SourceKey, dict] = {}
+
+    def _ensure(vendor: str | None, po: str | None, role: str | None) -> dict:
+        # Normalise vendor key — None / "" → "Unspecified" so they bucket
+        # together (matches the existing vendor_summary behaviour).
+        v_key = vendor if vendor else "Unspecified"
+        key: SourceKey = (v_key, po, role)
+        if key not in groups:
+            groups[key] = {
+                "vendor": v_key,
+                "po_number": po,
+                "role_type_id": role,
+                "fc": {},
+                "bl": {},
+                "ac": {},
+                "ac_partial_months": set(),
+            }
+        return groups[key]
+
+    for r in fc_rows:
+        g = _ensure(r.vendor, r.po_number, r.role_type_id)
+        g["fc"][r.month] = g["fc"].get(r.month, 0.0) + float(r.amount_eur or 0)
+
+    for r in bl_rows:
+        # Baseline has no po_number — always group under None
+        g = _ensure(r.vendor, None, r.role_type_id)
+        g["bl"][r.month] = g["bl"].get(r.month, 0.0) + float(r.amount_eur or 0)
+
+    for r in ac_rows:
+        g = _ensure(r.vendor, None, r.role_type_id)
+        g["ac"][r.month] = g["ac"].get(r.month, 0.0) + float(r.amount_eur or 0)
+        if r.month == demo_date:
+            g["ac_partial_months"].add(r.month)
+
+    # ------------------------------------------------------------------
+    # Build sub-rows: project per-month buckets through the parent grid's
+    # column shape (monthly cells stay verbatim; quarterly cells sum the
+    # constituent months). EUR-only cells — `hours` is set to 0.0 to match
+    # the GridCell schema's required field.
+    # ------------------------------------------------------------------
+    sub_rows: list[dict] = []
+    for key, g in groups.items():
+        cells: list[dict] = []
+        row_total = 0.0
+        for col in columns:
+            col_key = col["key"]
+            cell_type = col["cell_type"]
+            if cell_type == "monthly":
+                fc_amt = g["fc"].get(col_key, 0.0)
+                cell = {
+                    "key": col_key,
+                    "cell_type": "monthly",
+                    "hours": 0.0,
+                    "amount_eur": round(fc_amt, 2),
+                    "is_provisional": False,
+                }
+                if include_baseline_actuals:
+                    bl_amt = g["bl"].get(col_key)
+                    ac_amt = g["ac"].get(col_key)
+                    cell["baseline_hours"] = None
+                    cell["baseline_amount_eur"] = (
+                        round(bl_amt, 2) if bl_amt is not None else None
+                    )
+                    cell["actuals_hours"] = None
+                    cell["actuals_amount_eur"] = (
+                        round(ac_amt, 2) if ac_amt is not None else None
+                    )
+                    cell["actuals_partial"] = (
+                        ac_amt is not None and col_key == demo_date
+                    )
+            else:
+                # Quarterly: sum constituent months
+                q_months = quarter_constituent_months(col_key, horizon_end_month)
+                fc_total = sum(g["fc"].get(m, 0.0) for m in q_months)
+                cell = {
+                    "key": col_key,
+                    "cell_type": "quarterly",
+                    "hours": 0.0,
+                    "amount_eur": round(fc_total, 2),
+                    "is_provisional": False,
+                }
+                if include_baseline_actuals:
+                    bl_total = 0.0
+                    bl_seen = False
+                    ac_total = 0.0
+                    ac_seen = False
+                    ac_partial_q = False
+                    for m in q_months:
+                        if m in g["bl"]:
+                            bl_seen = True
+                            bl_total += g["bl"][m]
+                        if m in g["ac"]:
+                            ac_seen = True
+                            ac_total += g["ac"][m]
+                            if m == demo_date:
+                                ac_partial_q = True
+                    cell["baseline_hours"] = None
+                    cell["baseline_amount_eur"] = round(bl_total, 2) if bl_seen else None
+                    cell["actuals_hours"] = None
+                    cell["actuals_amount_eur"] = round(ac_total, 2) if ac_seen else None
+                    cell["actuals_partial"] = ac_partial_q if ac_seen else None
+
+            cells.append(cell)
+            row_total += cell["amount_eur"]
+
+        vendor = g["vendor"]
+        po_number = g["po_number"]
+        role_id = g["role_type_id"]
+        role_name = role_name_map.get(role_id) if role_id else None
+
+        po_label = po_number if po_number else "No PO"
+        role_label = role_name if role_name else "—"
+        label = f"{vendor} · {role_label} · {po_label}"
+
+        sub_rows.append({
+            "label": label,
+            "sub_label": None,
+            "cells": cells,
+            "row_total": round(row_total, 2),
+            "vendor": vendor,
+            "po_number": po_number,
+            "role_type_id": role_id,
+            "role_name": role_name,
+        })
+
+    # Sort by descending row_total for deterministic output
+    sub_rows.sort(key=lambda r: r["row_total"], reverse=True)
+
+    return sub_rows, parent_role_name
+
+
 def build_mixed_grid(
     db: Session,
     project_id: str,
@@ -155,6 +572,8 @@ def build_mixed_grid(
     horizon_months: int | None = None,
     include_baseline_actuals: bool = False,
     lookback_months: int | None = None,
+    include_person_breakdown: bool = False,
+    include_vendor_breakdown: bool = False,
 ) -> dict:
     """Build the mixed-granularity forecast grid for a project.
 
@@ -174,6 +593,15 @@ def build_mixed_grid(
             zone semantics for the future are unchanged. Default None keeps
             the v5 column model (start at demo_date), so capture_version
             payload shapes stay byte-identical for existing callers.
+        include_person_breakdown: when True (v5.1 C-05), internal rows
+            carry ``sub_rows`` listing each assigned employee with
+            per-column hours + EUR. Default False so capture_version
+            snapshots stay forecast-only.
+        include_vendor_breakdown: when True (v5.1 C-06), external rows
+            carry ``sub_rows`` listing each (vendor, po_number, role)
+            tuple. C-07 also derives ``role_name`` on the parent row when
+            all contributing line items share a single role. Default
+            False so capture_version snapshots stay forecast-only.
 
     Returns a dict matching the MixedGridResponse schema.
     """
@@ -426,13 +854,44 @@ def build_mixed_grid(
                 totals_by_column.get(col_key, 0.0) + cell["amount_eur"], 2
             )
 
-        output_rows.append({
+        out_row = {
             "category": category,
             "sub_category": sub_cat,
             "capex_opex": row_data["capex_opex"],
             "cells": output_cells,
             "row_total": round(sum(c["amount_eur"] for c in output_cells), 2),
-        })
+        }
+
+        # v5.1 C-05 — Teammate A: per-employee sub-rows for internal rows.
+        if include_person_breakdown and category == "internal":
+            out_row["sub_rows"] = _collect_person_breakdown(
+                db=db,
+                project_id=project_id,
+                role_type_id=sub_cat,
+                columns=columns,
+                demo_date=demo_date,
+                horizon_end_month=horizon_end_month,
+                lookback_start=lookback_start,
+                include_baseline_actuals=include_baseline_actuals,
+            )
+
+        # v5.1 C-06 / C-07 — Teammate B: per-vendor sub-rows + role_name on
+        # the parent for external rows.
+        if include_vendor_breakdown and category == "external":
+            sub_rows, role_name = _collect_vendor_breakdown(
+                db=db,
+                project_id=project_id,
+                cost_type_id=sub_cat,
+                columns=columns,
+                demo_date=demo_date,
+                horizon_end_month=horizon_end_month,
+                lookback_start=lookback_start,
+                include_baseline_actuals=include_baseline_actuals,
+            )
+            out_row["sub_rows"] = sub_rows
+            out_row["role_name"] = role_name
+
+        output_rows.append(out_row)
 
     grand_total = round(sum(totals_by_column.values()), 2)
 

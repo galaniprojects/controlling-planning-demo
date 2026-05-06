@@ -1505,6 +1505,22 @@ def get_forecast_grid(
             "(start at demo_date)."
         ),
     ),
+    include_person_breakdown: bool = Query(
+        default=True,
+        description=(
+            "v5.1 C-05: when True, internal rows carry per-employee "
+            "sub_rows for the F&P grid expand affordance. Default True "
+            "(frontend always shows the chevron)."
+        ),
+    ),
+    include_vendor_breakdown: bool = Query(
+        default=True,
+        description=(
+            "v5.1 C-06 / C-07: when True, external rows carry per-vendor "
+            "sub_rows and a derived role_name for the F&P grid label. "
+            "Default True."
+        ),
+    ),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -1531,6 +1547,8 @@ def get_forecast_grid(
     # include_baseline_actuals=False so version snapshots stay forecast-only.
     # v5.1 W3: lookback_months extends the inner monthly window backwards
     # so past months (with full actuals) render alongside future ones.
+    # v5.1 W4 C-05/C-06/C-07: include_*_breakdown thread per-employee /
+    # per-vendor sub_rows + the derived role_name.
     grid = build_mixed_grid(
         db=db,
         project_id=project_id,
@@ -1540,6 +1558,8 @@ def get_forecast_grid(
         horizon_months=horizon_months,
         include_baseline_actuals=True,
         lookback_months=lookback_months,
+        include_person_breakdown=include_person_breakdown,
+        include_vendor_breakdown=include_vendor_breakdown,
     )
     return grid
 
@@ -2243,18 +2263,31 @@ def _verify_project_visible(db: Session, project_id: str, user: CurrentUser) -> 
 def get_project_external_cost_vendor_summary(
     project_id: str,
     year: int | None = Query(None, description="Optional fiscal year filter (YYYY)"),
+    role_type_id: str | None = Query(
+        None,
+        description=(
+            "v5.1 C-07: optional role_type_id filter — restricts the result "
+            "to vendors whose contributing line items share the given role. "
+            "Vendors with mixed roles or no role assignment are excluded "
+            "when this filter is set."
+        ),
+    ),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
     """Vendor breakdown for a single project per [E-08a].
 
     Returns one row per vendor with forecast/actuals/baseline totals plus
-    derived remaining and variance figures.
+    derived remaining and variance figures. v5.1 C-07: each row carries
+    `role_type_id` + `role_name` denormalised from the contributing line
+    items (null when the vendor's lines have mixed or no roles).
     """
     from services.external_cost_aggregation import compute_project_vendor_summary
 
     _verify_project_visible(db, project_id, user)
-    rows = compute_project_vendor_summary(db, project_id, year=year)
+    rows = compute_project_vendor_summary(
+        db, project_id, year=year, role_type_id=role_type_id,
+    )
     return {
         "items": rows,
         "total": len(rows),
@@ -2269,6 +2302,15 @@ def get_project_external_cost_vendor_summary(
 def get_project_external_cost_category_rollup(
     project_id: str,
     year: int | None = Query(None, description="Optional fiscal year filter (YYYY)"),
+    role_type_id: str | None = Query(
+        None,
+        description=(
+            "v5.1 C-07: accepted for symmetry with vendor-summary. The "
+            "category-rollup aggregates across all line items regardless of "
+            "role and currently does not narrow on this param; reserved for "
+            "future role-aware breakdowns."
+        ),
+    ),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
