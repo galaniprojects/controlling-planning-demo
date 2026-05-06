@@ -1,10 +1,11 @@
 /**
  * Vendor breakdown table for the Workbench External Costs tab.
  *
- * v5.1 C-09 lead pre-work — extracted from `ExternalCostsTab.tsx` so
- * Teammate A can add the four new columns (Contract reference, Contract
- * end date, Open PO, Remaining not invoiced) and extend the SortKey
- * union without touching the tab orchestrator.
+ * v5.1 C-09 — adds four new columns per spec lines 525–528:
+ *   - Contract reference (text, sortable)
+ *   - Contract end date  (formatted MMM YYYY, sortable)
+ *   - Open PO            (currency, sortable)
+ *   - Remaining not invoiced (currency, sortable)
  *
  * Owns: sort state, expand state, role filter `<Select>` chrome (the
  * canonical role-filter UI per the Wave 4 C-07 layout). The role value
@@ -35,9 +36,38 @@ import { formatCurrency, formatPercent } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import type { ProjectVendorSummaryRow, RefRole } from '@/types/api';
 
-type SortKey = 'vendor' | 'role' | 'forecast' | 'actuals' | 'remaining' | 'variance';
+type SortKey =
+  | 'vendor'
+  | 'role'
+  | 'forecast'
+  | 'actuals'
+  | 'remaining'
+  | 'variance'
+  | 'contract_reference'
+  | 'contract_end'
+  | 'open_po'
+  | 'remaining_not_invoiced';
 
 const ROLE_ALL = '__all__'; // sentinel for the "All roles" Select option
+
+const MONTH_NAMES = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/**
+ * Format a `YYYY-MM` contract-end string as `MMM YYYY` (e.g. `2026-06` →
+ * `Jun 2026`). Returns `'—'` when the value is missing or malformed.
+ */
+function formatContractEnd(value?: string | null): string {
+  if (!value) return '—';
+  const match = /^(\d{4})-(\d{2})$/.exec(value);
+  if (!match) return value; // fall back to raw value if not YYYY-MM
+  const year = match[1];
+  const monthIdx = parseInt(match[2], 10) - 1;
+  if (monthIdx < 0 || monthIdx > 11) return value;
+  return `${MONTH_NAMES[monthIdx]} ${year}`;
+}
 
 interface Props {
   vendors: ProjectVendorSummaryRow[];
@@ -82,6 +112,26 @@ export function VendorBreakdownTable({
           return (a.remaining - b.remaining) * dir;
         case 'variance':
           return (a.variance - b.variance) * dir;
+        case 'contract_reference':
+          return (
+            (a.contract_reference ?? '').localeCompare(
+              b.contract_reference ?? '',
+            ) * dir
+          );
+        case 'contract_end':
+          // YYYY-MM strings sort lexicographically as dates; missing values
+          // sort to the end regardless of direction.
+          return (
+            (a.contract_end ?? '').localeCompare(b.contract_end ?? '') * dir
+          );
+        case 'open_po':
+          return ((a.open_po ?? 0) - (b.open_po ?? 0)) * dir;
+        case 'remaining_not_invoiced':
+          return (
+            ((a.remaining_not_invoiced ?? 0) -
+              (b.remaining_not_invoiced ?? 0)) *
+            dir
+          );
         default:
           return 0;
       }
@@ -99,7 +149,13 @@ export function VendorBreakdownTable({
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortKey(key);
-      setSortDir(key === 'vendor' ? 'asc' : 'desc');
+      // Text columns default to ascending; numeric columns to descending.
+      const ascByDefault =
+        key === 'vendor' ||
+        key === 'role' ||
+        key === 'contract_reference' ||
+        key === 'contract_end';
+      setSortDir(ascByDefault ? 'asc' : 'desc');
     }
   }
 
@@ -214,13 +270,44 @@ export function VendorBreakdownTable({
                 align="right"
               />
               <TableHead className="text-right w-20">POs</TableHead>
+              {/* v5.1 C-09 — four new vendor columns */}
+              <SortHead
+                current={sortKey}
+                dir={sortDir}
+                k="contract_reference"
+                toggle={toggleSort}
+                label="Contract ref."
+              />
+              <SortHead
+                current={sortKey}
+                dir={sortDir}
+                k="contract_end"
+                toggle={toggleSort}
+                label="Contract end"
+              />
+              <SortHead
+                current={sortKey}
+                dir={sortDir}
+                k="open_po"
+                toggle={toggleSort}
+                label="Open PO"
+                align="right"
+              />
+              <SortHead
+                current={sortKey}
+                dir={sortDir}
+                k="remaining_not_invoiced"
+                toggle={toggleSort}
+                label="Remaining not invoiced"
+                align="right"
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedVendors.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={13}
                   className="text-center text-xs text-muted-foreground py-8"
                 >
                   No vendors match the current filter.
@@ -281,11 +368,24 @@ export function VendorBreakdownTable({
                       <TableCell className="text-right tabular-nums">
                         {v.po_count}
                       </TableCell>
+                      {/* v5.1 C-09 — four new vendor columns */}
+                      <TableCell className="text-xs text-muted-foreground">
+                        {v.contract_reference ?? '—'}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground tabular-nums">
+                        {formatContractEnd(v.contract_end)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatCurrency(v.open_po ?? 0)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatCurrency(v.remaining_not_invoiced ?? 0)}
+                      </TableCell>
                     </TableRow>
                     {isOpen && (
                       <TableRow className="bg-muted/30">
                         <TableCell />
-                        <TableCell colSpan={8} className="py-3">
+                        <TableCell colSpan={12} className="py-3">
                           <dl className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-1 text-xs">
                             <div>
                               <dt className="text-muted-foreground">
