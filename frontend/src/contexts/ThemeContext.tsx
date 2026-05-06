@@ -30,7 +30,10 @@ function resolveTheme(theme: Theme): ResolvedTheme {
 }
 
 function applyTheme(resolved: ResolvedTheme) {
-  document.documentElement.classList.toggle('dark', resolved === 'dark');
+  const el = document.documentElement.classList;
+  // Always in liquid-glass mode — toggle dark for the dark glass variant
+  if (!el.contains('liquid-glass')) el.add('liquid-glass');
+  el.toggle('dark', resolved === 'dark');
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

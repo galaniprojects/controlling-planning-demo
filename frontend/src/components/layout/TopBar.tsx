@@ -16,7 +16,7 @@ export function TopBar() {
   const { resolvedTheme, setTheme } = useTheme();
 
   return (
-    <header className="sticky top-0 z-50 h-14 border-b border-border bg-card px-6 flex items-center justify-between">
+    <header className="sticky top-0 z-50 h-14 border-b border-border bg-card px-6 flex items-center justify-between glass-surface">
       <div className="flex items-center gap-2">
         <button
           onClick={() => navigate('/')}
@@ -30,7 +30,7 @@ export function TopBar() {
         <button
           onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
           className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-          title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={resolvedTheme === 'dark' ? 'Switch to light glass' : 'Switch to dark glass'}
         >
           {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
