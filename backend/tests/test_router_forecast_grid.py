@@ -348,3 +348,48 @@ class TestForecastGrid:
             headers=HEADERS_CTRL,
         )
         assert resp.status_code == 422
+
+    # -----------------------------------------------------------------
+    # v5.1 W4 C-06 / C-07 — vendor breakdown query param threading
+    # -----------------------------------------------------------------
+
+    def test_grid_endpoint_threads_vendor_breakdown_flag(
+        self, test_client, seed_personas, create_test_project, db,
+    ):
+        """The router accepts include_vendor_breakdown and the response
+        carries sub_rows on external rows when the flag is True (default)
+        and omits them when explicitly set to False.
+        """
+        from models.financial import Forecast
+        self._make_project_with_forecast(db, seed_personas, create_test_project)
+        # Add an external Forecast row so there's something for the
+        # vendor breakdown to chew on.
+        db.add(Forecast(
+            project_id="proj-alpha", month="2026-04", category="external",
+            sub_category="ect-cloud", amount_eur=4000.0,
+            vendor="AWS", po_number="PO-1",
+        ))
+        db.commit()
+
+        # Default — flag True → external rows carry sub_rows
+        resp = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        ext_rows = [r for r in data["rows"] if r["category"] == "external"]
+        assert len(ext_rows) == 1
+        assert ext_rows[0].get("sub_rows") is not None
+        assert any(s["vendor"] == "AWS" for s in ext_rows[0]["sub_rows"])
+
+        # Explicit False → sub_rows absent (or null)
+        resp2 = test_client.get(
+            "/api/projects/proj-alpha/forecast/grid?include_vendor_breakdown=false",
+            headers=HEADERS_CTRL,
+        )
+        data2 = resp2.json()
+        ext_rows2 = [r for r in data2["rows"] if r["category"] == "external"]
+        assert len(ext_rows2) == 1
+        # Pydantic excludes None by default — accept both None and missing
+        assert ext_rows2[0].get("sub_rows") in (None, [])

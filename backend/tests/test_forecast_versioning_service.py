@@ -666,12 +666,18 @@ class TestBuildMixedGridSubRowsDefault:
             assert "sub_rows" not in row
             assert "role_name" not in row
 
-    def test_flags_on_with_stub_collectors_attach_empty_sub_rows(
+    def test_flags_on_attach_sub_rows(
         self, db, seeded_project, horizon_params,
     ):
-        """When the flags ARE set, the stubs return empty sub_rows so the
-        response shape is stable. Teammates A/B fill the bodies without
-        touching this contract.
+        """When the flags ARE set, the per-row collectors attach sub_rows.
+
+        Internal rows go through Teammate A's _collect_person_breakdown
+        (still stub at the time this test was first wired; left as
+        ``[]`` here so the assertion stays loose for whatever Teammate A
+        ships). External rows go through Teammate B's
+        _collect_vendor_breakdown (this commit) — sub_rows present, with
+        EUR-only cells and no role_name (seeded_project has vendor=None
+        and role_type_id=None on its external Forecast rows).
         """
         grid = build_mixed_grid(
             db, "proj-alpha", "2026-04",
@@ -680,12 +686,185 @@ class TestBuildMixedGridSubRowsDefault:
         )
         for row in grid["rows"]:
             if row["category"] == "internal":
-                # C-05 stub → empty list
-                assert row.get("sub_rows") == []
+                assert row.get("sub_rows") is not None
             elif row["category"] == "external":
-                # C-06 stub → empty list, role_name still null
-                assert row.get("sub_rows") == []
+                # C-06 active — vendor sub-rows materialised
+                sub_rows = row.get("sub_rows")
+                assert sub_rows is not None
+                assert len(sub_rows) >= 1
+                # seeded_project external rows have vendor=None →
+                # buckets under "Unspecified"
+                assert sub_rows[0]["vendor"] == "Unspecified"
+                # No role_type_id on the seed → role_name None
                 assert row.get("role_name") is None
+
+
+# ---------------------------------------------------------------------------
+# 4b. Vendor breakdown (v5.1 W4 C-06 / C-07)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def seeded_vendor_project(db):
+    """Insert a project with role-tagged + role-mixed external Forecast rows.
+
+    Two cost types ('ext-consulting', 'ext-cloud') × multiple vendors,
+    POs, and roles so the C-06 grouping rule (vendor, po_number,
+    role_type_id) gets exercised. Two distinct roles on the consulting
+    rows verify the C-07 mixed-role parent-fallback rule.
+    """
+    from models.financial import Actuals, Baseline, Forecast
+    from models.organization import Location, CompetenceCenter, CostCenter
+    from models.people import RoleType, Person
+    from models.projects import Project
+
+    db.add_all([
+        Location(id="loc-muc", city="Munich", country="Germany"),
+        CompetenceCenter(id="comp-bso", name="BSO"),
+        CostCenter(
+            id="cc-muc-bso", name="Munich BSO",
+            location_id="loc-muc", competence_center_id="comp-bso",
+        ),
+        RoleType(id="role-sr-arch", name="Senior Solution Architect"),
+        RoleType(id="role-data-eng", name="Data Engineer"),
+        Person(
+            id="p-ctrl", name="Anna Meier", role_type_id="role-sr-arch",
+            cost_center_id="cc-muc-bso", competence_center_id="comp-bso",
+        ),
+        Project(
+            id="proj-vendor", name="Vendor Test Project",
+            status="active", capex_opex="capex",
+            start_month="2026-04", is_service=False, is_active=True,
+        ),
+    ])
+    db.commit()
+
+    # ext-consulting: 2 distinct roles (mixed → parent role_name None)
+    # Accenture row → role-sr-arch
+    # Thoughtworks row → role-data-eng
+    for month in ["2026-04", "2026-05", "2026-06"]:
+        db.add(Forecast(
+            project_id="proj-vendor", month=month, category="external",
+            sub_category="ext-consulting", amount_eur=10000.0,
+            vendor="Accenture", po_number=f"PO-A-{month}",
+            role_type_id="role-sr-arch", capex_opex="capex",
+        ))
+        db.add(Forecast(
+            project_id="proj-vendor", month=month, category="external",
+            sub_category="ext-consulting", amount_eur=4000.0,
+            vendor="Thoughtworks", po_number="PO-T-001",
+            role_type_id="role-data-eng", capex_opex="capex",
+        ))
+
+    # ext-cloud: single role (Snowflake / role-sr-arch) → unique role_name
+    # Three distinct POs to confirm po_number differentiates sub-rows.
+    for idx, month in enumerate(["2026-04", "2026-05", "2026-06"]):
+        db.add(Forecast(
+            project_id="proj-vendor", month=month, category="external",
+            sub_category="ext-cloud", amount_eur=5000.0,
+            vendor="Snowflake", po_number=f"PO-S-{idx}",
+            role_type_id="role-sr-arch", capex_opex="capex",
+        ))
+
+    # Baseline + Actuals on Accenture (no PO, since baseline lacks po_number)
+    for month in ["2026-04", "2026-05"]:
+        db.add(Baseline(
+            project_id="proj-vendor", month=month, category="external",
+            sub_category="ext-consulting", amount_eur=9500.0,
+            vendor="Accenture", role_type_id="role-sr-arch",
+            capex_opex="capex",
+        ))
+    db.add(Actuals(
+        project_id="proj-vendor", month="2026-04", category="external",
+        sub_category="ext-consulting", amount_eur=9800.0,
+        vendor="Accenture", role_type_id="role-sr-arch",
+        capex_opex="capex",
+    ))
+
+    db.commit()
+    return {"project_id": "proj-vendor"}
+
+
+class TestVendorBreakdown:
+    """v5.1 W4 C-06 / C-07 — _collect_vendor_breakdown via build_mixed_grid."""
+
+    def test_vendor_breakdown_off_when_flag_false(
+        self, db, seeded_vendor_project, horizon_params,
+    ):
+        """Without include_vendor_breakdown, external rows carry no sub_rows."""
+        grid = build_mixed_grid(db, "proj-vendor", "2026-04")
+        for row in grid["rows"]:
+            if row["category"] == "external":
+                assert "sub_rows" not in row
+                assert "role_name" not in row
+
+    def test_vendor_breakdown_aggregates_to_parent(
+        self, db, seeded_vendor_project, horizon_params,
+    ):
+        """Sum of sub-row cells per column == parent row cells per column."""
+        grid = build_mixed_grid(
+            db, "proj-vendor", "2026-04",
+            include_vendor_breakdown=True,
+        )
+        # Find the consulting external row
+        ext_consulting = next(
+            r for r in grid["rows"]
+            if r["category"] == "external" and r["sub_category"] == "ext-consulting"
+        )
+        sub_rows = ext_consulting["sub_rows"]
+        assert len(sub_rows) >= 2  # Accenture + Thoughtworks groups
+        # For each column the sub-row cells must sum to the parent cell
+        for col_idx, parent_cell in enumerate(ext_consulting["cells"]):
+            sub_total = round(
+                sum(sub["cells"][col_idx]["amount_eur"] for sub in sub_rows),
+                2,
+            )
+            assert sub_total == round(parent_cell["amount_eur"], 2), (
+                f"column {parent_cell['key']}: parent={parent_cell['amount_eur']} "
+                f"sub_total={sub_total}"
+            )
+
+    def test_vendor_breakdown_groups_by_vendor_po_role(
+        self, db, seeded_vendor_project, horizon_params,
+    ):
+        """Snowflake has 3 distinct POs across 3 months → 3 distinct sub-rows."""
+        grid = build_mixed_grid(
+            db, "proj-vendor", "2026-04",
+            include_vendor_breakdown=True,
+        )
+        ext_cloud = next(
+            r for r in grid["rows"]
+            if r["category"] == "external" and r["sub_category"] == "ext-cloud"
+        )
+        sub_rows = ext_cloud["sub_rows"]
+        # All 3 sub-rows should be Snowflake / role-sr-arch / different PO
+        snowflake_rows = [s for s in sub_rows if s["vendor"] == "Snowflake"]
+        assert len(snowflake_rows) == 3
+        po_numbers = {s["po_number"] for s in snowflake_rows}
+        assert po_numbers == {"PO-S-0", "PO-S-1", "PO-S-2"}
+        for s in snowflake_rows:
+            assert s["role_type_id"] == "role-sr-arch"
+
+    def test_external_row_role_name_unique_vs_mixed(
+        self, db, seeded_vendor_project, horizon_params,
+    ):
+        """role_name populated when single role; null when multiple."""
+        grid = build_mixed_grid(
+            db, "proj-vendor", "2026-04",
+            include_vendor_breakdown=True,
+        )
+        ext_consulting = next(
+            r for r in grid["rows"]
+            if r["category"] == "external" and r["sub_category"] == "ext-consulting"
+        )
+        # Two distinct roles (sr-arch + data-eng) → mixed → None
+        assert ext_consulting["role_name"] is None
+
+        ext_cloud = next(
+            r for r in grid["rows"]
+            if r["category"] == "external" and r["sub_category"] == "ext-cloud"
+        )
+        # Single role on all rows → name populated
+        assert ext_cloud["role_name"] == "Senior Solution Architect"
 
 
 # ---------------------------------------------------------------------------
