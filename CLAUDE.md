@@ -107,7 +107,7 @@ Four personas, each with different access and capabilities:
 | **Controller** | Anna Meier | Full access. Approves/rejects intakes and CRs, manages admin settings, creates scenarios |
 | **CC Owner** | Thomas Brenner | Confirms/declines resource requests for their cost center, proposes counter-offers |
 | **Project Lead** | Priya Sharma | Creates projects, submits forecasts via wizard, requests resources. Sees only own projects |
-| **Executive** | Thomas Becker | Read-only portfolio and reports, creates/compares what-if scenarios |
+| **Executive** | Dr. Klaus Weber | Read-only portfolio and reports, creates/compares what-if scenarios |
 
 Role is resolved from `X-Current-User` header → `DemoPersona` table → `CurrentUser` context. Access enforced via `require_role()` dependency.
 

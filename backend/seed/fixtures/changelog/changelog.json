@@ -1,5 +1,41 @@
 [
   {
+    "version": "v5.1",
+    "date": "2026-05-06",
+    "title": "Six-wave demo polish — bug fixes, F&P grid overhaul, External Costs tab, module-launch Launchpad",
+    "summary": "v5.1 closes a 16-item punch list (5 bug fixes, 2 seed enrichments, 9 features) surfaced during post-v5 testing. Six waves landed across early May 2026, one wave per session with a PR review gate between each. Highlights: collapsible year columns and three-point Baseline / Forecast / Actuals cells on the Forecast & Planning grid; milestone phase highlighting + a comparison chart anchored below the grid; row expansion to per-employee and per-vendor sub-rows; a wholesale External Costs tab overhaul (new monthly grid + 6-up KPI strip + extended vendor table + delivery / invoice expansion); and a final Launchpad revert from the role-personalised KPI tile grid to a fixed 3-column module-launch card grid.",
+    "sections": [
+      {
+        "title": "Wave 1 — Bug fixes + seed enrichment (A-01..A-05, B-01, B-02)",
+        "body": "Five back-button + access-control bug fixes: Run Portfolio drill-out, Backlog detail tabs, Variance Waterfall column overlap, Portfolio External Spend back-to-dashboard, and Charging & Allocations role gate (Controller now has full access, others read-only per `[A-05]`). Backlog seed expanded with richer Tech Navigator scoring + DoI distribution (B-01); project time horizons extended through 2029 (B-02) so multi-year features have data to render against."
+      },
+      {
+        "title": "Wave 2 — F&P grid foundation (C-02 + C-08)",
+        "body": "Two grid foundation changes that subsequent waves layered on top of:\n- **Collapsible year columns** (C-02). Years collapse to a single sum cell; current year expanded by default. Persistent across role switches.\n- **Three-point cells** (C-08). Inner-zone monthly cells now stack Baseline / Forecast / Actuals values rather than just forecast. Past-month cells respect the demo date with a warm-tint overrun indicator."
+      },
+      {
+        "title": "Wave 3 — Phase highlighting + comparison chart (C-03 + C-04)",
+        "body": "- **Milestone phase highlighting** (C-03). The F&P grid renders milestone phases as a sticky header strip below the year/month rows, with per-column tinting and a slip indicator (gray triangle + red line for slipped phases).\n- **Three-point comparison chart** (C-04). Sits directly below the grid in lockstep horizontal scroll; renders the same Baseline / Forecast / Actuals series visualised as lines.\n- **Lookback follow-up.** Fixed a Wave 2 deferred issue: past months were missing from the grid columns; backend `build_mixed_grid` now accepts `lookback_months` (default 12) so all the new features have past data to render."
+      },
+      {
+        "title": "Wave 4 — Row expansions + role on external costs (C-05 + C-06 + C-07)",
+        "body": "- **Internal resource row expansion** (C-05). Click an internal-resource line in the F&P grid to drill into per-employee sub-rows showing assigned hours and EUR per month.\n- **External resource row expansion** (C-06). Click an external-cost line to drill into per (vendor, PO, role) sub-rows.\n- **Resource roles on external costs** (C-07). Nullable `role_type_id` FK added to `Baseline` / `Forecast` / `Actuals`; F&P grid label reads `[Category] — [Role Name]`; External Costs tab gains a Role column + filter; Capacity heatmap gains an External row with FTE-equivalent."
+      },
+      {
+        "title": "Wave 5 — External Costs tab overhaul (C-09)",
+        "body": "Largest item in v5.1 — wholesale External Costs tab redesign:\n- **New monthly grid** as the primary view: vendor × month grid with stacked 4-line cells (Forecast / Actuals / Accrual / PO-Obligo) and procurement status badges; sticky-right metadata band (Role / PO # / Contract end / Status / Open PO); year columns expand and collapse.\n- **6-up KPI strip** (was 4): added Remaining Not Invoiced and Accruals; Open POs is now currency rather than a count.\n- **Extended vendor table** with 4 new sortable columns: Contract reference / Contract end / Open PO / Remaining not invoiced.\n- **Row expansion** shows delivery schedule + invoice history as side-by-side `<dl>` blocks.\n- **Canonical 6-value `ext_status` lifecycle**: `planned` / `ordered` / `goods_received` / `invoiced` / `accrual` / `open` (sed remap from earlier vocabulary)."
+      },
+      {
+        "title": "Wave 6 — Launchpad revert to module-launch cards (C-01)",
+        "body": "Replaces the role-personalised KPI tile grid (7–9 tiles per persona) with a fixed 3-column **module-card grid** that doubles as the primary navigation entry. Each card shows a Lucide icon, module name, one-line description, and 1–2 role-differentiated subtitle KPIs (e.g. Workbench reads 'Forecast cycle: Q2 2026 Cycle · 4 projects overdue' for the Controller, 'Your 5 projects' for the PL, '5 projects in your CC' for the CC Owner).\n\nCard counts per role: Controller 9 / PL 8 / CC Owner 7 / Executive 6. Cards inaccessible to the current role are hidden entirely. The legacy `GET /api/launchpad/tiles` endpoint and its `_build_tiles_for_*` per-role builders were retired; subtitle KPIs are computed live and served via `GET /api/modules` with a new `subtitle_kpis: string[]` field."
+      },
+      {
+        "title": "Verification numbers",
+        "body": "Backend pytest: **1554 passing** at v5.1 close (W5 baseline 1547 − 23 retired tile tests + 30 new module-subtitle-KPI tests). Frontend `tsc --noEmit`: 0 errors. Visual verification screenshots for each wave live under `qa/screenshots/wave-N-*/` (gitignored)."
+      }
+    ]
+  },
+  {
     "version": "v5.0",
     "date": "2026-05-01",
     "title": "Polymorphic ChargeableEntity, two-stage cost flow, configurable hierarchy",

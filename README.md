@@ -142,7 +142,7 @@ Four personas are available via the role switcher in the top-right corner:
 | **Anna Meier** | Controller | Full access — all modules, admin, approvals, scenarios |
 | **Thomas Brenner** | CC Owner | Capacity management, portfolio dashboard |
 | **Priya Sharma** | Project Lead | Project workbench, forecast cycles, intake submission |
-| **Thomas Becker** | Executive | Portfolio dashboard, scenarios (read-only) |
+| **Dr. Klaus Weber** | Executive | Portfolio dashboard, scenarios (read-only) |
 
 ---
 
@@ -163,17 +163,19 @@ Four personas are available via the role switcher in the top-right corner:
 
 ```
 vision-demo-prototype/
-├── backend/              # FastAPI API (90+ endpoints across 9 routers)
+├── backend/              # FastAPI API (200+ endpoints across ~22 routers)
 │   ├── models/           # SQLAlchemy ORM models
 │   ├── routers/          # Route handlers
-│   ├── schemas/          # Pydantic request/response schemas
-│   └── seed/             # seed.sql + JSON fixtures
+│   ├── schemas/          # Pydantic v2 request/response schemas
+│   ├── services/         # Business logic (calculations, forecasting, BTC, scenarios, ...)
+│   └── seed/             # seed.sql + JSON fixtures (manuals / FAQ / changelog / advisor goals)
 ├── frontend/             # React SPA
-│   ├── src/modules/      # 7 module UIs
-│   ├── src/components/   # Shared components (layout, ui, charts)
-│   └── src/contexts/     # React contexts (Role, SidePanel, BottomDrawer)
+│   ├── src/modules/      # 10 module UIs (launchpad, portfolio, workbench, capacity, simulator, reporting, admin, charging, docs, backlog)
+│   ├── src/components/   # Shared components (shared, layout, ui, charts)
+│   └── src/contexts/     # React contexts (Theme, Role, SidePanel, BottomDrawer)
 ├── qa/                   # Quality assurance
-│   └── test-plan.md      # E2E regression test plan (138 scenarios)
+│   ├── test-plan.md      # E2E regression test plan (198 scenarios across 15 suites)
+│   └── screenshots/      # Visual verification artefacts (gitignored)
 ├── docs/                 # Documentation assets
 ├── start.sh              # One-command launcher
 ├── SETUP.md              # Detailed setup guide
@@ -437,11 +439,13 @@ The CC Owner assigns specific employees to resource requests before confirming t
 
 ## Demo Context
 
-- **Demo date:** March 2026
+- **Demo date:** April 2026 — all time-dependent logic (actuals cutoffs, forecast boundaries, elapsed-month tinting) keys off this date
 - **Currency:** EUR with European formatting (dot thousands, comma decimals)
 - **Data range:** FY 2021 through FY 2029
-- **Projects:** 32 across 4 Lines of Business
-- **People:** ~52 active across 10 cost centres in 3 locations
+- **Chargeable entities:** 34 total — 11 Projects (incl. 2 Run-stage at DoI 5) + 6 Offerings + 17 Internal Services (v5 polymorphic ChargeableEntity model)
+- **Demo flagship:** Master Data Hub (`off-mdh` / S-code S042) — touches every v5 surface in one walk: Stage 1 distribution chain, automatic-mode BTC, Workbench tile grid, Charging rollup map, simulator Lever-12 rebalance scenario
+- **Hierarchy:** configurable n-level via `GroupingEntity`; demo seed renders 4 top-level Lines of Business (TBS, RVS, Corporate IT, Digital & Data)
+- **People:** ~52 active across 10 cost centres in 3 locations (Munich, Budapest, Pune)
 
 ---
 
@@ -459,6 +463,6 @@ Or use the "Reset Demo" button in the Administration module.
 
 ## QA & Testing
 
-A comprehensive regression test plan lives in [`qa/test-plan.md`](qa/test-plan.md) — 138 scenarios across 10 test suites covering all modules, personas, and features.
+A comprehensive regression test plan lives in [`qa/test-plan.md`](qa/test-plan.md) — 198 scenarios across 15 test suites covering all modules, personas, and features. Backend unit tests (`python -m pytest tests/ -v`) cover the API surface — 1554 tests passing as of v5.1 Wave 6.
 
 ---
