@@ -1,5 +1,73 @@
 # CRETA Demo — Build Progress
 
+## v5.2 Implementation — wave status
+
+Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative spec). Execution sequencing: `guides/Capacity_Module_Redesign_Implementation_Guide.md` (14 sessions across 5 phases). Plan: 6 waves, one PR per wave, fresh planning session per wave, user-review gate between each. Agent teams used within each wave for max parallelism.
+
+- [x] **Wave 1** — Capacity backend foundation (S1): schema relaxation + `CapacityActionLog` table + 4 new endpoints (`/dashboard/forecast`, `/dashboard/headcount-breakdown`, `/dashboard/hotspots`, `/history`) + 2 enhanced endpoints (role-availability with `competing_demand_count` + `location_summary`; assignments PUT with multi-person body shape) + audit log writes wired into 4 mutating handlers + seed enrichment per spec §1 acceptance criteria — branch `feat/v5_2-capacity-foundation` (PR pending)
+- [ ] **Wave 2** — Frontend workspace shell (S2): routes, ScopeBar, workspace skeleton, SidePanel width parameterization
+- [ ] **Wave 3** — Core surfaces (S3+S4+S5a+S5b, 4-teammate team): timeline + KPIs/filters/demand strip + side panel + inbox/history page
+- [ ] **Wave 4** — Complex features (S6a+S7+S8, 3-teammate team): assignment panel + dashboard layer + PL availability view
+- [ ] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification
+- [ ] **Wave 6** — Integration + polish (S11+S12): cross-cutting integration + edge cases + a11y + perf
+
+### v5.2 Wave 1 — Capacity foundation (2026-05-07)
+
+Branch: `feat/v5_2-capacity-foundation`. Closes Implementation Guide Session 1 — backend foundation only, no frontend work.
+
+**Lead pre-work (`447e27f`):**
+- Stub files: `backend/services/capacity_dashboard.py`, `backend/services/capacity_audit.py`, `backend/seed/generate_seed_v5/s22_v5_2_capacity_seed.py`.
+- Pre-verified zero `(resource_request_id, month, person_id)` duplicates in current seed (38 rows / 38 distinct triples) so Teammate A's constraint relaxation is a safe migration.
+
+**Teammate A — `sql-pro` (`a81b5c5` / `14d7c53`):**
+- Relaxed `uq_rra_request_month` → `uq_rra_request_month_person` `(resource_request_id, month, person_id)` per spec §9.5.
+- Added `CapacityActionLog` SQLAlchemy model in `models/capacity.py` with 4 composite indexes (`ix_capacity_action_log_user`, `ix_capacity_action_log_project`, `ix_capacity_action_log_cc`, `ix_capacity_action_log_time`). Registered in `models/__init__.py`.
+
+**Teammate B — `fastapi-developer` (5 commits, `0c38816` / `b40a89b` / `99da8aa` / `8b4b29e`):**
+- NEW `services/capacity_dashboard.py` (~640 LOC) — `compute_dashboard_forecast`, `compute_headcount_breakdown`, `compute_hotspots`. Reuses `compute_utilization_pct`, `add_months`, `generate_month_range`, `get_standard_hours` from `services/calculations.py`. Scope vocabulary: `all | location:<id> | hierarchy:<id> | cost_center:<id>`.
+- NEW `services/capacity_audit.py` — `log_capacity_action()` helper writing to `CapacityActionLog`. Mirrors the `routers/admin._log_audit()` pattern (no-commit, caller commits). `ACTION_TYPES` tuple exported for type-checking.
+- NEW endpoints in `routers/capacity.py`: `GET /api/capacity/dashboard/{forecast,headcount-breakdown,hotspots}` (Controller / CC Owner / Executive; PL → 403). `GET /api/capacity/history` with server-side scope enforcement per spec §12.14 (Controller all; CCO own CC; Exec all read; PL → 403).
+- Enhanced `GET /api/capacity/role-availability`: added `competing_demand_count` per (role, location, month) excluding the requesting PL's own projects; added top-level `location_summary` array when `location_id` omitted (per spec §13.10).
+- Enhanced `PUT /api/capacity/requests/{cc}/{rid}/assignments`: accepts new body shape `[{month, assignments: [{person_id, hours}]}]` per spec §9.5; backward-compatible with the legacy single-person body.
+- Wired `log_capacity_action()` into 4 existing mutating handlers per spec §12.10: project-confirmation/confirm (`confirm` or `partial_confirm`), project-confirmation/decline (`decline`), requests/assignments PUT (`assign_draft`), requests/partially-fulfill (`partial_confirm`).
+
+**Teammate C — `fastapi-developer` (3 commits, `c227985` / `b621811`):**
+- Enriched `s14_allocations.py`: `proj-autobrake` intake fans out to 3 cost centers (cc-muc-apd / cc-bud-apd / cc-pun-apd) via RR 110 / 111 / 112 — satisfies (i) ≥3 pending requests across ≥2 role types and ≥2 CCs, and (ii) ≥1 project with multi-CC fan-out per spec §12.6.
+- Enriched `s15_change_requests.py`: emit two CR-triggered re-confirmation rows with `change_direction='increase'` (RR 120 → CR #9 sr-dev MUC 100→120h; RR 121 → CR #15 ext-cloud 0→5000 EUR) per spec §9.8 / §12.5.
+- NEW `s22_v5_2_capacity_seed.py` (~530 LOC, `random.seed(522)`): 8 `CapacityActionLog` rows spanning 6 action_types (within last 30 days from 2026-04-15), and 1 multi-person assignment example (RR 102 split p-schmidt 60h / p-bauer 40h across 2026-06 → 2026-08). Verifies the relaxed constraint via concrete rows.
+- Regenerated `seed.sql` end-to-end (s01–s20) → append s21 v5.1 W5 → append s22.
+
+**Teammate D — `test-writer` (`7a5c228`):**
+- 5 new test files (1777 LOC): `test_router_capacity_dashboard.py`, `test_router_capacity_history.py`, `test_capacity_audit_log.py`, `test_router_capacity_assignments_multiperson.py`, `test_router_capacity_role_availability_v52.py`. Coverage: shape, role gating (Controller/Exec/CCO 200, PL 403), scope filtering, empty state, hotspot severity ranking + all 3 categories, history pagination + scope enforcement, audit-log writes per action type, multi-person body + legacy body backward compat, `competing_demand_count` PL-own-project exclusion + `location_summary`.
+
+**Lead simplify cleanup (`c14b49f`):**
+- High: dropped unreachable `reassign` action_type (no call site emitted it; spec §12.10 vocabulary is the 6-value set); replaced lazy `_resolve_log_model()` scaffolding in `capacity_audit.py` with top-level import; same in `routers/capacity.py::get_capacity_history`.
+- Medium: pre-fetch CC→location map in `compute_hotspots` (eliminates per-person query in chronic-under-util loop); collapsed two-pass best_run computation into single linear walk; renamed indexes `idx_*` → `ix_*` per existing convention; corrupt JSON in detail_payload now logged via `logger.warning` instead of silently nulled.
+- Low: dropped unused imports (`Forecast`, `and_`, `or_`); removed redundant `cc_to_location_full` alias; moved `import json` to module top-level; stripped "Teammate A/B" narrative comments.
+
+**Verification:**
+- pytest 1630 passed (W6/v5.1 baseline 1554 + 76 new W1 tests). 0 failures.
+- All 6 changed/new endpoints curl-smoke-verified end-to-end after `mv backend/creta_demo.db ...preW1-postintegration` reset:
+  * `/dashboard/forecast?scope=all` → 200, 12-month time series with `available_hours`, `allocated_hours`, `demand_hours` per month
+  * `/dashboard/headcount-breakdown?scope=all&dimension=location` → 200, 3 locations (BUD/MUC/PUN) with counts + avg utilization
+  * `/dashboard/hotspots?scope=all&limit=5` → 200, 5 entries spanning 2 categories (`unfulfilled_demand`, `under_utilization` — including S. Braun chronic 0% for 7 months from the seed scenario)
+  * `/history?page=1&page_size=5` as Controller → 200, all 8 seeded `CapacityActionLog` rows visible across 6 action_types
+  * `/history` as PL → 403 with "Role 'project_lead' not permitted"
+  * `/role-availability` as PL → 200 with `competing_demand_count` per row + top-level `location_summary` array of 3 locations
+- Seed verification queries: 8 CapacityActionLog rows / 6 distinct action_types / 3 multi-person assignment rows (RR 102 across 3 months) / 5 external_cost requests / proj-autobrake fan-out across 3 CCs / 3 distinct CCs and 5 distinct role types in pending requests / S. Braun (`p-braun`) has zero allocation rows for 2026-04 → 2026-10 (7 consecutive zero-util months as designed).
+- `simplify` skill: 3 reviewers ran in parallel (reuse, quality, efficiency); 8 fixes applied in a single cleanup commit; deferred items flagged below.
+- `security-review` skill: 6 candidate findings surfaced, all filtered below confidence-8 threshold (pre-existing concerns out of PR scope per skill instructions, "lack of audit logs" hard exclusion, documented design intent for CC Owner dashboard access). 0 actionable findings.
+
+**DB ritual:** Schema change requires `rm backend/creta_demo.db` (or `mv` to a backup) after pulling the branch — no Alembic in this codebase. PR description must call this out (per `project_schema_migration.md` memory).
+
+**Out of scope (deferred to follow-up):**
+- Extract `_quote` / `_load_seed_into_memory` / `_seed_path` to `seed/generate_seed_v5/_common.py` (s21 + s22 currently copy-paste; medium severity; defer until a third generator copies the pattern).
+- Add `ActionType` / `HotspotCategory` Literals to `schemas/capacity.py` (currently plain `str`; existing pattern in `schemas/external_costs.py:23` uses Literal).
+- Subclass `schemas.common.PaginatedResponse` for the 3 new list-with-metadata response shapes (`DashboardForecastResponse`, `HeadcountBreakdownResponse`, `HotspotResponse`, `CapacityHistoryResponse`).
+- Consolidate persona-X-Current-User fixtures into `conftest.py` (5 test files repeat the same `HEADERS_CTRL/CCO/EXEC/PL` constants).
+- Collapse N+1 in `compute_headcount_breakdown` per-segment queries (medium severity, acceptable at demo scale; ~5 queries at current scope-pill density).
+- Make `detail_payload` `nullable=False` (every call site provides one — schema mismatch is currently latent).
+
 ## v5.1 Implementation — wave status
 
 Active spec: `guides/CRETA_v5_1_Change_Specification.md` (16 items: 5 bug fixes, 2 seed enrichments, 9 features). Plan: 6 waves, one wave per session, PR review gate between every wave. Agent teams used within each wave. v5 spec + impl guide archived to `docs_archive/`.
