@@ -269,7 +269,7 @@ Endpoints are grouped by domain:
 | Tech Navigator | `/api/projects` | Per-project Tech Navigator profile (read + partial update with score recompute) |
 | Pipeline | `/api/projects` | Pipeline stage + DoI transitions, AI Council flag, within-cutoff override |
 | Project Milestones | `/api/projects` | Milestone CRUD with controller-only baseline-edit gating |
-| Capacity | `/api/capacity` | Heatmap, drill-down, resource requests, role availability |
+| Capacity | `/api/capacity` | Heatmap, drill-down, resource requests, role availability, dashboard (forecast / headcount-breakdown / hotspots), audit history |
 | Scenarios | `/api/scenarios` | CRUD, actions, comparison, AI advisor, BTC sandbox, 8-dimension impact, anchor + rebase + archive, promote, apply-to-forecast |
 | Reports | `/api/reports` | Five standard reports, saved views, AI report builder |
 | Report Builder | `/api/report-builder` | Data catalogue, query execution, saved reports CRUD, share/publish, CSV export |
