@@ -30,6 +30,7 @@ from _utils import month_range, sql_str
 from generate_seed_v5.config.entities import PROJECTS
 from generate_seed_v5.config.financials import (
     ASSIGNMENT_OVERRIDES,
+    CHRONIC_UNDERUTIL_PEOPLE,
     FORECAST_ADJUSTMENTS,
     PROJECT_STAFFING,
 )
@@ -66,10 +67,17 @@ def generate() -> str:
     parts.append("-- =============================================================================")
 
     # --- Build people-by-role lookup (only people with a CC).
+    # v5.2 W1 [C]: people listed in CHRONIC_UNDERUTIL_PEOPLE are excluded from
+    # the candidate pool so they emerge from seed with zero allocations across
+    # the entire planning horizon — populates the chronic under-utilisation
+    # hotspot for the Capacity redesign acceptance criteria (§1).
     people_by_role: dict[str, list[dict]] = defaultdict(list)
     for p in PEOPLE:
-        if p["cc"] is not None:
-            people_by_role[p["role"]].append(p)
+        if p["cc"] is None:
+            continue
+        if p["id"] in CHRONIC_UNDERUTIL_PEOPLE:
+            continue
+        people_by_role[p["role"]].append(p)
     for role in people_by_role:
         people_by_role[role].sort(key=lambda x: x["id"])
 

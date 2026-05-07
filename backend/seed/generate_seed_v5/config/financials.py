@@ -334,18 +334,51 @@ FORECAST_ADJUSTMENTS: dict[str, dict] = {
 # ---------------------------------------------------------------------------
 ASSIGNMENT_OVERRIDES: dict[tuple[str, str], dict] = {
     # p-fischer over-allocation on proj-erp2 (troubled red project narrative).
-    # Shows ~106% utilisation in Mar-May 2026 on the heatmap.
+    # v5.2 W1 [C]: bumped 2026-04..06 from 110h to 165h (115% utilisation at
+    # MUC's 143h/month standard) so the over-allocation filter chip, hotspot
+    # list, and red-border summary bar have clear demo signal in the rolling
+    # next-12-months window from the 2026-04 demo date.
     ("p-fischer", "proj-erp2"): {
         "base_hours": 80,
-        "overrides": {"2026-03": 110, "2026-04": 110, "2026-05": 110},
+        "overrides": {
+            "2026-03": 110,
+            "2026-04": 165,
+            "2026-05": 165,
+            "2026-06": 165,
+        },
         "unconfirmed_range": ("2026-04", "2026-07"),
     },
     # p-szabo combined over-allocation across proj-mdh-rollout + proj-railsafety.
+    # v5.2 W1 [C]: bumped 2026-04..06 from 80h to 180h (120% utilisation at
+    # BUD's 150h/month standard) — second over-allocated person required by the
+    # Capacity redesign acceptance criteria (≥2 over-allocated people).
     ("p-szabo", "proj-mdh-rollout"): {
         "base_hours": 40,
-        "overrides": {"2026-03": 80, "2026-04": 80, "2026-05": 80},
+        "overrides": {
+            "2026-03": 80,
+            "2026-04": 180,
+            "2026-05": 180,
+            "2026-06": 180,
+        },
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# v5.2 W1 [C] — Chronic under-utilisation seed scenario.
+#
+# People listed here are EXCLUDED from the s14_allocations auto-fill candidate
+# pool, so they emerge from seed with zero allocation rows across the entire
+# planning horizon. This populates the chronic under-utilisation hotspot
+# scenario per the Capacity Module Redesign Spec §1 acceptance criteria
+# (≥1 person with 0% utilisation across 6+ consecutive months).
+#
+# Picked p-iyer (Kavitha Iyer, PUN jr-dev). Junior Developer is a sparsely
+# staffed role (only off-eunify / svc-euc-support / svc-itsm consume jr-dev
+# capacity), so excluding one of the four jr-devs does not starve any project.
+# The remaining hours redistribute to p-hoffmann / p-joshi / p-fekete.
+# ---------------------------------------------------------------------------
+CHRONIC_UNDERUTIL_PEOPLE: set[str] = {"p-iyer"}
 
 
 # ---------------------------------------------------------------------------
