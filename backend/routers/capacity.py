@@ -1742,7 +1742,59 @@ def get_role_availability(
             allocated_map.get(cell_key, 0.0) + float(row.total)
         )
 
-    # 4. Build response rows
+    # 4. Build (role, location, month) -> competing_demand_count map per §13.10.
+    #
+    # Per spec: "competing demand" = pending resource requests AT THIS
+    # role+location+month authored by a PL OTHER THAN the requesting PL.
+    # We resolve "this role+location" by walking the request's CC -> location
+    # so the count reflects the geographic context the PL would actually
+    # see when planning a new request.
+    pl_owned_project_ids: set[str] = set()
+    if _user.role == "project_lead":
+        pl_owned_project_ids = set(_user.project_ids or [])
+        # Fold in dynamically-assigned projects (Project.pl_person_id)
+        for p in db.query(Project.id).filter(
+            Project.pl_person_id == _user.person_id
+        ).all():
+            pl_owned_project_ids.add(p[0])
+
+    cc_to_location_full: dict[str, str] = cc_to_location  # alias for clarity
+
+    role_filter_set = (
+        {role_type_id} if role_type_id
+        else {role for (role, _loc) in cell_meta.keys()}
+    )
+    location_filter_set = (
+        {location_id} if location_id
+        else {loc for (_role, loc) in cell_meta.keys()}
+    )
+
+    competing_q = (
+        db.query(ResourceRequest)
+        .filter(
+            ResourceRequest.request_type == "resource",
+            ResourceRequest.status == "pending",
+            ResourceRequest.role_type_id.in_(role_filter_set),
+        )
+    )
+    competing_requests = competing_q.all()
+    if pl_owned_project_ids:
+        competing_requests = [
+            r for r in competing_requests if r.project_id not in pl_owned_project_ids
+        ]
+
+    competing_map: dict[tuple[str, str, str], int] = {}
+    for r in competing_requests:
+        loc_id_for_req = cc_to_location_full.get(r.cost_center_id, "")
+        if loc_id_for_req not in location_filter_set:
+            continue
+        for m in generate_month_range(r.period_start, r.period_end):
+            if m < month_from or m > month_to:
+                continue
+            key = (r.role_type_id, loc_id_for_req, m)
+            competing_map[key] = competing_map.get(key, 0) + 1
+
+    # 5. Build response rows
     standard = get_standard_hours(db)
     items: list[RoleAvailabilityRow] = []
     for (role_id, loc_id), meta in cell_meta.items():
@@ -1766,7 +1818,48 @@ def get_role_availability(
                 allocated_hours=round(allocated, 2),
                 available_hours=round(available, 2),
                 utilization_pct=util,
+                competing_demand_count=competing_map.get((role_id, loc_id, month), 0),
             ))
 
     items.sort(key=lambda r: (r.role_type_name, r.location_name, r.month))
-    return RoleAvailabilityResponse(items=items, total=len(items), months=months)
+
+    # 6. Optional location_summary[] per §13.10 (only when location_id omitted)
+    location_summary: list[LocationAvailabilitySummary] | None = None
+    if not location_id and items:
+        # Aggregate available % across (role × month) cells per location.
+        per_loc: dict[str, dict] = {}
+        for row in items:
+            entry = per_loc.setdefault(row.location_id, {
+                "name": row.location_name,
+                "person_ids": set(),
+                "avail_sum": 0.0,
+                "cap_sum": 0.0,
+            })
+            entry["avail_sum"] += row.available_hours
+            entry["cap_sum"] += row.standard_hours
+        # Headcount per location uses the seeded ``cell_meta`` person sets
+        # (counts each person once even if they appear under multiple roles —
+        # though our model is one role per person, so this is the natural count).
+        for (role_id, loc_id), meta in cell_meta.items():
+            if loc_id not in per_loc:
+                continue
+            per_loc[loc_id]["person_ids"].update(meta["person_ids"])
+
+        location_summary = []
+        for loc_id, agg in per_loc.items():
+            cap = agg["cap_sum"]
+            avail_pct = round(
+                (agg["avail_sum"] / cap) * 100, 1
+            ) if cap > 0 else 0.0
+            location_summary.append(LocationAvailabilitySummary(
+                location_id=loc_id,
+                location_name=agg["name"],
+                total_headcount=len(agg["person_ids"]),
+                avg_availability_pct=avail_pct,
+            ))
+        location_summary.sort(key=lambda e: e.location_name)
+
+    return RoleAvailabilityResponse(
+        items=items, total=len(items), months=months,
+        location_summary=location_summary,
+    )

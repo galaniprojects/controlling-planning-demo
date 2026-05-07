@@ -224,7 +224,7 @@ class LocationAvailabilitySummary(BaseModel):
 
     location_id: str
     location_name: str
-    headcount: int
+    total_headcount: int
     avg_availability_pct: float
 
 
