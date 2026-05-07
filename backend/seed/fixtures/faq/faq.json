@@ -84,7 +84,7 @@
       {"step_number": 1, "instruction": "Open the **Portfolio Overview** module from the Launchpad's **Pending Reviews** tile, or navigate directly to `/portfolio/approvals`.", "target_module": "portfolio"},
       {"step_number": 2, "instruction": "Select the **CR Approvals** tab. The queue lists pending CRs with columns: CR # / Project / Summary / Submitted By / Confirmed By / Impact / Date."},
       {"step_number": 3, "instruction": "Click a CR row to open the detail panel showing the line-item-level diff (each `CRChangeDetail` with old / new / delta), the CC Owner confirmation indicator, and the full justification text."},
-      {"step_number": 4, "instruction": "Review the impact on the project's forecast in EUR. Verify the CC has confirmed (the **Approve** button stays disabled until all CCs in scope have confirmed) — for Run-portfolio CRs (DoI 5 / Offerings / InternalServices) the CC step is skipped."},
+      {"step_number": 4, "instruction": "Review the impact on the project's forecast in EUR. Verify the CC has confirmed (the **Approve** button stays disabled until all CCs in scope have confirmed) — for Run-portfolio CRs (Stage 5 / Offerings / InternalServices) the CC step is skipped."},
       {"step_number": 5, "instruction": "Click **Approve** to write the deltas to the live forecast and snapshot a new ForecastVersion (`version_type='cr_approval'`). Click **Reject** with a required reason — PL is notified with the rationale. Click **Request Changes** to open an editable grid, modify specific cells, type commentary, and **Send Back to PL** — the PL sees an 'Action Required' badge in their Change History with the diff view (see `docs/workflows/04-change-requests.md` W04.4)."}
     ]
   },
@@ -308,18 +308,18 @@
   },
   {
     "id": "faq-v5-01",
-    "question": "How does a project move through the DoI lifecycle (0→5)?",
-    "summary": "DoI is the Degree of Implementation (0–5) tied to pipeline stage. Projects advance through controller-driven gates: 0 Proposed → 1 Under Evaluation early → 2 Under Evaluation late → 3 Approved/Active → 4 Hyper-maintenance → 5 Operate.",
+    "question": "How does a project move through the Stage lifecycle (0→5)?",
+    "summary": "Stage is the project lifecycle level (0–5) tied to pipeline stage. Projects advance through controller-driven gates: 0 Proposed → 1 Under Evaluation early → 2 Under Evaluation late → 3 Approved/Active → 4 Hyper-maintenance → 5 Operate.",
     "applicable_roles": ["controller", "project_lead", "executive"],
     "modules_involved": ["portfolio", "backlog", "workbench"],
     "steps": [
-      {"step_number": 1, "instruction": "**DoI 0 — Proposed**: PL submits a new project from the Backlog page (`+ New`). Lightweight metadata only; appears unranked at the bottom of the list.", "target_module": "backlog"},
-      {"step_number": 2, "instruction": "**DoI 0 → 1**: Controller opens the Backlog detail, marks AI Council approved (if AI-related), then clicks **Advance to DoI 1** on the Scores & Ranking tab."},
-      {"step_number": 3, "instruction": "**DoI 1 → 2**: PL completes Tech Navigator scoring and the business case; controller verifies the Master Data tab is all green-checked and clicks **Advance to DoI 2**."},
-      {"step_number": 4, "instruction": "**DoI 2 → 3 (Pitch Board)**: Controller clicks **Approve at Pitch Board** → confirms locking the baseline. Project becomes Approved/Active. The first ForecastVersion is captured."},
-      {"step_number": 5, "instruction": "**DoI 3 → Active stage**: Controller clicks **Mark Active** in the Workbench Overview header (label-only transition; DoI stays 3)."},
-      {"step_number": 6, "instruction": "**DoI 3 → 4 → 5**: Post-launch the project moves to Hyper-maintenance (DoI 4) then to Operate (DoI 5). DoI 5 entities leave the Backlog and join the Run Portfolio with `is_change_or_run='Run'`."},
-      {"step_number": 7, "instruction": "**Off-path**: Pause / Cancel freezes DoI in `frozen_doi`. The project stays visible but is excluded from cutoff calculations."},
+      {"step_number": 1, "instruction": "**Stage 0 — Proposed**: PL submits a new project from the Backlog page (`+ New`). Lightweight metadata only; appears unranked at the bottom of the list.", "target_module": "backlog"},
+      {"step_number": 2, "instruction": "**Stage 0 → 1**: Controller opens the Backlog detail, marks AI Council approved (if AI-related), then clicks **Advance to Stage 1** on the Scores & Ranking tab."},
+      {"step_number": 3, "instruction": "**Stage 1 → 2**: PL completes Tech Navigator scoring and the business case; controller verifies the Master Data tab is all green-checked and clicks **Advance to Stage 2**."},
+      {"step_number": 4, "instruction": "**Stage 2 → 3 (Pitch Board)**: Controller clicks **Approve at Pitch Board** → confirms locking the baseline. Project becomes Approved/Active. The first ForecastVersion is captured."},
+      {"step_number": 5, "instruction": "**Stage 3 → Active stage**: Controller clicks **Mark Active** in the Workbench Overview header (label-only transition; Stage stays 3)."},
+      {"step_number": 6, "instruction": "**Stage 3 → 4 → 5**: Post-launch the project moves to Hyper-maintenance (Stage 4) then to Operate (Stage 5). Stage 5 entities leave the Backlog and join the Run Portfolio with `is_change_or_run='Run'`."},
+      {"step_number": 7, "instruction": "**Off-path**: Pause / Cancel freezes the project at its last Stage. The project stays visible but is excluded from cutoff calculations."},
       {"step_number": 8, "instruction": "See also: workflow W02.1–W02.8 in `docs/workflows/02-project-lifecycle.md` and W11.3 for the Backlog cutoff line."}
     ]
   },
@@ -342,16 +342,16 @@
   {
     "id": "faq-v5-03",
     "question": "What's the difference between Change Portfolio and Run Portfolio?",
-    "summary": "Change Portfolio = projects in motion (DoI 0–4). Run Portfolio = steady-state operations (DoI 5 + Offerings + Internal Services). The split is computed from `ChargeableEntity.is_change_or_run` and drives the Portfolio Overview view filter and many Reporting dimensions.",
+    "summary": "Change Portfolio = projects in motion (Stage 0–4). Run Portfolio = steady-state operations (Stage 5 + Offerings + Internal Services). The split is computed from `ChargeableEntity.is_change_or_run` and drives the Portfolio Overview view filter and many Reporting dimensions.",
     "applicable_roles": ["controller", "executive", "project_lead", "cost_center_owner"],
     "modules_involved": ["portfolio", "charging", "reporting"],
     "steps": [
-      {"step_number": 1, "instruction": "**Change** = projects at DoI 0–4: Proposed, Under Evaluation, Approved, Active, Hyper-maintenance. Tracked in the Backlog and Project Workbench.", "target_module": "backlog"},
-      {"step_number": 2, "instruction": "**Run** = DoI 5 (Operate) projects + all Offerings + all Internal Services. Managed in Charging & Allocations for cost flows and BTC rather than in the Backlog ranker.", "target_module": "charging"},
-      {"step_number": 3, "instruction": "The flag is **computed**, not stored: ChargeableEntity.is_change_or_run is a Python property derived from `entity_type` + `doi`. Project DoI 0–4 = Change; DoI 5 / Offering / InternalService = Run."},
-      {"step_number": 4, "instruction": "Switch between the two portfolios in Portfolio Overview using the view selector (Run Portfolio shows DoI 5 chargeable entities)."},
+      {"step_number": 1, "instruction": "**Change** = projects at Stage 0–4: Proposed, Under Evaluation, Approved, Active, Hyper-maintenance. Tracked in the Backlog and Project Workbench.", "target_module": "backlog"},
+      {"step_number": 2, "instruction": "**Run** = Stage 5 (Operate) projects + all Offerings + all Internal Services. Managed in Charging & Allocations for cost flows and BTC rather than in the Backlog ranker.", "target_module": "charging"},
+      {"step_number": 3, "instruction": "The flag is **computed**, not stored: ChargeableEntity.is_change_or_run is a Python property derived from `entity_type` + `doi`. Project Stage 0–4 = Change; Stage 5 / Offering / InternalService = Run."},
+      {"step_number": 4, "instruction": "Switch between the two portfolios in Portfolio Overview using the view selector (Run Portfolio shows Stage 5 chargeable entities)."},
       {"step_number": 5, "instruction": "Reporting dimension `change_or_run` is exposed in the Report Builder catalog and the AI Report Builder for split queries."},
-      {"step_number": 6, "instruction": "See also: workflow W02.8 in `docs/workflows/02-project-lifecycle.md` for the DoI 4→5 transition."}
+      {"step_number": 6, "instruction": "See also: workflow W02.8 in `docs/workflows/02-project-lifecycle.md` for the Stage 4→5 transition."}
     ]
   },
   {
@@ -567,7 +567,7 @@
     "modules_involved": ["admin"],
     "steps": [
       {"step_number": 1, "instruction": "As **Anna Meier** (Controller), navigate to **Admin → Audit Log**.", "target_module": "admin"},
-      {"step_number": 2, "instruction": "The category filter chips along the top let you isolate events. Most demo-relevant: **pipeline_transitions** (project send-back / resubmit / DoI advancement), **simulator** (scenario create / promote / archive), **scheduled_change_lifecycle** (the 5-state lifecycle), **master_data** (entity CRUD)."},
+      {"step_number": 2, "instruction": "The category filter chips along the top let you isolate events. Most demo-relevant: **pipeline_transitions** (project send-back / resubmit / Stage advancement), **simulator** (scenario create / promote / archive), **scheduled_change_lifecycle** (the 5-state lifecycle), **master_data** (entity CRUD)."},
       {"step_number": 3, "instruction": "Combine category with date range and entity_type filters to narrow further. Use Export CSV to hand off the filtered slice."},
       {"step_number": 4, "instruction": "Every write site in the codebase passes `category=` keyword-only at audit time, so coverage is exhaustive — there is no 'uncategorised' bucket."}
     ]

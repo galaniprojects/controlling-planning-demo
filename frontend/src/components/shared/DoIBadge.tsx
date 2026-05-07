@@ -47,10 +47,10 @@ export function DoIBadge({
       : 'px-2 py-0.5 text-[11px]';
 
   const isFrozen = live === null && frozen !== null;
-  const display = isFrozen ? `DoI ${frozen}*` : `DoI ${value}`;
+  const display = isFrozen ? `Stage ${frozen}*` : `Stage ${value}`;
 
   const tooltipText = [
-    `DoI ${value} — ${label}`,
+    `Stage ${value} — ${label}`,
     phase ? `Phase: ${phase}` : null,
     isFrozen ? 'Frozen — project is off-path (Paused or Cancelled)' : null,
   ]

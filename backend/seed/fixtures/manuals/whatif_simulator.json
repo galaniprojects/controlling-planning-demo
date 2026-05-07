@@ -16,7 +16,7 @@
     },
     {
       "title": "Twelve Action Levers (v5)",
-      "body": "Per `[B-AC-02]`:\n1. Delay project start (forecast_grid · Tier 1)\n2. Reduce project hours (forecast_grid · Tier 1)\n3. Remove project / cancel (forecast_grid · Tier 1)\n4. Accelerate project (forecast_grid · Tier 1)\n5. Add scope / new line items (forecast_grid · Tier 1)\n6. Sourcing mix int/ext (people · Tier 2)\n7. Rate table change (rate_table · Tier 2)\n8. Tech Navigator profile edit (tech_navigator · Tier 1)\n9. Capacity allocation change (forecast_grid · Tier 2)\n10. Distribution edge — Stage 1 (cost_allocation · Tier 3)\n11. BTC profile line shift — Stage 2 (cost_allocation · Tier 3)\n12. Pipeline stage / DoI / milestone shift (pipeline_stage · Tier 1-2)\n\nLevers 10 and 11 (cost_allocation) flag `tier3_content_flag=true` and require Tier 3 visibility for publish + promote per `[F-AC-01]`."
+      "body": "Per `[B-AC-02]`:\n1. Delay project start (forecast_grid · Tier 1)\n2. Reduce project hours (forecast_grid · Tier 1)\n3. Remove project / cancel (forecast_grid · Tier 1)\n4. Accelerate project (forecast_grid · Tier 1)\n5. Add scope / new line items (forecast_grid · Tier 1)\n6. Sourcing mix int/ext (people · Tier 2)\n7. Rate table change (rate_table · Tier 2)\n8. Tech Navigator profile edit (tech_navigator · Tier 1)\n9. Capacity allocation change (forecast_grid · Tier 2)\n10. Distribution edge — Stage 1 (cost_allocation · Tier 3)\n11. BTC profile line shift — Stage 2 (cost_allocation · Tier 3)\n12. Pipeline stage / Stage / milestone shift (pipeline_stage · Tier 1-2)\n\nLevers 10 and 11 (cost_allocation) flag `tier3_content_flag=true` and require Tier 3 visibility for publish + promote per `[F-AC-01]`."
     },
     {
       "title": "Lever 12: BTC sandbox + impact preview + promote",
@@ -36,7 +36,7 @@
     },
     {
       "title": "Impact Dashboard (9 dimensions)",
-      "body": "Shows the cascading effects of all applied actions across nine dimensions:\n- **Financial** — total budget delta, capex/opex split, savings target tracking\n- **Ranking** — Backlog cutoff impact, cutoff line shift\n- **Capacity** — FTE delta per CC, utilisation shifts\n- **People** — over/under-allocated count by role\n- **Outsourcing** — internal vs external mix\n- **Investment Mix** — by hierarchy node / by type / by RAG band\n- **Running Cost** — Run Portfolio impact (DoI 5 entities)\n- **Cost Allocation** — Stage 1 + Stage 2 deltas (Lever 10/11 only)\n- **Change Summary** — flat list of every action with categorisation\n\nDrill down into any metric to see project-level detail."
+      "body": "Shows the cascading effects of all applied actions across nine dimensions:\n- **Financial** — total budget delta, capex/opex split, savings target tracking\n- **Ranking** — Backlog cutoff impact, cutoff line shift\n- **Capacity** — FTE delta per CC, utilisation shifts\n- **People** — over/under-allocated count by role\n- **Outsourcing** — internal vs external mix\n- **Investment Mix** — by hierarchy node / by type / by RAG band\n- **Running Cost** — Run Portfolio impact (Stage 5 entities)\n- **Cost Allocation** — Stage 1 + Stage 2 deltas (Lever 10/11 only)\n- **Change Summary** — flat list of every action with categorisation\n\nDrill down into any metric to see project-level detail."
     },
     {
       "title": "Comparison View",

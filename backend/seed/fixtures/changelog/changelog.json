@@ -7,7 +7,7 @@
     "sections": [
       {
         "title": "Wave 1 — Bug fixes + seed enrichment (A-01..A-05, B-01, B-02)",
-        "body": "Five back-button + access-control bug fixes: Run Portfolio drill-out, Backlog detail tabs, Variance Waterfall column overlap, Portfolio External Spend back-to-dashboard, and Charging & Allocations role gate (Controller now has full access, others read-only per `[A-05]`). Backlog seed expanded with richer Tech Navigator scoring + DoI distribution (B-01); project time horizons extended through 2029 (B-02) so multi-year features have data to render against."
+        "body": "Five back-button + access-control bug fixes: Run Portfolio drill-out, Backlog detail tabs, Variance Waterfall column overlap, Portfolio External Spend back-to-dashboard, and Charging & Allocations role gate (Controller now has full access, others read-only per `[A-05]`). Backlog seed expanded with richer Tech Navigator scoring + Stage distribution (B-01); project time horizons extended through 2029 (B-02) so multi-year features have data to render against."
       },
       {
         "title": "Wave 2 — F&P grid foundation (C-02 + C-08)",
@@ -50,8 +50,8 @@
         "body": "**Stage 1 — Inter-service distribution.** Sparse percentage edges between chargeable entities; DAG-resolved effective cost (own + sum of inflows); cycle detection blocks save with the cycle chain in the error body. `[F-S1-01..05]`\n**Stage 2 — BTC profiles.** Per-entity Business-Transfer-Charging splits cost across charging locations. Manual or automatic (snapshotted from the User Measurement matrix). Sums to 100. `[F-S2-01..08]`\n**WBS Element is algorithmic, never stored** — generated at request time as `<identifier>-64-99-<charging_location_code>`. `[F-DM-03]`"
       },
       {
-        "title": "Headline shift 3 — Pipeline + DoI lifecycle",
-        "body": "Projects now carry a **pipeline stage** (working names) and a **DoI** (Degree of Implementation, 0–5) in addition to the v4 `status` field. DoI 0–4 = Change; DoI 5 = Run. Two new gates: AI Council approval (`ai_council_approved` + doc URL) and a `within_cutoff` flag that drives ranking. v4 intake retired in A5. Spec tags: `[A-PS-02]` `[A-DOI-01]`."
+        "title": "Headline shift 3 — Pipeline + Stage lifecycle",
+        "body": "Projects now carry a **pipeline stage** (working names) and a **Stage** (lifecycle 0–5) in addition to the v4 `status` field. Stage 0–4 = Change; Stage 5 = Run. Two new gates: AI Council approval (`ai_council_approved` + doc URL) and a `within_cutoff` flag that drives ranking. v4 intake retired in A5."
       },
       {
         "title": "Headline shift 4 — Tech Navigator scoring rubric",
@@ -59,7 +59,7 @@
       },
       {
         "title": "Headline shift 5 — Portfolio splits into Change vs Run",
-        "body": "The Portfolio module now has **two sibling sub-modules** with a top-level pill switcher.\n- **Change Portfolio** — DoI 0–4 transformation projects with the existing dashboards, tabs, and tree.\n- **Run Portfolio** — DoI 5 / Offerings / Internal Services, with KPIs, dimension rollup panels (region / division / country), type-filtered entity list, and drill-down to the slim **EntityWorkspace**.\n\nProject clicks now open a **full-page detail view** (`/portfolio/project/{id}`) replacing the v4 slide-in panel. `[E-11]`"
+        "body": "The Portfolio module now has **two sibling sub-modules** with a top-level pill switcher.\n- **Change Portfolio** — Stage 0–4 transformation projects with the existing dashboards, tabs, and tree.\n- **Run Portfolio** — Stage 5 / Offerings / Internal Services, with KPIs, dimension rollup panels (region / division / country), type-filtered entity list, and drill-down to the slim **EntityWorkspace**.\n\nProject clicks now open a **full-page detail view** (`/portfolio/project/{id}`) replacing the v4 slide-in panel. `[E-11]`"
       },
       {
         "title": "Headline shift 6 — Forecast cycle + immutable versioning",
@@ -75,7 +75,7 @@
       },
       {
         "title": "New module — Backlog",
-        "body": "v5 introduces a dedicated **Backlog** module at `/backlog` for the demand pipeline. It replaces v4's portfolio intake with a richer surface:\n- Cube view + list view of every project on the demand pipeline.\n- Tech Navigator scoring detail panel: Scores tab (with rubric weights), Financial tab, Master Data tab, Milestones tab.\n- Filters: pipeline stage, DoI, within-cutoff, t-shirt size.\n- Sortable by Composite Score / Complexity / Value Creation / total budget.\n- Send-back / resubmit cycle with Controller → PL audit trail."
+        "body": "v5 introduces a dedicated **Backlog** module at `/backlog` for the demand pipeline. It replaces v4's portfolio intake with a richer surface:\n- Cube view + list view of every project on the demand pipeline.\n- Tech Navigator scoring detail panel: Scores tab (with rubric weights), Financial tab, Master Data tab, Milestones tab.\n- Filters: pipeline stage, lifecycle stage, within-cutoff, t-shirt size.\n- Sortable by Composite Score / Complexity / Value Creation / total budget.\n- Send-back / resubmit cycle with Controller → PL audit trail."
       },
       {
         "title": "New module — Charging & Allocations",

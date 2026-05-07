@@ -121,8 +121,8 @@ export function PortfolioOverview() {
         title="Portfolio Overview"
         subtitle={
           subModule === 'change'
-            ? 'Change Portfolio — projects in transformation (DoI 0–4)'
-            : 'Run Portfolio — steady-state entities (DoI 5, offerings, internal services)'
+            ? 'Change Portfolio — projects in transformation'
+            : 'Run Portfolio — steady-state offerings and internal services'
         }
         actions={<ModuleGuideButton moduleId="portfolio_overview" />}
       />
@@ -137,13 +137,11 @@ export function PortfolioOverview() {
           active={subModule === 'change'}
           onClick={() => handleSubModuleChange('change')}
           label="Change"
-          subtitle="DoI 0–4"
         />
         <SubModuleButton
           active={subModule === 'run'}
           onClick={() => handleSubModuleChange('run')}
           label="Run"
-          subtitle="DoI 5 / offerings / services"
         />
       </div>
 
@@ -186,7 +184,7 @@ function SubModuleButton({
   active: boolean;
   onClick: () => void;
   label: string;
-  subtitle: string;
+  subtitle?: string;
 }) {
   return (
     <Button
@@ -202,9 +200,11 @@ function SubModuleButton({
       )}
     >
       <span className="text-sm font-medium leading-tight">{label}</span>
-      <span className="text-[10px] uppercase tracking-wider opacity-70 leading-tight">
-        {subtitle}
-      </span>
+      {subtitle ? (
+        <span className="text-[10px] uppercase tracking-wider opacity-70 leading-tight">
+          {subtitle}
+        </span>
+      ) : null}
     </Button>
   );
 }
