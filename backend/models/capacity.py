@@ -86,9 +86,10 @@ class ResourceRequest(Base):
 class ResourceRequestAssignment(Base):
     """Per-month person assignment for a resource request.
 
-    Each row represents one employee assigned to one month of a resource request.
-    The unique constraint on (resource_request_id, month) enforces one person per
-    month per request.
+    Each row represents one person assigned to one month of a resource request.
+    The unique constraint on (resource_request_id, month, person_id) allows multiple
+    people to share a single request-month (multi-person partial assignment per §9.5).
+    Previously constrained to (resource_request_id, month) — relaxed in v5.2 W1.
     """
     __tablename__ = "resource_request_assignments"
 
@@ -101,7 +102,10 @@ class ResourceRequestAssignment(Base):
     modified_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
-        UniqueConstraint("resource_request_id", "month", name="uq_rra_request_month"),
+        UniqueConstraint(
+            "resource_request_id", "month", "person_id",
+            name="uq_rra_request_month_person",
+        ),
     )
 
     # Relationships
