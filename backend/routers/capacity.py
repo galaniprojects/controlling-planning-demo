@@ -1,12 +1,31 @@
-"""Capacity Management endpoints (Section 10.5) — 14 endpoints."""
+"""Capacity Management endpoints.
+
+v5.2 Wave 1 adds four endpoints under ``/api/capacity/*``:
+  * ``GET /dashboard/forecast`` — capacity forecast time series (§11.4 / §11.10).
+  * ``GET /dashboard/headcount-breakdown`` — headcount per dimension (§11.5).
+  * ``GET /dashboard/hotspots`` — top-N capacity issues (§11.6).
+  * ``GET /history`` — paginated capacity audit trail (§12.15).
+
+Wave 1 also enhances:
+  * ``GET /role-availability`` — adds ``competing_demand_count`` and an
+    optional ``location_summary[]`` per §13.10.
+  * ``PUT /requests/{cc}/{rid}/assignments`` — accepts the new multi-person
+    body shape ``[{month, assignments: [{person_id, hours}]}]`` per §9.5,
+    with backward compatibility for the legacy single-person shape.
+
+Audit log writes flow through ``services/capacity_audit.log_capacity_action``
+(§12.10) — wired from the four mutating handlers (confirm / decline /
+assignments / partially-fulfill).
+"""
 from __future__ import annotations
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from datetime import date, datetime, timedelta
+from typing import Any
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from database import get_db
-from dependencies import get_current_user, require_role
+from dependencies import get_current_user, pl_project_filter, require_role
 from models.capacity import Allocation, ResourceRequest, ResourceRequestAssignment
 from models.change_requests import ChangeRequest
 from models.financial import Forecast
@@ -16,8 +35,17 @@ from services.portfolio_service import _get_projects_for_entity_recursive, get_p
 from models.people import Person, RoleType
 from models.projects import Project
 from schemas.capacity import (
-    CapacityContext, ConfirmRequest, CounterProposeRequest, DeclineRequest,
-    ExternalCapacityRow, OrgExternalSummary, OrgHeatmapRow, OrgSummary,
+    AssignmentEntry,
+    CapacityContext,
+    CapacityHistoryEntry, CapacityHistoryResponse,
+    ConfirmRequest, CounterProposeRequest,
+    DashboardForecastPoint, DashboardForecastResponse,
+    DeclineRequest,
+    ExternalCapacityRow, HeadcountBreakdownResponse, HeadcountBreakdownSegment,
+    HotspotItem, HotspotResponse,
+    LocationAvailabilitySummary,
+    MonthAssignment,
+    OrgExternalSummary, OrgHeatmapRow, OrgSummary,
     PartialFulfillRequest, PersonHeatmapRow, RequestItem,
     RoleAvailabilityResponse, RoleAvailabilityRow, RoleHeatmapRow,
     SaveAssignmentsRequest, TeamSummary, UtilizationCell,
@@ -26,6 +54,12 @@ from schemas.common import CurrentUser
 from services.calculations import (
     FTE_HOURS, add_months, compute_utilization_pct, generate_month_range,
     get_standard_hours, resolve_hourly_rate, utilization_color_bucket,
+)
+from services.capacity_audit import log_capacity_action
+from services.capacity_dashboard import (
+    compute_dashboard_forecast,
+    compute_headcount_breakdown,
+    compute_hotspots,
 )
 
 router = APIRouter(prefix="/api/capacity", tags=["Capacity Management"])
@@ -1356,6 +1390,254 @@ def _apply_cr_to_forecast_on_cc_confirm(cr: ChangeRequest, db: Session) -> None:
                         row.amount_eur = new_val
                 except (ValueError, AttributeError):
                     pass
+
+
+# ---------------------------------------------------------------------------
+# v5.2 W1 — Dashboard layer (§11.10 / §11.4 / §11.5 / §11.6)
+# ---------------------------------------------------------------------------
+#
+# Three dashboard endpoints powering the executive/controller dashboard
+# (CapacityWorkspace > DashboardLayer per §11). Per §11.1 the dashboard
+# is visible to Controller + Executive; CC Owner has access too because
+# the layer is hidden UI-side when scope = "My CC" (single CC) — the API
+# accepts CC Owner queries (e.g. for org-level scopes). Project Lead is
+# blocked at the API per §15.
+#
+# Scope vocabulary: see ``services.capacity_dashboard._parse_scope`` —
+# accepts "all" (default), "location:<id>", "hierarchy:<id>",
+# "cost_center:<id>". Invalid prefix → 400.
+
+
+_DASHBOARD_ROLES = ("controller", "executive", "cost_center_owner")
+
+
+@router.get(
+    "/dashboard/forecast",
+    response_model=DashboardForecastResponse,
+)
+def get_dashboard_forecast(
+    scope: str = "all",
+    start: str | None = None,
+    end: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(*_DASHBOARD_ROLES)),
+):
+    """Capacity forecast time series — available / allocated / demand hours.
+
+    Per spec §11.4 / §11.10. Returns one ``DashboardForecastPoint`` per
+    month inclusive of ``start..end``. Defaults to a 12-month window
+    starting at the current demo month when bounds are omitted.
+    """
+    try:
+        result = compute_dashboard_forecast(db, scope=scope, start=start, end=end)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return DashboardForecastResponse(
+        items=[DashboardForecastPoint(**row) for row in result["items"]],
+        total=result["total"],
+        scope=result["scope"],
+        start=result["start"],
+        end=result["end"],
+    )
+
+
+@router.get(
+    "/dashboard/headcount-breakdown",
+    response_model=HeadcountBreakdownResponse,
+)
+def get_dashboard_headcount_breakdown(
+    scope: str = "all",
+    dimension: str = "location",
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(*_DASHBOARD_ROLES)),
+):
+    """Headcount split by ``dimension`` for the headcount breakdown card.
+
+    Per spec §11.5 / §11.10. ``dimension`` is one of
+    ``location | hierarchy | role | cost_center`` — invalid values 400.
+    Empty scopes return an empty list (not 404).
+    """
+    try:
+        result = compute_headcount_breakdown(db, scope=scope, dimension=dimension)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return HeadcountBreakdownResponse(
+        items=[HeadcountBreakdownSegment(**row) for row in result["items"]],
+        total=result["total"],
+        dimension=result["dimension"],
+        scope=result["scope"],
+    )
+
+
+@router.get(
+    "/dashboard/hotspots",
+    response_model=HotspotResponse,
+)
+def get_dashboard_hotspots(
+    scope: str = "all",
+    limit: int = 5,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(*_DASHBOARD_ROLES)),
+):
+    """Top-N capacity issues across three severity categories.
+
+    Per spec §11.6 / §11.10. Categories: ``over_allocation``,
+    ``unfulfilled_demand``, ``under_utilization``. Sorted by severity
+    descending. Empty scopes return an empty list.
+    """
+    try:
+        items = compute_hotspots(db, scope=scope, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return HotspotResponse(
+        items=[HotspotItem(**row) for row in items],
+        total=len(items),
+        scope=scope or "all",
+    )
+
+
+# ---------------------------------------------------------------------------
+# v5.2 W1 — Capacity history (audit trail) endpoint (§12.15)
+# ---------------------------------------------------------------------------
+
+
+def _parse_iso_date_to_dt(s: str) -> datetime:
+    """Parse 'YYYY-MM-DD' (inclusive bound) into a datetime.
+
+    For the ``from`` bound we use 00:00:00; for ``to`` the route appends
+    23:59:59 so the day is fully included.
+    """
+    return datetime.combine(date.fromisoformat(s), datetime.min.time())
+
+
+@router.get(
+    "/history",
+    response_model=CapacityHistoryResponse,
+)
+def get_capacity_history(
+    acting_user_id: str | None = None,
+    action_type: str | None = None,  # comma-separated
+    cost_center_id: str | None = None,  # comma-separated
+    project_id: str | None = None,
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    sort: str = "timestamp",
+    sort_dir: str = "desc",
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(
+        require_role("controller", "executive", "cost_center_owner")
+    ),
+):
+    """Paginated capacity audit trail per spec §12.15.
+
+    Server-side scoping per §12.14:
+      * Controller / Executive: full visibility.
+      * CC Owner: forced filter ``cost_center_id = managed_cc``.
+      * PL: 403 (enforced by ``require_role``).
+    """
+    # Lazy import — Teammate A's schema commit landed in this branch,
+    # but we keep the lazy import so this module remains importable in
+    # any worktree where the model has not yet been pulled in.
+    try:
+        from models.capacity import CapacityActionLog
+    except (ImportError, AttributeError):
+        # Schema not yet present — return an empty page.
+        return CapacityHistoryResponse(items=[], total=0, page=page, page_size=page_size)
+
+    q = db.query(CapacityActionLog)
+
+    # --- Server-side scoping (§12.14) ---
+    if user.role == "cost_center_owner":
+        if not user.cost_center_id:
+            raise HTTPException(403, "CC Owner persona missing managed cost center")
+        q = q.filter(CapacityActionLog.cost_center_id == user.cost_center_id)
+
+    # --- Filters ---
+    if acting_user_id:
+        q = q.filter(CapacityActionLog.acting_user_id == acting_user_id)
+    if action_type:
+        action_types = [a.strip() for a in action_type.split(",") if a.strip()]
+        if action_types:
+            q = q.filter(CapacityActionLog.action_type.in_(action_types))
+    if cost_center_id:
+        ccs = [c.strip() for c in cost_center_id.split(",") if c.strip()]
+        if ccs:
+            q = q.filter(CapacityActionLog.cost_center_id.in_(ccs))
+    if project_id:
+        q = q.filter(CapacityActionLog.project_id == project_id)
+    if from_:
+        try:
+            dt_from = _parse_iso_date_to_dt(from_)
+        except ValueError:
+            raise HTTPException(400, f"Invalid 'from' date: '{from_}'. Expected YYYY-MM-DD.")
+        q = q.filter(CapacityActionLog.timestamp >= dt_from)
+    if to:
+        try:
+            dt_to = _parse_iso_date_to_dt(to) + timedelta(days=1) - timedelta(seconds=1)
+        except ValueError:
+            raise HTTPException(400, f"Invalid 'to' date: '{to}'. Expected YYYY-MM-DD.")
+        q = q.filter(CapacityActionLog.timestamp <= dt_to)
+
+    # --- Sorting ---
+    sort_col = {
+        "timestamp": CapacityActionLog.timestamp,
+        "action_type": CapacityActionLog.action_type,
+        "project_id": CapacityActionLog.project_id,
+        "cost_center_id": CapacityActionLog.cost_center_id,
+        "acting_user_id": CapacityActionLog.acting_user_id,
+    }.get(sort, CapacityActionLog.timestamp)
+    if (sort_dir or "desc").lower() == "asc":
+        q = q.order_by(sort_col.asc())
+    else:
+        q = q.order_by(sort_col.desc())
+
+    total = q.count()
+    rows = q.offset((page - 1) * page_size).limit(page_size).all()
+
+    # Pre-fetch joined names to avoid N+1.
+    person_names: dict[str, str] = {}
+    project_names: dict[str, str] = {}
+    cc_names: dict[str, str] = {}
+    if rows:
+        person_ids = list({r.acting_user_id for r in rows})
+        proj_ids = list({r.project_id for r in rows})
+        cc_ids = list({r.cost_center_id for r in rows})
+        for p in db.query(Person).filter(Person.id.in_(person_ids)).all():
+            person_names[p.id] = p.name
+        for p in db.query(Project).filter(Project.id.in_(proj_ids)).all():
+            project_names[p.id] = p.name
+        for c in db.query(CostCenter).filter(CostCenter.id.in_(cc_ids)).all():
+            cc_names[c.id] = c.name
+
+    items: list[CapacityHistoryEntry] = []
+    for r in rows:
+        payload: dict[str, Any] | None = None
+        if r.detail_payload:
+            try:
+                import json
+                payload = json.loads(r.detail_payload)
+            except (ValueError, TypeError):
+                payload = None
+        items.append(CapacityHistoryEntry(
+            id=r.id,
+            timestamp=r.timestamp,
+            action_type=r.action_type,
+            acting_user_id=r.acting_user_id,
+            acting_user_name=person_names.get(r.acting_user_id, r.acting_user_id),
+            project_id=r.project_id,
+            project_name=project_names.get(r.project_id),
+            cost_center_id=r.cost_center_id,
+            cost_center_name=cc_names.get(r.cost_center_id),
+            summary=r.summary,
+            detail_payload=payload,
+            cr_id=r.cr_id,
+        ))
+
+    return CapacityHistoryResponse(
+        items=items, total=total, page=page, page_size=page_size,
+    )
 
 
 # ---------------------------------------------------------------------------
