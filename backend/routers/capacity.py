@@ -995,6 +995,33 @@ def decline_request(
             cr.cc_owner_id = user.person_id
             cr.cc_status = "declined"
             cr.cc_comments = body.reason
+
+    # Audit log per §12.10 — single-request decline within the assignment panel.
+    role_label = req.role_type.name if req.role_type else (req.role_type_id or "")
+    months_count = len(generate_month_range(req.period_start, req.period_end))
+    log_capacity_action(
+        db, user,
+        action_type="decline_request",
+        project_id=req.project_id,
+        cost_center_id=cost_center_id,
+        summary=(
+            f"Declined {role_label} request "
+            f"({req.period_start}–{req.period_end}): {body.reason}"
+        ),
+        detail_payload={
+            "requests_affected": [{
+                "request_id": req.id,
+                "role": role_label,
+                "months": months_count,
+                "hours": float(req.hours_or_amount_per_month or 0) * months_count,
+            }],
+            "assignments": [],
+            "cr_id": req.change_request_id,
+            "decline_reason": body.reason,
+        },
+        change_request_id=req.change_request_id,
+    )
+
     db.commit()
     return _request_to_dict(req, db)
 
@@ -1201,47 +1228,57 @@ def confirm_project_resources(
             deep_link_tab="intake",
         ))
 
-    # Capacity audit log per §12.10. We bucket the action under the CC of the
-    # first pending request — projects with fan-out across multiple CCs will
-    # generate one log entry per CC if the spec ever calls for that, but for
-    # now §12.10 specifies one record per project confirmation. Per §12.10
-    # mapping table this is action_type='confirm' (no partial flag set here).
+    # Capacity audit log per §12.10. Bucket under the CC of the first pending
+    # request; one record per project confirmation. action_type branches on
+    # whether the project's pending requests were CR-triggered: a project where
+    # any pending request carries change_request_id is a CR re-confirmation
+    # (cr_reconfirm), otherwise a fresh intake confirmation (confirm).
     role_breakdown: dict[str, dict[str, float]] = {}
+    requests_affected: list[dict] = []
+    cr_ids: list[int] = []
     for req in pending_requests:
         role_label = req.role_type.name if req.role_type else (req.role_type_id or "")
+        months_count = len(generate_month_range(req.period_start, req.period_end))
+        hours = float(req.hours_or_amount_per_month or 0) * months_count
         agg = role_breakdown.setdefault(role_label, {"count": 0, "hours": 0.0})
         agg["count"] += 1
-        months_count = len(generate_month_range(req.period_start, req.period_end))
-        agg["hours"] += float(req.hours_or_amount_per_month or 0) * months_count
+        agg["hours"] += hours
+        requests_affected.append({
+            "request_id": req.id,
+            "role": role_label,
+            "months": months_count,
+            "hours": hours,
+        })
+        if req.change_request_id and req.change_request_id not in cr_ids:
+            cr_ids.append(req.change_request_id)
 
     total_hours = sum(b["hours"] for b in role_breakdown.values())
     summary_cc = pending_requests[0].cost_center_id if pending_requests else (
-        # Project-level confirmation with no pending requests — fall back to the
-        # CC-Owner's managed CC if present, else any CC referenced by the project.
         user.cost_center_id or "unknown"
+    )
+    cr_action = bool(cr_ids)
+    primary_cr_id = cr_ids[0] if cr_ids else None
+    summary_prefix = "Re-confirmed via CR" if cr_action else "Confirmed"
+    cr_suffix = (
+        f" (CR #{', #'.join(str(c) for c in cr_ids)})" if cr_action else ""
     )
     log_capacity_action(
         db, user,
-        action_type="confirm",
+        action_type="cr_reconfirm" if cr_action else "confirm",
         project_id=project.id,
         cost_center_id=summary_cc,
         summary=(
-            f"Confirmed {len(role_breakdown)} role"
+            f"{summary_prefix} {len(role_breakdown)} role"
             f"{'s' if len(role_breakdown) != 1 else ''}, "
-            f"{total_hours:.0f}h total for {project.name}"
+            f"{total_hours:.0f}h total for {project.name}{cr_suffix}"
         ),
         detail_payload={
-            "requests_affected": [
-                {"request_id": req.id, "role": (req.role_type.name if req.role_type else (req.role_type_id or "")),
-                 "months": len(generate_month_range(req.period_start, req.period_end)),
-                 "hours": float(req.hours_or_amount_per_month or 0) * len(
-                     generate_month_range(req.period_start, req.period_end))}
-                for req in pending_requests
-            ],
+            "requests_affected": requests_affected,
             "assignments": [],
-            "cr_id": None,
+            "cr_id": primary_cr_id,
             "decline_reason": None,
         },
+        change_request_id=primary_cr_id,
     )
 
     db.commit()

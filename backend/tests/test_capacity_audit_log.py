@@ -313,3 +313,94 @@ class TestPartiallyFulfillEndpointWritesLog:
         assert len(rows) > before
         latest = rows[0]
         assert latest.action_type == "partial_confirm"
+
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestDeclineRequestEndpointWritesLog:
+    """PUT /requests/{cc}/{rid}/decline logs a 'decline_request' entry per §12.10."""
+
+    def test_logs_decline_request_action(
+        self, test_client, db, seed_confirmation_project,
+    ):
+        from models.capacity import CapacityActionLog  # type: ignore
+
+        rid = seed_confirmation_project["request_id"]
+        before = db.query(CapacityActionLog).count()
+
+        resp = test_client.put(
+            f"/api/capacity/requests/cc-muc-dev/{rid}/decline",
+            headers=HEADERS_CCO,
+            json={"reason": "Role over-subscribed in Q2"},
+        )
+        assert resp.status_code == 200
+
+        rows = db.query(CapacityActionLog).order_by(
+            CapacityActionLog.id.desc()
+        ).all()
+        assert len(rows) > before
+        latest = rows[0]
+        assert latest.action_type == "decline_request"
+        assert latest.project_id == "proj-conf"
+        # Decline reason must be in the payload so the history view can render it.
+        import json as _json
+        payload = latest.detail_payload
+        if isinstance(payload, str):
+            payload = _json.loads(payload)
+        assert payload.get("decline_reason") == "Role over-subscribed in Q2"
+
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestConfirmProjectCRReconfirm:
+    """Project-level confirm of a CR-bound request logs a 'cr_reconfirm' entry
+    with cr_id populated, per §12.10 vocabulary + detail_payload schema."""
+
+    def test_cr_bound_confirm_emits_cr_reconfirm(
+        self, test_client, db, seed_confirmation_project, seed_personas,
+    ):
+        from models.capacity import CapacityActionLog, ResourceRequest
+        from models.change_requests import ChangeRequest
+        from models.projects import Project
+
+        # Promote the seeded request into a CR-triggered re-confirmation by
+        # attaching a ChangeRequest. Project status is already
+        # pending_cc_confirmation from the fixture.
+        from datetime import datetime as _dt
+        cr = ChangeRequest(
+            project_id="proj-conf",
+            submitted_by_id="p-dev-1",
+            submission_timestamp=_dt.utcnow(),
+            status="pending_cc_confirmation",
+            change_category="hours",
+            summary="Bump dev hours",
+        )
+        db.add(cr)
+        db.commit()
+        req = (
+            db.query(ResourceRequest)
+            .filter(ResourceRequest.id == seed_confirmation_project["request_id"])
+            .first()
+        )
+        req.change_request_id = cr.id
+        db.commit()
+
+        before = db.query(CapacityActionLog).count()
+
+        resp = test_client.put(
+            f"/api/capacity/project-confirmation/proj-conf/confirm",
+            headers=HEADERS_CCO,
+        )
+        assert resp.status_code == 200
+
+        latest = (
+            db.query(CapacityActionLog).order_by(CapacityActionLog.id.desc()).first()
+        )
+        assert latest is not None
+        assert db.query(CapacityActionLog).count() > before
+        assert latest.action_type == "cr_reconfirm"
+        assert latest.cr_id == cr.id
+        # detail_payload.cr_id mirrors the column.
+        import json as _json
+        payload = latest.detail_payload
+        if isinstance(payload, str):
+            payload = _json.loads(payload)
+        assert payload.get("cr_id") == cr.id
