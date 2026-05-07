@@ -7867,7 +7867,7 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-winter', 'proj-sensor', 'proj-sensor', '2026-11', 40.0, 1),
 ('p-winter', 'proj-sensor', 'proj-sensor', '2026-12', 40.0, 1);
 
--- Resource Requests for proj-autobrake (DoI 2 intake demo)
+-- Resource Requests for proj-autobrake (DoI 2 intake demo + multi-CC fan-out)
 INSERT INTO resource_requests (id, project_id, cost_center_id, request_type, role_type_id, cost_type_id, hours_or_amount_per_month, period_start, period_end, priority, status, assigned_person_id, adjusted_value, explanation, change_request_id, created_at, modified_at) VALUES
 (100, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-arch', NULL, 40, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (101, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 80, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
@@ -7877,7 +7877,10 @@ INSERT INTO resource_requests (id, project_id, cost_center_id, request_type, rol
 (105, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-consulting', 8000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (106, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-sw-licenses', 5000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (107, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-cloud', 6000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
-(108, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-other', 3000, '2026-06', '2027-12', 'low', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00');
+(108, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-other', 3000, '2026-06', '2027-12', 'low', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(110, 'proj-autobrake', 'cc-bud-apd', 'resource', 'role-dev', NULL, 120, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(111, 'proj-autobrake', 'cc-pun-apd', 'resource', 'role-dev', NULL, 80, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(112, 'proj-autobrake', 'cc-bud-apd', 'resource', 'role-qa', NULL, 40, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00');
 
 -- ResourceRequest Assignments for proj-autobrake (Sr Arch + Sr Dev pre-assigned)
 INSERT INTO resource_request_assignments (resource_request_id, month, person_id, hours, created_at, modified_at) VALUES
@@ -7952,6 +7955,11 @@ INSERT INTO cr_change_details (id, change_request_id, field_changed, old_value, 
 INSERT INTO cr_submission_snapshots (id, change_request_id, snapshot_type, created_by_id, forecast_data_json, comments, created_at, is_active) VALUES
 (1, 27, 'original', 'p-sharma', '[{"category": "internal", "sub_category": "role-sr-dev", "month": "2027-04", "hours": 60, "amount_eur": 7200}, {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-05", "hours": 60, "amount_eur": 7200}, {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-06", "hours": 60, "amount_eur": 7200}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-04", "hours": null, "amount_eur": 4000}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-05", "hours": null, "amount_eur": 4000}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-06", "hours": null, "amount_eur": 4000}]', NULL, '2026-02-20 10:00:00', 1),
 (2, 27, 'controller_proposed', 'p-meier', '[{"category": "internal", "sub_category": "role-sr-dev", "month": "2027-04", "hours": 50, "amount_eur": 6000}, {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-05", "hours": 50, "amount_eur": 6000}, {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-06", "hours": 50, "amount_eur": 6000}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-04", "hours": null, "amount_eur": 3500}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-05", "hours": null, "amount_eur": 3500}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-06", "hours": null, "amount_eur": 3500}]', 'Reduced Sr Dev hours to 50/mo and ML license to 3500/mo for extended period.', '2026-02-20 10:00:00', 1);
+
+-- v5.2 W1 [C]: CR-triggered re-confirmation requests with change_direction
+INSERT INTO resource_requests (id, project_id, cost_center_id, request_type, role_type_id, cost_type_id, hours_or_amount_per_month, period_start, period_end, priority, status, assigned_person_id, adjusted_value, explanation, change_request_id, original_hours_per_month, change_direction, created_at, modified_at) VALUES
+(120, 'proj-erp2', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 120, '2026-04', '2026-06', 'high', 'pending', NULL, NULL, NULL, 9, 100, 'increase', '2026-03-05 09:00:00', '2026-03-05 09:00:00'),
+(121, 'proj-sensor', 'cc-muc-apd', 'external_cost', NULL, 'ext-cloud', 5000, '2026-04', '2027-12', 'high', 'pending', NULL, NULL, NULL, 15, 0, 'increase', '2026-03-08 09:30:00', '2026-03-08 09:30:00');
 
 -- =============================================================================
 -- s16 / Workflow Templates + Steps + Step Actions + Scheduled Changes

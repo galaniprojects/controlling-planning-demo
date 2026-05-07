@@ -314,4 +314,44 @@ def generate() -> str:
             + ",\n".join(snapshot_rows) + ";"
         )
 
+    # ----------------------------------------------------------------------
+    # v5.2 W1 [C] — CR-triggered re-confirmation ResourceRequest rows.
+    #
+    # Per Capacity Module Redesign Spec §1 acceptance criteria, ≥1 project
+    # must have a pending CR-triggered re-confirmation showing
+    # ``change_direction`` indicators on affected months (§9.8 + §12.5).
+    #
+    # When a Change Request that affects future allocation hours hits the CC
+    # Owner queue, the system writes ResourceRequest rows referencing the CR
+    # via ``change_request_id`` plus:
+    #   - ``original_hours_per_month``: the pre-CR baseline value
+    #   - ``hours_or_amount_per_month``: the post-CR proposed value
+    #   - ``change_direction``: 'increase' (post > pre) or 'decrease' (post < pre)
+    # The assignment panel renders the diff (e.g. ``80h → 120h (+40h)``) and
+    # the timeline marks affected months with the change_direction badge.
+    #
+    # Two re-confirmations are seeded:
+    #   * RR 120 — CR #9 (proj-erp2 CR-A): role-sr-dev MUC, 100h → 120h/mo.
+    #   * RR 121 — CR #15 (proj-sensor CR-B): ext-cloud, 0 → 5000 EUR/mo.
+    # ----------------------------------------------------------------------
+    parts.append(
+        "\n-- v5.2 W1 [C]: CR-triggered re-confirmation requests with change_direction"
+    )
+    parts.append(
+        "INSERT INTO resource_requests (id, project_id, cost_center_id, "
+        "request_type, role_type_id, cost_type_id, hours_or_amount_per_month, "
+        "period_start, period_end, priority, status, assigned_person_id, "
+        "adjusted_value, explanation, change_request_id, "
+        "original_hours_per_month, change_direction, "
+        "created_at, modified_at) VALUES\n"
+        "(120, 'proj-erp2', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, "
+        "120, '2026-04', '2026-06', 'high', 'pending', NULL, NULL, NULL, "
+        "9, 100, 'increase', "
+        "'2026-03-05 09:00:00', '2026-03-05 09:00:00'),\n"
+        "(121, 'proj-sensor', 'cc-muc-apd', 'external_cost', NULL, "
+        "'ext-cloud', 5000, '2026-04', '2027-12', 'high', 'pending', NULL, "
+        "NULL, NULL, 15, 0, 'increase', "
+        "'2026-03-08 09:30:00', '2026-03-08 09:30:00');"
+    )
+
     return "\n".join(parts)
