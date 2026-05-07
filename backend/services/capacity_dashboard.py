@@ -38,7 +38,6 @@ from sqlalchemy.orm import Session
 
 from config import DEMO_DATE
 from models.capacity import Allocation, ResourceRequest
-from models.financial import Forecast
 from models.organization import (
     CostCenter, GroupingEntity, Location, ProjectGroupingAssignment,
 )
@@ -473,12 +472,25 @@ def compute_hotspots(
         for pid, m, h in rows:
             util_map[pid][m] = compute_utilization_pct(float(h or 0))
 
-    # ---------- Pre-fetch person + role names for summary text ----------
+    # ---------- Pre-fetch person + role names + per-person location for summary text ----------
     people: dict[str, Person] = {}
     if person_ids:
         for p in db.query(Person).filter(Person.id.in_(person_ids)).all():
             people[p.id] = p
     role_names = {r.id: r.name for r in db.query(RoleType).all()}
+    # Single CC→location lookup so the chronic-under-util loop below
+    # doesn't issue one query per person.
+    person_to_location: dict[str, Optional[str]] = {}
+    if people:
+        cc_ids = {p.cost_center_id for p in people.values() if p.cost_center_id}
+        if cc_ids:
+            cc_loc = dict(
+                db.query(CostCenter.id, CostCenter.location_id)
+                .filter(CostCenter.id.in_(cc_ids))
+                .all()
+            )
+            for pid, p in people.items():
+                person_to_location[pid] = cc_loc.get(p.cost_center_id) if p.cost_center_id else None
 
     def _short(person_name: str) -> str:
         # "Felix Keller" -> "F. Keller" per §11.6 example summary text.
@@ -577,56 +589,36 @@ def compute_hotspots(
         })
 
     # ---------- Category 3: Chronic under-utilization ----------
-    # Person whose avg utilization < 10% across 6+ consecutive months.
+    # Person whose avg utilization < 10% across the longest run of consecutive
+    # months ≥ 6 (spec §11.6). Single pass: track current run + best run + start.
     for pid, by_month in util_map.items():
         person = people.get(pid)
         if not person:
             continue
-        # Walk months in order, find longest run with util < 10%.
-        run = 0
-        best_run = 0
-        for m in months:
-            if by_month[m] < 10:
-                run += 1
-                best_run = max(best_run, run)
-            else:
-                run = 0
-        if best_run < 6:
-            continue
-        avg_util = sum(by_month[m] for m in months) / len(months)
-        if avg_util >= 10:
-            # spec wording: "avg < 10% across 6+ consecutive months". Avg is
-            # over the consecutive run, not whole window. Recompute over best run.
-            pass
-        # Recompute avg over the longest under-utilization run.
         cur = 0
+        best_run = 0
         best_start = 0
-        best_run_real = 0
         for i, m in enumerate(months):
             if by_month[m] < 10:
                 cur += 1
-                if cur > best_run_real:
-                    best_run_real = cur
+                if cur > best_run:
+                    best_run = cur
                     best_start = i - cur + 1
             else:
                 cur = 0
-        run_months = months[best_start:best_start + best_run_real]
-        run_avg = sum(by_month[m] for m in run_months) / best_run_real if best_run_real else 0
+        if best_run < 6:
+            continue
+        run_months = months[best_start:best_start + best_run]
+        run_avg = sum(by_month[m] for m in run_months) / best_run
         if run_avg >= 10:
             continue
         # Severity = 1 × idle_months × standard_hours_per_month
-        loc_id = (
-            db.query(CostCenter.location_id)
-            .filter(CostCenter.id == person.cost_center_id)
-            .scalar()
-            if person.cost_center_id else None
-        )
-        std_h = get_standard_hours(db, loc_id)
-        severity = best_run_real * std_h
+        std_h = get_standard_hours(db, person_to_location.get(pid))
+        severity = best_run * std_h
         role_label = role_names.get(person.role_type_id, person.role_type_id)
         summary = (
             f"{_short(person.name)} ({role_label}) — "
-            f"{run_avg:.0f}% utilized for {best_run_real} months"
+            f"{run_avg:.0f}% utilized for {best_run} months"
         )
         issues.append({
             "category": "under_utilization",

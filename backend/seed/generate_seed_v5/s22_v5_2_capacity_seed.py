@@ -439,7 +439,7 @@ def _emit_action_log_rows() -> Iterable[str]:
 # bars across multiple cells.
 #
 # This pattern exercises the relaxed UNIQUE constraint
-# (resource_request_id, month, person_id) introduced by Teammate A's schema
+# (resource_request_id, month, person_id) per spec §9.5
 # commit — the previous (resource_request_id, month) constraint would reject
 # the second row.
 # ---------------------------------------------------------------------------

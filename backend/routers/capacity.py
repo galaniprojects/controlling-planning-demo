@@ -18,15 +18,19 @@ Audit log writes flow through ``services/capacity_audit.log_capacity_action``
 assignments / partially-fulfill).
 """
 from __future__ import annotations
+import json
+import logging
 from datetime import date, datetime, timedelta
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from database import get_db
 from dependencies import get_current_user, pl_project_filter, require_role
-from models.capacity import Allocation, ResourceRequest, ResourceRequestAssignment
+from models.capacity import Allocation, CapacityActionLog, ResourceRequest, ResourceRequestAssignment
+
+logger = logging.getLogger(__name__)
 from models.change_requests import ChangeRequest
 from models.financial import Forecast
 from models.people import RateTable
@@ -765,9 +769,9 @@ def save_request_assignments(
         ResourceRequestAssignment.resource_request_id == req.id
     ).delete()
 
-    # Insert new assignments. Multi-person rows write multiple rows per month;
-    # the relaxed unique constraint (resource_request_id, month, person_id)
-    # makes this safe (per Teammate A's schema commit).
+    # Multi-person rows write one assignment row per (request, month, person);
+    # the (resource_request_id, month, person_id) unique constraint enforces
+    # one slot per person per month.
     person_freq: dict[str, int] = {}
     audit_assignments: list[dict[str, Any]] = []
     for month, people in parsed:
@@ -1751,15 +1755,6 @@ def get_capacity_history(
       * CC Owner: forced filter ``cost_center_id = managed_cc``.
       * PL: 403 (enforced by ``require_role``).
     """
-    # Lazy import — Teammate A's schema commit landed in this branch,
-    # but we keep the lazy import so this module remains importable in
-    # any worktree where the model has not yet been pulled in.
-    try:
-        from models.capacity import CapacityActionLog
-    except (ImportError, AttributeError):
-        # Schema not yet present — return an empty page.
-        return CapacityHistoryResponse(items=[], total=0, page=page, page_size=page_size)
-
     q = db.query(CapacityActionLog)
 
     # --- Server-side scoping (§12.14) ---
@@ -1830,10 +1825,12 @@ def get_capacity_history(
         payload: dict[str, Any] | None = None
         if r.detail_payload:
             try:
-                import json
                 payload = json.loads(r.detail_payload)
             except (ValueError, TypeError):
-                payload = None
+                logger.warning(
+                    "Corrupt detail_payload on capacity_action_log id=%s; treating as null",
+                    r.id,
+                )
         items.append(CapacityHistoryEntry(
             id=r.id,
             timestamp=r.timestamp,
@@ -1972,7 +1969,6 @@ def get_role_availability(
         ).all():
             pl_owned_project_ids.add(p[0])
 
-    cc_to_location_full: dict[str, str] = cc_to_location  # alias for clarity
 
     role_filter_set = (
         {role_type_id} if role_type_id
@@ -1999,7 +1995,7 @@ def get_role_availability(
 
     competing_map: dict[tuple[str, str, str], int] = {}
     for r in competing_requests:
-        loc_id_for_req = cc_to_location_full.get(r.cost_center_id, "")
+        loc_id_for_req = cc_to_location.get(r.cost_center_id, "")
         if loc_id_for_req not in location_filter_set:
             continue
         for m in generate_month_range(r.period_start, r.period_end):

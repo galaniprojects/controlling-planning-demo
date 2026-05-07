@@ -125,13 +125,12 @@ class CapacityActionLog(Base):
     the spec uses ``INTEGER`` because the spec was drafted before the string-ID
     convention was confirmed; the SQLAlchemy model is authoritative.
 
-    Action types (``action_type``):
+    Action types (``action_type``) per spec §12.10:
         confirm          — project-level confirmation (all roles covered)
         partial_confirm  — project- or request-level partial confirmation
         decline          — project-level decline
         decline_request  — single-request decline within the assignment panel
         assign_draft     — assignment draft saved (not yet confirmed)
-        reassign         — person reassigned after initial assignment
         cr_reconfirm     — re-confirmation triggered by a Change Request
     """
     __tablename__ = "capacity_action_log"
@@ -144,8 +143,6 @@ class CapacityActionLog(Base):
         server_default="CURRENT_TIMESTAMP",
     )
     action_type: Mapped[str] = mapped_column(String(20), nullable=False)
-    # action_type: confirm / partial_confirm / decline / decline_request /
-    #              assign_draft / reassign / cr_reconfirm
     acting_user_id: Mapped[str] = mapped_column(ForeignKey("people.id"), nullable=False)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
     cost_center_id: Mapped[str] = mapped_column(ForeignKey("cost_centers.id"), nullable=False)
@@ -163,12 +160,10 @@ class CapacityActionLog(Base):
     # Non-null when the action was triggered by a Change Request.
 
     __table_args__ = (
-        # Four indexes per spec §12.10 DDL — support filtered history queries
-        # and the "recently completed" inbox section (§12.8).
-        Index("idx_cap_action_log_user", "acting_user_id", "timestamp"),
-        Index("idx_cap_action_log_project", "project_id", "timestamp"),
-        Index("idx_cap_action_log_cc", "cost_center_id", "timestamp"),
-        Index("idx_cap_action_log_time", "timestamp"),
+        Index("ix_capacity_action_log_user", "acting_user_id", "timestamp"),
+        Index("ix_capacity_action_log_project", "project_id", "timestamp"),
+        Index("ix_capacity_action_log_cc", "cost_center_id", "timestamp"),
+        Index("ix_capacity_action_log_time", "timestamp"),
     )
 
     # Relationships
