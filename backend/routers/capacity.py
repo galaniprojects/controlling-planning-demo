@@ -639,6 +639,59 @@ def get_request_assignments(
     return {"items": items, "total": len(items)}
 
 
+def _normalise_assignment_body(
+    raw_assignments: list[dict[str, Any]],
+) -> list[tuple[str, list[tuple[str, float | None]]]]:
+    """Sniff legacy vs v5.2 multi-person body shape per spec §9.5 / §9.9.
+
+    Returns ``[(month, [(person_id, hours_or_None), ...]), ...]`` regardless
+    of which shape was received. ``hours`` is None for legacy entries
+    (route falls back to forecast-derived hours per the existing v4 logic).
+
+    Legacy shape:    ``{"month": ..., "person_id": ...}``
+    v5.2 shape:      ``{"month": ..., "assignments": [{"person_id":...,"hours":...}]}``
+
+    Mixing shapes within a single request is permitted (we sniff per-entry),
+    although the test plan only exercises homogeneous bodies.
+    """
+    out: list[tuple[str, list[tuple[str, float | None]]]] = []
+    for entry in raw_assignments:
+        month = entry.get("month")
+        if not isinstance(month, str):
+            raise HTTPException(400, "Each assignment entry requires a 'month' field")
+
+        if "assignments" in entry and entry["assignments"] is not None:
+            # v5.2 multi-person shape
+            people: list[tuple[str, float | None]] = []
+            for sub in entry["assignments"]:
+                pid = sub.get("person_id")
+                if not isinstance(pid, str) or not pid:
+                    raise HTTPException(400, f"Missing person_id in month '{month}'")
+                hrs = sub.get("hours")
+                if hrs is not None:
+                    try:
+                        hrs = float(hrs)
+                    except (TypeError, ValueError):
+                        raise HTTPException(400, f"Invalid hours for {pid} in {month}")
+                people.append((pid, hrs))
+            if not people:
+                raise HTTPException(400, f"Empty assignments list for month '{month}'")
+            out.append((month, people))
+        elif "person_id" in entry:
+            # Legacy single-person shape
+            pid = entry["person_id"]
+            if not isinstance(pid, str) or not pid:
+                raise HTTPException(400, f"Missing person_id in legacy entry for '{month}'")
+            out.append((month, [(pid, None)]))
+        else:
+            raise HTTPException(
+                400,
+                f"Assignment for '{month}' missing 'person_id' (legacy) or "
+                f"'assignments' (v5.2) key.",
+            )
+    return out
+
+
 @router.put("/requests/{cost_center_id}/{request_id}/assignments")
 def save_request_assignments(
     cost_center_id: str, request_id: int,
@@ -646,7 +699,13 @@ def save_request_assignments(
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role("cost_center_owner", "controller")),
 ):
-    """Save per-month person assignments for a resource request."""
+    """Save per-month person assignments for a resource request.
+
+    Accepts two body shapes per spec §9.5 / §9.9 — legacy single-person
+    ``{month, person_id}`` and v5.2 multi-person
+    ``{month, assignments: [{person_id, hours}]}``. Saving a draft writes
+    a CapacityActionLog row with action_type='assign_draft' (§12.10).
+    """
     _verify_cc_access(_user, cost_center_id)
     req = _get_request(db, cost_center_id, request_id)
 
@@ -654,23 +713,30 @@ def save_request_assignments(
         raise HTTPException(409, f"Request status is '{req.status}', cannot assign")
 
     valid_months = set(generate_month_range(req.period_start, req.period_end))
+    parsed = _normalise_assignment_body(body.assignments)
 
-    # Validate assignments
+    # Validate months + people up front so a bad row aborts before any deletes.
     seen_months: set[str] = set()
-    for entry in body.assignments:
-        if entry.month not in valid_months:
-            raise HTTPException(400, f"Month '{entry.month}' is outside request period")
-        if entry.month in seen_months:
-            raise HTTPException(400, f"Duplicate month '{entry.month}'")
-        seen_months.add(entry.month)
+    person_cache: dict[str, Person] = {}
+    for month, people in parsed:
+        if month not in valid_months:
+            raise HTTPException(400, f"Month '{month}' is outside request period")
+        if month in seen_months:
+            raise HTTPException(400, f"Duplicate month '{month}'")
+        seen_months.add(month)
+        for pid, _hrs in people:
+            if pid not in person_cache:
+                pobj = (
+                    db.query(Person)
+                    .filter(Person.id == pid, Person.is_active.is_(True))
+                    .first()
+                )
+                if not pobj:
+                    raise HTTPException(400, f"Person '{pid}' not found or inactive")
+                person_cache[pid] = pobj
 
-        person = db.query(Person).filter(
-            Person.id == entry.person_id, Person.is_active == True
-        ).first()
-        if not person:
-            raise HTTPException(400, f"Person '{entry.person_id}' not found or inactive")
-
-    # Build forecast hours lookup (aggregated by month)
+    # Build forecast-derived per-month hours so legacy entries (no explicit
+    # hours) get the right number; v5.2 entries override per-person.
     category = "internal" if req.request_type == "resource" else "external"
     sub_cat = req.role_type_id if category == "internal" else req.cost_type_id
     forecast_rows = (
@@ -694,26 +760,70 @@ def save_request_assignments(
         else:
             forecast_hours[f.month] = float(f.total_amount) if f.total_amount is not None else 0
 
-    # Delete existing assignments
+    # Wipe all existing assignments — PUT semantics per §9.9.
     db.query(ResourceRequestAssignment).filter(
         ResourceRequestAssignment.resource_request_id == req.id
     ).delete()
 
-    # Insert new assignments
-    for entry in body.assignments:
-        hours = forecast_hours.get(entry.month, float(req.hours_or_amount_per_month))
-        db.add(ResourceRequestAssignment(
-            resource_request_id=req.id,
-            month=entry.month,
-            person_id=entry.person_id,
-            hours=hours,
-        ))
+    # Insert new assignments. Multi-person rows write multiple rows per month;
+    # the relaxed unique constraint (resource_request_id, month, person_id)
+    # makes this safe (per Teammate A's schema commit).
+    person_freq: dict[str, int] = {}
+    audit_assignments: list[dict[str, Any]] = []
+    for month, people in parsed:
+        for pid, explicit_hours in people:
+            if explicit_hours is not None:
+                hours_value = explicit_hours
+            else:
+                hours_value = forecast_hours.get(
+                    month, float(req.hours_or_amount_per_month)
+                )
+            db.add(ResourceRequestAssignment(
+                resource_request_id=req.id,
+                month=month,
+                person_id=pid,
+                hours=hours_value,
+            ))
+            person_freq[pid] = person_freq.get(pid, 0) + 1
+            audit_assignments.append({
+                "person_id": pid,
+                "person_name": person_cache[pid].name,
+                "month": month,
+                "hours": hours_value,
+            })
 
-    # Update assigned_person_id to most-frequently-assigned person (backward compat)
-    if body.assignments:
-        from collections import Counter
-        person_counts = Counter(e.person_id for e in body.assignments)
-        req.assigned_person_id = person_counts.most_common(1)[0][0]
+    # Update assigned_person_id to most-frequently-assigned person (back-compat
+    # for v4 callers that read this field).
+    if person_freq:
+        req.assigned_person_id = max(person_freq.items(), key=lambda x: x[1])[0]
+
+    # ---------------- Capacity audit log (§12.10) ----------------
+    role_label = (
+        req.role_type.name if req.role_type else (req.role_type_id or "")
+    )
+    summary = (
+        f"Saved draft assignments for {role_label}: "
+        f"{len(audit_assignments)} person-month{'s' if len(audit_assignments) != 1 else ''}"
+    )
+    log_capacity_action(
+        db, _user,
+        action_type="assign_draft",
+        project_id=req.project_id,
+        cost_center_id=cost_center_id,
+        summary=summary,
+        detail_payload={
+            "requests_affected": [{
+                "request_id": req.id,
+                "role": role_label,
+                "months": len(seen_months),
+                "hours": sum(a["hours"] for a in audit_assignments),
+            }],
+            "assignments": audit_assignments,
+            "cr_id": req.change_request_id,
+            "decline_reason": None,
+        },
+        change_request_id=req.change_request_id,
+    )
 
     db.commit()
 
@@ -804,6 +914,39 @@ def partially_fulfill_request(
             cr.cc_status = "confirmed"
             cr.cc_confirmation_timestamp = datetime.utcnow()
             cr.status = "pending_controller_approval"
+
+    # Audit log per §12.10 — partial confirmation event.
+    role_label = req.role_type.name if req.role_type else (req.role_type_id or "")
+    assigned_name = None
+    if body.assigned_person_id:
+        ap = db.query(Person).filter(Person.id == body.assigned_person_id).first()
+        assigned_name = ap.name if ap else body.assigned_person_id
+    log_capacity_action(
+        db, user,
+        action_type="partial_confirm",
+        project_id=req.project_id,
+        cost_center_id=cost_center_id,
+        summary=(
+            f"Partially fulfilled {role_label} request: "
+            f"{body.adjusted_value:g} adjusted hours"
+            + (f" assigned to {assigned_name}" if assigned_name else "")
+        ),
+        detail_payload={
+            "requests_affected": [{
+                "request_id": req.id,
+                "role": role_label,
+                "adjusted_value": float(body.adjusted_value or 0),
+            }],
+            "assignments": (
+                [{"person_id": body.assigned_person_id, "person_name": assigned_name}]
+                if body.assigned_person_id else []
+            ),
+            "cr_id": req.change_request_id,
+            "decline_reason": None,
+        },
+        change_request_id=req.change_request_id,
+    )
+
     db.commit()
     return _request_to_dict(req, db)
 
@@ -1054,6 +1197,49 @@ def confirm_project_resources(
             deep_link_tab="intake",
         ))
 
+    # Capacity audit log per §12.10. We bucket the action under the CC of the
+    # first pending request — projects with fan-out across multiple CCs will
+    # generate one log entry per CC if the spec ever calls for that, but for
+    # now §12.10 specifies one record per project confirmation. Per §12.10
+    # mapping table this is action_type='confirm' (no partial flag set here).
+    role_breakdown: dict[str, dict[str, float]] = {}
+    for req in pending_requests:
+        role_label = req.role_type.name if req.role_type else (req.role_type_id or "")
+        agg = role_breakdown.setdefault(role_label, {"count": 0, "hours": 0.0})
+        agg["count"] += 1
+        months_count = len(generate_month_range(req.period_start, req.period_end))
+        agg["hours"] += float(req.hours_or_amount_per_month or 0) * months_count
+
+    total_hours = sum(b["hours"] for b in role_breakdown.values())
+    summary_cc = pending_requests[0].cost_center_id if pending_requests else (
+        # Project-level confirmation with no pending requests — fall back to the
+        # CC-Owner's managed CC if present, else any CC referenced by the project.
+        user.cost_center_id or "unknown"
+    )
+    log_capacity_action(
+        db, user,
+        action_type="confirm",
+        project_id=project.id,
+        cost_center_id=summary_cc,
+        summary=(
+            f"Confirmed {len(role_breakdown)} role"
+            f"{'s' if len(role_breakdown) != 1 else ''}, "
+            f"{total_hours:.0f}h total for {project.name}"
+        ),
+        detail_payload={
+            "requests_affected": [
+                {"request_id": req.id, "role": (req.role_type.name if req.role_type else (req.role_type_id or "")),
+                 "months": len(generate_month_range(req.period_start, req.period_end)),
+                 "hours": float(req.hours_or_amount_per_month or 0) * len(
+                     generate_month_range(req.period_start, req.period_end))}
+                for req in pending_requests
+            ],
+            "assignments": [],
+            "cr_id": None,
+            "decline_reason": None,
+        },
+    )
+
     db.commit()
     db.refresh(project)
 
@@ -1099,6 +1285,34 @@ def decline_project_resources(
             deep_link_entity_id=project.id,
             deep_link_tab="diff",
         ))
+
+    # Capacity audit log per §12.10 — action_type='decline'. decline_reason
+    # carried in detail_payload for the history page's expanded row.
+    summary_cc = (
+        pending_requests[0].cost_center_id
+        if pending_requests
+        else (user.cost_center_id or "unknown")
+    )
+    log_capacity_action(
+        db, user,
+        action_type="decline",
+        project_id=project.id,
+        cost_center_id=summary_cc,
+        summary=f"Declined {project.name} — sent back to PL",
+        detail_payload={
+            "requests_affected": [
+                {"request_id": req.id,
+                 "role": (req.role_type.name if req.role_type else (req.role_type_id or "")),
+                 "months": len(generate_month_range(req.period_start, req.period_end)),
+                 "hours": float(req.hours_or_amount_per_month or 0) * len(
+                     generate_month_range(req.period_start, req.period_end))}
+                for req in pending_requests
+            ],
+            "assignments": [],
+            "cr_id": None,
+            "decline_reason": body.reason,
+        },
+    )
 
     db.commit()
     db.refresh(project)
