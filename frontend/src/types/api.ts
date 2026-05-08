@@ -1073,6 +1073,105 @@ export interface CapacityInboxFilters {
   cost_center_id?: string[];
 }
 
+// --- v5.2 W5 Group-by-project view (spec §10) ---
+
+export interface CapacityProjectMonth {
+  month: string;
+  requested_hours: number;
+  assigned_hours: number;
+}
+
+export interface CapacityProjectAssignedPersonMonth {
+  month: string;
+  this_project_hours: number;
+  total_hours_all_projects: number;
+  total_utilization_pct: number;
+}
+
+export interface CapacityProjectAssignedPerson {
+  person_id: string;
+  person_name: string;
+  role_type_id: string | null;
+  role_name: string | null;
+  cost_center_id: string | null;
+  cost_center_name: string | null;
+  monthly: CapacityProjectAssignedPersonMonth[];
+}
+
+export interface CapacityProjectSlotMonth {
+  month: string;
+  requested_hours: number;
+  assigned_hours: number;
+}
+
+export type CapacityProjectSlotStatus = 'pending' | 'partially_fulfilled';
+
+export interface CapacityProjectSlot {
+  request_id: number;
+  role_type_id: string | null;
+  role_name: string | null;
+  status: CapacityProjectSlotStatus;
+  period_start: string;
+  period_end: string;
+  cc_id: string;
+  cc_name: string | null;
+  priority: string | null;
+  change_request_id: number | null;
+  monthly: CapacityProjectSlotMonth[];
+}
+
+export interface CapacityProjectExternalCost {
+  request_id: number;
+  description: string | null;
+  cost_type_id: string | null;
+  cost_type_label: string | null;
+  period_start: string;
+  period_end: string;
+  status: string;
+  cc_id: string;
+  cc_name: string | null;
+}
+
+export interface CapacityProjectItem {
+  project_id: string;
+  project_name: string;
+  project_status: string | null;
+  hierarchy_node_id: string | null;
+  hierarchy_node_name: string | null;
+  pl_person_id: string | null;
+  pl_name: string | null;
+  fully_assigned_request_count: number;
+  total_request_count: number;
+  fulfillment_pct: number;
+  monthly_demand: CapacityProjectMonth[];
+  assigned_people: CapacityProjectAssignedPerson[];
+  unfulfilled_slots: CapacityProjectSlot[];
+  external_costs: CapacityProjectExternalCost[];
+}
+
+export type CapacityProjectsFilterChip =
+  | 'needs_staffing'
+  | 'pending_requests'
+  | 'unassigned_months'
+  | 'over_allocated'
+  | 'under_utilized';
+
+export interface CapacityProjectsResponse {
+  items: CapacityProjectItem[];
+  total: number;
+  scope: string;
+  start: string;
+  end: string;
+  reference_max_hours: number;
+}
+
+export interface CapacityProjectsParams {
+  scope?: string;
+  start?: string;
+  end?: string;
+  filter_chip?: CapacityProjectsFilterChip;
+}
+
 // --- What-If Simulator ---
 
 export interface ScenarioListItem {

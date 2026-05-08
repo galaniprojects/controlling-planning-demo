@@ -276,12 +276,12 @@ export function useScopedTimelineData(skip = false): ScopedTimelineData {
 
   useEffect(() => {
     if (skip) return;
-    // Guard: project-grouping is W5.
+    // Guard: project-grouping has its own data feed
+    // (`<ProjectGroupView />` calls `capacityApi.getProjects` directly).
+    // Return EMPTY_RESULT without a reason so the timeline component
+    // routes to ProjectGroupView instead of showing an empty-state card.
     if (groupBy === 'project') {
-      setState({
-        ...EMPTY_RESULT,
-        unsupportedReason: 'project-view-pending',
-      });
+      setState(EMPTY_RESULT);
       return;
     }
 

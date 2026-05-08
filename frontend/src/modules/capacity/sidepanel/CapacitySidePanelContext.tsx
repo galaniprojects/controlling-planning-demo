@@ -18,7 +18,7 @@
  *   - A handler-registration seam for the two modes whose content this
  *     wave does not own:
  *
- *         project_summary → registered by Track A (Wave 4, Session 9)
+ *         project_summary → registered by Track B (Wave 5, Session 9)
  *         assignment      → registered by Track A (Wave 4, Session 6a)
  *
  *     Calling `openProjectSummary` / `openAssignment` before the owning
@@ -118,7 +118,7 @@ interface CapacitySidePanelState {
   openCell: (args: OpenCellArgs) => void;
   /**
    * Open the project-summary panel (§10.8). Stub — no-op with a
-   * console.warn until Track A (W4 §10) registers its handler via
+   * console.warn until Track B (W5 §10) registers its handler via
    * `registerProjectSummaryHandler`.
    */
   openProjectSummary: ProjectSummaryHandler;
@@ -211,7 +211,7 @@ export function CapacitySidePanelProvider({ children }: { children: ReactNode })
     }
     console.warn(
       '[CapacitySidePanel] openProjectSummary called before a handler ' +
-        'was registered. Project summary content lands in W4 (Session 9 — ' +
+        'was registered. Project summary content lands in W5 (Session 9 — ' +
         'group-by-project view).',
       { projectId },
     );

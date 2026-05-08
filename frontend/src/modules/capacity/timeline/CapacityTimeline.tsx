@@ -31,6 +31,7 @@ import {
 import { TimeAxisHeader } from './TimeAxisHeader';
 import { RoleGroup } from './RoleGroup';
 import { FlatPersonRow } from './FlatPersonRow';
+import { ProjectGroupView } from './ProjectGroupView';
 import {
   buildVisibleColumns,
   toggleQuarter,
@@ -138,16 +139,6 @@ function CapacityTimelineInner({
               </span>
             </>
           )}
-          {data.unsupportedReason === 'project-view-pending' && (
-            <>
-              <span className="font-medium text-foreground">
-                Project view ships in v5.2 W5
-              </span>
-              <span>
-                Switch group-by to Role or Person to use the W3 timeline.
-              </span>
-            </>
-          )}
         </CardContent>
       </Card>
     );
@@ -182,23 +173,27 @@ function CapacityTimelineInner({
         />
 
         <div role="rowgroup">
-          {groupBy === 'role'
-            ? data.roleGroups.map((g) => (
-                <RoleGroup
-                  key={g.roleId}
-                  data={g}
-                  columns={columns}
-                  onPersonClick={onPersonClick}
-                />
-              ))
-            : data.flatPeople.map((p) => (
-                <FlatPersonRow
-                  key={p.personId}
-                  data={p}
-                  columns={columns}
-                  onRowClick={onPersonClick}
-                />
-              ))}
+          {groupBy === 'project' ? (
+            <ProjectGroupView columns={columns} />
+          ) : groupBy === 'role' ? (
+            data.roleGroups.map((g) => (
+              <RoleGroup
+                key={g.roleId}
+                data={g}
+                columns={columns}
+                onPersonClick={onPersonClick}
+              />
+            ))
+          ) : (
+            data.flatPeople.map((p) => (
+              <FlatPersonRow
+                key={p.personId}
+                data={p}
+                columns={columns}
+                onRowClick={onPersonClick}
+              />
+            ))
+          )}
         </div>
       </div>
     </div>

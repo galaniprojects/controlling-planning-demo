@@ -230,10 +230,10 @@ function WorkspaceBody() {
           onCellClick={
             demandClickEnabled
               ? (period) => {
-                  // Track C didn't ship a demand-cell handler in W3; W4
-                  // S6a wires this to a filtered unfulfilled-RR list.
-                  // For now we no-op so the click is observable but
-                  // doesn't open an empty panel.
+                  // W5 Track A (S6b §9.1 entry-point #2) replaces this
+                  // placeholder with a side-panel filtered-RR list whose
+                  // rows trigger `enterAssignmentMode` via openAssignment.
+                  // Until then the click is observable but inert.
                   void period;
                 }
               : undefined
