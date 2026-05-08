@@ -419,7 +419,7 @@ export function useScopedTimelineData(): ScopedTimelineData {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     scope.kind,
-    'id' in scope ? scope.id : null,
+    scope.id ?? null,
     ccId,
     groupBy,
     // Stringify activeFilters so React only re-fetches on actual change.
