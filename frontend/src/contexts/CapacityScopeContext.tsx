@@ -34,6 +34,25 @@ import {
 export type ScopeKind = 'my_cc' | 'all_ccs' | 'location' | 'hierarchy';
 export type GroupBy = 'role' | 'project' | 'person';
 
+/**
+ * v5.2 W3 §6 — smart filter chip identifiers.
+ *
+ *  - `all`              — default; no row filtering.
+ *  - `over_allocated`   — people with any month >100% in visible window.
+ *  - `under_utilized`   — people with avg utilization < threshold (40%).
+ *  - `pending_requests` — people who are `assigned_person_id` on any pending RR.
+ *  - `unassigned_months`— people linked to RRs with un-assigned month cells.
+ *
+ * Mutual exclusivity rule: `all` and any specific chip cannot both be active.
+ * Multiple specific chips combine with AND logic.
+ */
+export type FilterChipKey =
+  | 'all'
+  | 'over_allocated'
+  | 'under_utilized'
+  | 'pending_requests'
+  | 'unassigned_months';
+
 export interface CapacityScope {
   kind: ScopeKind;
   /** Optional id payload: location id (kind=location) or hierarchy node id (kind=hierarchy). */
@@ -45,9 +64,39 @@ interface CapacityScopeState {
   groupBy: GroupBy;
   /** Currently-selected CC id (Controller `My CC` dropdown selection, or CC-Owner's pinned CC). */
   ccId: string | null;
+  /** v5.2 W3 §6 — currently-active filter chip keys. Defaults to ['all']. */
+  activeFilters: FilterChipKey[];
+  /**
+   * v5.2 W3 §5.2 — pending-requests KPI value, published by KPISummaryBar
+   * so CapacityModuleNav (and other surfaces) can read the same number
+   * without a duplicate fetch. Null until the KPI bar mounts.
+   */
+  pendingRequestsKpi: number | null;
   setScope: (next: CapacityScope) => void;
   setGroupBy: (next: GroupBy) => void;
   setCcId: (id: string | null) => void;
+  /** Replace the active filter set, enforcing the `all` mutual-exclusivity rule. */
+  setActiveFilters: (next: FilterChipKey[]) => void;
+  setPendingRequestsKpi: (n: number | null) => void;
+}
+
+/**
+ * Normalize a candidate filter set to the mutual-exclusivity rules:
+ *   - empty list   → ['all']
+ *   - contains 'all' alongside specifics → drop specifics, keep ['all']
+ *     (UNLESS the *only* difference from the prior state is that a
+ *     specific filter was added — handled by callers, not here)
+ *   - contains specifics only → strip 'all', dedupe
+ */
+export function normalizeActiveFilters(
+  next: readonly FilterChipKey[],
+): FilterChipKey[] {
+  const set = new Set(next);
+  if (set.size === 0) return ['all'];
+  if (set.has('all') && set.size > 1) {
+    set.delete('all');
+  }
+  return Array.from(set);
 }
 
 const CapacityScopeCtx = createContext<CapacityScopeState | null>(null);
@@ -128,10 +177,31 @@ export function CapacityScopeProvider({
   const [scope, setScope] = useState<CapacityScope>(initialScope);
   const [groupBy, setGroupBy] = useState<GroupBy>(initialGroupBy);
   const [ccId, setCcId] = useState<string | null>(initialCcId);
+  const [activeFilters, setActiveFiltersState] = useState<FilterChipKey[]>([
+    'all',
+  ]);
+  const [pendingRequestsKpi, setPendingRequestsKpi] = useState<number | null>(
+    null,
+  );
+
+  const setActiveFilters = (next: FilterChipKey[]) => {
+    setActiveFiltersState(normalizeActiveFilters(next));
+  };
 
   const value = useMemo<CapacityScopeState>(
-    () => ({ scope, groupBy, ccId, setScope, setGroupBy, setCcId }),
-    [scope, groupBy, ccId],
+    () => ({
+      scope,
+      groupBy,
+      ccId,
+      activeFilters,
+      pendingRequestsKpi,
+      setScope,
+      setGroupBy,
+      setCcId,
+      setActiveFilters,
+      setPendingRequestsKpi,
+    }),
+    [scope, groupBy, ccId, activeFilters, pendingRequestsKpi],
   );
 
   return (
