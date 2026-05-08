@@ -5,11 +5,98 @@
 Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative spec). Execution sequencing: `guides/Capacity_Module_Redesign_Implementation_Guide.md` (14 sessions across 5 phases). Plan: 6 waves, one PR per wave, fresh planning session per wave, user-review gate between each. Agent teams used within each wave for max parallelism.
 
 - [x] **Wave 1** — Capacity backend foundation (S1): schema relaxation + `CapacityActionLog` table + 4 new endpoints (`/dashboard/forecast`, `/dashboard/headcount-breakdown`, `/dashboard/hotspots`, `/history`) + 2 enhanced endpoints (role-availability with `competing_demand_count` + `location_summary`; assignments PUT with multi-person body shape) + audit log writes wired into 4 mutating handlers + seed enrichment per spec §1 acceptance criteria — branch `feat/v5_2-capacity-foundation` (PR #88 merged 2026-05-08)
-- [x] **Wave 2** — Frontend workspace shell (S2): routes, ScopeBar, workspace skeleton, SidePanel width parameterization — branch `feat/v5_2-capacity-shell` (PR pending)
-- [ ] **Wave 3** — Core surfaces (S3+S4+S5a+S5b, 4-teammate team): timeline + KPIs/filters/demand strip + side panel + inbox/history page
+- [x] **Wave 2** — Frontend workspace shell (S2): routes, ScopeBar, workspace skeleton, SidePanel width parameterization — branch `feat/v5_2-capacity-shell` (PR #90 merged 2026-05-08)
+- [x] **Wave 3** — Core surfaces (S3+S4+S5a+S5b, 4-teammate team): timeline + KPIs/filters/demand strip + side panel + inbox/history page — branch `feat/v5_2-capacity-core-surfaces` (PR pending)
 - [ ] **Wave 4** — Complex features (S6a+S7+S8, 3-teammate team): assignment panel + dashboard layer + PL availability view
 - [ ] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification
 - [ ] **Wave 6** — Integration + polish (S11+S12): cross-cutting integration + edge cases + a11y + perf
+
+### v5.2 Wave 3 — Core surfaces (2026-05-08, branch `feat/v5_2-capacity-core-surfaces`)
+
+Branch cut by Lead from `main` post-W2 merge. 4-teammate `react-specialist` team (`v5_2-w3-capacity-core-surfaces`) running in parallel with clean file ownership; all teammates committed directly to the shared branch.
+
+**Lead pre-work (5 commits, `f4c6b13` / `010cbe1` / `ecd043f` / `202b77b` / `0d13862`):**
+- ADD shadcn primitives via CLI: `popover`, `command`, `scroll-area` (for filter dropdowns + searchable multi-selects + timeline scroll viewport). Pulls in `cmdk@^1.1.1`.
+- MODIFY `frontend/src/api/endpoints.ts` — wires the W1 dashboard/history endpoints into `capacityApi` (`getDashboardForecast`, `getDashboardHeadcountBreakdown`, `getDashboardHotspots`, `getCapacityHistory`) and adds the new W3 `getInbox(filters)` client. NEW `frontend/src/lib/capacityScopeApi.ts::scopeToApiParam(scope, ccId)` translates the W2 frontend `CapacityScope` shape to the W1 backend scope vocabulary (`all` / `cost_center:<id>` / `location:<id>` / `hierarchy:<id>`).
+- NEW `frontend/src/lib/projectColors.ts` — 7-color rotating project palette per spec §3.2 (hex). NEW `frontend/src/contexts/ProjectColorMapContext.tsx` — Provider with `registerVisibleProjects()` (append-only) + `useProjectColor(projectId)` hook.
+- MODIFY `frontend/src/contexts/CapacityScopeContext.tsx` — adds `FilterChipKey` union (`all` / `over_allocated` / `under_utilized` / `pending_requests` / `unassigned_months`) per §6, `activeFilters` + `setActiveFilters` + `normalizeActiveFilters()` helper enforcing mutual exclusivity, and `pendingRequestsKpi` + `setPendingRequestsKpi` seam so the W3 KPI bar can publish the value to the `CapacityModuleNav` Requests badge without a duplicate fetch.
+- NEW `backend/routers/capacity.py::GET /api/capacity/inbox` per spec §12.3 — project-per-CC triage queue with role badges, unassigned hours, age, priority, status (new/in_progress/re_confirm), CR distinction. Server-side aggregation per CLAUDE.md "frontend receives ready-to-render data". Authorization: Controller all CCs; CC Owner own CC server-scoped; Executive 403; PL 403. NEW `backend/schemas/capacity.py::CapacityInboxItem` + `CapacityInboxResponse` + `CapacityInboxRoleBadge`. NEW `backend/tests/test_router_capacity_inbox.py` — 21 tests (shape, role gating, multi-CC fan-out, CR distinction, status derivation, role-badge aggregation, unassigned-hours math, project priority from highest RR, age, default sort priority/age, status/role/CC/PL filters, empty state).
+
+**Track A — `react-specialist` (Session 3, timeline + collapsible time axis, 7 commits):**
+- NEW `frontend/src/modules/capacity/timeline/timeAxis.ts` — `TimeAxisState` type, `defaultTimeAxisState(window, demoDate)` per §4.5 (current FY → quarters; current quarter → months; past/future years collapsed), `buildVisibleColumns(state, months)` returning the flattened column list with each column's level (`year|quarter|month`) and width (48/48/42px per §4.6), `computePeriodSummary` for collapsed-period averages (§4.4).
+- NEW `frontend/src/modules/capacity/timeline/TimeAxisHeader.tsx` — two-row header (year/quarter row + month row), chevron click handlers per §4.3.
+- NEW `frontend/src/modules/capacity/timeline/SegmentBar.tsx` + `PersonTimelineRow.tsx` — name cell 160px sticky-left + bar cells with stacked colored project segments. Over-allocation 1.5px red border at >100% (§3.1). Summary bars at 0.85 opacity for collapsed periods (§4.4) including red border when any hidden month exceeds 100%. Tooltips on segments (`Project: Xh`) and gaps (`Available: Xh`).
+- NEW `frontend/src/modules/capacity/timeline/RoleGroup.tsx` + `FlatPersonRow.tsx` — expandable role section with chevron + aggregate bar at 50% opacity (§3.3); flat variant for `groupBy === 'person'` sorted by peak utilization desc (§3.6).
+- NEW `frontend/src/modules/capacity/hooks/useScopedTimelineData.ts` — fetches based on `(scope, groupBy)`: `cost_center:<id>` → `getTeamHeatmap(ccId)`; other scopes return `unsupportedReason='org-scope-not-yet-supported'` with an explanatory empty state (org-scope timeline lifts to W4 dashboard layer per §11). Per-person `getPersonDetail` calls merge project segments into the heatmap utilization cells.
+- NEW `frontend/src/modules/capacity/timeline/CapacityTimeline.tsx` — composition root: scroll-area + `TimeAxisHeader` + sorted `RoleGroup`s (or `FlatPersonRow`s). Owns `TimeAxisState` locally (NOT in scope context per §4.2). Registers visible project ids with `ProjectColorMapProvider` so segment colors stay stable. + barrel `index.ts`.
+
+**Track B — `react-specialist` (Session 4, KPI bar + filter chips + demand strip, 4 commits):**
+- NEW `frontend/src/modules/capacity/filters/filterPeople.ts` — pure utility `filterPeople(rows, activeFilters) → rows` plus `rowMatchesFilter` predicate exported for chip-badge counts. Loose `TimelineRow` shape (`person_id`, `monthly_utilization`, `has_pending_request`, `has_unassigned_months`) so any data source can feed it. `UNDER_UTILIZED_THRESHOLD=40` per §6.1.
+- NEW `frontend/src/modules/capacity/kpi/KPISummaryBar.tsx` — 5 SummaryCard tiles per §5.2 (Headcount / Avg utilization / Over-allocated / Pending requests / Supply gap). Data sourced from `getDashboardHeadcountBreakdown` (count) + `getDashboardForecast` (windowed avg + over-allocation count derived) + `getDashboardHotspots` (filtered to `over_allocation+target_type=person` and `unfulfilled_demand+target_type=role`) + `getInbox` (sum of role badges). Click handlers route to `setActiveFilters` per §5.4. Pending-requests value publishes to `setPendingRequestsKpi` so `CapacityModuleNav` reads the same number.
+- NEW `frontend/src/modules/capacity/filters/FilterChipBar.tsx` — 5 pill buttons (All / Over-allocated / Under-utilized / Pending requests / Unassigned months) with count badges via `countMatching(rows, chip)`. Mutual exclusivity with All per §6.2; multi-specifics AND. Active state inverts colors per §6.3. Reads `activeFilters` from CapacityScopeContext.
+- NEW `frontend/src/modules/capacity/demand/DemandStrip.tsx` — sticky-bottom row, one cell per visible time column showing `+N` of unfulfilled requests. Color thresholds: 0=empty, 1–2=warning amber, 3+=danger rose (with dark variants per CLAUDE.md). Collapsed period shows peak (not sum/avg) per §8.3. `peakForPeriod` helper. Data sourced from `getDashboardForecast.demand_hours` divided by `RR_HOURS_PER_MONTH` proxy. Hidden when `groupBy === 'project'` per §10.7.
+
+**Track C — `react-specialist` (Session 5a, side panel + person/cell detail, 4 commits):**
+- NEW `frontend/src/modules/capacity/sidepanel/widths.ts` — `CapacityPanelKind` enum + `CAPACITY_PANEL_WIDTH` (person=280, cell=280, project_summary=280, assignment=400 per §7.1 / §9.2 / §10.8).
+- NEW `frontend/src/modules/capacity/sidepanel/CapacitySidePanelContext.tsx` — capacity-scoped wrapper around the shared `useSidePanel()`. Exposes `mode`, `openPerson(ccId, personId)`, `openCell({dimensionId, pivot, month, rowLabel})`, `openProjectSummary` (no-op stub for W4 S6a), `openAssignment` (no-op stub for W4 S6a) + `registerProjectSummaryHandler` / `registerAssignmentHandler` plug-in seams. Width-per-mode dispatch via `openPanel(title, content, { width })`. Lead integration commit replaces the dispatcher-node pattern with concrete `<PersonDetail />` / `<CellDetail />` content per call (the shared SidePanel renders content outside the provider tree).
+- NEW `frontend/src/modules/capacity/sidepanel/PersonDetail.tsx` — header (name / role / location badge), Allocations section with project color dots from `useProjectColor` + names + hours/month (project name links to `/workbench?project={id}`), Monthly summary (utilization-by-quarter colored buckets), conditional Pending requests + Demand pipeline sections. "Review project" buttons emit a callback that downstream tracks (W4 S6a) wire to assignment-mode entry.
+- NEW `frontend/src/modules/capacity/sidepanel/CellDetail.tsx` — header (row label + period), summary block (Allocated / Available / Delta with color), expandable project-allocations list with per-person breakdown.
+- NEW `frontend/src/modules/capacity/sidepanel/CapacityPanelContent.tsx` (kept for downstream W4 use, currently unused by Lead integration) + barrel `index.ts`.
+
+**Track D — `react-specialist` (Session 5b, inbox + history, 12 commits):**
+- NEW `frontend/src/modules/capacity/shared/Pagination.tsx` — small custom prev / numbered / next pager (shadcn doesn't ship a Pagination primitive in this codebase). Used by the History page.
+- NEW `frontend/src/modules/capacity/shared/personaPersonId.ts` — demo persona → `person_id` mapping. Used by the History "Me" default and the inbox's recently-completed "current user" filter.
+- NEW `frontend/src/modules/capacity/requests/InboxFilterBar.tsx` — status pill group + Role / PL / Cost-center popovers (cmdk command list with checkbox indicators). CC dropdown hidden for CC Owners.
+- NEW `frontend/src/modules/capacity/requests/RequestRow.tsx` — one (project, CC) row per spec §12.3 with CR pill + summary line, hierarchy node badge, role badges, age + status + priority pills (colour rules), and "Review & assign" + "Decline all" action group. Decline opens an inline `<DeclineInlineForm>` beneath the row; row gets a strikethrough + fade-out animation post-decline.
+- NEW `frontend/src/modules/capacity/requests/DeclineInlineForm.tsx` — inline expansion textarea + Cancel / Confirm decline buttons.
+- NEW `frontend/src/modules/capacity/requests/RequestTable.tsx` — sortable shadcn table with default `priority desc → age desc` (matches the server) and an EmptyState card when the filtered set is empty.
+- NEW `frontend/src/modules/capacity/requests/RecentlyCompletedSection.tsx` — collapsed-by-default section at the bottom of the inbox listing the last 7 days of completed actions (`getCapacityHistory` filtered to confirm/partial/decline/cr_reconfirm; CC Owner is server-scoped, Controller is filtered to their own person_id). "View full history" link → /capacity/history. Refreshable via a parent nonce so post-decline actions update without a remount.
+- REWRITE `frontend/src/modules/capacity/RequestsInbox.tsx` — page composition + URL state (`useSearchParams({ replace: true })` for filter + sort) + decline orchestration (3-second strikethrough + concurrent inbox refresh + recently-completed bump).
+- NEW `frontend/src/modules/capacity/history/HistoryFilterBar.tsx` — User searchable dropdown (with role-aware "Me" entry), Action multi-select pill group, multi-select Cost-center popover (hidden for CC Owners), Project searchable dropdown, From/To date inputs. Reset filters button + active-state detection compare against the role-default fallback.
+- NEW `frontend/src/modules/capacity/history/HistoryRow.tsx` — Date / User / Action badge / Project / CC / Summary columns + chevron toggle.
+- NEW `frontend/src/modules/capacity/history/HistoryDetailExpand.tsx` — structured detail_payload breakdown: roles affected, people assigned, optional CR info, decline reason, "View project in workbench" link.
+- NEW `frontend/src/modules/capacity/history/HistoryTable.tsx` — sortable shadcn table; sort is server-side via `getCapacityHistory` params. EmptyState card when filters yield nothing.
+- REWRITE `frontend/src/modules/capacity/CapacityHistory.tsx` — page composition + URL state (filter + sort + page) + dropdown options (users from rolesApi mapped via PERSONA_TO_PERSON_ID, CCs from referenceApi, projects from workbenchApi) + Pagination footer. Default filter rules per spec §12.12: CC Owner → User=Me, Controller / Executive → User=All; date range default = last 30 days.
+
+**Verification (Track D):**
+- `tsc --noEmit` clean.
+- Backend `/api/capacity/inbox` + `/api/capacity/history` consumed unchanged.
+- Visual verification at 1920×1000 across Controller (all CCs visible), CC Owner (CC column hidden, server-scoped) and Executive (read-only history) personas; light + dark themes; Decline-all inline form expansion; History expanded-row payload rendering. Screenshots: `qa/screenshots/w3-trackd-{01..09}*.png`.
+
+**Lead integration (2 commits, `e90ae51` / `60c23ef`):**
+- REWRITE `frontend/src/modules/capacity/CapacityWorkspace.tsx` — replaces W2 placeholder slots with the real components in spec §1.3 layout order (ScopeBar → KPISummaryBar → FilterChipBar → CapacityTimeline → DemandStrip). Wraps the workspace tree in `<CapacitySidePanelProvider>`. Lifts `useScopedTimelineData()` to the workspace level so FilterChipBar gets live badge counts off the same dataset the timeline renders. Hint card when an active filter combination hides every row.
+- MODIFY `frontend/src/modules/capacity/CapacityModuleNav.tsx` — Requests badge source change. When the `CapacityScopeProvider` is mounted (workspace + inbox + history routes), the badge reads the live `pendingRequestsKpi` value published by KPISummaryBar (Lead 0.4 seam). Falls back to the layout shell's `pendingRequestCount` prop when the provider isn't available (e.g., the PL availability route). New `useCapacityScopeOptional()` hook on the context for safe non-throwing access.
+- MODIFY `frontend/src/App.tsx` — lifts `<ProjectColorMapProvider>` to the App level (above `<AppLayout>`). The shared `SidePanel` renders captured content nodes inside `AppLayout`, *outside* any per-route provider — so when the side panel hosted PersonDetail (which calls `useProjectColor`), the per-workspace provider was unreachable. The lift gives timeline rows AND side-panel allocation dots a single shared map.
+- MODIFY `frontend/src/modules/capacity/timeline/CapacityTimeline.tsx` — drops its inner `ProjectColorMapProvider` (lifted to App.tsx) so the map is a single instance across the workspace + the side panel.
+- MODIFY `frontend/src/modules/capacity/sidepanel/CapacitySidePanelContext.tsx` — replaces the dispatcher-node pattern with concrete content per call: `openPerson` passes `<PersonDetail ccId personId />` directly; `openCell` passes `<CellDetail ... />` directly. Track C's original dispatcher relied on `<CapacityPanelContent />` re-reading `mode` from the capacity context at render time — but that node is captured as a React element by the shared `SidePanelContext` and rendered later inside `AppLayout`, where the capacity context is unreachable. Concrete content sidesteps that.
+
+**Verification (Lead):**
+- `npx tsc --noEmit` clean across all 4 tracks + integration.
+- Backend `pytest tests/ -v` — 1653 passing (1632 W1 baseline + 21 new W3 inbox tests). 0 failures.
+- Curl-smoke `/api/capacity/inbox`: Controller sees 5 rows including proj-autobrake's 3-CC fan-out (cc-muc-apd / cc-bud-apd / cc-pun-apd); CC Owner (Thomas Brenner) sees 3 own-CC rows; Executive 403; PL 403.
+- Visual verification at 1440×900 in light + dark mode (Chrome DevTools MCP):
+  * Workspace at My CC / MUC App Dev (Controller): KPI bar shows 5 / 27.6% / 1 / 6 / 5 roles; filter chips show All=20 / Over-allocated=2 / Under-utilized=14 / Pending=0 / Unassigned=0; timeline renders 5 role groups (Developer, Junior Developer, QA / Test Engineer, Senior Solution Architect, Senior Developer) with 11 person rows; default time-axis collapse (Q2 2026 expanded to Apr/May/Jun, others collapsed to year/quarter); Lena Fischer's Q2 row shows the red over-allocation border with stacked ERP Integration Phase 2 segments at 165h/mo.
+  * Person detail panel (click Lena Fischer): renders at 280px with project color dots matching the timeline segments, Allocations section "ERP Integration Phase 2: 123h/mo", Monthly summary 2026 Q2=103% Q3=50% Q4=0%.
+  * Demand strip: monthly cells +2 / +2 / +5 / +4 / +4 / ... at My-CC scope (CC Owner-scoped, cc-muc-apd only); aggregate +2 / +2 / +8 / +7 / ... at All-CCs scope.
+  * `/capacity/requests` Controller: 5 rows with proj-autobrake 3-CC fan-out, "CR" pill on ERP Integration Phase 2 + Sensor Data Pipeline rows, status badges (Re-confirm blue, In progress amber, New gray).
+  * `/capacity/requests` CC Owner: 3 own-CC rows, no CC column rendered (matches §12.6).
+  * `/capacity/history`: 3 entries, action-type pill multi-select active for all 5 categories, date range last-30-days default, sort timestamp desc, action badges colored (Draft saved gray, Re-confirmed blue, Confirmed green).
+  * PL persona auto-redirects from `/capacity` → `/capacity/availability` (W2 placeholder, real implementation lands in W4 S8); CapacityModuleNav hidden for PL.
+  * Dark mode rendered correctly across all surfaces (semantic Tailwind tokens, dark-variant classes for status badges).
+  * Screenshots: `qa/screenshots/v5_2_w3/{01..08}*.png` (Controller workspace light + dark, person detail, inbox, history, CC Owner inbox, PL redirect).
+
+**Out of scope (deferred to later waves):**
+- Group-by-project view (§10) — Wave 5 S9.
+- Dashboard layer charts (§11 — utilization distribution, capacity forecast, headcount breakdown, hotspot list) — Wave 4 S7.
+- Assignment panel (§9) including timeline overlay + gestures (§9.4 / §9.6) — Wave 4 S6a + Wave 5 S6b.
+- PL read-only availability view (§13) — Wave 4 S8.
+- Multi-person assignment UI on the assignment panel (§9.5) — Wave 5 S10.
+- Org-scope timeline rendering — currently shows an "org-scope timeline coming in W3 Track B / S7" empty state when `scope ≠ my_cc`. The KPI bar + dashboard cards (W4) carry the org-wide view; the spec doesn't require per-person timeline rows at All-CCs scope.
+- FilterChipBar `pending_requests` + `unassigned_months` chip predicates currently default to `false` per row because the timeline data feed doesn't include per-person request linkage. The chip count badges therefore under-report; both predicates light up once the timeline merges resource-request data in W4 S6a.
+
+**Refactoring opportunities (deferred):**
+- `Track D` shipped a `personaPersonId.ts` helper that overlaps with `RoleContext.context.person_id`. Consolidate in a future polish pass.
+- Lead integration `buildFilterRows` adapter could be replaced once `useScopedTimelineData` natively exposes the shape FilterChipBar wants (drops the duplication).
 
 ### v5.2 Wave 2 — Frontend workspace shell (2026-05-08)
 

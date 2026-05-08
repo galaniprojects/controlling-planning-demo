@@ -908,6 +908,135 @@ export interface OrgDetailResponse {
   delta: number;
 }
 
+// --- v5.2 W1 capacity dashboard & history (spec §11.4–§11.6, §12.13–§12.15) ---
+
+/** One month in the capacity forecast time series (spec §11.4). */
+export interface DashboardForecastPoint {
+  month: string;
+  available_hours: number;
+  allocated_hours: number;
+  demand_hours: number;
+}
+
+export interface DashboardForecastResponse {
+  items: DashboardForecastPoint[];
+  total: number;
+  scope: string;
+  start: string;
+  end: string;
+}
+
+/** One segment of the headcount-breakdown stacked bar (spec §11.5). */
+export interface HeadcountBreakdownSegment {
+  label: string;
+  count: number;
+  avg_utilization_pct: number;
+  segment_id?: string | null;
+}
+
+export interface HeadcountBreakdownResponse {
+  items: HeadcountBreakdownSegment[];
+  total: number;
+  dimension: 'location' | 'hierarchy' | 'role' | 'cost_center' | string;
+  scope: string;
+}
+
+/** One ranked capacity issue (spec §11.6). */
+export interface HotspotItem {
+  category: 'over_allocation' | 'unfulfilled_demand' | 'under_utilization' | string;
+  severity: number;
+  summary: string;
+  target_id: string;
+  target_type: 'person' | 'role' | 'request' | string;
+}
+
+export interface HotspotResponse {
+  items: HotspotItem[];
+  total: number;
+  scope: string;
+}
+
+/** One row in the capacity audit history (spec §12.13). */
+export interface CapacityHistoryEntry {
+  id: number;
+  timestamp: string;
+  action_type: string;
+  acting_user_id: string;
+  acting_user_name: string;
+  project_id: string;
+  project_name: string | null;
+  cost_center_id: string;
+  cost_center_name: string | null;
+  summary: string;
+  detail_payload: Record<string, unknown> | null;
+  cr_id: number | null;
+}
+
+export interface CapacityHistoryResponse {
+  items: CapacityHistoryEntry[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface CapacityHistoryFilters {
+  acting_user_id?: string;
+  /** comma-joined; the client serializes from string[] to a single param */
+  action_type?: string[];
+  cost_center_id?: string[];
+  project_id?: string;
+  /** ISO date YYYY-MM-DD inclusive */
+  from?: string;
+  /** ISO date YYYY-MM-DD inclusive */
+  to?: string;
+  page?: number;
+  page_size?: number;
+  sort?: string;
+  sort_dir?: 'asc' | 'desc';
+}
+
+// --- v5.2 W3 capacity inbox (spec §12.3) — project-per-CC aggregated rows ---
+
+export type CapacityInboxItemType = 'project' | 'change_request';
+export type CapacityInboxStatus = 'new' | 'in_progress' | 're_confirm';
+
+export interface CapacityInboxRoleBadge {
+  role_type_id: string;
+  role_name: string;
+  count: number;
+}
+
+export interface CapacityInboxItem {
+  project_id: string;
+  project_name: string;
+  project_priority: string;
+  hierarchy_node_name: string | null;
+  type: CapacityInboxItemType;
+  cr_id: number | null;
+  cr_summary: string | null;
+  cc_id: string;
+  cc_name: string;
+  pl_person_id: string | null;
+  pl_name: string | null;
+  role_badges: CapacityInboxRoleBadge[];
+  unassigned_hours: number;
+  age_days: number;
+  status: CapacityInboxStatus;
+  earliest_request_date: string;
+}
+
+export interface CapacityInboxResponse {
+  items: CapacityInboxItem[];
+  total: number;
+}
+
+export interface CapacityInboxFilters {
+  status?: CapacityInboxStatus | 'all';
+  role_type_id?: string[];
+  pl_person_id?: string[];
+  cost_center_id?: string[];
+}
+
 // --- What-If Simulator ---
 
 export interface ScenarioListItem {
