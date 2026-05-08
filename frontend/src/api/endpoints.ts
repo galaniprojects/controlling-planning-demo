@@ -572,7 +572,10 @@ export const capacityApi = {
   saveRequestAssignments: (
     ccId: string,
     reqId: number,
-    assignments: { month: string; person_id: string }[],
+    assignments: Array<
+      | { month: string; person_id: string }
+      | { month: string; assignments: { person_id: string; hours: number }[] }
+    >,
   ) =>
     api.put<ListResponse<RequestAssignment>>(
       `/api/capacity/requests/${ccId}/${reqId}/assignments`,
