@@ -11,6 +11,30 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 - [ ] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification
 - [ ] **Wave 6** — Integration + polish (S11+S12): cross-cutting integration + edge cases + a11y + perf
 
+### v5.2 Wave 3 — Core surfaces (in flight, branch `feat/v5_2-capacity-core-surfaces`)
+
+Branch cut by Lead from `main` post-W2 merge. Lead pre-work (5 commits): popover/command/scroll-area shadcn primitives, W1 dashboard/history endpoint clients + W3 inbox client, ProjectColorMap palette context, CapacityScopeContext extension (filter chips + KPI seam), `GET /api/capacity/inbox` backend endpoint per spec §12.3 (21 passing tests).
+
+**Track D — `react-specialist` (Session 5b, inbox + history):**
+- NEW `frontend/src/modules/capacity/shared/Pagination.tsx` — small custom prev / numbered / next pager (shadcn doesn't ship a Pagination primitive in this codebase). Used by the History page.
+- NEW `frontend/src/modules/capacity/shared/personaPersonId.ts` — demo persona → `person_id` mapping. Used by the History "Me" default and the inbox's recently-completed "current user" filter.
+- NEW `frontend/src/modules/capacity/requests/InboxFilterBar.tsx` — status pill group + Role / PL / Cost-center popovers (cmdk command list with checkbox indicators). CC dropdown hidden for CC Owners.
+- NEW `frontend/src/modules/capacity/requests/RequestRow.tsx` — one (project, CC) row per spec §12.3 with CR pill + summary line, hierarchy node badge, role badges, age + status + priority pills (colour rules), and "Review & assign" + "Decline all" action group. Decline opens an inline `<DeclineInlineForm>` beneath the row; row gets a strikethrough + fade-out animation post-decline.
+- NEW `frontend/src/modules/capacity/requests/DeclineInlineForm.tsx` — inline expansion textarea + Cancel / Confirm decline buttons.
+- NEW `frontend/src/modules/capacity/requests/RequestTable.tsx` — sortable shadcn table with default `priority desc → age desc` (matches the server) and an EmptyState card when the filtered set is empty.
+- NEW `frontend/src/modules/capacity/requests/RecentlyCompletedSection.tsx` — collapsed-by-default section at the bottom of the inbox listing the last 7 days of completed actions (`getCapacityHistory` filtered to confirm/partial/decline/cr_reconfirm; CC Owner is server-scoped, Controller is filtered to their own person_id). "View full history" link → /capacity/history. Refreshable via a parent nonce so post-decline actions update without a remount.
+- REWRITE `frontend/src/modules/capacity/RequestsInbox.tsx` — page composition + URL state (`useSearchParams({ replace: true })` for filter + sort) + decline orchestration (3-second strikethrough + concurrent inbox refresh + recently-completed bump).
+- NEW `frontend/src/modules/capacity/history/HistoryFilterBar.tsx` — User searchable dropdown (with role-aware "Me" entry), Action multi-select pill group, multi-select Cost-center popover (hidden for CC Owners), Project searchable dropdown, From/To date inputs. Reset filters button + active-state detection compare against the role-default fallback.
+- NEW `frontend/src/modules/capacity/history/HistoryRow.tsx` — Date / User / Action badge / Project / CC / Summary columns + chevron toggle.
+- NEW `frontend/src/modules/capacity/history/HistoryDetailExpand.tsx` — structured detail_payload breakdown: roles affected, people assigned, optional CR info, decline reason, "View project in workbench" link.
+- NEW `frontend/src/modules/capacity/history/HistoryTable.tsx` — sortable shadcn table; sort is server-side via `getCapacityHistory` params. EmptyState card when filters yield nothing.
+- REWRITE `frontend/src/modules/capacity/CapacityHistory.tsx` — page composition + URL state (filter + sort + page) + dropdown options (users from rolesApi mapped via PERSONA_TO_PERSON_ID, CCs from referenceApi, projects from workbenchApi) + Pagination footer. Default filter rules per spec §12.12: CC Owner → User=Me, Controller / Executive → User=All; date range default = last 30 days.
+
+**Verification (Track D):**
+- `tsc --noEmit` clean.
+- Backend `/api/capacity/inbox` + `/api/capacity/history` consumed unchanged.
+- Visual verification at 1920×1000 across Controller (all CCs visible), CC Owner (CC column hidden, server-scoped) and Executive (read-only history) personas; light + dark themes; Decline-all inline form expansion; History expanded-row payload rendering. Screenshots: `qa/screenshots/w3-trackd-{01..09}*.png`.
+
 ### v5.2 Wave 2 — Frontend workspace shell (2026-05-08)
 
 Branch: `feat/v5_2-capacity-shell`. Closes Implementation Guide Session 2 — frontend shell only, no backend work. Two-teammate agent team (`v5_2-w2-capacity-shell`) with clean file ownership; both worktrees committed directly to the shared branch (worktree isolation didn't take effect, but file split prevented collisions).
