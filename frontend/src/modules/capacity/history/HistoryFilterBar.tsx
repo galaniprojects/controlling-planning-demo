@@ -75,6 +75,13 @@ interface HistoryFilterBarProps {
   hideCcFilter?: boolean;
   /** Render the special "Me" entry in the user dropdown. */
   meOption?: DropdownOption;
+  /**
+   * Role-aware reset target. The "Reset filters" button restores the
+   * filter set to this value (e.g., CC Owner returns to "Me", Controller
+   * returns to "All"). Active-state detection also compares against
+   * this target.
+   */
+  defaultValue: HistoryFilterValue;
 }
 
 const ACTION_PILLS: Array<{ value: HistoryActionFilter; label: string }> = [
@@ -97,16 +104,27 @@ export function HistoryFilterBar({
   projectOptions,
   hideCcFilter = false,
   meOption,
+  defaultValue,
 }: HistoryFilterBarProps) {
   // ---- Defaults / "active" detection ----
   const allActionsSelected =
     value.actionTypes.length === ACTION_PILLS.length;
 
+  const actionsMatchDefault =
+    value.actionTypes.length === defaultValue.actionTypes.length &&
+    defaultValue.actionTypes.every((a) => value.actionTypes.includes(a));
+
+  const ccsMatchDefault =
+    value.ccIds.length === defaultValue.ccIds.length &&
+    defaultValue.ccIds.every((c) => value.ccIds.includes(c));
+
   const hasActive =
-    value.actingUserId !== 'all' ||
-    !allActionsSelected ||
-    value.ccIds.length > 0 ||
-    value.projectId !== 'all';
+    value.actingUserId !== defaultValue.actingUserId ||
+    !actionsMatchDefault ||
+    !ccsMatchDefault ||
+    value.projectId !== defaultValue.projectId ||
+    value.from !== defaultValue.from ||
+    value.to !== defaultValue.to;
 
   // ---- Handlers ----
   const toggleActionType = (key: HistoryActionFilter) => {
@@ -233,15 +251,7 @@ export function HistoryFilterBar({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() =>
-            onChange({
-              ...value,
-              actingUserId: 'all',
-              actionTypes: ALL_ACTION_TYPES,
-              ccIds: [],
-              projectId: 'all',
-            })
-          }
+          onClick={() => onChange(defaultValue)}
           className="text-muted-foreground"
         >
           <X className="h-3.5 w-3.5 mr-1" />

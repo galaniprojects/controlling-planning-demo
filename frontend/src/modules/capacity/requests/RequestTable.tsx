@@ -149,7 +149,7 @@ export function RequestTable({
   }
 
   return (
-    <div className="rounded-md border border-border bg-card overflow-hidden">
+    <div className="rounded-md border border-border bg-card overflow-x-auto">
       <Table>
         <TableHeader className="bg-muted/40">
           <TableRow className="hover:bg-muted/40">

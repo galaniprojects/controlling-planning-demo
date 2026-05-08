@@ -420,6 +420,7 @@ export default function CapacityHistory() {
         projectOptions={projectOptions}
         hideCcFilter={isCcOwner}
         meOption={meOption}
+        defaultValue={fallback}
       />
 
       {error && (
