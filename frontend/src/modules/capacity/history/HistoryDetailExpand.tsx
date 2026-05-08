@@ -51,8 +51,14 @@ function asArray<T>(v: unknown): T[] {
 }
 
 function formatMonthsField(m: unknown): string {
-  if (typeof m === 'number') return `${m} month${m === 1 ? '' : 's'}`;
-  if (Array.isArray(m)) return `${m.length} month${m.length === 1 ? '' : 's'}`;
+  if (typeof m === 'number') {
+    if (m <= 0) return '';
+    return `${m} month${m === 1 ? '' : 's'}`;
+  }
+  if (Array.isArray(m)) {
+    if (m.length === 0) return '';
+    return `${m.length} month${m.length === 1 ? '' : 's'}`;
+  }
   return '';
 }
 
@@ -118,12 +124,13 @@ export function HistoryDetailExpand({ entry }: HistoryDetailExpandProps) {
                     — {formatNumber(a.hours_per_month)}h/month
                   </>
                 )}
-                {a.months !== undefined && (
-                  <>
-                    {' '}
-                    × {formatMonthsField(a.months)}
-                  </>
-                )}
+                {a.months !== undefined &&
+                  formatMonthsField(a.months) !== '' && (
+                    <>
+                      {' '}
+                      × {formatMonthsField(a.months)}
+                    </>
+                  )}
                 {typeof a.total_hours === 'number' && (
                   <>
                     {' '}
