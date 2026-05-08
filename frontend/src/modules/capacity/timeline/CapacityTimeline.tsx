@@ -22,10 +22,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
-import {
-  ProjectColorMapProvider,
-  useProjectColorMap,
-} from '@/contexts/ProjectColorMapContext';
+import { useProjectColorMap } from '@/contexts/ProjectColorMapContext';
 import { useCapacityScope } from '@/contexts/CapacityScopeContext';
 import { useScopedTimelineData } from '../hooks/useScopedTimelineData';
 import { TimeAxisHeader } from './TimeAxisHeader';
@@ -214,16 +211,14 @@ export interface CapacityTimelineProps {
 }
 
 /**
- * Wrap the timeline in the project-color provider so the same map
- * survives across re-renders within a single mount but resets when
- * the workspace unmounts.
+ * Public component. The `ProjectColorMapProvider` lives at App.tsx
+ * level so the timeline rows and the side-panel `PersonDetail` share a
+ * single color map (the side panel is rendered inside `AppLayout`,
+ * outside the workspace tree, so a per-route provider would split the
+ * map between them).
  */
 export function CapacityTimeline({ onPersonClick }: CapacityTimelineProps) {
-  return (
-    <ProjectColorMapProvider>
-      <CapacityTimelineInner onPersonClick={onPersonClick} />
-    </ProjectColorMapProvider>
-  );
+  return <CapacityTimelineInner onPersonClick={onPersonClick} />;
 }
 
 export default CapacityTimeline;

@@ -44,7 +44,8 @@ import {
   type ReactNode,
 } from 'react';
 import { useSidePanel } from '@/contexts/SidePanelContext';
-import { CapacityPanelContent } from './CapacityPanelContent';
+import { PersonDetail } from './PersonDetail';
+import { CellDetail } from './CellDetail';
 import { CAPACITY_PANEL_WIDTH } from './widths';
 
 // ---------------------------------------------------------------------------
@@ -157,26 +158,22 @@ export function CapacitySidePanelProvider({ children }: { children: ReactNode })
   const projectSummaryHandlerRef = useRef<ProjectSummaryHandler | null>(null);
   const assignmentHandlerRef = useRef<AssignmentHandler | null>(null);
 
-  /**
-   * The shared `SidePanel` captures the React node passed to
-   * `openPanel(...)`. We pass a stable dispatcher node
-   * (`<CapacityPanelContent />`) and let it re-read `mode` from this
-   * context on each render — that way the same node renders different
-   * content as the mode changes (Person → Cell → ...), keeping the
-   * shared panel layout out of our way.
-   */
-  const dispatcherNode = <CapacityPanelContent />;
+  // The shared `SidePanel` portals its content out of this provider's
+  // tree (it's rendered inside `AppLayout` next to the main outlet), so
+  // any node we pass to `openPanel` cannot rely on
+  // `useCapacitySidePanel()`. We pass concrete content per call instead,
+  // which also gives the shared panel a clean cross-fade signal (the
+  // node identity changes as mode changes).
 
   const openPerson = useCallback(
     (ccId: string, personId: string, opts?: OpenPersonOptions) => {
       setMode({ kind: 'person', ccId, personId });
-      openPanel(opts?.title ?? 'Person detail', dispatcherNode, {
-        width: CAPACITY_PANEL_WIDTH.person,
-      });
+      openPanel(
+        opts?.title ?? 'Person detail',
+        <PersonDetail ccId={ccId} personId={personId} />,
+        { width: CAPACITY_PANEL_WIDTH.person },
+      );
     },
-    // dispatcherNode is created fresh per render but is referentially
-    // equivalent for openPanel's purposes (stable component type).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [openPanel],
   );
 
@@ -192,11 +189,17 @@ export function CapacitySidePanelProvider({ children }: { children: ReactNode })
       const defaultTitle = args.month
         ? `${args.rowLabel} — ${args.month}`
         : args.rowLabel;
-      openPanel(args.title ?? defaultTitle, dispatcherNode, {
-        width: CAPACITY_PANEL_WIDTH.cell,
-      });
+      openPanel(
+        args.title ?? defaultTitle,
+        <CellDetail
+          dimensionId={args.dimensionId}
+          pivot={args.pivot}
+          month={args.month}
+          rowLabel={args.rowLabel}
+        />,
+        { width: CAPACITY_PANEL_WIDTH.cell },
+      );
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [openPanel],
   );
 

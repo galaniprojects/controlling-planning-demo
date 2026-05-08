@@ -42,30 +42,21 @@ function buildFilterRows(
   flatPeople: ReturnType<typeof useScopedTimelineData>['flatPeople'],
 ): TimelineRow[] {
   const rows: TimelineRow[] = [];
-  for (const group of roleGroups) {
-    for (const person of group.people) {
-      const monthlyUtilization = Object.values(person.cells).map(
-        (c) => c.utilization,
-      );
-      rows.push({
-        person_id: person.personId,
-        monthly_utilization: monthlyUtilization,
-        has_pending_request: false,
-        has_unassigned_months: false,
-      });
-    }
-  }
-  for (const person of flatPeople) {
-    const monthlyUtilization = Object.values(person.cells).map(
-      (c) => c.utilization,
-    );
+  const visit = (personId: string, cellsByMonth: Record<string, { utilization: number }> | undefined) => {
+    const monthly = cellsByMonth
+      ? Object.values(cellsByMonth).map((c) => c.utilization)
+      : [];
     rows.push({
-      person_id: person.personId,
-      monthly_utilization: monthlyUtilization,
+      person_id: personId,
+      monthly_utilization: monthly,
       has_pending_request: false,
       has_unassigned_months: false,
     });
+  };
+  for (const group of roleGroups) {
+    for (const person of group.people) visit(person.personId, person.cellsByMonth);
   }
+  for (const person of flatPeople) visit(person.personId, person.cellsByMonth);
   return rows;
 }
 

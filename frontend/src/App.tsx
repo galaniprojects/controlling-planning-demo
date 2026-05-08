@@ -3,6 +3,11 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { RoleProvider } from '@/contexts/RoleContext';
 import { SidePanelProvider } from '@/contexts/SidePanelContext';
 import { BottomDrawerProvider } from '@/contexts/BottomDrawerContext';
+// v5.2 W3 — the project-color map needs to wrap both the workspace
+// (timeline rows) AND the side-panel content (PersonDetail allocation
+// dots). The shared SidePanel renders its content inside AppLayout,
+// outside any per-route provider, so the map provider must live here.
+import { ProjectColorMapProvider } from '@/contexts/ProjectColorMapContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Launchpad } from '@/modules/launchpad/Launchpad';
 import { PortfolioOverview } from '@/modules/portfolio/PortfolioOverview';
@@ -50,6 +55,7 @@ export default function App() {
       <RoleProvider>
         <SidePanelProvider>
           <BottomDrawerProvider>
+            <ProjectColorMapProvider>
             <AppLayout>
               <Routes>
                 <Route path="/" element={<Launchpad />} />
@@ -85,6 +91,7 @@ export default function App() {
                 <Route path="/charging/*" element={<Charging />} />
               </Routes>
             </AppLayout>
+            </ProjectColorMapProvider>
           </BottomDrawerProvider>
         </SidePanelProvider>
       </RoleProvider>
