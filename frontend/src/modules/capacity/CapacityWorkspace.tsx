@@ -5,10 +5,10 @@
  * components shipped by Tracks A–D. The workspace tree is wrapped in
  * `<CapacitySidePanelProvider>` so the timeline + demand strip can open
  * `PersonDetail` / `CellDetail` without prop drilling. Layout (top to
- * bottom): ScopeBar → KPISummaryBar → FilterChipBar → CapacityTimeline +
- * DemandStrip. The side panel itself is rendered by AppLayout from the
- * shared SidePanelContext; openPerson / openCell pass concrete content
- * (PersonDetail / CellDetail) per call.
+ * bottom): ScopeBar → KPISummaryBar → DashboardLayer → FilterChipBar →
+ * CapacityTimeline + DemandStrip. The side panel itself is rendered by
+ * AppLayout from the shared SidePanelContext; openPerson / openCell pass
+ * concrete content (PersonDetail / CellDetail) per call.
  *
  * v5.2 W4 Track A (Session 6a): URL-param assignment-panel entry point.
  *   - Reads `?assignment_project=`, `?cc=`, `?cr=` on mount.
@@ -17,9 +17,12 @@
  *   - `AssignmentStateProvider` wraps the workspace so the side panel and
  *     the timeline overlay (S6b) share the same context instance.
  *
- * The dashboard layer card (§11) is intentionally absent — that's W4 S7.
+ * v5.2 W4 Track B (Session 7): DashboardLayer (§11) inserted between
+ * KPISummaryBar and FilterChipBar. Self-contained — handles its own
+ * visibility rules (Controller / Executive + multi-CC scope) and slide-up
+ * animation, so no conditional rendering is needed at the parent level.
  *
- * Spec: guides/Capacity_Module_Redesign_Spec.md §1.3, §2 layout, §9.1.
+ * Spec: guides/Capacity_Module_Redesign_Spec.md §1.3, §2 layout, §9.1, §11.
  */
 import { useEffect, useMemo, useRef } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
@@ -41,6 +44,7 @@ import {
 } from './sidepanel/CapacitySidePanelContext';
 import { useAssignmentState } from './assignment/AssignmentStateContext';
 import { AssignmentPanel } from './assignment/AssignmentPanel';
+import { DashboardLayer } from './dashboard';
 
 /**
  * Build the loose `TimelineRow[]` array consumed by FilterChipBar
@@ -185,6 +189,10 @@ function WorkspaceBody() {
       </Card>
 
       <KPISummaryBar />
+
+      {/* Dashboard layer (§11): Controller / Executive + multi-CC scope only.
+          DashboardLayer handles its own visibility and slide-up animation. */}
+      <DashboardLayer />
 
       <FilterChipBar rows={filterRows} />
 
