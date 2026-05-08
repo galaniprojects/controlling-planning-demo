@@ -48,17 +48,19 @@ Four personas, each with different access and capabilities. Role is resolved fro
 | Family | Models |
 |---|---|
 | Organization | `Location`, `CompetenceCenter`, `CostCenter`, `GroupingEntityType`, `GroupingEntity`, `GroupingHierarchy`, `GroupingHierarchyLevel`, `ProjectGroupingAssignment` |
-| People & Users | `RoleType`, `Person`, `RateTable`, `DemoPersona`, `User` |
+| People | `RoleType`, `Person`, `RateTable` |
+| Users | `DemoPersona`, `User` |
 | Projects | `Project`, `MilestoneType`, `ProjectMilestone`, `MilestoneDeliverable`, `ProgressSnapshot`, `ProjectDependency` |
 | Financials | `ExternalCostType`, `Baseline`, `Forecast`, `Actuals`, `ForecastVersion`, `ExternalCostDelivery`, `ExternalCostInvoice` |
 | Change Mgmt | `ChangeRequest`, `CRChangeDetail`, `CRSubmissionSnapshot` |
 | Capacity | `Allocation`, `ResourceRequest`, `ResourceRequestAssignment`, `CapacityActionLog` |
 | Charging | `Country`, `Region`, `ChargingLocation`, `LegalEntity`, `UserMeasurement`, `ChargeableEntity`, `Distribution`, `BTCProfile`, `BTCProfileLine`, `RollupCache` |
 | Scenarios | `Scenario`, `ScenarioAction`, `ScenarioState`, `ScenarioCapacityImpact`, `ScenarioPromotion`, `ScenarioApplyToForecastEvent` |
+| Submissions | `ProjectSubmissionSnapshot` |
 | System | `PlanningParameter`, `KPIDefinition`, `Notification`, `AuditLog`, `SystemSuggestion`, `RolePermissionGrant` |
 | Reporting | `ForecastSnapshot`, `SavedReport`, `SavedReportShare`, `SavedView` |
-| Workflow & Scheduled | `WorkflowTemplate`, `WorkflowStep`, `StepAction`, `ScheduledChange` |
-| Submissions | `ProjectSubmissionSnapshot` |
+| Workflow Templates | `WorkflowTemplate`, `WorkflowStep`, `StepAction` |
+| Scheduled Changes | `ScheduledChange` |
 
 ## Modules
 The app ships with 10 modules — see Frontend Routes table below for paths.
@@ -82,7 +84,6 @@ Current focus: enhancements, bug fixes, and demo preparation — see `PROGRESS.m
 - **Shared components** live in `frontend/src/components/shared/` — check there before creating new ones. Notable: `ModuleHeader` (standard page header per `[E-07a]`), `LeftRailNav` (per `[E-07c]`), `ActionCard` / `SummaryCard` (per `[E-07d]`), `EmptyState` (per `[E-07f]`), `ConfidenceIndicator` (per `[E-07g]`), `LocationLabel` (qualified label for `WorkforceLocation`/`ChargingLocation`/`LegalEntity` per `[F-MD-01]` — use `kind` prop), `ExpandableTreeTable`, `DetailViewGrid`, `ModuleGuideButton` (IDs use underscores: `project_workbench`, `capacity_management`, `whatif_simulator`, `administration`).
 - **Tab pattern:** controlled `value` + `useEffect` to reset on role change (NOT `defaultValue`).
 - **Action pattern:** idle → mode → textarea → submit → result → `onActionComplete` callback.
-- **Heatmap pattern:** CSS grid (not Recharts).
 - **CR workflow:** PL submits CR → CC Owner confirms/declines resource requests → Controller approves/rejects/sends back → forecast updated on approval.
 - **Submission workflow:** PL creates draft → submits via 5-phase wizard → Controller reviews with inline edits → approve/reject/send back → baseline created on approval.
 
@@ -98,7 +99,7 @@ Current focus: enhancements, bug fixes, and demo preparation — see `PROGRESS.m
 ## Documentation Updates (Non-Negotiable)
 - **API endpoints added/changed/removed** → update `README.md` (API tables) and `PROGRESS.md`.
 - **Software features change significantly** → update `README.md` (Features section) and `PROGRESS.md`.
-- **Models or schema change** (add/remove a model, add/remove a column, change a FK or constraint, add/remove an enum value, alter a default or `server_default`) → update **all three**:
+- **Models or schema change** — any change visible in `git diff backend/models/` (adding/removing a model or column, renaming, type changes, FK/constraint/index changes, enum value changes, default or `server_default` changes) → update **all three**:
   1. `PROGRESS.md` — log the change and any wave/spec reference.
   2. The compact **Data Model Overview** index in this file (CLAUDE.md) — only if a model is added or removed (column-level changes don't touch CLAUDE.md).
   3. `docs/data-model.md` — the canonical reference. Update the relevant model section, the Constants & Enums Appendix if a value set changed, and the Cross-Cutting Patterns section if the change introduces a new pattern.
@@ -148,9 +149,8 @@ Two tiers of parallelization, with role definitions in `.claude/agents/` (13 rol
 
   The compact family-grouped model index in CLAUDE.md (under **Data Model Overview**) is for orientation only — the authoritative detail is in `docs/data-model.md`. Reading the model index alone is not sufficient before making schema changes.
 
-### Specs, Guides, Archive, Plans
-- `guides/` — active spec documents and session guides for current/upcoming work (currently the v5.2 Capacity Module Redesign spec + implementation guide).
-- `docs_archive/` — completed/superseded spec and session guide files (v4 spec, v5 workshop spec, v5 implementation guide, v5.1 change spec, Report Builder spec, hierarchy migration plan, submission workflow plan).
+### Specs, Guides, QA
+- `guides/` — active spec documents and session guides for current/upcoming work.
 - `qa/` — `test-plan.md`, `bug-report.md`, `ai-report-builder-prompts.md`, `screenshots/`.
 
 ### Backend & Frontend
@@ -158,9 +158,8 @@ Two tiers of parallelization, with role definitions in `.claude/agents/` (13 rol
 - Frontend code: `frontend/src/{modules,components,contexts,hooks,lib,api,types}/` — see directories.
 - Agent definitions: `.claude/agents/` — 13 sub-agent / teammate role definitions.
 
-## v5.1 / v5.2 Implementation Notes
-- v5.1 active spec: `docs_archive/CRETA_v5_1_Change_Specification.md` (now archived — all 6 waves merged). Wave progress lives in `PROGRESS.md`.
-- v5.2 active spec: `guides/Capacity_Module_Redesign_Spec.md` + `guides/Capacity_Module_Redesign_Implementation_Guide.md`. Wave-based approach (one wave per session, PR review gate between waves).
+## Wave-Based Development
+The active development cycle uses a wave-based approach — one wave per session, PR review gate between waves. The active spec lives in `guides/`; per-wave progress lives in `PROGRESS.md`.
 - Workflow per wave: **orient → plan (with extended thinking) → implement → verify → update PROGRESS.md**. No code before the plan is complete.
 - **No unsolicited refactoring.** If you spot a refactoring opportunity, note it in `PROGRESS.md` under "Refactoring opportunities". Do not refactor unless the session explicitly calls for it.
 - **Agent team coordination:** Work splits across teammates wherever possible. The team merging second resolves conflicts.

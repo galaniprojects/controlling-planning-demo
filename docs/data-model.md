@@ -4,9 +4,10 @@ Canonical reference for all SQLAlchemy models in the CRETA Demo App. **64 models
 
 ## How to read this doc
 - **Per-model blocks** list only the *interesting* columns. Boilerplate (`id` PK autoincrement, `created_at`/`modified_at` timestamps) is omitted unless something is special about them.
+- **Nullability** (`NOT NULL`) is called out only when notable — by default, follow the SQLAlchemy declaration in source. When in doubt, read the model file directly.
 - **Relationships** line covers `back_populates`, cascade behaviour, and disambiguation via `foreign_keys` where multiple FKs target the same table.
 - **Notes** call out non-obvious constraints, decision-tag pointers (e.g. `[F-DM-01]`), service-layer invariants, and cross-version lineage.
-- **Decision tags** like `[E-04c]` resolve to v5 spec sections in `guides/` (active) or `docs_archive/` (superseded). See the cross-reference at the bottom of this file.
+- **Decision tags** like `[E-04c]` are pointers into the v5/v5.1/v5.2 spec documents. The active spec lives in `guides/`; older spec material is kept in a local-only archive (not tracked in git).
 
 ## Architectural conventions
 
@@ -71,7 +72,7 @@ Type catalogue for the configurable portfolio hierarchy per `[ADM-01]` (e.g. "Li
 ### `GroupingEntity` — `grouping_entities`
 Node in the configurable portfolio hierarchy. Self-referential tree via `parent_entity_id`.
 
-**Key columns.** `id` String(50) PK, `entity_type_id` FK, `name`, `parent_entity_id` FK → grouping_entities (self-ref).
+**Key columns.** `id` String(50) PK, `entity_type_id` FK, `name`, `parent_entity_id` FK → grouping_entities (self-ref), `is_active` (soft delete).
 **Relationships.** `entity_type`, `parent` (remote_side), `project_assignments`.
 **Notes.** Referenced by `ChargeableEntity.hierarchy_node_id` per `[F-DM-04]` — Cluster F entities use the same hierarchy as projects.
 
@@ -120,7 +121,7 @@ Hourly rates by `(role_type, competence_center)` with effective-date validity. T
 ### `DemoPersona` — `demo_personas`
 Maps the four demo personas (Anna Meier / Thomas Brenner / Priya Sharma / Dr. Klaus Weber) to Person rows with role context. Resolves `X-Current-User` header to the role-aware `CurrentUser` context.
 
-**Key columns.** `id` String(50) PK, `person_id` FK → people NOT NULL, `role` String(30) NOT NULL (`controller` | `cost_center_owner` | `project_lead` | `executive`), `display_name`, `default_module`, `managed_cost_center_id` FK (CC Owner scope), `owned_project_ids_json` Text (JSON array, PL scope).
+**Key columns.** `id` String(50) PK, `person_id` FK → people NOT NULL, `role` String(30) NOT NULL (`controller` | `cost_center_owner` | `project_lead` | `executive`), `display_name`, `title` String(200) (nullable), `default_module`, `managed_cost_center_id` FK (CC Owner scope), `owned_project_ids_json` Text (JSON array, PL scope).
 
 ### `User` — `users`
 System-access identity, separate from Person per spec §1584. Admin-created; no auto-create on login.
@@ -437,6 +438,8 @@ One BTC percentage cell: `(profile × charging_location) → percentage`. Sparse
 - `UniqueConstraint(profile_id, charging_location_id, name="uq_btc_profile_line_profile_cl")`.
 - `CheckConstraint("percentage > 0 AND percentage <= 100", name="ck_btc_profile_line_pct_range")`.
 
+**Indexes.** `ix_btc_profile_lines_profile`.
+
 **Notes.** **Sum-to-100 rule** (all lines sum to exactly 100 within tolerance) enforced at service layer (`BTC_SUM_TOLERANCE = 0.01`), **not** at DB layer.
 
 ### `RollupCache` — `rollup_cache`
@@ -661,6 +664,7 @@ Module-level Python tuples that define authoritative value sets. When the value 
 | `CapacityActionLog.action_type` | `confirm`, `partial_confirm`, `decline`, `decline_request`, `assign_draft`, `cr_reconfirm` |
 | `Scenario.status` | `private`, `published` |
 | `AuditLog.action` | `create`, `update`, `deactivate`, `override`, `activate` |
+| `AuditLog.category` | one of `AUDIT_CATEGORIES` (8 values — see Constants table above). Required at write time per `[D-CAT-07]`. |
 | `Notification.severity` | `info`, `warning`, `action` |
 | `User.role` / `DemoPersona.role` | `controller`, `cost_center_owner`, `project_lead`, `executive` |
 | `UserMeasurement.source` | `csv_upload`, `sap_api`, `seed`, `manual` |
@@ -736,19 +740,6 @@ Several models have multiple FKs targeting the same table — disambiguated via 
 
 ---
 
-## Decision-tag cross-reference
+## Decision tags
 
-Decision tags scattered through the model files are pointers into the v5 / v5.1 / v5.2 spec documents. Authoritative copies live in:
-
-| Tag prefix | Topic | Spec file |
-|---|---|---|
-| `[A-PS-*]`, `[A-DOI-*]`, `[A-DA-*]`, `[A-PL-*]`, `[A-MS-*]`, `[A-TN-*]`, `[A-BK-*]` | Pipeline / DoI / AI Council / milestones / Tech Navigator | `docs_archive/CRETA_v5_Workshop_Spec.md` (Cluster A) |
-| `[B-SL-*]`, `[B-PR-*]`, `[B-AC-*]`, `[B-ES-*]`, `[B-OQ-*]`, `[B-ID-*]`, `[E-06b]` | Scenario lifecycle / promote routing / lever surfaces | `docs_archive/CRETA_v5_Workshop_Spec.md` (Cluster B) |
-| `[C-FV-*]`, `[C-FG-*]`, `[C-07]`, `[C-09]` | Forecast versioning / mixed granularity / external cost tracking | `docs_archive/CRETA_v5_Workshop_Spec.md` (Cluster C) + `docs_archive/CRETA_v5_1_Change_Specification.md` |
-| `[D-AC-*]`, `[D-CAT-*]` | Access control / audit categories / project dependencies | `docs_archive/CRETA_v5_Workshop_Spec.md` (Cluster D) |
-| `[E-04c]`, `[E-03f]`, `[E-07*]`, `[E-08*]` | Progress tracker / shared components / admin browsers | `docs_archive/CRETA_v5_Workshop_Spec.md` (Cluster E) |
-| `[F-DM-*]`, `[F-MD-*]`, `[F-S1-*]`, `[F-S2-*]`, `[F-RV-*]`, `[F-UM-*]`, `[F-AC-*]`, `[F-OQ-*]` | Charging master data / Stage 1 distributions / Stage 2 BTC / rollup view / UM matrix | `docs_archive/CRETA_v5_Workshop_Spec.md` (Cluster F) |
-| `[ADM-01]` | Configurable portfolio hierarchy | `docs_archive/CRETA_v5_Workshop_Spec.md` |
-| v5.2 spec §-references (e.g. §9.5, §12.10, §12.14) | Capacity Module Redesign | `guides/Capacity_Module_Redesign_Spec.md` (active) + `guides/Capacity_Module_Redesign_Implementation_Guide.md` |
-
-When a model citation references a tag, the spec file is the authoritative source of *why* the constraint exists. This doc is the *what*; the spec is the *why*.
+Decision tags scattered through the model files (e.g. `[E-04c]`, `[F-DM-01]`, `[A-MS-01]`, v5.2 spec §-references) are pointers into the spec documents that drove each design choice. The active spec lives in `guides/`; older spec material is kept in a local-only archive (not tracked in git). When a model citation references a tag, the spec is the authoritative source of *why* the constraint exists. This doc is the *what*.
