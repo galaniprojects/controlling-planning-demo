@@ -334,3 +334,58 @@ class CapacityHistoryResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ---------------------------------------------------------------------------
+# v5.2 W3 §12.3 — Resource Requests inbox (project-per-CC triage queue)
+# ---------------------------------------------------------------------------
+
+
+class CapacityInboxRoleBadge(BaseModel):
+    """One role-aggregated badge inside an inbox row.
+
+    The inbox shows compact role badges like ``"Sr Dev ×1"`` so the CC Owner
+    can scan a project's required-roles mix without expanding the row.
+    """
+    role_type_id: str
+    role_name: str
+    count: int
+
+
+class CapacityInboxItem(BaseModel):
+    """One row in the inbox table — one project-per-cost-center per spec §12.3.
+
+    A project that fans out across multiple CCs appears as multiple rows
+    (one per CC). A project with a pending Change Request appears as a
+    distinct row with ``type='change_request'`` and ``cr_id`` populated.
+
+    ``status`` derivation (per spec §12.3 / §12.5):
+      * ``new``         — no resource-request assignments exist for this group.
+      * ``in_progress`` — at least one assignment row exists (draft saved).
+      * ``re_confirm``  — group is CR-triggered (``cr_id`` is non-null).
+
+    ``project_priority`` is derived from the highest-priority ResourceRequest
+    in the group (high > medium > low). Projects without a dedicated priority
+    column inherit triage urgency from their requests.
+    """
+    project_id: str
+    project_name: str
+    project_priority: str  # high | medium | low
+    hierarchy_node_name: Optional[str] = None
+    type: str  # 'project' | 'change_request'
+    cr_id: Optional[int] = None
+    cr_summary: Optional[str] = None
+    cc_id: str
+    cc_name: str
+    pl_person_id: Optional[str] = None
+    pl_name: Optional[str] = None
+    role_badges: list[CapacityInboxRoleBadge]
+    unassigned_hours: float
+    age_days: int
+    status: str  # 'new' | 'in_progress' | 're_confirm'
+    earliest_request_date: datetime
+
+
+class CapacityInboxResponse(BaseModel):
+    items: list[CapacityInboxItem]
+    total: int

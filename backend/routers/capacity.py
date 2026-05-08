@@ -42,6 +42,7 @@ from schemas.capacity import (
     AssignmentEntry,
     CapacityContext,
     CapacityHistoryEntry, CapacityHistoryResponse,
+    CapacityInboxItem, CapacityInboxResponse, CapacityInboxRoleBadge,
     ConfirmRequest, CounterProposeRequest,
     DashboardForecastPoint, DashboardForecastResponse,
     DeclineRequest,
@@ -1886,6 +1887,249 @@ def get_capacity_history(
     return CapacityHistoryResponse(
         items=items, total=total, page=page, page_size=page_size,
     )
+
+
+# ---------------------------------------------------------------------------
+# v5.2 W3 §12.3 — Resource Requests inbox (project-per-CC triage queue)
+# ---------------------------------------------------------------------------
+
+# Priority ordering used to derive a project-row priority from its requests
+# (high beats medium beats low). Values are stored lowercase in the DB.
+_PRIORITY_RANK = {"high": 3, "medium": 2, "low": 1}
+
+
+def _max_priority(values: list[str]) -> str:
+    """Return the highest priority among a list of priority strings.
+
+    Defaults to ``"medium"`` when the list is empty (defensive — a group
+    that survived the inbox query always has at least one request).
+    """
+    best = "medium"
+    best_rank = _PRIORITY_RANK.get(best, 0)
+    for v in values:
+        rank = _PRIORITY_RANK.get(v, 0)
+        if rank > best_rank:
+            best, best_rank = v, rank
+    return best
+
+
+@router.get("/inbox", response_model=CapacityInboxResponse)
+def get_capacity_inbox(
+    status: str | None = None,
+    role_type_id: str | None = None,  # comma-separated
+    pl_person_id: str | None = None,  # comma-separated
+    cost_center_id: str | None = None,  # comma-separated
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller", "cost_center_owner")),
+):
+    """Aggregated triage queue: one row per (project, cost-center) per spec §12.3.
+
+    A project that fans out across multiple CCs returns multiple rows
+    (one per CC) so each CC Owner sees only the slice they're responsible
+    for. CR-triggered re-confirmations are returned as separate rows with
+    ``type='change_request'`` and ``cr_id`` populated, distinct from
+    new-project-intake rows.
+
+    Authorization (per spec §12.1):
+      * Controller — sees all CCs.
+      * CC Owner   — server-side scoped to ``managed_cost_center_id`` only.
+      * Executive  — 403 (read-only role; not on the triage queue).
+      * PL         — 403 (no inbox access).
+
+    Optional filters are AND-combined and shrink the pre-computed row set
+    after grouping (so role/PL filters narrow visible rows but don't change
+    role-badge counts within a row that survives the filter).
+    """
+    # --- Base query: pending or partially-fulfilled resource requests ---
+    rr_query = db.query(ResourceRequest).filter(
+        ResourceRequest.status.in_(["pending", "partially_fulfilled"]),
+    )
+
+    # CC-Owner server-side scoping per §12.14 / §15.
+    if user.role == "cost_center_owner":
+        if not user.cost_center_id:
+            return CapacityInboxResponse(items=[], total=0)
+        rr_query = rr_query.filter(
+            ResourceRequest.cost_center_id == user.cost_center_id,
+        )
+    elif cost_center_id:
+        # Controller filter (multi-select).
+        cc_ids = [c for c in cost_center_id.split(",") if c]
+        if cc_ids:
+            rr_query = rr_query.filter(ResourceRequest.cost_center_id.in_(cc_ids))
+
+    requests = rr_query.all()
+    if not requests:
+        return CapacityInboxResponse(items=[], total=0)
+
+    # --- Pre-fetch joined names in bulk to avoid N+1 ---
+    project_ids = {r.project_id for r in requests}
+    cc_ids_in_play = {r.cost_center_id for r in requests}
+    cr_ids = {r.change_request_id for r in requests if r.change_request_id is not None}
+    role_ids = {r.role_type_id for r in requests if r.role_type_id}
+
+    projects = {
+        p.id: p
+        for p in db.query(Project).filter(Project.id.in_(project_ids)).all()
+    }
+    ccs = {
+        c.id: c
+        for c in db.query(CostCenter).filter(CostCenter.id.in_(cc_ids_in_play)).all()
+    }
+    crs = (
+        {c.id: c for c in db.query(ChangeRequest).filter(ChangeRequest.id.in_(cr_ids)).all()}
+        if cr_ids else {}
+    )
+    role_names = {
+        rt.id: rt.name
+        for rt in db.query(RoleType).filter(RoleType.id.in_(role_ids)).all()
+    } if role_ids else {}
+
+    # PL person names (and any other people referenced as PLs).
+    pl_ids = {p.pl_person_id for p in projects.values() if p.pl_person_id}
+    pl_people = {
+        p.id: p
+        for p in db.query(Person).filter(Person.id.in_(pl_ids)).all()
+    } if pl_ids else {}
+
+    # --- Aggregate assignment hours per request to compute unassigned_hours ---
+    assigned_hours_by_request: dict[int, float] = {}
+    if requests:
+        rr_ids = [r.id for r in requests]
+        assigned_rows = (
+            db.query(
+                ResourceRequestAssignment.resource_request_id,
+                func.coalesce(func.sum(ResourceRequestAssignment.hours), 0.0).label("h"),
+            )
+            .filter(ResourceRequestAssignment.resource_request_id.in_(rr_ids))
+            .group_by(ResourceRequestAssignment.resource_request_id)
+            .all()
+        )
+        assigned_hours_by_request = {row[0]: float(row[1]) for row in assigned_rows}
+
+    # --- Group by (project_id, cost_center_id, change_request_id) ---
+    # Tuple key keeps CR-triggered groups distinct from new-intake groups for
+    # the same (project, cc) pair, so the same project can appear twice if
+    # it has both a pending intake and a pending CR re-confirmation.
+    groups: dict[tuple[str, str, int | None], list[ResourceRequest]] = {}
+    for r in requests:
+        key = (r.project_id, r.cost_center_id, r.change_request_id)
+        groups.setdefault(key, []).append(r)
+
+    # --- Resolve hierarchy node names (lazy — only for projects we have) ---
+    top_type = get_top_level_entity_type_id(db)
+
+    # --- Build inbox rows ---
+    items: list[CapacityInboxItem] = []
+    now = datetime.utcnow()
+
+    for (proj_id, cc_id, cr_id), grp in groups.items():
+        project = projects.get(proj_id)
+        if project is None:
+            continue
+        cc = ccs.get(cc_id)
+        if cc is None:
+            continue
+
+        # --- Role badges (only `resource` requests; external_cost has no role) ---
+        role_counts: dict[str, int] = {}
+        for r in grp:
+            if r.request_type == "resource" and r.role_type_id:
+                role_counts[r.role_type_id] = role_counts.get(r.role_type_id, 0) + 1
+        role_badges = [
+            CapacityInboxRoleBadge(
+                role_type_id=rid,
+                role_name=role_names.get(rid, rid),
+                count=count,
+            )
+            for rid, count in sorted(
+                role_counts.items(), key=lambda kv: (-kv[1], role_names.get(kv[0], kv[0])),
+            )
+        ]
+
+        # --- Unassigned hours: sum requested - sum assigned across all RRs in group ---
+        # Per request, requested = hours_or_amount_per_month * months_inclusive.
+        unassigned = 0.0
+        for r in grp:
+            if r.request_type != "resource":
+                continue  # external_cost rows aren't measured in hours
+            months = generate_month_range(r.period_start, r.period_end)
+            requested_total = float(r.hours_or_amount_per_month) * len(months)
+            assigned_total = assigned_hours_by_request.get(r.id, 0.0)
+            unassigned += max(0.0, requested_total - assigned_total)
+
+        # --- Status derivation ---
+        if cr_id is not None:
+            row_status = "re_confirm"
+        elif any(assigned_hours_by_request.get(r.id, 0.0) > 0 for r in grp):
+            row_status = "in_progress"
+        else:
+            row_status = "new"
+
+        # --- Project priority from the requests' priorities ---
+        project_priority = _max_priority([r.priority for r in grp])
+
+        # --- Earliest pending request date drives the age column ---
+        earliest = min(r.created_at for r in grp)
+        age_days = max(0, (now - earliest).days)
+
+        # --- Hierarchy node name (LoB by default) ---
+        entity_info = get_project_entity_info(db, project.id, top_type)
+        hier_name = entity_info["name"] if entity_info else None
+
+        # --- PL info ---
+        pl = pl_people.get(project.pl_person_id) if project.pl_person_id else None
+
+        # --- CR metadata ---
+        cr_summary = None
+        if cr_id is not None:
+            cr_obj = crs.get(cr_id)
+            if cr_obj is not None:
+                cr_summary = cr_obj.summary or f"CR #{cr_obj.id}"
+
+        items.append(CapacityInboxItem(
+            project_id=project.id,
+            project_name=project.name,
+            project_priority=project_priority,
+            hierarchy_node_name=hier_name,
+            type="change_request" if cr_id is not None else "project",
+            cr_id=cr_id,
+            cr_summary=cr_summary,
+            cc_id=cc.id,
+            cc_name=cc.name,
+            pl_person_id=pl.id if pl else None,
+            pl_name=pl.name if pl else None,
+            role_badges=role_badges,
+            unassigned_hours=round(unassigned, 2),
+            age_days=age_days,
+            status=row_status,
+            earliest_request_date=earliest,
+        ))
+
+    # --- Apply post-aggregation filters ---
+    if status and status != "all":
+        items = [it for it in items if it.status == status]
+    if role_type_id:
+        wanted_roles = {r for r in role_type_id.split(",") if r}
+        if wanted_roles:
+            items = [
+                it for it in items
+                if any(b.role_type_id in wanted_roles for b in it.role_badges)
+            ]
+    if pl_person_id:
+        wanted_pls = {p for p in pl_person_id.split(",") if p}
+        if wanted_pls:
+            items = [it for it in items if it.pl_person_id in wanted_pls]
+
+    # --- Default sort: priority desc → age desc (per spec §12.3) ---
+    items.sort(
+        key=lambda it: (
+            -_PRIORITY_RANK.get(it.project_priority, 0),
+            -it.age_days,
+        ),
+    )
+
+    return CapacityInboxResponse(items=items, total=len(items))
 
 
 # ---------------------------------------------------------------------------
