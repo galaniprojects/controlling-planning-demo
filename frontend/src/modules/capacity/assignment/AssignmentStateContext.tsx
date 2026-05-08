@@ -106,16 +106,30 @@ export interface AssignmentStateActions {
   ) => void;
 
   /**
-   * Add an additional person to an existing month's assignment list (the
-   * [+ Add] entry point). Per spec §9.5, when adding a second person, the
-   * caller is expected to have decided how to split — this action accepts
-   * an explicit ``hours`` and an optional ``rebalanceTargetPersonId`` that
-   * will be reduced by the same amount so the sum stays at the requested
-   * total. If ``rebalanceTargetPersonId`` is omitted, no rebalance happens
-   * (the caller takes responsibility for honouring the sum invariant).
+   * Replace the full per-person list for a request + month (the multi-person
+   * primitive). Useful when the caller wants explicit control over the
+   * sum (e.g. computing the rebalance amount in the row component).
    *
-   * If the person is already in the list, their hours are updated (and
-   * the rebalance target is adjusted by the delta).
+   * Pass an empty array to clear the month (equivalent to
+   * ``clearMonthAssignment``).
+   *
+   * Spec: guides/Capacity_Module_Redesign_Spec.md §9.5
+   */
+  setMonthAssignmentList: (
+    requestId: string,
+    month: string,
+    assignments: MonthPersonAssignment[],
+  ) => void;
+
+  /**
+   * Add an additional person to an existing month's assignment list (the
+   * [+ Add] entry point per spec §9.5). When ``rebalanceAmount`` is
+   * positive, the largest existing assignment is reduced by that amount
+   * so the requested-hours invariant holds (cap at zero). If
+   * ``rebalanceAmount`` is omitted or zero, no rebalance is applied —
+   * useful when room remains under the request total.
+   *
+   * If the person is already in the list, their hours are updated.
    *
    * Spec: guides/Capacity_Module_Redesign_Spec.md §9.5
    */
@@ -124,12 +138,13 @@ export interface AssignmentStateActions {
     month: string,
     personId: string,
     hours: number,
-    rebalanceTargetPersonId?: string,
+    rebalanceAmount?: number,
   ) => void;
 
   /**
    * Update a single person's hours within an existing multi-person split.
-   * Optionally rebalance another person's hours so the sum stays constant.
+   * Optionally rebalances the largest other share so the sum stays
+   * constant.
    *
    * Spec: guides/Capacity_Module_Redesign_Spec.md §9.5
    */
@@ -138,7 +153,7 @@ export interface AssignmentStateActions {
     month: string,
     personId: string,
     hours: number,
-    rebalanceTargetPersonId?: string,
+    rebalanceAmount?: number,
   ) => void;
 
   /**
@@ -250,13 +265,36 @@ export function AssignmentStateProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const setMonthAssignmentList = useCallback(
+    (
+      requestId: string,
+      month: string,
+      assignmentsList: MonthPersonAssignment[],
+    ) => {
+      setSession((prev) => {
+        if (!prev) return prev;
+        const nextAssignments: AssignmentMap = new Map(prev.assignments);
+        const reqMap = new Map(nextAssignments.get(requestId) ?? []);
+        const cleaned = assignmentsList.filter((p) => p.hours > 0);
+        if (cleaned.length === 0) {
+          reqMap.delete(month);
+        } else {
+          reqMap.set(month, cleaned);
+        }
+        nextAssignments.set(requestId, reqMap);
+        return { ...prev, assignments: nextAssignments, dirty: true };
+      });
+    },
+    [],
+  );
+
   const addPersonToMonth = useCallback(
     (
       requestId: string,
       month: string,
       personId: string,
       hours: number,
-      rebalanceTargetPersonId?: string,
+      rebalanceAmount?: number,
     ) => {
       setSession((prev) => {
         if (!prev) return prev;
@@ -264,32 +302,31 @@ export function AssignmentStateProvider({ children }: { children: ReactNode }) {
         const reqMap = new Map(nextAssignments.get(requestId) ?? []);
         const current = reqMap.get(month) ?? [];
 
-        // Compute delta vs. previous hours for the same person, if any.
+        // Build the new people array — append or update the named person.
         const existing = current.find((p) => p.personId === personId);
-        const previousHours = existing?.hours ?? 0;
-        const delta = hours - previousHours;
+        let next: MonthPersonAssignment[] = existing
+          ? current.map((p) =>
+              p.personId === personId ? { ...p, hours } : p,
+            )
+          : [...current, { personId, hours }];
 
-        // Build the new people array.
-        let next: MonthPersonAssignment[];
-        if (existing) {
-          // Update existing person's hours.
-          next = current.map((p) =>
-            p.personId === personId ? { ...p, hours } : p,
-          );
-        } else {
-          // Append new person.
-          next = [...current, { personId, hours }];
-        }
+        // Rebalance: subtract `rebalanceAmount` from the largest OTHER
+        // existing share so the requested-hours invariant holds. If the
+        // largest share isn't enough, distribute the remainder across
+        // any other people in descending order of hours.
+        let remaining = rebalanceAmount ?? 0;
+        if (remaining > 0) {
+          const otherIdxs = next
+            .map((_, i) => i)
+            .filter((i) => next[i].personId !== personId)
+            .sort((a, b) => next[b].hours - next[a].hours);
 
-        // Rebalance another person to keep the sum invariant if requested.
-        if (rebalanceTargetPersonId && delta !== 0) {
-          next = next.map((p) => {
-            if (p.personId === rebalanceTargetPersonId) {
-              const newHours = Math.max(0, p.hours - delta);
-              return { ...p, hours: newHours };
-            }
-            return p;
-          });
+          for (const idx of otherIdxs) {
+            if (remaining <= 0) break;
+            const take = Math.min(next[idx].hours, remaining);
+            next[idx] = { ...next[idx], hours: next[idx].hours - take };
+            remaining -= take;
+          }
         }
 
         // Drop zero-hour rows so the chip list stays clean.
@@ -313,17 +350,11 @@ export function AssignmentStateProvider({ children }: { children: ReactNode }) {
       month: string,
       personId: string,
       hours: number,
-      rebalanceTargetPersonId?: string,
+      rebalanceAmount?: number,
     ) => {
-      // Same logic as addPersonToMonth — that helper already handles the
-      // "exists already" case via the existing-person branch.
-      addPersonToMonth(
-        requestId,
-        month,
-        personId,
-        hours,
-        rebalanceTargetPersonId,
-      );
+      // Same logic as addPersonToMonth — the existing-person branch handles
+      // the in-place update.
+      addPersonToMonth(requestId, month, personId, hours, rebalanceAmount);
     },
     [addPersonToMonth],
   );
@@ -402,6 +433,7 @@ export function AssignmentStateProvider({ children }: { children: ReactNode }) {
       session,
       enterAssignmentMode,
       setMonthAssignment,
+      setMonthAssignmentList,
       addPersonToMonth,
       updatePersonHours,
       removePersonFromMonth,
@@ -415,6 +447,7 @@ export function AssignmentStateProvider({ children }: { children: ReactNode }) {
       session,
       enterAssignmentMode,
       setMonthAssignment,
+      setMonthAssignmentList,
       addPersonToMonth,
       updatePersonHours,
       removePersonFromMonth,

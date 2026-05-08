@@ -49,6 +49,19 @@ interface RoleSectionProps {
   assignedMap: Map<string, MonthPersonAssignment[]>;
   onAssign: (requestId: string, month: string, personId: string, hours: number) => void;
   onRemove: (requestId: string, month: string, personId: string) => void;
+  /**
+   * Add an additional person to a multi-person split (W5 S10, §9.5). The
+   * fourth argument is a rebalance amount — non-zero only when the parent
+   * wants to absorb the new person's hours from existing shares to keep
+   * the requested-hours invariant.
+   */
+  onAddPerson?: (
+    requestId: string,
+    month: string,
+    personId: string,
+    hours: number,
+    rebalanceAmount: number,
+  ) => void;
   /** Projected utilisation per personId (best-effort from preview endpoint) */
   projectedUtils: Map<string, number>;
 }
@@ -82,6 +95,7 @@ export function RoleSection({
   assignedMap,
   onAssign,
   onRemove,
+  onAddPerson,
   projectedUtils,
 }: RoleSectionProps) {
   const [expanded, setExpanded] = useState(true);
@@ -189,6 +203,14 @@ export function RoleSection({
     [onRemove, request.id],
   );
 
+  const handleAddPerson = useCallback(
+    (month: string, personId: string, hours: number, rebalanceAmount: number) => {
+      if (!onAddPerson) return;
+      onAddPerson(String(request.id), month, personId, hours, rebalanceAmount);
+    },
+    [onAddPerson, request.id],
+  );
+
   const handleQuickFill = useCallback(
     (personId: string, _personName: string, hours: number, months: string[]) => {
       months.forEach((m) => onAssign(String(request.id), m, personId, hours));
@@ -252,6 +274,7 @@ export function RoleSection({
                   requestId={request.id}
                   onAssign={handleAssign}
                   onRemove={handleRemove}
+                  onAddPerson={onAddPerson ? handleAddPerson : undefined}
                 />
               );
             })}

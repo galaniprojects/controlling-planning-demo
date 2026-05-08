@@ -117,6 +117,20 @@ interface PersonPickerProps {
   candidates: PersonCandidate[];
   onSelect: (personId: string, personName: string, hours: number) => void;
   onClose: () => void;
+  /**
+   * When true, render an hours input above the candidate list pre-filled
+   * with ``defaultHours`` (or the remaining hours derived from
+   * ``requestedHours - alreadyAssignedHours``). Selecting a candidate
+   * commits with the current value of the input, not the full request.
+   *
+   * This is the [+ Add] flow per spec §9.5. The default shape ([Assign])
+   * always assigns the full requested hours.
+   */
+  showHoursInput?: boolean;
+  /** Pre-fill value for the hours input (only used when showHoursInput=true). */
+  defaultHours?: number;
+  /** IDs of people already on this month — hidden from the picker. */
+  excludedPersonIds?: string[];
 }
 
 export function PersonPicker({
@@ -127,10 +141,18 @@ export function PersonPicker({
   candidates,
   onSelect,
   onClose,
+  showHoursInput = false,
+  defaultHours,
+  excludedPersonIds,
 }: PersonPickerProps) {
   const [search, setSearch] = useState('');
   const [projections, setProjections] = useState<Map<string, number>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
+  const initialHours =
+    typeof defaultHours === 'number' && defaultHours > 0
+      ? defaultHours
+      : requestedHours;
+  const [hoursValue, setHoursValue] = useState<number>(initialHours);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
@@ -175,11 +197,19 @@ export function PersonPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidates, ccId, requestId, month]);
 
+  // Hide already-assigned people in the [+ Add] flow so the picker only
+  // surfaces additional candidates to split with (per spec §9.5).
+  const excludedSet = new Set(excludedPersonIds ?? []);
+  const visibleCandidates =
+    excludedSet.size > 0
+      ? candidates.filter((c) => !excludedSet.has(c.personId))
+      : candidates;
+
   const filtered = search.trim()
-    ? candidates.filter((c) =>
+    ? visibleCandidates.filter((c) =>
         c.personName.toLowerCase().includes(search.toLowerCase()),
       )
-    : candidates;
+    : visibleCandidates;
 
   // §9.3 spec calls for "Matching role" / "Other roles" groups, but
   // CapacityRequestItem doesn't currently expose `role_type_id` on the
@@ -190,8 +220,14 @@ export function PersonPicker({
   const others = filtered.filter((c) => !c.matchesRole);
   const grouped = matching.length > 0;
 
+  const hoursInvalid =
+    showHoursInput && (!Number.isFinite(hoursValue) || hoursValue <= 0);
+
   const handleSelect = (c: PersonCandidate) => {
-    onSelect(c.personId, c.personName, requestedHours);
+    if (hoursInvalid) return;
+    // [Assign] flow → full requested hours; [+ Add] flow → user-typed hours.
+    const hoursToCommit = showHoursInput ? hoursValue : requestedHours;
+    onSelect(c.personId, c.personName, hoursToCommit);
     onClose();
   };
 
@@ -212,6 +248,34 @@ export function PersonPicker({
           className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
         />
       </div>
+
+      {/* Hours input (only in the [+ Add] flow per §9.5).
+          Pre-filled with remaining hours so the most common split — accept
+          the suggested portion — is one click away. The user can edit
+          before picking a person. */}
+      {showHoursInput && (
+        <div className="flex items-center gap-2 border-b border-border px-2 py-1.5 text-xs">
+          <span className="text-muted-foreground">Hours:</span>
+          <input
+            type="number"
+            min={1}
+            max={requestedHours}
+            value={hoursValue}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value);
+              setHoursValue(Number.isFinite(v) ? v : 0);
+            }}
+            className={cn(
+              'w-16 rounded border border-input bg-transparent px-1.5 py-0.5 text-xs tabular-nums outline-none focus:border-primary',
+              hoursInvalid && 'border-red-400',
+            )}
+            aria-label="Hours to assign"
+          />
+          <span className="text-muted-foreground">
+            of {requestedHours}h requested
+          </span>
+        </div>
+      )}
 
       <div className="max-h-64 overflow-y-auto p-1">
         {/* Matching role group — only rendered when role-matching data
