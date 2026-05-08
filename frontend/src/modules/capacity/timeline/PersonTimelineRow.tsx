@@ -14,6 +14,13 @@
  * The component is data-source-agnostic: it consumes the normalized
  * `PersonRowData` produced by `useScopedTimelineData`, which already
  * resolved per-month / per-project hours.
+ *
+ * v5.2 W5 Track A (S6b, §9.4 + §9.6): when the optional `ghostsByMonth`
+ * map is non-empty, the row overlays dashed-border `GhostOverlay`
+ * blocks on top of bar cells to preview the active assignment session.
+ * Click handlers (`onGhostClick` / `onSessionClick`) are wired to
+ * `setMonthAssignment` / `clearMonthAssignment` by the parent so the
+ * gesture map matches §9.6.
  */
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -26,6 +33,12 @@ import {
   quarterLabel,
 } from './timeAxis';
 import { SegmentBar, type BarSegment } from './SegmentBar';
+import { GhostOverlay } from './GhostOverlay';
+import {
+  type GhostSegment,
+  pickPrimaryGhost,
+  aggregatePeriodGhost,
+} from './ghostOverlay';
 
 export interface PersonRowData {
   personId: string;
@@ -49,6 +62,16 @@ interface PersonTimelineRowProps {
   onRowClick?: (personId: string) => void;
   /** Visual indent for nested-under-role-group rows. */
   indented?: boolean;
+  /**
+   * v5.2 W5 — when assignment mode is active, the timeline passes a
+   * per-month ghost-segment map for this person. The row overlays a
+   * single primary ghost on each affected month cell.
+   */
+  ghostsByMonth?: Map<string, GhostSegment[]>;
+  /** Click handler for an unassigned ghost — assigns the person. */
+  onGhostClick?: (ghost: GhostSegment, month: string) => void;
+  /** Click handler for a session (just-assigned) ghost — undo. */
+  onSessionClick?: (ghost: GhostSegment, month: string) => void;
 }
 
 /**
@@ -81,23 +104,66 @@ function buildSegments(
  * Render one row of bar cells against a TimeColumn list. Used by both
  * `PersonTimelineRow` and `RoleGroup`'s aggregate (RoleGroup overrides
  * the segment-color behavior).
+ *
+ * When `ghostsByMonth` is provided (v5.2 W5 §9.4), each cell's bar gets
+ * an additional dashed-border overlay representing the in-flight
+ * assignment session. The aggregate row passes `undefined` to suppress
+ * overlays on the role-summary bar.
  */
 export function renderBarCells({
   columns,
   cellsByMonth,
   projectNames,
   isAggregate = false,
+  ghostsByMonth,
+  onGhostClick,
+  onSessionClick,
 }: {
   columns: readonly TimeColumn[];
   cellsByMonth: Record<string, MonthCell>;
   projectNames: Record<string, string>;
   isAggregate?: boolean;
+  ghostsByMonth?: Map<string, GhostSegment[]>;
+  onGhostClick?: (ghost: GhostSegment, month: string) => void;
+  onSessionClick?: (ghost: GhostSegment, month: string) => void;
 }): React.ReactNode[] {
+  // Pick the primary (or aggregated) ghost for each column up-front; the
+  // result is `null` when no overlay should be rendered. We do this in
+  // the column loop directly to keep cell-rendering local.
   return columns.map((col) => {
     const monthCells: MonthCell[] = [];
     for (const m of col.months) {
       const c = cellsByMonth[m];
       if (c) monthCells.push(c);
+    }
+
+    // Resolve the ghost (if any) for this column.
+    let ghostForCell: GhostSegment | null = null;
+    let ghostMonth: string | null = null;
+    if (ghostsByMonth) {
+      if (col.type === 'month') {
+        const g = pickPrimaryGhost(ghostsByMonth.get(col.month));
+        if (g) {
+          ghostForCell = g;
+          ghostMonth = col.month;
+        }
+      } else {
+        const perMonth = col.months.map((m) => ghostsByMonth.get(m));
+        const g = aggregatePeriodGhost(perMonth);
+        if (g) {
+          ghostForCell = g;
+          // For collapsed periods the click acts on the first month with
+          // a ghost — the user can expand the period to operate at month
+          // granularity. This matches §9.4's "reveal full project
+          // footprint" but avoids ambiguous click semantics.
+          for (let i = 0; i < col.months.length; i++) {
+            if (perMonth[i]?.length) {
+              ghostMonth = col.months[i];
+              break;
+            }
+          }
+        }
+      }
     }
 
     // Empty cells (no data for any month in the period) render as
@@ -117,20 +183,33 @@ export function renderBarCells({
     // Single month: utilization + project segments come straight from the cell.
     if (col.type === 'month') {
       const c = monthCells[0];
+      const monthLabel = `${shortMonthLabel(c.month)} ${c.month.slice(0, 4)}`;
       return (
         <div
           key={col.key}
           className="flex shrink-0 items-center justify-center px-0.5 py-1"
           style={{ width: col.width }}
         >
-          <SegmentBar
-            segments={buildSegments(c, projectNames)}
-            utilization={c.utilization}
-            standardHours={c.standardHours}
-            allocatedHours={c.allocatedHours}
-            contextLabel={`${shortMonthLabel(c.month)} ${c.month.slice(0, 4)}`}
-            isSummary={isAggregate}
-          />
+          <div className="relative h-3 w-full">
+            <SegmentBar
+              segments={buildSegments(c, projectNames)}
+              utilization={c.utilization}
+              standardHours={c.standardHours}
+              allocatedHours={c.allocatedHours}
+              contextLabel={monthLabel}
+              isSummary={isAggregate}
+            />
+            {ghostForCell && ghostMonth && (
+              <GhostOverlay
+                ghost={ghostForCell}
+                monthLabel={monthLabel}
+                onClick={(g) => {
+                  if (g.kind === 'session') onSessionClick?.(g, ghostMonth!);
+                  else onGhostClick?.(g, ghostMonth!);
+                }}
+              />
+            )}
+          </div>
         </div>
       );
     }
@@ -170,19 +249,31 @@ export function renderBarCells({
         )}
         style={{ width: col.width }}
       >
-        <SegmentBar
-          segments={segments}
-          utilization={summary.utilization}
-          standardHours={avgStd}
-          allocatedHours={avgAlloc}
-          contextLabel={ctx}
-          isSummary
-          hadAnyMonthOverAllocated={summary.hadOverAllocation}
-          monthBreakdown={monthCells.map((c) => ({
-            month: c.month,
-            utilization: c.utilization,
-          }))}
-        />
+        <div className="relative h-3 w-full">
+          <SegmentBar
+            segments={segments}
+            utilization={summary.utilization}
+            standardHours={avgStd}
+            allocatedHours={avgAlloc}
+            contextLabel={ctx}
+            isSummary
+            hadAnyMonthOverAllocated={summary.hadOverAllocation}
+            monthBreakdown={monthCells.map((c) => ({
+              month: c.month,
+              utilization: c.utilization,
+            }))}
+          />
+          {ghostForCell && ghostMonth && (
+            <GhostOverlay
+              ghost={ghostForCell}
+              monthLabel={ctx}
+              onClick={(g) => {
+                if (g.kind === 'session') onSessionClick?.(g, ghostMonth!);
+                else onGhostClick?.(g, ghostMonth!);
+              }}
+            />
+          )}
+        </div>
       </div>
     );
   });
@@ -193,6 +284,9 @@ export function PersonTimelineRow({
   columns,
   onRowClick,
   indented = false,
+  ghostsByMonth,
+  onGhostClick,
+  onSessionClick,
 }: PersonTimelineRowProps) {
   const handleClick = () => onRowClick?.(data.personId);
 
@@ -232,11 +326,14 @@ export function PersonTimelineRow({
         </Tooltip>
       </div>
 
-      {/* Bar cells */}
+      {/* Bar cells (with optional assignment-mode ghost overlay) */}
       {renderBarCells({
         columns,
         cellsByMonth: data.cellsByMonth,
         projectNames: data.projectNames,
+        ghostsByMonth,
+        onGhostClick,
+        onSessionClick,
       })}
     </div>
   );

@@ -13,8 +13,13 @@
  * toggle (clicking a person row opens the side panel — wired in S5a).
  *
  * Sorting (§3.6): peak utilization desc, then alphabetical.
+ *
+ * v5.2 W5 Track A (S6b, §9.4): when assignment mode is active and the
+ * role's label is in `matchingRoleLabels`, the section auto-expands so
+ * the user sees ghost segments on candidate people without an extra
+ * click. Ghost props pass through to each `PersonTimelineRow`.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -30,6 +35,7 @@ import {
   PersonTimelineRow,
   type PersonRowData,
 } from './PersonTimelineRow';
+import type { GhostMap, GhostSegment } from './ghostOverlay';
 
 export interface RoleGroupData {
   roleId: string;
@@ -46,6 +52,27 @@ interface RoleGroupProps {
   /** Default `true`; the parent may collapse roles by default in dense scopes. */
   defaultExpanded?: boolean;
   onPersonClick?: (personId: string) => void;
+  /**
+   * v5.2 W5 — set of role labels referenced by the active assignment
+   * session's resource requests. Roles in this set auto-expand on
+   * session-mode entry per §9.4 ("Role groups that contain matching
+   * people auto-expand if they were collapsed"). `undefined` ↔ no
+   * assignment session active.
+   */
+  matchingRoleLabels?: Set<string>;
+  /** Per-person ghost segment map — see `useAssignmentOverlay`. */
+  ghostMap?: GhostMap;
+  /** Forwarded to each `PersonTimelineRow` (assignment gesture). */
+  onGhostClick?: (
+    personId: string,
+    ghost: GhostSegment,
+    month: string,
+  ) => void;
+  onSessionClick?: (
+    personId: string,
+    ghost: GhostSegment,
+    month: string,
+  ) => void;
 }
 
 /**
@@ -139,9 +166,23 @@ export function RoleGroup({
   columns,
   defaultExpanded = true,
   onPersonClick,
+  matchingRoleLabels,
+  ghostMap,
+  onGhostClick,
+  onSessionClick,
 }: RoleGroupProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const Icon = expanded ? ChevronDown : ChevronRight;
+
+  // §9.4 — when the active assignment session references this role,
+  // force-expand the section so candidate ghosts are immediately
+  // visible. Only fires on assignment-mode transitions; the user can
+  // still collapse manually after.
+  const isMatchingSection =
+    matchingRoleLabels?.has(data.roleName) ?? false;
+  useEffect(() => {
+    if (isMatchingSection) setExpanded(true);
+  }, [isMatchingSection]);
 
   return (
     <div role="rowgroup">
@@ -190,6 +231,17 @@ export function RoleGroup({
               columns={columns}
               onRowClick={onPersonClick}
               indented
+              ghostsByMonth={ghostMap?.get(p.personId)}
+              onGhostClick={
+                onGhostClick
+                  ? (g, m) => onGhostClick(p.personId, g, m)
+                  : undefined
+              }
+              onSessionClick={
+                onSessionClick
+                  ? (g, m) => onSessionClick(p.personId, g, m)
+                  : undefined
+              }
             />
           ))}
         </div>
