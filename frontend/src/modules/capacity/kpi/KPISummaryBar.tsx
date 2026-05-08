@@ -46,7 +46,10 @@ interface KpiSnapshot {
   headcount: number;
   avgUtilizationPct: number;
   overAllocatedCount: number;
-  pendingRequestsCount: number;
+  /** null when inbox fetch failed for a role that should have access
+   *  (Controller / CC Owner — network blip). Card renders '—' so a
+   *  transient failure doesn't silently overwrite the side-nav badge. */
+  pendingRequestsCount: number | null;
   supplyGapRoleCount: number;
   windowStart: string | null;
   windowEnd: string | null;
@@ -213,6 +216,7 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
           }
         }
 
+        const inboxOk = inboxResult.status === 'fulfilled';
         let pendingRequestsCount = 0;
         for (const inboxItem of inbox?.items ?? []) {
           for (const badge of inboxItem.role_badges ?? []) {
@@ -224,7 +228,11 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
           headcount: headcount?.total ?? 0,
           avgUtilizationPct,
           overAllocatedCount: overAllocatedPersons.size,
-          pendingRequestsCount,
+          // When inbox failed but the role *expects* it (Controller / CC
+          // Owner), null preserves the previous side-nav badge value
+          // rather than silently flashing 0. The card itself shows '—'
+          // for null. Executive 403s are normal — we always render 0.
+          pendingRequestsCount: inboxOk ? pendingRequestsCount : null,
           supplyGapRoleCount: supplyGapRoles.size,
           windowStart: forecast?.start ?? items[0]?.month ?? null,
           windowEnd:
@@ -233,7 +241,12 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
         };
 
         setSnapshot(next);
-        setPendingRequestsKpi(pendingRequestsCount);
+        // Only publish to the side-nav seam when we have a real number.
+        // The seam consumer (CapacityModuleNav) keeps the prior badge
+        // when this stays null, avoiding a transient "0" flash.
+        if (inboxOk) {
+          setPendingRequestsKpi(pendingRequestsCount);
+        }
 
         // Surface a banner only if ALL endpoints failed — partial
         // failures (Executive's missing inbox) just degrade gracefully.
@@ -287,7 +300,10 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
       case 'over_alloc':
         return loading ? '—' : String(snapshot.overAllocatedCount);
       case 'pending_req':
-        return loading ? '—' : String(snapshot.pendingRequestsCount);
+        if (loading) return '—';
+        return snapshot.pendingRequestsCount === null
+          ? '—'
+          : String(snapshot.pendingRequestsCount);
       case 'supply_gap':
         return loading
           ? '—'

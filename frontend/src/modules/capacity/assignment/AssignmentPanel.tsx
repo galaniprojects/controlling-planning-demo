@@ -306,6 +306,26 @@ function AssignmentPanelInner({
               total={totalMonths}
             />
 
+            {/* Empty state — project has requests but none on this CC.
+                Common for cross-CC projects: nav landed on cc-foo but the
+                requests live on cc-bar. Tell the user where to go. */}
+            {resourceRequests.length === 0 &&
+              externalCostRequests.length === 0 &&
+              (detail.requests ?? []).length > 0 && (
+                <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+                  <p className="mb-1 font-medium text-foreground">
+                    No resource requests for this project on the current cost centre.
+                  </p>
+                  <p>
+                    This project has {detail.requests.length} request
+                    {detail.requests.length === 1 ? '' : 's'} on other cost
+                    centre{detail.requests.length === 1 ? '' : 's'}. Open
+                    the Requests inbox and pick the matching CC row to
+                    assign there.
+                  </p>
+                </div>
+              )}
+
             {/* Resource role sections */}
             {resourceRequests.length > 0 && (
               <div className="space-y-0">

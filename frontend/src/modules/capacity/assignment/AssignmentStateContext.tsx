@@ -155,13 +155,30 @@ export function AssignmentStateProvider({ children }: { children: ReactNode }) {
       crId?: number,
       entrySource: AssignmentEntrySource = 'url_param',
     ) => {
-      setSession({
-        projectId,
-        ccId,
-        crId,
-        entrySource,
-        assignments: new Map(),
-        dirty: false,
+      // Idempotency guard: if a session for this same project/cc/cr is
+      // already active, do NOT replace state — that would wipe in-flight
+      // edits whenever the URL params re-fire (e.g. a ScopeBar click
+      // updates `searchParams` identity → AssignmentEntryPoint effect
+      // re-runs). Callers wanting to switch sessions on a dirty session
+      // should route through the unsaved-changes dialog and `exit()`
+      // explicitly first.
+      setSession((prev) => {
+        if (
+          prev &&
+          prev.projectId === projectId &&
+          prev.ccId === ccId &&
+          prev.crId === crId
+        ) {
+          return prev;
+        }
+        return {
+          projectId,
+          ccId,
+          crId,
+          entrySource,
+          assignments: new Map(),
+          dirty: false,
+        };
       });
     },
     [],

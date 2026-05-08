@@ -104,9 +104,15 @@ function HotspotRow({ item, ccId, apiScope, onPerson, onCell }: HotspotRowProps)
     }
   };
 
+  const ariaAction =
+    item.category === 'unfulfilled_demand'
+      ? 'Open demand summary'
+      : 'Open person detail';
+
   return (
     <button
       type="button"
+      aria-label={`${ariaAction} for ${item.summary}`}
       className={cn(
         'flex w-full items-start gap-2 rounded px-1.5 py-1.5 text-left',
         'transition-colors hover:bg-accent/50 focus-visible:outline-none',
@@ -114,7 +120,7 @@ function HotspotRow({ item, ccId, apiScope, onPerson, onCell }: HotspotRowProps)
       )}
       onClick={handleClick}
     >
-      <span className="mt-0.5">{severityIcon(item.category)}</span>
+      <span className="mt-0.5" aria-hidden="true">{severityIcon(item.category)}</span>
       <span className="text-[11px] leading-snug text-foreground">
         {item.summary}
       </span>

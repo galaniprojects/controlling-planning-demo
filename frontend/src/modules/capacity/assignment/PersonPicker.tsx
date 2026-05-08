@@ -181,8 +181,14 @@ export function PersonPicker({
       )
     : candidates;
 
+  // §9.3 spec calls for "Matching role" / "Other roles" groups, but
+  // CapacityRequestItem doesn't currently expose `role_type_id` on the
+  // wire (only the human-readable `role_or_cost_type` name), so the
+  // candidate split would always be empty. Render a single ungrouped
+  // list until backend exposes role_type_id; tracked as a follow-up.
   const matching = filtered.filter((c) => c.matchesRole);
   const others = filtered.filter((c) => !c.matchesRole);
+  const grouped = matching.length > 0;
 
   const handleSelect = (c: PersonCandidate) => {
     onSelect(c.personId, c.personName, requestedHours);
@@ -208,8 +214,10 @@ export function PersonPicker({
       </div>
 
       <div className="max-h-64 overflow-y-auto p-1">
-        {/* Matching role group */}
-        {matching.length > 0 && (
+        {/* Matching role group — only rendered when role-matching data
+            is actually present (currently never until role_type_id lands
+            on CapacityRequestItem). */}
+        {grouped && matching.length > 0 && (
           <>
             <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               Matching role
@@ -225,12 +233,15 @@ export function PersonPicker({
           </>
         )}
 
-        {/* Other roles group */}
+        {/* Other-roles header is suppressed when no role-matching data
+            exists — render the ungrouped candidate list directly. */}
         {others.length > 0 && (
           <>
-            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Other roles
-            </p>
+            {grouped && (
+              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Other roles
+              </p>
+            )}
             {others.map((c) => (
               <CandidateRow
                 key={c.personId}

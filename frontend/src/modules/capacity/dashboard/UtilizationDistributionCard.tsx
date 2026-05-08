@@ -47,13 +47,16 @@ interface BucketMeta {
 // chart vars that don't map cleanly to the red/amber/green/blue/lighter-blue/
 // gray palette spec'd here, so use stable Tailwind hex values that read
 // correctly in both light and dark themes.
+// Light-mode contrast: blue-300 / gray-400 fail WCAG 3:1 against bg-card.
+// Use blue-400 / gray-500 — read clearly in both themes for the data-
+// bearing bars.
 const BUCKETS: BucketMeta[] = [
   { key: 'over_100', label: '>100%',  color: '#ef4444', filter: 'over_allocated' }, // red-500
   { key: '76_100',   label: '76–100%', color: '#f59e0b', filter: 'all' },            // amber-500
   { key: '51_75',    label: '51–75%',  color: '#22c55e', filter: 'all' },            // green-500
   { key: '26_50',    label: '26–50%',  color: '#3b82f6', filter: 'all' },            // blue-500
-  { key: '1_25',     label: '1–25%',   color: '#93c5fd', filter: 'under_utilized' }, // blue-300
-  { key: 'zero',     label: '0%',      color: '#9ca3af', filter: 'under_utilized' }, // gray-400
+  { key: '1_25',     label: '1–25%',   color: '#60a5fa', filter: 'under_utilized' }, // blue-400
+  { key: 'zero',     label: '0%',      color: '#6b7280', filter: 'under_utilized' }, // gray-500
 ];
 
 // ---------------------------------------------------------------------------

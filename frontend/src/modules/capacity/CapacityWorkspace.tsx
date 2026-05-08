@@ -98,7 +98,7 @@ function AssignmentEntryPoint() {
   const [searchParams] = useSearchParams();
   const { registerAssignmentHandler, openAssignment } = useCapacitySidePanel();
   const { openPanel, closePanel: closeSidePanel } = useSidePanel();
-  const { enterAssignmentMode } = useAssignmentState();
+  const { enterAssignmentMode, session } = useAssignmentState();
 
   // Keep a ref to the latest openPanel / closeSidePanel so the registered
   // handler always invokes the current values even if they change (they
@@ -139,13 +139,28 @@ function AssignmentEntryPoint() {
 
     if (!projectId || !ccId) return;
 
+    // Idempotency guard: `searchParams` identity changes whenever ANY
+    // param changes — including ScopeBar interactions writing scope/cc/
+    // group via useScopeQueryParams. Skip the re-entry when the active
+    // session already matches; otherwise we'd wipe in-flight edits.
+    // (AssignmentStateContext.enterAssignmentMode also short-circuits
+    // for state correctness; this guard avoids the redundant openPanel
+    // call and side-panel flicker.)
+    if (
+      session &&
+      session.projectId === projectId &&
+      session.ccId === ccId &&
+      session.crId === crId
+    ) {
+      return;
+    }
+
     enterAssignmentMode(projectId, ccId, crId, 'url_param');
     openAssignment(projectId, { ccId, crId });
-  // `searchParams` object identity changes whenever any param changes,
-  // which is the correct trigger. `enterAssignmentMode` / `openAssignment`
-  // are stable useCallback refs.
+  // `searchParams` object identity changes whenever any param changes.
+  // `enterAssignmentMode` / `openAssignment` are stable useCallback refs.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, session]);
 
   return null;
 }
