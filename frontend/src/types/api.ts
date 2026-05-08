@@ -95,12 +95,24 @@ export interface RoleAvailabilityRow {
   allocated_hours: number;
   available_hours: number;
   utilization_pct: number;
+  /** v5.2 §13.10 — count of pending ResourceRequests from other PLs for this role/location/month. */
+  competing_demand_count: number;
+}
+
+/** v5.2 §13.7 — location-level roll-up for the side panel location comparison section. */
+export interface LocationAvailabilitySummary {
+  location_id: string;
+  location_name: string;
+  total_headcount: number;
+  avg_availability_pct: number;
 }
 
 export interface RoleAvailabilityResponse {
   items: RoleAvailabilityRow[];
   total: number;
   months: string[];
+  /** Present only when location_id is omitted (all-locations query). */
+  location_summary?: LocationAvailabilitySummary[] | null;
 }
 
 // Project creation
