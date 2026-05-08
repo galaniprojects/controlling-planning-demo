@@ -43,6 +43,9 @@ from schemas.capacity import (
     CapacityContext,
     CapacityHistoryEntry, CapacityHistoryResponse,
     CapacityInboxItem, CapacityInboxResponse, CapacityInboxRoleBadge,
+    CapacityProjectAssignedPerson, CapacityProjectAssignedPersonMonth,
+    CapacityProjectExternalCost, CapacityProjectItem, CapacityProjectMonth,
+    CapacityProjectSlot, CapacityProjectSlotMonth, CapacityProjectsResponse,
     ConfirmRequest, CounterProposeRequest,
     DashboardForecastPoint, DashboardForecastResponse,
     DeclineRequest,
@@ -68,6 +71,7 @@ from services.capacity_dashboard import (
     compute_hotspots,
     compute_utilization_distribution,
 )
+from services.capacity_projects import compute_capacity_projects
 
 router = APIRouter(prefix="/api/capacity", tags=["Capacity Management"])
 
@@ -2394,3 +2398,51 @@ def get_role_availability(
         items=items, total=len(items), months=months,
         location_summary=location_summary,
     )
+
+
+# ---------------------------------------------------------------------------
+# v5.2 W5 §10 — Group-by-project aggregation
+# ---------------------------------------------------------------------------
+
+_PROJECTS_VIEW_ROLES = ("controller", "executive", "cost_center_owner")
+
+
+@router.get("/projects", response_model=CapacityProjectsResponse)
+def get_capacity_projects(
+    scope: str = "all",
+    start: str | None = None,
+    end: str | None = None,
+    filter_chip: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(*_PROJECTS_VIEW_ROLES)),
+):
+    """Group-by-project aggregation for the workspace timeline (spec §10).
+
+    Returns one row per visible project with three child collections
+    (assigned people, unfulfilled slots, external costs) plus per-month
+    fulfillment data. The frontend renders this when ``groupBy === 'project'``.
+
+    Scope vocabulary matches the dashboard endpoints (see
+    ``services.capacity_dashboard._parse_scope``). Per spec §10.12 the
+    scope filters which PROJECTS appear, not which people within a project
+    — the response always includes all allocated people regardless of CC.
+
+    Optional ``filter_chip`` values: ``needs_staffing`` | ``pending_requests``
+    | ``unassigned_months`` | ``over_allocated`` | ``under_utilized`` —
+    semantics per spec §10.10.
+
+    Authorization (per spec §15):
+      * Controller / Executive — full access.
+      * CC Owner               — full access; the workspace defaults their
+                                 scope to their CC but the API is not
+                                 server-restricted, allowing legitimate
+                                 cross-CC views (e.g. shared projects).
+      * Project Lead           — 403 (no project-view access).
+    """
+    try:
+        result = compute_capacity_projects(
+            db, scope=scope, start=start, end=end, filter_chip=filter_chip,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return CapacityProjectsResponse(**result)

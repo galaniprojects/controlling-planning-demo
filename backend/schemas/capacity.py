@@ -408,3 +408,96 @@ class CapacityInboxItem(BaseModel):
 class CapacityInboxResponse(BaseModel):
     items: list[CapacityInboxItem]
     total: int
+
+
+# ---------------------------------------------------------------------------
+# v5.2 W5 §10 — Group-by-project view
+# ---------------------------------------------------------------------------
+
+class CapacityProjectMonth(BaseModel):
+    """Per-month demand entry on a project group row (fulfillment bar)."""
+    month: str  # YYYY-MM
+    requested_hours: float
+    assigned_hours: float
+
+
+class CapacityProjectAssignedPersonMonth(BaseModel):
+    """Per-month allocation for an assigned-person child row (§10.4)."""
+    month: str
+    this_project_hours: float
+    total_hours_all_projects: float
+    total_utilization_pct: float
+
+
+class CapacityProjectAssignedPerson(BaseModel):
+    """Assigned-person child row of a project group (§10.4)."""
+    person_id: str
+    person_name: str
+    role_type_id: Optional[str] = None
+    role_name: Optional[str] = None
+    cost_center_id: Optional[str] = None
+    cost_center_name: Optional[str] = None
+    monthly: list[CapacityProjectAssignedPersonMonth]
+
+
+class CapacityProjectSlotMonth(BaseModel):
+    """Per-month demand entry on an unassigned-slot child row (§10.5)."""
+    month: str
+    requested_hours: float
+    assigned_hours: float
+
+
+class CapacityProjectSlot(BaseModel):
+    """Unassigned-slot child row of a project group (§10.5)."""
+    request_id: int
+    role_type_id: Optional[str] = None
+    role_name: Optional[str] = None
+    status: str  # 'pending' | 'partially_fulfilled'
+    period_start: str
+    period_end: str
+    cc_id: str
+    cc_name: Optional[str] = None
+    priority: Optional[str] = None
+    change_request_id: Optional[int] = None
+    monthly: list[CapacityProjectSlotMonth]
+
+
+class CapacityProjectExternalCost(BaseModel):
+    """External-cost child row of a project group (§10.6)."""
+    request_id: int
+    description: Optional[str] = None
+    cost_type_id: Optional[str] = None
+    cost_type_label: Optional[str] = None
+    period_start: str
+    period_end: str
+    status: str
+    cc_id: str
+    cc_name: Optional[str] = None
+
+
+class CapacityProjectItem(BaseModel):
+    """One project group in the project-view aggregation (§10.2)."""
+    project_id: str
+    project_name: str
+    project_status: Optional[str] = None
+    hierarchy_node_id: Optional[str] = None
+    hierarchy_node_name: Optional[str] = None
+    pl_person_id: Optional[str] = None
+    pl_name: Optional[str] = None
+    fully_assigned_request_count: int
+    total_request_count: int
+    fulfillment_pct: float
+    monthly_demand: list[CapacityProjectMonth]
+    assigned_people: list[CapacityProjectAssignedPerson]
+    unfulfilled_slots: list[CapacityProjectSlot]
+    external_costs: list[CapacityProjectExternalCost]
+
+
+class CapacityProjectsResponse(BaseModel):
+    """Response for ``GET /api/capacity/projects``."""
+    items: list[CapacityProjectItem]
+    total: int
+    scope: str
+    start: str
+    end: str
+    reference_max_hours: float
