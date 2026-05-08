@@ -75,7 +75,9 @@ export function CapacityManagement() {
           title="Capacity Management"
           actions={<ModuleGuideButton moduleId="capacity_management" />}
         />
-        <CapacityModuleNav />
+        <CapacityModuleNav
+          pendingRequestCount={capContext?.pending_request_count ?? 0}
+        />
         <Outlet />
       </div>
     </CapacityScopeProvider>

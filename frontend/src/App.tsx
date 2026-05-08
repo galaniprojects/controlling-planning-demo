@@ -59,19 +59,21 @@ export default function App() {
                 <Route path="/workbench/new-project/:projectId" element={<ResourcePlanPage />} />
                 <Route path="/workbench/*" element={<ProjectWorkbench />} />
                 {/* === v5.2 W2 — Capacity nested layout === */}
+                {/* Deprecation redirect — legacy direct link to the
+                    Project Assignment page. The new workspace handles
+                    assignment via a side-panel deep link (W4 S6a).
+                    Declared before the nested layout so the intent is
+                    explicit even if the parent later gains a catch-all. */}
+                <Route
+                  path="/capacity/project-assignment/:projectId"
+                  element={<ProjectAssignmentRedirect />}
+                />
                 <Route path="/capacity" element={<CapacityManagement />}>
                   <Route index element={<CapacityWorkspace />} />
                   <Route path="requests" element={<RequestsInbox />} />
                   <Route path="history" element={<CapacityHistory />} />
                   <Route path="availability" element={<PLAvailabilityView />} />
                 </Route>
-                {/* Deprecation redirect — legacy direct link to the
-                    Project Assignment page. The new workspace handles
-                    assignment via a side-panel deep link (W4 S6a). */}
-                <Route
-                  path="/capacity/project-assignment/:projectId"
-                  element={<ProjectAssignmentRedirect />}
-                />
                 <Route path="/simulator/*" element={<SimulatorRouter />} />
                 <Route path="/reporting/*" element={<Reporting />} />
                 <Route path="/admin/*" element={<Administration />} />

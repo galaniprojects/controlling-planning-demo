@@ -70,6 +70,7 @@ function Pill({
       type="button"
       onClick={onClick}
       data-active={active}
+      aria-pressed={active}
       className={cn(
         'inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs font-medium',
         'border transition-colors whitespace-nowrap',

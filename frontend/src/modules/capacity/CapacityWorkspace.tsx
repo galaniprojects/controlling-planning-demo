@@ -17,8 +17,7 @@
  *
  * Spec: guides/Capacity_Module_Redesign_Spec.md §2 + §1.3.
  */
-import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useRole } from '@/contexts/RoleContext';
 import { ScopeBar } from './ScopeBar';
@@ -56,27 +55,23 @@ function SlotPlaceholder({
 export function CapacityWorkspace() {
   const { context } = useRole();
   const role = context?.role;
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // Sync ScopeBar state with the URL query string.
+  // Sync ScopeBar state with the URL query string. Called unconditionally
+  // before the PL gate to keep hook ordering stable across renders.
   useScopeQueryParams();
 
-  // Project Lead has no access to the workspace; redirect to availability.
-  useEffect(() => {
-    if (role === 'project_lead') {
-      navigate('/capacity/availability', { replace: true });
-    }
-  }, [role, navigate]);
+  // Project Lead has no access to the workspace. Redirect during render
+  // (not in an effect) so PL never sees a one-frame flash of the
+  // workspace shell before the navigation fires.
+  if (role === 'project_lead') {
+    return <Navigate to="/capacity/availability" replace />;
+  }
 
   // (W4 S6a) Deep-linked assignment opening will read this param and
   // hand it to AssignmentPanel. For W2 we just acknowledge it via a banner
   // so the redirect from `/capacity/project-assignment/:id` is observable.
   const assignmentProjectId = searchParams.get('assignment_project');
-
-  if (role === 'project_lead') {
-    return null;
-  }
 
   return (
     <div className="space-y-4">
