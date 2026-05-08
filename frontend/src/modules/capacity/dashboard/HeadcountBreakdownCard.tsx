@@ -126,8 +126,12 @@ export function HeadcountBreakdownCard() {
       .getDashboardHeadcountBreakdown(apiScope, dimension)
       .then((res) => {
         if (cancelled) return;
-        setSegments(res.items ?? []);
-        setTotal(res.total ?? 0);
+        const items = res.items ?? [];
+        setSegments(items);
+        // API total = number of segments (dimension count), not headcount.
+        // Compute actual headcount by summing segment counts.
+        const headcount = items.reduce((acc, s) => acc + s.count, 0);
+        setTotal(headcount);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
