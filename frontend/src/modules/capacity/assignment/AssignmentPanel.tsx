@@ -73,12 +73,17 @@ function AssignmentPanelInner({
   const [teamPeople, setTeamPeople] = useState<
     RoleHeatmapRow[0]['people'] // PersonHeatmapRow[]
   >([]);
+  /** IDs of requests that belong to this specific CC (used to filter cross-CC projects). */
+  const [ccRequestIds, setCcRequestIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
 
   // -------------------------------------------------------------------------
-  // Fetch project detail + team heatmap in parallel
+  // Fetch project detail + team heatmap + CC requests in parallel.
+  // The CC requests list lets us filter cross-CC projects so only requests
+  // scoped to THIS cc appear in the panel (prevents 404s on monthly-hours
+  // and assignment endpoints which are CC-scoped).
   // -------------------------------------------------------------------------
 
   useEffect(() => {
@@ -89,13 +94,16 @@ function AssignmentPanelInner({
     Promise.all([
       capacityApi.getProjectAssignmentDetail(projectId, crId),
       capacityApi.getTeamHeatmap(ccId),
+      capacityApi.getRequests(ccId),
     ])
-      .then(([detailRes, heatmapRes]) => {
+      .then(([detailRes, heatmapRes, ccRequestsRes]) => {
         if (cancelled) return;
         setDetail(detailRes);
         // Flatten all people from all role groups
         const people = heatmapRes.items.flatMap((row) => row.people);
         setTeamPeople(people);
+        // Build a set of request IDs belonging to this CC
+        setCcRequestIds(new Set(ccRequestsRes.items.map((r) => r.id)));
       })
       .catch((err) => {
         if (!cancelled) {
@@ -114,13 +122,19 @@ function AssignmentPanelInner({
   // -------------------------------------------------------------------------
 
   const resourceRequests = useMemo(
-    () => (detail?.requests ?? []).filter((r) => r.request_type === 'resource'),
-    [detail],
+    () =>
+      (detail?.requests ?? []).filter(
+        (r) => r.request_type === 'resource' && ccRequestIds.has(r.id),
+      ),
+    [detail, ccRequestIds],
   );
 
   const externalCostRequests = useMemo(
-    () => (detail?.requests ?? []).filter((r) => r.request_type === 'external_cost'),
-    [detail],
+    () =>
+      (detail?.requests ?? []).filter(
+        (r) => r.request_type === 'external_cost' && ccRequestIds.has(r.id),
+      ),
+    [detail, ccRequestIds],
   );
 
   // -------------------------------------------------------------------------

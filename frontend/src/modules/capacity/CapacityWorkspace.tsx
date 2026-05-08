@@ -39,10 +39,7 @@ import {
   CapacitySidePanelProvider,
   useCapacitySidePanel,
 } from './sidepanel/CapacitySidePanelContext';
-import {
-  AssignmentStateProvider,
-  useAssignmentState,
-} from './assignment/AssignmentStateContext';
+import { useAssignmentState } from './assignment/AssignmentStateContext';
 import { AssignmentPanel } from './assignment/AssignmentPanel';
 
 /**
@@ -240,19 +237,17 @@ export function CapacityWorkspace() {
   }
 
   return (
-    // AssignmentStateProvider wraps both the panel content and the
-    // timeline overlay (S6b) so they share the same in-flight session.
-    <AssignmentStateProvider>
-      <CapacitySidePanelProvider>
-        {/*
-         * AssignmentEntryPoint registers the AssignmentPanel handler and
-         * responds to ?assignment_project / ?cc / ?cr URL params.
-         * Must be inside both providers.
-         */}
-        <AssignmentEntryPoint />
-        <WorkspaceBody />
-      </CapacitySidePanelProvider>
-    </AssignmentStateProvider>
+    // AssignmentStateProvider lives at App.tsx root level (alongside
+    // SidePanelProvider) so AssignmentPanel rendered as SidePanel
+    // content can read session state across the provider boundary.
+    <CapacitySidePanelProvider>
+      {/*
+       * AssignmentEntryPoint registers the AssignmentPanel handler and
+       * responds to ?assignment_project / ?cc / ?cr URL params.
+       */}
+      <AssignmentEntryPoint />
+      <WorkspaceBody />
+    </CapacitySidePanelProvider>
   );
 }
 
