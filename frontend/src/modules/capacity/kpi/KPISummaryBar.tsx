@@ -247,7 +247,18 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
 
   const handleCardClick = (filter: FilterChipKey | null) => {
     if (!filter) return;
-    setActiveFilters([filter]);
+    // Mirror FilterChipBar.handleClick: a click toggles a specific
+    // chip and AND-combines with any other active specifics (§6.2).
+    // Re-clicking an already-active card removes it (the normalizer
+    // falls back to ['all'] when no specifics remain). Replacing the
+    // whole filter set would be inconsistent with the chip bar.
+    if (activeFilters.includes(filter)) {
+      setActiveFilters(activeFilters.filter((f) => f !== filter));
+      return;
+    }
+    const next = activeFilters.filter((f) => f !== 'all');
+    next.push(filter);
+    setActiveFilters(next);
   };
 
   const isActive = (filter: FilterChipKey | null) =>

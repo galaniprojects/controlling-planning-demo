@@ -1790,7 +1790,14 @@ def get_capacity_history(
 
     Server-side scoping per §12.14:
       * Controller / Executive: full visibility.
-      * CC Owner: forced filter ``cost_center_id = managed_cc``.
+      * CC Owner: forced filter ``cost_center_id = managed_cc``. Note that
+        spec §12.1's summary row says "own CC, own actions" but §12.14 is
+        the authoritative detail and explicitly says "includes actions by
+        any user on their CC, not just their own actions" — that's the
+        transparency use case ("did the Controller reassign someone on my
+        team?"). The frontend defaults the acting-user filter to "Me" per
+        §12.12, but a CC Owner CAN switch it to "All" or a specific user
+        and the server returns those rows; that is intended.
       * PL: 403 (enforced by ``require_role``).
     """
     q = db.query(CapacityActionLog)

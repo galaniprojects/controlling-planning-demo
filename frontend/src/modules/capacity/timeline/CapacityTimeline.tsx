@@ -24,7 +24,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useProjectColorMap } from '@/contexts/ProjectColorMapContext';
 import { useCapacityScope } from '@/contexts/CapacityScopeContext';
-import { useScopedTimelineData } from '../hooks/useScopedTimelineData';
+import {
+  useScopedTimelineData,
+  type ScopedTimelineData,
+} from '../hooks/useScopedTimelineData';
 import { TimeAxisHeader } from './TimeAxisHeader';
 import { RoleGroup } from './RoleGroup';
 import { FlatPersonRow } from './FlatPersonRow';
@@ -43,12 +46,18 @@ import {
 // ---------------------------------------------------------------------------
 
 function CapacityTimelineInner({
+  data: providedData,
   onPersonClick,
 }: {
+  data?: ScopedTimelineData;
   onPersonClick?: (personId: string) => void;
 }) {
   const { groupBy } = useCapacityScope();
-  const data = useScopedTimelineData();
+  // Fall back to a local fetch when no upstream data is provided. The
+  // workspace passes a hoisted snapshot (so FilterChipBar and the
+  // timeline share one fetch); legacy/standalone callers still work.
+  const localData = useScopedTimelineData(providedData !== undefined);
+  const data = providedData ?? localData;
   const { registerVisibleProjects } = useProjectColorMap();
 
   // Register newly-discovered project ids with the color map. The
@@ -202,6 +211,14 @@ function CapacityTimelineInner({
 
 export interface CapacityTimelineProps {
   /**
+   * Optional hoisted timeline data — when the parent already calls
+   * `useScopedTimelineData()` (e.g., the workspace shares it with
+   * `FilterChipBar`), pass the snapshot here so the timeline doesn't
+   * issue a second fetch. Standalone callers can omit it; the timeline
+   * will fetch its own copy.
+   */
+  data?: ScopedTimelineData;
+  /**
    * Side-panel callback — opens PersonDetail (S5a) for the clicked
    * person. Track A doesn't depend on S5a being merged; if no callback
    * is provided the row click is a no-op (keyboard activation still
@@ -217,8 +234,8 @@ export interface CapacityTimelineProps {
  * outside the workspace tree, so a per-route provider would split the
  * map between them).
  */
-export function CapacityTimeline({ onPersonClick }: CapacityTimelineProps) {
-  return <CapacityTimelineInner onPersonClick={onPersonClick} />;
+export function CapacityTimeline({ data, onPersonClick }: CapacityTimelineProps) {
+  return <CapacityTimelineInner data={data} onPersonClick={onPersonClick} />;
 }
 
 export default CapacityTimeline;

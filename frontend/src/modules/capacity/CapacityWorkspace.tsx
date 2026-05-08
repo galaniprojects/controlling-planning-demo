@@ -6,7 +6,9 @@
  * `<CapacitySidePanelProvider>` so the timeline + demand strip can open
  * `PersonDetail` / `CellDetail` without prop drilling. Layout (top to
  * bottom): ScopeBar → KPISummaryBar → FilterChipBar → CapacityTimeline +
- * DemandStrip → CapacityPanelContent (rendered by the side panel context).
+ * DemandStrip. The side panel itself is rendered by AppLayout from the
+ * shared SidePanelContext; openPerson / openCell pass concrete content
+ * (PersonDetail / CellDetail) per call.
  *
  * The dashboard layer card (§11) is intentionally absent — that's W4 S7.
  *
@@ -113,7 +115,7 @@ function WorkspaceBody() {
         </Card>
       )}
 
-      <CapacityTimeline onPersonClick={handlePersonClick} />
+      <CapacityTimeline data={data} onPersonClick={handlePersonClick} />
 
       {/* Demand strip is hidden in the project view per §10.7. */}
       {groupBy !== 'project' && (

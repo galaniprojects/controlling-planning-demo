@@ -261,7 +261,13 @@ const EMPTY_RESULT: ScopedTimelineData = {
   unsupportedReason: null,
 };
 
-export function useScopedTimelineData(): ScopedTimelineData {
+/**
+ * Fetches timeline data for the active scope + groupBy. Pass `skip=true`
+ * when the caller already has data from another invocation (the timeline
+ * accepts a `data` prop from its parent so the workspace shares one
+ * fetch between FilterChipBar and the timeline rows).
+ */
+export function useScopedTimelineData(skip = false): ScopedTimelineData {
   const { scope, ccId, groupBy, activeFilters } = useCapacityScope();
   const [state, setState] = useState<ScopedTimelineData>(EMPTY_RESULT);
   // Sentinel ref so a stale fetch (after the user changes scope) does
@@ -269,6 +275,7 @@ export function useScopedTimelineData(): ScopedTimelineData {
   const fetchTokenRef = useRef(0);
 
   useEffect(() => {
+    if (skip) return;
     // Guard: project-grouping is W5.
     if (groupBy === 'project') {
       setState({
@@ -418,6 +425,7 @@ export function useScopedTimelineData(): ScopedTimelineData {
     // result is corrected on the next render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    skip,
     scope.kind,
     scope.id ?? null,
     ccId,
