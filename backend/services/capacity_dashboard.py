@@ -290,6 +290,98 @@ def _avg_utilization_for(db: Session, person_ids: list[str], months: list[str]) 
     return round(pct_sum / cell_count, 1) if cell_count else 0.0
 
 
+_DISTRIBUTION_BUCKETS = ("zero", "1_25", "26_50", "51_75", "76_100", "over_100")
+
+
+def _bucket_for_pct(pct: float) -> str:
+    """Map an average utilization percentage to a §11.3 bucket key."""
+    if pct <= 0:
+        return "zero"
+    if pct <= 25:
+        return "1_25"
+    if pct <= 50:
+        return "26_50"
+    if pct <= 75:
+        return "51_75"
+    if pct <= 100:
+        return "76_100"
+    return "over_100"
+
+
+def compute_utilization_distribution(
+    db: Session,
+    *,
+    scope: str = "all",
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> dict:
+    """Per-person mean utilization bucketed for the §11.3 distribution card.
+
+    For each person in scope, computes their average utilization across
+    ``start..end`` (inclusive) and assigns them to one of six buckets
+    (``zero | 1_25 | 26_50 | 51_75 | 76_100 | over_100``). Returns one
+    item per bucket — even empty buckets are included so the chart axis
+    is stable across scope changes. ``total_people`` is the total
+    headcount in scope (sum of bucket counts).
+
+    Backs ``GET /api/capacity/dashboard/utilization-distribution``. Added
+    in v5.2 W4 P1 fix because the spec's "compute client-side from
+    timeline data" assumption breaks at multi-CC scope (timeline isn't
+    fetched there per W3 deferral).
+    """
+    if not start:
+        start = DEMO_DATE
+    if not end:
+        end = add_months(start, 11)
+    if end < start:
+        raise ValueError("end must be >= start")
+    months = generate_month_range(start, end)
+
+    person_ids = _scoped_person_ids(db, scope)
+    counts: dict[str, int] = {b: 0 for b in _DISTRIBUTION_BUCKETS}
+
+    if not person_ids or not months:
+        items = [{"bucket": b, "count": 0} for b in _DISTRIBUTION_BUCKETS]
+        return {
+            "items": items,
+            "total_people": 0,
+            "scope": scope or "all",
+            "start": start,
+            "end": end,
+        }
+
+    rows = (
+        db.query(
+            Allocation.person_id,
+            Allocation.month,
+            func.coalesce(func.sum(Allocation.hours), 0),
+        )
+        .filter(
+            Allocation.person_id.in_(person_ids),
+            Allocation.month.in_(months),
+        )
+        .group_by(Allocation.person_id, Allocation.month)
+        .all()
+    )
+    cells: dict[tuple[str, str], float] = {(pid, m): float(h or 0) for pid, m, h in rows}
+
+    for pid in person_ids:
+        pct_sum = 0.0
+        for m in months:
+            pct_sum += compute_utilization_pct(cells.get((pid, m), 0.0))
+        avg_pct = pct_sum / len(months) if months else 0.0
+        counts[_bucket_for_pct(avg_pct)] += 1
+
+    items = [{"bucket": b, "count": counts[b]} for b in _DISTRIBUTION_BUCKETS]
+    return {
+        "items": items,
+        "total_people": sum(counts.values()),
+        "scope": scope or "all",
+        "start": start,
+        "end": end,
+    }
+
+
 def compute_headcount_breakdown(
     db: Session,
     *,

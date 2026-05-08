@@ -953,6 +953,30 @@ export interface HeadcountBreakdownResponse {
   scope: string;
 }
 
+/** One bucket of the utilization-distribution histogram (spec §11.3).
+ *  Added in v5.2 W4 P1 fix: server-side bucketing replaces the spec's
+ *  client-side aggregation, which broke at multi-CC scope. */
+export type UtilizationBucketKey =
+  | 'zero'
+  | '1_25'
+  | '26_50'
+  | '51_75'
+  | '76_100'
+  | 'over_100';
+
+export interface UtilizationDistributionBucket {
+  bucket: UtilizationBucketKey;
+  count: number;
+}
+
+export interface UtilizationDistributionResponse {
+  items: UtilizationDistributionBucket[];
+  total_people: number;
+  scope: string;
+  start: string;
+  end: string;
+}
+
 /** One ranked capacity issue (spec §11.6). */
 export interface HotspotItem {
   category: 'over_allocation' | 'unfulfilled_demand' | 'under_utilization' | string;

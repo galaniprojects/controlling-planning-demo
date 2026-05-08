@@ -280,6 +280,25 @@ class HeadcountBreakdownResponse(BaseModel):
     scope: str
 
 
+class UtilizationDistributionBucket(BaseModel):
+    """One bucket of the utilization distribution histogram per spec §11.3.
+
+    ``bucket`` is the bucket key (``zero | 1_25 | 26_50 | 51_75 | 76_100 |
+    over_100``). ``count`` is the number of people in scope whose mean
+    utilization across the visible window falls in that range.
+    """
+    bucket: str
+    count: int
+
+
+class UtilizationDistributionResponse(BaseModel):
+    items: list[UtilizationDistributionBucket]
+    total_people: int
+    scope: str
+    start: str
+    end: str
+
+
 class HotspotItem(BaseModel):
     """One ranked capacity issue per spec §11.6.
 

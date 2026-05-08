@@ -2,11 +2,14 @@
  * UtilizationDistributionCard — v5.2 W4 Track B (§11.3).
  *
  * Horizontal bar chart (histogram) showing how many people fall into each
- * utilization bucket. Computed client-side from the timeline person data
- * delivered by `useScopedTimelineData()`. Clicking a bar activates the
- * corresponding filter chip on the timeline.
+ * utilization bucket. Buckets (top to bottom): >100%, 76–100%, 51–75%,
+ * 26–50%, 1–25%, 0%. Click a bar → activate the corresponding filter chip.
  *
- * Buckets (top to bottom): >100%, 76–100%, 51–75%, 26–50%, 1–25%, 0%.
+ * Data source: GET /api/capacity/dashboard/utilization-distribution
+ * (added in W4 P1 fix). The original spec proposed client-side aggregation
+ * from `useScopedTimelineData`, but that hook returns no data at multi-CC
+ * scope (the only scope where the dashboard is visible per §11.1), so the
+ * server-side endpoint computes per-person averages and bucket counts.
  *
  * Spec: guides/Capacity_Module_Redesign_Spec.md §11.3
  */
@@ -20,129 +23,55 @@ import {
   Cell,
   LabelList,
 } from 'recharts';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { TooltipContentProps } from 'recharts';
+import { capacityApi } from '@/api/endpoints';
 import { useCapacityScope } from '@/contexts/CapacityScopeContext';
 import type { FilterChipKey } from '@/contexts/CapacityScopeContext';
-import { useScopedTimelineData } from '../hooks/useScopedTimelineData';
+import { scopeToApiParam } from '@/lib/capacityScopeApi';
+import type { UtilizationBucketKey } from '@/types/api';
 
 // ---------------------------------------------------------------------------
-// Bucket definitions
+// Bucket definitions (display order: top → bottom in the vertical chart)
 // ---------------------------------------------------------------------------
 
-interface Bucket {
-  key: string;
+interface BucketMeta {
+  key: UtilizationBucketKey;
   label: string;
-  /** Tailwind-compatible color reference (light + dark). Kept as a CSS var. */
+  /** Tailwind-compatible color reference (light + dark). */
   color: string;
   filter: FilterChipKey;
-  /** Predicate on average utilization (0–100 scale, can exceed 100). */
-  match: (avg: number) => boolean;
 }
 
-const BUCKETS: Bucket[] = [
-  {
-    key: 'over100',
-    label: '>100%',
-    color: 'var(--color-status-error, hsl(var(--destructive)))',
-    filter: 'over_allocated',
-    match: (a) => a > 100,
-  },
-  {
-    key: 'b76_100',
-    label: '76–100%',
-    color: 'var(--color-status-warning, hsl(var(--chart-4)))',
-    filter: 'all',
-    match: (a) => a >= 76 && a <= 100,
-  },
-  {
-    key: 'b51_75',
-    label: '51–75%',
-    color: 'var(--color-status-success, hsl(var(--chart-2)))',
-    filter: 'all',
-    match: (a) => a >= 51 && a < 76,
-  },
-  {
-    key: 'b26_50',
-    label: '26–50%',
-    color: 'hsl(var(--chart-1))',
-    filter: 'all',
-    match: (a) => a >= 26 && a < 51,
-  },
-  {
-    key: 'b1_25',
-    label: '1–25%',
-    color: 'hsl(var(--chart-5))',
-    filter: 'under_utilized',
-    match: (a) => a >= 1 && a < 26,
-  },
-  {
-    key: 'b0',
-    label: '0%',
-    color: 'hsl(var(--muted-foreground))',
-    filter: 'under_utilized',
-    match: (a) => a === 0,
-  },
+// Spec §11.3 prescribes specific colors per bucket. The theme uses oklch()
+// chart vars that don't map cleanly to the red/amber/green/blue/lighter-blue/
+// gray palette spec'd here, so use stable Tailwind hex values that read
+// correctly in both light and dark themes.
+const BUCKETS: BucketMeta[] = [
+  { key: 'over_100', label: '>100%',  color: '#ef4444', filter: 'over_allocated' }, // red-500
+  { key: '76_100',   label: '76–100%', color: '#f59e0b', filter: 'all' },            // amber-500
+  { key: '51_75',    label: '51–75%',  color: '#22c55e', filter: 'all' },            // green-500
+  { key: '26_50',    label: '26–50%',  color: '#3b82f6', filter: 'all' },            // blue-500
+  { key: '1_25',     label: '1–25%',   color: '#93c5fd', filter: 'under_utilized' }, // blue-300
+  { key: 'zero',     label: '0%',      color: '#9ca3af', filter: 'under_utilized' }, // gray-400
 ];
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Tooltip
 // ---------------------------------------------------------------------------
 
-/**
- * Compute each person's average utilization across the visible months,
- * then bucket them.
- */
-function computeBuckets(
-  data: ReturnType<typeof useScopedTimelineData>,
-): { key: string; label: string; count: number; color: string; filter: FilterChipKey }[] {
-  const people = [
-    ...data.roleGroups.flatMap((g) => g.people),
-    ...data.flatPeople,
-  ];
-
-  // Deduplicate by personId (roleGroups + flatPeople may overlap depending
-  // on groupBy mode).
-  const seen = new Set<string>();
-  const unique = people.filter((p) => {
-    if (seen.has(p.personId)) return false;
-    seen.add(p.personId);
-    return true;
-  });
-
-  const total = unique.length;
-
-  return BUCKETS.map((b) => {
-    let count = 0;
-    for (const p of unique) {
-      const cells = Object.values(p.cellsByMonth);
-      if (cells.length === 0) {
-        // Zero data → average is 0 → maps to the 0% bucket.
-        if (b.match(0)) count++;
-        continue;
-      }
-      const avg = cells.reduce((sum, c) => sum + c.utilization, 0) / cells.length;
-      if (b.match(avg)) count++;
-    }
-    return { key: b.key, label: b.label, count, color: b.color, filter: b.filter, total };
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Custom tooltip
-// ---------------------------------------------------------------------------
-
-interface BucketPayload {
-  key: string;
+interface ChartRow {
+  key: UtilizationBucketKey;
   label: string;
   count: number;
-  total: number;
+  color: string;
   filter: FilterChipKey;
+  total: number;
 }
 
 function CustomTooltip({ active, payload }: TooltipContentProps<number, string>) {
   if (!active || !payload?.length) return null;
-  const item = (payload[0] as { payload?: BucketPayload })?.payload;
+  const item = (payload[0] as { payload?: ChartRow })?.payload;
   if (!item) return null;
   const pct = item.total > 0 ? ((item.count / item.total) * 100).toFixed(0) : '0';
   return (
@@ -160,17 +89,62 @@ function CustomTooltip({ active, payload }: TooltipContentProps<number, string>)
 // ---------------------------------------------------------------------------
 
 export function UtilizationDistributionCard() {
-  const { setActiveFilters } = useCapacityScope();
-  const data = useScopedTimelineData();
+  const { scope, ccId, setActiveFilters } = useCapacityScope();
+  const apiScope = useMemo(() => scopeToApiParam(scope, ccId), [scope, ccId]);
 
-  const bucketData = useMemo(() => computeBuckets(data), [data]);
+  const [counts, setCounts] = useState<Record<UtilizationBucketKey, number> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    capacityApi
+      .getDashboardUtilizationDistribution(apiScope)
+      .then((res) => {
+        if (cancelled) return;
+        const next = {
+          zero: 0,
+          '1_25': 0,
+          '26_50': 0,
+          '51_75': 0,
+          '76_100': 0,
+          over_100: 0,
+        } as Record<UtilizationBucketKey, number>;
+        for (const row of res.items ?? []) {
+          next[row.bucket] = row.count;
+        }
+        setCounts(next);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Failed to load distribution');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiScope]);
+
+  const bucketData = useMemo<ChartRow[]>(() => {
+    const total = counts
+      ? Object.values(counts).reduce((s, n) => s + n, 0)
+      : 0;
+    return BUCKETS.map((b) => ({
+      key: b.key,
+      label: b.label,
+      count: counts?.[b.key] ?? 0,
+      color: b.color,
+      filter: b.filter,
+      total,
+    }));
+  }, [counts]);
 
   const handleClick = (entry: { filter: FilterChipKey }) => {
-    if (entry.filter === 'all') {
-      setActiveFilters(['all']);
-    } else {
-      setActiveFilters([entry.filter]);
-    }
+    setActiveFilters(entry.filter === 'all' ? ['all'] : [entry.filter]);
   };
 
   const hasData = bucketData.some((b) => b.count > 0);
@@ -181,9 +155,17 @@ export function UtilizationDistributionCard() {
         Utilization Distribution
       </p>
 
-      {!hasData ? (
+      {error ? (
         <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
-          No data available for current scope
+          Could not load distribution
+        </div>
+      ) : loading && !counts ? (
+        <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
+          Loading…
+        </div>
+      ) : !hasData ? (
+        <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
+          No people in current scope
         </div>
       ) : (
         <div className="flex-1">
@@ -215,7 +197,7 @@ export function UtilizationDistributionCard() {
                 radius={[0, 3, 3, 0]}
                 cursor="pointer"
                 onClick={(barData) => {
-                  const bucket = barData?.payload as BucketPayload | undefined;
+                  const bucket = barData?.payload as ChartRow | undefined;
                   if (bucket) handleClick(bucket);
                 }}
               >
