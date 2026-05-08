@@ -162,16 +162,27 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
     setLoading(true);
     setError(null);
 
-    Promise.all([
+    // Use allSettled so a single failing endpoint (e.g. getInbox returns
+    // 403 for Executive per §12.1) doesn't blank every KPI card.
+    Promise.allSettled([
       capacityApi.getDashboardHeadcountBreakdown(apiScope, 'role'),
       capacityApi.getDashboardForecast(apiScope),
       capacityApi.getDashboardHotspots(apiScope, HOTSPOT_LIMIT),
       capacityApi.getInbox(inboxFilters),
     ])
-      .then(([headcount, forecast, hotspots, inbox]) => {
+      .then(([headcountResult, forecastResult, hotspotsResult, inboxResult]) => {
         if (cancelled) return;
 
-        const items = forecast.items ?? [];
+        const headcount =
+          headcountResult.status === 'fulfilled' ? headcountResult.value : null;
+        const forecast =
+          forecastResult.status === 'fulfilled' ? forecastResult.value : null;
+        const hotspots =
+          hotspotsResult.status === 'fulfilled' ? hotspotsResult.value : null;
+        const inbox =
+          inboxResult.status === 'fulfilled' ? inboxResult.value : null;
+
+        const items = forecast?.items ?? [];
         const totals = items.reduce(
           (acc, point) => {
             acc.allocated += point.allocated_hours ?? 0;
@@ -188,7 +199,7 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
 
         const overAllocatedPersons = new Set<string>();
         const supplyGapRoles = new Set<string>();
-        for (const item of hotspots.items ?? []) {
+        for (const item of hotspots?.items ?? []) {
           if (
             item.category === 'over_allocation' &&
             item.target_type === 'person'
@@ -203,36 +214,37 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
         }
 
         let pendingRequestsCount = 0;
-        for (const inboxItem of inbox.items ?? []) {
+        for (const inboxItem of inbox?.items ?? []) {
           for (const badge of inboxItem.role_badges ?? []) {
             pendingRequestsCount += badge.count;
           }
         }
 
         const next: KpiSnapshot = {
-          headcount: headcount.total ?? 0,
+          headcount: headcount?.total ?? 0,
           avgUtilizationPct,
           overAllocatedCount: overAllocatedPersons.size,
           pendingRequestsCount,
           supplyGapRoleCount: supplyGapRoles.size,
-          windowStart: forecast.start ?? items[0]?.month ?? null,
+          windowStart: forecast?.start ?? items[0]?.month ?? null,
           windowEnd:
-            forecast.end ?? items[items.length - 1]?.month ?? null,
+            forecast?.end ?? items[items.length - 1]?.month ?? null,
           windowMonthCount: items.length,
         };
 
         setSnapshot(next);
         setPendingRequestsKpi(pendingRequestsCount);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const message =
-          err instanceof Error ? err.message : 'Failed to load KPIs';
-        setError(message);
-        setSnapshot(EMPTY_SNAPSHOT);
-        // Still publish a number so consumers don't render `null`
-        // forever on transient errors.
-        setPendingRequestsKpi(0);
+
+        // Surface a banner only if ALL endpoints failed — partial
+        // failures (Executive's missing inbox) just degrade gracefully.
+        const allFailed = [headcountResult, forecastResult, hotspotsResult]
+          .every((r) => r.status === 'rejected');
+        if (allFailed) {
+          const firstReason = [headcountResult, forecastResult, hotspotsResult]
+            .find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined;
+          const reason = firstReason?.reason;
+          setError(reason instanceof Error ? reason.message : 'Failed to load KPIs');
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
