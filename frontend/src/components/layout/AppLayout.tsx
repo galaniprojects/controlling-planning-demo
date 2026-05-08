@@ -6,8 +6,13 @@ import { useSidePanel } from '@/contexts/SidePanelContext';
 import { useBottomDrawer } from '@/contexts/BottomDrawerContext';
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const { isOpen: sidePanelOpen, title: sidePanelTitle, content: sidePanelContent, closePanel } =
-    useSidePanel();
+  const {
+    isOpen: sidePanelOpen,
+    title: sidePanelTitle,
+    content: sidePanelContent,
+    width: sidePanelWidth,
+    closePanel,
+  } = useSidePanel();
   const {
     isOpen: drawerOpen,
     title: drawerTitle,
@@ -20,12 +25,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <TopBar />
       <div className="flex">
         <main
-          className={`flex-1 min-w-0 overflow-hidden transition-all duration-300 ${sidePanelOpen ? 'mr-[380px]' : ''}`}
+          className="flex-1 min-w-0 overflow-hidden transition-[margin] duration-300"
+          style={{ marginRight: sidePanelOpen ? `${sidePanelWidth}px` : 0 }}
         >
           {children}
         </main>
         {sidePanelOpen && (
-          <SidePanel title={sidePanelTitle} onClose={closePanel}>
+          <SidePanel
+            title={sidePanelTitle}
+            onClose={closePanel}
+            width={sidePanelWidth}
+          >
             {sidePanelContent}
           </SidePanel>
         )}
