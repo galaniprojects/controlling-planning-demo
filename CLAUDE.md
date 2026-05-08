@@ -190,8 +190,10 @@ curl -X POST http://localhost:8000/api/admin/reset-demo
 | `/portfolio/approvals` | CR approval queue |
 | `/workbench` | Project Workbench |
 | `/charging` | Charging & Allocations |
-| `/capacity` | Capacity Management |
-| `/capacity/requests` | Resource Requests |
+| `/capacity` | Capacity Management — workspace |
+| `/capacity/requests` | Resource Requests inbox |
+| `/capacity/history` | Capacity audit history (v5.2 W2+) |
+| `/capacity/availability` | PL read-only availability view (v5.2 W2+) |
 | `/simulator` | What-If Simulator |
 | `/reporting` | Reporting |
 | `/reporting/builder` | AI Report Builder |

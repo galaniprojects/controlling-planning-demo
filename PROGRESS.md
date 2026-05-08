@@ -4,12 +4,46 @@
 
 Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative spec). Execution sequencing: `guides/Capacity_Module_Redesign_Implementation_Guide.md` (14 sessions across 5 phases). Plan: 6 waves, one PR per wave, fresh planning session per wave, user-review gate between each. Agent teams used within each wave for max parallelism.
 
-- [x] **Wave 1** — Capacity backend foundation (S1): schema relaxation + `CapacityActionLog` table + 4 new endpoints (`/dashboard/forecast`, `/dashboard/headcount-breakdown`, `/dashboard/hotspots`, `/history`) + 2 enhanced endpoints (role-availability with `competing_demand_count` + `location_summary`; assignments PUT with multi-person body shape) + audit log writes wired into 4 mutating handlers + seed enrichment per spec §1 acceptance criteria — branch `feat/v5_2-capacity-foundation` (PR pending)
-- [ ] **Wave 2** — Frontend workspace shell (S2): routes, ScopeBar, workspace skeleton, SidePanel width parameterization
+- [x] **Wave 1** — Capacity backend foundation (S1): schema relaxation + `CapacityActionLog` table + 4 new endpoints (`/dashboard/forecast`, `/dashboard/headcount-breakdown`, `/dashboard/hotspots`, `/history`) + 2 enhanced endpoints (role-availability with `competing_demand_count` + `location_summary`; assignments PUT with multi-person body shape) + audit log writes wired into 4 mutating handlers + seed enrichment per spec §1 acceptance criteria — branch `feat/v5_2-capacity-foundation` (PR #88 merged 2026-05-08)
+- [x] **Wave 2** — Frontend workspace shell (S2): routes, ScopeBar, workspace skeleton, SidePanel width parameterization — branch `feat/v5_2-capacity-shell` (PR pending)
 - [ ] **Wave 3** — Core surfaces (S3+S4+S5a+S5b, 4-teammate team): timeline + KPIs/filters/demand strip + side panel + inbox/history page
 - [ ] **Wave 4** — Complex features (S6a+S7+S8, 3-teammate team): assignment panel + dashboard layer + PL availability view
 - [ ] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification
 - [ ] **Wave 6** — Integration + polish (S11+S12): cross-cutting integration + edge cases + a11y + perf
+
+### v5.2 Wave 2 — Frontend workspace shell (2026-05-08)
+
+Branch: `feat/v5_2-capacity-shell`. Closes Implementation Guide Session 2 — frontend shell only, no backend work. Two-teammate agent team (`v5_2-w2-capacity-shell`) with clean file ownership; both worktrees committed directly to the shared branch (worktree isolation didn't take effect, but file split prevented collisions).
+
+**Track A — `react-specialist` (5 commits, `0e72a8a` / `8a19aa6` / `c5706cb` / `e470da1` / `f43a120`):**
+- NEW `frontend/src/contexts/CapacityScopeContext.tsx` — provider + hook exposing `{ scope, groupBy, ccId, setScope, setGroupBy, setCcId }`. Role-aware defaults: CC Owner → `my_cc` pinned to `managed_cost_center_id`; Controller → `all_ccs`; Executive → `all_ccs`. Default groupBy `role`.
+- NEW `frontend/src/modules/capacity/hooks/useScopeQueryParams.ts` — syncs scope/groupBy/cc state with `?scope=…&group=…&cc=…` via `useSearchParams`. Restored on mount; `replace`-navigates on change.
+- NEW `frontend/src/modules/capacity/ScopeBar.tsx` — pill groups per spec §2.1: scope (`All CCs` / `My CC` / per-Location / per-top-level-hierarchy-node) + group-by (`Role` / `Project` / `Person`). Controller `My CC` selection renders a searchable shadcn `Select` dropdown next to the pill (replaces legacy `CapacityManagement.tsx:77–95`). CC Owner: My CC pinned, no dropdown. Executive: My CC pill hidden + "Read-only view" indicator (per §2.5). Master data via `referenceApi.getLocations()` + `capacityApi.getOrgHeatmap('lob')` (existing patterns).
+- NEW `frontend/src/modules/capacity/CapacityWorkspace.tsx` — top-level workspace under `/capacity`: renders `<ScopeBar />` + 5 labelled placeholder slot Cards (KPI bar / Dashboard layer / Filter chips / Timeline / Side panel) each with a "Wave 3" deferral note.
+- REFACTOR `frontend/src/modules/capacity/CapacityManagement.tsx` (191 → 47 LOC) — shrunk to a thin layout shell: `ModuleHeader` + `<CapacityModuleNav />` + `<Outlet />`. PL gate redirects to `/capacity/availability`. Removed legacy CC selector + Tabs + inner `<Routes>`.
+- MODIFY `frontend/src/App.tsx` — registered new `/capacity/*` route tree with `CapacityManagement` layout wrapping the four child routes; `/capacity/project-assignment/:id` deprecation redirect → `/capacity?assignment_project={id}`.
+
+**Track B — `react-specialist` (3 commits, `63d8306` / `581b78e` / `e3c75b2`):**
+- MODIFY `frontend/src/contexts/SidePanelContext.tsx` — added `width: number` to context state and `opts?: { width?: number }` to `openPanel()`. Default 380px (extracted to `frontend/src/lib/sidePanelConstants.ts` to keep React Fast Refresh happy). Width resets to default on `closePanel`. NEW `frontend/src/lib/sidePanelConstants.ts` exports `DEFAULT_SIDE_PANEL_WIDTH=380`.
+- MODIFY `frontend/src/components/layout/SidePanel.tsx` — removed hardcoded `w-[380px]` Tailwind class; reads `width` from context, applies via inline `style={{ width }}` with default fall-through. `frontend/src/components/layout/AppLayout.tsx` updated similarly so the main margin-right tracks the panel width (no more hardcoded `mr-[380px]`).
+- NEW `frontend/src/modules/capacity/CapacityModuleNav.tsx` — secondary nav strip (`Workspace | Requests (N) | History`) per spec §12.1. Role visibility: Controller (3 links), CC Owner (3 links), Executive (Workspace + History only — Requests hidden), PL (nav not rendered). Badge count on Requests sourced from `pendingRequestCount` prop (parent layout passes `CapacityContext.pending_request_count` from W1 backend); badge hides when count is 0.
+- NEW placeholder skeletons — `frontend/src/modules/capacity/RequestsInbox.tsx`, `CapacityHistory.tsx`, `PLAvailabilityView.tsx`. Each renders `ModuleHeader` + page title + a deferred-to-later-wave note (W3 / W3 / W4 respectively).
+
+**Out of scope (intentional, per plan):**
+- Existing My Team / Org / RequestManagement code stays in repo but unrouted — the legacy `modules/capacity/myteam/`, `org/`, `requests/` directories are now dead code, scheduled for deletion as W3 (S5b) lands the real Inbox and W3 (S3+S4) lands the real Workspace timeline + KPI bar.
+- The `/capacity/requests` route is now a placeholder; the functional CC Owner triage queue from v5.1 is *temporarily* unavailable between this PR's merge and the W3 PR's merge. Decision locked with user (clean-cut over preserve-legacy).
+- Slots in `CapacityWorkspace` are visual placeholders only — no data fetches off scope changes yet.
+
+**Verification:**
+- `tsc --noEmit` clean.
+- `npm run lint` — 5 new `react-refresh/only-export-components` warnings on `CapacityScopeContext.tsx` (matches pre-existing pattern in `ThemeContext.tsx`, `RoleContext.tsx`, etc. — codebase baseline). Also `CapacityManagement.tsx:47` has a `react-hooks/set-state-in-effect` warning, preserved from the pre-W2 location at line 119 of the same file (not a new regression).
+- pytest 1632 passed (W1 baseline preserved, frontend-only change as expected).
+- Visual verification via Chrome DevTools MCP at 1440px in BOTH light and dark mode across all 4 personas: Controller (Anna Meier) sees 3-link nav + ScopeBar with My CC dropdown; CC Owner (Thomas Brenner) sees My CC pinned to `cc-muc-apd`; Executive (Klaus Weber) sees All CCs + Workspace/History nav (no Requests, no My CC pill, "Read-only" indicator); PL (Priya Sharma) auto-redirects to `/capacity/availability`. Deprecation redirect `/capacity/project-assignment/proj-pmpoc` → `/capacity?assignment_project=proj-pmpoc` verified. Existing SidePanel callers (Help FAQ on backlog) still render at 380px default — no regression. Screenshots in `qa/screenshots/v5_2_w2/` (8 shots).
+
+**Refactoring opportunities (deferred):**
+- `CapacityScopeContext.tsx` could split exports into a constants file like Track B did with `sidePanelConstants.ts` to clear the 5 fast-refresh warnings — same pattern is already accepted across the codebase, so deferred until a broader sweep.
+
+**Next session (W3):** Read `guides/Capacity_Module_Redesign_Spec.md` §3–§8, §10, §11 + Implementation Guide §S3/S4/S5a/S5b. Branch `feat/v5_2-capacity-core-surfaces` from `main` after W2 PR merges. Plan only Wave 3 (per `feedback_wave_sessions.md` — don't pre-plan beyond current wave).
 
 ### v5.2 Wave 1 — Capacity foundation (2026-05-07)
 
