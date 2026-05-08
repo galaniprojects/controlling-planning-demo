@@ -54,6 +54,7 @@ from schemas.capacity import (
     PartialFulfillRequest, PersonHeatmapRow, RequestItem,
     RoleAvailabilityResponse, RoleAvailabilityRow, RoleHeatmapRow,
     SaveAssignmentsRequest, TeamSummary, UtilizationCell,
+    UtilizationDistributionBucket, UtilizationDistributionResponse,
 )
 from schemas.common import CurrentUser
 from services.calculations import (
@@ -65,6 +66,7 @@ from services.capacity_dashboard import (
     compute_dashboard_forecast,
     compute_headcount_breakdown,
     compute_hotspots,
+    compute_utilization_distribution,
 )
 
 router = APIRouter(prefix="/api/capacity", tags=["Capacity Management"])
@@ -1665,6 +1667,37 @@ def _apply_cr_to_forecast_on_cc_confirm(cr: ChangeRequest, db: Session) -> None:
 
 
 _DASHBOARD_ROLES = ("controller", "executive", "cost_center_owner")
+
+
+@router.get(
+    "/dashboard/utilization-distribution",
+    response_model=UtilizationDistributionResponse,
+)
+def get_dashboard_utilization_distribution(
+    scope: str = "all",
+    start: str | None = None,
+    end: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(*_DASHBOARD_ROLES)),
+):
+    """Per-person mean utilization bucketed for the §11.3 distribution card.
+
+    Added in v5.2 W4 P1 fix: the spec assumed client-side aggregation from
+    timeline data, but the timeline isn't fetched at multi-CC scope (W3
+    deferral) — exactly the scope where the dashboard renders. Server-
+    side bucketing closes the gap.
+    """
+    try:
+        result = compute_utilization_distribution(db, scope=scope, start=start, end=end)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return UtilizationDistributionResponse(
+        items=[UtilizationDistributionBucket(**row) for row in result["items"]],
+        total_people=result["total_people"],
+        scope=result["scope"],
+        start=result["start"],
+        end=result["end"],
+    )
 
 
 @router.get(

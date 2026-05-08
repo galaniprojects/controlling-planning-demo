@@ -5,20 +5,31 @@
  * components shipped by Tracks A–D. The workspace tree is wrapped in
  * `<CapacitySidePanelProvider>` so the timeline + demand strip can open
  * `PersonDetail` / `CellDetail` without prop drilling. Layout (top to
- * bottom): ScopeBar → KPISummaryBar → FilterChipBar → CapacityTimeline +
- * DemandStrip. The side panel itself is rendered by AppLayout from the
- * shared SidePanelContext; openPerson / openCell pass concrete content
- * (PersonDetail / CellDetail) per call.
+ * bottom): ScopeBar → KPISummaryBar → DashboardLayer → FilterChipBar →
+ * CapacityTimeline + DemandStrip. The side panel itself is rendered by
+ * AppLayout from the shared SidePanelContext; openPerson / openCell pass
+ * concrete content (PersonDetail / CellDetail) per call.
  *
- * The dashboard layer card (§11) is intentionally absent — that's W4 S7.
+ * v5.2 W4 Track A (Session 6a): URL-param assignment-panel entry point.
+ *   - Reads `?assignment_project=`, `?cc=`, `?cr=` on mount.
+ *   - Calls `enterAssignmentMode(...)` and registers `AssignmentPanel`
+ *     as the `assignment` handler in `CapacitySidePanelContext`.
+ *   - `AssignmentStateProvider` wraps the workspace so the side panel and
+ *     the timeline overlay (S6b) share the same context instance.
  *
- * Spec: guides/Capacity_Module_Redesign_Spec.md §1.3, §2 layout.
+ * v5.2 W4 Track B (Session 7): DashboardLayer (§11) inserted between
+ * KPISummaryBar and FilterChipBar. Self-contained — handles its own
+ * visibility rules (Controller / Executive + multi-CC scope) and slide-up
+ * animation, so no conditional rendering is needed at the parent level.
+ *
+ * Spec: guides/Capacity_Module_Redesign_Spec.md §1.3, §2 layout, §9.1, §11.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { useRole } from '@/contexts/RoleContext';
 import { useCapacityScope } from '@/contexts/CapacityScopeContext';
+import { useSidePanel } from '@/contexts/SidePanelContext';
 import { ScopeBar } from './ScopeBar';
 import { useScopeQueryParams } from './hooks/useScopeQueryParams';
 import { useScopedTimelineData } from './hooks/useScopedTimelineData';
@@ -31,6 +42,9 @@ import {
   CapacitySidePanelProvider,
   useCapacitySidePanel,
 } from './sidepanel/CapacitySidePanelContext';
+import { useAssignmentState } from './assignment/AssignmentStateContext';
+import { AssignmentPanel } from './assignment/AssignmentPanel';
+import { DashboardLayer } from './dashboard';
 
 /**
  * Build the loose `TimelineRow[]` array consumed by FilterChipBar
@@ -60,6 +74,95 @@ function buildFilterRows(
   }
   for (const person of flatPeople) visit(person.personId, person.cellsByMonth);
   return rows;
+}
+
+/**
+ * AssignmentEntryPoint — v5.2 W4 Track A (Session 6a).
+ *
+ * Reads URL params `assignment_project`, `cc`, and optional `cr` on
+ * mount and whenever they change.  When all required params are present,
+ * calls `enterAssignmentMode(...)` and opens the assignment side panel.
+ *
+ * Also registers `AssignmentPanel` as the `assignment` handler in
+ * `CapacitySidePanelContext` once on mount (unregisters on unmount).
+ * The handler calls `openPanel(...)` from the shared `SidePanelContext`
+ * directly, mirroring the pattern used by `openPerson` / `openCell` in
+ * `CapacitySidePanelContext`.
+ *
+ * Renders nothing — purely a side-effect component.
+ *
+ * Spec: guides/Capacity_Module_Redesign_Spec.md §9.1 (URL-param entry),
+ *       guides/Capacity_Module_Redesign_Implementation_Guide.md §S6a.
+ */
+function AssignmentEntryPoint() {
+  const [searchParams] = useSearchParams();
+  const { registerAssignmentHandler, openAssignment } = useCapacitySidePanel();
+  const { openPanel, closePanel: closeSidePanel } = useSidePanel();
+  const { enterAssignmentMode, session } = useAssignmentState();
+
+  // Keep a ref to the latest openPanel / closeSidePanel so the registered
+  // handler always invokes the current values even if they change (they
+  // shouldn't — they're stable useCallbacks — but this is safer).
+  const openPanelRef = useRef(openPanel);
+  const closePanelRef = useRef(closeSidePanel);
+  openPanelRef.current = openPanel;
+  closePanelRef.current = closeSidePanel;
+
+  // Register AssignmentPanel as the assignment handler — once on mount.
+  useEffect(() => {
+    const unregister = registerAssignmentHandler(
+      (projectId: string, opts?: { ccId?: string; crId?: number }) => {
+        openPanelRef.current(
+          'Assign project',
+          <AssignmentPanel
+            projectId={projectId}
+            ccId={opts?.ccId}
+            crId={opts?.crId}
+            onClose={closePanelRef.current}
+          />,
+          { width: 400 },
+        );
+      },
+    );
+
+    return unregister;
+    // registerAssignmentHandler is stable — declared as useCallback([]) in context.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registerAssignmentHandler]);
+
+  // Read URL params and enter assignment mode when present.
+  useEffect(() => {
+    const projectId = searchParams.get('assignment_project');
+    const ccId = searchParams.get('cc');
+    const crParam = searchParams.get('cr');
+    const crId = crParam ? parseInt(crParam, 10) : undefined;
+
+    if (!projectId || !ccId) return;
+
+    // Idempotency guard: `searchParams` identity changes whenever ANY
+    // param changes — including ScopeBar interactions writing scope/cc/
+    // group via useScopeQueryParams. Skip the re-entry when the active
+    // session already matches; otherwise we'd wipe in-flight edits.
+    // (AssignmentStateContext.enterAssignmentMode also short-circuits
+    // for state correctness; this guard avoids the redundant openPanel
+    // call and side-panel flicker.)
+    if (
+      session &&
+      session.projectId === projectId &&
+      session.ccId === ccId &&
+      session.crId === crId
+    ) {
+      return;
+    }
+
+    enterAssignmentMode(projectId, ccId, crId, 'url_param');
+    openAssignment(projectId, { ccId, crId });
+  // `searchParams` object identity changes whenever any param changes.
+  // `enterAssignmentMode` / `openAssignment` are stable useCallback refs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, session]);
+
+  return null;
 }
 
 function WorkspaceBody() {
@@ -102,6 +205,10 @@ function WorkspaceBody() {
 
       <KPISummaryBar />
 
+      {/* Dashboard layer (§11): Controller / Executive + multi-CC scope only.
+          DashboardLayer handles its own visibility and slide-up animation. */}
+      <DashboardLayer />
+
       <FilterChipBar rows={filterRows} />
 
       {/* Hint when filters hide every row, so the empty timeline state
@@ -140,7 +247,6 @@ function WorkspaceBody() {
 export function CapacityWorkspace() {
   const { context } = useRole();
   const role = context?.role;
-  const [searchParams] = useSearchParams();
 
   // Sync ScopeBar state with the URL query string. Called unconditionally
   // before the PL gate to keep hook ordering stable across renders.
@@ -153,25 +259,16 @@ export function CapacityWorkspace() {
     return <Navigate to="/capacity/availability" replace />;
   }
 
-  // (W4 S6a) Deep-linked assignment opening will read this param and
-  // hand it to AssignmentPanel. For W3 we just acknowledge it via a banner
-  // so the redirect from `/capacity/project-assignment/:id` is observable.
-  const assignmentProjectId = searchParams.get('assignment_project');
-
   return (
+    // AssignmentStateProvider lives at App.tsx root level (alongside
+    // SidePanelProvider) so AssignmentPanel rendered as SidePanel
+    // content can read session state across the provider boundary.
     <CapacitySidePanelProvider>
-      {assignmentProjectId && (
-        <Card className="mb-4 border-dashed bg-muted/40">
-          <CardContent className="py-3 text-xs text-muted-foreground">
-            Assignment-panel deep link queued for project{' '}
-            <span className="font-medium text-foreground">
-              {assignmentProjectId}
-            </span>{' '}
-            — wiring lands in Wave 4 (S6a).
-          </CardContent>
-        </Card>
-      )}
-
+      {/*
+       * AssignmentEntryPoint registers the AssignmentPanel handler and
+       * responds to ?assignment_project / ?cc / ?cr URL params.
+       */}
+      <AssignmentEntryPoint />
       <WorkspaceBody />
     </CapacitySidePanelProvider>
   );

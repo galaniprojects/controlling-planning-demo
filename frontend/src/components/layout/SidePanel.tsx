@@ -13,6 +13,17 @@ interface SidePanelProps {
    * `openPanel(..., { width })`.
    */
   width?: number;
+  /**
+   * Optional factory that returns the currently-registered before-close
+   * guard (or `undefined` if none is registered).  Called at close time
+   * so the guard is always current even if it was registered after the
+   * panel opened.
+   *
+   * The guard itself returns `false` to cancel close, `undefined` to allow.
+   *
+   * v5.2 W4 Track A — used by AssignmentPanel to intercept close when dirty.
+   */
+  onBeforeClose?: () => ((() => boolean | undefined) | undefined);
 }
 
 export function SidePanel({
@@ -20,7 +31,19 @@ export function SidePanel({
   children,
   onClose,
   width = DEFAULT_SIDE_PANEL_WIDTH,
+  onBeforeClose,
 }: SidePanelProps) {
+  const handleClose = () => {
+    if (onBeforeClose) {
+      const guard = onBeforeClose(); // get the latest guard at click time
+      if (guard) {
+        const proceed = guard();
+        if (proceed === false) return; // cancelled
+      }
+    }
+    onClose();
+  };
+
   return (
     <aside
       className="fixed right-0 top-14 bottom-0 border-l border-border bg-card shadow-lg z-40 overflow-y-auto"
@@ -28,7 +51,7 @@ export function SidePanel({
     >
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <span className="text-sm font-semibold text-foreground">{title}</span>
-        <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0">
+        <Button variant="ghost" size="sm" onClick={handleClose} className="h-7 w-7 p-0">
           &times;
         </Button>
       </div>

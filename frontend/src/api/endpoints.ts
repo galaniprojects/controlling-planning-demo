@@ -99,6 +99,7 @@ import type {
   DashboardForecastResponse,
   HeadcountBreakdownResponse,
   HotspotResponse,
+  UtilizationDistributionResponse,
   CapacityHistoryResponse,
   CapacityHistoryFilters,
   CapacityInboxResponse,
@@ -572,7 +573,10 @@ export const capacityApi = {
   saveRequestAssignments: (
     ccId: string,
     reqId: number,
-    assignments: { month: string; person_id: string }[],
+    assignments: Array<
+      | { month: string; person_id: string }
+      | { month: string; assignments: { person_id: string; hours: number }[] }
+    >,
   ) =>
     api.put<ListResponse<RequestAssignment>>(
       `/api/capacity/requests/${ccId}/${reqId}/assignments`,
@@ -661,6 +665,18 @@ export const capacityApi = {
   getDashboardHotspots: (scope: string, limit = 5) => {
     const q = new URLSearchParams({ scope, limit: String(limit) });
     return api.get<HotspotResponse>(`/api/capacity/dashboard/hotspots?${q}`);
+  },
+  getDashboardUtilizationDistribution: (
+    scope: string,
+    start?: string,
+    end?: string,
+  ) => {
+    const q = new URLSearchParams({ scope });
+    if (start) q.set('start', start);
+    if (end) q.set('end', end);
+    return api.get<UtilizationDistributionResponse>(
+      `/api/capacity/dashboard/utilization-distribution?${q}`,
+    );
   },
 
   // --- v5.2 W1 audit-trail history (spec §12.15) ---

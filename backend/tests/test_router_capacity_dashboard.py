@@ -514,3 +514,106 @@ class TestHotspotsRoleGating:
             headers=HEADERS_EXEC,
         )
         assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# v5.2 W4 P1 fix: GET /api/capacity/dashboard/utilization-distribution
+# ---------------------------------------------------------------------------
+
+EXPECTED_BUCKETS = ("zero", "1_25", "26_50", "51_75", "76_100", "over_100")
+
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestUtilizationDistributionShape:
+    def test_returns_200_for_controller(self, test_client, seed_dashboard):
+        resp = test_client.get(
+            "/api/capacity/dashboard/utilization-distribution"
+            "?scope=all&start=2026-04&end=2026-06",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+
+    def test_response_envelope(self, test_client, seed_dashboard):
+        resp = test_client.get(
+            "/api/capacity/dashboard/utilization-distribution"
+            "?scope=all&start=2026-04&end=2026-06",
+            headers=HEADERS_CTRL,
+        )
+        data = resp.json()
+        assert "items" in data
+        assert "total_people" in data
+        assert "scope" in data
+        assert data["scope"] == "all"
+        assert isinstance(data["items"], list)
+
+    def test_all_six_buckets_present_even_when_empty(
+        self, test_client, seed_personas, db,
+    ):
+        """Every bucket key appears in the response so the chart axis is
+        stable across scope changes."""
+        resp = test_client.get(
+            "/api/capacity/dashboard/utilization-distribution"
+            "?scope=location:loc-nonexistent&start=2026-04&end=2026-06",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        keys = {b["bucket"] for b in data["items"]}
+        assert keys == set(EXPECTED_BUCKETS)
+        assert all(b["count"] == 0 for b in data["items"])
+        assert data["total_people"] == 0
+
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestUtilizationDistributionSemantics:
+    def test_total_equals_sum_of_buckets(self, test_client, seed_dashboard):
+        resp = test_client.get(
+            "/api/capacity/dashboard/utilization-distribution"
+            "?scope=all&start=2026-04&end=2026-06",
+            headers=HEADERS_CTRL,
+        )
+        data = resp.json()
+        bucket_sum = sum(b["count"] for b in data["items"])
+        assert data["total_people"] == bucket_sum
+
+    def test_idle_person_lands_in_zero_bucket(self, test_client, seed_dashboard):
+        """``p-idle`` has 0h allocated across the window → ``zero`` bucket."""
+        resp = test_client.get(
+            "/api/capacity/dashboard/utilization-distribution"
+            "?scope=all&start=2026-04&end=2026-06",
+            headers=HEADERS_CTRL,
+        )
+        items = {b["bucket"]: b["count"] for b in resp.json()["items"]}
+        assert items["zero"] >= 1
+
+    def test_invalid_window_400(self, test_client, seed_dashboard):
+        resp = test_client.get(
+            "/api/capacity/dashboard/utilization-distribution"
+            "?scope=all&start=2026-12&end=2026-04",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 400
+
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestUtilizationDistributionRoleGating:
+    def test_pl_forbidden(self, test_client, seed_dashboard):
+        resp = test_client.get(
+            "/api/capacity/dashboard/utilization-distribution?scope=all",
+            headers=HEADERS_PL,
+        )
+        assert resp.status_code == 403
+
+    def test_executive_can_read(self, test_client, seed_dashboard):
+        resp = test_client.get(
+            "/api/capacity/dashboard/utilization-distribution?scope=all",
+            headers=HEADERS_EXEC,
+        )
+        assert resp.status_code == 200
+
+    def test_cc_owner_can_read(self, test_client, seed_dashboard):
+        resp = test_client.get(
+            "/api/capacity/dashboard/utilization-distribution?scope=all",
+            headers=HEADERS_CCO,
+        )
+        assert resp.status_code == 200

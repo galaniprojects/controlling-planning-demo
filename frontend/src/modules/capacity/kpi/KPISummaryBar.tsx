@@ -46,7 +46,10 @@ interface KpiSnapshot {
   headcount: number;
   avgUtilizationPct: number;
   overAllocatedCount: number;
-  pendingRequestsCount: number;
+  /** null when inbox fetch failed for a role that should have access
+   *  (Controller / CC Owner — network blip). Card renders '—' so a
+   *  transient failure doesn't silently overwrite the side-nav badge. */
+  pendingRequestsCount: number | null;
   supplyGapRoleCount: number;
   windowStart: string | null;
   windowEnd: string | null;
@@ -162,16 +165,27 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
     setLoading(true);
     setError(null);
 
-    Promise.all([
+    // Use allSettled so a single failing endpoint (e.g. getInbox returns
+    // 403 for Executive per §12.1) doesn't blank every KPI card.
+    Promise.allSettled([
       capacityApi.getDashboardHeadcountBreakdown(apiScope, 'role'),
       capacityApi.getDashboardForecast(apiScope),
       capacityApi.getDashboardHotspots(apiScope, HOTSPOT_LIMIT),
       capacityApi.getInbox(inboxFilters),
     ])
-      .then(([headcount, forecast, hotspots, inbox]) => {
+      .then(([headcountResult, forecastResult, hotspotsResult, inboxResult]) => {
         if (cancelled) return;
 
-        const items = forecast.items ?? [];
+        const headcount =
+          headcountResult.status === 'fulfilled' ? headcountResult.value : null;
+        const forecast =
+          forecastResult.status === 'fulfilled' ? forecastResult.value : null;
+        const hotspots =
+          hotspotsResult.status === 'fulfilled' ? hotspotsResult.value : null;
+        const inbox =
+          inboxResult.status === 'fulfilled' ? inboxResult.value : null;
+
+        const items = forecast?.items ?? [];
         const totals = items.reduce(
           (acc, point) => {
             acc.allocated += point.allocated_hours ?? 0;
@@ -188,7 +202,7 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
 
         const overAllocatedPersons = new Set<string>();
         const supplyGapRoles = new Set<string>();
-        for (const item of hotspots.items ?? []) {
+        for (const item of hotspots?.items ?? []) {
           if (
             item.category === 'over_allocation' &&
             item.target_type === 'person'
@@ -202,37 +216,48 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
           }
         }
 
+        const inboxOk = inboxResult.status === 'fulfilled';
         let pendingRequestsCount = 0;
-        for (const inboxItem of inbox.items ?? []) {
+        for (const inboxItem of inbox?.items ?? []) {
           for (const badge of inboxItem.role_badges ?? []) {
             pendingRequestsCount += badge.count;
           }
         }
 
         const next: KpiSnapshot = {
-          headcount: headcount.total ?? 0,
+          headcount: headcount?.total ?? 0,
           avgUtilizationPct,
           overAllocatedCount: overAllocatedPersons.size,
-          pendingRequestsCount,
+          // When inbox failed but the role *expects* it (Controller / CC
+          // Owner), null preserves the previous side-nav badge value
+          // rather than silently flashing 0. The card itself shows '—'
+          // for null. Executive 403s are normal — we always render 0.
+          pendingRequestsCount: inboxOk ? pendingRequestsCount : null,
           supplyGapRoleCount: supplyGapRoles.size,
-          windowStart: forecast.start ?? items[0]?.month ?? null,
+          windowStart: forecast?.start ?? items[0]?.month ?? null,
           windowEnd:
-            forecast.end ?? items[items.length - 1]?.month ?? null,
+            forecast?.end ?? items[items.length - 1]?.month ?? null,
           windowMonthCount: items.length,
         };
 
         setSnapshot(next);
-        setPendingRequestsKpi(pendingRequestsCount);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const message =
-          err instanceof Error ? err.message : 'Failed to load KPIs';
-        setError(message);
-        setSnapshot(EMPTY_SNAPSHOT);
-        // Still publish a number so consumers don't render `null`
-        // forever on transient errors.
-        setPendingRequestsKpi(0);
+        // Only publish to the side-nav seam when we have a real number.
+        // The seam consumer (CapacityModuleNav) keeps the prior badge
+        // when this stays null, avoiding a transient "0" flash.
+        if (inboxOk) {
+          setPendingRequestsKpi(pendingRequestsCount);
+        }
+
+        // Surface a banner only if ALL endpoints failed — partial
+        // failures (Executive's missing inbox) just degrade gracefully.
+        const allFailed = [headcountResult, forecastResult, hotspotsResult]
+          .every((r) => r.status === 'rejected');
+        if (allFailed) {
+          const firstReason = [headcountResult, forecastResult, hotspotsResult]
+            .find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined;
+          const reason = firstReason?.reason;
+          setError(reason instanceof Error ? reason.message : 'Failed to load KPIs');
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -275,7 +300,10 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
       case 'over_alloc':
         return loading ? '—' : String(snapshot.overAllocatedCount);
       case 'pending_req':
-        return loading ? '—' : String(snapshot.pendingRequestsCount);
+        if (loading) return '—';
+        return snapshot.pendingRequestsCount === null
+          ? '—'
+          : String(snapshot.pendingRequestsCount);
       case 'supply_gap':
         return loading
           ? '—'

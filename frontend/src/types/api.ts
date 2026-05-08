@@ -95,12 +95,24 @@ export interface RoleAvailabilityRow {
   allocated_hours: number;
   available_hours: number;
   utilization_pct: number;
+  /** v5.2 §13.10 — count of pending ResourceRequests from other PLs for this role/location/month. */
+  competing_demand_count: number;
+}
+
+/** v5.2 §13.7 — location-level roll-up for the side panel location comparison section. */
+export interface LocationAvailabilitySummary {
+  location_id: string;
+  location_name: string;
+  total_headcount: number;
+  avg_availability_pct: number;
 }
 
 export interface RoleAvailabilityResponse {
   items: RoleAvailabilityRow[];
   total: number;
   months: string[];
+  /** Present only when location_id is omitted (all-locations query). */
+  location_summary?: LocationAvailabilitySummary[] | null;
 }
 
 // Project creation
@@ -939,6 +951,30 @@ export interface HeadcountBreakdownResponse {
   total: number;
   dimension: 'location' | 'hierarchy' | 'role' | 'cost_center' | string;
   scope: string;
+}
+
+/** One bucket of the utilization-distribution histogram (spec §11.3).
+ *  Added in v5.2 W4 P1 fix: server-side bucketing replaces the spec's
+ *  client-side aggregation, which broke at multi-CC scope. */
+export type UtilizationBucketKey =
+  | 'zero'
+  | '1_25'
+  | '26_50'
+  | '51_75'
+  | '76_100'
+  | 'over_100';
+
+export interface UtilizationDistributionBucket {
+  bucket: UtilizationBucketKey;
+  count: number;
+}
+
+export interface UtilizationDistributionResponse {
+  items: UtilizationDistributionBucket[];
+  total_people: number;
+  scope: string;
+  start: string;
+  end: string;
 }
 
 /** One ranked capacity issue (spec §11.6). */

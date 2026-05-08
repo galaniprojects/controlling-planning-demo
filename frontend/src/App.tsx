@@ -8,6 +8,9 @@ import { BottomDrawerProvider } from '@/contexts/BottomDrawerContext';
 // dots). The shared SidePanel renders its content inside AppLayout,
 // outside any per-route provider, so the map provider must live here.
 import { ProjectColorMapProvider } from '@/contexts/ProjectColorMapContext';
+// v5.2 W4 Track A — AssignmentStateProvider must live alongside SidePanelProvider
+// so that AssignmentPanel (rendered as SidePanel content) can read session state.
+import { AssignmentStateProvider } from '@/modules/capacity/assignment/AssignmentStateContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Launchpad } from '@/modules/launchpad/Launchpad';
 import { PortfolioOverview } from '@/modules/portfolio/PortfolioOverview';
@@ -54,6 +57,7 @@ export default function App() {
     <BrowserRouter>
       <RoleProvider>
         <SidePanelProvider>
+          <AssignmentStateProvider>
           <BottomDrawerProvider>
             <ProjectColorMapProvider>
             <AppLayout>
@@ -93,6 +97,7 @@ export default function App() {
             </AppLayout>
             </ProjectColorMapProvider>
           </BottomDrawerProvider>
+          </AssignmentStateProvider>
         </SidePanelProvider>
       </RoleProvider>
     </BrowserRouter>
