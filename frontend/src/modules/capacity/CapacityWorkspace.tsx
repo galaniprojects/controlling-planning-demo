@@ -5,14 +5,16 @@
  * components shipped by Tracks A–D. The workspace tree is wrapped in
  * `<CapacitySidePanelProvider>` so the timeline + demand strip can open
  * `PersonDetail` / `CellDetail` without prop drilling. Layout (top to
- * bottom): ScopeBar → KPISummaryBar → FilterChipBar → CapacityTimeline +
- * DemandStrip. The side panel itself is rendered by AppLayout from the
- * shared SidePanelContext; openPerson / openCell pass concrete content
- * (PersonDetail / CellDetail) per call.
+ * bottom): ScopeBar → KPISummaryBar → DashboardLayer → FilterChipBar →
+ * CapacityTimeline + DemandStrip. The side panel itself is rendered by
+ * AppLayout from the shared SidePanelContext; openPerson / openCell pass
+ * concrete content (PersonDetail / CellDetail) per call.
  *
- * The dashboard layer card (§11) is intentionally absent — that's W4 S7.
+ * The dashboard layer card (§11) is added in W4 S7 (Track B). It is
+ * self-contained and handles its own visibility rules (Controller /
+ * Executive + multi-CC scope), so no conditional rendering is needed here.
  *
- * Spec: guides/Capacity_Module_Redesign_Spec.md §1.3, §2 layout.
+ * Spec: guides/Capacity_Module_Redesign_Spec.md §1.3, §2 layout, §11.
  */
 import { useMemo } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
@@ -31,6 +33,7 @@ import {
   CapacitySidePanelProvider,
   useCapacitySidePanel,
 } from './sidepanel/CapacitySidePanelContext';
+import { DashboardLayer } from './dashboard';
 
 /**
  * Build the loose `TimelineRow[]` array consumed by FilterChipBar
@@ -101,6 +104,10 @@ function WorkspaceBody() {
       </Card>
 
       <KPISummaryBar />
+
+      {/* Dashboard layer (§11): Controller / Executive + multi-CC scope only.
+          DashboardLayer handles its own visibility and slide-up animation. */}
+      <DashboardLayer />
 
       <FilterChipBar rows={filterRows} />
 
