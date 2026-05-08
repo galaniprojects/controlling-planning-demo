@@ -96,6 +96,13 @@ import type {
   YoYResponse,
   AIBuilderStatus,
   AIConversationReply,
+  DashboardForecastResponse,
+  HeadcountBreakdownResponse,
+  HotspotResponse,
+  CapacityHistoryResponse,
+  CapacityHistoryFilters,
+  CapacityInboxResponse,
+  CapacityInboxFilters,
 } from '@/types/api';
 
 export const rolesApi = {
@@ -630,6 +637,66 @@ export const capacityApi = {
     if (month) q.set('month', month);
     return api.get<OrgDetailResponse>(
       `/api/capacity/org/heatmap/${dimId}/detail?${q}`,
+    );
+  },
+
+  // --- v5.2 W1 dashboard tier (spec §11.4–§11.6 / §11.10) ---
+  getDashboardForecast: (scope: string, start?: string, end?: string) => {
+    const q = new URLSearchParams({ scope });
+    if (start) q.set('start', start);
+    if (end) q.set('end', end);
+    return api.get<DashboardForecastResponse>(
+      `/api/capacity/dashboard/forecast?${q}`,
+    );
+  },
+  getDashboardHeadcountBreakdown: (
+    scope: string,
+    dimension: 'location' | 'hierarchy' | 'role' | 'cost_center',
+  ) => {
+    const q = new URLSearchParams({ scope, dimension });
+    return api.get<HeadcountBreakdownResponse>(
+      `/api/capacity/dashboard/headcount-breakdown?${q}`,
+    );
+  },
+  getDashboardHotspots: (scope: string, limit = 5) => {
+    const q = new URLSearchParams({ scope, limit: String(limit) });
+    return api.get<HotspotResponse>(`/api/capacity/dashboard/hotspots?${q}`);
+  },
+
+  // --- v5.2 W1 audit-trail history (spec §12.15) ---
+  getCapacityHistory: (filters: CapacityHistoryFilters = {}) => {
+    const q = new URLSearchParams();
+    if (filters.acting_user_id) q.set('acting_user_id', filters.acting_user_id);
+    if (filters.action_type?.length)
+      q.set('action_type', filters.action_type.join(','));
+    if (filters.cost_center_id?.length)
+      q.set('cost_center_id', filters.cost_center_id.join(','));
+    if (filters.project_id) q.set('project_id', filters.project_id);
+    if (filters.from) q.set('from', filters.from);
+    if (filters.to) q.set('to', filters.to);
+    if (filters.page) q.set('page', String(filters.page));
+    if (filters.page_size) q.set('page_size', String(filters.page_size));
+    if (filters.sort) q.set('sort', filters.sort);
+    if (filters.sort_dir) q.set('sort_dir', filters.sort_dir);
+    const qs = q.toString();
+    return api.get<CapacityHistoryResponse>(
+      `/api/capacity/history${qs ? '?' + qs : ''}`,
+    );
+  },
+
+  // --- v5.2 W3 inbox (spec §12.3) — project-per-CC aggregated triage queue ---
+  getInbox: (filters: CapacityInboxFilters = {}) => {
+    const q = new URLSearchParams();
+    if (filters.status && filters.status !== 'all') q.set('status', filters.status);
+    if (filters.role_type_id?.length)
+      q.set('role_type_id', filters.role_type_id.join(','));
+    if (filters.pl_person_id?.length)
+      q.set('pl_person_id', filters.pl_person_id.join(','));
+    if (filters.cost_center_id?.length)
+      q.set('cost_center_id', filters.cost_center_id.join(','));
+    const qs = q.toString();
+    return api.get<CapacityInboxResponse>(
+      `/api/capacity/inbox${qs ? '?' + qs : ''}`,
     );
   },
 };
