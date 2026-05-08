@@ -16,11 +16,15 @@
  *     React unmounts the old wrapper subtree and mounts the new one,
  *     triggering the `animate-in fade-in-0 duration-200` animation.
  *
- * The detail components themselves (`PersonDetail`, `CellDetail`,
- * etc.) are wired into the switch statement as they land in their
- * respective commits within Track C / later sessions.
+ * `project_summary` and `assignment` content is owned by Track A
+ * (W4 §9 and §6a respectively); until those tracks land we render an
+ * informative stub. Track A does not need to modify this file —
+ * `openProjectSummary` / `openAssignment` route through the handler
+ * registry on `CapacitySidePanelContext` instead.
  */
 import { useCapacitySidePanel } from './CapacitySidePanelContext';
+import { CellDetail } from './CellDetail';
+import { PersonDetail } from './PersonDetail';
 
 export function CapacityPanelContent() {
   const { mode } = useCapacitySidePanel();
@@ -34,18 +38,15 @@ export function CapacityPanelContent() {
 
   switch (mode.kind) {
     case 'person':
-      // PersonDetail content lands in the next commit.
-      return (
-        <p className="text-xs text-muted-foreground">
-          Person detail loading…
-        </p>
-      );
+      return <PersonDetail ccId={mode.ccId} personId={mode.personId} />;
     case 'cell':
-      // CellDetail content lands in the next commit.
       return (
-        <p className="text-xs text-muted-foreground">
-          Cell detail loading…
-        </p>
+        <CellDetail
+          dimensionId={mode.dimensionId}
+          pivot={mode.pivot}
+          month={mode.month}
+          rowLabel={mode.rowLabel}
+        />
       );
     case 'project_summary':
     case 'assignment':
