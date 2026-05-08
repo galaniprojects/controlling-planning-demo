@@ -182,7 +182,7 @@ export function PersonDetail({ ccId, personId }: PersonDetailProps) {
           Failed to load person details.
         </p>
       ) : (
-        <PersonDetailBody data={data} />
+        <PersonDetailBody data={data} ccId={ccId} />
       )}
     </div>
   );
@@ -202,7 +202,13 @@ function PersonDetailSkeleton() {
   );
 }
 
-function PersonDetailBody({ data }: { data: PersonDetailDto }) {
+function PersonDetailBody({
+  data,
+  ccId,
+}: {
+  data: PersonDetailDto;
+  ccId: string;
+}) {
   const projects = rollUpProjects(data.allocations_by_month);
   const quarters = rollUpQuarters(data.allocations_by_month);
   const hasPending = data.pending_requests.length > 0;
@@ -261,9 +267,12 @@ function PersonDetailBody({ data }: { data: PersonDetailDto }) {
         </Section>
       )}
 
-      {/* Pending requests (conditional) */}
+      {/* Pending requests (conditional). v5.2 W5 (S6b §9.1 entry #1):
+          "Review project" passes ccId to openAssignment so the
+          AssignmentPanel knows which CC to scope to without an extra
+          lookup. */}
       {hasPending && (
-        <PendingRequestsCard requests={data.pending_requests} />
+        <PendingRequestsCard ccId={ccId} requests={data.pending_requests} />
       )}
     </div>
   );
@@ -312,8 +321,10 @@ function AllocationRow({ project }: { project: ProjectRollup }) {
 }
 
 function PendingRequestsCard({
+  ccId,
   requests,
 }: {
+  ccId: string;
   requests: PersonDetailDto['pending_requests'];
 }) {
   const { openAssignment } = useCapacitySidePanel();
@@ -346,7 +357,7 @@ function PendingRequestsCard({
             </div>
             <button
               type="button"
-              onClick={() => openAssignment(r.project_id)}
+              onClick={() => openAssignment(r.project_id, { ccId })}
               className="self-start rounded-sm border border-amber-400/60 dark:border-amber-600/60 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-200/60 dark:hover:bg-amber-900/40 transition-colors"
             >
               Review project

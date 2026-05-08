@@ -1,5 +1,5 @@
 /**
- * CellDetail — v5.2 W3 Track C (spec §7.3).
+ * CellDetail — v5.2 W3 Track C (spec §7.3) + v5.2 W5 Track A (spec §9.1).
  *
  * Renders inside the shared `SidePanel` when the user clicks a cell on
  * an aggregate row in the Org-level view (scope = All CCs / location /
@@ -20,6 +20,12 @@
  *      this slice. Each row is expandable to show per-person hours.
  *      Project name links to `/workbench?project={id}`.
  *
+ * v5.2 W5 Track A (S6b §9.1 entry-point #2): when `pivot === 'demand'`,
+ * the body switches to a pending-demand list — one row per project
+ * with open RRs in the user's scope, each with a "Review project"
+ * button that opens assignment mode for that project. This is the
+ * surface the demand strip click lands on.
+ *
  * Cross-fade: the outer wrapper is keyed on the cell payload so React
  * remounts the subtree on mode/payload changes, kicking off the 200ms
  * `animate-in fade-in-0` animation called for in spec §7.4.
@@ -31,7 +37,12 @@ import { capacityApi } from '@/api/endpoints';
 import { LocationLabel } from '@/components/shared/LocationLabel';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { cn } from '@/lib/utils';
-import type { OrgDetailItem, OrgDetailResponse } from '@/types/api';
+import type {
+  CapacityInboxItem,
+  OrgDetailItem,
+  OrgDetailResponse,
+} from '@/types/api';
+import { useCapacitySidePanel } from './CapacitySidePanelContext';
 
 interface CellDetailProps {
   dimensionId: string;
@@ -44,6 +55,29 @@ interface CellDetailProps {
 }
 
 export function CellDetail({
+  dimensionId,
+  pivot,
+  month,
+  rowLabel,
+}: CellDetailProps) {
+  // §9.1 entry-point #2 — the demand strip routes here with pivot='demand'.
+  // Branch out to a separate body so the `getOrgHeatmapDetail` call (which
+  // would 4xx on this synthetic pivot) never fires.
+  if (pivot === 'demand') {
+    return (
+      <div
+        key={`demand:${month ?? ''}`}
+        className="animate-in fade-in-0 duration-200 space-y-4"
+      >
+        <CellHeader pivot={pivot} rowLabel={rowLabel} month={month} />
+        <DemandCellBody month={month} />
+      </div>
+    );
+  }
+  return <OrgCellDetail dimensionId={dimensionId} pivot={pivot} month={month} rowLabel={rowLabel} />;
+}
+
+function OrgCellDetail({
   dimensionId,
   pivot,
   month,
@@ -290,5 +324,136 @@ function ProjectRow({
         </ul>
       )}
     </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Demand-mode body (v5.2 W5 Track A — S6b §9.1 entry-point #2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Demand-mode body — lists pending resource requests aggregated by
+ * project. Each row exposes a "Review project" button that calls
+ * `openAssignment(projectId, { ccId, crId })`, which transitions the
+ * side panel from the demand list to a 400px assignment session for
+ * that parent project.
+ *
+ * Data source: `getInbox()` — returns active project rows visible to
+ * the user's role. The inbox already aggregates pending demand per
+ * (project × CC) and surfaces role badges + unassigned-hours, which
+ * is exactly the surface §9.1 calls for. We don't filter by clicked
+ * month: the inbox endpoint doesn't expose per-request periods, and
+ * any request listed there is, by definition, currently un- or
+ * partially fulfilled and therefore relevant to "demand for this
+ * period". The clicked month is shown in the panel header so the
+ * user retains spatial context.
+ */
+function DemandCellBody({ month: _month }: { month?: string }) {
+  void _month;
+  const [items, setItems] = useState<CapacityInboxItem[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { openAssignment } = useCapacitySidePanel();
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    capacityApi
+      .getInbox()
+      .then((res) => {
+        if (cancelled) return;
+        setItems(res.items);
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading) return <CellDetailSkeleton />;
+  if (error)
+    return (
+      <p className="text-sm text-destructive">Failed to load demand: {error}</p>
+    );
+  if (!items || items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No pending requests in scope.
+      </p>
+    );
+  }
+
+  return (
+    <section className="space-y-1.5">
+      <h4 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        Pending requests ({items.length})
+      </h4>
+      <ul className="space-y-2">
+        {items.map((it) => (
+          <li
+            key={`${it.project_id}:${it.cc_id}:${it.cr_id ?? 'baseline'}`}
+            className="rounded-md border border-border p-2.5"
+          >
+            <div className="mb-1 flex items-baseline justify-between gap-2">
+              <span
+                className="truncate text-sm font-medium text-foreground"
+                title={it.project_name}
+              >
+                {it.project_name}
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {Math.round(it.unassigned_hours)}h open
+              </span>
+            </div>
+            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className="truncate">{it.cc_name}</span>
+              {it.pl_name ? <span>· {it.pl_name}</span> : null}
+              {it.cr_id != null ? (
+                <span className="rounded-sm border border-blue-300 bg-blue-50 px-1 py-px text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+                  CR {it.cr_id}
+                </span>
+              ) : null}
+            </div>
+            {it.role_badges.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1">
+                {it.role_badges.map((b) => (
+                  <span
+                    key={b.role_type_id}
+                    className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                    title={`${b.role_name}: ${b.count} request${b.count === 1 ? '' : 's'}`}
+                  >
+                    {b.role_name} ×{b.count}
+                  </span>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() =>
+                openAssignment(it.project_id, {
+                  ccId: it.cc_id,
+                  crId: it.cr_id ?? undefined,
+                })
+              }
+              className={cn(
+                'w-full rounded-sm border border-primary/30 bg-primary/10 px-2 py-1',
+                'text-[11px] font-medium text-primary',
+                'hover:bg-primary/20 transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
+              )}
+            >
+              Review project
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

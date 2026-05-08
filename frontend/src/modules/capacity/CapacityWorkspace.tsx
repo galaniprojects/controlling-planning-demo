@@ -33,6 +33,7 @@ import { useSidePanel } from '@/contexts/SidePanelContext';
 import { ScopeBar } from './ScopeBar';
 import { useScopeQueryParams } from './hooks/useScopeQueryParams';
 import { useScopedTimelineData } from './hooks/useScopedTimelineData';
+import { useCapacityProjectsData } from './hooks/useCapacityProjectsData';
 import { CapacityTimeline } from './timeline';
 import { KPISummaryBar } from './kpi/KPISummaryBar';
 import { FilterChipBar } from './filters/FilterChipBar';
@@ -44,7 +45,10 @@ import {
 } from './sidepanel/CapacitySidePanelContext';
 import { useAssignmentState } from './assignment/AssignmentStateContext';
 import { AssignmentPanel } from './assignment/AssignmentPanel';
+import { ProjectSummaryPanel } from './sidepanel/ProjectSummaryPanel';
 import { DashboardLayer } from './dashboard';
+import { CAPACITY_PANEL_WIDTH } from './sidepanel/widths';
+import type { CapacityProjectItem } from '@/types/api';
 
 /**
  * Build the loose `TimelineRow[]` array consumed by FilterChipBar
@@ -167,7 +171,7 @@ function AssignmentEntryPoint() {
 
 function WorkspaceBody() {
   const { groupBy, ccId, scope, activeFilters } = useCapacityScope();
-  const { openPerson } = useCapacitySidePanel();
+  const { openPerson, openCell } = useCapacitySidePanel();
 
   // Hoisted timeline fetch so FilterChipBar can compute badge counts
   // off the same dataset the timeline renders.
@@ -224,17 +228,34 @@ function WorkspaceBody() {
 
       <CapacityTimeline data={data} onPersonClick={handlePersonClick} />
 
-      {/* Demand strip is hidden in the project view per §10.7. */}
+      {/* Demand strip is hidden in the project view per §10.7.
+          v5.2 W5 Track A (S6b §9.1 entry #2): clicking a demand cell
+          opens the side panel in `demand` mode. CellDetail renders the
+          pending-request list filtered by the clicked period; each row
+          has a "Review project" button that calls
+          `openAssignment(projectId, {ccId, crId})` to spin up an
+          assignment session for the parent project.
+
+          TODO (W5 Track B / S9 §10.5): the project-view's unassigned-
+          slot rows must also trigger openAssignment when clicked. The
+          Lead wires that handler post-merge inside ProjectGroupView's
+          UnassignedSlotRow once Track B's tree lands. */}
       {groupBy !== 'project' && (
         <DemandStrip
           onCellClick={
             demandClickEnabled
               ? (period) => {
-                  // W5 Track A (S6b §9.1 entry-point #2) replaces this
-                  // placeholder with a side-panel filtered-RR list whose
-                  // rows trigger `enterAssignmentMode` via openAssignment.
-                  // Until then the click is observable but inert.
-                  void period;
+                  // For collapsed periods (quarter / year), the cell's
+                  // first month is a representative anchor — CellDetail
+                  // shows pending demand across the full window so a
+                  // narrower month label is fine.
+                  const firstMonth = period.monthKeys[0];
+                  openCell({
+                    dimensionId: 'demand',
+                    pivot: 'demand',
+                    month: firstMonth,
+                    rowLabel: `Unfulfilled demand · ${period.label}`,
+                  });
                 }
               : undefined
           }
