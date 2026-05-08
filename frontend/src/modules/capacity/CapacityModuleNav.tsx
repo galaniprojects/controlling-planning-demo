@@ -19,21 +19,25 @@
  * at all (they're routed to `/capacity/availability`, which uses its
  * own page chrome).
  *
- * The "Requests" badge count is sourced from the parent layout shell
- * via the `pendingRequestCount` prop (`CapacityContext.pending_request_count`).
- * The real API field is already populated by Wave 1 backend foundation;
- * the dashboard KPI card from spec §5.2 will share the same source in
- * Wave 3. Badge is hidden when count is 0 (per spec §12.1).
+ * The "Requests" badge count comes from the W3 KPI bar via the
+ * `pendingRequestsKpi` slot on `CapacityScopeContext` (Lead 0.4 seam) so
+ * the same number renders in two places without a duplicate fetch. When
+ * the KPI bar hasn't published a value yet (or the user is on a route
+ * outside the scope provider — e.g., `/capacity/availability` for PL),
+ * the layout falls back to the `pendingRequestCount` prop sourced from
+ * `CapacityContext.pending_request_count`. Badge is hidden when count is 0
+ * (per spec §12.1).
  */
 import { NavLink } from 'react-router-dom';
 import { useRole } from '@/contexts/RoleContext';
+import { useCapacityScopeOptional } from '@/contexts/CapacityScopeContext';
 import { cn } from '@/lib/utils';
 
 interface CapacityModuleNavProps {
   /**
-   * Pending request count to render in the Requests badge. Falsy or
-   * zero hides the badge per spec §12.1. Defaults to 0 so callers may
-   * omit the prop while the data layer is being wired up.
+   * Fallback pending request count used when the scope provider isn't
+   * mounted (e.g., the layout shell wraps `/capacity/availability` for
+   * PLs). The W3 KPI bar wins when both are present. Defaults to 0.
    */
   pendingRequestCount?: number;
 }
@@ -59,6 +63,14 @@ export default function CapacityModuleNav({
   const { context } = useRole();
   const role = context?.role;
 
+  // Read the live KPI value when we're inside the CapacityScopeProvider;
+  // outside it (e.g., PL availability route) the hook returns null and
+  // we fall back to the prop sourced from CapacityContext.
+  const scopeContext = useCapacityScopeOptional();
+  const liveBadgeCount = scopeContext?.pendingRequestsKpi;
+  const badgeCount =
+    typeof liveBadgeCount === 'number' ? liveBadgeCount : pendingRequestCount;
+
   // PLs land on /capacity/availability and never see this nav.
   if (role !== 'controller' && role !== 'cost_center_owner' && role !== 'executive') {
     return null;
@@ -74,7 +86,7 @@ export default function CapacityModuleNav({
     {
       to: '/capacity/requests',
       label: 'Requests',
-      badgeCount: pendingRequestCount,
+      badgeCount,
       visibleTo: ['controller', 'cost_center_owner'],
     },
     {

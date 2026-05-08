@@ -216,3 +216,13 @@ export function useCapacityScope() {
   }
   return ctx;
 }
+
+/**
+ * Non-throwing variant — returns `null` when used outside the provider.
+ * Used by `CapacityModuleNav`, which renders inside the layout shell
+ * across both the workspace tree (provider mounted) and the PL
+ * availability route (provider absent).
+ */
+export function useCapacityScopeOptional() {
+  return useContext(CapacityScopeCtx);
+}
