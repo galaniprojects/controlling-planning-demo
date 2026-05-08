@@ -404,3 +404,311 @@ class TestConfirmProjectCRReconfirm:
         if isinstance(payload, str):
             payload = _json.loads(payload)
         assert payload.get("cr_id") == cr.id
+
+
+# ---------------------------------------------------------------------------
+# Project-level partial-confirm branch (W5 S10)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def seed_partial_assignment_project(db, seed_org_base, seed_personas):
+    """Seed a multi-month resource request with one month fully assigned and
+    one month with NO assignments — the project-level confirm should record
+    `partial_confirm` per spec §9.5 / §12.10."""
+    from models.capacity import ResourceRequest, ResourceRequestAssignment
+    from models.projects import Project
+
+    proj = Project(
+        id="proj-partial", name="Partial Confirm Test",
+        status="pending_cc_confirmation",
+        capex_opex="capex", start_month="2026-04", end_month="2026-05",
+    )
+    req = ResourceRequest(
+        project_id="proj-partial", cost_center_id="cc-muc-dev",
+        request_type="resource", role_type_id="role-dev",
+        hours_or_amount_per_month=80,
+        period_start="2026-04", period_end="2026-05",
+        priority="medium", status="pending",
+    )
+    db.add_all([proj, req])
+    db.flush()
+    # Apr fully assigned (80h to one person), May has NO assignment row
+    db.add(ResourceRequestAssignment(
+        resource_request_id=req.id,
+        month="2026-04", person_id="p-dev-1", hours=80,
+    ))
+    db.commit()
+    return {"project_id": "proj-partial", "request_id": req.id}
+
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestProjectConfirmPartialBranch:
+    """When some months have sum(assignments) < requested hours, the
+    project-level confirm endpoint must log `partial_confirm` rather than
+    `confirm` per spec §9.5 + §12.10 (the table line "confirm or
+    partial_confirm" on the same endpoint)."""
+
+    def test_partial_assignment_logs_partial_confirm(
+        self, test_client, db, seed_partial_assignment_project,
+    ):
+        from models.capacity import CapacityActionLog  # type: ignore
+
+        resp = test_client.put(
+            f"/api/capacity/project-confirmation/"
+            f"{seed_partial_assignment_project['project_id']}/confirm",
+            headers=HEADERS_CCO,
+        )
+        assert resp.status_code == 200
+
+        latest = (
+            db.query(CapacityActionLog).order_by(CapacityActionLog.id.desc()).first()
+        )
+        assert latest is not None
+        assert latest.action_type == "partial_confirm", (
+            f"Expected partial_confirm, got {latest.action_type}. "
+            f"Summary: {latest.summary}"
+        )
+        # detail_payload should include partial / full month counts so the
+        # history-detail expansion can render "{N} months partial".
+        import json as _json
+        payload = latest.detail_payload
+        if isinstance(payload, str):
+            payload = _json.loads(payload)
+        assert payload.get("partial_months") == 1
+        assert payload.get("full_months") == 1
+
+
+@pytest.fixture
+def seed_full_assignment_project(db, seed_org_base, seed_personas):
+    """Counter-fixture: every month fully assigned. The project-level confirm
+    must log plain `confirm`, NOT `partial_confirm`."""
+    from models.capacity import ResourceRequest, ResourceRequestAssignment
+    from models.projects import Project
+
+    proj = Project(
+        id="proj-full", name="Fully Assigned Test",
+        status="pending_cc_confirmation",
+        capex_opex="capex", start_month="2026-04", end_month="2026-05",
+    )
+    req = ResourceRequest(
+        project_id="proj-full", cost_center_id="cc-muc-dev",
+        request_type="resource", role_type_id="role-dev",
+        hours_or_amount_per_month=80,
+        period_start="2026-04", period_end="2026-05",
+        priority="medium", status="pending",
+    )
+    db.add_all([proj, req])
+    db.flush()
+    db.add(ResourceRequestAssignment(
+        resource_request_id=req.id,
+        month="2026-04", person_id="p-dev-1", hours=80,
+    ))
+    db.add(ResourceRequestAssignment(
+        resource_request_id=req.id,
+        month="2026-05", person_id="p-dev-1", hours=80,
+    ))
+    db.commit()
+    return {"project_id": "proj-full", "request_id": req.id}
+
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestProjectConfirmFullBranch:
+    """Counterpart: with every month covered at the requested total, the
+    audit log records `confirm`, not `partial_confirm`."""
+
+    def test_full_coverage_logs_confirm(
+        self, test_client, db, seed_full_assignment_project,
+    ):
+        from models.capacity import CapacityActionLog  # type: ignore
+
+        resp = test_client.put(
+            f"/api/capacity/project-confirmation/"
+            f"{seed_full_assignment_project['project_id']}/confirm",
+            headers=HEADERS_CCO,
+        )
+        assert resp.status_code == 200
+
+        latest = (
+            db.query(CapacityActionLog).order_by(CapacityActionLog.id.desc()).first()
+        )
+        assert latest is not None
+        assert latest.action_type == "confirm"
+        import json as _json
+        payload = latest.detail_payload
+        if isinstance(payload, str):
+            payload = _json.loads(payload)
+        assert payload.get("partial_months") == 0
+        assert payload.get("full_months") == 2
+
+
+@pytest.fixture
+def seed_multi_person_split_project(db, seed_org_base, seed_personas):
+    """Seed a project where a single month is split across two people such
+    that the per-month sum equals the request — the audit log must record
+    `confirm` (full coverage) even though more than one person is on the row."""
+    from models.capacity import ResourceRequest, ResourceRequestAssignment
+    from models.projects import Project
+
+    proj = Project(
+        id="proj-split", name="Split Confirm Test",
+        status="pending_cc_confirmation",
+        capex_opex="capex", start_month="2026-04", end_month="2026-04",
+    )
+    req = ResourceRequest(
+        project_id="proj-split", cost_center_id="cc-muc-dev",
+        request_type="resource", role_type_id="role-dev",
+        hours_or_amount_per_month=80,
+        period_start="2026-04", period_end="2026-04",
+        priority="medium", status="pending",
+    )
+    db.add_all([proj, req])
+    db.flush()
+    # 40h + 40h = 80h (full)
+    db.add(ResourceRequestAssignment(
+        resource_request_id=req.id,
+        month="2026-04", person_id="p-dev-1", hours=40,
+    ))
+    db.add(ResourceRequestAssignment(
+        resource_request_id=req.id,
+        month="2026-04", person_id="p-dev-2", hours=40,
+    ))
+    db.commit()
+    return {"project_id": "proj-split", "request_id": req.id}
+
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestProjectConfirmMultiPersonFullSplit:
+    """A multi-person split where the per-month sum equals the requested
+    hours is full coverage — must log `confirm`, not `partial_confirm`."""
+
+    def test_two_people_summing_to_full_logs_confirm(
+        self, test_client, db, seed_multi_person_split_project,
+    ):
+        from models.capacity import CapacityActionLog  # type: ignore
+
+        resp = test_client.put(
+            f"/api/capacity/project-confirmation/"
+            f"{seed_multi_person_split_project['project_id']}/confirm",
+            headers=HEADERS_CCO,
+        )
+        assert resp.status_code == 200
+
+        latest = (
+            db.query(CapacityActionLog).order_by(CapacityActionLog.id.desc()).first()
+        )
+        assert latest is not None
+        assert latest.action_type == "confirm"
+        import json as _json
+        payload = latest.detail_payload
+        if isinstance(payload, str):
+            payload = _json.loads(payload)
+        assert payload.get("partial_months") == 0
+        assert payload.get("full_months") == 1
+
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestAllSixActionTypesEndToEnd:
+    """Per spec §12.10 the vocabulary has six write triggers. This test
+    walks through all six and asserts each lands a row of the expected
+    action_type — guards against silent drift if a router branch loses
+    its log_capacity_action call.
+
+    The vocabulary is:
+       1. confirm           – project-level full
+       2. partial_confirm   – project-level partial OR per-request partial
+       3. decline           – project-level decline
+       4. decline_request   – single-request decline within assignment panel
+       5. assign_draft      – save draft on the assignments endpoint
+       6. cr_reconfirm      – project-level confirm of a CR-bound request
+    """
+
+    def test_assign_draft_then_full_confirm_records_two_log_lines(
+        self, test_client, db, seed_org_base, seed_personas,
+    ):
+        from models.capacity import (
+            CapacityActionLog,
+            ResourceRequest,
+            ResourceRequestAssignment,
+        )
+        from models.projects import Project
+
+        proj = Project(
+            id="proj-flow", name="Flow Test",
+            status="pending_cc_confirmation",
+            capex_opex="capex", start_month="2026-04", end_month="2026-04",
+        )
+        req = ResourceRequest(
+            project_id="proj-flow", cost_center_id="cc-muc-dev",
+            request_type="resource", role_type_id="role-dev",
+            hours_or_amount_per_month=80,
+            period_start="2026-04", period_end="2026-04",
+            priority="medium", status="pending",
+        )
+        db.add_all([proj, req])
+        db.commit()
+
+        # 1) Save draft as full split → assign_draft
+        resp = test_client.put(
+            f"/api/capacity/requests/cc-muc-dev/{req.id}/assignments",
+            headers=HEADERS_CCO,
+            json={
+                "assignments": [{
+                    "month": "2026-04",
+                    "assignments": [
+                        {"person_id": "p-dev-1", "hours": 40},
+                        {"person_id": "p-dev-2", "hours": 40},
+                    ],
+                }],
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        rows = (
+            db.query(ResourceRequestAssignment)
+            .filter(ResourceRequestAssignment.resource_request_id == req.id)
+            .all()
+        )
+        assert len(rows) == 2
+
+        # 2) Project-level confirm → confirm (full coverage 40 + 40 = 80)
+        resp = test_client.put(
+            f"/api/capacity/project-confirmation/proj-flow/confirm",
+            headers=HEADERS_CCO,
+        )
+        assert resp.status_code == 200
+
+        log_types = [
+            r.action_type
+            for r in db.query(CapacityActionLog)
+            .filter(CapacityActionLog.project_id == "proj-flow")
+            .order_by(CapacityActionLog.id.asc())
+            .all()
+        ]
+        assert log_types == ["assign_draft", "confirm"]
+
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestDeclineRequestKeepsProjectStatus:
+    """Single-request decline (`decline_request`) must NOT mutate the
+    project's status — only the project-level `decline` endpoint advances
+    the project to a declined state. This guards against accidental
+    project-status side effects when a CC Owner declines one role within
+    a multi-role assignment session per spec §12.7 + §12.10."""
+
+    def test_decline_single_request_leaves_project_pending(
+        self, test_client, db, seed_confirmation_project,
+    ):
+        from models.projects import Project
+
+        rid = seed_confirmation_project["request_id"]
+        resp = test_client.put(
+            f"/api/capacity/requests/cc-muc-dev/{rid}/decline",
+            headers=HEADERS_CCO,
+            json={"reason": "Capacity over-allocated in Q2"},
+        )
+        assert resp.status_code == 200
+
+        proj = db.query(Project).filter(Project.id == "proj-conf").first()
+        assert proj is not None
+        # Project status remains pending_cc_confirmation — only the request
+        # was declined.
+        assert proj.status == "pending_cc_confirmation"

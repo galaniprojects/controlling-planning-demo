@@ -1236,16 +1236,20 @@ def confirm_project_resources(
         ))
 
     # Capacity audit log per §12.10. Bucket under the CC of the first pending
-    # request; one record per project confirmation. action_type branches on
-    # whether the project's pending requests were CR-triggered: a project where
-    # any pending request carries change_request_id is a CR re-confirmation
-    # (cr_reconfirm), otherwise a fresh intake confirmation (confirm).
+    # request; one record per project confirmation. action_type branches on:
+    #   - any pending request with change_request_id → cr_reconfirm
+    #   - any month where sum(assignments) < requested hours → partial_confirm
+    #     (per §9.5 / §9.7 "Confirm partial & send to controller")
+    #   - else                                                  → confirm
     role_breakdown: dict[str, dict[str, float]] = {}
     requests_affected: list[dict] = []
     cr_ids: list[int] = []
+    partial_months_total = 0
+    full_months_total = 0
     for req in pending_requests:
         role_label = req.role_type.name if req.role_type else (req.role_type_id or "")
-        months_count = len(generate_month_range(req.period_start, req.period_end))
+        months = generate_month_range(req.period_start, req.period_end)
+        months_count = len(months)
         hours = float(req.hours_or_amount_per_month or 0) * months_count
         agg = role_breakdown.setdefault(role_label, {"count": 0, "hours": 0.0})
         agg["count"] += 1
@@ -1259,31 +1263,71 @@ def confirm_project_resources(
         if req.change_request_id and req.change_request_id not in cr_ids:
             cr_ids.append(req.change_request_id)
 
+        # Partial detection: per-month sum(ResourceRequestAssignment.hours)
+        # vs. req.hours_or_amount_per_month. Resource requests with no
+        # assignment rows count every month as fully-unassigned (still
+        # "partial" for audit purposes — the project went out the door
+        # without a person on those months).
+        if req.request_type == "resource":
+            per_month_sum: dict[str, float] = {}
+            assignments_for_req = (
+                db.query(ResourceRequestAssignment)
+                .filter(ResourceRequestAssignment.resource_request_id == req.id)
+                .all()
+            )
+            for a in assignments_for_req:
+                per_month_sum[a.month] = per_month_sum.get(a.month, 0.0) + float(a.hours)
+            requested_per_month = float(req.hours_or_amount_per_month or 0)
+            for m in months:
+                if requested_per_month <= 0:
+                    full_months_total += 1
+                elif per_month_sum.get(m, 0.0) + 1e-6 >= requested_per_month:
+                    full_months_total += 1
+                else:
+                    partial_months_total += 1
+
     total_hours = sum(b["hours"] for b in role_breakdown.values())
     summary_cc = pending_requests[0].cost_center_id if pending_requests else (
         user.cost_center_id or "unknown"
     )
     cr_action = bool(cr_ids)
     primary_cr_id = cr_ids[0] if cr_ids else None
-    summary_prefix = "Re-confirmed via CR" if cr_action else "Confirmed"
+    is_partial = partial_months_total > 0 and not cr_action
+    if cr_action:
+        action_type = "cr_reconfirm"
+        summary_prefix = "Re-confirmed via CR"
+    elif is_partial:
+        action_type = "partial_confirm"
+        summary_prefix = "Partially confirmed"
+    else:
+        action_type = "confirm"
+        summary_prefix = "Confirmed"
     cr_suffix = (
         f" (CR #{', #'.join(str(c) for c in cr_ids)})" if cr_action else ""
     )
+    partial_suffix = (
+        f" — {partial_months_total} of "
+        f"{partial_months_total + full_months_total} months partial"
+        if is_partial
+        else ""
+    )
     log_capacity_action(
         db, user,
-        action_type="cr_reconfirm" if cr_action else "confirm",
+        action_type=action_type,
         project_id=project.id,
         cost_center_id=summary_cc,
         summary=(
             f"{summary_prefix} {len(role_breakdown)} role"
             f"{'s' if len(role_breakdown) != 1 else ''}, "
-            f"{total_hours:.0f}h total for {project.name}{cr_suffix}"
+            f"{total_hours:.0f}h total for {project.name}{cr_suffix}{partial_suffix}"
         ),
         detail_payload={
             "requests_affected": requests_affected,
             "assignments": [],
             "cr_id": primary_cr_id,
             "decline_reason": None,
+            "partial_months": partial_months_total,
+            "full_months": full_months_total,
         },
         change_request_id=primary_cr_id,
     )
