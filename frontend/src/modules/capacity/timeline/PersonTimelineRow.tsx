@@ -38,7 +38,7 @@ import {
   type GhostSegment,
   pickPrimaryGhost,
   aggregatePeriodGhost,
-} from './ghostOverlay';
+} from './assignmentGhostOverlay';
 
 export interface PersonRowData {
   personId: string;

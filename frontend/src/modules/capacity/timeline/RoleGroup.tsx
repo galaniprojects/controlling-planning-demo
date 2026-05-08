@@ -35,7 +35,7 @@ import {
   PersonTimelineRow,
   type PersonRowData,
 } from './PersonTimelineRow';
-import type { GhostMap, GhostSegment } from './ghostOverlay';
+import type { GhostMap, GhostSegment } from './assignmentGhostOverlay';
 
 export interface RoleGroupData {
   roleId: string;

@@ -36,7 +36,7 @@ import {
   extractRequestInputs,
   type GhostMap,
   type PersonOverlayInput,
-} from './ghostOverlay';
+} from './assignmentGhostOverlay';
 
 // ---------------------------------------------------------------------------
 // Public type

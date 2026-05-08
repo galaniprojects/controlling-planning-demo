@@ -41,7 +41,7 @@ import { RoleGroup } from './RoleGroup';
 import { FlatPersonRow } from './FlatPersonRow';
 import { ProjectGroupView } from './ProjectGroupView';
 import { useAssignmentOverlay } from './useAssignmentOverlay';
-import type { GhostSegment } from './ghostOverlay';
+import type { GhostSegment } from './assignmentGhostOverlay';
 import {
   buildVisibleColumns,
   toggleQuarter,

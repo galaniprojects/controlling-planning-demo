@@ -32,7 +32,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useProjectColor } from '@/contexts/ProjectColorMapContext';
-import type { GhostSegment } from './ghostOverlay';
+import type { GhostSegment } from './assignmentGhostOverlay';
 
 // ---------------------------------------------------------------------------
 // Constants

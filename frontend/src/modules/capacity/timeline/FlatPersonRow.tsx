@@ -21,7 +21,7 @@ import {
   type PersonRowData,
 } from './PersonTimelineRow';
 import type { TimeColumn } from './timeAxis';
-import type { GhostSegment } from './ghostOverlay';
+import type { GhostSegment } from './assignmentGhostOverlay';
 
 interface FlatPersonRowProps {
   data: PersonRowData;
