@@ -12,6 +12,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     content: sidePanelContent,
     width: sidePanelWidth,
     closePanel,
+    getBeforeCloseGuard,
   } = useSidePanel();
   const {
     isOpen: drawerOpen,
@@ -35,6 +36,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             title={sidePanelTitle}
             onClose={closePanel}
             width={sidePanelWidth}
+            onBeforeClose={getBeforeCloseGuard}
           >
             {sidePanelContent}
           </SidePanel>

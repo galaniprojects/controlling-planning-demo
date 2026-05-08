@@ -31,6 +31,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { capacityApi } from '@/api/endpoints';
 import type { ProjectAssignmentDetail, RoleHeatmapRow } from '@/types/api';
+import { useSidePanel } from '@/contexts/SidePanelContext';
 import { useAssignmentState } from './AssignmentStateContext';
 import { ProjectHeader } from './ProjectHeader';
 import { AssignmentProgress } from './AssignmentProgress';
@@ -68,6 +69,7 @@ function AssignmentPanelInner({
     getRequestPayload,
     getDirtyRequestIds,
   } = useAssignmentState();
+  const { registerBeforeClose } = useSidePanel();
 
   const [detail, setDetail] = useState<ProjectAssignmentDetail | null>(null);
   const [teamPeople, setTeamPeople] = useState<
@@ -78,6 +80,24 @@ function AssignmentPanelInner({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+
+  // -------------------------------------------------------------------------
+  // Register before-close guard to show unsaved-changes dialog when dirty.
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    const unregister = registerBeforeClose(() => {
+      if (session?.dirty) {
+        setShowUnsavedDialog(true);
+        return false; // cancel the close
+      }
+      return undefined; // allow close
+    });
+    return unregister;
+  // Re-register when dirty state changes so the guard always reflects
+  // the current dirty flag.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.dirty, registerBeforeClose]);
 
   // -------------------------------------------------------------------------
   // Fetch project detail + team heatmap + CC requests in parallel.
