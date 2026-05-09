@@ -131,6 +131,22 @@ Implements §9.4 ghost overlay during assignment mode + §9.6 assignment gesture
   * `12_dark_project_view_executive.png` — Executive (Dr. Klaus Weber) @ All-CCs project view in dark mode; tabs are Workspace + History only (no Requests — correct per §12.1); KPI bar shows graceful "—" on `Pending requests` card after the W4 P1 fix (Promise.allSettled tolerates the expected 403 on `/api/capacity/inbox`).
 - Cross-track integration NOT needed — Track B's `ProjectGroupView.handleSlotClick` already wires `UnassignedSlotRow` → `enterAssignmentMode + openAssignment` end-to-end (the Lead pre-work brief had the wire-up scheduled as a Lead post-merge step but Track B took it).
 
+**Independent fresh-context reviewer pass (1 commit, `3bd765d`):**
+A read-only `code-reviewer-fresh` agent walked all 20 commits since `69948fd` and produced a prioritised report (7 P1s + 12 P2s + 13 P3s + a long "Looks good" section). All 7 P1s + 2 easy P2s addressed in `3bd765d`:
+- **P1 #1** — `confirm_project_resources` N+1 RRA fetch: bulk-fetch all `ResourceRequestAssignment` rows in one query before the per-request loop, group by `resource_request_id`. Was one round trip per pending request.
+- **P1 #2** — `useAssignmentOverlay` race: replaced fetch-token ref with the `cancelled`-flag pattern from `useCapacityProjectsData`. Each await stage now checks the flag, so a stale fetch can't pollute state if the user changes scope or exits assignment mode mid-flight.
+- **P1 #3** — Executive demand-cell graceful degradation: detect role client-side; Executive (no inbox access per §12.1) sees a calm "Demand details are read-only at your access level" empty state instead of the prior "Failed to load demand: 403" error banner.
+- **P1 #4 (defensive)** — `_visible_project_ids` hierarchy scope union: hierarchy branch now unions membership-assigned projects with allocation-derived projects, consistent with the `cost_center` / `location` branches. Spec §10.12 strict reading is preserved as a subset.
+- **P1 #5 (defensive)** — CR-reconfirm + partial precedence: when a CC Owner confirms a CR-bound project that's also partially fulfilled, the audit row now writes `partial_confirm` (was `cr_reconfirm`). Partial is the more actionable signal for the controller and surfaces in the §12.12 history "Partial" filter; CR context is preserved in `cr_id` column + `detail_payload.cr_id` + summary suffix ("Partially re-confirmed via CR — N of M months partial"). Added `test_cr_bound_partial_assignment_logs_partial_confirm`.
+- **P1 #6** — `ProjectGroupRow` 0/0 staffing badge: projects with zero RRs now render a neutral em-dash (`—`) badge using `bg-muted text-muted-foreground` instead of green ✓ which read as "fully assigned".
+- **P1 #7 (defensive)** — `compute_capacity_projects` PL role lookup ordering: load PLs into the `people` map BEFORE building `role_ids` so a future change rendering "PL role" in the response wouldn't silently miss the lookup. No active behaviour change.
+- **P2 #13** — `PersonPicker` hours input clamp on `onChange` (HTML `max` is only enforced at form submission; paste/type of `999` would commit out-of-bounds hours).
+- **P2 #14** — `UnassignedSlotRow` status badge: distinct red (unassigned) vs. amber (partial) classes per spec §10.5; pre-fix both branches used identical amber classes (dead ternary).
+
+The remaining 10 P2s + 13 P3s are deferred to a polish session — see the "Polish-session backlog" entries in the project-status memory.
+
+pytest 1688 passed (1687 W5 baseline + 1 new CR-bound-partial test). tsc clean. The independent reviewer's "Looks good" section explicitly called out: 18-case `/projects` test depth, full audit-vocabulary coverage including `decline_request` regression guard, cross-portal handler refs, idempotency guard rationale comments, dark-mode discipline (no slate-* leakage), and the legacy single-person assignment body-shape forward compat.
+
 **Out of scope (deferred to W6 by design — don't re-flag):**
 - Workbench → PL availability slide-over (§13.9) — Session 11.
 - End-to-end entry-point sweep + deprecation redirect audit across other modules (Portfolio approval queue / Launchpad pending actions still link to `/capacity/project-assignment/{pid}`) — Session 11.
