@@ -102,15 +102,23 @@ export function useAssignmentOverlay(
     const token = ++fetchTokenRef.current;
     setLoading(true);
 
-    // Step 1: project detail. Step 2: per-request monthly hours +
-    // assignments (parallel). Wraps each fetch in a defensive `.catch`
-    // so a single request's 404 doesn't tank the whole overlay.
-    capacityApi
-      .getProjectAssignmentDetail(projectId, crId)
-      .then(async (det) => {
+    // Fetch project detail + the CC's own request list in parallel so we
+    // can filter cross-CC requests out before issuing CC-scoped per-
+    // request fetches (the monthly-hours / assignments endpoints 404
+    // for requests that don't belong to this CC). AssignmentPanel does
+    // the same filter via `ccRequestIds`; we keep the overlay aligned.
+    Promise.all([
+      capacityApi.getProjectAssignmentDetail(projectId, crId),
+      capacityApi.getRequests(ccId).then((r) => r.items).catch(() => []),
+    ])
+      .then(async ([det, ccRequests]) => {
         if (token !== fetchTokenRef.current) return;
+        const ccRequestIds = new Set(ccRequests.map((r) => r.id));
         const resourceRequests = det.requests.filter(
-          (r) => r.request_type === 'resource' && r.status === 'pending',
+          (r) =>
+            r.request_type === 'resource' &&
+            r.status === 'pending' &&
+            ccRequestIds.has(r.id),
         );
         const hoursPromises = resourceRequests.map(async (r) => {
           try {
@@ -133,7 +141,9 @@ export function useAssignmentOverlay(
           Promise.all(assignsPromises),
         ]);
         if (token !== fetchTokenRef.current) return;
-        setDetail(det);
+        // Replace the project's `requests` list with the CC-scoped subset
+        // so `extractRequestInputs` doesn't try to render cross-CC roles.
+        setDetail({ ...det, requests: resourceRequests });
         setMonthlyHoursByRequest(new Map(hoursPairs));
         setServerAssignmentsByRequest(new Map(assignsPairs));
       })
