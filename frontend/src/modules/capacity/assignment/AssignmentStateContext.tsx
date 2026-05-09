@@ -94,14 +94,79 @@ export interface AssignmentStateActions {
 
   /**
    * Record a person assignment for a specific request + month.
-   * Replaces any existing assignment for that request + month (single-person
-   * flow for W4; multi-person extend is W5 S10).
+   * Replaces any existing assignments for that request + month (the [Assign]
+   * entry point — single-person flow). Use ``addPersonToMonth`` (W5 S10)
+   * to add a second/third person without dropping the first.
    */
   setMonthAssignment: (
     requestId: string,
     month: string,
     personId: string,
     hours: number,
+  ) => void;
+
+  /**
+   * Replace the full per-person list for a request + month (the multi-person
+   * primitive). Useful when the caller wants explicit control over the
+   * sum (e.g. computing the rebalance amount in the row component).
+   *
+   * Pass an empty array to clear the month (equivalent to
+   * ``clearMonthAssignment``).
+   *
+   * Spec: guides/Capacity_Module_Redesign_Spec.md §9.5
+   */
+  setMonthAssignmentList: (
+    requestId: string,
+    month: string,
+    assignments: MonthPersonAssignment[],
+  ) => void;
+
+  /**
+   * Add an additional person to an existing month's assignment list (the
+   * [+ Add] entry point per spec §9.5). When ``rebalanceAmount`` is
+   * positive, the largest existing assignment is reduced by that amount
+   * so the requested-hours invariant holds (cap at zero). If
+   * ``rebalanceAmount`` is omitted or zero, no rebalance is applied —
+   * useful when room remains under the request total.
+   *
+   * If the person is already in the list, their hours are updated.
+   *
+   * Spec: guides/Capacity_Module_Redesign_Spec.md §9.5
+   */
+  addPersonToMonth: (
+    requestId: string,
+    month: string,
+    personId: string,
+    hours: number,
+    rebalanceAmount?: number,
+  ) => void;
+
+  /**
+   * Update a single person's hours within an existing multi-person split.
+   * Optionally rebalances the largest other share so the sum stays
+   * constant.
+   *
+   * Spec: guides/Capacity_Module_Redesign_Spec.md §9.5
+   */
+  updatePersonHours: (
+    requestId: string,
+    month: string,
+    personId: string,
+    hours: number,
+    rebalanceAmount?: number,
+  ) => void;
+
+  /**
+   * Remove a single person from a month's assignment list. If the month
+   * has only one person, the month becomes unassigned (same as
+   * ``clearMonthAssignment``).
+   *
+   * Spec: guides/Capacity_Module_Redesign_Spec.md §9.5
+   */
+  removePersonFromMonth: (
+    requestId: string,
+    month: string,
+    personId: string,
   ) => void;
 
   /**
@@ -190,8 +255,123 @@ export function AssignmentStateProvider({ children }: { children: ReactNode }) {
         if (!prev) return prev;
         const nextAssignments: AssignmentMap = new Map(prev.assignments);
         const reqMap = new Map(nextAssignments.get(requestId) ?? []);
-        // Single-person flow for W4 — replace the month's assignment
+        // [Assign] flow — replace the month's assignment list with a single
+        // person. Multi-person splits go through ``addPersonToMonth`` (W5).
         reqMap.set(month, [{ personId, hours }]);
+        nextAssignments.set(requestId, reqMap);
+        return { ...prev, assignments: nextAssignments, dirty: true };
+      });
+    },
+    [],
+  );
+
+  const setMonthAssignmentList = useCallback(
+    (
+      requestId: string,
+      month: string,
+      assignmentsList: MonthPersonAssignment[],
+    ) => {
+      setSession((prev) => {
+        if (!prev) return prev;
+        const nextAssignments: AssignmentMap = new Map(prev.assignments);
+        const reqMap = new Map(nextAssignments.get(requestId) ?? []);
+        const cleaned = assignmentsList.filter((p) => p.hours > 0);
+        if (cleaned.length === 0) {
+          reqMap.delete(month);
+        } else {
+          reqMap.set(month, cleaned);
+        }
+        nextAssignments.set(requestId, reqMap);
+        return { ...prev, assignments: nextAssignments, dirty: true };
+      });
+    },
+    [],
+  );
+
+  const addPersonToMonth = useCallback(
+    (
+      requestId: string,
+      month: string,
+      personId: string,
+      hours: number,
+      rebalanceAmount?: number,
+    ) => {
+      setSession((prev) => {
+        if (!prev) return prev;
+        const nextAssignments: AssignmentMap = new Map(prev.assignments);
+        const reqMap = new Map(nextAssignments.get(requestId) ?? []);
+        const current = reqMap.get(month) ?? [];
+
+        // Build the new people array — append or update the named person.
+        const existing = current.find((p) => p.personId === personId);
+        let next: MonthPersonAssignment[] = existing
+          ? current.map((p) =>
+              p.personId === personId ? { ...p, hours } : p,
+            )
+          : [...current, { personId, hours }];
+
+        // Rebalance: subtract `rebalanceAmount` from the largest OTHER
+        // existing share so the requested-hours invariant holds. If the
+        // largest share isn't enough, distribute the remainder across
+        // any other people in descending order of hours.
+        let remaining = rebalanceAmount ?? 0;
+        if (remaining > 0) {
+          const otherIdxs = next
+            .map((_, i) => i)
+            .filter((i) => next[i].personId !== personId)
+            .sort((a, b) => next[b].hours - next[a].hours);
+
+          for (const idx of otherIdxs) {
+            if (remaining <= 0) break;
+            const take = Math.min(next[idx].hours, remaining);
+            next[idx] = { ...next[idx], hours: next[idx].hours - take };
+            remaining -= take;
+          }
+        }
+
+        // Drop zero-hour rows so the chip list stays clean.
+        next = next.filter((p) => p.hours > 0);
+
+        if (next.length === 0) {
+          reqMap.delete(month);
+        } else {
+          reqMap.set(month, next);
+        }
+        nextAssignments.set(requestId, reqMap);
+        return { ...prev, assignments: nextAssignments, dirty: true };
+      });
+    },
+    [],
+  );
+
+  const updatePersonHours = useCallback(
+    (
+      requestId: string,
+      month: string,
+      personId: string,
+      hours: number,
+      rebalanceAmount?: number,
+    ) => {
+      // Same logic as addPersonToMonth — the existing-person branch handles
+      // the in-place update.
+      addPersonToMonth(requestId, month, personId, hours, rebalanceAmount);
+    },
+    [addPersonToMonth],
+  );
+
+  const removePersonFromMonth = useCallback(
+    (requestId: string, month: string, personId: string) => {
+      setSession((prev) => {
+        if (!prev) return prev;
+        const nextAssignments: AssignmentMap = new Map(prev.assignments);
+        const reqMap = new Map(nextAssignments.get(requestId) ?? []);
+        const current = reqMap.get(month) ?? [];
+        const next = current.filter((p) => p.personId !== personId);
+        if (next.length === 0) {
+          reqMap.delete(month);
+        } else {
+          reqMap.set(month, next);
+        }
         nextAssignments.set(requestId, reqMap);
         return { ...prev, assignments: nextAssignments, dirty: true };
       });
@@ -253,6 +433,10 @@ export function AssignmentStateProvider({ children }: { children: ReactNode }) {
       session,
       enterAssignmentMode,
       setMonthAssignment,
+      setMonthAssignmentList,
+      addPersonToMonth,
+      updatePersonHours,
+      removePersonFromMonth,
       clearMonthAssignment,
       markSaved,
       exit,
@@ -263,6 +447,10 @@ export function AssignmentStateProvider({ children }: { children: ReactNode }) {
       session,
       enterAssignmentMode,
       setMonthAssignment,
+      setMonthAssignmentList,
+      addPersonToMonth,
+      updatePersonHours,
+      removePersonFromMonth,
       clearMonthAssignment,
       markSaved,
       exit,

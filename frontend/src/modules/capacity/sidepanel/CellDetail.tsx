@@ -1,5 +1,5 @@
 /**
- * CellDetail — v5.2 W3 Track C (spec §7.3).
+ * CellDetail — v5.2 W3 Track C (spec §7.3) + v5.2 W5 Track A (spec §9.1).
  *
  * Renders inside the shared `SidePanel` when the user clicks a cell on
  * an aggregate row in the Org-level view (scope = All CCs / location /
@@ -20,6 +20,12 @@
  *      this slice. Each row is expandable to show per-person hours.
  *      Project name links to `/workbench?project={id}`.
  *
+ * v5.2 W5 Track A (S6b §9.1 entry-point #2): when `pivot === 'demand'`,
+ * the body switches to a pending-demand list — one row per project
+ * with open RRs in the user's scope, each with a "Review project"
+ * button that opens assignment mode for that project. This is the
+ * surface the demand strip click lands on.
+ *
  * Cross-fade: the outer wrapper is keyed on the cell payload so React
  * remounts the subtree on mode/payload changes, kicking off the 200ms
  * `animate-in fade-in-0` animation called for in spec §7.4.
@@ -28,22 +34,71 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { capacityApi } from '@/api/endpoints';
+import { useRole } from '@/contexts/RoleContext';
 import { LocationLabel } from '@/components/shared/LocationLabel';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { cn } from '@/lib/utils';
-import type { OrgDetailItem, OrgDetailResponse } from '@/types/api';
+import type {
+  CapacityInboxItem,
+  OrgDetailItem,
+  OrgDetailResponse,
+} from '@/types/api';
+// NOTE: CellDetail is rendered via the shared SidePanelProvider (outside
+// CapacitySidePanelProvider's React tree), so it cannot call
+// `useCapacitySidePanel()` directly. The "Review project" action arrives
+// as the `onAssignmentRequest` prop, closure-captured by `openCell` in
+// CapacitySidePanelContext.
 
 interface CellDetailProps {
   dimensionId: string;
-  /** e.g., 'role' | 'cost_center' | 'location' | 'hierarchy'. */
+  /** e.g., 'role' | 'cost_center' | 'location' | 'hierarchy' | 'demand'. */
   pivot: string;
   /** Optional month focus (`YYYY-MM`). */
   month?: string;
   /** Human-readable row label (e.g., 'MUC' or 'App Development'). */
   rowLabel: string;
+  /**
+   * v5.2 W5 — invoked from the demand-mode body when the user clicks
+   * "Review project" on a pending request row. Provided by
+   * `CapacitySidePanelContext.openCell` (closure-captures the
+   * `openAssignment` action) so this component never has to call
+   * `useCapacitySidePanel` from inside the cross-provider portal.
+   */
+  onAssignmentRequest?: (
+    projectId: string,
+    ccId: string,
+    crId?: number,
+  ) => void;
 }
 
 export function CellDetail({
+  dimensionId,
+  pivot,
+  month,
+  rowLabel,
+  onAssignmentRequest,
+}: CellDetailProps) {
+  // §9.1 entry-point #2 — the demand strip routes here with pivot='demand'.
+  // Branch out to a separate body so the `getOrgHeatmapDetail` call (which
+  // would 4xx on this synthetic pivot) never fires.
+  if (pivot === 'demand') {
+    return (
+      <div
+        key={`demand:${month ?? ''}`}
+        className="animate-in fade-in-0 duration-200 space-y-4"
+      >
+        <CellHeader pivot={pivot} rowLabel={rowLabel} month={month} />
+        <DemandCellBody
+          month={month}
+          onAssignmentRequest={onAssignmentRequest}
+        />
+      </div>
+    );
+  }
+  return <OrgCellDetail dimensionId={dimensionId} pivot={pivot} month={month} rowLabel={rowLabel} />;
+}
+
+function OrgCellDetail({
   dimensionId,
   pivot,
   month,
@@ -290,5 +345,170 @@ function ProjectRow({
         </ul>
       )}
     </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Demand-mode body (v5.2 W5 Track A — S6b §9.1 entry-point #2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Demand-mode body — lists pending resource requests aggregated by
+ * project. Each row exposes a "Review project" button that calls
+ * `openAssignment(projectId, { ccId, crId })`, which transitions the
+ * side panel from the demand list to a 400px assignment session for
+ * that parent project.
+ *
+ * Data source: `getInbox()` — returns active project rows visible to
+ * the user's role. The inbox already aggregates pending demand per
+ * (project × CC) and surfaces role badges + unassigned-hours, which
+ * is exactly the surface §9.1 calls for. We don't filter by clicked
+ * month: the inbox endpoint doesn't expose per-request periods, and
+ * any request listed there is, by definition, currently un- or
+ * partially fulfilled and therefore relevant to "demand for this
+ * period". The clicked month is shown in the panel header so the
+ * user retains spatial context.
+ */
+function DemandCellBody({
+  month: _month,
+  onAssignmentRequest,
+}: {
+  month?: string;
+  onAssignmentRequest?: (
+    projectId: string,
+    ccId: string,
+    crId?: number,
+  ) => void;
+}) {
+  void _month;
+  const { context } = useRole();
+  const role = context?.role;
+  // Executive is read-only and cannot access /api/capacity/inbox per §12.1
+  // (P1 #3 fix — previously the 403 surfaced as a "Failed to load demand"
+  // error banner, which is confusing UX for a role that simply has no
+  // inbox surface).
+  const inboxAvailable = role === 'controller' || role === 'cost_center_owner';
+  const [items, setItems] = useState<CapacityInboxItem[] | null>(null);
+  const [loading, setLoading] = useState(inboxAvailable);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!inboxAvailable) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    capacityApi
+      .getInbox()
+      .then((res) => {
+        if (cancelled) return;
+        setItems(res.items);
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inboxAvailable]);
+
+  if (loading) return <CellDetailSkeleton />;
+  if (!inboxAvailable) {
+    // Executive (read-only): demand-strip click lands here without an
+    // inbox feed. Spec §15: Executive sees the demand strip but can't
+    // action it — surface a calm empty state, not an error.
+    return (
+      <p className="text-sm text-muted-foreground">
+        Demand details are read-only at your access level.
+      </p>
+    );
+  }
+  if (error)
+    return (
+      <p className="text-sm text-destructive">Failed to load demand: {error}</p>
+    );
+  if (!items || items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No pending requests in scope.
+      </p>
+    );
+  }
+
+  return (
+    <section className="space-y-1.5">
+      <h4 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        Pending requests ({items.length})
+      </h4>
+      <ul className="space-y-2">
+        {items.map((it) => (
+          <li
+            key={`${it.project_id}:${it.cc_id}:${it.cr_id ?? 'baseline'}`}
+            className="rounded-md border border-border p-2.5"
+          >
+            <div className="mb-1 flex items-baseline justify-between gap-2">
+              <span
+                className="truncate text-sm font-medium text-foreground"
+                title={it.project_name}
+              >
+                {it.project_name}
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {Math.round(it.unassigned_hours)}h open
+              </span>
+            </div>
+            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className="truncate">{it.cc_name}</span>
+              {it.pl_name ? <span>· {it.pl_name}</span> : null}
+              {it.cr_id != null ? (
+                <span className="rounded-sm border border-blue-300 bg-blue-50 px-1 py-px text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+                  CR {it.cr_id}
+                </span>
+              ) : null}
+            </div>
+            {it.role_badges.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1">
+                {it.role_badges.map((b) => (
+                  <span
+                    key={b.role_type_id}
+                    className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                    title={`${b.role_name}: ${b.count} request${b.count === 1 ? '' : 's'}`}
+                  >
+                    {b.role_name} ×{b.count}
+                  </span>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              disabled={!onAssignmentRequest}
+              onClick={() =>
+                onAssignmentRequest?.(
+                  it.project_id,
+                  it.cc_id,
+                  it.cr_id ?? undefined,
+                )
+              }
+              className={cn(
+                'w-full rounded-sm border border-primary/30 bg-primary/10 px-2 py-1',
+                'text-[11px] font-medium text-primary',
+                'hover:bg-primary/20 transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
+                'disabled:cursor-not-allowed disabled:opacity-60',
+              )}
+            >
+              Review project
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

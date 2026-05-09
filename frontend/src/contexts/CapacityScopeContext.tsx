@@ -35,13 +35,16 @@ export type ScopeKind = 'my_cc' | 'all_ccs' | 'location' | 'hierarchy';
 export type GroupBy = 'role' | 'project' | 'person';
 
 /**
- * v5.2 W3 §6 — smart filter chip identifiers.
+ * v5.2 W3 §6 / W5 §10.10 — smart filter chip identifiers.
  *
  *  - `all`              — default; no row filtering.
  *  - `over_allocated`   — people with any month >100% in visible window.
  *  - `under_utilized`   — people with avg utilization < threshold (40%).
  *  - `pending_requests` — people who are `assigned_person_id` on any pending RR.
  *  - `unassigned_months`— people linked to RRs with un-assigned month cells.
+ *  - `needs_staffing`   — v5.2 W5 §10.10 — projects with fulfillment <100%.
+ *                         Only meaningful when groupBy === 'project'; not
+ *                         shown in role/person view chip bar.
  *
  * Mutual exclusivity rule: `all` and any specific chip cannot both be active.
  * Multiple specific chips combine with AND logic.
@@ -51,7 +54,8 @@ export type FilterChipKey =
   | 'over_allocated'
   | 'under_utilized'
   | 'pending_requests'
-  | 'unassigned_months';
+  | 'unassigned_months'
+  | 'needs_staffing';
 
 export interface CapacityScope {
   kind: ScopeKind;

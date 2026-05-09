@@ -46,6 +46,18 @@ function abbreviateName(name: string): string {
 interface PersonChipProps {
   personName: string;
   projectedUtilPct: number;
+  /**
+   * The hours portion this person carries for the month. Optional —
+   * the W4 single-person flow doesn't need it, but the W5 S10 multi-person
+   * split renders it so the user can see how the requested total breaks down
+   * (per spec §9.5 example: "F. Keller 40h (72%)").
+   */
+  hours?: number;
+  /**
+   * When true, shows a partial-fulfillment indicator on the chip border.
+   * Used in the multi-person view when sum(hours) < requestedHours.
+   */
+  showPartialIndicator?: boolean;
   onRemove: () => void;
   className?: string;
 }
@@ -53,6 +65,8 @@ interface PersonChipProps {
 export function PersonChip({
   personName,
   projectedUtilPct,
+  hours,
+  showPartialIndicator,
   onRemove,
   className,
 }: PersonChipProps) {
@@ -62,16 +76,26 @@ export function PersonChip({
     <span
       className={cn(
         'inline-flex items-center gap-1 rounded border border-border bg-accent/50 px-1.5 py-0.5 text-xs',
+        showPartialIndicator &&
+          'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20',
         className,
       )}
     >
       <span className="text-foreground">{abbreviateName(personName)}</span>
+      {typeof hours === 'number' && (
+        <span className="text-muted-foreground tabular-nums">{hours}h</span>
+      )}
       <span className={cn('font-medium', BUCKET_CLASSES[bucket])}>
         ({Math.round(projectedUtilPct)}%)
       </span>
       <button
         type="button"
-        onClick={onRemove}
+        onClick={(e) => {
+          // Stop propagation so clicking ✕ doesn't bubble into a parent
+          // click handler (e.g. the row's [+ Add] popover toggle).
+          e.stopPropagation();
+          onRemove();
+        }}
         className="ml-0.5 rounded text-muted-foreground hover:text-foreground focus:outline-none"
         aria-label={`Remove ${personName}`}
       >

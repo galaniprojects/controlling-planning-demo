@@ -18,6 +18,13 @@
  * scope per the team-lead handoff) — Track A only ships the component
  * and its public surface here. The default export (`CapacityTimeline`)
  * is what the workspace mounts.
+ *
+ * v5.2 W5 Track A (S6b, §9.4 + §9.6): when an assignment session is
+ * active (read via `useAssignmentOverlay`), the timeline overlays
+ * dashed ghost segments on candidate person rows and dispatches
+ * gesture clicks to `setMonthAssignment` / `clearMonthAssignment`.
+ * Also registers the active project's id in the color map so the
+ * ghost border color is stable across the panel and the bars.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,9 +35,13 @@ import {
   useScopedTimelineData,
   type ScopedTimelineData,
 } from '../hooks/useScopedTimelineData';
+import { useAssignmentState } from '../assignment/AssignmentStateContext';
 import { TimeAxisHeader } from './TimeAxisHeader';
 import { RoleGroup } from './RoleGroup';
 import { FlatPersonRow } from './FlatPersonRow';
+import { ProjectGroupView } from './ProjectGroupView';
+import { useAssignmentOverlay } from './useAssignmentOverlay';
+import type { GhostSegment } from './assignmentGhostOverlay';
 import {
   buildVisibleColumns,
   toggleQuarter,
@@ -60,6 +71,12 @@ function CapacityTimelineInner({
   const data = providedData ?? localData;
   const { registerVisibleProjects } = useProjectColorMap();
 
+  // v5.2 W5 — assignment-mode overlay. When `session !== null`, the hook
+  // fetches project + per-request data and returns a `ghostMap` keyed by
+  // personId × month. Empty map when assignment mode is off.
+  const overlay = useAssignmentOverlay(data);
+  const { setMonthAssignment, clearMonthAssignment } = useAssignmentState();
+
   // Register newly-discovered project ids with the color map. The
   // map keeps existing assignments stable; new ids get appended so
   // segment colors don't reshuffle on filter / scope changes.
@@ -68,6 +85,36 @@ function CapacityTimelineInner({
       registerVisibleProjects(data.visibleProjectIds);
     }
   }, [data.visibleProjectIds, registerVisibleProjects]);
+
+  // Register the active session's project id too — its color may not be
+  // present in `visibleProjectIds` (e.g., if the project has no current
+  // allocations on these people yet). Registering keeps the ghost
+  // border / fill stable across renders and matches the
+  // assignment-panel chip color.
+  useEffect(() => {
+    if (overlay.active && overlay.projectId) {
+      registerVisibleProjects([overlay.projectId]);
+    }
+  }, [overlay.active, overlay.projectId, registerVisibleProjects]);
+
+  // Gesture handlers per §9.6.
+  const handleGhostClick = (
+    personId: string,
+    ghost: GhostSegment,
+    month: string,
+  ) => {
+    setMonthAssignment(ghost.requestId, month, personId, ghost.hours);
+  };
+  const handleSessionClick = (
+    _personId: string,
+    ghost: GhostSegment,
+    month: string,
+  ) => {
+    // Single-person flow (W4) — clearing the month removes the user's
+    // session assignment for that request × month, which the next render
+    // re-paints as a ghost via `buildGhostMap`.
+    clearMonthAssignment(ghost.requestId, month);
+  };
 
   // Time-axis state: seeded from the hook's `defaultState` once we
   // know the visible months. Re-seed when the months window changes
@@ -138,16 +185,6 @@ function CapacityTimelineInner({
               </span>
             </>
           )}
-          {data.unsupportedReason === 'project-view-pending' && (
-            <>
-              <span className="font-medium text-foreground">
-                Project view ships in v5.2 W5
-              </span>
-              <span>
-                Switch group-by to Role or Person to use the W3 timeline.
-              </span>
-            </>
-          )}
         </CardContent>
       </Card>
     );
@@ -182,23 +219,50 @@ function CapacityTimelineInner({
         />
 
         <div role="rowgroup">
-          {groupBy === 'role'
-            ? data.roleGroups.map((g) => (
-                <RoleGroup
-                  key={g.roleId}
-                  data={g}
-                  columns={columns}
-                  onPersonClick={onPersonClick}
-                />
-              ))
-            : data.flatPeople.map((p) => (
-                <FlatPersonRow
-                  key={p.personId}
-                  data={p}
-                  columns={columns}
-                  onRowClick={onPersonClick}
-                />
-              ))}
+          {groupBy === 'project' ? (
+            <ProjectGroupView columns={columns} />
+          ) : groupBy === 'role' ? (
+            data.roleGroups.map((g) => (
+              <RoleGroup
+                key={g.roleId}
+                data={g}
+                columns={columns}
+                onPersonClick={onPersonClick}
+                matchingRoleLabels={
+                  overlay.active ? overlay.matchingRoleLabels : undefined
+                }
+                ghostMap={overlay.active ? overlay.ghostMap : undefined}
+                onGhostClick={overlay.active ? handleGhostClick : undefined}
+                onSessionClick={
+                  overlay.active ? handleSessionClick : undefined
+                }
+              />
+            ))
+          ) : (
+            data.flatPeople.map((p) => (
+              <FlatPersonRow
+                key={p.personId}
+                data={p}
+                columns={columns}
+                onRowClick={onPersonClick}
+                ghostsByMonth={
+                  overlay.active
+                    ? overlay.ghostMap.get(p.personId)
+                    : undefined
+                }
+                onGhostClick={
+                  overlay.active
+                    ? (g, m) => handleGhostClick(p.personId, g, m)
+                    : undefined
+                }
+                onSessionClick={
+                  overlay.active
+                    ? (g, m) => handleSessionClick(p.personId, g, m)
+                    : undefined
+                }
+              />
+            ))
+          )}
         </div>
       </div>
     </div>

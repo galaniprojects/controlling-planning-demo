@@ -39,7 +39,10 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { useProjectColor } from '@/contexts/ProjectColorMapContext';
 import { cn } from '@/lib/utils';
 import type { PersonDetail as PersonDetailDto } from '@/types/api';
-import { useCapacitySidePanel } from './CapacitySidePanelContext';
+// NOTE: PersonDetail is rendered via the shared SidePanelProvider
+// (outside CapacitySidePanelProvider's React tree), so the
+// "Review project" entry point arrives as the `onAssignmentRequest`
+// prop closure-captured by `openPerson` in CapacitySidePanelContext.
 
 // ---------------------------------------------------------------------------
 // Utilization bucket → colour class
@@ -141,9 +144,19 @@ function rollUpQuarters(
 interface PersonDetailProps {
   ccId: string;
   personId: string;
+  /**
+   * v5.2 W5 — closure-captured handler that opens the assignment panel
+   * for the clicked project. Passed in by `openPerson` so the cross-
+   * provider portal doesn't have to call `useCapacitySidePanel()`.
+   */
+  onAssignmentRequest?: (projectId: string, ccId: string) => void;
 }
 
-export function PersonDetail({ ccId, personId }: PersonDetailProps) {
+export function PersonDetail({
+  ccId,
+  personId,
+  onAssignmentRequest,
+}: PersonDetailProps) {
   const [data, setData] = useState<PersonDetailDto | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -182,7 +195,11 @@ export function PersonDetail({ ccId, personId }: PersonDetailProps) {
           Failed to load person details.
         </p>
       ) : (
-        <PersonDetailBody data={data} />
+        <PersonDetailBody
+          data={data}
+          ccId={ccId}
+          onAssignmentRequest={onAssignmentRequest}
+        />
       )}
     </div>
   );
@@ -202,7 +219,15 @@ function PersonDetailSkeleton() {
   );
 }
 
-function PersonDetailBody({ data }: { data: PersonDetailDto }) {
+function PersonDetailBody({
+  data,
+  ccId,
+  onAssignmentRequest,
+}: {
+  data: PersonDetailDto;
+  ccId: string;
+  onAssignmentRequest?: (projectId: string, ccId: string) => void;
+}) {
   const projects = rollUpProjects(data.allocations_by_month);
   const quarters = rollUpQuarters(data.allocations_by_month);
   const hasPending = data.pending_requests.length > 0;
@@ -261,9 +286,17 @@ function PersonDetailBody({ data }: { data: PersonDetailDto }) {
         </Section>
       )}
 
-      {/* Pending requests (conditional) */}
+      {/* Pending requests (conditional). v5.2 W5 (S6b §9.1 entry #1):
+          "Review project" calls the closure-captured
+          `onAssignmentRequest` (provided by `openPerson` in
+          CapacitySidePanelContext) so the AssignmentPanel can be
+          dispatched without crossing the side-panel portal boundary. */}
       {hasPending && (
-        <PendingRequestsCard requests={data.pending_requests} />
+        <PendingRequestsCard
+          ccId={ccId}
+          requests={data.pending_requests}
+          onAssignmentRequest={onAssignmentRequest}
+        />
       )}
     </div>
   );
@@ -312,11 +345,23 @@ function AllocationRow({ project }: { project: ProjectRollup }) {
 }
 
 function PendingRequestsCard({
+  ccId,
   requests,
+  onAssignmentRequest,
 }: {
+  ccId: string;
   requests: PersonDetailDto['pending_requests'];
+  /**
+   * v5.2 W5 — bridge for the "Review project" button. PersonDetail is
+   * rendered inside the shared SidePanel (outside
+   * CapacitySidePanelProvider's React tree), so it can't call
+   * useCapacitySidePanel() itself — the closure-captured callback in
+   * CapacitySidePanelContext.openPerson invokes openAssignment for us.
+   * When `undefined` (e.g. during legacy callers) the button falls
+   * back to the existing context lookup so the panel still functions.
+   */
+  onAssignmentRequest?: (projectId: string, ccId: string) => void;
 }) {
-  const { openAssignment } = useCapacitySidePanel();
   const isPlural = requests.length > 1;
 
   return (
@@ -346,8 +391,9 @@ function PendingRequestsCard({
             </div>
             <button
               type="button"
-              onClick={() => openAssignment(r.project_id)}
-              className="self-start rounded-sm border border-amber-400/60 dark:border-amber-600/60 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-200/60 dark:hover:bg-amber-900/40 transition-colors"
+              disabled={!onAssignmentRequest}
+              onClick={() => onAssignmentRequest?.(r.project_id, ccId)}
+              className="self-start rounded-sm border border-amber-400/60 dark:border-amber-600/60 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-200/60 dark:hover:bg-amber-900/40 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
             >
               Review project
             </button>

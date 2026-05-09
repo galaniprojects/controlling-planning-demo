@@ -104,6 +104,8 @@ import type {
   CapacityHistoryFilters,
   CapacityInboxResponse,
   CapacityInboxFilters,
+  CapacityProjectsParams,
+  CapacityProjectsResponse,
 } from '@/types/api';
 
 export const rolesApi = {
@@ -697,6 +699,19 @@ export const capacityApi = {
     const qs = q.toString();
     return api.get<CapacityHistoryResponse>(
       `/api/capacity/history${qs ? '?' + qs : ''}`,
+    );
+  },
+
+  // --- v5.2 W5 group-by-project view (spec §10) ---
+  getProjects: (params: CapacityProjectsParams = {}) => {
+    const q = new URLSearchParams();
+    if (params.scope) q.set('scope', params.scope);
+    if (params.start) q.set('start', params.start);
+    if (params.end) q.set('end', params.end);
+    if (params.filter_chip) q.set('filter_chip', params.filter_chip);
+    const qs = q.toString();
+    return api.get<CapacityProjectsResponse>(
+      `/api/capacity/projects${qs ? '?' + qs : ''}`,
     );
   },
 

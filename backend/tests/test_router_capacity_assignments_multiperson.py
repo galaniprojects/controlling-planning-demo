@@ -274,3 +274,95 @@ class TestValidation:
             },
         )
         assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Multi-person save-draft → audit log (W5 S10, spec §9.5 + §12.10)
+# ---------------------------------------------------------------------------
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestMultiPersonAuditDetail:
+    """The `assign_draft` audit row must include each per-person split in
+    its detail_payload so the history-detail expansion can render
+    "F. Keller 40h | L. Fischer 40h"."""
+
+    def test_audit_payload_lists_each_person(
+        self, test_client, db, seed_request,
+    ):
+        from models.capacity import CapacityActionLog
+
+        rid = seed_request["request_id"]
+        resp = test_client.put(
+            f"/api/capacity/requests/cc-muc-dev/{rid}/assignments",
+            headers=HEADERS_CCO,
+            json={
+                "assignments": [{
+                    "month": "2026-04",
+                    "assignments": [
+                        {"person_id": "p-dev-1", "hours": 40},
+                        {"person_id": "p-dev-2", "hours": 40},
+                    ],
+                }],
+            },
+        )
+        assert resp.status_code == 200
+
+        latest = (
+            db.query(CapacityActionLog)
+            .filter(CapacityActionLog.action_type == "assign_draft")
+            .order_by(CapacityActionLog.id.desc())
+            .first()
+        )
+        assert latest is not None
+
+        import json as _json
+        payload = latest.detail_payload
+        if isinstance(payload, str):
+            payload = _json.loads(payload)
+        # Both people show up in the assignments list.
+        names = {a.get("person_id") for a in payload.get("assignments", [])}
+        assert names == {"p-dev-1", "p-dev-2"}
+        # Hours are preserved per row.
+        hours = {
+            a["person_id"]: float(a["hours"])
+            for a in payload["assignments"]
+        }
+        assert hours["p-dev-1"] == 40
+        assert hours["p-dev-2"] == 40
+
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestPartialMultiPersonSavePersists:
+    """Spec §9.5: a partial split (sum < requested) is permitted. The save
+    must keep both rows so a subsequent project confirm sees the partial
+    state and routes through the partial_confirm branch."""
+
+    def test_partial_split_round_trip(self, test_client, db, seed_request):
+        from models.capacity import ResourceRequestAssignment
+
+        rid = seed_request["request_id"]
+        # Save a 40h + 30h split for an 80h request → 70h total = partial.
+        resp = test_client.put(
+            f"/api/capacity/requests/cc-muc-dev/{rid}/assignments",
+            headers=HEADERS_CCO,
+            json={
+                "assignments": [{
+                    "month": "2026-04",
+                    "assignments": [
+                        {"person_id": "p-dev-1", "hours": 40},
+                        {"person_id": "p-dev-2", "hours": 30},
+                    ],
+                }],
+            },
+        )
+        assert resp.status_code == 200
+
+        rows = (
+            db.query(ResourceRequestAssignment)
+            .filter(ResourceRequestAssignment.resource_request_id == rid)
+            .order_by(ResourceRequestAssignment.person_id)
+            .all()
+        )
+        assert len(rows) == 2
+        total = sum(float(r.hours) for r in rows)
+        assert total == 70  # request was 80, we left 10h unfilled

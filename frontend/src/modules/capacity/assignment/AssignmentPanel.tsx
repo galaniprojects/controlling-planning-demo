@@ -63,6 +63,8 @@ function AssignmentPanelInner({
   const {
     session,
     setMonthAssignment,
+    addPersonToMonth,
+    removePersonFromMonth,
     clearMonthAssignment,
     markSaved,
     exit,
@@ -161,22 +163,43 @@ function AssignmentPanelInner({
   // Computed: total assigned / total months for progress bar
   // -------------------------------------------------------------------------
 
-  const { totalMonths, assignedMonths } = useMemo(() => {
-    if (!detail) return { totalMonths: 0, assignedMonths: 0 };
+  const { totalMonths, assignedMonths, partialMonths } = useMemo(() => {
+    if (!detail) return { totalMonths: 0, assignedMonths: 0, partialMonths: 0 };
     let total = 0;
     let assigned = 0;
+    let partial = 0;
     resourceRequests.forEach((req) => {
       total += req.total_months;
-      // Check context first, then API-reported count
+      // Per-month evaluation: when local context has an entry for the
+      // month, use that (it reflects in-flight edits). Otherwise fall back
+      // to the server-reported assignment_count (W4 single-person heuristic).
       const localMap = session?.assignments.get(String(req.id));
-      const localCount = localMap ? localMap.size : 0;
-      const serverCount = req.assignment_count;
-      assigned += Math.max(localCount, serverCount);
+      if (localMap && localMap.size > 0) {
+        let localAssigned = 0;
+        let localPartial = 0;
+        const requestHours = Number(req.hours_or_amount) || 0;
+        localMap.forEach((people) => {
+          const sum = people.reduce((acc, p) => acc + p.hours, 0);
+          if (sum > 0) {
+            localAssigned += 1;
+            if (requestHours > 0 && sum < requestHours) localPartial += 1;
+          }
+        });
+        // The local map only includes touched months — server-reported
+        // assignment_count covers untouched months for the same request.
+        // Use the larger of the two so we don't double-count but also
+        // don't lose server state.
+        assigned += Math.max(localAssigned, req.assignment_count);
+        partial += localPartial;
+      } else {
+        assigned += req.assignment_count;
+      }
     });
-    return { totalMonths: total, assignedMonths: assigned };
+    return { totalMonths: total, assignedMonths: assigned, partialMonths: partial };
   }, [detail, resourceRequests, session]);
 
-  const isFullyAssigned = totalMonths > 0 && assignedMonths >= totalMonths;
+  const isFullyAssigned =
+    totalMonths > 0 && assignedMonths >= totalMonths && partialMonths === 0;
 
   // -------------------------------------------------------------------------
   // Handlers
@@ -190,10 +213,32 @@ function AssignmentPanelInner({
   );
 
   const handleRemove = useCallback(
-    (requestId: string, month: string, _personId: string) => {
-      clearMonthAssignment(requestId, month);
+    (requestId: string, month: string, personId: string) => {
+      // Single-person months: removing the only chip clears the month.
+      // Multi-person months: removing one chip leaves the remaining people
+      // intact (handled by removePersonFromMonth + the empty-list guard).
+      const reqMap = session?.assignments.get(requestId);
+      const list = reqMap?.get(month) ?? [];
+      if (list.length <= 1) {
+        clearMonthAssignment(requestId, month);
+      } else {
+        removePersonFromMonth(requestId, month, personId);
+      }
     },
-    [clearMonthAssignment],
+    [clearMonthAssignment, removePersonFromMonth, session],
+  );
+
+  const handleAddPerson = useCallback(
+    (
+      requestId: string,
+      month: string,
+      personId: string,
+      hours: number,
+      rebalanceAmount: number,
+    ) => {
+      addPersonToMonth(requestId, month, personId, hours, rebalanceAmount);
+    },
+    [addPersonToMonth],
   );
 
   // Save draft — calls saveRequestAssignments for each dirty request
@@ -300,10 +345,11 @@ function AssignmentPanelInner({
             {/* Project header */}
             <ProjectHeader data={detail} />
 
-            {/* Progress bar */}
+            {/* Progress bar — assigned + partial counts per §9.5. */}
             <AssignmentProgress
               assigned={assignedMonths}
               total={totalMonths}
+              partial={partialMonths}
             />
 
             {/* Empty state — project has requests but none on this CC.
@@ -342,6 +388,7 @@ function AssignmentPanelInner({
                       }
                       onAssign={handleAssign}
                       onRemove={handleRemove}
+                      onAddPerson={handleAddPerson}
                       projectedUtils={new Map()}
                     />
                   </div>

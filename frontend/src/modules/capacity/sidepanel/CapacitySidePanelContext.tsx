@@ -18,7 +18,7 @@
  *   - A handler-registration seam for the two modes whose content this
  *     wave does not own:
  *
- *         project_summary → registered by Track A (Wave 4, Session 9)
+ *         project_summary → registered by Track B (Wave 5, Session 9)
  *         assignment      → registered by Track A (Wave 4, Session 6a)
  *
  *     Calling `openProjectSummary` / `openAssignment` before the owning
@@ -118,7 +118,7 @@ interface CapacitySidePanelState {
   openCell: (args: OpenCellArgs) => void;
   /**
    * Open the project-summary panel (§10.8). Stub — no-op with a
-   * console.warn until Track A (W4 §10) registers its handler via
+   * console.warn until Track B (W5 §10) registers its handler via
    * `registerProjectSummaryHandler`.
    */
   openProjectSummary: ProjectSummaryHandler;
@@ -170,12 +170,33 @@ export function CapacitySidePanelProvider({ children }: { children: ReactNode })
       setMode({ kind: 'person', ccId, personId });
       openPanel(
         opts?.title ?? 'Person detail',
-        <PersonDetail ccId={ccId} personId={personId} />,
+        <PersonDetail
+          ccId={ccId}
+          personId={personId}
+          // v5.2 W5 — closure-captured bridge for the "Review project"
+          // button on the pending-requests card (§9.1 entry #1). The
+          // PersonDetail component is mounted inside the shared
+          // SidePanel — outside this provider's React tree — so it
+          // can't call `useCapacitySidePanel` itself.
+          onAssignmentRequest={(projectId, ccIdForAssignment) =>
+            openAssignmentRef.current(projectId, {
+              ccId: ccIdForAssignment,
+            })
+          }
+        />,
         { width: CAPACITY_PANEL_WIDTH.person },
       );
     },
     [openPanel],
   );
+
+  // openAssignment is declared below; capture it via a ref so openCell's
+  // closure-captured `onAssignmentRequest` always invokes the latest
+  // handler-dispatch function. (Direct dependency would force a circular
+  // declaration order.)
+  const openAssignmentRef = useRef<AssignmentHandler>(() => {
+    // Initialised below.
+  });
 
   const openCell = useCallback(
     (args: OpenCellArgs) => {
@@ -196,6 +217,14 @@ export function CapacitySidePanelProvider({ children }: { children: ReactNode })
           pivot={args.pivot}
           month={args.month}
           rowLabel={args.rowLabel}
+          // v5.2 W5 — bridge for the demand-mode "Review project"
+          // button. CellDetail is rendered inside the shared SidePanel
+          // (outside CapacitySidePanelProvider's React tree), so it
+          // can't call useCapacitySidePanel() itself; the closure
+          // captures openAssignment here instead.
+          onAssignmentRequest={(projectId, ccId, crId) =>
+            openAssignmentRef.current(projectId, { ccId, crId })
+          }
         />,
         { width: CAPACITY_PANEL_WIDTH.cell },
       );
@@ -211,7 +240,7 @@ export function CapacitySidePanelProvider({ children }: { children: ReactNode })
     }
     console.warn(
       '[CapacitySidePanel] openProjectSummary called before a handler ' +
-        'was registered. Project summary content lands in W4 (Session 9 — ' +
+        'was registered. Project summary content lands in W5 (Session 9 — ' +
         'group-by-project view).',
       { projectId },
     );
@@ -229,6 +258,10 @@ export function CapacitySidePanelProvider({ children }: { children: ReactNode })
       { projectId, ...opts },
     );
   }, []);
+
+  // Keep the ref in sync so openCell's closure-captured callback always
+  // dispatches through the freshest implementation.
+  openAssignmentRef.current = openAssignment;
 
   const closePanel = useCallback(() => {
     setMode(null);
