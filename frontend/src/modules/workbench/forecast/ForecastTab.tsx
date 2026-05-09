@@ -10,7 +10,11 @@ import { VersionComparisonDialog } from './VersionComparisonDialog';
 import { ManualSnapshotDialog } from './ManualSnapshotDialog';
 import { useForecastVersions } from './useForecastVersions';
 import { workbenchApi } from '@/api/endpoints';
-import { Clock, Camera } from 'lucide-react';
+import { Clock, Camera, CalendarRange, X } from 'lucide-react';
+// v5.2 W6 S11 (§13.9) — PL "Check availability" slide-over from F&P.
+import { useWideSlideOver } from '@/contexts/WideSlideOverContext';
+import PLAvailabilitySlideOver from '@/modules/capacity/availability/PLAvailabilitySlideOver';
+import type { RequestedRoleSlot } from '@/modules/capacity/PLAvailabilityView';
 
 interface PendingCR {
   cr_id: number;
@@ -36,6 +40,14 @@ export function ForecastTab({ projectId, role }: Props) {
   const [pendingCR, setPendingCR] = useState<PendingCR | null>(null);
   const [diffDialogVersionId, setDiffDialogVersionId] = useState<number | null>(null);
   const [snapshotDialogOpen, setSnapshotDialogOpen] = useState(false);
+  // v5.2 W6 S11 — captured slot from the PL availability slide-over.
+  // Renders as a banner above the grid until cleared. Spec §13.9: the
+  // request form on the Workbench is populated with the selected role,
+  // location and suggested period when the PL clicks "Request this role".
+  const [capturedRequest, setCapturedRequest] = useState<RequestedRoleSlot | null>(
+    null,
+  );
+  const { openSlideOver, closeSlideOver } = useWideSlideOver();
 
   // v5.1 [C-04]: shared scroll container ref so the F&P grid and the
   // comparison chart below can scroll in lockstep on the same time axis.
@@ -61,7 +73,31 @@ export function ForecastTab({ projectId, role }: Props) {
   useEffect(() => {
     setMode('read');
     setDiffDialogVersionId(null);
+    setCapturedRequest(null);
   }, [projectId]);
+
+  // v5.2 W6 S11 — open the wide slide-over with the PL availability view.
+  // The slide-over's "Request this role" CTA fires onRequestRole(slot),
+  // which closes the panel and stores the captured slot for the F&P form
+  // banner to render.
+  function handleCheckAvailability() {
+    openSlideOver(
+      'Resource Availability',
+      <PLAvailabilitySlideOver
+        // No role/location pre-selection — projects don't carry a single
+        // canonical role/location. The PL chooses inside the panel.
+        initialLocationId={capturedRequest?.location_id ?? null}
+        initialRoleIds={
+          capturedRequest?.role_type_id ? [capturedRequest.role_type_id] : []
+        }
+        onRequestRole={(slot) => {
+          // §13.9: panel closes and form on Workbench is populated.
+          closeSlideOver();
+          setCapturedRequest(slot);
+        }}
+      />,
+    );
+  }
 
   // Build sub_category → display name lookup from v4 forecast grid
   // (the C1 mixed-granularity endpoint returns IDs only).
@@ -142,6 +178,19 @@ export function ForecastTab({ projectId, role }: Props) {
                   </Badge>
                 </div>
               )}
+              {/* v5.2 W6 S11 (§13.9) — opens PL availability slide-over.
+                  Lets the PL browse role-level capacity without leaving
+                  the Workbench, then "Request this role" populates the
+                  banner below with the captured slot. */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCheckAvailability}
+                className="gap-1.5"
+              >
+                <CalendarRange className="h-3.5 w-3.5" />
+                Check availability
+              </Button>
               <Button onClick={() => setMode('cycle')} disabled={!!pendingCR}>
                 Rolling Forecast Review
               </Button>
@@ -149,6 +198,16 @@ export function ForecastTab({ projectId, role }: Props) {
           )}
         </div>
       </div>
+
+      {/* Captured request banner — populated when the PL clicks
+          "Request this role" inside the availability slide-over. */}
+      {capturedRequest && (
+        <CapturedRequestBanner
+          slot={capturedRequest}
+          onClear={() => setCapturedRequest(null)}
+          onEdit={handleCheckAvailability}
+        />
+      )}
 
       <MixedGranularityGrid
         projectId={projectId}
@@ -191,5 +250,87 @@ export function ForecastTab({ projectId, role }: Props) {
         onSnapshotCreated={reloadVersions}
       />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CapturedRequestBanner — v5.2 W6 S11 (§13.9)
+//
+// Renders the captured role/location/period after the PL clicks "Request
+// this role" inside the availability slide-over. This is the visible
+// "form populated with the selected role/location/period" the spec
+// requires. The user can clear or re-open the panel to adjust.
+// ---------------------------------------------------------------------------
+
+const MONTH_LABEL = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function formatMonthLabel(month: string | undefined): string | null {
+  if (!month) return null;
+  const m = parseInt(month.slice(5, 7), 10) - 1;
+  const y = month.slice(0, 4);
+  return `${MONTH_LABEL[m] ?? month} ${y}`;
+}
+
+function CapturedRequestBanner({
+  slot,
+  onClear,
+  onEdit,
+}: {
+  slot: RequestedRoleSlot;
+  onClear: () => void;
+  onEdit: () => void;
+}) {
+  const periodLabel = formatMonthLabel(slot.suggested_month);
+  return (
+    <section
+      role="status"
+      aria-live="polite"
+      className="flex items-start justify-between gap-3 rounded-lg border border-border bg-accent/50 p-4"
+    >
+      <div className="space-y-2 min-w-0">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <CalendarRange className="h-3.5 w-3.5" />
+          <span>Resource request — pre-filled from availability</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <div className="min-w-0">
+            <div className="text-xs text-muted-foreground">Role</div>
+            <div className="font-medium text-foreground truncate">
+              {slot.role_type_name}
+            </div>
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs text-muted-foreground">Location</div>
+            <div className="font-medium text-foreground truncate">
+              {slot.location_name ?? 'All locations'}
+            </div>
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs text-muted-foreground">Suggested period</div>
+            <div className="font-medium text-foreground truncate">
+              {periodLabel ?? '—'}
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Adjust the suggested period as needed when you submit the resource
+          request via the next forecast cycle.
+        </p>
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <Button variant="outline" size="sm" onClick={onEdit}>
+          Edit
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClear}
+          aria-label="Clear pre-filled request"
+          className="h-8 w-8 p-0"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    </section>
   );
 }
