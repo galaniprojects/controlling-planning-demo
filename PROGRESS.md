@@ -7,9 +7,11 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 - [x] **Wave 1** — Capacity backend foundation (S1): schema relaxation + `CapacityActionLog` table + 4 new endpoints (`/dashboard/forecast`, `/dashboard/headcount-breakdown`, `/dashboard/hotspots`, `/history`) + 2 enhanced endpoints (role-availability with `competing_demand_count` + `location_summary`; assignments PUT with multi-person body shape) + audit log writes wired into 4 mutating handlers + seed enrichment per spec §1 acceptance criteria — branch `feat/v5_2-capacity-foundation` (PR #88 merged 2026-05-08)
 - [x] **Wave 2** — Frontend workspace shell (S2): routes, ScopeBar, workspace skeleton, SidePanel width parameterization — branch `feat/v5_2-capacity-shell` (PR #90 merged 2026-05-08)
 - [x] **Wave 3** — Core surfaces (S3+S4+S5a+S5b, 4-teammate team): timeline + KPIs/filters/demand strip + side panel + inbox/history page — branch `feat/v5_2-capacity-core-surfaces` (PR #91 merged 2026-05-08)
-- [x] **Wave 4** — Complex features (S6a+S7+S8, 3-teammate team): assignment panel + dashboard layer + PL availability view — branch `feat/v5_2-capacity-complex-features` (PR pending)
-- [x] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification — branch `feat/v5_2-capacity-w5-secondwave` (Lead integration verified, PR pending user review)
-- [ ] **Wave 6** — Integration + polish (S11+S12): cross-cutting integration + edge cases + a11y + perf
+- [x] **Wave 4** — Complex features (S6a+S7+S8, 3-teammate team): assignment panel + dashboard layer + PL availability view — branch `feat/v5_2-capacity-complex-features` (PR #92 merged 2026-05-08)
+- [x] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification — branch `feat/v5_2-capacity-w5-secondwave` (PR #93 merged 2026-05-10, sha `3809fd9`)
+- [x] **Wave 6** — Integration + polish (S11+S12, 3-teammate team): entry-point sweep + dashboard click wiring + Workbench §13.9 slide-over + a11y + empty states + W3/W4/W5 polish backlog — branch `feat/v5_2-capacity-w6-integration-polish` (PR pending user review)
+
+**v5.2 cycle complete** — six waves, six PRs (#88 / #90 / #91 / #92 / #93 / pending). Capacity Module Redesign closed 2026-05-10.
 
 ### v5.2 Wave 6 — Track A (2026-05-10, branch `feat/v5_2-capacity-w6-integration-polish`)
 
@@ -46,6 +48,34 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 - `tsc --noEmit` clean across all Track A edits.
 - `pytest` 1685 passed (= W5 baseline 1688 − 3 filter_chip tests removed).
 - 17 screenshots in `qa/screenshots/v5_2_w6_track_a/` covering all 6 §9.1 paths + bonus W6 wirings + persona routing.
+
+### v5.2 Wave 6 — Track B (2026-05-10, branch `feat/v5_2-capacity-w6-integration-polish`)
+
+`react-specialist` teammate `track-b` on the 3-track team (`v5_2-w6-integration-polish`). Owns the §13.9 Workbench PL availability slide-over (S11 deliverable) plus 4 polish-backlog items spread across SidePanel / PersonPicker / DashboardLayer / useScopedTimelineData.
+
+**Track B commits (4 commits — task ID order):**
+
+- **#5 WideSlideOver shared primitive (`777772d`)** — NEW `frontend/src/contexts/WideSlideOverContext.tsx` (provider + hook + render-slot, mirrors `BottomDrawerContext`) + NEW `frontend/src/components/shared/WideSlideOver.tsx` (50vw drawer, clamped 600–900px, right slide-in via CSS transform, dimmed backdrop with click-outside close, × close button, Escape-to-close, lightweight focus trap with focus restoration to trigger on close). Wired `<WideSlideOverProvider>` in `App.tsx` next to `<BottomDrawerProvider>` + render slot in `AppLayout`. Orthogonal to the existing 380px `SidePanel` — separate primitives.
+
+- **#6 PLAvailabilitySlideOver wrapper + slide-over mode (`2284e09`)** — NEW `frontend/src/modules/capacity/availability/PLAvailabilitySlideOver.tsx` thin wrapper exposing `onRequestRole(slot)` to the host. MODIFIED `PLAvailabilityView.tsx` — accepts `mode='page' | 'slideover'` (default `'page'`). In `slideover` mode: hides page-level `ModuleHeader`, skips URL sync of filter state (slide-over is ephemeral), renders the side panel inline beneath the grid (no panel-within-panel), and routes "Request this role" through `onRequestRole(slot)` where `slot` carries role / location / suggested_month (spec §13.7 — picks the month with highest `available_hours`). MODIFIED `AvailabilitySidePanel` + `QuickRequestAction` to accept optional `onRequest` override + `helperText`. `'page'` mode behaviour unchanged for the standalone `/capacity/availability` route.
+
+- **#7 Workbench Forecast & Planning "Check availability" CTA (`a3c4ae8`)** — MODIFIED `frontend/src/modules/workbench/forecast/ForecastTab.tsx`:
+  * New "Check availability" button in the F&P actions cluster, gated to PL + active project (next to "Rolling Forecast Review").
+  * Opens the `WideSlideOver` with `<PLAvailabilitySlideOver />`, pre-selecting any previously-captured location/role (so Edit re-opens with prior context).
+  * `onRequestRole(slot)` callback closes the slide-over and stores the captured slot in local state.
+  * NEW `CapturedRequestBanner` renders above the grid showing role / location / suggested period (the month with highest available hours) with Edit / Clear (×) controls. Clears on project switch.
+  * Visual verification (1440×900, light + dark, persona-pl) — 5 screenshots in `qa/screenshots/v5_2_w6_track_b/`: F&P tab with the new button next to RFR; 50vw slide-over open with scope/KPIs/grid + dimmed backdrop; inline AvailabilitySidePanel after role selection; banner populated with `Data Engineer / All locations / Jan 2027` after request and slide-over closed; standalone `/capacity/availability` page still uses `ModuleHeader` + the shared 280px `SidePanel` (unchanged).
+
+- **#8 polish backlog (`cb5b9ee`)** — 4 small items:
+  * **#8.1 — `SidePanelContext.openPanel` race**: clear `beforeCloseRef.current` at the top of `openPanel` so swapping content without closing first doesn't leave a stale unsaved-changes guard registered against the previous content. ~5 LOC.
+  * **#8.2 — PersonPicker batch projection cache**: hoisted the per-`(cc, request, person, month)` projection lookup into a module-level `Map` so rapid picker re-opens reuse already-fetched values; coalesces concurrent in-flight requests via a separate inflight `Map` so two re-mounts don't double-fetch the same key; hydrates synchronously from the cache where available. ~50 LOC.
+  * **#8.3 — DashboardLayer responsive max-height clip**: the flat `max-h-[320px]` clipped the bottom row of cards on viewports shorter than ~900px. Switched to `max-h-none` default + `[@media(min-height:900px)]:max-h-[320px]` on tall screens (preserves the existing compact layout). Bumped the outer slide-up wrapper to 720px so the responsive single-column stack isn't clipped by the *outer* animation. ~15 LOC.
+  * **#8.4 — `useScopedTimelineData` deps audit**: read every `useEffect`/`useCallback` for stale-closure risks; documented findings in a comment block above the deps array. No bugs found; existing patterns (token sentinel for async staleness, `scope.kind/scope.id` destructuring, `activeFilters.join(',')` change signal) are correct. ~15 LOC of comments.
+
+**Verification:**
+- `tsc --noEmit` clean across all Track B edits.
+- `pytest` baseline preserved (no backend changes from Track B).
+- Visual verification at 1440×900 light + dark via Playwright — 5 + 2 screenshots in `qa/screenshots/v5_2_w6_track_b/`.
 
 ### v5.2 Wave 6 — Track C (2026-05-10, branch `feat/v5_2-capacity-w6-integration-polish`)
 
