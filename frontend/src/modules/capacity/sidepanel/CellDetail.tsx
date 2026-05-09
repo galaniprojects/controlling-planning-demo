@@ -42,16 +42,32 @@ import type {
   OrgDetailItem,
   OrgDetailResponse,
 } from '@/types/api';
-import { useCapacitySidePanel } from './CapacitySidePanelContext';
+// NOTE: CellDetail is rendered via the shared SidePanelProvider (outside
+// CapacitySidePanelProvider's React tree), so it cannot call
+// `useCapacitySidePanel()` directly. The "Review project" action arrives
+// as the `onAssignmentRequest` prop, closure-captured by `openCell` in
+// CapacitySidePanelContext.
 
 interface CellDetailProps {
   dimensionId: string;
-  /** e.g., 'role' | 'cost_center' | 'location' | 'hierarchy'. */
+  /** e.g., 'role' | 'cost_center' | 'location' | 'hierarchy' | 'demand'. */
   pivot: string;
   /** Optional month focus (`YYYY-MM`). */
   month?: string;
   /** Human-readable row label (e.g., 'MUC' or 'App Development'). */
   rowLabel: string;
+  /**
+   * v5.2 W5 — invoked from the demand-mode body when the user clicks
+   * "Review project" on a pending request row. Provided by
+   * `CapacitySidePanelContext.openCell` (closure-captures the
+   * `openAssignment` action) so this component never has to call
+   * `useCapacitySidePanel` from inside the cross-provider portal.
+   */
+  onAssignmentRequest?: (
+    projectId: string,
+    ccId: string,
+    crId?: number,
+  ) => void;
 }
 
 export function CellDetail({
@@ -59,6 +75,7 @@ export function CellDetail({
   pivot,
   month,
   rowLabel,
+  onAssignmentRequest,
 }: CellDetailProps) {
   // §9.1 entry-point #2 — the demand strip routes here with pivot='demand'.
   // Branch out to a separate body so the `getOrgHeatmapDetail` call (which
@@ -70,7 +87,10 @@ export function CellDetail({
         className="animate-in fade-in-0 duration-200 space-y-4"
       >
         <CellHeader pivot={pivot} rowLabel={rowLabel} month={month} />
-        <DemandCellBody month={month} />
+        <DemandCellBody
+          month={month}
+          onAssignmentRequest={onAssignmentRequest}
+        />
       </div>
     );
   }
@@ -348,12 +368,21 @@ function ProjectRow({
  * period". The clicked month is shown in the panel header so the
  * user retains spatial context.
  */
-function DemandCellBody({ month: _month }: { month?: string }) {
+function DemandCellBody({
+  month: _month,
+  onAssignmentRequest,
+}: {
+  month?: string;
+  onAssignmentRequest?: (
+    projectId: string,
+    ccId: string,
+    crId?: number,
+  ) => void;
+}) {
   void _month;
   const [items, setItems] = useState<CapacityInboxItem[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { openAssignment } = useCapacitySidePanel();
 
   useEffect(() => {
     let cancelled = false;
@@ -436,17 +465,20 @@ function DemandCellBody({ month: _month }: { month?: string }) {
             )}
             <button
               type="button"
+              disabled={!onAssignmentRequest}
               onClick={() =>
-                openAssignment(it.project_id, {
-                  ccId: it.cc_id,
-                  crId: it.cr_id ?? undefined,
-                })
+                onAssignmentRequest?.(
+                  it.project_id,
+                  it.cc_id,
+                  it.cr_id ?? undefined,
+                )
               }
               className={cn(
                 'w-full rounded-sm border border-primary/30 bg-primary/10 px-2 py-1',
                 'text-[11px] font-medium text-primary',
                 'hover:bg-primary/20 transition-colors',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
+                'disabled:cursor-not-allowed disabled:opacity-60',
               )}
             >
               Review project

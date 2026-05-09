@@ -49,6 +49,14 @@
     {
       "title": "Organization Overview Tab",
       "body": "Shows utilization across all cost centres in a single heatmap. Supports three pivot dimensions: by the active portfolio hierarchy level (e.g., Line of Business if that is the configured hierarchy), by Role, and by Cost Centre. Pivot labels adapt dynamically to the active hierarchy configuration set in Administration. Click any cell or row to open a bottom drawer showing project-level consumption detail for that dimension."
+    },
+    {
+      "title": "Multi-Person Month Splits (v5.2)",
+      "body": "A single resource request month can be fulfilled by multiple people, each contributing a portion of the requested hours. On any month row that already has an assignment, click **+ Add** to open a person picker with an editable hours input pre-filled with the remaining hours. Pick a second person and the row shows two chips with their individual portions, e.g. `F. Keller 40h (72%)` and `L. Fischer 40h (45%)`.\\n\\n**Hours sum to the request total.** When you type a value larger than what's left, the largest existing share is reduced automatically so the sum stays at the requested hours. Otherwise the new person is appended without touching existing chips. Removing one chip leaves the other(s) intact; removing the last chip clears the row.\\n\\n**Partial assignments are allowed.** A month where the per-person sum is less than the requested hours shows a `Nh remaining` indicator. The progress bar above the role sections breaks the count down as `N full · N partial · N unassigned`, and the action bar offers **Confirm partial & send to controller** when any month is partially assigned. The controller is notified of the partial fulfillment in their approval review."
+    },
+    {
+      "title": "Recently Completed & Audit Trail (v5.2)",
+      "body": "The Resource Requests inbox (`/capacity/requests`) ends with a collapsible **Recently completed** section showing your CC's actions over the last 7 days — confirms, partials, declines, and CR re-confirmations. Rows are non-actionable and link to the project workspace in read-only mode. A **View full history** link at the bottom opens the audit trail page.\\n\\nThe full audit trail at `/capacity/history` lists every capacity action chronologically with filters for acting user, action type, cost centre, project, and date range. Click any row's chevron to expand the structured detail payload — roles affected, people assigned, partial-month counts, decline reason. Action types include `confirm`, `partial_confirm` (logged automatically when a project is confirmed with one or more partially-assigned months), `decline`, `decline_request` (single-request decline within the assignment panel), `assign_draft`, and `cr_reconfirm` for change-request re-confirmations."
     }
   ]
 }

@@ -8,8 +8,54 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 - [x] **Wave 2** — Frontend workspace shell (S2): routes, ScopeBar, workspace skeleton, SidePanel width parameterization — branch `feat/v5_2-capacity-shell` (PR #90 merged 2026-05-08)
 - [x] **Wave 3** — Core surfaces (S3+S4+S5a+S5b, 4-teammate team): timeline + KPIs/filters/demand strip + side panel + inbox/history page — branch `feat/v5_2-capacity-core-surfaces` (PR #91 merged 2026-05-08)
 - [x] **Wave 4** — Complex features (S6a+S7+S8, 3-teammate team): assignment panel + dashboard layer + PL availability view — branch `feat/v5_2-capacity-complex-features` (PR pending)
-- [ ] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification
+- [ ] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification — branch `feat/v5_2-capacity-w5-secondwave` (in progress)
 - [ ] **Wave 6** — Integration + polish (S11+S12): cross-cutting integration + edge cases + a11y + perf
+
+### v5.2 Wave 5 — Second-wave features (2026-05-09, branch `feat/v5_2-capacity-w5-secondwave`)
+
+3-teammate `react-specialist` agent team (`v5_2-w5-capacity-secondwave`) running in parallel with worktree isolation off the shared branch.
+
+**Track C — `react-specialist` (Session 10 — multi-person split + audit verification, 3 commits, `257c95f` / `b2affa3` / `413d1e9`):**
+
+Implements the §9.5 multi-person partial assignment UX on the Wave 4 assignment panel and rounds out the §12.10 audit-log coverage so the project-level confirm endpoint distinguishes full from partial fulfilment.
+
+- MODIFY `frontend/src/modules/capacity/assignment/AssignmentStateContext.tsx` — extends the W4 single-person model with three new actions: `addPersonToMonth(reqId, month, personId, hours, rebalanceAmount?)` (append-or-update with explicit overflow rebalance against the largest other share, with cascade to additional shares if the largest isn't enough), `removePersonFromMonth(reqId, month, personId)` (drops one person from a multi-person split; falls through to clear-month when it was the last one), and `setMonthAssignmentList(reqId, month, list)` (replace primitive). Existing `setMonthAssignment` / `clearMonthAssignment` semantics are unchanged for the W4 [Assign] entry point.
+- MODIFY `frontend/src/modules/capacity/assignment/PersonPicker.tsx` — adds `showHoursInput` + `defaultHours` + `excludedPersonIds` props. When invoked from [+ Add], the picker renders an editable hours number input above the candidate list pre-filled with the remaining hours, hides already-assigned people from the list, and commits with the typed value; when invoked from [Assign], the picker remains the W4 full-hours commit shape.
+- MODIFY `frontend/src/modules/capacity/assignment/MonthRow.tsx` — replaces the W4 disabled tooltip-stub [+ Add] button with a working popover anchored to the row. Computes `assignedTotal` / `remainingHours` / `isPartial` per spec §9.5 and an explicit `rebalanceAmount = max(0, assignedTotal + hours - requestedHours)` so the parent keeps the requested-hours invariant only when a typed value would over-commit. Renders an "Nh remaining" badge between the chips and the [+ Add] button while the row is partial.
+- MODIFY `frontend/src/modules/capacity/assignment/PersonChip.tsx` — optional `hours` prop renders the per-person portion in multi-person months ("F. Keller 40h (72%)") per the spec example. Optional `showPartialIndicator` highlights partial single-person assignments with an amber chip border. Chip ✕ click stops propagation so the chip remove never bubbles into the [+ Add] popover toggle.
+- MODIFY `frontend/src/modules/capacity/assignment/RoleSection.tsx` — threads `onAddPerson` through to MonthRow with a request-id-prefixed handler.
+- MODIFY `frontend/src/modules/capacity/assignment/AssignmentPanel.tsx` — provides `handleAddPerson` (delegates to `addPersonToMonth`) and a smarter `handleRemove` that branches on list size: single-person months clear the row, multi-person months drop the named person only. Per-month evaluation against `hours_or_amount` so a month with sum < requested counts toward the new `partialMonths` total. `isFullyAssigned` now requires both full coverage AND zero partials so the action bar's "Confirm" branch stays accurate.
+- MODIFY `frontend/src/modules/capacity/assignment/AssignmentProgress.tsx` — adds a `partial` prop and renders a "N full · N partial · N unassigned" detail line. Bar turns amber when every month has at least one person but some are partial — green only on full coverage at requested hours.
+- MODIFY `backend/routers/capacity.py::confirm_project_resources` — walks each pending request's per-month sum(ResourceRequestAssignment.hours) vs. its requested `hours_or_amount_per_month` and tallies `full_months` / `partial_months`. action_type now branches three ways:
+  * any pending request carries a CR → `cr_reconfirm` (W4 behaviour)
+  * else `partial_months > 0` → `partial_confirm` per spec §12.10 row 1 (the "or partial_confirm" branch that was missing pre-W5)
+  * else → `confirm`
+
+  Resource requests with no assignment rows count every month as partial. Floating-point comparison uses 1e-6 epsilon so a 40 + 40 = 80 split round-trips clean. detail_payload now carries `partial_months` and `full_months` so the §12.13 history-detail expansion can render "{N} of {M} months partial" without recomputing. The summary string adds " — N of M months partial" suffix on partial. external_cost requests are intentionally excluded from the partial calculation — they don't have person assignments to compare against.
+- MODIFY `backend/seed/fixtures/manuals/capacity_management.json` — adds two new sections: "Multi-Person Month Splits (v5.2)" describing the [+ Add] flow + rebalance behaviour + partial confirmation, and "Recently Completed & Audit Trail (v5.2)" describing the inbox section + history page + the six audit action types per spec §12.10.
+- MODIFY `README.md` — extends the Capacity Management feature blurb with the W5 multi-person split UI + recently-completed inbox section + the six §12.10 audit action types including the new `partial_confirm` server-side branch.
+
+**Backend tests (+7 → 1687 passed; W4 baseline 1680):**
+- `test_capacity_audit_log.py`:
+  * `TestProjectConfirmPartialBranch::test_partial_assignment_logs_partial_confirm` — 2-month request, 1 month assigned + 1 month empty → `partial_confirm`, payload has `partial_months=1, full_months=1`.
+  * `TestProjectConfirmFullBranch::test_full_coverage_logs_confirm` — both months covered → `confirm`, `partial_months=0`.
+  * `TestProjectConfirmMultiPersonFullSplit::test_two_people_summing_to_full_logs_confirm` — 40 + 40 = 80 single month → `confirm`, `full_months=1`.
+  * `TestAllSixActionTypesEndToEnd::test_assign_draft_then_full_confirm_records_two_log_lines` — multi-person save draft + project confirm round-trip records `[assign_draft, confirm]`.
+  * `TestDeclineRequestKeepsProjectStatus::test_decline_single_request_leaves_project_pending` — `decline_request` does NOT mutate project status (only project-level `decline` advances the project state).
+- `test_router_capacity_assignments_multiperson.py`:
+  * `TestMultiPersonAuditDetail::test_audit_payload_lists_each_person` — assign_draft `detail_payload.assignments` lists each per-person split with their hours.
+  * `TestPartialMultiPersonSavePersists::test_partial_split_round_trip` — 40 + 30 < 80 round-trip keeps both rows for downstream partial_confirm detection.
+
+**Existing audit verification (read-only):**
+- All 6 action types from §12.10 confirmed wired in W1 fix `21054ac` + Track C work above: `confirm` / `partial_confirm` / `decline` / `decline_request` / `assign_draft` / `cr_reconfirm`. Single-request `confirm_request` (PUT /requests/{cc}/{rid}/confirm) is intentionally not logged per impl-guide. Recently-completed section (`frontend/src/modules/capacity/requests/RecentlyCompletedSection.tsx`) is wired against `getCapacityHistory` with a 7-day window and the five "completed" action types, plus a refresh nonce that bumps after a successful decline so the section auto-updates.
+
+**Visual verification (Lead via Playwright at 1440×900):**
+- 11 + 4 screenshots saved to `qa/screenshots/v5_2_w5_track_c/` covering: assignment panel light/dark with progress detail line ("44 full · 51 unassigned"); [+ Add] popover open with hours input ("20 of 40h requested") and candidates ranked by projected utilisation; partial-split state showing two-chip rows + "Nh remaining" indicator; CR re-confirmation panel with hours diffs and partial-confirm action bar warning; recently-completed inbox section with seeded `assign_draft` + live `decline_request` entry; capacity history page with both entries visible and action-type badges.
+- Decline-request audit chain verified end-to-end via `PUT /api/capacity/requests/cc-muc-apd/102/decline` → 1 row in history with action_type=`decline_request`, summary "Declined Developer request (2026-06–2027-12): Capacity constrained — recommending defer to Q4", and the recently-completed inbox section auto-refreshing to show "Declined request today" / "Declined request" red badge.
+
+**Out of scope (Track A / Track B):**
+- Timeline ghost overlay during assignment mode + assignment gestures (Track A — Session 6b).
+- Group-by-project view (Track B — Session 9).
 
 ### v5.2 Wave 4 — Complex features (2026-05-08, branch `feat/v5_2-capacity-complex-features`)
 
