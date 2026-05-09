@@ -8,12 +8,22 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 - [x] **Wave 2** — Frontend workspace shell (S2): routes, ScopeBar, workspace skeleton, SidePanel width parameterization — branch `feat/v5_2-capacity-shell` (PR #90 merged 2026-05-08)
 - [x] **Wave 3** — Core surfaces (S3+S4+S5a+S5b, 4-teammate team): timeline + KPIs/filters/demand strip + side panel + inbox/history page — branch `feat/v5_2-capacity-core-surfaces` (PR #91 merged 2026-05-08)
 - [x] **Wave 4** — Complex features (S6a+S7+S8, 3-teammate team): assignment panel + dashboard layer + PL availability view — branch `feat/v5_2-capacity-complex-features` (PR pending)
-- [ ] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification — branch `feat/v5_2-capacity-w5-secondwave` (in progress)
+- [x] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification — branch `feat/v5_2-capacity-w5-secondwave` (Lead integration verified, PR pending user review)
 - [ ] **Wave 6** — Integration + polish (S11+S12): cross-cutting integration + edge cases + a11y + perf
 
 ### v5.2 Wave 5 — Second-wave features (2026-05-09, branch `feat/v5_2-capacity-w5-secondwave`)
 
-3-teammate `react-specialist` agent team (`v5_2-w5-capacity-secondwave`) running in parallel with worktree isolation off the shared branch.
+3-teammate `react-specialist` agent team (`v5_2-w5-capacity-secondwave`) running in parallel with worktree isolation off the shared branch. Lead pre-work landed first (backend endpoint + frontend seams + comment refresh); 3 teammates ran concurrently and committed straight to the shared branch (worktree isolation didn't take effect — same pattern as W2 — but file ownership stayed clean and there were no merge collisions); Lead verified end-to-end after silent completion.
+
+**Lead pre-work (2 commits, `0b75d2d` / `9792196`):**
+- `GET /api/capacity/projects` endpoint per spec §10 — `services/capacity_projects.py` aggregation (visible-project resolution per §10.12, fulfillment math per §10.3, sort per §10.9, filter chips per §10.10) + 8 new Pydantic models in `schemas/capacity.py` + route handler in `routers/capacity.py` (Controller / Executive / CC Owner; PL = 403). 18 pytest cases in `test_router_capacity_projects.py` covering authorization, response shape, fulfillment math (zero / full / partial / dual-layer utilization), reference-max scaling, sort order, scope filtering (location / cost_center / invalid → 400), and three filter chips (needs_staffing / under_utilized / pending_requests). pytest baseline post-pre-work: 1680 (was 1662 W4 + 18 new).
+- API client + types: `capacityApi.getProjects(params)` in `frontend/src/api/endpoints.ts` + `CapacityProjectItem` / `CapacityProjectAssignedPerson` / `CapacityProjectSlot` / `CapacityProjectExternalCost` / `CapacityProjectsResponse` / `CapacityProjectsParams` in `frontend/src/types/api.ts` (consumed by Track B's `useCapacityProjectsData` hook).
+- TimelineView switch seam in `CapacityTimeline.tsx` — branches on `groupBy === 'project'` and mounts a stub `ProjectGroupView` (Track B replaced the stub's placeholder with the §10 component tree). Removed `'project-view-pending'` empty-state branch from `useScopedTimelineData.ts` so project view flows through its own data feed.
+- `CapacitySidePanelContext` comment refresh — the `registerProjectSummaryHandler` seam was already shipped in W3; updated stale "Wave 4 Session 9" comments to point Track B at "Wave 5 Session 9".
+- Demand-strip stub comment update at `CapacityWorkspace.tsx:230` — pointed the next reader at W5 Track A / S6b §9.1 entry-point #2; prop wiring left intact for Track A to plug into.
+- Seed-data spot check: `RR#102` (proj-autobrake / cc-muc-apd / role-dev / 100h/mo / 3 matching candidates in CC) is a clean multi-person split demo path — no seed changes needed.
+
+
 
 **Track C — `react-specialist` (Session 10 — multi-person split + audit verification, 3 commits, `257c95f` / `b2affa3` / `413d1e9`):**
 
@@ -90,6 +100,42 @@ Implements the §10 component tree for the workspace timeline when `groupBy === 
 **Refactoring opportunities (deferred):**
 - The workspace fetches projects twice when `groupBy === 'project'`: once via `WorkspaceBody.useCapacityProjectsData()` (drives FilterChipBar + ProjectSummary cache) and once via `ProjectGroupView`'s internal fallback fetch. Could thread the hoisted snapshot through `CapacityTimeline` (`projectData` prop) so ProjectGroupView always uses the workspace's cache.
 - `CellDetail.tsx` / `PersonDetail.tsx` carry pre-existing uncommitted working-tree changes from a prior session that mirror the same provider-boundary pattern Track B implemented in `ProjectSummaryPanel`. Lead should review before W5 PR — they're consistent and address the same `useCapacitySidePanel must be used inside <CapacitySidePanelProvider>` runtime error that surfaces when the demand-mode side panel renders pending-request CTAs.
+
+**Track A — `react-specialist` (Session 6b — timeline overlay + gestures + entry points, 5 commits, `4d786d6` / `f2a53b1` / `d92db76` / `a68d20d` / `eef8cf3`):**
+
+Implements §9.4 ghost overlay during assignment mode + §9.6 assignment gestures + §9.1 cross-component entry points, decorating Wave 3 Track A's `PersonTimelineRow` / `RoleGroup` without disturbing the role-view rendering path.
+
+- NEW `frontend/src/modules/capacity/timeline/assignmentGhostOverlay.ts` — pure-function model that derives, for the active `AssignmentState.session`, the per-person × per-month ghost set: matching candidates (1.5px dashed, 30% opacity, project color) vs. fallback candidates (1px dashed, 15% opacity); over-allocation override (red dashed) when ghost + existing > 100%; CR direction override (blue for `increase`, orange for `decrease`) per §9.8; auto-expand role-group set so collapsed groups containing matching candidates pop open when the panel opens.
+- NEW `frontend/src/modules/capacity/timeline/useAssignmentOverlay.ts` — hook reading `AssignmentState` + the active `useScopedTimelineData` snapshot + cross-CC request fetch (`zero-404` fix in `eef8cf3` filters non-scope CCs out before the request loop so an Executive at All-CCs doesn't 404 on every CC-scoped request endpoint).
+- NEW `frontend/src/modules/capacity/timeline/GhostOverlay.tsx` + `GhostBar.tsx` — visual layers that absolute-position over the regular `SegmentBar`. Click-ghost → `setMonthAssignment(reqId, month, personId, fullRemainingHours)` and the segment solidifies. Click-just-assigned-solid (within session) shows "✕ Remove" tooltip → `clearMonthAssignment`.
+- MODIFY `frontend/src/modules/capacity/timeline/PersonTimelineRow.tsx` — composes `GhostOverlay` over the existing `SegmentBar` row. Click-name-cell → confirmation tooltip "Assign {name} to {N} months of {role}? Confirm/Cancel" → bulk-assigns the person to all unassigned matching-role months (never overwrites already-assigned).
+- MODIFY `frontend/src/modules/capacity/timeline/RoleGroup.tsx` — auto-expand role groups containing matching candidates whenever assignment mode opens (driven by `assignmentGhostOverlay`'s exposed set).
+- MODIFY `frontend/src/modules/capacity/sidepanel/PersonDetail.tsx` — pending-request card carries a closure-captured `onAssignmentRequest` prop; the side panel hands it down via `CapacitySidePanelContext.openPerson` (cross-provider bridge). Clicking "Review project" reaches `enterAssignmentMode` end-to-end.
+- MODIFY `frontend/src/modules/capacity/sidepanel/CellDetail.tsx` — same closure-captured `onAssignmentRequest` bridge for the demand-mode pending-request CTAs (resolves the `useCapacitySidePanel must be used inside <CapacitySidePanelProvider>` runtime error Track B noted in its handover).
+- MODIFY `frontend/src/modules/capacity/CapacityWorkspace.tsx` — replaces the demand-cell `void period` no-op with a real handler that fetches the period's pending-RR list and opens the side panel with a filtered `<DemandPeriodRequests />` content node; each row's "Review project" CTA → `openAssignment(projectId, { ccId, crId })`.
+- Open-while-dirty integration: clicking any entry point while another assignment session is dirty surfaces the W4 unsaved-changes dialog from `AssignmentStateContext.requestExit` before swapping projects.
+
+**Lead integration (no merge commits — teammates committed straight to the shared branch; Lead verification only):**
+
+- `npx tsc --noEmit` clean across the integrated branch.
+- `pytest tests/ -q` 1687 passed (1680 W4 baseline + 18 Lead-pre-work projects-endpoint tests + 7 Track-C audit/multi-person tests; the 18 from pre-work were already counted in the post-pre-work baseline so the W5 net new = 25). Background run completed in 124s.
+- Visual verification at 1440×900 via Playwright across all four personas in light + dark; screenshots in `qa/screenshots/v5_2_w5/`:
+  * `01_project_view_default_persona.png` / `02_project_view_viewport.png` — Controller @ All-CCs project view: full project list with fulfillment bars, dashboard cards visible above (multi-CC scope per §11.1), filter chips including "Needs staffing".
+  * `03_project_summary_side_panel.png` — clicking "Autonomous Braking Prototype" project group opens 280px Project Summary panel with role-by-role progress (`Senior Solution Ar... 640h / 640h` ✓ green; multiple `0h / Nh` red), `Total allocated (window) 0h`, "Review & assign" + "View in workbench" CTAs.
+  * `04_assignment_mode_panel.png` / `05_assignment_mode_full_page.png` — "Review & assign" → 400px AssignmentPanel with multi-person split rows (`F. Heinr... 80h` + `P. Sharma 80h` chips on each month).
+  * `06_role_view_baseline.png` — role view at MUC / Application Development scope, no regression.
+  * `07_role_view_assignment_ghosts.png` / `08_role_view_assignment_viewport.png` — role view + ?assignment_project=proj-autobrake URL param entry; live DOM check confirms 40 dashed-border ghost segments (sample: `border-color: rgb(133, 183, 235)` matching candidate; `rgb(220, 38, 38)` over-allocation; `border-width: 1px`, `opacity: 0.15` matches §9.4 fallback rule).
+  * `09_dark_role_view_assignment.png` — dark mode role view + assignment panel; semantic Tailwind classes carry through cleanly.
+  * `10_dark_project_view_cc_owner.png` — CC-Owner (Thomas Brenner) @ My-CC project view in dark mode; dashboard correctly hidden per §11.1, "Needs staffing" chip count visible.
+  * `11_pl_redirect_availability.png` — PL navigates to `/capacity` and is redirected to `/capacity/availability` per §15.
+  * `12_dark_project_view_executive.png` — Executive (Dr. Klaus Weber) @ All-CCs project view in dark mode; tabs are Workspace + History only (no Requests — correct per §12.1); KPI bar shows graceful "—" on `Pending requests` card after the W4 P1 fix (Promise.allSettled tolerates the expected 403 on `/api/capacity/inbox`).
+- Cross-track integration NOT needed — Track B's `ProjectGroupView.handleSlotClick` already wires `UnassignedSlotRow` → `enterAssignmentMode + openAssignment` end-to-end (the Lead pre-work brief had the wire-up scheduled as a Lead post-merge step but Track B took it).
+
+**Out of scope (deferred to W6 by design — don't re-flag):**
+- Workbench → PL availability slide-over (§13.9) — Session 11.
+- End-to-end entry-point sweep + deprecation redirect audit across other modules (Portfolio approval queue / Launchpad pending actions still link to `/capacity/project-assignment/{pid}`) — Session 11.
+- Empty-state polish + keyboard navigation + horizontal-scroll sticky behaviour + responsive narrow viewports + perf at 50+ people × 36 months — Session 12.
+- W4 P2 / P3 polish backlog (utilization-distribution scope filter, `useDashboardData` shared hook, `UtilizationBucketKey` source of truth, hotspot row ccId resolution, etc.) — polish session post-W6.
 
 ### v5.2 Wave 4 — Complex features (2026-05-08, branch `feat/v5_2-capacity-complex-features`)
 
