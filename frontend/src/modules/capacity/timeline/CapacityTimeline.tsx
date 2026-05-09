@@ -26,7 +26,7 @@
  * Also registers the active project's id in the color map so the
  * ghost border color is stable across the panel and the bars.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useProjectColorMap } from '@/contexts/ProjectColorMapContext';
@@ -46,6 +46,8 @@ import {
   buildVisibleColumns,
   toggleQuarter,
   toggleYear,
+  parseMonth,
+  getQuarterOfMonth,
   type Quarter,
   type TimeAxisState,
   NAME_COLUMN_WIDTH,
@@ -142,6 +144,81 @@ function CapacityTimelineInner({
     [columns],
   );
 
+  // v5.2 W6 Track A — `capacity:expand-month` consumer (spec §11.4).
+  //
+  // The dashboard's `CapacityForecastCard` dispatches this CustomEvent
+  // when the user clicks a month bar. The timeline below expands the
+  // containing quarter (auto-expanding the parent year if needed) and
+  // scrolls the month column into view. Coupling is loose — the chart
+  // dispatches without a consumer, the timeline listens without a
+  // producer; either side can be unmounted without breaking the other.
+  //
+  // Implementation notes:
+  //   • Scroll target is the `[data-month]` element from
+  //     `TimeAxisHeader` row 2; the scroll container is the timeline's
+  //     outer `overflow-x-auto` wrapper which we ref via `scrollHostRef`.
+  //   • Expand happens via the same `setAxisState` reducer used by the
+  //     header's chevron clicks, so user-initiated and event-initiated
+  //     state changes are indistinguishable.
+  //   • The scroll deferral chain (`requestAnimationFrame` x 2) lets the
+  //     React reconciliation finish painting the newly-expanded columns
+  //     before measuring offsets.
+  const scrollHostRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ month?: string }>).detail;
+      const month = detail?.month;
+      if (!month || !/^\d{4}-\d{2}$/.test(month)) return;
+
+      // Step 1 — expand year + quarter as needed.
+      try {
+        const { year } = parseMonth(month);
+        const quarter = getQuarterOfMonth(month);
+        setAxisState((prev) => {
+          const yState = prev[year];
+          // If the year is collapsed OR the quarter is collapsed,
+          // toggleQuarter (which also expands the year) brings the
+          // requested column into existence.
+          const yearExpanded = yState?.expanded === true;
+          const quarterExpanded =
+            yearExpanded && yState?.quarters[quarter]?.expanded === true;
+          if (quarterExpanded) return prev;
+          if (!yearExpanded) {
+            // toggleQuarter from a collapsed year flips both flags on.
+            return toggleQuarter(prev, year, quarter);
+          }
+          // Year is open, quarter is closed.
+          return toggleQuarter(prev, year, quarter);
+        });
+      } catch {
+        return;
+      }
+
+      // Step 2 — scroll the month into view after the expansion render
+      // commits. Two frames of deferral covers the state-update + layout
+      // pass; using `behavior: 'smooth'` gives a comfortable transition.
+      const scrollToMonth = () => {
+        const host = scrollHostRef.current;
+        if (!host) return;
+        const target = host.querySelector<HTMLElement>(
+          `[data-month="${month}"]`,
+        );
+        if (!target) return;
+        target.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center',
+        });
+      };
+      requestAnimationFrame(() => {
+        requestAnimationFrame(scrollToMonth);
+      });
+    };
+
+    window.addEventListener('capacity:expand-month', handler);
+    return () => window.removeEventListener('capacity:expand-month', handler);
+  }, []);
+
   // ---- Render gates ----
 
   if (data.isLoading) {
@@ -208,7 +285,10 @@ function CapacityTimelineInner({
   const minWidth = NAME_COLUMN_WIDTH + totalColumnsWidth;
 
   return (
-    <div className="overflow-x-auto rounded-md border border-border bg-card">
+    <div
+      ref={scrollHostRef}
+      className="overflow-x-auto rounded-md border border-border bg-card"
+    >
       <div style={{ minWidth }}>
         <TimeAxisHeader
           columns={columns}
