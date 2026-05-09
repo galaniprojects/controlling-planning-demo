@@ -9,8 +9,19 @@
  * defaults in the History filter (§12.12) and the inbox's
  * Recently-Completed section (§12.8).
  *
- * If/when a future wave adds person_id to RoleContext, callers can
- * be migrated and this constant retired.
+ * v5.2 W6 Track C decision (W3 polish-backlog item):
+ *   Keep this static map rather than threading `person_id` through
+ *   `CurrentUser` / `RoleContext`. Rationale:
+ *     - Personas are demo-only fixtures pinned by seed.sql; they
+ *       don't change at runtime.
+ *     - Adding `person_id` to `RoleContext` requires backend changes
+ *       to `/api/role/context` (`CurrentUserSchema`) and a frontend
+ *       schema update — out of scope for a polish item.
+ *     - The map has a single canonical source (this file); keeping
+ *       it co-located with capacity callers keeps the indirection
+ *       cheap.
+ *   If/when a future wave adds `person_id` to `RoleContext`, callers
+ *   can be migrated and this constant retired.
  */
 export const PERSONA_TO_PERSON_ID: Record<string, string> = {
   'persona-controller': 'p-meier',
