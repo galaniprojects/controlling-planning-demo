@@ -162,11 +162,18 @@ export function ProjectGroupView({ columns, data: providedData }: ProjectGroupVi
     );
   }
 
+  // v5.2 W6 Track C — encode activeFilters into the per-group key so
+  // changing the filter chip set forces a remount of every visible
+  // ProjectGroup. That resets each group's local `expanded` state
+  // (default = true) so collapsed groups don't stay collapsed across
+  // filter changes — the visible row set otherwise looks "stale".
+  const filterKey = activeFilters.join(',') || 'all';
+
   return (
     <>
       {filteredItems.map((item) => (
         <ProjectGroup
-          key={item.project_id}
+          key={`${item.project_id}::${filterKey}`}
           item={item}
           columns={columns}
           referenceMaxHours={data.referenceMaxHours}

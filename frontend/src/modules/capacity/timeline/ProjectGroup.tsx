@@ -16,8 +16,22 @@
  *
  * Local `expanded` state defaults to `true`. Collapsing hides all child
  * rows; the project header itself stays visible.
+ *
+ * v5.2 W6 Track C — wrapped in `React.memo` so the row tree only
+ * re-renders when its props identity changes (e.g., the parent fetches
+ * new data, the time-axis columns change, or one of the click callbacks
+ * changes). With ~15-30 projects in a typical multi-CC scope and ~10
+ * children each, skipping re-renders on filter-chip toggles keeps
+ * project-view interactions snappy.
+ *
+ * v5.2 W6 Track C — `defaultExpanded` is read on first mount only. The
+ * parent (`ProjectGroupView`) resets expanded state across the whole
+ * tree by including `activeFilters` in each `<ProjectGroup>`'s `key`,
+ * forcing a remount when the filter set changes. That keeps the local
+ * collapse state honest without an extra effect that would also reset
+ * on every parent re-render.
  */
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { type TimeColumn } from './timeAxis';
 import { ProjectGroupRow } from './ProjectGroupRow';
 import { AssignedPersonRow } from './AssignedPersonRow';
@@ -43,7 +57,7 @@ export interface ProjectGroupProps {
   onSlotClick?: (projectId: string, requestId: number) => void;
 }
 
-export function ProjectGroup({
+function ProjectGroupImpl({
   item,
   columns,
   referenceMaxHours,
@@ -99,3 +113,11 @@ export function ProjectGroup({
     </div>
   );
 }
+
+/**
+ * Memo wrapper — the default referential-equality check works because
+ * the parent passes stable callbacks (or memoised closures) and the
+ * `item` / `columns` references only change when the underlying data
+ * fetch returns a fresh snapshot.
+ */
+export const ProjectGroup = memo(ProjectGroupImpl);

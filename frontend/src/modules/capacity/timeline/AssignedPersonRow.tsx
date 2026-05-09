@@ -32,6 +32,16 @@ export interface AssignedPersonRowProps {
    * Standard hours per FTE-month. Used to convert hours → utilization %.
    * Comes from the team-heatmap fetch; if not available the bar still
    * renders proportionally to total_utilization_pct (provided by API).
+   *
+   * v5.2 W6 Track C — verified: the only caller is `ProjectGroup`
+   * (project-view tree). ProjectGroup does not have a per-row standard-
+   * hours signal (the project payload lacks per-person std hrs), so the
+   * default below remains in use. The default of 160 matches
+   * `_get_std_hours_for_location` in `backend/routers/capacity.py` for
+   * the demo's primary German locations and the seed default; it would
+   * misreport for Hungarian / French rates if `standardHours` were ever
+   * threaded through. Removing the default is deferred until a future
+   * wave threads location-aware std-hours via the project payload.
    */
   standardHours?: number;
   onPersonClick?: (personId: string) => void;

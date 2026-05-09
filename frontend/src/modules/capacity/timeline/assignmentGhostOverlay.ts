@@ -369,6 +369,19 @@ export function pickPrimaryGhost(
  * sees the worst-case footprint without expanding the period.
  *
  * Returning `null` means "no ghost overlay on the collapsed cell".
+ *
+ * v5.2 W6 Track C decision (W5 polish-backlog item):
+ *   Use the per-month MAX rather than the average. Rationale:
+ *     - The ghost overlay's purpose (§9.4) is to surface impending
+ *       over-allocation BEFORE the user opens the assignment panel.
+ *       Averaging would visually understate a single hot month inside
+ *       a quarter (e.g. Q3 = 80% / 80% / 130% averages to 97% — looks
+ *       safe — but the user would still over-allocate the third month).
+ *     - The collapsed cell is a glance affordance, not a data report;
+ *       MAX preserves the cautionary signal that prompts an expand.
+ *     - The matching role / session-precedence logic above already
+ *       picks one canonical ghost per month, so MAX of those picks
+ *       maps to "worst-case month inside the period".
  */
 export function aggregatePeriodGhost(
   perMonthGhosts: ReadonlyArray<readonly GhostSegment[] | undefined>,
