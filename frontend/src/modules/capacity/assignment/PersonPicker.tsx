@@ -262,8 +262,16 @@ export function PersonPicker({
             max={requestedHours}
             value={hoursValue}
             onChange={(e) => {
+              // P2 #13 fix: clamp on change. HTML `max` is only enforced
+              // at form submission, so a user pasting `999` would commit
+              // 999h to the assignment. Clamp to [0, requestedHours].
               const v = parseFloat(e.target.value);
-              setHoursValue(Number.isFinite(v) ? v : 0);
+              if (!Number.isFinite(v)) {
+                setHoursValue(0);
+                return;
+              }
+              const clamped = Math.min(Math.max(0, v), requestedHours);
+              setHoursValue(clamped);
             }}
             className={cn(
               'w-16 rounded border border-input bg-transparent px-1.5 py-0.5 text-xs tabular-nums outline-none focus:border-primary',

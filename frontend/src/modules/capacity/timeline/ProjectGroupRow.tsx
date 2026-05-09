@@ -25,14 +25,19 @@ import {
 import { FulfillmentBar } from './FulfillmentBar';
 import type { CapacityProjectItem } from '@/types/api';
 
-export type StaffingStatus = 'green' | 'amber' | 'red';
+export type StaffingStatus = 'green' | 'amber' | 'red' | 'neutral';
 
-/** Map fully/total → status colour + label per §10.3. */
+/** Map fully/total → status colour + label per §10.3.
+ *
+ * `total === 0` (project with zero resource requests in window) renders
+ * a neutral em-dash badge — pre-W5 it returned green-✓ which read as
+ * "fully assigned" but there's nothing to assign (P1 #6 fix).
+ */
 export function staffingStatus(
   fullyAssigned: number,
   total: number,
 ): { kind: StaffingStatus; label: string } {
-  if (total === 0) return { kind: 'green', label: '0/0' };
+  if (total === 0) return { kind: 'neutral', label: '—' };
   if (fullyAssigned === total) return { kind: 'green', label: `${fullyAssigned}/${total} ✓` };
   if (fullyAssigned === 0) return { kind: 'red', label: `0/${total}` };
   return { kind: 'amber', label: `${fullyAssigned}/${total}` };
@@ -42,6 +47,7 @@ const STATUS_CLASSES: Record<StaffingStatus, string> = {
   green: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
   amber: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   red: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  neutral: 'bg-muted text-muted-foreground',
 };
 
 export interface ProjectGroupRowProps {

@@ -1246,6 +1246,18 @@ def confirm_project_resources(
     cr_ids: list[int] = []
     partial_months_total = 0
     full_months_total = 0
+
+    # Bulk-fetch all RRA rows in one query (P1 #1 — was N+1 inside the loop).
+    pending_req_ids = [r.id for r in pending_requests]
+    rra_by_req: dict[int, list[ResourceRequestAssignment]] = {}
+    if pending_req_ids:
+        for a in (
+            db.query(ResourceRequestAssignment)
+            .filter(ResourceRequestAssignment.resource_request_id.in_(pending_req_ids))
+            .all()
+        ):
+            rra_by_req.setdefault(a.resource_request_id, []).append(a)
+
     for req in pending_requests:
         role_label = req.role_type.name if req.role_type else (req.role_type_id or "")
         months = generate_month_range(req.period_start, req.period_end)
@@ -1270,12 +1282,7 @@ def confirm_project_resources(
         # without a person on those months).
         if req.request_type == "resource":
             per_month_sum: dict[str, float] = {}
-            assignments_for_req = (
-                db.query(ResourceRequestAssignment)
-                .filter(ResourceRequestAssignment.resource_request_id == req.id)
-                .all()
-            )
-            for a in assignments_for_req:
+            for a in rra_by_req.get(req.id, []):
                 per_month_sum[a.month] = per_month_sum.get(a.month, 0.0) + float(a.hours)
             requested_per_month = float(req.hours_or_amount_per_month or 0)
             for m in months:
@@ -1292,13 +1299,18 @@ def confirm_project_resources(
     )
     cr_action = bool(cr_ids)
     primary_cr_id = cr_ids[0] if cr_ids else None
-    is_partial = partial_months_total > 0 and not cr_action
-    if cr_action:
+    # P1 #5 precedence change: when both CR-bound and partially fulfilled, the
+    # `partial_confirm` signal is more actionable for the controller (they need
+    # to chase missing assignments) and reaches the §12.12 history "Partial"
+    # filter. CR context is preserved in detail_payload (`cr_id`) and in the
+    # summary suffix, so no information is lost.
+    is_partial = partial_months_total > 0
+    if is_partial:
+        action_type = "partial_confirm"
+        summary_prefix = "Partially re-confirmed via CR" if cr_action else "Partially confirmed"
+    elif cr_action:
         action_type = "cr_reconfirm"
         summary_prefix = "Re-confirmed via CR"
-    elif is_partial:
-        action_type = "partial_confirm"
-        summary_prefix = "Partially confirmed"
     else:
         action_type = "confirm"
         summary_prefix = "Confirmed"

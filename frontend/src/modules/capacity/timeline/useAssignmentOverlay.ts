@@ -22,7 +22,7 @@
  * Spec: guides/Capacity_Module_Redesign_Spec.md §9.4 + §9.6 + §9.8.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { capacityApi } from '@/api/endpoints';
 import type {
   ProjectAssignmentDetail,
@@ -86,8 +86,6 @@ export function useAssignmentOverlay(
     useState<Map<string, RequestAssignment[]>>(new Map());
   const [loading, setLoading] = useState(false);
 
-  const fetchTokenRef = useRef(0);
-
   useEffect(() => {
     if (!active || !projectId || !ccId) {
       // Reset on session exit so a stale ghost map doesn't survive into
@@ -99,20 +97,28 @@ export function useAssignmentOverlay(
       return;
     }
 
-    const token = ++fetchTokenRef.current;
+    // Cancellation flag flipped by the cleanup function. Each await stage
+    // checks `cancelled` so a stale fetch can't pollute state if the user
+    // changes scope or exits assignment mode mid-flight (P1 #2 fix —
+    // previously a token ref guarded only the outer Promise.all resolve;
+    // the cancelled-flag pattern matches `useCapacityProjectsData.ts`).
+    let cancelled = false;
     setLoading(true);
 
-    // Fetch project detail + the CC's own request list in parallel so we
-    // can filter cross-CC requests out before issuing CC-scoped per-
-    // request fetches (the monthly-hours / assignments endpoints 404
-    // for requests that don't belong to this CC). AssignmentPanel does
-    // the same filter via `ccRequestIds`; we keep the overlay aligned.
-    Promise.all([
-      capacityApi.getProjectAssignmentDetail(projectId, crId),
-      capacityApi.getRequests(ccId).then((r) => r.items).catch(() => []),
-    ])
-      .then(async ([det, ccRequests]) => {
-        if (token !== fetchTokenRef.current) return;
+    const run = async () => {
+      try {
+        // Fetch project detail + the CC's own request list in parallel so
+        // we can filter cross-CC requests out before issuing CC-scoped
+        // per-request fetches (the monthly-hours / assignments endpoints
+        // 404 for requests that don't belong to this CC). AssignmentPanel
+        // does the same filter via `ccRequestIds`; we keep the overlay
+        // aligned.
+        const [det, ccRequests] = await Promise.all([
+          capacityApi.getProjectAssignmentDetail(projectId, crId),
+          capacityApi.getRequests(ccId).then((r) => r.items).catch(() => []),
+        ]);
+        if (cancelled) return;
+
         const ccRequestIds = new Set(ccRequests.map((r) => r.id));
         const resourceRequests = det.requests.filter(
           (r) =>
@@ -120,6 +126,7 @@ export function useAssignmentOverlay(
             r.status === 'pending' &&
             ccRequestIds.has(r.id),
         );
+
         const hoursPromises = resourceRequests.map(async (r) => {
           try {
             const res = await capacityApi.getRequestMonthlyHours(ccId, r.id);
@@ -140,22 +147,28 @@ export function useAssignmentOverlay(
           Promise.all(hoursPromises),
           Promise.all(assignsPromises),
         ]);
-        if (token !== fetchTokenRef.current) return;
+        if (cancelled) return;
+
         // Replace the project's `requests` list with the CC-scoped subset
         // so `extractRequestInputs` doesn't try to render cross-CC roles.
         setDetail({ ...det, requests: resourceRequests });
         setMonthlyHoursByRequest(new Map(hoursPairs));
         setServerAssignmentsByRequest(new Map(assignsPairs));
-      })
-      .catch(() => {
-        if (token !== fetchTokenRef.current) return;
+      } catch {
+        if (cancelled) return;
         setDetail(null);
         setMonthlyHoursByRequest(new Map());
         setServerAssignmentsByRequest(new Map());
-      })
-      .finally(() => {
-        if (token === fetchTokenRef.current) setLoading(false);
-      });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
   }, [active, projectId, ccId, crId]);
 
   // Build the ghost map from the fetched payload + the visible person

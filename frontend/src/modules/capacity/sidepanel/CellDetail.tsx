@@ -34,6 +34,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { capacityApi } from '@/api/endpoints';
+import { useRole } from '@/contexts/RoleContext';
 import { LocationLabel } from '@/components/shared/LocationLabel';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { cn } from '@/lib/utils';
@@ -380,11 +381,23 @@ function DemandCellBody({
   ) => void;
 }) {
   void _month;
+  const { context } = useRole();
+  const role = context?.role;
+  // Executive is read-only and cannot access /api/capacity/inbox per §12.1
+  // (P1 #3 fix — previously the 403 surfaced as a "Failed to load demand"
+  // error banner, which is confusing UX for a role that simply has no
+  // inbox surface).
+  const inboxAvailable = role === 'controller' || role === 'cost_center_owner';
   const [items, setItems] = useState<CapacityInboxItem[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(inboxAvailable);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!inboxAvailable) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -404,9 +417,19 @@ function DemandCellBody({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [inboxAvailable]);
 
   if (loading) return <CellDetailSkeleton />;
+  if (!inboxAvailable) {
+    // Executive (read-only): demand-strip click lands here without an
+    // inbox feed. Spec §15: Executive sees the demand strip but can't
+    // action it — surface a calm empty state, not an error.
+    return (
+      <p className="text-sm text-muted-foreground">
+        Demand details are read-only at your access level.
+      </p>
+    );
+  }
   if (error)
     return (
       <p className="text-sm text-destructive">Failed to load demand: {error}</p>

@@ -119,9 +119,13 @@ export function UnassignedSlotRow({
         <span
           className={cn(
             'shrink-0 rounded-sm px-1 py-0 text-[9px] font-medium',
+            // P2 #14 fix: spec §10.5 distinguishes "warning" (unassigned)
+            // from amber (partial). Pre-fix both branches used identical
+            // amber classes — dead ternary. Now red for fully unassigned,
+            // amber for partially fulfilled.
             isPartial
               ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+              : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
           )}
         >
           {isPartial ? 'partial' : 'unassigned'}

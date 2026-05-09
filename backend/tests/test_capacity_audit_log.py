@@ -357,7 +357,9 @@ class TestConfirmProjectCRReconfirm:
     def test_cr_bound_confirm_emits_cr_reconfirm(
         self, test_client, db, seed_confirmation_project, seed_personas,
     ):
-        from models.capacity import CapacityActionLog, ResourceRequest
+        from models.capacity import (
+            CapacityActionLog, ResourceRequest, ResourceRequestAssignment,
+        )
         from models.change_requests import ChangeRequest
         from models.projects import Project
 
@@ -381,6 +383,14 @@ class TestConfirmProjectCRReconfirm:
             .first()
         )
         req.change_request_id = cr.id
+        # Cover the single requested month so the partial-precedence rule
+        # (P1 #5) doesn't shadow `cr_reconfirm` with `partial_confirm`. This
+        # test exercises the "CR-bound + fully assigned" path; the partial
+        # branch has its own coverage in TestProjectConfirmPartialBranch.
+        db.add(ResourceRequestAssignment(
+            resource_request_id=req.id, month="2026-04",
+            person_id="p-dev-1", hours=80,
+        ))
         db.commit()
 
         before = db.query(CapacityActionLog).count()
@@ -404,6 +414,57 @@ class TestConfirmProjectCRReconfirm:
         if isinstance(payload, str):
             payload = _json.loads(payload)
         assert payload.get("cr_id") == cr.id
+
+    def test_cr_bound_partial_assignment_logs_partial_confirm(
+        self, test_client, db, seed_confirmation_project, seed_personas,
+    ):
+        """P1 #5 precedence: CR-bound project with partial fulfilment now
+        emits ``partial_confirm`` (was ``cr_reconfirm`` pre-fix). The CR
+        context is preserved in `cr_id` + `summary` suffix.
+        """
+        from models.capacity import CapacityActionLog, ResourceRequest
+        from models.change_requests import ChangeRequest
+        from datetime import datetime as _dt
+
+        cr = ChangeRequest(
+            project_id="proj-conf",
+            submitted_by_id="p-dev-1",
+            submission_timestamp=_dt.utcnow(),
+            status="pending_cc_confirmation",
+            change_category="hours",
+            summary="Bump dev hours",
+        )
+        db.add(cr)
+        db.commit()
+        req = (
+            db.query(ResourceRequest)
+            .filter(ResourceRequest.id == seed_confirmation_project["request_id"])
+            .first()
+        )
+        req.change_request_id = cr.id
+        # No assignments → all months count as partial.
+        db.commit()
+
+        resp = test_client.put(
+            f"/api/capacity/project-confirmation/proj-conf/confirm",
+            headers=HEADERS_CCO,
+        )
+        assert resp.status_code == 200
+
+        latest = (
+            db.query(CapacityActionLog).order_by(CapacityActionLog.id.desc()).first()
+        )
+        assert latest is not None
+        # Partial precedence: action_type is partial_confirm even when CR-bound.
+        assert latest.action_type == "partial_confirm"
+        # CR context preserved in cr_id column + detail_payload + summary.
+        assert latest.cr_id == cr.id
+        import json as _json
+        payload = latest.detail_payload
+        if isinstance(payload, str):
+            payload = _json.loads(payload)
+        assert payload.get("cr_id") == cr.id
+        assert "Partially re-confirmed via CR" in (latest.summary or "")
 
 
 # ---------------------------------------------------------------------------

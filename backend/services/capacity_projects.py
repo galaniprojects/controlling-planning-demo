@@ -78,6 +78,15 @@ def _visible_project_ids(db: Session, scope: str) -> list[str]:
     involving the scoped people/CCs touches it.
 
     For ``scope='all'`` returns the full project list.
+
+    P1 #4 fix (defensive): the hierarchy branch is now consistent with
+    cost_center / location branches — it unions hierarchy-membership
+    projects with allocation-derived projects. Pre-fix the branch returned
+    only membership-assigned projects (which can include rows with zero
+    RRs or allocations in the visible window), creating asymmetric
+    behaviour vs. the other scope kinds. Spec §10.12 reads "Show only
+    projects assigned to that hierarchy node"; the union remains a
+    superset of the strict reading.
     """
     kind, sid = _parse_scope(scope)
 
@@ -85,10 +94,12 @@ def _visible_project_ids(db: Session, scope: str) -> list[str]:
         rows = db.query(Project.id).all()
         return [r[0] for r in rows]
 
-    if kind == "hierarchy" and sid:
-        return _get_projects_for_entity_recursive(db, sid)
-
     project_ids: set[str] = set()
+
+    if kind == "hierarchy" and sid:
+        # Membership-assigned projects (the strict spec reading).
+        for pid in _get_projects_for_entity_recursive(db, sid):
+            project_ids.add(pid)
 
     if kind == "cost_center" and sid:
         # Projects whose RRs target this CC (the CC Owner's natural feed).
@@ -100,7 +111,10 @@ def _visible_project_ids(db: Session, scope: str) -> list[str]:
             if r[0]:
                 project_ids.add(r[0])
 
-    # Projects allocated to scoped people (works for location/cost_center).
+    # Projects allocated to scoped people (works for location / cost_center
+    # / hierarchy). For hierarchy this surfaces projects whose hierarchy-
+    # scoped people are also allocated cross-node — an intentional
+    # superset of the strict membership reading.
     person_ids = _scoped_person_ids(db, scope)
     if person_ids:
         for r in (
@@ -224,11 +238,20 @@ def compute_capacity_projects(
         ):
             total_hours_by_person_month[row.person_id][row.month] += float(row.hours or 0)
 
-    # Joined names (people, roles, CCs, cost types).
+    # Joined names (people, roles, CCs, cost types). Load PLs into the
+    # `people` map BEFORE building `role_ids` / `cc_ids` (P1 #7 fix —
+    # previously PLs were folded in after role_ids was queried, so a
+    # future change rendering "PL role" in the response would silently
+    # miss those role lookups; the ordering was fragile).
     people = {
         p.id: p
         for p in db.query(Person).filter(Person.id.in_(person_ids_in_play)).all()
     } if person_ids_in_play else {}
+
+    pl_ids = {p.pl_person_id for p in projects.values() if p.pl_person_id}
+    if pl_ids:
+        for pp in db.query(Person).filter(Person.id.in_(pl_ids)).all():
+            people[pp.id] = pp
 
     role_ids = {r.role_type_id for r in all_rrs if r.role_type_id}
     role_ids.update({p.role_type_id for p in people.values() if p.role_type_id})
@@ -239,12 +262,6 @@ def compute_capacity_projects(
 
     cc_ids = {r.cost_center_id for r in all_rrs}
     cc_ids.update({p.cost_center_id for p in people.values() if p.cost_center_id})
-    pl_ids = {p.pl_person_id for p in projects.values() if p.pl_person_id}
-    if pl_ids:
-        for pp in db.query(Person).filter(Person.id.in_(pl_ids)).all():
-            people[pp.id] = pp
-            if pp.cost_center_id:
-                cc_ids.add(pp.cost_center_id)
     ccs = {
         c.id: c
         for c in db.query(CostCenter).filter(CostCenter.id.in_(cc_ids)).all()
