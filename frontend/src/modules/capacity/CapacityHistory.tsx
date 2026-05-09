@@ -22,7 +22,7 @@
  * URL state mirrors the filters via `useSearchParams({ replace: true })`.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -238,6 +238,14 @@ export default function CapacityHistory() {
   const personaUserName = context?.user_name;
 
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // v5.2 W6 Track C — §15 permission sweep. The History audit log is
+  // restricted to controller / cc_owner / executive per §12.1; PL never
+  // sees the nav and would otherwise hit a 403 on direct URL access.
+  // Redirect to the workspace, which then bounces PL to /availability.
+  if (role && role !== 'controller' && role !== 'cost_center_owner' && role !== 'executive') {
+    return <Navigate to="/capacity" replace />;
+  }
 
   const fallback = useMemo(() => defaultFilterForRole(role), [role]);
   const filters = useMemo(

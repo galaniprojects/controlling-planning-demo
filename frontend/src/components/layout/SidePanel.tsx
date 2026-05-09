@@ -67,7 +67,12 @@ export function SidePanel({
 
   return (
     <aside
-      className="fixed right-0 top-14 bottom-0 border-l border-border bg-card shadow-lg z-40 overflow-y-auto"
+      // v5.2 W6 Track C — width transition for assignment-mode entry/exit.
+      // Capacity panels swap between 280px (person/cell/project_summary)
+      // and 400px (assignment) per `CAPACITY_PANEL_WIDTH`. The
+      // 200ms transition keeps the panel from snapping when the user
+      // toggles assignment mode (spec §9.2 / §10.8 polish).
+      className="fixed right-0 top-14 bottom-0 border-l border-border bg-card shadow-lg z-40 overflow-y-auto transition-[width] duration-200 ease-out"
       style={{ width: `${width}px` }}
       role="dialog"
       aria-label={title}

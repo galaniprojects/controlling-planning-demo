@@ -26,7 +26,7 @@
  *     bump the recently-completed nonce so that section refreshes.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Inbox, Loader2 } from 'lucide-react';
 import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -159,6 +159,16 @@ export default function RequestsInbox() {
   const role = context?.role;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // v5.2 W6 Track C — §15 permission sweep. The Requests inbox is
+  // restricted to controller + cost_center_owner per the §12.1 nav.
+  // Direct URL access by Project Lead or Executive (which the
+  // CapacityModuleNav hides) would otherwise hit a 403 on the inbox
+  // fetch and render an error banner. Redirect to the workspace (the
+  // workspace itself redirects PL onward to /capacity/availability).
+  if (role && role !== 'controller' && role !== 'cost_center_owner') {
+    return <Navigate to="/capacity" replace />;
+  }
 
   const [items, setItems] = useState<CapacityInboxItem[]>([]);
   const [total, setTotal] = useState(0);
