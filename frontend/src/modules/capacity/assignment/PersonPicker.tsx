@@ -24,6 +24,65 @@ import type { AssignmentProjection } from '@/types/api';
 // in the spec for clarity).
 
 // ---------------------------------------------------------------------------
+// Module-level projection cache — v5.2 W6 Track B (#8.2)
+//
+// The picker is re-mounted every time the user clicks [Assign] or [+ Add],
+// so the previous component's `projections` state is discarded. Without
+// this cache, rapid re-opens (e.g. browsing through unassigned months)
+// re-issue identical /assignment-preview requests for every candidate.
+//
+// Key = `${ccId}|${requestId}|${personId}|${month}` (the same axes the
+// preview endpoint varies on). Value = the resolved utilisation %.
+// In-flight requests share a Promise so concurrent re-mounts don't
+// double-fetch the same key.
+// ---------------------------------------------------------------------------
+const projectionCache = new Map<string, number>();
+const projectionInflight = new Map<string, Promise<number>>();
+
+function projectionKey(
+  ccId: string,
+  requestId: number,
+  personId: string,
+  month: string,
+): string {
+  return `${ccId}|${requestId}|${personId}|${month}`;
+}
+
+function fetchProjection(
+  ccId: string,
+  requestId: number,
+  personId: string,
+  month: string,
+  fallbackPct: number,
+): Promise<number> {
+  const key = projectionKey(ccId, requestId, personId, month);
+  const cached = projectionCache.get(key);
+  if (cached !== undefined) return Promise.resolve(cached);
+  const inflight = projectionInflight.get(key);
+  if (inflight) return inflight;
+
+  const p = capacityApi
+    .getAssignmentPreview(ccId, requestId, personId)
+    .then((preview) => {
+      const monthProj: AssignmentProjection | undefined =
+        preview.monthly_projections.find((mp) => mp.month === month);
+      const pct = monthProj?.utilization_pct ?? fallbackPct;
+      projectionCache.set(key, pct);
+      return pct;
+    })
+    .catch(() => {
+      projectionCache.set(key, fallbackPct);
+      return fallbackPct;
+    })
+    .finally(() => {
+      projectionInflight.delete(key);
+    });
+
+  projectionInflight.set(key, p);
+  return p;
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -166,27 +225,30 @@ export function PersonPicker({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [onClose]);
 
-  // Load projections for all candidates
+  // Load projections for all candidates. Uses the module-level cache so
+  // re-opens of the picker do not refetch already-known projections.
   useEffect(() => {
+    let cancelled = false;
     candidates.forEach((c) => {
-      if (projections.has(c.personId) || loadingIds.has(c.personId)) return;
+      const key = projectionKey(ccId, requestId, c.personId, month);
+      // Hydrate from cache synchronously when present.
+      const cached = projectionCache.get(key);
+      if (cached !== undefined) {
+        setProjections((prev) => {
+          if (prev.get(c.personId) === cached) return prev;
+          return new Map(prev).set(c.personId, cached);
+        });
+        return;
+      }
+      if (loadingIds.has(c.personId)) return;
       setLoadingIds((prev) => new Set(prev).add(c.personId));
-      capacityApi
-        .getAssignmentPreview(ccId, requestId, c.personId)
-        .then((preview) => {
-          // Find the month-specific projection
-          const monthProj: AssignmentProjection | undefined =
-            preview.monthly_projections.find((p) => p.month === month);
-          const pct = monthProj?.utilization_pct ?? c.currentUtilPct;
+      fetchProjection(ccId, requestId, c.personId, month, c.currentUtilPct)
+        .then((pct) => {
+          if (cancelled) return;
           setProjections((prev) => new Map(prev).set(c.personId, pct));
         })
-        .catch(() => {
-          // Fall back to current util on error
-          setProjections((prev) =>
-            new Map(prev).set(c.personId, c.currentUtilPct),
-          );
-        })
         .finally(() => {
+          if (cancelled) return;
           setLoadingIds((prev) => {
             const next = new Set(prev);
             next.delete(c.personId);
@@ -194,6 +256,9 @@ export function PersonPicker({
           });
         });
     });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidates, ccId, requestId, month]);
 

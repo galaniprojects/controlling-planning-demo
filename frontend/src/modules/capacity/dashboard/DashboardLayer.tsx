@@ -100,9 +100,13 @@ export function DashboardLayer() {
 
   return (
     <div
+      // v5.2 W6 Track B (#8.3) — outer slide-up uses 720px max so the
+      // single-column responsive grid (~640px) is not clipped on
+      // viewports < 900px tall. Tall screens render the 2-col layout
+      // and stay well under 400px naturally.
       className="overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out"
       style={{
-        maxHeight: shouldShow ? '400px' : '0px',
+        maxHeight: shouldShow ? '720px' : '0px',
         opacity: shouldShow ? 1 : 0,
       }}
     >
@@ -111,17 +115,27 @@ export function DashboardLayer() {
         <DashboardToggle collapsed={collapsed} onToggle={handleToggle} />
       </div>
 
-      {/* Card grid — hidden when collapsed */}
+      {/* Card grid — hidden when collapsed.
+          v5.2 W6 Track B (#8.3) — the previous flat 320px max-height
+          clipped the bottom row of cards on viewports under ~900px high
+          (≈laptop screens). The arbitrary height-media-query variant
+          keeps the 320px clip on tall screens (where it serves as a
+          compact-mode hint) but lets the grid grow to its natural height
+          on shorter screens. The `data-[collapsed]` driven force-class
+          still animates the slide-up on toggle in both modes. */}
       <div
-        className="overflow-hidden transition-[max-height] duration-200 ease-in-out"
-        style={{
-          maxHeight: collapsed ? '0px' : '320px',
-        }}
+        data-collapsed={collapsed ? 'true' : 'false'}
+        className={
+          'overflow-hidden transition-[max-height] duration-200 ease-in-out ' +
+          // collapsed → 0; expanded → unbounded on short screens, 320px
+          // on tall screens. `[@media(min-height:900px)]` is a Tailwind
+          // arbitrary variant that emits a `@media (min-height: 900px)`
+          // query — exactly the height-based gate the brief asks for.
+          'data-[collapsed=true]:!max-h-0 ' +
+          'max-h-none [@media(min-height:900px)]:max-h-[320px]'
+        }
       >
-        <div
-          className="grid gap-3 pb-1"
-          style={{ gridTemplateColumns: '1fr 1fr' }}
-        >
+        <div className="grid gap-3 pb-1 grid-cols-1 lg:grid-cols-2">
           {/* Top-left: Utilization distribution */}
           <div className="rounded-lg border border-border bg-card p-4">
             <UtilizationDistributionCard />
