@@ -215,14 +215,14 @@ function ProjectSummaryEntryPoint({
 
   useEffect(() => {
     const unregister = registerProjectSummaryHandler((projectId: string) => {
+      // v5.2 W6 Track A — pass the optional cached item AND the
+      // projectId so ProjectSummaryPanel can issue its own cache-miss
+      // fallback fetch when the workspace cache hasn't seen this id
+      // yet (e.g., deep-link entry, or scope changed since the cache
+      // was warmed). The panel renders a loading skeleton while the
+      // fallback fetch is in flight and a friendly empty-state when
+      // the project isn't visible in the active scope.
       const item = getItemRef.current(projectId);
-      if (!item) {
-        // Cache miss — close the panel rather than render an
-        // incomplete summary. A future wave can fall back to
-        // `getProjectSummary` here for deep-linked entries.
-        closePanelRef.current();
-        return;
-      }
       const handleReviewAssign = (projectItem: CapacityProjectItem) => {
         // Prefer an unfulfilled slot's CC; fall back to the first
         // assigned person's CC; degrade to workbench if neither.
@@ -250,6 +250,7 @@ function ProjectSummaryEntryPoint({
         'Project summary',
         <ProjectSummaryPanel
           item={item}
+          projectId={projectId}
           onReviewAssign={handleReviewAssign}
           onClosePanel={() => closePanelRef.current()}
           navigate={(path) => navigateRef.current(path)}
