@@ -157,11 +157,16 @@ def compute_capacity_projects(
     scope: str = "all",
     start: Optional[str] = None,
     end: Optional[str] = None,
-    filter_chip: Optional[str] = None,
 ) -> dict:
     """Return the project-view aggregation for the capacity workspace.
 
     See module docstring for the response shape and rules.
+
+    v5.2 W6 Track A — the legacy ``filter_chip`` server-side parameter
+    has been removed. Filter-chip semantics live entirely in the
+    frontend now (``frontend/src/modules/capacity/timeline/projectFilters.ts``)
+    where they double-duty as the chip-count source. The dead server-side
+    code path was never wired into the React layer post-W5.
     """
     # --- Window ---
     if not start or not end:
@@ -279,6 +284,19 @@ def compute_capacity_projects(
     # Standard hours per month (for utilization %).
     std_hours = get_standard_hours(db)
 
+    # --- Pre-compute per-RR monthly demand once (v5.2 W6 Track C polish) ---
+    # `_request_monthly_demand` was previously called four times per
+    # resource RR — once for project-level demand, once for the status
+    # count, once for the fulfillment-pct loop, and once for the slot
+    # rendering. Hoisting the call out of the per-project loop and
+    # caching by rr.id eliminates the redundant work; on a 100-project /
+    # 36-month window it cuts ~75% of the calls in this hot path.
+    demand_by_rr: dict[int, dict[str, float]] = {
+        rr.id: _request_monthly_demand(rr, months)
+        for rr in all_rrs
+        if rr.request_type == "resource"
+    }
+
     # --- Build items ---
     items: list[dict] = []
     reference_max = 0.0
@@ -297,7 +315,7 @@ def compute_capacity_projects(
         for rr in proj_rrs:
             if rr.request_type != "resource":
                 continue
-            demand = _request_monthly_demand(rr, months)
+            demand = demand_by_rr.get(rr.id, {})
             for m, h in demand.items():
                 project_requested[m] += h
             for m in months:
@@ -308,7 +326,7 @@ def compute_capacity_projects(
         fully_assigned_count = 0
         total_request_count = len(resource_rrs)
         for rr in resource_rrs:
-            demand = _request_monthly_demand(rr, months)
+            demand = demand_by_rr.get(rr.id, {})
             if not demand:
                 continue
             fully = True
@@ -324,7 +342,7 @@ def compute_capacity_projects(
         total_months = 0
         fully_months = 0
         for rr in resource_rrs:
-            demand = _request_monthly_demand(rr, months)
+            demand = demand_by_rr.get(rr.id, {})
             for m, requested in demand.items():
                 total_months += 1
                 if assigned_by_rr_month[rr.id].get(m, 0.0) + 1e-6 >= requested:
@@ -386,7 +404,7 @@ def compute_capacity_projects(
         for rr in resource_rrs:
             if rr.status not in ("pending", "partially_fulfilled"):
                 continue
-            demand = _request_monthly_demand(rr, months)
+            demand = demand_by_rr.get(rr.id, {})
             if not demand:
                 continue
             slot_monthly = []
@@ -458,10 +476,6 @@ def compute_capacity_projects(
     # --- Sort: fulfillment % asc, project name asc (§10.9) ---
     items.sort(key=lambda it: (it["fulfillment_pct"], it["project_name"].lower()))
 
-    # --- Apply post-aggregation filter chip ---
-    if filter_chip:
-        items = _apply_filter_chip(items, filter_chip)
-
     return {
         "items": items,
         "total": len(items),
@@ -470,26 +484,3 @@ def compute_capacity_projects(
         "end": end,
         "reference_max_hours": round(reference_max, 2),
     }
-
-
-def _apply_filter_chip(items: list[dict], chip: str) -> list[dict]:
-    """Filter chip semantics in project view per spec §10.10."""
-    if chip == "needs_staffing":
-        return [it for it in items if it["fulfillment_pct"] < 100.0]
-    if chip == "pending_requests" or chip == "unassigned_months":
-        # Both chips collapse to "has unfulfilled slot" in project view.
-        return [it for it in items if it["unfulfilled_slots"]]
-    if chip == "over_allocated":
-        # Project has at least one assigned person with utilization > 100% in any visible month.
-        return [
-            it for it in items
-            if any(
-                m["total_utilization_pct"] > 100.0
-                for ap in it["assigned_people"]
-                for m in ap["monthly"]
-            )
-        ]
-    if chip == "under_utilized":
-        # Spec §10.10: "fulfillment is below 50%".
-        return [it for it in items if it["fulfillment_pct"] < 50.0]
-    return items

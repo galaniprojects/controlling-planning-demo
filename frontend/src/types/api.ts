@@ -1149,13 +1149,6 @@ export interface CapacityProjectItem {
   external_costs: CapacityProjectExternalCost[];
 }
 
-export type CapacityProjectsFilterChip =
-  | 'needs_staffing'
-  | 'pending_requests'
-  | 'unassigned_months'
-  | 'over_allocated'
-  | 'under_utilized';
-
 export interface CapacityProjectsResponse {
   items: CapacityProjectItem[];
   total: number;
@@ -1165,11 +1158,18 @@ export interface CapacityProjectsResponse {
   reference_max_hours: number;
 }
 
+/**
+ * v5.2 W6 Track A — the legacy `filter_chip` query parameter was removed
+ * from the server side. Filter-chip semantics now live entirely in the
+ * frontend (`frontend/src/modules/capacity/timeline/projectFilters.ts`)
+ * so the chip-count source matches the chip-filter result by
+ * construction. The corresponding `CapacityProjectsFilterChip` enum was
+ * never imported anywhere and has been deleted with this change.
+ */
 export interface CapacityProjectsParams {
   scope?: string;
   start?: string;
   end?: string;
-  filter_chip?: CapacityProjectsFilterChip;
 }
 
 // --- What-If Simulator ---

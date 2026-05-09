@@ -77,7 +77,23 @@ router = APIRouter(prefix="/api/capacity", tags=["Capacity Management"])
 
 
 def _verify_cc_access(user: CurrentUser, cost_center_id: str):
-    """Verify user owns the cost center (CC owners only see their own CC)."""
+    """Verify user owns the cost center (CC owners only see their own CC).
+
+    v5.2 W6 Track C decision (W5 polish-backlog item):
+        Cross-CC visibility for CC Owners stays restricted — a CC Owner
+        cannot read or write capacity data on cost centres they do not own.
+        Read-only cross-CC views were considered (e.g. a CC Owner peeking
+        at sister teams during planning) and rejected for v5.2 because:
+          1. The §15 permissions matrix already lists CC Owner as
+             "own CC only" for both read and write.
+          2. Adding read-only cross-CC paths would require splitting every
+             write-bearing endpoint into a read variant + a write variant,
+             and re-validating the side-panel mutations the workspace
+             ships in W4/W5.
+          3. The Controller persona already covers the "cross-CC peek"
+             use case for the demo audience.
+        Re-evaluate post-v5.2 if the user research surfaces a real need.
+    """
     if user.role == "cost_center_owner" and user.cost_center_id != cost_center_id:
         raise HTTPException(403, "Forbidden: cannot access other cost centers")
 
@@ -2468,7 +2484,6 @@ def get_capacity_projects(
     scope: str = "all",
     start: str | None = None,
     end: str | None = None,
-    filter_chip: str | None = None,
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role(*_PROJECTS_VIEW_ROLES)),
 ):
@@ -2483,9 +2498,11 @@ def get_capacity_projects(
     scope filters which PROJECTS appear, not which people within a project
     — the response always includes all allocated people regardless of CC.
 
-    Optional ``filter_chip`` values: ``needs_staffing`` | ``pending_requests``
-    | ``unassigned_months`` | ``over_allocated`` | ``under_utilized`` —
-    semantics per spec §10.10.
+    v5.2 W6 Track A — the legacy ``filter_chip`` query parameter has been
+    removed. Filter-chip semantics now live exclusively in the frontend
+    (``frontend/src/modules/capacity/timeline/projectFilters.ts``) so
+    they double-duty as the chip-count source the FilterChipBar renders.
+    The server-side code path was never wired up post-W5.
 
     Authorization (per spec §15):
       * Controller / Executive — full access.
@@ -2497,7 +2514,7 @@ def get_capacity_projects(
     """
     try:
         result = compute_capacity_projects(
-            db, scope=scope, start=start, end=end, filter_chip=filter_chip,
+            db, scope=scope, start=start, end=end,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc))

@@ -408,33 +408,9 @@ class TestProjectsScope:
 
 
 # ---------------------------------------------------------------------------
-# Filter chips (§10.10)
+# Filter chips (§10.10) — v5.2 W6 Track A removed the server-side filter_chip
+# parameter. Filter-chip semantics now live exclusively in the frontend at
+# `frontend/src/modules/capacity/timeline/projectFilters.ts` so the chip-count
+# source matches the chip-filter result by construction. The dead server-side
+# code path was never wired into the React layer post-W5.
 # ---------------------------------------------------------------------------
-
-class TestProjectsFilterChip:
-    def test_needs_staffing(self, test_client, seed_projects):
-        resp = test_client.get(
-            "/api/capacity/projects?start=2026-04&end=2026-06&filter_chip=needs_staffing",
-            headers=HEADERS_CTRL,
-        )
-        items = {it["project_id"] for it in resp.json()["items"]}
-        # < 100% fulfillment: proj-low (0%) + proj-mid (50%).
-        assert items == {"proj-low", "proj-mid"}
-
-    def test_under_utilized(self, test_client, seed_projects):
-        resp = test_client.get(
-            "/api/capacity/projects?start=2026-04&end=2026-06&filter_chip=under_utilized",
-            headers=HEADERS_CTRL,
-        )
-        items = {it["project_id"] for it in resp.json()["items"]}
-        # < 50% fulfillment: only proj-low.
-        assert items == {"proj-low"}
-
-    def test_pending_requests(self, test_client, seed_projects):
-        resp = test_client.get(
-            "/api/capacity/projects?start=2026-04&end=2026-06&filter_chip=pending_requests",
-            headers=HEADERS_CTRL,
-        )
-        items = {it["project_id"] for it in resp.json()["items"]}
-        # Has unfulfilled slots: proj-low + proj-mid.
-        assert items == {"proj-low", "proj-mid"}

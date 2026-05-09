@@ -2,9 +2,13 @@
  * projectFilters — v5.2 W5 Track B (spec §10.10).
  *
  * Pure predicates and counters for the **project** filter-chip semantics.
- * These mirror the server-side `filter_chip` parameter implemented in
- * `backend/services/capacity_projects.py::_apply_filter_chip` so that
- * frontend chip badges and the rendered list always agree on the count.
+ * Filtering is performed entirely client-side: the chip-count source and
+ * the chip-filter result share these helpers, so the badge count always
+ * matches the rendered list by construction.
+ *
+ * v5.2 W6 Track A — the parallel server-side `filter_chip` query parameter
+ * was removed. The dead code path was never wired into the React layer
+ * post-W5, so the deletion is behaviour-neutral.
  *
  * Per spec §10.10, when `groupBy === 'project'` the chip semantics are:
  *
