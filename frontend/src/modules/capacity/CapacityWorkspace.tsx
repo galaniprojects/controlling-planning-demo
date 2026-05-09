@@ -130,8 +130,9 @@ function AssignmentEntryPoint() {
     );
 
     return unregister;
-    // registerAssignmentHandler is stable — declared as useCallback([]) in context.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // registerAssignmentHandler is stable — declared as useCallback([]) in
+    // context. openPanelRef / closePanelRef are refs (exempt from the deps
+    // rule), so eslint reports no missing deps here.
   }, [registerAssignmentHandler]);
 
   // Read URL params and enter assignment mode when present.
@@ -258,8 +259,9 @@ function ProjectSummaryEntryPoint({
     });
 
     return unregister;
-    // registerProjectSummaryHandler is a stable useCallback ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // registerProjectSummaryHandler is a stable useCallback ref; everything
+    // else read inside the effect is a ref or import (exempt from the
+    // exhaustive-deps rule).
   }, [registerProjectSummaryHandler]);
 
   return null;

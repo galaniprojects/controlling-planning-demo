@@ -352,8 +352,8 @@ export default function PLAvailabilityView({
         setError(err.message ?? 'Failed to load availability data.');
         setLoading(false);
       });
-  // selectedRoleIds intentionally excluded — we apply role filter client-side
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // selectedRoleIds intentionally NOT read inside the effect — we apply
+  // the role filter client-side, so role changes don't refetch.
   }, [selectedLocationId]);
 
   // Derived data

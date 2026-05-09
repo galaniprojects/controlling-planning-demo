@@ -209,10 +209,10 @@ export function DemandStrip({
   const handleCellClick = (period: DemandPeriod) => {
     if (onCellClick) {
       onCellClick(period);
-    } else if (typeof console !== 'undefined') {
-      // eslint-disable-next-line no-console
-      console.log('[DemandStrip] cell clicked (no handler wired):', period);
     }
+    // No-op when the parent doesn't provide a handler — the workspace
+    // always wires `onCellClick` (CapacityWorkspace.tsx ~L364), so the
+    // unhandled branch only fires in isolated tests/storybooks.
   };
 
   return (
