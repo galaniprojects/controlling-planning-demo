@@ -128,6 +128,28 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 
 - **#16 perf check** — Demo data has only 12 total people (largest scope = "All CCs" via `GET /api/capacity/dashboard/headcount-breakdown?scope=all&dimension=role` → `total: 12`). Per the brief's guidance ("if no CC has 50+ people, document the largest scope tested"), there's no perf bottleneck risk to investigate at the demo data scale. Initial nav + networkidle ~3.3s on Munich scope (cold). No fixes needed.
 
+### v5.2 Wave 6 — Independent reviewer pass (2026-05-10, commit `dad4345`)
+
+A read-only `code-reviewer-fresh` agent walked all 14 W6 commits since the Lead pre-work `a250f8f` and produced a prioritised report (7 P1s + 10 P2s + 8 P3s + a long "Looks good" section). The 3 must-fix P1s + 4 cheap P2s landed in `dad4345`:
+
+- **P1.1 + P1.3** — Rules of Hooks violation in `RequestsInbox.tsx` and `CapacityHistory.tsx`. Track C's W6 §15 perm gates early-returned `<Navigate>` BEFORE subsequent hooks ran. Because `role` transitions undefined → concrete on first render after RoleContext resolves, the hook count fluctuated and React would throw "Rendered fewer hooks than expected" when a PL/Executive hit either route directly. Fix: drive the redirect from a `useEffect` + `navigate(...)` pattern (matches `CapacityWorkspace.tsx`); render returns null while the effect is in flight to avoid a flash of disallowed content.
+- **P1.4** — `WideSlideOver` didn't lock body scroll. Mouse-wheel over the visible workbench scrolled the page underneath even though clicks were intercepted by the backdrop. Fix: `document.body.style.overflow = 'hidden'` while open; restore previous value on cleanup. Spec §13.9 says the workbench should be visible-but-inert.
+- **P1.6** — `_request_monthly_demand` cache had wider blast radius than pre-W6. The Track C cache `demand_by_rr` dict comprehension would crash the whole projects endpoint on a single malformed RR (e.g. `period_start=None`); pre-W6 the same call was per-iteration so only one project failed. Fix: per-RR try/except that logs + skips bad rows. Downstream `demand_by_rr.get(rr.id, {})` already tolerates a missing entry.
+- **P2.5** — `ProjectGroupView` React-key encoding (`key={`${pid}::${filterKey}`}`) defeated the W6 #14 `React.memo` wrapper, caused a full remount of every visible group + its children on every chip toggle (visible repaint on 30-project view), and reset the timeline scroll position. Fix: replaced with a `resetSignal: number` prop bumped on filter change; `ProjectGroup` useEffects on it to reset `expanded` state. Same UX without the remount cost.
+- **P2.6** — `KPISummaryBar` two-effect split caused loading-state flicker (avg-utilization tile flipped from '—' to a value while other tiles still showed '—'). Fix: `combinedLoading = loading || forecastData.isLoading` used for ALL tile value/sub-text/style branches.
+- **P2.8** — `ForecastTab` leaked `WideSlideOver` across project switches (slide-over opened for project A stayed open with project-A context after navigating to project B). Fix: thread `closeSlideOver` into the project-switch reset effect.
+- **P2.9** — `SidePanel` Escape swallowed Esc inside text inputs (would close the panel even if the user was clearing a search input). Fix: skip Esc when `event.target` is inside `input`, `textarea`, or `[contenteditable]`. AssignmentPanel's dirty-guard still catches unsaved-form cases.
+
+**Borderline P1s deferred:**
+- **P1.5** (WideSlideOver onClose stability) — not a current bug; all callers pass stable `useCallback([])` refs. Documented as a fragile contract for future maintainers.
+- **P1.7** (`ProjectAssignmentRedirect` overwriting pre-existing `assignment_project` query param) — implausible code path; the legacy URL pattern is the path param, not the query param.
+
+**Remaining 10 P2s + 8 P3s** (dashboard chart out-of-window guard, dead-import cleanups, JSDoc improvements, in-flight request dedup, eslint-disable comment polish, etc.) deferred to a post-v5.2 polish session per the W3/W4/W5 precedent.
+
+**Verification:** pytest 1685 passed (W6 baseline preserved; P1.6 added a defensive skip path which doesn't fire on clean seed data); tsc clean across all fixes; capacity-specific tests 36 passed in 7.13s.
+
+The reviewer's "Looks good" section explicitly called out: `SidePanelContext.openPanel` race fix's clear comment, `PersonPicker` numeric input `onChange` clamp, `ProjectSummaryPanel` cancellation-flag pattern, `CapacityTimeline` rAF×2 deferral chain comment, the documented design decisions in `UnassignedSummary` / `assignmentGhostOverlay` / `_verify_cc_access`, the `Promise.allSettled` graceful-degradation pattern, and `DemandStrip` auto-hide on no-demand.
+
 **Verification:**
 - `tsc --noEmit` clean across all Track C edits.
 - `pytest` 1685 passed (= W5 baseline 1688 minus 3 from Track A's `filter_chip` removal — no regressions from Track C edits).
