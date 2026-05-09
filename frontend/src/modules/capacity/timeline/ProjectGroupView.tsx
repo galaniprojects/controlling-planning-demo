@@ -1,100 +1,147 @@
 /**
- * ProjectGroupView — Lead pre-work seam for v5.2 W5 Track B (S9, spec §10).
+ * ProjectGroupView — v5.2 W5 Track B (spec §10).
  *
- * This file is the placeholder Track B will fully populate. It exists so the
- * `CapacityTimeline` switch on `groupBy === 'project'` has a stable mount
- * point that doesn't collide with the role-view tree (Track A's `S6b`
- * timeline-overlay work).
+ * Composition root for the group-by-project timeline (mounted by
+ * `CapacityTimeline.tsx` when `groupBy === 'project'`). The component
+ * tree per spec §10.13:
  *
- * Track B's task:
- *   1. Replace `ProjectGroupViewPlaceholder` with the §10 component tree
- *      (`ProjectGroup` + `ProjectGroupRow` + `AssignedPersonRow` +
- *      `UnassignedSlotRow` + `ExternalCostRow` + `UnassignedSummary`).
- *   2. Keep the public surface (`<ProjectGroupView columns={...} />`)
- *      stable — `CapacityTimeline.tsx` mounts it; nothing else should
- *      need to change there.
- *   3. The component is rendered *inside* `<ProjectColorMapProvider>` (its
- *      parent already provides the color map), so child rows can call
- *      `useProjectColor()` to share fills with the role-view segments.
+ *   ProjectGroupView
+ *     ├── ProjectGroup × N           ← one row group per visible project
+ *     │   ├── ProjectGroupRow        ← project header + fulfillment bar (§10.3)
+ *     │   ├── AssignedPersonRow × P  ← dual-layer bar (§10.4)
+ *     │   ├── UnassignedSlotRow × R  ← dashed demand ghost row (§10.5)
+ *     │   └── ExternalCostRow × X    ← thin neutral cost timeline (§10.6)
+ *     └── UnassignedSummary          ← sticky-bottom total unassigned hours (§10.7)
  *
- * Data feed: `capacityApi.getProjects({ scope, start, end, filter_chip })`
- * (defined in `frontend/src/api/endpoints.ts`). The response is typed as
- * `CapacityProjectsResponse` in `frontend/src/types/api.ts`.
+ * Data sourcing options:
+ *   - **Hoisted** (default in workspace): the parent calls
+ *     `useCapacityProjectsData()` once and threads the result through
+ *     `data` so `FilterChipBar` and the timeline share one fetch.
+ *   - **Standalone**: omit `data` and the component falls back to its
+ *     own internal fetch — handy for e2e tests / preview screens.
  *
- * The placeholder calls the endpoint to verify wiring end-to-end and so
- * Track B inherits a proven fetch path instead of building one fresh.
+ * Project summary side panel: clicks on the project header dispatch via
+ * `useCapacitySidePanel().openProjectSummary(projectId)`. The handler is
+ * registered in `CapacityWorkspace.tsx` (mirrors the W4 assignment-panel
+ * registration pattern).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useCapacityScope } from '@/contexts/CapacityScopeContext';
-import { capacityApi } from '@/api/endpoints';
-import { scopeToApiParam } from '@/lib/capacityScopeApi';
+import { useProjectColorMap } from '@/contexts/ProjectColorMapContext';
+import { useCapacitySidePanel } from '../sidepanel/CapacitySidePanelContext';
+import { useAssignmentState } from '../assignment/AssignmentStateContext';
+import { useCapacityProjectsData, type CapacityProjectsState } from '../hooks/useCapacityProjectsData';
+import { ProjectGroup } from './ProjectGroup';
+import { UnassignedSummary } from './UnassignedSummary';
+import { filterProjects } from './projectFilters';
 import type { TimeColumn } from './timeAxis';
-import type {
-  CapacityProjectItem,
-  CapacityProjectsResponse,
-} from '@/types/api';
+import type { CapacityProjectItem } from '@/types/api';
 
 interface ProjectGroupViewProps {
-  /** Visible time columns from `buildVisibleColumns(...)`. Same shape the
-   *  role view consumes — Track B uses these to align the bar grid. */
+  /** Visible time columns from `buildVisibleColumns(...)`. */
   columns: TimeColumn[];
+  /**
+   * Optional hoisted data — when provided, the component skips its
+   * internal fetch. The workspace passes its hoisted snapshot here so
+   * the chip bar and timeline render off the same fetch.
+   */
+  data?: CapacityProjectsState;
 }
 
-export function ProjectGroupView({ columns }: ProjectGroupViewProps) {
-  const { scope, ccId } = useCapacityScope();
-  const [data, setData] = useState<CapacityProjectsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function ProjectGroupView({ columns, data: providedData }: ProjectGroupViewProps) {
+  const { activeFilters, ccId: scopeCcId } = useCapacityScope();
+  const { registerVisibleProjects } = useProjectColorMap();
+  const { openPerson, openProjectSummary, openAssignment } = useCapacitySidePanel();
+  const { enterAssignmentMode } = useAssignmentState();
 
-  // Resolve the API scope param the same way the dashboard / inbox do.
-  const scopeParam = scopeToApiParam(scope, ccId);
+  // Standalone mode — fetch internally if no hoisted data was provided.
+  const localData = useCapacityProjectsData(providedData === undefined);
+  const data = providedData ?? localData;
 
+  // Apply the active filter chip set client-side (mirrors backend semantics).
+  const filteredItems = useMemo<CapacityProjectItem[]>(
+    () => filterProjects(data.items, activeFilters),
+    [data.items, activeFilters],
+  );
+
+  // Register newly-visible project ids with the color map so segments
+  // and side-panel dots share stable colours across views.
   useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
+    if (data.items.length > 0) {
+      registerVisibleProjects(data.items.map((it) => it.project_id));
+    }
+  }, [data.items, registerVisibleProjects]);
 
-    capacityApi
-      .getProjects({ scope: scopeParam })
-      .then((res) => {
-        if (cancelled) return;
-        setData(res);
-      })
-      .catch((err: Error) => {
-        if (cancelled) return;
-        setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
+  const handlePersonClick = (personId: string) => {
+    if (!scopeCcId) {
+      // CC-Owner default scope provides the ccId via context. For All-CCs
+      // / location / hierarchy scopes we'd need to look up the person's
+      // owning CC from the project payload — fall back to the project's
+      // first assigned-person CC. The PersonDetail endpoint requires a
+      // ccId for the URL path, so without one the click is a no-op
+      // until the controller picks a CC via the My-CC dropdown.
+      // (W6 follow-up could derive it server-side from person → CC.)
+      const owningCc = data.items
+        .flatMap((it) => it.assigned_people)
+        .find((p) => p.person_id === personId)?.cost_center_id;
+      if (!owningCc) return;
+      openPerson(owningCc, personId);
+      return;
+    }
+    openPerson(scopeCcId, personId);
+  };
 
-    return () => {
-      cancelled = true;
-    };
-  }, [scopeParam]);
+  const handleProjectClick = (projectId: string) => {
+    openProjectSummary(projectId);
+  };
 
-  if (isLoading) {
+  /**
+   * Slot-click → assignment mode. The Lead's pre-work brief asked the
+   * `UnassignedSlotRow.onSlotClick` prop to expose the entry point; we
+   * implement it here by translating (projectId, requestId) → CC id from
+   * the slot's `cc_id` field, then calling `enterAssignmentMode` +
+   * `openAssignment`. The behaviour matches Track A's URL-param entry
+   * point so both paths land on the same panel.
+   */
+  const handleSlotClick = (projectId: string, requestId: number) => {
+    const project = data.items.find((it) => it.project_id === projectId);
+    const slot = project?.unfulfilled_slots.find(
+      (s) => s.request_id === requestId,
+    );
+    if (!slot) return;
+    const crId = slot.change_request_id ?? undefined;
+    enterAssignmentMode(projectId, slot.cc_id, crId, 'inbox');
+    // The dispatcher routes to the AssignmentPanel handler registered
+    // by `AssignmentEntryPoint`. Spec §10.5 requires the panel to be
+    // pre-scrolled to the relevant role section — the AssignmentPanel
+    // itself owns scroll behaviour; we just hand it the right context.
+    openAssignment(projectId, { ccId: slot.cc_id, crId });
+  };
+
+  // ---- Render gates ----
+
+  if (data.isLoading) {
     return (
       <div className="space-y-2 p-3">
-        <Skeleton className="h-7 w-full" />
+        <Skeleton className="h-9 w-full" />
         <Skeleton className="h-32 w-full" />
       </div>
     );
   }
 
-  if (error) {
+  if (data.error) {
     return (
       <Card>
         <CardContent className="py-6 text-sm text-destructive">
-          Failed to load project view: {error}
+          Failed to load project view: {data.error}
         </CardContent>
       </Card>
     );
   }
 
-  if (!data || data.items.length === 0) {
+  if (data.items.length === 0) {
     return (
       <Card className="border-dashed">
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
@@ -104,50 +151,32 @@ export function ProjectGroupView({ columns }: ProjectGroupViewProps) {
     );
   }
 
-  return (
-    <ProjectGroupViewPlaceholder items={data.items} columns={columns} />
-  );
-}
+  if (filteredItems.length === 0) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+          No projects match the active filter combination. Click "All" to
+          reset.
+        </CardContent>
+      </Card>
+    );
+  }
 
-/**
- * Track B replaces this placeholder with the §10 component tree. The
- * placeholder lists projects with their fulfillment percentage so visual
- * verification confirms the data feed lights up across the full pipeline.
- */
-function ProjectGroupViewPlaceholder({
-  items,
-  columns: _columns,
-}: {
-  items: CapacityProjectItem[];
-  columns: TimeColumn[];
-}) {
   return (
-    <div role="rowgroup" className="divide-y divide-border">
-      {items.map((it) => (
-        <div
-          key={it.project_id}
-          className="flex items-center justify-between gap-3 px-3 py-2 text-xs"
-        >
-          <div className="flex flex-col gap-0.5">
-            <span className="font-medium text-foreground">
-              {it.project_name}
-            </span>
-            <span className="text-muted-foreground">
-              {it.hierarchy_node_name ?? '—'}
-              {it.pl_name ? ` · ${it.pl_name}` : ''}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 tabular-nums text-muted-foreground">
-            <span>
-              {it.fully_assigned_request_count}/{it.total_request_count}
-            </span>
-            <span className="rounded-sm border border-border px-1.5 py-0.5">
-              {it.fulfillment_pct.toFixed(0)}%
-            </span>
-          </div>
-        </div>
+    <>
+      {filteredItems.map((item) => (
+        <ProjectGroup
+          key={item.project_id}
+          item={item}
+          columns={columns}
+          referenceMaxHours={data.referenceMaxHours}
+          onProjectClick={handleProjectClick}
+          onPersonClick={handlePersonClick}
+          onSlotClick={handleSlotClick}
+        />
       ))}
-    </div>
+      <UnassignedSummary items={filteredItems} columns={columns} />
+    </>
   );
 }
 

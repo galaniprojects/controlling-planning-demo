@@ -25,7 +25,7 @@
  * Spec: guides/Capacity_Module_Redesign_Spec.md §1.3, §2 layout, §9.1, §11.
  */
 import { useEffect, useMemo, useRef } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { useRole } from '@/contexts/RoleContext';
 import { useCapacityScope } from '@/contexts/CapacityScopeContext';
@@ -169,6 +169,102 @@ function AssignmentEntryPoint() {
   return null;
 }
 
+/**
+ * ProjectSummaryEntryPoint — v5.2 W5 Track B (Session 9).
+ *
+ * Registers `ProjectSummaryPanel` as the `project_summary` handler in
+ * `CapacitySidePanelContext`. The handler resolves the requested
+ * `projectId` against the parent's project-data cache (passed via the
+ * `getItem` callback) so the panel always renders the freshest payload
+ * the timeline already has in hand.
+ *
+ * Renders nothing — purely a side-effect component. Mirrors the
+ * `AssignmentEntryPoint` pattern (§S6a) for consistency.
+ *
+ * Spec: guides/Capacity_Module_Redesign_Spec.md §10.8.
+ */
+function ProjectSummaryEntryPoint({
+  getItem,
+}: {
+  getItem: (projectId: string) => CapacityProjectItem | undefined;
+}) {
+  const { registerProjectSummaryHandler, openAssignment } = useCapacitySidePanel();
+  const { openPanel, closePanel } = useSidePanel();
+  const { enterAssignmentMode } = useAssignmentState();
+  const navigate = useNavigate();
+
+  // Refs so the registered handler always reads the latest cache /
+  // open / close functions. Side-panel content renders OUTSIDE
+  // CapacitySidePanelProvider (the shared `<SidePanel>` lives in
+  // AppLayout, above the workspace tree), so the panel content
+  // cannot call `useCapacitySidePanel` directly. We capture stable
+  // closures here and inject them as props.
+  const openPanelRef = useRef(openPanel);
+  const closePanelRef = useRef(closePanel);
+  const openAssignmentRef = useRef(openAssignment);
+  const enterAssignmentModeRef = useRef(enterAssignmentMode);
+  const navigateRef = useRef(navigate);
+  const getItemRef = useRef(getItem);
+  openPanelRef.current = openPanel;
+  closePanelRef.current = closePanel;
+  openAssignmentRef.current = openAssignment;
+  enterAssignmentModeRef.current = enterAssignmentMode;
+  navigateRef.current = navigate;
+  getItemRef.current = getItem;
+
+  useEffect(() => {
+    const unregister = registerProjectSummaryHandler((projectId: string) => {
+      const item = getItemRef.current(projectId);
+      if (!item) {
+        // Cache miss — close the panel rather than render an
+        // incomplete summary. A future wave can fall back to
+        // `getProjectSummary` here for deep-linked entries.
+        closePanelRef.current();
+        return;
+      }
+      const handleReviewAssign = (projectItem: CapacityProjectItem) => {
+        // Prefer an unfulfilled slot's CC; fall back to the first
+        // assigned person's CC; degrade to workbench if neither.
+        const ccId =
+          projectItem.unfulfilled_slots[0]?.cc_id ??
+          projectItem.assigned_people[0]?.cost_center_id ??
+          null;
+        if (!ccId) {
+          navigateRef.current(
+            `/workbench?project=${encodeURIComponent(projectItem.project_id)}`,
+          );
+          return;
+        }
+        const crId =
+          projectItem.unfulfilled_slots[0]?.change_request_id ?? undefined;
+        enterAssignmentModeRef.current(
+          projectItem.project_id,
+          ccId,
+          crId,
+          'inbox',
+        );
+        openAssignmentRef.current(projectItem.project_id, { ccId, crId });
+      };
+      openPanelRef.current(
+        'Project summary',
+        <ProjectSummaryPanel
+          item={item}
+          onReviewAssign={handleReviewAssign}
+          onClosePanel={() => closePanelRef.current()}
+          navigate={(path) => navigateRef.current(path)}
+        />,
+        { width: CAPACITY_PANEL_WIDTH.project_summary },
+      );
+    });
+
+    return unregister;
+    // registerProjectSummaryHandler is a stable useCallback ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registerProjectSummaryHandler]);
+
+  return null;
+}
+
 function WorkspaceBody() {
   const { groupBy, ccId, scope, activeFilters } = useCapacityScope();
   const { openPerson, openCell } = useCapacitySidePanel();
@@ -176,6 +272,19 @@ function WorkspaceBody() {
   // Hoisted timeline fetch so FilterChipBar can compute badge counts
   // off the same dataset the timeline renders.
   const data = useScopedTimelineData();
+
+  // v5.2 W5 §10 — hoisted project-view fetch (only fires when
+  // `groupBy === 'project'`). Drives `FilterChipBar` chip counts in
+  // project mode AND feeds the `ProjectSummaryEntryPoint` cache so
+  // side-panel summaries hit a warm payload.
+  const projectData = useCapacityProjectsData(groupBy === 'project');
+
+  // Cached lookup for the project-summary handler.
+  const projectsById = useMemo(() => {
+    const map = new Map<string, CapacityProjectItem>();
+    for (const it of projectData.items) map.set(it.project_id, it);
+    return map;
+  }, [projectData.items]);
 
   const filterRows = useMemo(
     () => buildFilterRows(data.roleGroups, data.flatPeople),
@@ -201,6 +310,8 @@ function WorkspaceBody() {
 
   return (
     <div className="space-y-4">
+      <ProjectSummaryEntryPoint getItem={(id) => projectsById.get(id)} />
+
       <Card>
         <CardContent className="py-4">
           <ScopeBar />
@@ -213,18 +324,27 @@ function WorkspaceBody() {
           DashboardLayer handles its own visibility and slide-up animation. */}
       <DashboardLayer />
 
-      <FilterChipBar rows={filterRows} />
+      {/* v5.2 W5 §10.10 — pass project items to FilterChipBar when
+          group-by-project is active so chip counts and the `Needs
+          staffing` chip surface project-level semantics. */}
+      <FilterChipBar
+        rows={filterRows}
+        projectItems={groupBy === 'project' ? projectData.items : undefined}
+      />
 
       {/* Hint when filters hide every row, so the empty timeline state
-          isn't mistaken for a loading or scope problem. */}
-      {!activeFilters.includes('all') && visibleFilteredCount === 0 && (
-        <Card className="border-dashed">
-          <CardContent className="py-3 text-xs text-muted-foreground">
-            No people match the active filter combination. Click "All" to
-            reset.
-          </CardContent>
-        </Card>
-      )}
+          isn't mistaken for a loading or scope problem. ProjectGroupView
+          owns the empty-state hint in project mode (different message). */}
+      {groupBy !== 'project' &&
+        !activeFilters.includes('all') &&
+        visibleFilteredCount === 0 && (
+          <Card className="border-dashed">
+            <CardContent className="py-3 text-xs text-muted-foreground">
+              No people match the active filter combination. Click "All" to
+              reset.
+            </CardContent>
+          </Card>
+        )}
 
       <CapacityTimeline data={data} onPersonClick={handlePersonClick} />
 
