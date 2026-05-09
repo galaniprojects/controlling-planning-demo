@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { DEFAULT_SIDE_PANEL_WIDTH } from '@/lib/sidePanelConstants';
 
@@ -44,10 +44,33 @@ export function SidePanel({
     onClose();
   };
 
+  // v5.2 W6 Track C — a11y polish: Escape key closes the panel, respecting
+  // the same `onBeforeClose` guard used by the close button. Listener is
+  // registered while the panel is mounted (panel is rendered conditionally
+  // by `SidePanelHost`, so mount == open).
+  //
+  // We stash `handleClose` in a ref so the keydown listener is bound exactly
+  // once but always invokes the latest close handler (which closes over the
+  // current `onBeforeClose` / `onClose` props).
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      // Stop other keydown handlers on the page from also reacting.
+      event.stopPropagation();
+      handleCloseRef.current();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   return (
     <aside
       className="fixed right-0 top-14 bottom-0 border-l border-border bg-card shadow-lg z-40 overflow-y-auto"
       style={{ width: `${width}px` }}
+      role="dialog"
+      aria-label={title}
     >
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <span className="text-sm font-semibold text-foreground">{title}</span>
