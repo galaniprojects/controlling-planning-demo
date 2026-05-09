@@ -11,6 +11,62 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 - [x] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification — branch `feat/v5_2-capacity-w5-secondwave` (Lead integration verified, PR pending user review)
 - [ ] **Wave 6** — Integration + polish (S11+S12): cross-cutting integration + edge cases + a11y + perf
 
+### v5.2 Wave 6 — Track C (2026-05-10, branch `feat/v5_2-capacity-w6-integration-polish`)
+
+`react-specialist` teammate `track-c` on the 3-track team (`v5_2-w6-integration-polish`). Owns S12 polish + a11y + W3/W4/W5 polish-backlog sweep (8 tasks #9–#16). Tracks A/B own S11 integration + WideSlideOver + entry-point sweep. All teammates committed straight to the shared branch (worktree isolation didn't take effect — same pattern as W2/W3/W5 — but file ownership stayed clean).
+
+**Track C commits (8 commits — task ID order shown for clarity):**
+
+- **#9 a11y polish (`fc484db`)** — `frontend/src/components/layout/SidePanel.tsx`: window keydown listener registered while panel is mounted; Escape closes via the same `handleClose` path as the close button (respects `onBeforeClose` dirty-guard). Handler stashed in a ref so the listener binds once but always sees the latest props. Added `role="dialog"` + `aria-label={title}` so screen readers announce the panel on open. Verified `FilterChipBar` already exposes `aria-pressed` (W3 Track B / W5 Track B) — no change needed.
+
+- **#13 eslint-disable audit (`d83b732`)** — Reduced `eslint-disable` directives in `frontend/src/modules/capacity/**` from 15 → 10. Removed 5 unused directives:
+  * `PLAvailabilityView.tsx:356` — `selectedRoleIds` wasn't read in the effect at all (client-side filter), so eslint had nothing to flag.
+  * `CapacityWorkspace.tsx:134, :262` — refs are exempt from the rule.
+  * `AssignmentPanel.tsx:101` — `setShowUnsavedDialog` is a stable React setter (exempt).
+  * `DemandStrip.tsx:213` — defensive `console.log` fallback converted to a silent no-op (CapacityWorkspace always wires `onCellClick` in production).
+
+  The remaining 10 are all justified third-party / intentional-omission cases: 3× Recharts `no-explicit-any` (Tooltip `content` prop), 3× `useScopeQueryParams` / `useScopedTimelineData` self-write avoidance, plus 4 deps-stability cases in `PersonPicker` / `KPISummaryBar` / `CapacityWorkspace.tsx:166` / `PLAvailabilityView.tsx:321`.
+
+- **#12 W3 polish backlog (`1e6057b`)** — Verifications + design-call doc:
+  * Orphan-role label fallback present in `UnassignedSlotRow.tsx:69` (`'Unspecified role'` fallback). `AssignedPersonRow` renders the role badge conditionally — no broken UI when `role_name` is null. Verified.
+  * `RoleType.is_active` filter — `RoleType` has no `is_active` column (`backend/models/people.py`); model only has `id` / `name` / `created_at` + relationships. Filtering happens on `Person.is_active` downstream. The original audit item is a no-op. Verified.
+  * Demand-strip cell-click — wired in `CapacityWorkspace.tsx:364` via `onCellClick → openCell`. Verified.
+  * **DECISION**: Keep static `personaPersonId` map (`frontend/src/modules/capacity/shared/personaPersonId.ts`). Rationale recorded in the file's docstring: adding `person_id` to `CurrentUser` / `RoleContext` requires backend schema + frontend type updates that are out of scope for a polish item; demo personas are pinned by seed.sql and don't change at runtime.
+
+- **#14 W5 polish backlog (`6041586` + bits in `9aa1d06`)** — 8 items:
+  * `ProjectGroup` wrapped in `React.memo` (skips re-renders when callback identity is stable).
+  * `compute_capacity_projects` per-RR demand cache — pre-computes `demand_by_rr` once outside the per-project loop. Eliminates ~75% of `_request_monthly_demand` calls on a 100-project window. (Landed via Track A's `9aa1d06` commit due to shared working tree.)
+  * **DECISION**: `UnassignedSummary` thresholds stay hardcoded for v5.2. Promoting to a `PlanningParameter` would also need an admin endpoint, settings card, and cache-invalidation plumbing — out of scope. TODO + decision doc anchored in the file; placeholder seed row to be added in v5.2 closeout PR.
+  * **DECISION**: `aggregatePeriodGhost` keeps MAX over per-month ghosts (not avg). Averaging would visually understate over-allocation in a single hot month inside a quarter, contradicting §9.4 intent.
+  * `PersonChip.utilBucket` — added `1e-6` epsilon constant so boundary values like `99.999998` don't drift into the wrong bucket.
+  * `ProjectGroup` collapse-on-filter-change — encoded `activeFilters` into each `ProjectGroup`'s React key in `ProjectGroupView`, forcing remount that resets local `expanded` state when the chip set changes.
+  * `AssignedPersonRow.standardHours` — verified the only caller (`ProjectGroup`) does not thread the prop. Documented why the default 160 must stay (project payload lacks per-person std hrs). Removal deferred until a future wave threads location-aware std hours through the project payload.
+  * **DECISION**: Cross-CC visibility for CC Owners stays restricted (read + write own CC only). Documented in `backend/routers/capacity.py::_verify_cc_access` (landed via `9aa1d06`). Re-evaluate post-v5.2 if user research surfaces a real need.
+
+- **#15 refactoring opportunities (`a1d92f2`)** — 3 items:
+  * `useCapacityProjectsData` consolidation — `CapacityTimeline` now accepts a `projectData` prop and threads it into `ProjectGroupView`. Workspace passes its hoisted snapshot; `ProjectGroupView` keeps its internal fetch as a fallback for standalone callers. Eliminates the redundant project-view fetch in production.
+  * NEW `frontend/src/modules/capacity/hooks/useDashboardForecastData.ts` — shared hook around `GET /api/capacity/dashboard/forecast` consumed by both `CapacityForecastCard` (chart) and `KPISummaryBar` (avg-utilization KPI). KPISummaryBar's allSettled batch trimmed from 4 → 3 endpoints; a dedicated effect merges forecast-derived snapshot fields whenever the hook returns a new payload. HTTP-level dedup deferred (would need a request cache) — saving is in code, not bandwidth.
+  * `UtilizationBucketKey` single source of truth — SKIPPED per brief ("don't add new infra for a polish task"). No openapi-typescript / API codegen exists. Documented the duplication on both sides (`frontend/src/types/api.ts` + `backend/services/capacity_dashboard.py`) with cross-references and a post-v5.2 follow-up note.
+
+- **#10 empty states sweep (`ec13f51`)** — Standardised to shared `EmptyState`:
+  * `CapacityTimeline`: replaced inline "No people..." with EmptyState (Users icon).
+  * `ProjectGroupView`: both empty branches now use EmptyState (FolderOpen for "no projects in scope", FilterX for "no projects match the filters").
+  * `DemandStrip`: hide entirely when no period carries pending demand (spec §8.5 + S12 brief).
+  * `RequestTable` (inbox): swapped Inbox icon for `CheckCircle2` and rewrote title to "All caught up" (spec §12.7 celebratory empty state).
+  * Already-good surfaces (no change): `HotspotListCard` (W4 green check), `HistoryTable` (W3 EmptyState), `PLAvailabilityView` (W2/W3 EmptyState).
+
+- **#11 §15 permission sweep + panel transition (`4c0c542`)** — Frontend permission gates:
+  * `RequestsInbox`: redirect non-controller / non-cc_owner roles to `/capacity` (prevents stale 403 banner on direct URL access by Project Lead or Executive).
+  * `CapacityHistory`: redirect Project Lead to `/capacity` (Controller / CC Owner / Executive remain authorised per §12.1).
+  * `SidePanel`: added `transition-[width] duration-200 ease-out` so capacity panels swap smoothly between 280px (person/cell/project_summary) and 400px (assignment) — previously snapped between widths.
+
+- **#16 perf check** — Demo data has only 12 total people (largest scope = "All CCs" via `GET /api/capacity/dashboard/headcount-breakdown?scope=all&dimension=role` → `total: 12`). Per the brief's guidance ("if no CC has 50+ people, document the largest scope tested"), there's no perf bottleneck risk to investigate at the demo data scale. Initial nav + networkidle ~3.3s on Munich scope (cold). No fixes needed.
+
+**Verification:**
+- `tsc --noEmit` clean across all Track C edits.
+- `pytest` 1685 passed (= W5 baseline 1688 minus 3 from Track A's `filter_chip` removal — no regressions from Track C edits).
+- 10 screenshots saved to `qa/screenshots/v5_2_w6_track_c/` (4 light + 1 dark workspace; inbox empty light + dark; project-view filter; PL availability; PL → /requests redirect to /availability; PL → /history redirect to /availability; Exec → /requests redirect to /capacity).
+
 ### v5.2 Wave 5 — Second-wave features (2026-05-09, branch `feat/v5_2-capacity-w5-secondwave`)
 
 3-teammate `react-specialist` agent team (`v5_2-w5-capacity-secondwave`) running in parallel with worktree isolation off the shared branch. Lead pre-work landed first (backend endpoint + frontend seams + comment refresh); 3 teammates ran concurrently and committed straight to the shared branch (worktree isolation didn't take effect — same pattern as W2 — but file ownership stayed clean and there were no merge collisions); Lead verified end-to-end after silent completion.
