@@ -28,8 +28,11 @@ the frontend.
 """
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy.orm import Session
 
@@ -291,11 +294,26 @@ def compute_capacity_projects(
     # rendering. Hoisting the call out of the per-project loop and
     # caching by rr.id eliminates the redundant work; on a 100-project /
     # 36-month window it cuts ~75% of the calls in this hot path.
-    demand_by_rr: dict[int, dict[str, float]] = {
-        rr.id: _request_monthly_demand(rr, months)
-        for rr in all_rrs
-        if rr.request_type == "resource"
-    }
+    #
+    # v5.2 W6 review fix (P1.6) — guard each per-RR call so a single
+    # malformed row (e.g. partially-seeded fixture with `period_start=None`
+    # crashes generate_month_range) doesn't take down the entire endpoint
+    # the way a bare comprehension would. Bad rows are logged and skipped;
+    # downstream code already tolerates a missing entry in `demand_by_rr`
+    # via `demand_by_rr.get(rr.id, {})` patterns below.
+    demand_by_rr: dict[int, dict[str, float]] = {}
+    for rr in all_rrs:
+        if rr.request_type != "resource":
+            continue
+        try:
+            demand_by_rr[rr.id] = _request_monthly_demand(rr, months)
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                "skip_rr_demand rr_id=%s project_id=%s reason=%s",
+                rr.id,
+                rr.project_id,
+                exc,
+            )
 
     # --- Build items ---
     items: list[dict] = []

@@ -25,7 +25,7 @@
  * registered in `CapacityWorkspace.tsx` (mirrors the W4 assignment-panel
  * registration pattern).
  */
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FolderOpen, FilterX } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -171,21 +171,33 @@ export function ProjectGroupView({ columns, data: providedData }: ProjectGroupVi
     );
   }
 
-  // v5.2 W6 Track C — encode activeFilters into the per-group key so
-  // changing the filter chip set forces a remount of every visible
-  // ProjectGroup. That resets each group's local `expanded` state
-  // (default = true) so collapsed groups don't stay collapsed across
-  // filter changes — the visible row set otherwise looks "stale".
+  // v5.2 W6 review fix (P2.5) — bump a `resetSignal` whenever the chip
+  // set changes; ProjectGroup resets its local `expanded` state via
+  // `useEffect([resetSignal])`. Pre-fix this used a React-key strategy
+  // (`key={`${pid}::${filterKey}`}`) which forced full remounts of all
+  // visible groups + their children on every chip toggle, defeating
+  // `React.memo` and resetting timeline scroll position. The signal-
+  // based approach achieves the same UX without the unmount/remount
+  // cost.
   const filterKey = activeFilters.join(',') || 'all';
+  const lastFilterKeyRef = useRef(filterKey);
+  const [resetSignal, setResetSignal] = useState(0);
+  useEffect(() => {
+    if (lastFilterKeyRef.current !== filterKey) {
+      lastFilterKeyRef.current = filterKey;
+      setResetSignal((s) => s + 1);
+    }
+  }, [filterKey]);
 
   return (
     <>
       {filteredItems.map((item) => (
         <ProjectGroup
-          key={`${item.project_id}::${filterKey}`}
+          key={item.project_id}
           item={item}
           columns={columns}
           referenceMaxHours={data.referenceMaxHours}
+          resetSignal={resetSignal}
           onProjectClick={handleProjectClick}
           onPersonClick={handlePersonClick}
           onSlotClick={handleSlotClick}

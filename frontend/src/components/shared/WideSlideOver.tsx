@@ -41,12 +41,20 @@ export function WideSlideOver({
   // Restore focus to whichever element was focused before we opened.
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 
-  // Escape-to-close + focus management.
+  // Escape-to-close + focus management + body scroll lock.
   useEffect(() => {
     if (!open) return;
 
     restoreFocusRef.current =
       (document.activeElement as HTMLElement | null) ?? null;
+
+    // v5.2 W6 review fix (P1.4) — lock body scroll while the slide-over
+    // is open. Without this, mouse-wheel over the visible workbench (left
+    // half) scrolls the page underneath even though clicks are
+    // intercepted by the backdrop, which is disorienting because the
+    // backdrop visually masks the scroll.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -89,6 +97,7 @@ export function WideSlideOver({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
       // Restore focus to the trigger element on close.
       const toFocus = restoreFocusRef.current;
       restoreFocusRef.current = null;

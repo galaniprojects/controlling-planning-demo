@@ -69,12 +69,19 @@ export function ForecastTab({ projectId, role }: Props) {
     reload: reloadVersions,
   } = useForecastVersions(projectId);
 
-  // Reset wizard mode when switching projects
+  // Reset wizard mode when switching projects.
+  //
+  // v5.2 W6 review fix (P2.8) — also close any open WideSlideOver. If
+  // the user opens "Check availability" for project A then navigates to
+  // project B in the workbench, the slide-over otherwise stays open
+  // with project-A context and clicking "Request this role" populates
+  // project B's banner.
   useEffect(() => {
     setMode('read');
     setDiffDialogVersionId(null);
     setCapturedRequest(null);
-  }, [projectId]);
+    closeSlideOver();
+  }, [projectId, closeSlideOver]);
 
   // v5.2 W6 S11 — open the wide slide-over with the PL availability view.
   // The slide-over's "Request this role" CTA fires onRequestRole(slot),

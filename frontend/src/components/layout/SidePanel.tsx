@@ -57,6 +57,15 @@ export function SidePanel({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      // v5.2 W6 review fix (P2.9) — don't swallow Escape inside text
+      // inputs. Some browsers map Escape to "clear input"; if the user
+      // is typing in a textarea/search and hits Esc, closing the panel
+      // would also wipe the unsaved input. The dirty-guard handles
+      // AssignmentPanel, but ad-hoc inputs in other panels need this.
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, [contenteditable="true"]')) {
+        return;
+      }
       // Stop other keydown handlers on the page from also reacting.
       event.stopPropagation();
       handleCloseRef.current();

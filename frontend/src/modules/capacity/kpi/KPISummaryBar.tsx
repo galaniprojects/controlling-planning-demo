@@ -159,7 +159,13 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
   // hook drives `CapacityForecastCard`'s chart, so the loading/error/
   // window-shape semantics stay aligned across the dashboard layer and
   // the avg-utilization KPI tile.
+  //
+  // v5.2 W6 review fix (P2.6) — combined `loading` includes the forecast
+  // hook's loading state so the avg-utilization tile doesn't flip from
+  // '—' to a value while OTHER tiles still show '—'. Tiles render
+  // consistently across the bar.
   const forecastData = useDashboardForecastData();
+  const combinedLoading = loading || forecastData.isLoading;
 
   useEffect(() => {
     let cancelled = false;
@@ -305,18 +311,18 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
   const cardValue = (key: KpiCardDef['key']): string => {
     switch (key) {
       case 'headcount':
-        return loading ? '—' : String(snapshot.headcount);
+        return combinedLoading ? '—' : String(snapshot.headcount);
       case 'avg_util':
-        return loading ? '—' : formatPct(snapshot.avgUtilizationPct);
+        return combinedLoading ? '—' : formatPct(snapshot.avgUtilizationPct);
       case 'over_alloc':
-        return loading ? '—' : String(snapshot.overAllocatedCount);
+        return combinedLoading ? '—' : String(snapshot.overAllocatedCount);
       case 'pending_req':
-        if (loading) return '—';
+        if (combinedLoading) return '—';
         return snapshot.pendingRequestsCount === null
           ? '—'
           : String(snapshot.pendingRequestsCount);
       case 'supply_gap':
-        return loading
+        return combinedLoading
           ? '—'
           : `${snapshot.supplyGapRoleCount} ${
               snapshot.supplyGapRoleCount === 1 ? 'role' : 'roles'
@@ -388,7 +394,7 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
             <div
               className={cn(
                 'text-2xl font-semibold leading-none',
-                error || loading
+                error || combinedLoading
                   ? 'text-muted-foreground'
                   : 'text-foreground',
               )}

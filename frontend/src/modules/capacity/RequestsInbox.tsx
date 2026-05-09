@@ -26,7 +26,7 @@
  *     bump the recently-completed nonce so that section refreshes.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Inbox, Loader2 } from 'lucide-react';
 import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -166,9 +166,14 @@ export default function RequestsInbox() {
   // CapacityModuleNav hides) would otherwise hit a 403 on the inbox
   // fetch and render an error banner. Redirect to the workspace (the
   // workspace itself redirects PL onward to /capacity/availability).
-  if (role && role !== 'controller' && role !== 'cost_center_owner') {
-    return <Navigate to="/capacity" replace />;
-  }
+  //
+  // v5.2 W6 review fix (P1.1) — drive the redirect from a useEffect so
+  // we don't early-return *before* the hooks below, which would change
+  // the hook count across renders (`role` is undefined on first render
+  // before RoleContext resolves and concrete on the next). React would
+  // throw a "Rendered fewer hooks than expected" error in that case.
+  const isAuthorized =
+    !role || role === 'controller' || role === 'cost_center_owner';
 
   const [items, setItems] = useState<CapacityInboxItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -191,6 +196,14 @@ export default function RequestsInbox() {
   const recentFilterPersonId = isCcOwner
     ? undefined
     : resolvePersonaPersonId(currentRoleId);
+
+  // v5.2 W6 review fix (P1.1) — fire the §15 redirect from an effect so
+  // every hook above runs on every render regardless of role.
+  useEffect(() => {
+    if (role && !isAuthorized) {
+      navigate('/capacity', { replace: true });
+    }
+  }, [role, isAuthorized, navigate]);
 
   // --- Fetch inbox ---
   const fetchInbox = useCallback(
@@ -342,6 +355,10 @@ export default function RequestsInbox() {
   // ---------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------
+
+  // v5.2 W6 review fix (P1.1) — render nothing while the redirect effect
+  // navigates the unauthorized persona away. All hooks above already ran.
+  if (role && !isAuthorized) return null;
 
   return (
     <div className="space-y-4">

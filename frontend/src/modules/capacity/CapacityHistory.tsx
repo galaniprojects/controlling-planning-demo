@@ -22,7 +22,7 @@
  * URL state mirrors the filters via `useSearchParams({ replace: true })`.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -238,14 +238,22 @@ export default function CapacityHistory() {
   const personaUserName = context?.user_name;
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   // v5.2 W6 Track C — §15 permission sweep. The History audit log is
   // restricted to controller / cc_owner / executive per §12.1; PL never
   // sees the nav and would otherwise hit a 403 on direct URL access.
   // Redirect to the workspace, which then bounces PL to /availability.
-  if (role && role !== 'controller' && role !== 'cost_center_owner' && role !== 'executive') {
-    return <Navigate to="/capacity" replace />;
-  }
+  //
+  // v5.2 W6 review fix (P1.3) — drive the redirect from a useEffect so
+  // we don't early-return *before* the hooks below, which would change
+  // the hook count across renders. See RequestsInbox.tsx for the same
+  // pattern + rationale.
+  const isAuthorized =
+    !role ||
+    role === 'controller' ||
+    role === 'cost_center_owner' ||
+    role === 'executive';
 
   const fallback = useMemo(() => defaultFilterForRole(role), [role]);
   const filters = useMemo(
@@ -412,6 +420,16 @@ export default function CapacityHistory() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // v5.2 W6 review fix (P1.3) — fire the §15 redirect from an effect so
+  // every hook above runs on every render regardless of role.
+  useEffect(() => {
+    if (role && !isAuthorized) {
+      navigate('/capacity', { replace: true });
+    }
+  }, [role, isAuthorized, navigate]);
+
+  if (role && !isAuthorized) return null;
 
   return (
     <div className="space-y-4">

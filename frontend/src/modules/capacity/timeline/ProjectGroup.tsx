@@ -30,8 +30,16 @@
  * forcing a remount when the filter set changes. That keeps the local
  * collapse state honest without an extra effect that would also reset
  * on every parent re-render.
+ *
+ * v5.2 W6 review fix (P2.5) — replaced the React-key remount strategy
+ * with a `resetSignal` prop. Remounting defeated the surrounding
+ * `React.memo`, blew away child component instances on every chip
+ * toggle (visible repaint on a 30-project view), and reset the
+ * timeline's scroll position. The resetSignal-via-effect approach
+ * keeps the same UX (collapse state resets on filter change) without
+ * the unmount/remount cost.
  */
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { type TimeColumn } from './timeAxis';
 import { ProjectGroupRow } from './ProjectGroupRow';
 import { AssignedPersonRow } from './AssignedPersonRow';
@@ -46,6 +54,12 @@ export interface ProjectGroupProps {
   referenceMaxHours: number;
   /** Default expanded state. */
   defaultExpanded?: boolean;
+  /**
+   * Bumped by the parent to reset internal `expanded` to `defaultExpanded`.
+   * Used to reset collapse state when the active filter chip set changes
+   * (W6 review fix P2.5 — replaces the prior React-key remount strategy).
+   */
+  resetSignal?: number;
   /** Click-on-project-header → side-panel project summary (§10.8). */
   onProjectClick?: (projectId: string) => void;
   /** Click-on-person → side-panel person detail (§7.2). */
@@ -62,11 +76,22 @@ function ProjectGroupImpl({
   columns,
   referenceMaxHours,
   defaultExpanded = true,
+  resetSignal,
   onProjectClick,
   onPersonClick,
   onSlotClick,
 }: ProjectGroupProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+
+  // Reset to defaultExpanded whenever the parent bumps resetSignal.
+  // Skips the initial mount (the useState already initialised to default).
+  useEffect(() => {
+    if (resetSignal === undefined) return;
+    setExpanded(defaultExpanded);
+    // We intentionally re-fire on every resetSignal change even if
+    // defaultExpanded is unchanged — that's the whole point.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
 
   return (
     <div role="rowgroup">
