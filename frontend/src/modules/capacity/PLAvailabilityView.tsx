@@ -1,21 +1,27 @@
 /**
- * PLAvailabilityView — v5.2 W4 Track C (spec §13)
+ * PLAvailabilityView — v5.2 W4 Track C (spec §13), W6 S11 (slide-over mode §13.9)
  *
- * Project Lead read-only capacity view. Route: /capacity/availability
- * Access: PL only. Non-PL roles are redirected to /capacity by CapacityManagement.
+ * Project Lead read-only capacity view. Routes:
+ *   - /capacity/availability             (mode='page', default)
+ *   - Inside the WideSlideOver           (mode='slideover', via PLAvailabilitySlideOver)
  *
- * Self-contained page — no dependency on CapacityScopeContext. Owns its own:
- *   - Location selection state (URL-synced via ?location=)
- *   - Role filter state (URL-synced via ?role=)
+ * Self-contained — no dependency on CapacityScopeContext. Owns its own:
+ *   - Location selection state (URL-synced via ?location= in page mode only)
+ *   - Role filter state (URL-synced via ?role= in page mode only)
  *   - Time axis state (local inside AvailabilityGrid, not persisted to URL)
  *
  * Data privacy: all data comes from getRoleAvailability only.
  * No person names, project names, CC names, or PL names are rendered here.
  *
- * Layout: ModuleHeader → AvailabilityScopeBar → AvailabilityKPIs →
- *         AvailabilityGrid → (shared SidePanel for AvailabilitySidePanel)
+ * Layout: (ModuleHeader page-only) → AvailabilityScopeBar → AvailabilityKPIs →
+ *         AvailabilityGrid → side-panel-content
+ *
+ * Side panel rendering depends on mode (spec §13.9):
+ *   - page:      shared 280px SidePanel via useSidePanel() (existing behavior).
+ *   - slideover: nested inline below the grid (no panel-within-panel) — the
+ *                wide slide-over has no room for a second side panel.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CalendarRange } from 'lucide-react';
 import { ModuleHeader } from '@/components/shared/ModuleHeader';
@@ -216,18 +222,74 @@ function extractRoleTypes(items: RoleAvailabilityRow[]): RoleTypeOption[] {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function PLAvailabilityView() {
+export interface PLAvailabilityViewProps {
+  /**
+   * `'page'` (default): renders inside a route, with ModuleHeader, URL-synced
+   * filters, and a separate 280px shared SidePanel for the role detail.
+   *
+   * `'slideover'`: renders inside the WideSlideOver. Skips ModuleHeader and
+   * URL sync, and nests the AvailabilitySidePanel inline beneath the grid
+   * (spec §13.9 — "the side panel nests inside the slide-over as a
+   * collapsible section rather than a separate panel-within-panel").
+   */
+  mode?: 'page' | 'slideover';
+  /**
+   * Pre-selected location for slide-over mode. Ignored in page mode (URL
+   * is the source of truth there).
+   */
+  initialLocationId?: string | null;
+  /**
+   * Pre-selected role types for slide-over mode. Ignored in page mode.
+   */
+  initialRoleIds?: string[];
+  /**
+   * Slide-over mode only — invoked when the PL clicks "Request this role".
+   * The wrapper (PLAvailabilitySlideOver) is responsible for closing the
+   * slide-over and propagating the request to the host (e.g. ForecastTab).
+   */
+  onRequestRole?: (slot: RequestedRoleSlot) => void;
+}
+
+export interface RequestedRoleSlot {
+  role_type_id: string;
+  role_type_name: string;
+  /** Selected location (or `null` if "All locations" is active). */
+  location_id: string | null;
+  location_name: string | null;
+  /**
+   * Suggested period derived from where availability is highest.
+   * Always non-empty when months are available; otherwise undefined.
+   */
+  suggested_month?: string;
+}
+
+export default function PLAvailabilityView({
+  mode = 'page',
+  initialLocationId = null,
+  initialRoleIds = [],
+  onRequestRole,
+}: PLAvailabilityViewProps = {}) {
+  const isSlideOver = mode === 'slideover';
   const [searchParams, setSearchParams] = useSearchParams();
   const { openPanel, closePanel } = useSidePanel();
 
-  // URL-synced filter state — initialized from query params
+  // URL-synced filter state — initialized from query params (page mode)
+  // or from props (slide-over mode).
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
-    () => searchParams.get('location') ?? null,
+    () => (isSlideOver ? initialLocationId : (searchParams.get('location') ?? null)),
   );
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>(() => {
+    if (isSlideOver) return initialRoleIds;
     const raw = searchParams.get('role');
     return raw ? raw.split(',').filter(Boolean) : [];
   });
+
+  // Slide-over mode keeps the selected role in local state so the inline
+  // AvailabilitySidePanel can render directly beneath the grid (no panel
+  // -within-panel). Page mode keeps using the shared 280px SidePanel.
+  const [inlineSelectedRole, setInlineSelectedRole] = useState<SelectedRole | null>(
+    null,
+  );
 
   // API data state
   const [items, setItems] = useState<RoleAvailabilityRow[]>([]);
@@ -237,8 +299,10 @@ export default function PLAvailabilityView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Sync filters → URL (replace, not push)
+  // Sync filters → URL (replace, not push). Page mode only — slide-over
+  // mode is ephemeral and shouldn't pollute the host route's URL.
   useEffect(() => {
+    if (isSlideOver) return;
     const next = new URLSearchParams(searchParams);
     if (selectedLocationId) {
       next.set('location', selectedLocationId);
@@ -255,7 +319,7 @@ export default function PLAvailabilityView() {
     }
     // searchParams excluded intentionally to avoid write → re-read loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLocationId, selectedRoleIds]);
+  }, [selectedLocationId, selectedRoleIds, isSlideOver]);
 
   // Fetch on location filter change (role filter is applied client-side for instant response)
   useEffect(() => {
@@ -312,8 +376,41 @@ export default function PLAvailabilityView() {
     return allLocations.find((l) => l.id === selectedLocationId)?.name ?? null;
   }, [selectedLocationId, allLocations]);
 
-  // Side panel handler — opens AvailabilitySidePanel via shared useSidePanel()
+  /**
+   * Build the slot payload for the host (e.g. ForecastTab) based on the
+   * currently-selected role + location. Picks the month with the highest
+   * available_hours as the suggested period (spec §13.7).
+   */
+  const buildRequestSlot = useCallback(
+    (selected: SelectedRole): RequestedRoleSlot => {
+      let suggested: string | undefined;
+      if (selected.months.length > 0) {
+        const best = selected.months.reduce((best, row) =>
+          row.available_hours > best.available_hours ? row : best,
+        );
+        suggested = best.month;
+      }
+      return {
+        role_type_id: selected.role_type_id,
+        role_type_name: selected.role_type_name,
+        location_id: selectedLocationId,
+        location_name: selectedLocationName,
+        suggested_month: suggested,
+      };
+    },
+    [selectedLocationId, selectedLocationName],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Side-panel / role-click handler — branches on mode (§13.9)
+  // ---------------------------------------------------------------------------
+
   function handleRoleClick(selected: SelectedRole) {
+    if (isSlideOver) {
+      // Inline rendering inside the wide slide-over (no panel-within-panel).
+      setInlineSelectedRole(selected);
+      return;
+    }
     openPanel(
       selected.role_type_name,
       <AvailabilitySidePanel
@@ -331,15 +428,32 @@ export default function PLAvailabilityView() {
 
   function handleLocationChange(locationId: string | null) {
     setSelectedLocationId(locationId);
-    closePanel(); // close panel when location changes — data context shifts
+    if (isSlideOver) {
+      // Data context shifted — clear the inline detail too.
+      setInlineSelectedRole(null);
+    } else {
+      closePanel(); // close panel when location changes — data context shifts
+    }
   }
 
+  function handleInlineRequest() {
+    if (!inlineSelectedRole || !onRequestRole) return;
+    onRequestRole(buildRequestSlot(inlineSelectedRole));
+  }
+
+  // Outer wrapper styling differs slightly between modes — page mode uses
+  // p-6 (route-level breathing room); slide-over mode uses p-5 + uses the
+  // wide-slide-over's own scroll container.
+  const wrapperClass = isSlideOver ? 'space-y-5 p-5' : 'space-y-5 p-6';
+
   return (
-    <div className="space-y-5 p-6">
-      <ModuleHeader
-        title="Resource Availability"
-        subtitle="Browse role-level capacity to plan your resource requests"
-      />
+    <div className={wrapperClass}>
+      {!isSlideOver && (
+        <ModuleHeader
+          title="Resource Availability"
+          subtitle="Browse role-level capacity to plan your resource requests"
+        />
+      )}
 
       {/* Scope controls (§13.3) */}
       <AvailabilityScopeBar
@@ -379,6 +493,28 @@ export default function PLAvailabilityView() {
           locationSummary={locationSummary}
           onRoleClick={handleRoleClick}
         />
+      )}
+
+      {/* Slide-over inline side panel (§13.9 — nests inside the wide
+          slide-over rather than opening a separate panel-within-panel). */}
+      {isSlideOver && inlineSelectedRole && (
+        <section className="rounded-lg border border-border bg-card p-4">
+          <AvailabilitySidePanel
+            role={inlineSelectedRole}
+            selectedLocationId={selectedLocationId}
+            selectedLocationName={selectedLocationName}
+            onSelectLocation={(locId) => {
+              setSelectedLocationId(locId);
+              setInlineSelectedRole(null);
+            }}
+            onRequestRole={onRequestRole ? handleInlineRequest : undefined}
+            requestHelperText={
+              onRequestRole
+                ? 'Closes the panel and pre-fills the Forecast & Planning row'
+                : undefined
+            }
+          />
+        </section>
       )}
     </div>
   );

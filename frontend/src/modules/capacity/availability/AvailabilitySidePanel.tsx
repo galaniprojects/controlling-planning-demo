@@ -47,6 +47,13 @@ interface AvailabilitySidePanelProps {
   selectedLocationName: string | null;
   /** Callback when PL clicks a location row — sets location picker. */
   onSelectLocation: (locationId: string) => void;
+  /**
+   * Slide-over override for the "Request this role" CTA (§13.9). When
+   * supplied, the button calls this instead of navigating to /workbench.
+   */
+  onRequestRole?: () => void;
+  /** Optional helper text override under the CTA. */
+  requestHelperText?: string;
 }
 
 export function AvailabilitySidePanel({
@@ -54,6 +61,8 @@ export function AvailabilitySidePanel({
   selectedLocationId,
   selectedLocationName,
   onSelectLocation,
+  onRequestRole,
+  requestHelperText,
 }: AvailabilitySidePanelProps) {
   const locationContext = selectedLocationId
     ? (selectedLocationName ?? selectedLocationId)
@@ -147,6 +156,8 @@ export function AvailabilitySidePanel({
       <QuickRequestAction
         roleTypeId={role.role_type_id}
         locationId={selectedLocationId}
+        onRequest={onRequestRole}
+        helperText={requestHelperText}
       />
     </div>
   );
