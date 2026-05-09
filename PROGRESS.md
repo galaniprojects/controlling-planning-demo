@@ -11,6 +11,42 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 - [x] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification — branch `feat/v5_2-capacity-w5-secondwave` (Lead integration verified, PR pending user review)
 - [ ] **Wave 6** — Integration + polish (S11+S12): cross-cutting integration + edge cases + a11y + perf
 
+### v5.2 Wave 6 — Track A (2026-05-10, branch `feat/v5_2-capacity-w6-integration-polish`)
+
+`react-specialist` teammate `track-a` on the 3-track team (`v5_2-w6-integration-polish`). Owns S11 entry-points + dashboard wiring + deprecation polish (4 tasks #1–#4). Tracks B/C own WideSlideOver + a11y/empty states + S12 polish backlog. All teammates committed straight to the shared branch.
+
+**Track A commits:**
+
+- **#1 forecast→timeline expand-month consumer (`0862122`)** — Wired the `capacity:expand-month` event consumer in `CapacityTimeline.tsx` (the dashboard's `CapacityForecastCard` already dispatched it post-W4 with no consumer per spec §11.4 deferral note). Window-level `useEffect` listener invokes `setAxisState` via the existing `toggleQuarter` reducer (auto-expanding the parent year when needed) and then scrolls the column into view via `scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'})`. Added a `data-month` attribute to row 2 month-label cells in `TimeAxisHeader.tsx` so the scroll target is queryable from outside the component. Verified end-to-end: Q3 2026 (collapsed by default — out of current quarter) expands to show Jul/Aug/Sep when `2026-09` is dispatched, and the cell scrolls into view.
+
+- **#2 ProjectSummaryPanel cache-miss fallback (`ec672aa`)** — Spec §10.8 deep-link case: pre-W6, the workspace's `ProjectSummaryEntryPoint` closed the panel when the cache had no record of the requested projectId, breaking deep-link bookmarks and post-scope-change re-opens. `ProjectSummaryPanel` now accepts an optional `item` plus the required `projectId`. When `item` is undefined, the panel issues a `capacityApi.getProjects({scope:'all'})` fallback fetch (same `CapacityProjectItem` payload shape — no backend changes per the W6 plan), shows a Skeleton-based loading state while the fetch is in flight, and renders a clear `AlertTriangle` empty-state with a Close CTA when the project still isn't visible in the current scope. Render path factored into an inner `ProjectSummaryPanelContent` so loader / empty / found branches share zero hook state.
+
+- **#3 §9.1 entry-point matrix verification (Playwright + matrix screenshots)** — End-to-end verification at 1440×900 light + dark across all four personas; 17 screenshots in `qa/screenshots/v5_2_w6_track_a/`. Results:
+  * **PASS** — Path 1 (URL param entry, light + dark)
+  * **PASS** — Path 6 (deprecation redirect, light + dark) **after fixing a redirect bug** — see below.
+  * **PASS** — Path 2 (Inbox "Review & Assign")
+  * **PASS** — Path 4 (Demand-strip cell click → CellDetail → "Review project")
+  * **PASS** — Path 5 (Project-view unassigned slot click → assignment mode, W5 wiring)
+  * **PASS (verified by code path; not click-testable in current seed)** — Path 3 (PersonDetail "Review project"). The bridge from PersonDetail → `onAssignmentRequest` → `openAssignment` is wired in `CapacitySidePanelContext.openPerson` + `PersonDetail.PendingRequestsCard`, but the seed data has no pending RR with `assigned_person_id` set, so no person panel renders the pending-requests section. Verified by source: `frontend/src/modules/capacity/sidepanel/PersonDetail.tsx:347-405` + `CapacitySidePanelContext.tsx:181-186`. Once the demo seed adds a person-assigned pending RR, this surface is testable end-to-end.
+  * **PASS** — bonus §11.4 expand-month wiring (light + dark): before=3 month columns, after=6, target month found.
+  * **PASS** — bonus §10.8 cache-miss fallback (warm cache exercised via project-view click).
+  * **PASS** — Persona routing: Controller → /capacity, CC Owner → /capacity?scope=my_cc&cc=…, PL → /capacity/availability (redirect), Executive → /capacity.
+
+  **Bug fixed inline:** the deprecation redirect at `frontend/src/App.tsx::ProjectAssignmentRedirect` was dropping the `?cc=` (and any `?cr=`) query string when rewriting `/capacity/project-assignment/{pid}` → `/capacity?assignment_project={pid}`. Without `cc`, the workspace's `AssignmentEntryPoint` short-circuits because the assignment session needs both `projectId` and `ccId` to spin up. Fix: `useLocation` now sources the original search string and the redirect preserves all params; additionally, when `cc=` is present and no explicit `scope=` is supplied, the redirect pins `scope=my_cc` so the workspace's `useScopeQueryParams` writer doesn't strip `cc` on the next render (which it does whenever the active scope is `all_ccs`). Pre-W6 bookmarks against the legacy URL pattern now resolve cleanly.
+
+- **#4 dead `filter_chip` server-side param removal (`9aa1d06`)** — PROGRESS.md line 219 flagged this duplication: `compute_capacity_projects(filter_chip=...)` and `_apply_filter_chip` were never wired into the React layer post-W5. Filter-chip semantics live in `frontend/src/modules/capacity/timeline/projectFilters.ts` where they double-duty as the source for both `FilterChipBar` badge counts and the rendered project-list filter — a parallel server-side implementation is a perpetual drift hazard for zero benefit. Removed:
+  * `backend/services/capacity_projects.py`: dropped `filter_chip` arg + `_apply_filter_chip` helper (~25 LOC).
+  * `backend/routers/capacity.py`: dropped the `filter_chip` query param.
+  * `backend/tests/test_router_capacity_projects.py`: removed 3 `TestProjectsFilterChip` cases (-3 from pytest baseline; 1688 → 1685).
+  * `frontend/src/types/api.ts`: dropped `CapacityProjectsFilterChip` enum (never imported anywhere) and the `filter_chip` field from `CapacityProjectsParams`.
+  * `frontend/src/api/endpoints.ts`: dropped the param-write branch.
+  * `frontend/src/modules/capacity/timeline/projectFilters.ts`: docstring update.
+
+**Verification:**
+- `tsc --noEmit` clean across all Track A edits.
+- `pytest` 1685 passed (= W5 baseline 1688 − 3 filter_chip tests removed).
+- 17 screenshots in `qa/screenshots/v5_2_w6_track_a/` covering all 6 §9.1 paths + bonus W6 wirings + persona routing.
+
 ### v5.2 Wave 6 — Track C (2026-05-10, branch `feat/v5_2-capacity-w6-integration-polish`)
 
 `react-specialist` teammate `track-c` on the 3-track team (`v5_2-w6-integration-polish`). Owns S12 polish + a11y + W3/W4/W5 polish-backlog sweep (8 tasks #9–#16). Tracks A/B own S11 integration + WideSlideOver + entry-point sweep. All teammates committed straight to the shared branch (worktree isolation didn't take effect — same pattern as W2/W3/W5 — but file ownership stayed clean).

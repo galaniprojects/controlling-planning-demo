@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { RoleProvider } from '@/contexts/RoleContext';
 import { SidePanelProvider } from '@/contexts/SidePanelContext';
@@ -49,10 +49,30 @@ import { Charging } from '@/modules/charging/Charging';
  */
 function ProjectAssignmentRedirect() {
   const { projectId } = useParams<{ projectId: string }>();
-  const target = projectId
-    ? `/capacity?assignment_project=${encodeURIComponent(projectId)}`
-    : '/capacity';
-  return <Navigate to={target} replace />;
+  const { search } = useLocation();
+  // v5.2 W6 Track A — preserve any pre-existing query string (notably
+  // `cc=` and optional `cr=`) when rewriting the URL. Without these, the
+  // workspace's `AssignmentEntryPoint` short-circuits because the
+  // assignment session needs both `projectId` and `ccId` to spin up.
+  // Pre-W6 this redirect dropped the search string, leaving deep-link
+  // bookmarks against the legacy URL useless once they hit the new shell.
+  //
+  // We also pin `scope=my_cc` when `cc=` is present and no explicit
+  // `scope=` is supplied. The workspace's `useScopeQueryParams` writer
+  // drops `cc` from the URL whenever the active scope is `all_ccs`
+  // (the all-CCs scope has no concept of a "current CC"); without this
+  // hint the cc the redirect just preserved would be wiped on the very
+  // next render of the workspace, leading right back to the broken
+  // pre-W6 behaviour.
+  if (!projectId) {
+    return <Navigate to="/capacity" replace />;
+  }
+  const params = new URLSearchParams(search);
+  if (params.has('cc') && !params.has('scope')) {
+    params.set('scope', 'my_cc');
+  }
+  params.set('assignment_project', projectId);
+  return <Navigate to={`/capacity?${params.toString()}`} replace />;
 }
 
 export default function App() {
