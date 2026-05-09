@@ -3,6 +3,10 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { RoleProvider } from '@/contexts/RoleContext';
 import { SidePanelProvider } from '@/contexts/SidePanelContext';
 import { BottomDrawerProvider } from '@/contexts/BottomDrawerContext';
+// v5.2 W6 S11 — wide (50vw) slide-over for the Workbench → Check
+// availability flow. Render slot lives in AppLayout. Orthogonal to the
+// 380px SidePanel.
+import { WideSlideOverProvider } from '@/contexts/WideSlideOverContext';
 // v5.2 W3 — the project-color map needs to wrap both the workspace
 // (timeline rows) AND the side-panel content (PersonDetail allocation
 // dots). The shared SidePanel renders its content inside AppLayout,
@@ -59,6 +63,7 @@ export default function App() {
         <SidePanelProvider>
           <AssignmentStateProvider>
           <BottomDrawerProvider>
+            <WideSlideOverProvider>
             <ProjectColorMapProvider>
             <AppLayout>
               <Routes>
@@ -96,6 +101,7 @@ export default function App() {
               </Routes>
             </AppLayout>
             </ProjectColorMapProvider>
+            </WideSlideOverProvider>
           </BottomDrawerProvider>
           </AssignmentStateProvider>
         </SidePanelProvider>

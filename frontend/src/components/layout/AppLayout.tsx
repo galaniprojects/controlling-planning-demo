@@ -2,8 +2,10 @@ import type { ReactNode } from 'react';
 import { TopBar } from './TopBar';
 import { SidePanel } from './SidePanel';
 import { BottomDrawer } from './BottomDrawer';
+import { WideSlideOver } from '@/components/shared/WideSlideOver';
 import { useSidePanel } from '@/contexts/SidePanelContext';
 import { useBottomDrawer } from '@/contexts/BottomDrawerContext';
+import { useWideSlideOver } from '@/contexts/WideSlideOverContext';
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const {
@@ -20,6 +22,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
     content: drawerContent,
     closeDrawer,
   } = useBottomDrawer();
+  const {
+    isOpen: slideOverOpen,
+    title: slideOverTitle,
+    content: slideOverContent,
+    closeSlideOver,
+  } = useWideSlideOver();
 
   return (
     <div className="min-h-screen bg-background">
@@ -45,6 +53,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <BottomDrawer title={drawerTitle} open={drawerOpen} onClose={closeDrawer}>
         {drawerContent}
       </BottomDrawer>
+      <WideSlideOver
+        title={slideOverTitle}
+        open={slideOverOpen}
+        onClose={closeSlideOver}
+      >
+        {slideOverContent}
+      </WideSlideOver>
     </div>
   );
 }
