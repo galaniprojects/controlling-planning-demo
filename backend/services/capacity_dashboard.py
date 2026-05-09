@@ -290,6 +290,13 @@ def _avg_utilization_for(db: Session, person_ids: list[str], months: list[str]) 
     return round(pct_sum / cell_count, 1) if cell_count else 0.0
 
 
+# v5.2 W6 Track C — DUPLICATION NOTICE: this tuple mirrors the
+# `UtilizationBucketKey` union in `frontend/src/types/api.ts`. Any change
+# to one MUST be mirrored in the other (and vice-versa) — the shape is
+# exchanged over the wire by name. No API-generation infra exists in
+# this codebase, so a single source of truth would require introducing
+# one (e.g. openapi-typescript). Out of scope for v5.2 polish; tracked
+# for a post-v5.2 follow-up. Both ends carry an aligned comment.
 _DISTRIBUTION_BUCKETS = ("zero", "1_25", "26_50", "51_75", "76_100", "over_100")
 
 

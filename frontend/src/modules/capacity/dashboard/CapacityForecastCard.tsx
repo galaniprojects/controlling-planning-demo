@@ -16,7 +16,7 @@
  *
  * Spec: guides/Capacity_Module_Redesign_Spec.md §11.4
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   ComposedChart,
   Area,
@@ -28,10 +28,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import type { TooltipContentProps } from 'recharts';
-import { useCapacityScope } from '@/contexts/CapacityScopeContext';
-import { capacityApi } from '@/api/endpoints';
-import { scopeToApiParam } from '@/lib/capacityScopeApi';
-import type { DashboardForecastPoint } from '@/types/api';
+import { useDashboardForecastData } from '../hooks/useDashboardForecastData';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,34 +103,10 @@ function CustomTooltip({ active, payload, label }: TooltipContentProps<number, s
 // ---------------------------------------------------------------------------
 
 export function CapacityForecastCard() {
-  const { scope, ccId } = useCapacityScope();
-  const apiScope = useMemo(() => scopeToApiParam(scope, ccId), [scope, ccId]);
-
-  const [items, setItems] = useState<DashboardForecastPoint[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    capacityApi
-      .getDashboardForecast(apiScope)
-      .then((res) => {
-        if (cancelled) return;
-        setItems(res.items ?? []);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to load forecast');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [apiScope]);
+  // v5.2 W6 Track C — shared dashboard-forecast hook (refactor #2). The
+  // KPISummaryBar consumes the same hook so loading/error/window-shape
+  // semantics stay consistent.
+  const { items, isLoading: loading, error } = useDashboardForecastData();
 
   const chartData: ChartPoint[] = useMemo(
     () =>

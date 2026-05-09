@@ -349,7 +349,11 @@ function WorkspaceBody() {
           </Card>
         )}
 
-      <CapacityTimeline data={data} onPersonClick={handlePersonClick} />
+      <CapacityTimeline
+        data={data}
+        projectData={projectData}
+        onPersonClick={handlePersonClick}
+      />
 
       {/* Demand strip is hidden in the project view per §10.7.
           v5.2 W5 Track A (S6b §9.1 entry #2): clicking a demand cell
