@@ -206,6 +206,17 @@ export function DemandStrip({
   const effectivePeriods: readonly DemandPeriod[] =
     periods ?? buildDefaultPeriods(fetched.months);
 
+  // v5.2 W6 Track C — hide the strip entirely when no period carries
+  // pending demand (spec §8.5 empty-state guidance + S12 polish brief).
+  // Without this, a zero-demand scope showed an all-empty strip that
+  // the user might mistake for a loading or layout problem.
+  const hasAnyDemand = effectivePeriods.some(
+    (p) => peakForPeriod(p, effectiveMonthly) > 0,
+  );
+  if (!loading && !hasAnyDemand) {
+    return null;
+  }
+
   const handleCellClick = (period: DemandPeriod) => {
     if (onCellClick) {
       onCellClick(period);

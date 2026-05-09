@@ -26,8 +26,10 @@
  * registration pattern).
  */
 import { useEffect, useMemo } from 'react';
+import { FolderOpen, FilterX } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { useCapacityScope } from '@/contexts/CapacityScopeContext';
 import { useProjectColorMap } from '@/contexts/ProjectColorMapContext';
 import { useCapacitySidePanel } from '../sidepanel/CapacitySidePanelContext';
@@ -144,8 +146,12 @@ export function ProjectGroupView({ columns, data: providedData }: ProjectGroupVi
   if (data.items.length === 0) {
     return (
       <Card className="border-dashed">
-        <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          No projects in this scope.
+        <CardContent className="p-0">
+          <EmptyState
+            icon={FolderOpen}
+            title="No projects in this scope"
+            description="Switch to a different scope or clear the active filters above."
+          />
         </CardContent>
       </Card>
     );
@@ -154,9 +160,12 @@ export function ProjectGroupView({ columns, data: providedData }: ProjectGroupVi
   if (filteredItems.length === 0) {
     return (
       <Card className="border-dashed">
-        <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          No projects match the active filter combination. Click "All" to
-          reset.
+        <CardContent className="p-0">
+          <EmptyState
+            icon={FilterX}
+            title="No projects match the active filters"
+            description='Click "All" in the filter bar to reset.'
+          />
         </CardContent>
       </Card>
     );

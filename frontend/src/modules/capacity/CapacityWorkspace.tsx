@@ -337,14 +337,16 @@ function WorkspaceBody() {
 
       {/* Hint when filters hide every row, so the empty timeline state
           isn't mistaken for a loading or scope problem. ProjectGroupView
-          owns the empty-state hint in project mode (different message). */}
+          owns the empty-state hint in project mode (different message).
+          Slim copy — CapacityTimeline below renders the standard
+          EmptyState for the no-rows case. */}
       {groupBy !== 'project' &&
         !activeFilters.includes('all') &&
         visibleFilteredCount === 0 && (
           <Card className="border-dashed">
-            <CardContent className="py-3 text-xs text-muted-foreground">
-              No people match the active filter combination. Click "All" to
-              reset.
+            <CardContent className="py-3 text-center text-xs text-muted-foreground">
+              No people match the active filter combination. Click &quot;All&quot;
+              in the chip bar to reset.
             </CardContent>
           </Card>
         )}

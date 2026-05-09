@@ -27,8 +27,10 @@
  * ghost border color is stable across the panel and the bars.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Users } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { useProjectColorMap } from '@/contexts/ProjectColorMapContext';
 import { useCapacityScope } from '@/contexts/CapacityScopeContext';
 import {
@@ -283,8 +285,12 @@ function CapacityTimelineInner({
   ) {
     return (
       <Card className="border-dashed">
-        <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          No people match the current filters in this scope.
+        <CardContent className="p-0">
+          <EmptyState
+            icon={Users}
+            title="No people in this scope"
+            description="Try a broader scope or remove the active filter chips."
+          />
         </CardContent>
       </Card>
     );
