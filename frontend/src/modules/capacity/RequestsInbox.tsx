@@ -230,10 +230,16 @@ export default function RequestsInbox() {
   );
 
   useEffect(() => {
+    // v5.2 W6 review-pass-2 fix (P2.A) — skip the fetch when the user
+    // isn't authorized for this route. The redirect effect above will
+    // navigate them away on the next tick; without this guard we'd
+    // still fire one stray /api/capacity/inbox call that 403s before
+    // the redirect completes (visible noise in the network tab).
+    if (role && !isAuthorized) return;
     const controller = new AbortController();
     fetchInbox(controller.signal);
     return () => controller.abort();
-  }, [fetchInbox]);
+  }, [fetchInbox, role, isAuthorized]);
 
   // Cleanup any pending strikethrough timers on unmount.
   useEffect(() => {

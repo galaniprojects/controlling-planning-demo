@@ -9,11 +9,13 @@
  * loading-state shape consistent with the workspace's other shared
  * hooks (`useScopedTimelineData`, `useCapacityProjectsData`).
  *
- * Note: HTTP-level deduplication is intentionally NOT added here — it
- * would require a request cache that survives component unmounts and
- * invalidates on every scope change, which is out of scope for the
- * polish refactor. The two consumers still issue separate requests
- * when both render together; the saving is in code, not bandwidth.
+ * v5.2 W6 review-pass-2 fix (P2.B) — added a module-level inflight
+ * `Map<apiScope, Promise>` so when both `KPISummaryBar` and
+ * `CapacityForecastCard` mount together they share a single in-flight
+ * request instead of firing two parallel fetches. The map only holds
+ * promises while they're inflight (cleared in finally), so it doesn't
+ * grow unbounded and doesn't survive page reloads. Mirrors the W6 #8.2
+ * pattern shipped in `PersonPicker`.
  *
  * Spec: guides/Capacity_Module_Redesign_Spec.md §11.4.
  */
@@ -25,6 +27,22 @@ import type {
   DashboardForecastPoint,
   DashboardForecastResponse,
 } from '@/types/api';
+
+// Module-level inflight map: scope-key → in-flight promise.
+// Cleared in `.finally()` so the entry doesn't outlive the request.
+const inflight = new Map<string, Promise<DashboardForecastResponse>>();
+
+function fetchForecastDeduped(
+  apiScope: string,
+): Promise<DashboardForecastResponse> {
+  const existing = inflight.get(apiScope);
+  if (existing) return existing;
+  const p = capacityApi.getDashboardForecast(apiScope).finally(() => {
+    inflight.delete(apiScope);
+  });
+  inflight.set(apiScope, p);
+  return p;
+}
 
 export interface DashboardForecastData {
   /** Month-by-month forecast points; `[]` until the first fetch resolves. */
@@ -59,8 +77,7 @@ export function useDashboardForecastData(): DashboardForecastData {
     setIsLoading(true);
     setError(null);
 
-    capacityApi
-      .getDashboardForecast(apiScope)
+    fetchForecastDeduped(apiScope)
       .then((res) => {
         if (cancelled) return;
         setResponse(res);

@@ -84,6 +84,7 @@ export function SidePanel({
       className="fixed right-0 top-14 bottom-0 border-l border-border bg-card shadow-lg z-40 overflow-y-auto transition-[width] duration-200 ease-out"
       style={{ width: `${width}px` }}
       role="dialog"
+      aria-modal="true"
       aria-label={title}
     >
       <div className="flex items-center justify-between border-b border-border px-4 py-3">

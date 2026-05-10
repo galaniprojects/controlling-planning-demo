@@ -274,6 +274,11 @@ export default function CapacityHistory() {
   const [projectOptions, setProjectOptions] = useState<DropdownOption[]>([]);
 
   useEffect(() => {
+    // v5.2 W6 review-pass-2 fix (P2.A) — skip dropdown-options fetches
+    // when the user isn't authorized; the redirect effect above will
+    // navigate them away. Without this guard we'd fire 4 stray fetches
+    // (history + roles + ccs + projects) that 403 before redirect.
+    if (role && !isAuthorized) return;
     let cancelled = false;
 
     rolesApi
@@ -342,7 +347,10 @@ export default function CapacityHistory() {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // P2.A — re-run if the gate flips so an authorized user navigating
+    // back from a redirect still gets dropdown options populated.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, isAuthorized]);
 
   // Optional "Me" entry for the user dropdown — only when the persona
   // resolves to a known person id.
@@ -388,10 +396,15 @@ export default function CapacityHistory() {
   );
 
   useEffect(() => {
+    // v5.2 W6 review-pass-2 fix (P2.A) — skip the history fetch when
+    // the user isn't authorized; the redirect effect navigates them
+    // away. Without this guard we'd fire one stray /api/capacity/history
+    // call that 403s before the redirect.
+    if (role && !isAuthorized) return;
     const controller = new AbortController();
     fetchHistory(controller.signal);
     return () => controller.abort();
-  }, [fetchHistory]);
+  }, [fetchHistory, role, isAuthorized]);
 
   // --- URL writers ---
 

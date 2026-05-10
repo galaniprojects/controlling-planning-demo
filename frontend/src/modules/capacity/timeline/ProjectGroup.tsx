@@ -24,20 +24,12 @@
  * children each, skipping re-renders on filter-chip toggles keeps
  * project-view interactions snappy.
  *
- * v5.2 W6 Track C — `defaultExpanded` is read on first mount only. The
- * parent (`ProjectGroupView`) resets expanded state across the whole
- * tree by including `activeFilters` in each `<ProjectGroup>`'s `key`,
- * forcing a remount when the filter set changes. That keeps the local
- * collapse state honest without an extra effect that would also reset
- * on every parent re-render.
- *
- * v5.2 W6 review fix (P2.5) — replaced the React-key remount strategy
- * with a `resetSignal` prop. Remounting defeated the surrounding
- * `React.memo`, blew away child component instances on every chip
- * toggle (visible repaint on a 30-project view), and reset the
- * timeline's scroll position. The resetSignal-via-effect approach
- * keeps the same UX (collapse state resets on filter change) without
- * the unmount/remount cost.
+ * v5.2 W6 Track C / review fix (P2.5) — `defaultExpanded` is read on
+ * first mount; the parent (`ProjectGroupView`) bumps a `resetSignal`
+ * integer when its `activeFilters` change so a useEffect here resets
+ * `expanded` back to the default without remounting the row tree.
+ * (The earlier React-key remount strategy defeated `React.memo` and
+ * reset the timeline's scroll position on every chip toggle.)
  */
 import { memo, useEffect, useState } from 'react';
 import { type TimeColumn } from './timeAxis';
@@ -84,9 +76,13 @@ function ProjectGroupImpl({
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   // Reset to defaultExpanded whenever the parent bumps resetSignal.
-  // Skips the initial mount (the useState already initialised to default).
+  //
+  // v5.2 W6 review-pass-2 fix (P2.C) — guard the initial mount value
+  // explicitly so a future contract change (e.g. URL-controlled initial
+  // state) doesn't quietly re-collapse on first render. The parent
+  // initialises resetSignal to 0 and bumps to ≥1 on filter change.
   useEffect(() => {
-    if (resetSignal === undefined) return;
+    if (resetSignal === undefined || resetSignal === 0) return;
     setExpanded(defaultExpanded);
     // We intentionally re-fire on every resetSignal change even if
     // defaultExpanded is unchanged — that's the whole point.

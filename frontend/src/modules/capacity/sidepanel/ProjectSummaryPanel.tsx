@@ -286,10 +286,8 @@ function ProjectSummaryPanelContent({
   };
 
   return (
-    <div
-      key={item.project_id}
-      className="flex flex-col gap-4 p-4 text-sm animate-in fade-in-0 duration-200"
-    >
+    <div className="flex flex-col gap-4 p-4 text-sm animate-in fade-in-0 duration-200">
+
       {/* Header */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-start gap-2">

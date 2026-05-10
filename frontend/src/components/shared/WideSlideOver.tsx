@@ -58,6 +58,14 @@ export function WideSlideOver({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // v5.2 W6 review-pass-2 (P3.B) — stack interaction note.
+        // This listener is on `document`, the SidePanel listener is on
+        // `window`; document fires first and `stopPropagation()` here
+        // blocks `window` from also firing. So if both panels are open
+        // when the user presses Escape, only the slide-over closes.
+        // That is the intended layering (the slide-over is the
+        // "front-most" UI; closing it returns focus to the workbench
+        // and any background panels remain in place).
         e.stopPropagation();
         onClose();
         return;

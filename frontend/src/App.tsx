@@ -71,7 +71,13 @@ function ProjectAssignmentRedirect() {
   if (params.has('cc') && !params.has('scope')) {
     params.set('scope', 'my_cc');
   }
-  params.set('assignment_project', projectId);
+  // v5.2 W6 review-pass-2 (P3.C) — prefer an existing query param over
+  // the path param if both are present. The path param is the canonical
+  // source for the legacy URL pattern, but a future caller with both
+  // set is expressing intent to override (e.g. a redirect chain).
+  if (!params.has('assignment_project')) {
+    params.set('assignment_project', projectId);
+  }
   return <Navigate to={`/capacity?${params.toString()}`} replace />;
 }
 
