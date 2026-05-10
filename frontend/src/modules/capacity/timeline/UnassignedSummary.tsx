@@ -6,25 +6,17 @@
  * column: the SUM of unassigned hours across ALL visible projects for
  * that period.
  *
- * Color thresholds (§10.7) — indicative; configurable in a follow-up:
- *   -    0h          → empty cell
- *   -  1–200h        → warning background (amber)
- *   - 200h+          → danger background (red)
+ * Color thresholds (§10.7) — sourced from PlanningParameter rows via
+ * `useCapacityThresholds` so admins can tune the cut-offs without a
+ * frontend release. Defaults (warn=1, danger=200) match the seed values
+ * and act as a fallback if the fetch fails.
  *
- * v5.2 W6 Track C decision (W5 polish-backlog item):
- *   The WARN/DANGER cut-offs stay hardcoded here for the v5.2 demo.
- *   Promoting them to a `PlanningParameter` row would also need:
- *     1. a backend admin endpoint to expose the parameter to the
- *        client,
- *     2. a settings card in `Administration` to edit it,
- *     3. cache-invalidation plumbing so timeline cells re-paint when
- *        the parameter changes.
- *   That's out of scope for a polish item. TODO is left below so the
- *   follow-up has a clear anchor; a placeholder seed row will be
- *   added in the v5.2 closeout PR.
+ *   - 0h                                → empty cell
+ *   - warn ≤ value < danger             → warning background (amber)
+ *   - value ≥ danger                    → danger background (red)
  *
- * The row mirrors the `DemandStrip` sticky-bottom + sticky-left pattern
- * so users get a consistent docking element across both views.
+ * Wiring landed in v5.2 closeout PR. Pre-closeout, both thresholds were
+ * hardcoded in this file with a TODO placeholder.
  */
 import { cn } from '@/lib/utils';
 import {
@@ -32,12 +24,7 @@ import {
   NAME_COLUMN_WIDTH,
 } from './timeAxis';
 import type { CapacityProjectItem } from '@/types/api';
-
-// TODO(v5.2 closeout): seed `PlanningParameter` rows for these thresholds
-// (`capacity.unassigned_summary.warn_threshold_hours` and
-// `capacity.unassigned_summary.danger_threshold_hours`) and read them from
-// the planning-parameter cache. Decision recorded in PROGRESS.md (W6).
-const DANGER_THRESHOLD = 200;
+import { useCapacityThresholds } from '../hooks/useCapacityThresholds';
 
 export interface UnassignedSummaryProps {
   /** All visible projects (post-filter) — used to sum unassigned hours per month. */
@@ -46,15 +33,20 @@ export interface UnassignedSummaryProps {
   columns: readonly TimeColumn[];
 }
 
-function thresholdClasses(hours: number): string {
-  if (hours <= 0) return '';
-  if (hours < DANGER_THRESHOLD) {
+function thresholdClasses(
+  hours: number,
+  warn: number,
+  danger: number,
+): string {
+  if (hours <= 0 || hours < warn) return '';
+  if (hours < danger) {
     return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
   }
   return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
 }
 
 export function UnassignedSummary({ items, columns }: UnassignedSummaryProps) {
+  const { warnThresholdHours, dangerThresholdHours } = useCapacityThresholds();
   // Build a per-month sum of unassigned hours across all visible projects.
   const unassignedByMonth = new Map<string, number>();
   for (const it of items) {
@@ -92,7 +84,7 @@ export function UnassignedSummary({ items, columns }: UnassignedSummaryProps) {
           total += unassignedByMonth.get(m) ?? 0;
         }
         const showLabel = total > 0;
-        const cls = thresholdClasses(total);
+        const cls = thresholdClasses(total, warnThresholdHours, dangerThresholdHours);
         return (
           <div
             key={col.key}

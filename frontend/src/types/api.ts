@@ -1181,6 +1181,22 @@ export interface CapacityProjectsParams {
   end?: string;
 }
 
+/**
+ * v5.2 closeout — read-only PlanningParameter feed for capacity surfaces.
+ * Returned by `GET /api/capacity/planning-parameters`. Trimmed payload
+ * compared to the admin endpoint (no description / default_value / group).
+ */
+export interface CapacityPlanningParameter {
+  key: string;
+  current_value: string;
+  data_type: string;
+}
+
+export interface CapacityPlanningParametersResponse {
+  items: CapacityPlanningParameter[];
+  total: number;
+}
+
 // --- What-If Simulator ---
 
 export interface ScenarioListItem {

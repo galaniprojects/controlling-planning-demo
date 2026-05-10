@@ -501,3 +501,21 @@ class CapacityProjectsResponse(BaseModel):
     start: str
     end: str
     reference_max_hours: float
+
+
+class CapacityPlanningParameter(BaseModel):
+    """One PlanningParameter row exposed to capacity surfaces (read-only).
+
+    Trimmed payload — admin-only fields like ``description`` / ``default_value``
+    live behind ``GET /api/admin/parameters``. Capacity surfaces just need the
+    key/value pair to render dynamic thresholds.
+    """
+    key: str
+    current_value: str
+    data_type: str
+
+
+class CapacityPlanningParametersResponse(BaseModel):
+    """Response for ``GET /api/capacity/planning-parameters``."""
+    items: list[CapacityPlanningParameter]
+    total: int
