@@ -652,8 +652,14 @@ def compute_hotspots(
     pending_requests = pending_q.all()
 
     # Group by role to build a "QA Engineer — 3 open requests, 480h unassigned across 2 projects" line.
+    # Per-CC hour totals are tracked so we can attribute the highest-hour CC
+    # to the synthesized side-panel payload (v5.2 closeout — fixes the
+    # demand-cell drill-down losing CC context noted in W4 P2 deferrals).
     role_groups: dict[str, dict] = defaultdict(lambda: {
-        "count": 0, "unassigned_hours": 0.0, "project_ids": set(),
+        "count": 0,
+        "unassigned_hours": 0.0,
+        "project_ids": set(),
+        "cc_hours": defaultdict(float),
     })
     role_request_ids: dict[str, list[int]] = defaultdict(list)
     for r in pending_requests:
@@ -667,7 +673,19 @@ def compute_hotspots(
         rg["count"] += 1
         rg["unassigned_hours"] += unassigned_hours
         rg["project_ids"].add(r.project_id)
+        if r.cost_center_id:
+            rg["cc_hours"][r.cost_center_id] += unassigned_hours
         role_request_ids[r.role_type_id].append(r.id)
+
+    # Resolve CC names once (covers all CCs across all role groups).
+    all_cc_ids = {cc_id for rg in role_groups.values() for cc_id in rg["cc_hours"].keys()}
+    cc_name_map: dict[str, str] = {}
+    if all_cc_ids:
+        cc_name_map = dict(
+            db.query(CostCenter.id, CostCenter.name)
+            .filter(CostCenter.id.in_(all_cc_ids))
+            .all()
+        )
 
     for role_id, rg in role_groups.items():
         severity = 2 * rg["unassigned_hours"]
@@ -679,12 +697,25 @@ def compute_hotspots(
             f"{len(rg['project_ids'])} project"
             f"{'s' if len(rg['project_ids']) != 1 else ''}"
         )
+        # Pick the CC carrying the most unassigned hours; flag multi-CC so the
+        # frontend can hint that other CCs share the demand.
+        cc_hours = rg["cc_hours"]
+        top_cc_id: str | None = None
+        cc_name: str | None = None
+        multi_cc = False
+        if cc_hours:
+            top_cc_id = max(cc_hours, key=lambda k: cc_hours[k])
+            cc_name = cc_name_map.get(top_cc_id)
+            multi_cc = len(cc_hours) > 1
         issues.append({
             "category": "unfulfilled_demand",
             "severity": round(severity, 2),
             "summary": summary,
             "target_id": role_id,
             "target_type": "role",
+            "cost_center_id": top_cc_id,
+            "cost_center_name": cc_name,
+            "multi_cc": multi_cc,
         })
 
     # ---------- Category 3: Chronic under-utilization ----------

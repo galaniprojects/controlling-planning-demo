@@ -75,6 +75,9 @@ interface HotspotRowProps {
     pivot: string;
     month?: string;
     rowLabel: string;
+    costCenterId?: string | null;
+    costCenterName?: string | null;
+    multiCc?: boolean;
   }) => void;
 }
 
@@ -96,10 +99,16 @@ function HotspotRow({ item, ccId, apiScope, onPerson, onCell }: HotspotRowProps)
     } else if (item.category === 'unfulfilled_demand') {
       // target_type = 'role', target_id = role_type_id.
       // Synthesize a demand-cell payload per user decision 2a.
+      // v5.2 closeout — thread the originating CC (when the backend
+      // attributes one) so the side panel can pin the cost-centre
+      // context instead of showing the entire inbox.
       onCell({
         dimensionId: 'demand',
         pivot: 'role',
         rowLabel: item.summary.split('—')[0]?.trim() ?? item.target_id,
+        costCenterId: item.cost_center_id ?? null,
+        costCenterName: item.cost_center_name ?? null,
+        multiCc: item.multi_cc ?? false,
       });
     }
   };

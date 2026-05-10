@@ -58,6 +58,16 @@ interface CellDetailProps {
   /** Human-readable row label (e.g., 'MUC' or 'App Development'). */
   rowLabel: string;
   /**
+   * v5.2 closeout — for synthesized demand cells coming from the
+   * HotspotListCard, the CC carrying the most unassigned hours for the
+   * role. Surfaces in the cell header so the user knows which CC the
+   * demand belongs to before drilling further.
+   */
+  costCenterId?: string | null;
+  costCenterName?: string | null;
+  /** True when the demand spans multiple CCs (multiple CCs share the role's open requests). */
+  multiCc?: boolean;
+  /**
    * v5.2 W5 — invoked from the demand-mode body when the user clicks
    * "Review project" on a pending request row. Provided by
    * `CapacitySidePanelContext.openCell` (closure-captures the
@@ -76,6 +86,9 @@ export function CellDetail({
   pivot,
   month,
   rowLabel,
+  costCenterId,
+  costCenterName,
+  multiCc,
   onAssignmentRequest,
 }: CellDetailProps) {
   // §9.1 entry-point #2 — the demand strip routes here with pivot='demand'.
@@ -87,9 +100,16 @@ export function CellDetail({
         key={`demand:${month ?? ''}`}
         className="animate-in fade-in-0 duration-200 space-y-4"
       >
-        <CellHeader pivot={pivot} rowLabel={rowLabel} month={month} />
+        <CellHeader
+          pivot={pivot}
+          rowLabel={rowLabel}
+          month={month}
+          costCenterName={costCenterName}
+          multiCc={multiCc}
+        />
         <DemandCellBody
           month={month}
+          costCenterId={costCenterId}
           onAssignmentRequest={onAssignmentRequest}
         />
       </div>
@@ -165,10 +185,14 @@ function CellHeader({
   pivot,
   rowLabel,
   month,
+  costCenterName,
+  multiCc,
 }: {
   pivot: string;
   rowLabel: string;
   month?: string;
+  costCenterName?: string | null;
+  multiCc?: boolean;
 }) {
   return (
     <header className="space-y-1">
@@ -190,6 +214,18 @@ function CellHeader({
           Dimension:{' '}
           <LocationLabel kind="workforce" iconOnly className="align-middle" />
           <span className="ml-1 align-middle">Workforce Locations</span>
+        </div>
+      )}
+      {pivot === 'demand' && costCenterName && (
+        // v5.2 closeout — synthesized hotspot demand cells now carry the
+        // originating CC so the user can see which team owns the open
+        // requests before drilling further.
+        <div className="text-[11px] text-muted-foreground">
+          Cost centre:{' '}
+          <span className="text-foreground/80">{costCenterName}</span>
+          {multiCc && (
+            <span className="ml-1 text-muted-foreground">(+ other cost centres)</span>
+          )}
         </div>
       )}
     </header>
@@ -371,9 +407,17 @@ function ProjectRow({
  */
 function DemandCellBody({
   month: _month,
+  costCenterId,
   onAssignmentRequest,
 }: {
   month?: string;
+  /**
+   * v5.2 closeout — when the cell was synthesized from a HotspotListCard
+   * unfulfilled-demand row, this is the originating CC. Used to focus
+   * the inbox view to that CC's pending requests; absent for demand-strip
+   * entries (which already filter by visible scope).
+   */
+  costCenterId?: string | null;
   onAssignmentRequest?: (
     projectId: string,
     ccId: string,
@@ -434,10 +478,17 @@ function DemandCellBody({
     return (
       <p className="text-sm text-destructive">Failed to load demand: {error}</p>
     );
-  if (!items || items.length === 0) {
+  // v5.2 closeout — when the hotspot click hands us a focused CC, narrow
+  // the visible items to that CC. Empty state below explains why.
+  const visibleItems = costCenterId
+    ? (items ?? []).filter((it) => it.cc_id === costCenterId)
+    : items;
+  if (!visibleItems || visibleItems.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No pending requests in scope.
+        {costCenterId
+          ? 'No pending requests in this cost centre.'
+          : 'No pending requests in scope.'}
       </p>
     );
   }
@@ -445,10 +496,10 @@ function DemandCellBody({
   return (
     <section className="space-y-1.5">
       <h4 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        Pending requests ({items.length})
+        Pending requests ({visibleItems.length})
       </h4>
       <ul className="space-y-2">
-        {items.map((it) => (
+        {visibleItems.map((it) => (
           <li
             key={`${it.project_id}:${it.cc_id}:${it.cr_id ?? 'baseline'}`}
             className="rounded-md border border-border p-2.5"

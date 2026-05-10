@@ -993,6 +993,15 @@ export interface HotspotItem {
   summary: string;
   target_id: string;
   target_type: 'person' | 'role' | 'request' | string;
+  /**
+   * v5.2 closeout — for `unfulfilled_demand` items, the CC carrying the
+   * most unassigned hours for the role. `null`/absent for other categories
+   * or when the originating RR has no CC.
+   */
+  cost_center_id?: string | null;
+  cost_center_name?: string | null;
+  /** True when the role's pending demand spans more than one CC. */
+  multi_cc?: boolean;
 }
 
 export interface HotspotResponse {
