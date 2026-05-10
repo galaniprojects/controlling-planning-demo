@@ -144,6 +144,10 @@ def _seed_forecast_versions() -> None:
     v1: 'Q1 2026 Cycle' — payload = current forecast * 1.05 (prior-cycle estimate)
     v2: 'Q2 2026 Cycle' — payload = current forecast (current state)
 
+    Both versions use ``version_type='cycle'``. Manual snapshots are no longer
+    part of the workflow and are not seeded here — versions are only ever
+    captured automatically (cycle close, CR approval).
+
     Uses SQLAlchemy ORM against the live database, matching the C1 schema.
     Runs after load_seed_sql() so all tables and rows exist.
     """

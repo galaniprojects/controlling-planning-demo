@@ -169,8 +169,7 @@ Versioning per `[C-FV-01..07]`: every cycle submission and every CR approval wri
 | 2 | Any | Click **Forecast & Planning** tab | Forecast grid loads | Tab selected |
 | 3 | Any | Click the **Compare against** dropdown (top-right of grid header) | Dropdown lists all versions: "v1 — Q2 2026 Cycle (creation)", "v2 — Q2 2026 Cycle (cr_approval CR #28)", "No comparison" | Each version label includes type + cycle + (optionally) trigger |
 | 4 | Any | Pick "v1 — Q2 2026 Cycle" | Grid renders side-by-side: current values vs v1 values; deltas highlighted (green = decrease / red = increase) | Each cell shows current value with a smaller v1 reference; changed cells coloured |
-| 5 | Any | Click **Take snapshot** | Optional: capture the current view as a saved snapshot for comparison later (separate from automatic versions) | Modal "Save snapshot for comparison?" with name field |
-| 6 | Any | Switch back to "No comparison" | Grid returns to single-version view | Comparison hidden |
+| 5 | Any | Switch back to "No comparison" | Grid returns to single-version view | Comparison hidden |
 
 ### Alternative paths
 

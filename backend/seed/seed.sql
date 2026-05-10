@@ -77,7 +77,11 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('rag_red_threshold', 'RAG Red Threshold', 'Budget variance % for red status', '10', '10', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('capacity.unassigned_summary.warn_threshold_hours', 'Capacity: Unassigned Hours Warn Threshold', 'Hours/period at or above which the project-view unassigned-summary cell shows amber (below this value the cell is empty)', '1', '1', 'integer', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('capacity.unassigned_summary.danger_threshold_hours', 'Capacity: Unassigned Hours Danger Threshold', 'Hours/period at or above which the project-view unassigned-summary cell shows red instead of amber', '200', '200', 'integer', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('capacity.unassigned_summary.danger_threshold_hours', 'Capacity: Unassigned Hours Danger Threshold', 'Hours/period at or above which the project-view unassigned-summary cell shows red instead of amber', '200', '200', 'integer', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+-- Demo envelope for the ranked backlog cutoff lines [A-BK-09]. Sized so the
+-- 25-project demo backlog crosses both should-be and reality cutoffs roughly
+-- mid-list (default in code is 50_000_000 — too high to be visible at demo scale).
+('ranking_total_available_budget', 'Ranking: Total Available Budget', 'Annual budget envelope used to draw should-be / reality cutoff lines on the ranked backlog. Demo value sized so cutoffs land mid-list.', '5000000', '50000000', 'integer', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- s01_taxonomy / 7. KPI Definitions (built-in catalogue)
@@ -535,7 +539,25 @@ INSERT INTO projects (id, name, description, status, rag_status, capex_opex, sta
 ('proj-greenedge', 'Green Edge Computing Pilot', NULL, 'draft', NULL, 'capex', '2026-11', '2027-04', '2027-04', 'p-weber', 0, NULL, 28440, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-connveh', 'Connected Vehicle Platform', NULL, 'draft', NULL, 'capex', '2026-10', '2028-12', '2028-12', 'p-weber', 0, NULL, 1150000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-cloud3-run', 'Cloud Platform Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 240000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-iam-run', 'Identity & Access Management Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 310000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('proj-iam-run', 'Identity & Access Management Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 310000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+-- Backlog seed expansion (16 DoI 0-2 projects) so the ranked-list cutoff
+-- lines have enough rows above and below to be visible in the demo.
+('proj-bk01', 'AI Customer Service Assistant', NULL, 'draft', NULL, 'capex', '2026-09', '2028-03', '2028-03', 'p-sharma', 0, NULL, 1850000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk02', 'Mobile Workforce Application', NULL, 'draft', NULL, 'capex', '2026-08', '2027-09', '2027-09', 'p-weber', 0, NULL, 680000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk03', 'Cybersecurity Hardening Programme', NULL, 'draft', NULL, 'capex', '2026-07', '2027-12', '2027-12', 'p-brenner', 0, NULL, 1200000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk04', 'Supplier Portal Modernization', NULL, 'draft', NULL, 'capex', '2026-10', '2027-08', '2027-08', 'p-sharma', 0, NULL, 540000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk05', 'Real-time Analytics Platform', NULL, 'pending_cc_confirmation', NULL, 'capex', '2026-09', '2028-12', '2028-12', 'p-weber', 0, NULL, 2300000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk06', 'Document Management Refresh', NULL, 'draft', NULL, 'opex', '2026-08', '2027-04', '2027-04', 'p-brenner', 0, NULL, 320000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk07', 'Manufacturing Execution Upgrade', NULL, 'draft', NULL, 'capex', '2026-11', '2028-06', '2028-06', 'p-sharma', 0, NULL, 1450000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk08', 'API Gateway Consolidation', NULL, 'draft', NULL, 'capex', '2026-08', '2027-06', '2027-06', 'p-brenner', 0, NULL, 480000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk09', 'Customer Identity Federation', NULL, 'draft', NULL, 'capex', '2026-09', '2027-10', '2027-10', 'p-brenner', 0, NULL, 760000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk10', 'Test Automation Platform', NULL, 'draft', NULL, 'opex', '2026-07', '2027-03', '2027-03', 'p-sharma', 0, NULL, 280000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk11', 'Compliance Reporting Engine', NULL, 'draft', NULL, 'capex', '2026-10', '2027-12', '2027-12', 'p-weber', 0, NULL, 620000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk12', 'Field Service Telematics', NULL, 'draft', NULL, 'capex', '2026-12', '2028-04', '2028-04', 'p-weber', 0, NULL, 880000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk13', 'Legacy ERP Decommission', NULL, 'draft', NULL, 'capex', '2027-01', '2028-09', '2028-09', 'p-sharma', 0, NULL, 410000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk14', 'Knowledge Graph Pilot', NULL, 'draft', NULL, 'capex', '2026-11', '2027-08', '2027-08', 'p-weber', 0, NULL, 240000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk15', 'Edge Sensor Network', NULL, 'draft', NULL, 'capex', '2027-02', '2028-12', '2028-12', 'p-weber', 0, NULL, 1100000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk16', 'Voice Bot Innovation Lab', NULL, 'draft', NULL, 'opex', '2026-09', '2027-04', '2027-04', 'p-brenner', 0, NULL, 95000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- s06_chargeable_entities / 2. Chargeable Entities (34 — polymorphic) [F-DM-01]
@@ -577,9 +599,26 @@ INSERT INTO chargeable_entities (id, entity_type, identifier, name, description,
 ('svc-iot-infra', 'InternalService', 'ITF20024', 'IoT Infrastructure Support', NULL, 'he-dnd', 'p-weber', 0, NULL, NULL, 160000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('svc-monitoring', 'InternalService', 'ITF20025', 'Application Monitoring Service', NULL, 'he-cit', 'p-brenner', 0, NULL, NULL, 210000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('svc-itsm', 'InternalService', 'ITF20026', 'ITSM Platform Service', NULL, 'he-cit', 'p-brenner', 0, NULL, NULL, 175000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-devsec-tools', 'InternalService', 'ITF20027', 'DevSecOps Toolchain Service', NULL, 'he-cit', 'p-brenner', 0, NULL, NULL, 145000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('svc-devsec-tools', 'InternalService', 'ITF20027', 'DevSecOps Toolchain Service', NULL, 'he-cit', 'p-brenner', 0, NULL, NULL, 145000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+-- Backlog seed expansion (16 DoI 0-2 Project entities).
+('proj-bk01', 'Project', 'IT020101', 'AI Customer Service Assistant', NULL, 'he-cit', 'p-sharma', 0, 'proj-bk01', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk02', 'Project', 'IT020102', 'Mobile Workforce Application', NULL, 'he-tbs', 'p-weber', 0, 'proj-bk02', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk03', 'Project', 'IT020103', 'Cybersecurity Hardening Programme', NULL, 'he-cit', 'p-brenner', 0, 'proj-bk03', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk04', 'Project', 'IT020104', 'Supplier Portal Modernization', NULL, 'he-tbs-prog-dbp', 'p-sharma', 0, 'proj-bk04', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk05', 'Project', 'IT020105', 'Real-time Analytics Platform', NULL, 'he-dnd-prog-data', 'p-weber', 0, 'proj-bk05', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk06', 'Project', 'IT020106', 'Document Management Refresh', NULL, 'he-cit', 'p-brenner', 0, 'proj-bk06', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk07', 'Project', 'IT020107', 'Manufacturing Execution Upgrade', NULL, 'he-tbs', 'p-sharma', 0, 'proj-bk07', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk08', 'Project', 'IT020108', 'API Gateway Consolidation', NULL, 'he-cit', 'p-brenner', 0, 'proj-bk08', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk09', 'Project', 'IT020109', 'Customer Identity Federation', NULL, 'he-cit', 'p-brenner', 0, 'proj-bk09', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk10', 'Project', 'IT020110', 'Test Automation Platform', NULL, 'he-cit', 'p-sharma', 0, 'proj-bk10', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk11', 'Project', 'IT020111', 'Compliance Reporting Engine', NULL, 'he-rvs', 'p-weber', 0, 'proj-bk11', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk12', 'Project', 'IT020112', 'Field Service Telematics', NULL, 'he-tbs-prog-fleet', 'p-weber', 0, 'proj-bk12', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk13', 'Project', 'IT020113', 'Legacy ERP Decommission', NULL, 'he-tbs-prog-dbp', 'p-sharma', 0, 'proj-bk13', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk14', 'Project', 'IT020114', 'Knowledge Graph Pilot', NULL, 'he-dnd', 'p-weber', 0, 'proj-bk14', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk15', 'Project', 'IT020115', 'Edge Sensor Network', NULL, 'he-rvs-prog-rail', 'p-weber', 0, 'proj-bk15', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk16', 'Project', 'IT020116', 'Voice Bot Innovation Lab', NULL, 'he-cit', 'p-brenner', 0, 'proj-bk16', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
--- chargeable_entities counts: 11 Project, 6 Offering, 17 InternalService.
+-- chargeable_entities counts: 27 Project, 6 Offering, 17 InternalService.
 
 -- =============================================================================
 -- s07_assignments / Project Grouping Assignments
@@ -597,7 +636,24 @@ INSERT INTO project_grouping_assignments (project_id, grouping_entity_id) VALUES
 ('proj-greenedge', 'he-cit'),
 ('proj-connveh', 'he-tbs'),
 ('proj-cloud3-run', 'he-cit-prog-infra'),
-('proj-iam-run', 'he-cit');
+('proj-iam-run', 'he-cit'),
+-- Backlog seed expansion (16 DoI 0-2 projects).
+('proj-bk01', 'he-cit'),
+('proj-bk02', 'he-tbs'),
+('proj-bk03', 'he-cit'),
+('proj-bk04', 'he-tbs-prog-dbp'),
+('proj-bk05', 'he-dnd-prog-data'),
+('proj-bk06', 'he-cit'),
+('proj-bk07', 'he-tbs'),
+('proj-bk08', 'he-cit'),
+('proj-bk09', 'he-cit'),
+('proj-bk10', 'he-cit'),
+('proj-bk11', 'he-rvs'),
+('proj-bk12', 'he-tbs-prog-fleet'),
+('proj-bk13', 'he-tbs-prog-dbp'),
+('proj-bk14', 'he-dnd'),
+('proj-bk15', 'he-rvs-prog-rail'),
+('proj-bk16', 'he-cit');
 
 -- =============================================================================
 -- s08_distribution / Stage 1 distribution edges [F-S1-01..05]
@@ -1402,7 +1458,26 @@ UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardiz
 UPDATE projects SET project_type = 3, transformation_level = 'T0', tn_standardization = 3, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 4, tn_payback = 5, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.4, value_creation_score = 4.2, composite_score = 3.3, tshirt_size = 'M' WHERE id = 'proj-railsafety';
 UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.0, value_creation_score = 3.4, composite_score = 3.2, tshirt_size = 'M' WHERE id = 'proj-sensor';
 
--- 11 projects scored; 0 Run-stage skipped.
+-- Backlog seed expansion (16 DoI 0-2 projects). Composite scores spread
+-- 1.8 → 4.6 so the ranked list spans both cutoff bands visibly.
+UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 5, tn_usage = 5, tn_maintenance = 4, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 5, complexity_score = 4.6, value_creation_score = 4.7, composite_score = 4.6, tshirt_size = 'XL' WHERE id = 'proj-bk01';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 4, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 4, complexity_score = 4.0, value_creation_score = 4.5, composite_score = 4.4, tshirt_size = 'M' WHERE id = 'proj-bk02';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 4, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 5, complexity_score = 4.0, value_creation_score = 4.5, composite_score = 4.3, tshirt_size = 'L' WHERE id = 'proj-bk03';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 4, complexity_score = 3.6, value_creation_score = 4.3, composite_score = 4.1, tshirt_size = 'M' WHERE id = 'proj-bk04';
+UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 4, tn_usage = 4, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 4, complexity_score = 3.8, value_creation_score = 3.9, composite_score = 3.9, tshirt_size = 'XL' WHERE id = 'proj-bk05';
+UPDATE projects SET project_type = 1, transformation_level = 'T0', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 3, complexity_score = 3.2, value_creation_score = 3.7, composite_score = 3.6, tshirt_size = 'S' WHERE id = 'proj-bk06';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 4, complexity_score = 3.2, value_creation_score = 3.6, composite_score = 3.5, tshirt_size = 'L' WHERE id = 'proj-bk07';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 4, complexity_score = 3.4, value_creation_score = 3.4, composite_score = 3.4, tshirt_size = 'M' WHERE id = 'proj-bk08';
+UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 4, complexity_score = 3.0, value_creation_score = 3.4, composite_score = 3.3, tshirt_size = 'M' WHERE id = 'proj-bk09';
+UPDATE projects SET project_type = 1, transformation_level = 'T0', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 3, complexity_score = 3.0, value_creation_score = 3.1, composite_score = 3.1, tshirt_size = 'S' WHERE id = 'proj-bk10';
+UPDATE projects SET project_type = 3, transformation_level = 'T0', tn_standardization = 3, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 3, tn_payback = 4, tn_competitive_advantage = 2, complexity_score = 2.4, value_creation_score = 3.2, composite_score = 3.0, tshirt_size = 'M' WHERE id = 'proj-bk11';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 2, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 3, complexity_score = 2.8, value_creation_score = 2.8, composite_score = 2.8, tshirt_size = 'M' WHERE id = 'proj-bk12';
+UPDATE projects SET project_type = 1, transformation_level = 'T0', tn_standardization = 4, tn_usage = 3, tn_maintenance = 2, tn_financial_benefit = 2, tn_payback = 3, tn_competitive_advantage = 2, complexity_score = 2.8, value_creation_score = 2.5, composite_score = 2.6, tshirt_size = 'M' WHERE id = 'proj-bk13';
+UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 2, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 3, tn_payback = 2, tn_competitive_advantage = 3, complexity_score = 2.0, value_creation_score = 2.6, composite_score = 2.4, tshirt_size = 'S' WHERE id = 'proj-bk14';
+UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 2, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 2, tn_payback = 2, tn_competitive_advantage = 3, complexity_score = 2.0, value_creation_score = 2.2, composite_score = 2.1, tshirt_size = 'L' WHERE id = 'proj-bk15';
+UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 1, tn_usage = 2, tn_maintenance = 1, tn_financial_benefit = 2, tn_payback = 2, tn_competitive_advantage = 2, complexity_score = 1.4, value_creation_score = 2.0, composite_score = 1.8, tshirt_size = 'XS' WHERE id = 'proj-bk16';
+
+-- 27 projects scored; 0 Run-stage skipped.
 
 -- =============================================================================
 -- s12_pipeline — Pipeline stage + DoI gates per [A-PS-02] [A-DOI-01..03]
@@ -1420,7 +1495,25 @@ UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_
 UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-railsafety-2025-11.pdf', within_cutoff = 1 WHERE id = 'proj-railsafety';
 UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-sensor-2025-02.pdf', within_cutoff = 1 WHERE id = 'proj-sensor';
 
--- 11 projects updated.
+-- Backlog seed expansion (16 DoI 0-2 projects).
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk01-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-bk01';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk02-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-bk02';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk03-2026-01.pdf', within_cutoff = 1 WHERE id = 'proj-bk03';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk04-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-bk04';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk05-2026-03.pdf', within_cutoff = 1 WHERE id = 'proj-bk05';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk06-2026-01.pdf', within_cutoff = 1 WHERE id = 'proj-bk06';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk07-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-bk07';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk08-2026-01.pdf', within_cutoff = 1 WHERE id = 'proj-bk08';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk09-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-bk09';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk10-2026-01.pdf', within_cutoff = 1 WHERE id = 'proj-bk10';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk11-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-bk11';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-bk12';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-bk13';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-bk14';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-bk15';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-bk16';
+
+-- 27 projects updated.
 
 -- =============================================================================
 -- s13_financials — baselines, forecasts, actuals

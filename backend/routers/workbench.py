@@ -19,7 +19,7 @@ from schemas.common import CurrentUser
 from schemas.workbench import (
     AcknowledgeRequest, CRHistoryItem, EditRequest, ForecastGridRow,
     ForecastVersionDetail, ForecastVersionDiff, ForecastVersionListResponse,
-    ForecastVersionMeta, ManualSnapshotRequest, MixedGridResponse,
+    ForecastVersionMeta, MixedGridResponse,
     ProjectListItem, SubmitRequest,
 )
 from services.calculations import compute_plan_drift, add_months
@@ -1655,47 +1655,6 @@ def get_forecast_version(
             pass
 
     return ForecastVersionDetail(meta=meta, payload=payload)
-
-
-@router.post("/{project_id}/forecast/versions")
-def create_manual_forecast_version(
-    project_id: str,
-    body: ManualSnapshotRequest,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller")),
-):
-    """Manually create a forecast version snapshot (controller only) [C-FV-03]."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(404, "Project not found")
-
-    from services.forecast_versioning import capture_version
-    fv = capture_version(
-        db=db,
-        project_id=project_id,
-        user=user,
-        version_type="manual",
-        cycle_label=body.label,
-    )
-    db.commit()
-    db.refresh(fv)
-
-    return ForecastVersionMeta(
-        id=fv.id,
-        project_id=fv.project_id,
-        version_number=fv.version_number,
-        version_type=fv.version_type,
-        cycle_label=fv.cycle_label,
-        cycle_id=fv.cycle_id,
-        change_request_id=fv.change_request_id,
-        created_at=fv.created_at,
-        created_by_id=fv.created_by_id,
-        created_by_name=fv.created_by.name if fv.created_by else None,
-        granularity_boundary_months=fv.granularity_boundary_months,
-        planning_horizon_months=fv.planning_horizon_months,
-        cell_count=fv.cell_count,
-        total_amount_eur=float(fv.total_amount_eur) if fv.total_amount_eur else None,
-    )
 
 
 # ===========================================================================

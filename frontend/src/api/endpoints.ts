@@ -42,7 +42,6 @@ import type {
   ProjectOverview,
   ForecastGridRow,
   MixedGridResponse,
-  ForecastVersionMeta,
   ForecastVersionListResponse,
   ForecastVersionDetail,
   ForecastVersionDiff,
@@ -385,13 +384,6 @@ export const workbenchApi = {
   getForecastVersion: (projectId: string, versionId: number) =>
     api.get<ForecastVersionDetail>(
       `/api/projects/${projectId}/forecast/versions/${versionId}`,
-    ),
-
-  // C1 — Manual snapshot (controller only) [C-FV-03]
-  createForecastVersion: (projectId: string, label?: string) =>
-    api.post<ForecastVersionMeta>(
-      `/api/projects/${projectId}/forecast/versions`,
-      { label: label ?? null },
     ),
 
   // C1 — Diff two versions [C-RH-05]

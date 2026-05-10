@@ -576,9 +576,9 @@ export function MixedGranularityGrid({
 
   function renderHeaderRow1() {
     return (
-      <TableRow className="bg-muted/50">
+      <TableRow className="bg-muted">
         <TableHead
-          className="sticky left-0 top-0 bg-muted/50 z-30 border-r border-border whitespace-nowrap min-w-[220px]"
+          className="sticky left-0 top-0 bg-muted z-30 border-r border-border whitespace-nowrap min-w-[220px]"
           rowSpan={2}
         >
           Line item
@@ -591,7 +591,7 @@ export function MixedGranularityGrid({
             <TableHead
               key={`yr-${g.year}`}
               colSpan={span}
-              className="sticky top-0 z-20 bg-muted/50 text-center border-l-2 border-border text-xs font-semibold"
+              className="sticky top-0 z-20 bg-muted text-center border-l-2 border-border text-xs font-semibold"
             >
               <button
                 type="button"
@@ -620,13 +620,13 @@ export function MixedGranularityGrid({
 
   function renderHeaderRow2() {
     return (
-      <TableRow className="bg-muted/30">
+      <TableRow className="bg-muted">
         {displayColumns.map((entry, idx) => {
           if (entry.kind === 'yearTotal') {
             return (
               <TableHead
                 key={`col-yt-${entry.year}`}
-                className="sticky top-10 z-20 bg-muted/40 dark:bg-muted/40 text-right min-w-[110px] text-xs border-l-4 border-foreground/30 dark:border-foreground/40 font-bold text-foreground"
+                className="sticky top-10 z-20 bg-muted text-right min-w-[110px] text-xs border-l-4 border-foreground/30 dark:border-foreground/40 font-bold text-foreground"
               >
                 <span className="font-tabular">{entry.year} Total</span>
               </TableHead>
@@ -643,7 +643,7 @@ export function MixedGranularityGrid({
           return (
             <TableHead
               key={`col-${col.key}`}
-              className={`sticky top-10 z-20 bg-muted/30 text-right min-w-[90px] text-xs ${
+              className={`sticky top-10 z-20 bg-muted text-right min-w-[90px] text-xs ${
                 isYearStart || isJanColumn
                   ? 'border-l-4 border-foreground/30 dark:border-foreground/40'
                   : ''
@@ -914,7 +914,7 @@ export function MixedGranularityGrid({
     const bgClass =
       style === 'grand'
         ? 'bg-muted border-t-2 border-border'
-        : 'bg-muted/50 border-t border-border';
+        : 'bg-muted border-t border-border';
     const labelClass =
       style === 'grand'
         ? 'font-bold text-sm text-foreground'
@@ -924,9 +924,7 @@ export function MixedGranularityGrid({
     return (
       <TableRow className={bgClass}>
         <TableCell
-          className={`sticky left-0 z-10 ${
-            style === 'grand' ? 'bg-muted' : 'bg-muted/50'
-          } border-r border-border whitespace-nowrap ${labelClass}`}
+          className={`sticky left-0 z-10 bg-muted border-r border-border whitespace-nowrap ${labelClass}`}
         >
           {label}
         </TableCell>

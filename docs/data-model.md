@@ -247,13 +247,13 @@ Read-only historical spend (from SAP/CATS).
 ### `ForecastVersion` — `forecast_versions`
 Immutable point-in-time snapshot of a project forecast per `[C-FV-01..07]`.
 
-**Key columns.** `id` Integer PK, `project_id` FK NOT NULL, `version_number` Integer NOT NULL (sequential per project), `version_type` String(20) (`cycle` | `cr_approval` | `manual`), `cycle_label` String(50), `cycle_id` String(20), `change_request_id` FK → change_requests (NULL for cycle/manual), `created_at` DateTime NOT NULL default utcnow, `created_by_id` FK → people NOT NULL, `granularity_boundary_months` Integer default 12, `planning_horizon_months` Integer default 60, `payload_json` Text (full grid as JSON, schema_version 1, ~70 KB/version per `[C-FV-07]`), `cell_count` Integer / `total_amount_eur` Numeric(14,2) (denormalised stats for fast list queries).
+**Key columns.** `id` Integer PK, `project_id` FK NOT NULL, `version_number` Integer NOT NULL (sequential per project), `version_type` String(20) (`cycle` | `cr_approval`; legacy `manual` still accepted for historic rows), `cycle_label` String(50), `cycle_id` String(20), `change_request_id` FK → change_requests (NULL for cycle), `created_at` DateTime NOT NULL default utcnow, `created_by_id` FK → people NOT NULL, `granularity_boundary_months` Integer default 12, `planning_horizon_months` Integer default 60, `payload_json` Text (full grid as JSON, schema_version 1, ~70 KB/version per `[C-FV-07]`), `cell_count` Integer / `total_amount_eur` Numeric(14,2) (denormalised stats for fast list queries).
 
 **Constraints.** `UniqueConstraint(project_id, version_number, name="uq_fv_project_version")` per `[C-FV-04]`.
 
 **Relationships.** `project` (back_populates), `created_by` (foreign_keys=[created_by_id]).
 
-**Notes.** Created automatically: on CR approval (6-line try-wrapped hook in `approve_cr` per `[C-FV-02]`); on cycle completion (fan-out to all active projects per `[C-FV-05]`); manually by controller per `[C-FV-03]`. **NOT replacing** `ForecastSnapshot` (kept for accuracy report).
+**Notes.** Created automatically: on CR approval (6-line try-wrapped hook in `approve_cr` per `[C-FV-02]`); on cycle completion (fan-out to all active projects per `[C-FV-05]`). The controller-triggered manual snapshot path (`version_type='manual'` per `[C-FV-03]`) was removed; the column still accepts the literal so any pre-existing rows remain readable, but no new manual versions are created. **NOT replacing** `ForecastSnapshot` (kept for accuracy report).
 
 ### `ExternalCostDelivery` — `external_cost_deliveries`
 v5.1 `[C-09]` row-expansion content for the External Costs monthly grid. One row per scheduled delivery milestone, keyed implicitly by `(project_id, vendor, po_number)`.
@@ -692,7 +692,7 @@ Module-level Python tuples that define authoritative value sets. When the value 
 ### Versioning
 - **Row-column versioning** (Distribution.version, RollupCache layer/year/version/key) — supports baseline/forecast/actuals + scenario forks.
 - **Triple versioning** (UserMeasurement `(year, quarter, imported_at)`) — never updated in place; each import is a new batch.
-- **Sequential per-project** (ForecastVersion.version_number with `UniqueConstraint(project_id, version_number)`) — strict ordering for cycle/CR/manual snapshots.
+- **Sequential per-project** (ForecastVersion.version_number with `UniqueConstraint(project_id, version_number)`) — strict ordering for cycle and CR-approval snapshots.
 
 ### Snapshot pattern
 - `ProjectSubmissionSnapshot` — PL's original plan + controller-proposed edits.

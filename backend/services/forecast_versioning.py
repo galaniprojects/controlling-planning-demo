@@ -12,7 +12,9 @@ Key concepts:
 Version lifecycle:
 - 'cycle'       — created by submit_forecast_cycle for all active projects [C-FV-05]
 - 'cr_approval' — created by approve_cr for the affected project [C-FV-02]
-- 'manual'      — created on demand by a controller [C-FV-03]
+  (Legacy: a controller-triggered 'manual' snapshot existed under [C-FV-03]
+  but was removed. The column still accepts the literal so existing rows
+  remain readable.)
 
 payload_json schema_version 1: see _PAYLOAD_SCHEMA_VERSION below.
 """
@@ -965,7 +967,7 @@ def capture_version(
     db: Session,
     project_id: str,
     user: CurrentUser,
-    version_type: str = "manual",
+    version_type: str = "cycle",
     change_request_id: int | None = None,
     cycle_label: str | None = None,
     cycle_id: str | None = None,
@@ -975,7 +977,7 @@ def capture_version(
 ) -> ForecastVersion:
     """Capture the current forecast as a new ForecastVersion.
 
-    version_type: 'cycle' | 'cr_approval' | 'manual'
+    version_type: 'cycle' | 'cr_approval'
 
     Does NOT commit — caller is responsible for committing the session.
     Raises IntegrityError on version_number collision (retry in capture_versions_for_cycle).

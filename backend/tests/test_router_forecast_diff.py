@@ -29,20 +29,30 @@ def _setup_params(db):
 @patch("routers.workbench.DEMO_DATE", "2026-04")
 @patch("config.DEMO_DATE", "2026-04")
 class TestForecastVersionDiff:
-    def _create_version(self, test_client, project_id="proj-alpha"):
-        resp = test_client.post(
-            f"/api/projects/{project_id}/forecast/versions",
-            json={"label": "v"},
-            headers=HEADERS_CTRL,
+    def _create_version(self, db, project_id="proj-alpha"):
+        """Seed a ForecastVersion via the service (cycle type) — the manual
+        snapshot endpoint was removed, so tests instantiate versions directly.
+        """
+        from schemas.common import CurrentUser
+        from services.forecast_versioning import capture_version
+        user = CurrentUser(
+            user_id="persona-controller", person_id="p-controller",
+            name="Anna Meier", role="controller",
+            cost_center_id=None, project_ids=[],
         )
-        assert resp.status_code == 200, resp.json()
-        return resp.json()["id"]
+        fv = capture_version(
+            db=db, project_id=project_id, user=user,
+            version_type="cycle", cycle_label="v",
+        )
+        db.commit()
+        db.refresh(fv)
+        return fv.id
 
     def test_happy_path(self, test_client, seed_personas, create_test_project, db):
         _setup_params(db)
         create_test_project("proj-alpha")
-        vid_a = self._create_version(test_client)
-        vid_b = self._create_version(test_client)
+        vid_a = self._create_version(db)
+        vid_b = self._create_version(db)
 
         resp = test_client.get(
             f"/api/forecast/versions/{vid_a}/diff/{vid_b}",
@@ -57,8 +67,8 @@ class TestForecastVersionDiff:
     def test_all_unchanged_same_snapshot(self, test_client, seed_personas, create_test_project, db):
         _setup_params(db)
         create_test_project("proj-alpha")
-        vid_a = self._create_version(test_client)
-        vid_b = self._create_version(test_client)
+        vid_a = self._create_version(db)
+        vid_b = self._create_version(db)
 
         resp = test_client.get(
             f"/api/forecast/versions/{vid_a}/diff/{vid_b}",
@@ -72,8 +82,8 @@ class TestForecastVersionDiff:
         _setup_params(db)
         create_test_project("proj-alpha")
         create_test_project("proj-beta")
-        vid_a = self._create_version(test_client, "proj-alpha")
-        vid_b = self._create_version(test_client, "proj-beta")
+        vid_a = self._create_version(db, "proj-alpha")
+        vid_b = self._create_version(db, "proj-beta")
 
         resp = test_client.get(
             f"/api/forecast/versions/{vid_a}/diff/{vid_b}",
@@ -87,7 +97,7 @@ class TestForecastVersionDiff:
     def test_version_a_not_found(self, test_client, seed_personas, create_test_project, db):
         _setup_params(db)
         create_test_project("proj-alpha")
-        vid_b = self._create_version(test_client)
+        vid_b = self._create_version(db)
         resp = test_client.get(
             f"/api/forecast/versions/99999/diff/{vid_b}",
             headers=HEADERS_CTRL,
@@ -97,7 +107,7 @@ class TestForecastVersionDiff:
     def test_version_b_not_found(self, test_client, seed_personas, create_test_project, db):
         _setup_params(db)
         create_test_project("proj-alpha")
-        vid_a = self._create_version(test_client)
+        vid_a = self._create_version(db)
         resp = test_client.get(
             f"/api/forecast/versions/{vid_a}/diff/99999",
             headers=HEADERS_CTRL,
