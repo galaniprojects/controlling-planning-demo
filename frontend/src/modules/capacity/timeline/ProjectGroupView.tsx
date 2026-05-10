@@ -76,6 +76,30 @@ export function ProjectGroupView({ columns, data: providedData }: ProjectGroupVi
     }
   }, [data.items, registerVisibleProjects]);
 
+  // v5.2 W6 review fix (P2.5) — bump a `resetSignal` whenever the chip
+  // set changes; ProjectGroup resets its local `expanded` state via
+  // `useEffect([resetSignal])`. Pre-fix this used a React-key strategy
+  // (`key={`${pid}::${filterKey}`}`) which forced full remounts of all
+  // visible groups + their children on every chip toggle, defeating
+  // `React.memo` and resetting timeline scroll position. The signal-
+  // based approach achieves the same UX without the unmount/remount
+  // cost.
+  //
+  // v5.2 closeout fix — these three hooks were originally placed BELOW
+  // the `if (data.isLoading) return …` early returns, which violated
+  // the Rules of Hooks: the hook count would change between the loading
+  // and loaded renders, throwing "Rendered more hooks than during the
+  // previous render". Hoisted to the top to fix.
+  const filterKey = activeFilters.join(',') || 'all';
+  const lastFilterKeyRef = useRef(filterKey);
+  const [resetSignal, setResetSignal] = useState(0);
+  useEffect(() => {
+    if (lastFilterKeyRef.current !== filterKey) {
+      lastFilterKeyRef.current = filterKey;
+      setResetSignal((s) => s + 1);
+    }
+  }, [filterKey]);
+
   const handlePersonClick = (personId: string) => {
     if (!scopeCcId) {
       // CC-Owner default scope provides the ccId via context. For All-CCs
@@ -170,24 +194,6 @@ export function ProjectGroupView({ columns, data: providedData }: ProjectGroupVi
       </Card>
     );
   }
-
-  // v5.2 W6 review fix (P2.5) — bump a `resetSignal` whenever the chip
-  // set changes; ProjectGroup resets its local `expanded` state via
-  // `useEffect([resetSignal])`. Pre-fix this used a React-key strategy
-  // (`key={`${pid}::${filterKey}`}`) which forced full remounts of all
-  // visible groups + their children on every chip toggle, defeating
-  // `React.memo` and resetting timeline scroll position. The signal-
-  // based approach achieves the same UX without the unmount/remount
-  // cost.
-  const filterKey = activeFilters.join(',') || 'all';
-  const lastFilterKeyRef = useRef(filterKey);
-  const [resetSignal, setResetSignal] = useState(0);
-  useEffect(() => {
-    if (lastFilterKeyRef.current !== filterKey) {
-      lastFilterKeyRef.current = filterKey;
-      setResetSignal((s) => s + 1);
-    }
-  }, [filterKey]);
 
   return (
     <>
