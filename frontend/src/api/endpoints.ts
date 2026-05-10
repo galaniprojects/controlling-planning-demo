@@ -104,6 +104,7 @@ import type {
   CapacityHistoryFilters,
   CapacityInboxResponse,
   CapacityInboxFilters,
+  CapacityPlanningParametersResponse,
   CapacityProjectsParams,
   CapacityProjectsResponse,
 } from '@/types/api';
@@ -713,6 +714,16 @@ export const capacityApi = {
     const qs = q.toString();
     return api.get<CapacityProjectsResponse>(
       `/api/capacity/projects${qs ? '?' + qs : ''}`,
+    );
+  },
+
+  // --- v5.2 closeout — read-only PlanningParameter feed for capacity surfaces ---
+  getPlanningParameters: (group?: string) => {
+    const q = new URLSearchParams();
+    if (group) q.set('group', group);
+    const qs = q.toString();
+    return api.get<CapacityPlanningParametersResponse>(
+      `/api/capacity/planning-parameters${qs ? '?' + qs : ''}`,
     );
   },
 

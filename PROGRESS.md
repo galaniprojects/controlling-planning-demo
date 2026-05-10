@@ -9,9 +9,54 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 - [x] **Wave 3** — Core surfaces (S3+S4+S5a+S5b, 4-teammate team): timeline + KPIs/filters/demand strip + side panel + inbox/history page — branch `feat/v5_2-capacity-core-surfaces` (PR #91 merged 2026-05-08)
 - [x] **Wave 4** — Complex features (S6a+S7+S8, 3-teammate team): assignment panel + dashboard layer + PL availability view — branch `feat/v5_2-capacity-complex-features` (PR #92 merged 2026-05-08)
 - [x] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification — branch `feat/v5_2-capacity-w5-secondwave` (PR #93 merged 2026-05-10, sha `3809fd9`)
-- [x] **Wave 6** — Integration + polish (S11+S12, 3-teammate team): entry-point sweep + dashboard click wiring + Workbench §13.9 slide-over + a11y + empty states + W3/W4/W5 polish backlog — branch `feat/v5_2-capacity-w6-integration-polish` (PR pending user review)
+- [x] **Wave 6** — Integration + polish (S11+S12, 3-teammate team): entry-point sweep + dashboard click wiring + Workbench §13.9 slide-over + a11y + empty states + W3/W4/W5 polish backlog — branch `feat/v5_2-capacity-w6-integration-polish` (PR #94 merged 2026-05-10, sha `750d0f0`)
+- [x] **Closeout** — single-PR follow-up bundling the deferred polish backlog (W4/W5/W6 P2/P3 stragglers), the v5.2 closeout commitment (UnassignedSummary thresholds become PlanningParameter rows + new read-only endpoint + dynamic hook), the W4-deferred HotspotListCard CC-context bug, working-tree hygiene, and Path 3 seed enablement — branch `fix/v5_2-closeout-polish` (PR pending user review)
 
-**v5.2 cycle complete** — six waves, six PRs (#88 / #90 / #91 / #92 / #93 / pending). Capacity Module Redesign closed 2026-05-10.
+**v5.2 cycle complete** — six waves, six PRs (#88 / #90 / #91 / #92 / #93 / #94) plus the closeout PR. Capacity Module Redesign closed 2026-05-10.
+
+### v5.2 Closeout — polish backlog + UnassignedSummary wiring + Path 3 seed (2026-05-10, branch `fix/v5_2-closeout-polish`)
+
+Single solo session (no agent team) — five thin streams, one PR.
+
+**Stream 1 — UnassignedSummary closeout (full wiring) (`f791470`):**
+- `backend/seed/seed.sql` — two new PlanningParameter rows in the `thresholds` group: `capacity.unassigned_summary.warn_threshold_hours` (default `1`) + `capacity.unassigned_summary.danger_threshold_hours` (default `200`). Picks up the W6 #14 placeholder commitment.
+- `backend/routers/capacity.py` — NEW `GET /api/capacity/planning-parameters?group=…` (read-only, any persona). Trimmed payload (key / current_value / data_type) — admin-only fields like `description` / `default_value` stay behind `/api/admin/parameters` (Controller-only).
+- `backend/schemas/capacity.py` — `CapacityPlanningParameter` + `CapacityPlanningParametersResponse` types.
+- `backend/tests/test_router_capacity_planning_parameters.py` — 8 tests (shape, group filter, role gating across all 4 personas + missing-header rejection).
+- `frontend/src/api/endpoints.ts` + `frontend/src/types/api.ts` — typed client + types.
+- NEW `frontend/src/modules/capacity/hooks/useCapacityThresholds.ts` — module-level inflight dedup mirroring `useDashboardForecastData` (W6 P2.B); hardcoded fallback (`1`, `200`) on fetch failure so the UI never breaks.
+- `frontend/src/modules/capacity/timeline/UnassignedSummary.tsx` — `thresholdClasses(hours, warn, danger)` reads from the hook; docstring rewritten to point at the new wiring; pre-closeout TODO removed.
+
+**Stream 2 — HotspotListCard demand-cell carries CC (W4 P2 deferral) (`acd0f1b`):**
+- `backend/services/capacity_dashboard.py::compute_hotspots` — for each role's pending-demand aggregation, tracks per-CC hour totals; picks the CC with the most unassigned hours and flags `multi_cc=True` when more than one CC contributes. Single roundtrip for CC name resolution.
+- `backend/schemas/capacity.py` — `HotspotItem` gains optional `cost_center_id` / `cost_center_name` / `multi_cc` fields.
+- `backend/tests/test_router_capacity_dashboard.py` — `TestHotspotsUnfulfilledDemandCCAttribution` × 2 cases (single-CC returns the cc_id; multi-CC picks highest-hour CC + flags multi_cc).
+- `frontend/src/types/api.ts` — `HotspotItem` extended.
+- `frontend/src/modules/capacity/sidepanel/CapacitySidePanelContext.tsx` — `OpenCellArgs` + `mode.cell` carry the new fields.
+- `frontend/src/modules/capacity/sidepanel/CellDetail.tsx` — `CellHeader` renders "Cost centre: <name> (+ other cost centres)" for demand pivots; `DemandCellBody` filters the inbox to the focused CC when provided so the user sees only the originating CC's pending requests.
+- `frontend/src/modules/capacity/dashboard/HotspotListCard.tsx` — threads the new fields into the synthesized `openCell` payload.
+
+**Stream 3 — Polish (`c46e609`):**
+- `backend/services/capacity_dashboard.py` — beefed up docstrings on `compute_dashboard_forecast`, `compute_headcount_breakdown`, `compute_hotspots` (returns shape, scope vocab, error paths, severity formulas).
+- `frontend/src/modules/capacity/hooks/useCapacityProjectsData.ts` — added module-level inflight `Map<scopeKey, Promise>` (mirrors `useDashboardForecastData` W6 P2.B); function-level JSDoc on the `enabled` gate.
+- Eslint-disable audit: walked all 6 directives in `frontend/src/modules/capacity/{CapacityHistory.tsx, PLAvailabilityView.tsx, hooks/useScopeQueryParams.ts, kpi/KPISummaryBar.tsx, timeline/ProjectGroup.tsx}`. Each already has an inline explanation comment above it (per W6 #13). No additional polish needed — the W6 reviewer's punch list was over-eager.
+
+**Stream 4 — Hygiene (`<seed-commit>`):**
+- Removed 2 `qa/_tmp_w6_track_b_*.mjs` scratch scripts that were accidentally committed in W6.
+- `.gitignore` — added `qa/_tmp_*.mjs` and `.clone/` so future scratch artefacts stop appearing in `git status`.
+- (User-side) deleted 13 stale `creta_demo.db.preXXX` snapshots from the working tree.
+
+**Stream 5 — Path 3 seed enablement (`<seed-commit>`):**
+- `backend/seed/seed.sql` ResourceRequest id=100 (proj-autobrake / cc-muc-apd / role-sr-arch) → `assigned_person_id='p-brenner'`. PROGRESS.md:32 (W6 Track A) had documented that no seed RR carried `assigned_person_id`, leaving the §9.1 entry-point #3 ("Review project" on PersonDetail's pending-requests card) wired but unreachable. Brenner is the cc-muc-apd Sr Architect (role matches), and his persona is the CC Owner — so both Brenner-as-CC-Owner and Anna-as-Controller can now click through end-to-end.
+
+**Polish items from prior reviewer passes that were NOT acted on (and why):**
+- `UtilizationBucketKey` single source of truth — needs API codegen infra; W6 #15 SKIPPED note still stands.
+- `AssignedPersonRow.standardHours` removal — still requires project payload to thread location-aware std hours.
+- `SidePanel` focus trap — pre-existing deferral; landed `aria-modal` in W6 P3.A.
+- Cross-CC visibility for CC Owners — design call documented in W6 #14, no user-research signal to revisit.
+- W4 utilization-distribution scope filter — verified appears correct on inspection (W6 polish note); no change needed.
+
+**Verification:** see closeout commit message — pytest baseline preserved (1685) plus new tests (8 planning-params + 2 hotspot-CC); tsc clean; visual verification of UnassignedSummary dynamic threshold + HotspotListCard CC context + Path 3 click flow in light + dark.
 
 ### v5.2 Wave 6 — Track A (2026-05-10, branch `feat/v5_2-capacity-w6-integration-polish`)
 

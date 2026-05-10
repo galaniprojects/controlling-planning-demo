@@ -617,3 +617,73 @@ class TestUtilizationDistributionRoleGating:
             headers=HEADERS_CCO,
         )
         assert resp.status_code == 200
+
+
+# ===========================================================================
+# v5.2 closeout — unfulfilled_demand hotspots carry CC attribution
+# ===========================================================================
+
+
+def _hotspot_rows(payload):
+    # The endpoint returns a `HotspotResponse` envelope with `items`. Older
+    # iterations exposed alternative shapes; this helper kept the legacy
+    # branches as a defensive belt-and-braces. v5.2 closeout: the response
+    # shape is stable, drop the alternates.
+    return payload["items"]
+
+
+@patch("routers.capacity.DEMO_DATE", "2026-04")
+class TestHotspotsUnfulfilledDemandCCAttribution:
+    """v5.2 closeout: unfulfilled_demand items carry the originating CC so the
+    HotspotListCard's synthesized side-panel payload can pin the CC context.
+    """
+
+    def test_single_cc_demand_returns_cc_id(self, test_client, seed_dashboard):
+        # seed_dashboard puts role-dev demand entirely in cc-muc-dev.
+        resp = test_client.get(
+            "/api/capacity/dashboard/hotspots?scope=all&limit=10",
+            headers=HEADERS_CTRL,
+        )
+        rows = _hotspot_rows(resp.json())
+        unfulfilled = [
+            r for r in rows
+            if r.get("category") == "unfulfilled_demand" and r.get("target_id") == "role-dev"
+        ]
+        assert len(unfulfilled) == 1, f"expected one role-dev unfulfilled hotspot, got {len(unfulfilled)}"
+        item = unfulfilled[0]
+        assert item.get("cost_center_id") == "cc-muc-dev"
+        assert item.get("cost_center_name")  # name resolved
+        assert item.get("multi_cc") is False
+
+    def test_multi_cc_demand_picks_highest_hour_cc_and_flags(
+        self, db, test_client, seed_dashboard,
+    ):
+        """Add a second pending RR for role-dev in cc-bud-dev with smaller
+        hours; aggregator should pick cc-muc-dev (the higher-hour CC) and
+        flag multi_cc=True."""
+        from models.capacity import ResourceRequest
+        db.add(
+            ResourceRequest(
+                project_id="proj-dash", cost_center_id="cc-bud-dev",
+                request_type="resource", role_type_id="role-dev",
+                hours_or_amount_per_month=10,
+                period_start="2026-05", period_end="2026-05",
+                priority="medium", status="pending",
+            ),
+        )
+        db.commit()
+
+        resp = test_client.get(
+            "/api/capacity/dashboard/hotspots?scope=all&limit=10",
+            headers=HEADERS_CTRL,
+        )
+        rows = _hotspot_rows(resp.json())
+        item = next(
+            (r for r in rows
+             if r.get("category") == "unfulfilled_demand" and r.get("target_id") == "role-dev"),
+            None,
+        )
+        assert item is not None
+        # cc-muc-dev has 80h × 2 months = 160h; cc-bud-dev has 10h × 1 = 10h.
+        assert item.get("cost_center_id") == "cc-muc-dev"
+        assert item.get("multi_cc") is True

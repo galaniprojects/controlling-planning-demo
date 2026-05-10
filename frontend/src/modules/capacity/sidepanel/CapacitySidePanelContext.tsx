@@ -61,6 +61,11 @@ export type CapacityPanelMode =
       pivot: string;
       month?: string;
       rowLabel: string;
+      /** v5.2 closeout — originating CC for synthesized demand cells. */
+      costCenterId?: string | null;
+      costCenterName?: string | null;
+      /** True when the demand spans multiple CCs (we picked the highest-hour one). */
+      multiCc?: boolean;
     }
   | { kind: 'project_summary'; projectId: string }
   | {
@@ -103,6 +108,16 @@ interface OpenCellArgs {
    * a month is provided, otherwise just `rowLabel`.
    */
   title?: string;
+  /**
+   * v5.2 closeout — for synthesized demand cells (e.g., from
+   * HotspotListCard), the originating CC carrying the most unassigned
+   * hours. Surfaces in the cell header so the user knows which CC the
+   * demand belongs to. Optional everywhere else.
+   */
+  costCenterId?: string | null;
+  costCenterName?: string | null;
+  /** True when the demand spans multiple CCs and we picked the highest-hour one. */
+  multiCc?: boolean;
 }
 
 interface CapacitySidePanelState {
@@ -206,10 +221,21 @@ export function CapacitySidePanelProvider({ children }: { children: ReactNode })
         pivot: args.pivot,
         month: args.month,
         rowLabel: args.rowLabel,
+        costCenterId: args.costCenterId,
+        costCenterName: args.costCenterName,
+        multiCc: args.multiCc,
       });
-      const defaultTitle = args.month
-        ? `${args.rowLabel} — ${args.month}`
-        : args.rowLabel;
+      // v5.2 closeout review P3-2 — surface the originating CC in the title
+      // when one was attributed (single-CC drill-downs only; multi-CC stays
+      // role-only because the panel header already carries the "+ other
+      // cost centres" hint and it'd be misleading to label the title with
+      // just one of them).
+      const ccSuffix =
+        args.dimensionId === 'demand' && args.costCenterName && !args.multiCc
+          ? ` · ${args.costCenterName}`
+          : '';
+      const monthSuffix = args.month ? ` — ${args.month}` : '';
+      const defaultTitle = `${args.rowLabel}${ccSuffix}${monthSuffix}`;
       openPanel(
         args.title ?? defaultTitle,
         <CellDetail
@@ -217,6 +243,9 @@ export function CapacitySidePanelProvider({ children }: { children: ReactNode })
           pivot={args.pivot}
           month={args.month}
           rowLabel={args.rowLabel}
+          costCenterId={args.costCenterId}
+          costCenterName={args.costCenterName}
+          multiCc={args.multiCc}
           // v5.2 W5 — bridge for the demand-mode "Review project"
           // button. CellDetail is rendered inside the shared SidePanel
           // (outside CapacitySidePanelProvider's React tree), so it

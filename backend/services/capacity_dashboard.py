@@ -161,7 +161,17 @@ def compute_dashboard_forecast(
 ) -> dict:
     """Monthly available / allocated / incoming-demand hours per scope.
 
-    Returns the time-series payload backing GET /api/capacity/dashboard/forecast.
+    Backs ``GET /api/capacity/dashboard/forecast``. The window defaults to
+    ``DEMO_DATE`` + 11 months forward when ``start`` / ``end`` are omitted.
+
+    Returns ``{items, total, scope, start, end, total_capacity_hours}``
+    where each ``items[i]`` carries ``month``, ``available_hours``,
+    ``allocated_hours`` and ``demand_hours`` (pending RR hours summed
+    against the same month range, regardless of confirm status).
+
+    Scope vocabulary matches ``_parse_scope`` — ``all`` /
+    ``cost_center:<id>`` / ``location:<id>`` / ``hierarchy:<id>``.
+    Invalid scopes raise ``ValueError`` so the router can surface 400.
     """
     if not start:
         start = DEMO_DATE
@@ -397,7 +407,17 @@ def compute_headcount_breakdown(
 ) -> dict:
     """Headcount split by dimension (location | hierarchy | role | cost_center).
 
-    Backs GET /api/capacity/dashboard/headcount-breakdown.
+    Backs ``GET /api/capacity/dashboard/headcount-breakdown``. Returns
+    ``{items, total, dimension, scope}`` where each item has ``id``,
+    ``label`` and ``count``. The dimension is validated; anything outside
+    the allow-list raises ``ValueError`` (router surfaces 400).
+
+    Counts are over distinct active people in the scope. The internal
+    series is dense for the four built-in dimensions: ``location`` and
+    ``cost_center`` always emit one row per existing entity in scope (zero
+    counts hidden); ``role`` emits one row per role that any in-scope
+    person carries; ``hierarchy`` emits one row per top-level grouping
+    entity reachable from in-scope projects.
     """
     if dimension not in ("location", "hierarchy", "role", "cost_center"):
         raise ValueError(
@@ -544,8 +564,20 @@ def compute_hotspots(
 ) -> list[dict]:
     """Top-N capacity issues ranked by three-category severity.
 
-    Categories per spec §11.6: over-allocation, chronic under-utilization,
-    unfulfilled demand. Returns ranked list with severity icon + summary.
+    Backs ``GET /api/capacity/dashboard/hotspots``. Categories per spec §11.6:
+      * ``over_allocation`` — person whose monthly utilization exceeds 100%.
+        Severity = ``3 × (peak_pct − 100) × months_affected``.
+      * ``unfulfilled_demand`` — pending RRs summed by ``role_type_id``.
+        Severity = ``2 × total_unassigned_hours``. v5.2 closeout: each
+        item also carries ``cost_center_id`` / ``cost_center_name`` /
+        ``multi_cc`` for the highest-hour CC.
+      * ``under_utilization`` — chronic ≥6-month run with avg < 10%.
+        Severity = ``run_length × (10 − avg_pct)``.
+
+    Returns a list (length ≤ ``limit``) sorted by severity desc. ``scope``
+    follows the same vocabulary as the other dashboard endpoints; an
+    empty scope or scope with zero people yields an empty list (never
+    raises).
     """
     if limit < 1:
         limit = 5
@@ -652,8 +684,14 @@ def compute_hotspots(
     pending_requests = pending_q.all()
 
     # Group by role to build a "QA Engineer — 3 open requests, 480h unassigned across 2 projects" line.
+    # Per-CC hour totals are tracked so we can attribute the highest-hour CC
+    # to the synthesized side-panel payload (v5.2 closeout — fixes the
+    # demand-cell drill-down losing CC context noted in W4 P2 deferrals).
     role_groups: dict[str, dict] = defaultdict(lambda: {
-        "count": 0, "unassigned_hours": 0.0, "project_ids": set(),
+        "count": 0,
+        "unassigned_hours": 0.0,
+        "project_ids": set(),
+        "cc_hours": defaultdict(float),
     })
     role_request_ids: dict[str, list[int]] = defaultdict(list)
     for r in pending_requests:
@@ -667,7 +705,19 @@ def compute_hotspots(
         rg["count"] += 1
         rg["unassigned_hours"] += unassigned_hours
         rg["project_ids"].add(r.project_id)
+        if r.cost_center_id:
+            rg["cc_hours"][r.cost_center_id] += unassigned_hours
         role_request_ids[r.role_type_id].append(r.id)
+
+    # Resolve CC names once (covers all CCs across all role groups).
+    all_cc_ids = {cc_id for rg in role_groups.values() for cc_id in rg["cc_hours"].keys()}
+    cc_name_map: dict[str, str] = {}
+    if all_cc_ids:
+        cc_name_map = dict(
+            db.query(CostCenter.id, CostCenter.name)
+            .filter(CostCenter.id.in_(all_cc_ids))
+            .all()
+        )
 
     for role_id, rg in role_groups.items():
         severity = 2 * rg["unassigned_hours"]
@@ -679,12 +729,28 @@ def compute_hotspots(
             f"{len(rg['project_ids'])} project"
             f"{'s' if len(rg['project_ids']) != 1 else ''}"
         )
+        # Pick the CC carrying the most unassigned hours; flag multi-CC so the
+        # frontend can hint that other CCs share the demand.
+        cc_hours = rg["cc_hours"]
+        top_cc_id: str | None = None
+        cc_name: str | None = None
+        multi_cc = False
+        if cc_hours:
+            # Sort by hours desc then cc_id asc so the picked CC is
+            # deterministic across runs even when two CCs carry equal
+            # unassigned hours (review feedback P2-1).
+            top_cc_id = sorted(cc_hours.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+            cc_name = cc_name_map.get(top_cc_id)
+            multi_cc = len(cc_hours) > 1
         issues.append({
             "category": "unfulfilled_demand",
             "severity": round(severity, 2),
             "summary": summary,
             "target_id": role_id,
             "target_type": "role",
+            "cost_center_id": top_cc_id,
+            "cost_center_name": cc_name,
+            "multi_cc": multi_cc,
         })
 
     # ---------- Category 3: Chronic under-utilization ----------

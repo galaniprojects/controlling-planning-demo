@@ -75,6 +75,9 @@ interface HotspotRowProps {
     pivot: string;
     month?: string;
     rowLabel: string;
+    costCenterId?: string | null;
+    costCenterName?: string | null;
+    multiCc?: boolean;
   }) => void;
 }
 
@@ -96,17 +99,27 @@ function HotspotRow({ item, ccId, apiScope, onPerson, onCell }: HotspotRowProps)
     } else if (item.category === 'unfulfilled_demand') {
       // target_type = 'role', target_id = role_type_id.
       // Synthesize a demand-cell payload per user decision 2a.
+      // v5.2 closeout — pivot is now `demand` (was `role`) so the side
+      // panel routes to DemandCellBody and renders the actual pending-
+      // request list. The W4 PROGRESS log called richer demand rendering
+      // a W5 polish follow-up; the closeout PR is the right place. The
+      // originating CC (cost_center_id) filters the inbox view to the
+      // CC carrying the most unassigned hours, with a header banner
+      // noting when the demand spans multiple CCs.
       onCell({
         dimensionId: 'demand',
-        pivot: 'role',
+        pivot: 'demand',
         rowLabel: item.summary.split('—')[0]?.trim() ?? item.target_id,
+        costCenterId: item.cost_center_id ?? null,
+        costCenterName: item.cost_center_name ?? null,
+        multiCc: item.multi_cc ?? false,
       });
     }
   };
 
   const ariaAction =
     item.category === 'unfulfilled_demand'
-      ? 'Open demand summary'
+      ? 'Open pending demand'
       : 'Open person detail';
 
   return (

@@ -35,6 +35,7 @@ from models.change_requests import ChangeRequest
 from models.financial import Forecast
 from models.people import RateTable
 from models.organization import CostCenter, GroupingEntity, Location
+from models.system import PlanningParameter
 from services.portfolio_service import _get_projects_for_entity_recursive, get_project_entity_info, get_top_level_entity_type_id
 from models.people import Person, RoleType
 from models.projects import Project
@@ -43,6 +44,7 @@ from schemas.capacity import (
     CapacityContext,
     CapacityHistoryEntry, CapacityHistoryResponse,
     CapacityInboxItem, CapacityInboxResponse, CapacityInboxRoleBadge,
+    CapacityPlanningParameter, CapacityPlanningParametersResponse,
     CapacityProjectAssignedPerson, CapacityProjectAssignedPersonMonth,
     CapacityProjectExternalCost, CapacityProjectItem, CapacityProjectMonth,
     CapacityProjectSlot, CapacityProjectSlotMonth, CapacityProjectsResponse,
@@ -2519,3 +2521,40 @@ def get_capacity_projects(
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     return CapacityProjectsResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# v5.2 closeout — read-only planning parameters for capacity surfaces
+# ---------------------------------------------------------------------------
+
+
+@router.get("/planning-parameters", response_model=CapacityPlanningParametersResponse)
+def get_capacity_planning_parameters(
+    group: str | None = Query(default=None, description="Optional param_group filter (e.g. 'thresholds')"),
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Read-only planning-parameter feed for capacity surfaces.
+
+    Returns a trimmed payload (key / current_value / data_type) — admin-only
+    fields like description and default_value live behind
+    ``GET /api/admin/parameters`` (Controller-only).
+
+    Authorized for any authenticated demo persona (Controller / CC Owner /
+    Executive / Project Lead) so that read-mostly surfaces such as the
+    project-view ``UnassignedSummary`` thresholds can hydrate values
+    without re-implementing the seed defaults client-side.
+    """
+    query = db.query(PlanningParameter)
+    if group:
+        query = query.filter(PlanningParameter.param_group == group)
+    rows = query.order_by(PlanningParameter.key).all()
+    items = [
+        CapacityPlanningParameter(
+            key=p.key,
+            current_value=p.current_value,
+            data_type=p.data_type,
+        )
+        for p in rows
+    ]
+    return CapacityPlanningParametersResponse(items=items, total=len(items))

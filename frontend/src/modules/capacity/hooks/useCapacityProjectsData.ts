@@ -12,6 +12,13 @@
  * The hook is `enabled`-gated so it only fetches when group-by-project
  * is active — outside the project view the role/person hooks remain
  * the active data sources.
+ *
+ * v5.2 closeout — added module-level inflight dedup mirroring the
+ * `useDashboardForecastData` pattern (W6 P2.B). When `CapacityTimeline`
+ * and `ProjectGroupView` both consume the hook with the same scope,
+ * they share a single in-flight promise instead of firing parallel
+ * fetches. Cleared in `.finally()` so the map doesn't grow unbounded
+ * and doesn't survive page reloads.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { capacityApi } from '@/api/endpoints';
@@ -24,6 +31,22 @@ import type {
   CapacityProjectItem,
   CapacityProjectsResponse,
 } from '@/types/api';
+
+// Module-level inflight map: scope-key → in-flight promise.
+// Cleared in `.finally()` so the entry doesn't outlive the request.
+const inflight = new Map<string, Promise<CapacityProjectsResponse>>();
+
+function fetchProjectsDeduped(
+  scopeParam: string,
+): Promise<CapacityProjectsResponse> {
+  const existing = inflight.get(scopeParam);
+  if (existing) return existing;
+  const p = capacityApi.getProjects({ scope: scopeParam }).finally(() => {
+    inflight.delete(scopeParam);
+  });
+  inflight.set(scopeParam, p);
+  return p;
+}
 
 export interface CapacityProjectsState {
   /** Unfiltered project list (post-fetch, pre-chip-filter). */
@@ -46,12 +69,22 @@ const EMPTY_STATE: Omit<CapacityProjectsState, 'scope'> = {
   error: null,
 };
 
+/**
+ * Returns the project-view aggregation for the workspace timeline.
+ *
+ * @param enabled when false, no fetch is issued and the state collapses to
+ *   the empty defaults. Pass `groupBy === 'project'` from the caller so
+ *   the hook only does work when the project view is mounted.
+ */
 export function useCapacityProjectsData(enabled: boolean): CapacityProjectsState {
   const { scope, ccId } = useCapacityScope();
   const scopeParam = scopeToApiParam(scope, ccId);
   const [response, setResponse] = useState<CapacityProjectsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(enabled);
+  // The `enabled` branch in the effect immediately calls
+  // setIsLoading(true|false), so the initial value is overwritten on first
+  // render. Default to false; the effect drives the truth.
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!enabled) {
@@ -64,8 +97,7 @@ export function useCapacityProjectsData(enabled: boolean): CapacityProjectsState
     setIsLoading(true);
     setError(null);
 
-    capacityApi
-      .getProjects({ scope: scopeParam })
+    fetchProjectsDeduped(scopeParam)
       .then((res) => {
         if (cancelled) return;
         setResponse(res);

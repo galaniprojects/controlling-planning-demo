@@ -307,12 +307,22 @@ class HotspotItem(BaseModel):
     ranking; UI sorts client-side as a sanity check). ``target_id`` /
     ``target_type`` carry just enough metadata for the row-click handler
     to open the right side panel: person detail vs. demand detail.
+
+    For ``unfulfilled_demand`` items, ``cost_center_id`` carries the CC
+    holding the most unassigned hours for the role and ``multi_cc`` flags
+    that the role's demand spans more than one CC. The frontend's
+    HotspotListCard threads these into the synthesized demand-cell
+    payload so the side panel knows the originating CC (v5.2 closeout —
+    fixes the W4 deferred drill-down gap).
     """
     category: str
     severity: float
     summary: str
     target_id: str
     target_type: str  # person / role / request
+    cost_center_id: Optional[str] = None
+    cost_center_name: Optional[str] = None
+    multi_cc: bool = False
 
 
 class HotspotResponse(BaseModel):
@@ -501,3 +511,21 @@ class CapacityProjectsResponse(BaseModel):
     start: str
     end: str
     reference_max_hours: float
+
+
+class CapacityPlanningParameter(BaseModel):
+    """One PlanningParameter row exposed to capacity surfaces (read-only).
+
+    Trimmed payload — admin-only fields like ``description`` / ``default_value``
+    live behind ``GET /api/admin/parameters``. Capacity surfaces just need the
+    key/value pair to render dynamic thresholds.
+    """
+    key: str
+    current_value: str
+    data_type: str
+
+
+class CapacityPlanningParametersResponse(BaseModel):
+    """Response for ``GET /api/capacity/planning-parameters``."""
+    items: list[CapacityPlanningParameter]
+    total: int
