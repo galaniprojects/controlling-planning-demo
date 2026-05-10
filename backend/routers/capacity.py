@@ -35,6 +35,7 @@ from models.change_requests import ChangeRequest
 from models.financial import Forecast
 from models.people import RateTable
 from models.organization import CostCenter, GroupingEntity, Location
+from models.system import PlanningParameter
 from services.portfolio_service import _get_projects_for_entity_recursive, get_project_entity_info, get_top_level_entity_type_id
 from models.people import Person, RoleType
 from models.projects import Project
@@ -2544,7 +2545,6 @@ def get_capacity_planning_parameters(
     project-view ``UnassignedSummary`` thresholds can hydrate values
     without re-implementing the seed defaults client-side.
     """
-    from models.system import PlanningParameter
     query = db.query(PlanningParameter)
     if group:
         query = query.filter(PlanningParameter.param_group == group)

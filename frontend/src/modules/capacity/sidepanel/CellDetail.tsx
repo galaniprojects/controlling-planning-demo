@@ -484,11 +484,14 @@ function DemandCellBody({
     ? (items ?? []).filter((it) => it.cc_id === costCenterId)
     : items;
   if (!visibleItems || visibleItems.length === 0) {
+    // v5.2 closeout review P3-6 — distinguish "filter dropped everything"
+    // from "inbox is empty" so the user knows whether widening scope helps.
+    const inboxEmpty = !items || items.length === 0;
     return (
       <p className="text-sm text-muted-foreground">
-        {costCenterId
-          ? 'No pending requests in this cost centre.'
-          : 'No pending requests in scope.'}
+        {!costCenterId || inboxEmpty
+          ? 'No pending requests in scope.'
+          : 'No pending requests in this cost centre.'}
       </p>
     );
   }

@@ -66,7 +66,9 @@ class TestPlanningParametersShape:
         body = resp.json()
         assert set(body.keys()) == {"items", "total"}
         assert body["total"] == len(body["items"])
-        assert body["total"] >= 3
+        assert body["total"] == 3, (
+            "seed_params adds exactly 3 rows; tighten this if you change the fixture"
+        )
         sample = body["items"][0]
         assert set(sample.keys()) == {"key", "current_value", "data_type"}
 

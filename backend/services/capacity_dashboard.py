@@ -736,7 +736,10 @@ def compute_hotspots(
         cc_name: str | None = None
         multi_cc = False
         if cc_hours:
-            top_cc_id = max(cc_hours, key=lambda k: cc_hours[k])
+            # Sort by hours desc then cc_id asc so the picked CC is
+            # deterministic across runs even when two CCs carry equal
+            # unassigned hours (review feedback P2-1).
+            top_cc_id = sorted(cc_hours.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
             cc_name = cc_name_map.get(top_cc_id)
             multi_cc = len(cc_hours) > 1
         issues.append({

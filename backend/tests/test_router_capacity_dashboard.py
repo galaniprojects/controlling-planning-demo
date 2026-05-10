@@ -625,9 +625,11 @@ class TestUtilizationDistributionRoleGating:
 
 
 def _hotspot_rows(payload):
-    return payload if isinstance(payload, list) else (
-        payload.get("items") or payload.get("hotspots") or []
-    )
+    # The endpoint returns a `HotspotResponse` envelope with `items`. Older
+    # iterations exposed alternative shapes; this helper kept the legacy
+    # branches as a defensive belt-and-braces. v5.2 closeout: the response
+    # shape is stable, drop the alternates.
+    return payload["items"]
 
 
 @patch("routers.capacity.DEMO_DATE", "2026-04")

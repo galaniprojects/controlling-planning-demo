@@ -81,7 +81,10 @@ export function useCapacityProjectsData(enabled: boolean): CapacityProjectsState
   const scopeParam = scopeToApiParam(scope, ccId);
   const [response, setResponse] = useState<CapacityProjectsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(enabled);
+  // The `enabled` branch in the effect immediately calls
+  // setIsLoading(true|false), so the initial value is overwritten on first
+  // render. Default to false; the effect drives the truth.
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!enabled) {

@@ -57,7 +57,15 @@ export interface CapacityUnassignedThresholds {
   isLoading: boolean;
 }
 
-export function useCapacityThresholds(): CapacityUnassignedThresholds {
+/**
+ * @param group PlanningParameter group to fetch. Defaults to `'thresholds'`,
+ *   the only group capacity surfaces consume today. Exposed as an arg so
+ *   future callers (e.g. dashboard threshold cards) can reuse the same
+ *   dedup'd fetch without rewriting the hook.
+ */
+export function useCapacityThresholds(
+  group: string = 'thresholds',
+): CapacityUnassignedThresholds {
   const [warn, setWarn] = useState(DEFAULT_WARN_HOURS);
   const [danger, setDanger] = useState(DEFAULT_DANGER_HOURS);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,12 +73,18 @@ export function useCapacityThresholds(): CapacityUnassignedThresholds {
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
-    fetchParamsDeduped('thresholds')
+    fetchParamsDeduped(group)
       .then((res) => {
         if (cancelled) return;
         const byKey = new Map(res.items.map((it) => [it.key, it.current_value]));
-        setWarn(parseIntOr(byKey.get(WARN_KEY), DEFAULT_WARN_HOURS));
-        setDanger(parseIntOr(byKey.get(DANGER_KEY), DEFAULT_DANGER_HOURS));
+        const w = parseIntOr(byKey.get(WARN_KEY), DEFAULT_WARN_HOURS);
+        let d = parseIntOr(byKey.get(DANGER_KEY), DEFAULT_DANGER_HOURS);
+        // Defensive: if an admin saves a danger value below the warn value
+        // the cell ramp would invert (everything ≥ warn would render red).
+        // Clamp danger to at least warn so the amber band stays non-empty.
+        if (d < w) d = w;
+        setWarn(w);
+        setDanger(d);
       })
       .catch(() => {
         // Keep defaults on failure — UI never breaks.
@@ -82,7 +96,7 @@ export function useCapacityThresholds(): CapacityUnassignedThresholds {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [group]);
 
   return {
     warnThresholdHours: warn,

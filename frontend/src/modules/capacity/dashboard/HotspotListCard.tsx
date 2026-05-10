@@ -119,7 +119,7 @@ function HotspotRow({ item, ccId, apiScope, onPerson, onCell }: HotspotRowProps)
 
   const ariaAction =
     item.category === 'unfulfilled_demand'
-      ? 'Open demand summary'
+      ? 'Open pending demand'
       : 'Open person detail';
 
   return (

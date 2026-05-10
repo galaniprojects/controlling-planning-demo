@@ -7876,6 +7876,14 @@ INSERT INTO resource_requests (id, project_id, cost_center_id, request_type, rol
 -- making the §9.1 entry-point #3 ("Review project") click-testable
 -- end-to-end. Pre-closeout no seed RR carried an assigned_person_id, so
 -- the bridge code was wired but unreachable from the demo.
+--
+-- NOTE: this is intentionally an inconsistent state in model terms — the
+-- runtime sets `assigned_person_id` only at confirm-time from the matching
+-- ResourceRequestAssignment rows (routers/capacity.py::confirm_request),
+-- and this RR is `status='pending'` with no RRA rows. Inbox aggregates
+-- (`unassigned_hours`) compute from RRAs not the back-pointer, so they
+-- are unaffected. Don't "fix" the seed back to NULL on principle — the
+-- inconsistency is the demo affordance.
 (100, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-arch', NULL, 40, '2026-06', '2027-12', 'high', 'pending', 'p-brenner', NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (101, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 80, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (102, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-dev', NULL, 100, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),

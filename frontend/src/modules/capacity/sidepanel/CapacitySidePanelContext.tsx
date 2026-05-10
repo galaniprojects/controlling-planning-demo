@@ -225,9 +225,17 @@ export function CapacitySidePanelProvider({ children }: { children: ReactNode })
         costCenterName: args.costCenterName,
         multiCc: args.multiCc,
       });
-      const defaultTitle = args.month
-        ? `${args.rowLabel} — ${args.month}`
-        : args.rowLabel;
+      // v5.2 closeout review P3-2 — surface the originating CC in the title
+      // when one was attributed (single-CC drill-downs only; multi-CC stays
+      // role-only because the panel header already carries the "+ other
+      // cost centres" hint and it'd be misleading to label the title with
+      // just one of them).
+      const ccSuffix =
+        args.dimensionId === 'demand' && args.costCenterName && !args.multiCc
+          ? ` · ${args.costCenterName}`
+          : '';
+      const monthSuffix = args.month ? ` — ${args.month}` : '';
+      const defaultTitle = `${args.rowLabel}${ccSuffix}${monthSuffix}`;
       openPanel(
         args.title ?? defaultTitle,
         <CellDetail
