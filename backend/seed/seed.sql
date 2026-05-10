@@ -81,7 +81,7 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 -- Demo envelope for the ranked backlog cutoff lines [A-BK-09]. Sized so the
 -- 25-project demo backlog crosses both should-be and reality cutoffs roughly
 -- mid-list (default in code is 50_000_000 — too high to be visible at demo scale).
-('ranking_total_available_budget', 'Ranking: Total Available Budget', 'Annual budget envelope used to draw should-be / reality cutoff lines on the ranked backlog. Demo value sized so cutoffs land mid-list.', '5000000', '50000000', 'integer', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('ranking_total_available_budget', 'Ranking: Total Available Budget', 'Annual budget envelope used to draw should-be / reality cutoff lines on the ranked backlog. Demo value sized so cutoffs land mid-list (should-be ~12, reality ~16).', '14440000', '50000000', 'integer', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- s01_taxonomy / 7. KPI Definitions (built-in catalogue)
@@ -531,7 +531,7 @@ INSERT INTO users (id, username, display_name, email, role, person_id, tier3_fla
 INSERT INTO projects (id, name, description, status, rag_status, capex_opex, start_month, end_month, projected_end_month, pl_person_id, is_service, annual_budget, total_budget, last_forecast_submitted_month, ai_council_approved, progress_pct_manual_override, is_active, created_at, modified_at) VALUES
 ('proj-mdh-rollout', 'Master Data Hub Rollout', NULL, 'active', 'green', 'capex', '2025-10', '2026-12', '2026-12', 'p-sharma', 0, NULL, 880000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-erp2', 'ERP Integration Phase 2', NULL, 'active', 'red', 'capex', '2024-07', '2026-09', '2026-09', 'p-sharma', 0, NULL, 1810000, '2026-02', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-sensor', 'Sensor Data Pipeline', NULL, 'active', 'amber', 'capex', '2025-03', '2026-12', '2026-12', 'p-sharma', 0, NULL, 720000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-sensor', 'Sensor Data Pipeline', NULL, 'active', 'amber', 'capex', '2025-03', '2026-12', '2026-12', 'p-sharma', 0, NULL, 11000000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-predmaint', 'Predictive Maintenance PoC', NULL, 'active', 'amber', 'capex', '2025-06', '2027-03', '2027-03', 'p-sharma', 0, NULL, 510000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-autobrake', 'Autonomous Braking Prototype', NULL, 'pending_cc_confirmation', NULL, 'capex', '2026-06', '2027-12', '2027-12', 'p-sharma', 0, NULL, 920000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-railsafety', 'Rail Safety Compliance System', NULL, 'planned', 'green', 'capex', '2026-09', '2028-06', '2028-06', 'p-weber', 0, NULL, 520000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),

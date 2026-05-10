@@ -112,7 +112,7 @@ export function RankedListTable({
                     <CutoffBand
                       id={shouldBeBandId}
                       label="Should-be cutoff"
-                      explanation="Projects above this line fit within the ideal budget envelope."
+                      explanation="Where a strict top-down funding plan by composite score would fill the budget envelope. Projects above this line are the score-ideal allocation."
                       variant="should-be"
                     />
                   ) : null}
@@ -120,7 +120,7 @@ export function RankedListTable({
                     <CutoffBand
                       id={realityBandId}
                       label="Reality cutoff"
-                      explanation="Projects above this line fit within the current approved budget."
+                      explanation="Where the cumulative budget of currently-committed projects (Active or Approved within cutoff) reaches the envelope along the score ranking."
                       variant="reality"
                     />
                   ) : null}
