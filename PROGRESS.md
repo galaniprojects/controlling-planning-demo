@@ -150,6 +150,21 @@ A read-only `code-reviewer-fresh` agent walked all 14 W6 commits since the Lead 
 
 The reviewer's "Looks good" section explicitly called out: `SidePanelContext.openPanel` race fix's clear comment, `PersonPicker` numeric input `onChange` clamp, `ProjectSummaryPanel` cancellation-flag pattern, `CapacityTimeline` rAF×2 deferral chain comment, the documented design decisions in `UnassignedSummary` / `assignmentGhostOverlay` / `_verify_cc_access`, the `Promise.allSettled` graceful-degradation pattern, and `DemandStrip` auto-hide on no-demand.
 
+### v5.2 Wave 6 — Second independent reviewer pass (2026-05-10, commit `a1094de`)
+
+A second `code-reviewer-fresh` agent walked all 17 W6 commits through `44f688f` to verify the `dad4345` fix commit didn't introduce regressions. Verdict: **ship as-is** — line-by-line verified all 7 fixes from `dad4345` are clean (Rules of Hooks pattern stable; body scroll lock cleanup correct; per-RR try/except scoped right; resetSignal effect correct; combinedLoading propagated to all 5 tile branches + 1 style branch; closeSlideOver in deps without churn; Escape skip selector covers all input surfaces). Doc accuracy verified (W4 SHA `69948fd` matches `git log`). 0 P1s, 3 new P2s + 5 P3s found — all small. User opted to fold them in pre-push:
+
+- **P2.A** `RequestsInbox` / `CapacityHistory` stray 403 fetches before redirect — gated each fetch effect on `if (role && !isAuthorized) return;`. Removes 1-4 stray /api/capacity/* calls when PL/Executive direct-URL into protected routes.
+- **P2.B** `useDashboardForecastData` HTTP-level dedup — module-level inflight `Map<apiScope, Promise>` (cleared in `.finally()`) so concurrent KPISummaryBar + CapacityForecastCard mounts share one in-flight request. Mirrors the W6 #8.2 PersonPicker pattern.
+- **P2.C** `ProjectGroup` resetSignal explicit guard — `if (resetSignal === undefined || resetSignal === 0) return;` documents the initial-mount-skip contract instead of relying on `useState(defaultExpanded)` lazy initialisation matching.
+- **P3.A** `SidePanel` `aria-modal="true"` (focus trap remains deferred — pre-existing).
+- **P3.B** `WideSlideOver` Escape-stack code comment documents the document-vs-window listener priority + intentional layering.
+- **P3.C** `ProjectAssignmentRedirect` pre-existing query-param guard — `if (!params.has('assignment_project'))` so a redirect-chain caller can override the path param.
+- **P3.D** Trimmed stale ProjectGroup docstring (pre-`dad4345` React-key block superseded by current resetSignal description).
+- **P3.E** Dropped redundant `key={item.project_id}` on ProjectSummaryPanel single-child wrapper.
+
+**Verification:** tsc clean; capacity-specific tests 36 passed; full pytest 1685 preserved.
+
 **Verification:**
 - `tsc --noEmit` clean across all Track C edits.
 - `pytest` 1685 passed (= W5 baseline 1688 minus 3 from Track A's `filter_chip` removal — no regressions from Track C edits).
