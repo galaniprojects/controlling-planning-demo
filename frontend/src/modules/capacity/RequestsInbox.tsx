@@ -160,6 +160,21 @@ export default function RequestsInbox() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // v5.2 W6 Track C — §15 permission sweep. The Requests inbox is
+  // restricted to controller + cost_center_owner per the §12.1 nav.
+  // Direct URL access by Project Lead or Executive (which the
+  // CapacityModuleNav hides) would otherwise hit a 403 on the inbox
+  // fetch and render an error banner. Redirect to the workspace (the
+  // workspace itself redirects PL onward to /capacity/availability).
+  //
+  // v5.2 W6 review fix (P1.1) — drive the redirect from a useEffect so
+  // we don't early-return *before* the hooks below, which would change
+  // the hook count across renders (`role` is undefined on first render
+  // before RoleContext resolves and concrete on the next). React would
+  // throw a "Rendered fewer hooks than expected" error in that case.
+  const isAuthorized =
+    !role || role === 'controller' || role === 'cost_center_owner';
+
   const [items, setItems] = useState<CapacityInboxItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -181,6 +196,14 @@ export default function RequestsInbox() {
   const recentFilterPersonId = isCcOwner
     ? undefined
     : resolvePersonaPersonId(currentRoleId);
+
+  // v5.2 W6 review fix (P1.1) — fire the §15 redirect from an effect so
+  // every hook above runs on every render regardless of role.
+  useEffect(() => {
+    if (role && !isAuthorized) {
+      navigate('/capacity', { replace: true });
+    }
+  }, [role, isAuthorized, navigate]);
 
   // --- Fetch inbox ---
   const fetchInbox = useCallback(
@@ -207,10 +230,16 @@ export default function RequestsInbox() {
   );
 
   useEffect(() => {
+    // v5.2 W6 review-pass-2 fix (P2.A) — skip the fetch when the user
+    // isn't authorized for this route. The redirect effect above will
+    // navigate them away on the next tick; without this guard we'd
+    // still fire one stray /api/capacity/inbox call that 403s before
+    // the redirect completes (visible noise in the network tab).
+    if (role && !isAuthorized) return;
     const controller = new AbortController();
     fetchInbox(controller.signal);
     return () => controller.abort();
-  }, [fetchInbox]);
+  }, [fetchInbox, role, isAuthorized]);
 
   // Cleanup any pending strikethrough timers on unmount.
   useEffect(() => {
@@ -332,6 +361,10 @@ export default function RequestsInbox() {
   // ---------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------
+
+  // v5.2 W6 review fix (P1.1) — render nothing while the redirect effect
+  // navigates the unauthorized persona away. All hooks above already ran.
+  if (role && !isAuthorized) return null;
 
   return (
     <div className="space-y-4">

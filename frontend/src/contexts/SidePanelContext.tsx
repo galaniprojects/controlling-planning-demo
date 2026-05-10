@@ -57,6 +57,13 @@ export function SidePanelProvider({ children }: { children: ReactNode }) {
 
   const openPanel = useCallback(
     (t: string, node: ReactNode, opts?: OpenPanelOptions) => {
+      // v5.2 W6 Track B (#8.1) — clear any stale before-close guard
+      // before swapping content. Without this, openPanel(...) into
+      // different content while a previous guard is still registered
+      // would ask the user to confirm an unsaved-changes dialog about
+      // the *previous* panel's data (a race when callers swap content
+      // without explicitly closing first).
+      beforeCloseRef.current = undefined;
       setTitle(t);
       setContent(node);
       setWidth(opts?.width ?? DEFAULT_SIDE_PANEL_WIDTH);

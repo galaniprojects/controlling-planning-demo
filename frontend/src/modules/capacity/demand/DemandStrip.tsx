@@ -206,13 +206,24 @@ export function DemandStrip({
   const effectivePeriods: readonly DemandPeriod[] =
     periods ?? buildDefaultPeriods(fetched.months);
 
+  // v5.2 W6 Track C — hide the strip entirely when no period carries
+  // pending demand (spec §8.5 empty-state guidance + S12 polish brief).
+  // Without this, a zero-demand scope showed an all-empty strip that
+  // the user might mistake for a loading or layout problem.
+  const hasAnyDemand = effectivePeriods.some(
+    (p) => peakForPeriod(p, effectiveMonthly) > 0,
+  );
+  if (!loading && !hasAnyDemand) {
+    return null;
+  }
+
   const handleCellClick = (period: DemandPeriod) => {
     if (onCellClick) {
       onCellClick(period);
-    } else if (typeof console !== 'undefined') {
-      // eslint-disable-next-line no-console
-      console.log('[DemandStrip] cell clicked (no handler wired):', period);
     }
+    // No-op when the parent doesn't provide a handler — the workspace
+    // always wires `onCellClick` (CapacityWorkspace.tsx ~L364), so the
+    // unhandled branch only fires in isolated tests/storybooks.
   };
 
   return (

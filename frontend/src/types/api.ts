@@ -955,7 +955,16 @@ export interface HeadcountBreakdownResponse {
 
 /** One bucket of the utilization-distribution histogram (spec §11.3).
  *  Added in v5.2 W4 P1 fix: server-side bucketing replaces the spec's
- *  client-side aggregation, which broke at multi-CC scope. */
+ *  client-side aggregation, which broke at multi-CC scope.
+ *
+ *  v5.2 W6 Track C — DUPLICATION NOTICE: this union mirrors the tuple
+ *  `_DISTRIBUTION_BUCKETS` in
+ *  `backend/services/capacity_dashboard.py`. Any change to one MUST be
+ *  mirrored in the other (and vice-versa) — the shape is exchanged
+ *  over the wire by name. No API-generation infra exists in this
+ *  codebase, so a single source of truth would require introducing
+ *  one (e.g. openapi-typescript). Out of scope for v5.2 polish; tracked
+ *  for a post-v5.2 follow-up. Both ends carry an aligned comment. */
 export type UtilizationBucketKey =
   | 'zero'
   | '1_25'
@@ -1149,13 +1158,6 @@ export interface CapacityProjectItem {
   external_costs: CapacityProjectExternalCost[];
 }
 
-export type CapacityProjectsFilterChip =
-  | 'needs_staffing'
-  | 'pending_requests'
-  | 'unassigned_months'
-  | 'over_allocated'
-  | 'under_utilized';
-
 export interface CapacityProjectsResponse {
   items: CapacityProjectItem[];
   total: number;
@@ -1165,11 +1167,18 @@ export interface CapacityProjectsResponse {
   reference_max_hours: number;
 }
 
+/**
+ * v5.2 W6 Track A — the legacy `filter_chip` query parameter was removed
+ * from the server side. Filter-chip semantics now live entirely in the
+ * frontend (`frontend/src/modules/capacity/timeline/projectFilters.ts`)
+ * so the chip-count source matches the chip-filter result by
+ * construction. The corresponding `CapacityProjectsFilterChip` enum was
+ * never imported anywhere and has been deleted with this change.
+ */
 export interface CapacityProjectsParams {
   scope?: string;
   start?: string;
   end?: string;
-  filter_chip?: CapacityProjectsFilterChip;
 }
 
 // --- What-If Simulator ---

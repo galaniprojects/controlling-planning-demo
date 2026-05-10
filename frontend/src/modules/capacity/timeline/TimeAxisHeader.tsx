@@ -229,6 +229,10 @@ export function TimeAxisHeader({
               {cell.monthColumns.map((mc) => (
                 <div
                   key={`mlabel-${mc.key}`}
+                  // v5.2 W6 Track A — `data-month` lets the
+                  // `capacity:expand-month` consumer locate the column
+                  // for scrollIntoView (§11.4 forecast-to-timeline link).
+                  data-month={mc.month}
                   className="flex h-full items-center justify-center border-b border-border text-[10px] text-muted-foreground"
                   style={{ width: mc.width }}
                 >

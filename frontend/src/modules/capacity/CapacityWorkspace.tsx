@@ -130,8 +130,9 @@ function AssignmentEntryPoint() {
     );
 
     return unregister;
-    // registerAssignmentHandler is stable — declared as useCallback([]) in context.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // registerAssignmentHandler is stable — declared as useCallback([]) in
+    // context. openPanelRef / closePanelRef are refs (exempt from the deps
+    // rule), so eslint reports no missing deps here.
   }, [registerAssignmentHandler]);
 
   // Read URL params and enter assignment mode when present.
@@ -214,14 +215,14 @@ function ProjectSummaryEntryPoint({
 
   useEffect(() => {
     const unregister = registerProjectSummaryHandler((projectId: string) => {
+      // v5.2 W6 Track A — pass the optional cached item AND the
+      // projectId so ProjectSummaryPanel can issue its own cache-miss
+      // fallback fetch when the workspace cache hasn't seen this id
+      // yet (e.g., deep-link entry, or scope changed since the cache
+      // was warmed). The panel renders a loading skeleton while the
+      // fallback fetch is in flight and a friendly empty-state when
+      // the project isn't visible in the active scope.
       const item = getItemRef.current(projectId);
-      if (!item) {
-        // Cache miss — close the panel rather than render an
-        // incomplete summary. A future wave can fall back to
-        // `getProjectSummary` here for deep-linked entries.
-        closePanelRef.current();
-        return;
-      }
       const handleReviewAssign = (projectItem: CapacityProjectItem) => {
         // Prefer an unfulfilled slot's CC; fall back to the first
         // assigned person's CC; degrade to workbench if neither.
@@ -249,6 +250,7 @@ function ProjectSummaryEntryPoint({
         'Project summary',
         <ProjectSummaryPanel
           item={item}
+          projectId={projectId}
           onReviewAssign={handleReviewAssign}
           onClosePanel={() => closePanelRef.current()}
           navigate={(path) => navigateRef.current(path)}
@@ -258,8 +260,9 @@ function ProjectSummaryEntryPoint({
     });
 
     return unregister;
-    // registerProjectSummaryHandler is a stable useCallback ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // registerProjectSummaryHandler is a stable useCallback ref; everything
+    // else read inside the effect is a ref or import (exempt from the
+    // exhaustive-deps rule).
   }, [registerProjectSummaryHandler]);
 
   return null;
@@ -334,19 +337,25 @@ function WorkspaceBody() {
 
       {/* Hint when filters hide every row, so the empty timeline state
           isn't mistaken for a loading or scope problem. ProjectGroupView
-          owns the empty-state hint in project mode (different message). */}
+          owns the empty-state hint in project mode (different message).
+          Slim copy — CapacityTimeline below renders the standard
+          EmptyState for the no-rows case. */}
       {groupBy !== 'project' &&
         !activeFilters.includes('all') &&
         visibleFilteredCount === 0 && (
           <Card className="border-dashed">
-            <CardContent className="py-3 text-xs text-muted-foreground">
-              No people match the active filter combination. Click "All" to
-              reset.
+            <CardContent className="py-3 text-center text-xs text-muted-foreground">
+              No people match the active filter combination. Click &quot;All&quot;
+              in the chip bar to reset.
             </CardContent>
           </Card>
         )}
 
-      <CapacityTimeline data={data} onPersonClick={handlePersonClick} />
+      <CapacityTimeline
+        data={data}
+        projectData={projectData}
+        onPersonClick={handlePersonClick}
+      />
 
       {/* Demand strip is hidden in the project view per §10.7.
           v5.2 W5 Track A (S6b §9.1 entry #2): clicking a demand cell

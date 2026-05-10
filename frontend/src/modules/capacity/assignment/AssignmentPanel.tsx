@@ -97,8 +97,8 @@ function AssignmentPanelInner({
     });
     return unregister;
   // Re-register when dirty state changes so the guard always reflects
-  // the current dirty flag.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // the current dirty flag. setShowUnsavedDialog is a stable React setter
+  // (exempt from the deps rule).
   }, [session?.dirty, registerBeforeClose]);
 
   // -------------------------------------------------------------------------

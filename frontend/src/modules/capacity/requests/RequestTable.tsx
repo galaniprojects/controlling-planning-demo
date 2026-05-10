@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/table';
 import { SortableHeader } from '@/components/shared/SortableHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Inbox } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import type { CapacityInboxItem } from '@/types/api';
 import { RequestRow } from './RequestRow';
 
@@ -136,11 +136,15 @@ export function RequestTable({
   }, [items, sortColumn, sortDir]);
 
   if (sorted.length === 0) {
+    // v5.2 W6 Track C — spec §12.7 prescribes the celebratory empty state
+    // for the inbox: green check + "all caught up" tone. CheckCircle2
+    // (Lucide) is rendered via EmptyState so the colour stays muted on
+    // the icon container; the title carries the affirmative copy.
     return (
       <div className="rounded-md border border-border bg-card">
         <EmptyState
-          icon={Inbox}
-          title="Inbox clear"
+          icon={CheckCircle2}
+          title="All caught up"
           description="No pending resource requests match the current filters."
           size="sm"
         />

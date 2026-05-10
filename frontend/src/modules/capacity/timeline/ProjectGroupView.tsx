@@ -25,9 +25,11 @@
  * registered in `CapacityWorkspace.tsx` (mirrors the W4 assignment-panel
  * registration pattern).
  */
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FolderOpen, FilterX } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { useCapacityScope } from '@/contexts/CapacityScopeContext';
 import { useProjectColorMap } from '@/contexts/ProjectColorMapContext';
 import { useCapacitySidePanel } from '../sidepanel/CapacitySidePanelContext';
@@ -144,8 +146,12 @@ export function ProjectGroupView({ columns, data: providedData }: ProjectGroupVi
   if (data.items.length === 0) {
     return (
       <Card className="border-dashed">
-        <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          No projects in this scope.
+        <CardContent className="p-0">
+          <EmptyState
+            icon={FolderOpen}
+            title="No projects in this scope"
+            description="Switch to a different scope or clear the active filters above."
+          />
         </CardContent>
       </Card>
     );
@@ -154,13 +160,34 @@ export function ProjectGroupView({ columns, data: providedData }: ProjectGroupVi
   if (filteredItems.length === 0) {
     return (
       <Card className="border-dashed">
-        <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          No projects match the active filter combination. Click "All" to
-          reset.
+        <CardContent className="p-0">
+          <EmptyState
+            icon={FilterX}
+            title="No projects match the active filters"
+            description='Click "All" in the filter bar to reset.'
+          />
         </CardContent>
       </Card>
     );
   }
+
+  // v5.2 W6 review fix (P2.5) — bump a `resetSignal` whenever the chip
+  // set changes; ProjectGroup resets its local `expanded` state via
+  // `useEffect([resetSignal])`. Pre-fix this used a React-key strategy
+  // (`key={`${pid}::${filterKey}`}`) which forced full remounts of all
+  // visible groups + their children on every chip toggle, defeating
+  // `React.memo` and resetting timeline scroll position. The signal-
+  // based approach achieves the same UX without the unmount/remount
+  // cost.
+  const filterKey = activeFilters.join(',') || 'all';
+  const lastFilterKeyRef = useRef(filterKey);
+  const [resetSignal, setResetSignal] = useState(0);
+  useEffect(() => {
+    if (lastFilterKeyRef.current !== filterKey) {
+      lastFilterKeyRef.current = filterKey;
+      setResetSignal((s) => s + 1);
+    }
+  }, [filterKey]);
 
   return (
     <>
@@ -170,6 +197,7 @@ export function ProjectGroupView({ columns, data: providedData }: ProjectGroupVi
           item={item}
           columns={columns}
           referenceMaxHours={data.referenceMaxHours}
+          resetSignal={resetSignal}
           onProjectClick={handleProjectClick}
           onPersonClick={handlePersonClick}
           onSlotClick={handleSlotClick}

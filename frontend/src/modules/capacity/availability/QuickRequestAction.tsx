@@ -1,10 +1,13 @@
 /**
- * QuickRequestAction — v5.2 W4 Track C (spec §13.7)
+ * QuickRequestAction — v5.2 W4 Track C (spec §13.7), W6 S11 (slide-over §13.9)
  *
  * "Request this role" CTA button at the bottom of AvailabilitySidePanel.
- * Navigates to /workbench with pre-populated query params for the selected
- * role and location. The slide-over integration (Workbench context) lands in
- * Wave 6 Session 11 — this component only handles the standalone full-page CTA.
+ *
+ * - Page mode (default): navigates to /workbench with pre-populated query
+ *   params for the selected role and location.
+ * - Slide-over mode (`onRequest` provided): invokes the parent callback so
+ *   the wrapper can close the slide-over and populate the open Workbench
+ *   request form. No navigation.
  */
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
@@ -14,12 +17,32 @@ interface QuickRequestActionProps {
   roleTypeId: string;
   /** Location ID to pre-populate. Pass null / undefined for "all locations" context. */
   locationId?: string | null;
+  /**
+   * Slide-over override — when supplied, the button calls this instead of
+   * navigating. The wrapper is responsible for closing the slide-over and
+   * propagating the request to the host.
+   */
+  onRequest?: () => void;
+  /**
+   * Optional helper text override. Defaults to "Opens the resource request
+   * form in the Workbench" (page mode wording).
+   */
+  helperText?: string;
 }
 
-export function QuickRequestAction({ roleTypeId, locationId }: QuickRequestActionProps) {
+export function QuickRequestAction({
+  roleTypeId,
+  locationId,
+  onRequest,
+  helperText,
+}: QuickRequestActionProps) {
   const navigate = useNavigate();
 
   function handleRequest() {
+    if (onRequest) {
+      onRequest();
+      return;
+    }
     const params = new URLSearchParams();
     params.set('request_role', roleTypeId);
     if (locationId) {
@@ -39,7 +62,7 @@ export function QuickRequestAction({ roleTypeId, locationId }: QuickRequestActio
         Request this role
       </Button>
       <p className="text-xs text-muted-foreground mt-2 text-center">
-        Opens the resource request form in the Workbench
+        {helperText ?? 'Opens the resource request form in the Workbench'}
       </p>
     </div>
   );

@@ -26,15 +26,18 @@
  * Also registers the active project's id in the color map so the
  * ghost border color is stable across the panel and the bars.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Users } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { useProjectColorMap } from '@/contexts/ProjectColorMapContext';
 import { useCapacityScope } from '@/contexts/CapacityScopeContext';
 import {
   useScopedTimelineData,
   type ScopedTimelineData,
 } from '../hooks/useScopedTimelineData';
+import type { CapacityProjectsState } from '../hooks/useCapacityProjectsData';
 import { useAssignmentState } from '../assignment/AssignmentStateContext';
 import { TimeAxisHeader } from './TimeAxisHeader';
 import { RoleGroup } from './RoleGroup';
@@ -46,6 +49,8 @@ import {
   buildVisibleColumns,
   toggleQuarter,
   toggleYear,
+  parseMonth,
+  getQuarterOfMonth,
   type Quarter,
   type TimeAxisState,
   NAME_COLUMN_WIDTH,
@@ -58,9 +63,18 @@ import {
 
 function CapacityTimelineInner({
   data: providedData,
+  projectData,
   onPersonClick,
 }: {
   data?: ScopedTimelineData;
+  /**
+   * v5.2 W6 Track C — workspace-level project-view snapshot.  Threaded
+   * through to `ProjectGroupView` so the project view, the FilterChipBar
+   * chip counts, and the ProjectSummaryEntryPoint cache all share one
+   * fetch.  When omitted (e.g., standalone tests / preview screens),
+   * `ProjectGroupView` falls back to its own internal fetch.
+   */
+  projectData?: CapacityProjectsState;
   onPersonClick?: (personId: string) => void;
 }) {
   const { groupBy } = useCapacityScope();
@@ -142,6 +156,81 @@ function CapacityTimelineInner({
     [columns],
   );
 
+  // v5.2 W6 Track A — `capacity:expand-month` consumer (spec §11.4).
+  //
+  // The dashboard's `CapacityForecastCard` dispatches this CustomEvent
+  // when the user clicks a month bar. The timeline below expands the
+  // containing quarter (auto-expanding the parent year if needed) and
+  // scrolls the month column into view. Coupling is loose — the chart
+  // dispatches without a consumer, the timeline listens without a
+  // producer; either side can be unmounted without breaking the other.
+  //
+  // Implementation notes:
+  //   • Scroll target is the `[data-month]` element from
+  //     `TimeAxisHeader` row 2; the scroll container is the timeline's
+  //     outer `overflow-x-auto` wrapper which we ref via `scrollHostRef`.
+  //   • Expand happens via the same `setAxisState` reducer used by the
+  //     header's chevron clicks, so user-initiated and event-initiated
+  //     state changes are indistinguishable.
+  //   • The scroll deferral chain (`requestAnimationFrame` x 2) lets the
+  //     React reconciliation finish painting the newly-expanded columns
+  //     before measuring offsets.
+  const scrollHostRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ month?: string }>).detail;
+      const month = detail?.month;
+      if (!month || !/^\d{4}-\d{2}$/.test(month)) return;
+
+      // Step 1 — expand year + quarter as needed.
+      try {
+        const { year } = parseMonth(month);
+        const quarter = getQuarterOfMonth(month);
+        setAxisState((prev) => {
+          const yState = prev[year];
+          // If the year is collapsed OR the quarter is collapsed,
+          // toggleQuarter (which also expands the year) brings the
+          // requested column into existence.
+          const yearExpanded = yState?.expanded === true;
+          const quarterExpanded =
+            yearExpanded && yState?.quarters[quarter]?.expanded === true;
+          if (quarterExpanded) return prev;
+          if (!yearExpanded) {
+            // toggleQuarter from a collapsed year flips both flags on.
+            return toggleQuarter(prev, year, quarter);
+          }
+          // Year is open, quarter is closed.
+          return toggleQuarter(prev, year, quarter);
+        });
+      } catch {
+        return;
+      }
+
+      // Step 2 — scroll the month into view after the expansion render
+      // commits. Two frames of deferral covers the state-update + layout
+      // pass; using `behavior: 'smooth'` gives a comfortable transition.
+      const scrollToMonth = () => {
+        const host = scrollHostRef.current;
+        if (!host) return;
+        const target = host.querySelector<HTMLElement>(
+          `[data-month="${month}"]`,
+        );
+        if (!target) return;
+        target.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center',
+        });
+      };
+      requestAnimationFrame(() => {
+        requestAnimationFrame(scrollToMonth);
+      });
+    };
+
+    window.addEventListener('capacity:expand-month', handler);
+    return () => window.removeEventListener('capacity:expand-month', handler);
+  }, []);
+
   // ---- Render gates ----
 
   if (data.isLoading) {
@@ -196,8 +285,12 @@ function CapacityTimelineInner({
   ) {
     return (
       <Card className="border-dashed">
-        <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          No people match the current filters in this scope.
+        <CardContent className="p-0">
+          <EmptyState
+            icon={Users}
+            title="No people in this scope"
+            description="Try a broader scope or remove the active filter chips."
+          />
         </CardContent>
       </Card>
     );
@@ -208,7 +301,10 @@ function CapacityTimelineInner({
   const minWidth = NAME_COLUMN_WIDTH + totalColumnsWidth;
 
   return (
-    <div className="overflow-x-auto rounded-md border border-border bg-card">
+    <div
+      ref={scrollHostRef}
+      className="overflow-x-auto rounded-md border border-border bg-card"
+    >
       <div style={{ minWidth }}>
         <TimeAxisHeader
           columns={columns}
@@ -220,7 +316,7 @@ function CapacityTimelineInner({
 
         <div role="rowgroup">
           {groupBy === 'project' ? (
-            <ProjectGroupView columns={columns} />
+            <ProjectGroupView columns={columns} data={projectData} />
           ) : groupBy === 'role' ? (
             data.roleGroups.map((g) => (
               <RoleGroup
@@ -283,6 +379,14 @@ export interface CapacityTimelineProps {
    */
   data?: ScopedTimelineData;
   /**
+   * v5.2 W6 Track C — optional hoisted project-view data.  When the
+   * workspace already calls `useCapacityProjectsData(...)` (so that
+   * `FilterChipBar` and the `ProjectSummaryEntryPoint` cache can share
+   * one fetch), pass the snapshot here so the project view skips its
+   * own fallback fetch.  Standalone callers may omit it.
+   */
+  projectData?: CapacityProjectsState;
+  /**
    * Side-panel callback — opens PersonDetail (S5a) for the clicked
    * person. Track A doesn't depend on S5a being merged; if no callback
    * is provided the row click is a no-op (keyboard activation still
@@ -298,8 +402,14 @@ export interface CapacityTimelineProps {
  * outside the workspace tree, so a per-route provider would split the
  * map between them).
  */
-export function CapacityTimeline({ data, onPersonClick }: CapacityTimelineProps) {
-  return <CapacityTimelineInner data={data} onPersonClick={onPersonClick} />;
+export function CapacityTimeline({ data, projectData, onPersonClick }: CapacityTimelineProps) {
+  return (
+    <CapacityTimelineInner
+      data={data}
+      projectData={projectData}
+      onPersonClick={onPersonClick}
+    />
+  );
 }
 
 export default CapacityTimeline;

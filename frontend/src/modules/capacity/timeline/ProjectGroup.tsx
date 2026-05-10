@@ -16,8 +16,22 @@
  *
  * Local `expanded` state defaults to `true`. Collapsing hides all child
  * rows; the project header itself stays visible.
+ *
+ * v5.2 W6 Track C — wrapped in `React.memo` so the row tree only
+ * re-renders when its props identity changes (e.g., the parent fetches
+ * new data, the time-axis columns change, or one of the click callbacks
+ * changes). With ~15-30 projects in a typical multi-CC scope and ~10
+ * children each, skipping re-renders on filter-chip toggles keeps
+ * project-view interactions snappy.
+ *
+ * v5.2 W6 Track C / review fix (P2.5) — `defaultExpanded` is read on
+ * first mount; the parent (`ProjectGroupView`) bumps a `resetSignal`
+ * integer when its `activeFilters` change so a useEffect here resets
+ * `expanded` back to the default without remounting the row tree.
+ * (The earlier React-key remount strategy defeated `React.memo` and
+ * reset the timeline's scroll position on every chip toggle.)
  */
-import { useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { type TimeColumn } from './timeAxis';
 import { ProjectGroupRow } from './ProjectGroupRow';
 import { AssignedPersonRow } from './AssignedPersonRow';
@@ -32,6 +46,12 @@ export interface ProjectGroupProps {
   referenceMaxHours: number;
   /** Default expanded state. */
   defaultExpanded?: boolean;
+  /**
+   * Bumped by the parent to reset internal `expanded` to `defaultExpanded`.
+   * Used to reset collapse state when the active filter chip set changes
+   * (W6 review fix P2.5 — replaces the prior React-key remount strategy).
+   */
+  resetSignal?: number;
   /** Click-on-project-header → side-panel project summary (§10.8). */
   onProjectClick?: (projectId: string) => void;
   /** Click-on-person → side-panel person detail (§7.2). */
@@ -43,16 +63,31 @@ export interface ProjectGroupProps {
   onSlotClick?: (projectId: string, requestId: number) => void;
 }
 
-export function ProjectGroup({
+function ProjectGroupImpl({
   item,
   columns,
   referenceMaxHours,
   defaultExpanded = true,
+  resetSignal,
   onProjectClick,
   onPersonClick,
   onSlotClick,
 }: ProjectGroupProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+
+  // Reset to defaultExpanded whenever the parent bumps resetSignal.
+  //
+  // v5.2 W6 review-pass-2 fix (P2.C) — guard the initial mount value
+  // explicitly so a future contract change (e.g. URL-controlled initial
+  // state) doesn't quietly re-collapse on first render. The parent
+  // initialises resetSignal to 0 and bumps to ≥1 on filter change.
+  useEffect(() => {
+    if (resetSignal === undefined || resetSignal === 0) return;
+    setExpanded(defaultExpanded);
+    // We intentionally re-fire on every resetSignal change even if
+    // defaultExpanded is unchanged — that's the whole point.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
 
   return (
     <div role="rowgroup">
@@ -99,3 +134,11 @@ export function ProjectGroup({
     </div>
   );
 }
+
+/**
+ * Memo wrapper — the default referential-equality check works because
+ * the parent passes stable callbacks (or memoised closures) and the
+ * `item` / `columns` references only change when the underlying data
+ * fetch returns a fresh snapshot.
+ */
+export const ProjectGroup = memo(ProjectGroupImpl);

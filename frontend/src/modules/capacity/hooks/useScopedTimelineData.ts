@@ -423,6 +423,20 @@ export function useScopedTimelineData(skip = false): ScopedTimelineData {
     // from the context but its identity only matters when content
     // changes (the renderer applies the same filter logic so a stale
     // result is corrected on the next render).
+    //
+    // v5.2 W6 Track B (#8.4) — dependency audit:
+    //   - `scope` itself is omitted: only `scope.kind` + `scope.id` are
+    //     read inside the effect, so destructuring is safe.
+    //   - `activeFilters` is captured by reference inside the closure but
+    //     `activeFilters.join(',')` is in the deps, so any content change
+    //     re-fires the effect (FilterChipKey values are comma-free).
+    //   - Async `.then(...)` chains use the `token` constant captured at
+    //     the start; staleness checked via `fetchTokenRef.current` after
+    //     each await — guards against scope changes mid-fetch.
+    //   - `VISIBLE_MONTHS` / `TIMELINE_WINDOW_*` are module-level
+    //     constants — no closure risk.
+    //   - `applyActiveFilters` and helpers are pure module fns — safe.
+    //   No stale-closure issues found in this hook.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     skip,

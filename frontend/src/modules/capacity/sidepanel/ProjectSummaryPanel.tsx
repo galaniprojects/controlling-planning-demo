@@ -15,19 +15,39 @@
  *
  * Data feed: `CapacityProjectItem` from `getProjects` — the parent
  * (`CapacityWorkspace`) caches the response in a shared map and the
- * side-panel handler reads from there. If the cache misses (e.g. the
- * panel is opened from a deep link in a future wave), the panel falls
- * back to `getProjectSummary` for the basic fields and skips the
- * role-by-role progress section.
+ * side-panel handler reads from there.
+ *
+ * v5.2 W6 Track A — cache-miss fallback (spec §10.8 deep-link case).
+ * If the workspace cache doesn't have the requested projectId (e.g.,
+ * the side panel is opened from a deep link or the workspace scope
+ * changed since the cache was built), the panel issues a fallback
+ * fetch via `capacityApi.getProjects({scope:'all'})` and finds the
+ * matching project. Loading skeleton + error empty-state are rendered
+ * in lieu of the populated content while the fetch is in flight or if
+ * the project is not found.
  */
-import { ArrowUpRight } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowUpRight, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/shared/Skeleton';
+import { capacityApi } from '@/api/endpoints';
 import { useProjectColor } from '@/contexts/ProjectColorMapContext';
 import { cn } from '@/lib/utils';
 import type { CapacityProjectItem } from '@/types/api';
 
 export interface ProjectSummaryPanelProps {
-  item: CapacityProjectItem;
+  /**
+   * Pre-resolved project payload from the workspace cache. When
+   * undefined, the panel fetches via the cache-miss fallback path
+   * (W6 Track A — deep-link case per spec §10.8).
+   */
+  item?: CapacityProjectItem;
+  /**
+   * Project id used by the cache-miss fallback to fetch the missing
+   * record. Required so the panel can render a loader + error empty
+   * state without coupling to the workspace's cache implementation.
+   */
+  projectId: string;
   /**
    * Handler invoked when the user clicks "Review & assign".  The parent
    * (CapacityWorkspace) wires this to `enterAssignmentMode` +
@@ -119,12 +139,141 @@ function StaffingPill({
   );
 }
 
+/**
+ * Public wrapper. When `item` is provided, the rendered content is the
+ * fully-populated summary. When `item` is undefined, the panel issues a
+ * cache-miss fallback fetch (`capacityApi.getProjects({scope:'all'})`)
+ * and resolves it client-side by matching `projectId`. The capacity
+ * project endpoint returns the same `CapacityProjectItem` shape so no
+ * payload adaptation is required.
+ *
+ * The `getProjects` payload is keyed by the active scope's reference
+ * window; calling it with `scope='all'` and no explicit start/end gives
+ * us the same default window the workspace uses, which is the right
+ * answer for a deep-link entry (no other scope context available).
+ */
 export function ProjectSummaryPanel({
   item,
+  projectId,
   onReviewAssign,
   onClosePanel,
   navigate,
 }: ProjectSummaryPanelProps) {
+  const [fallbackItem, setFallbackItem] = useState<CapacityProjectItem | null>(
+    null,
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fire the fallback fetch only when the workspace cache misses. When
+  // `item` is supplied (the warm-cache path), we skip the network call
+  // entirely.
+  useEffect(() => {
+    if (item) {
+      // Reset any stale fallback state in case the same panel instance
+      // transitions from cache-miss to cache-hit (e.g., projectData
+      // resolves after the panel opens).
+      setFallbackItem(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    capacityApi
+      .getProjects({ scope: 'all' })
+      .then((resp) => {
+        if (cancelled) return;
+        const found = resp.items.find((it) => it.project_id === projectId);
+        if (!found) {
+          setError('Project not found in current scope.');
+          setFallbackItem(null);
+        } else {
+          setFallbackItem(found);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(
+          err instanceof Error ? err.message : 'Failed to load project summary',
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item, projectId]);
+
+  const resolved = item ?? fallbackItem;
+
+  if (!resolved) {
+    if (loading) {
+      return (
+        <div className="flex flex-col gap-4 p-4 text-sm">
+          <Skeleton className="h-6 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+          <div className="grid grid-cols-2 gap-2">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-9 w-full" />
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col items-center gap-3 p-6 text-center text-sm">
+        <AlertTriangle
+          className="h-8 w-8 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <p className="font-medium text-foreground">Project unavailable</p>
+        <p className="text-xs text-muted-foreground">
+          {error ??
+            'This project is not visible with your current scope. ' +
+              'Adjust the scope or open it from the workspace timeline.'}
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2 w-full"
+          onClick={onClosePanel}
+        >
+          Close
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <ProjectSummaryPanelContent
+      item={resolved}
+      onReviewAssign={onReviewAssign}
+      onClosePanel={onClosePanel}
+      navigate={navigate}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Content (resolved-item path)
+// ---------------------------------------------------------------------------
+
+function ProjectSummaryPanelContent({
+  item,
+  onReviewAssign,
+  onClosePanel,
+  navigate,
+}: {
+  item: CapacityProjectItem;
+  onReviewAssign: (item: CapacityProjectItem) => void;
+  onClosePanel: () => void;
+  navigate: (path: string) => void;
+}) {
   const projectColor = useProjectColor(item.project_id);
   const { unfulfilled, fullyAssignedCount } = buildProgressLines(item);
   const allocatedHours = totalAllocatedHours(item);
@@ -137,10 +286,8 @@ export function ProjectSummaryPanel({
   };
 
   return (
-    <div
-      key={item.project_id}
-      className="flex flex-col gap-4 p-4 text-sm animate-in fade-in-0 duration-200"
-    >
+    <div className="flex flex-col gap-4 p-4 text-sm animate-in fade-in-0 duration-200">
+
       {/* Header */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-start gap-2">

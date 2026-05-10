@@ -15,10 +15,17 @@ import { cn } from '@/lib/utils';
 
 type UtilBucket = 'blue' | 'green' | 'amber' | 'red';
 
+// v5.2 W6 Track C — epsilon to make boundary comparisons stable when the
+// projected utilisation arrives as an arithmetic result (e.g. assigned/
+// standard hours) and surfaces 99.999999… instead of an exact 100.0.
+// Using 1e-6 means anything within ±0.000001% of a boundary is treated as
+// the higher bucket (matches the rounded display value via Math.round).
+const UTIL_BUCKET_EPSILON = 1e-6;
+
 function utilBucket(pct: number): UtilBucket {
-  if (pct > 100) return 'red';
-  if (pct >= 90) return 'amber';
-  if (pct >= 70) return 'green';
+  if (pct > 100 + UTIL_BUCKET_EPSILON) return 'red';
+  if (pct >= 90 - UTIL_BUCKET_EPSILON) return 'amber';
+  if (pct >= 70 - UTIL_BUCKET_EPSILON) return 'green';
   return 'blue';
 }
 

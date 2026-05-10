@@ -38,6 +38,7 @@ import { capacityApi } from '@/api/endpoints';
 import { useCapacityScope } from '@/contexts/CapacityScopeContext';
 import type { FilterChipKey } from '@/contexts/CapacityScopeContext';
 import { scopeToApiParam } from '@/lib/capacityScopeApi';
+import { useDashboardForecastData } from '../hooks/useDashboardForecastData';
 import { cn } from '@/lib/utils';
 
 // --- Local types --------------------------------------------------------
@@ -154,6 +155,18 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // v5.2 W6 Track C — shared dashboard-forecast hook (refactor #2). Same
+  // hook drives `CapacityForecastCard`'s chart, so the loading/error/
+  // window-shape semantics stay aligned across the dashboard layer and
+  // the avg-utilization KPI tile.
+  //
+  // v5.2 W6 review fix (P2.6) — combined `loading` includes the forecast
+  // hook's loading state so the avg-utilization tile doesn't flip from
+  // '—' to a value while OTHER tiles still show '—'. Tiles render
+  // consistently across the bar.
+  const forecastData = useDashboardForecastData();
+  const combinedLoading = loading || forecastData.isLoading;
+
   useEffect(() => {
     let cancelled = false;
 
@@ -169,36 +182,18 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
     // 403 for Executive per §12.1) doesn't blank every KPI card.
     Promise.allSettled([
       capacityApi.getDashboardHeadcountBreakdown(apiScope, 'role'),
-      capacityApi.getDashboardForecast(apiScope),
       capacityApi.getDashboardHotspots(apiScope, HOTSPOT_LIMIT),
       capacityApi.getInbox(inboxFilters),
     ])
-      .then(([headcountResult, forecastResult, hotspotsResult, inboxResult]) => {
+      .then(([headcountResult, hotspotsResult, inboxResult]) => {
         if (cancelled) return;
 
         const headcount =
           headcountResult.status === 'fulfilled' ? headcountResult.value : null;
-        const forecast =
-          forecastResult.status === 'fulfilled' ? forecastResult.value : null;
         const hotspots =
           hotspotsResult.status === 'fulfilled' ? hotspotsResult.value : null;
         const inbox =
           inboxResult.status === 'fulfilled' ? inboxResult.value : null;
-
-        const items = forecast?.items ?? [];
-        const totals = items.reduce(
-          (acc, point) => {
-            acc.allocated += point.allocated_hours ?? 0;
-            acc.available += point.available_hours ?? 0;
-            return acc;
-          },
-          { allocated: 0, available: 0 },
-        );
-
-        const avgUtilizationPct =
-          totals.available > 0
-            ? (totals.allocated / totals.available) * 100
-            : 0;
 
         const overAllocatedPersons = new Set<string>();
         const supplyGapRoles = new Set<string>();
@@ -224,9 +219,11 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
           }
         }
 
-        const next: KpiSnapshot = {
+        // Merge into snapshot — the avg-util / window fields are owned
+        // by the forecast effect below and remain untouched here.
+        setSnapshot((prev) => ({
+          ...prev,
           headcount: headcount?.total ?? 0,
-          avgUtilizationPct,
           overAllocatedCount: overAllocatedPersons.size,
           // When inbox failed but the role *expects* it (Controller / CC
           // Owner), null preserves the previous side-nav badge value
@@ -234,13 +231,8 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
           // for null. Executive 403s are normal — we always render 0.
           pendingRequestsCount: inboxOk ? pendingRequestsCount : null,
           supplyGapRoleCount: supplyGapRoles.size,
-          windowStart: forecast?.start ?? items[0]?.month ?? null,
-          windowEnd:
-            forecast?.end ?? items[items.length - 1]?.month ?? null,
-          windowMonthCount: items.length,
-        };
+        }));
 
-        setSnapshot(next);
         // Only publish to the side-nav seam when we have a real number.
         // The seam consumer (CapacityModuleNav) keeps the prior badge
         // when this stays null, avoiding a transient "0" flash.
@@ -248,12 +240,13 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
           setPendingRequestsKpi(pendingRequestsCount);
         }
 
-        // Surface a banner only if ALL endpoints failed — partial
-        // failures (Executive's missing inbox) just degrade gracefully.
-        const allFailed = [headcountResult, forecastResult, hotspotsResult]
+        // Surface a banner only if both non-forecast endpoints failed —
+        // partial failures (Executive's missing inbox) just degrade
+        // gracefully. The forecast hook owns its own error reporting.
+        const allFailed = [headcountResult, hotspotsResult]
           .every((r) => r.status === 'rejected');
         if (allFailed) {
-          const firstReason = [headcountResult, forecastResult, hotspotsResult]
+          const firstReason = [headcountResult, hotspotsResult]
             .find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined;
           const reason = firstReason?.reason;
           setError(reason instanceof Error ? reason.message : 'Failed to load KPIs');
@@ -269,6 +262,30 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
     // setPendingRequestsKpi is stable from context (memoized provider value).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiScope, scope.kind, ccId]);
+
+  // Forecast-derived snapshot fields — refresh whenever the shared hook
+  // returns a new payload.  Kept in a separate effect so changes to the
+  // forecast don't reset the KPI counts owned by the allSettled batch.
+  useEffect(() => {
+    const items = forecastData.items;
+    const totals = items.reduce(
+      (acc, point) => {
+        acc.allocated += point.allocated_hours ?? 0;
+        acc.available += point.available_hours ?? 0;
+        return acc;
+      },
+      { allocated: 0, available: 0 },
+    );
+    const avgUtilizationPct =
+      totals.available > 0 ? (totals.allocated / totals.available) * 100 : 0;
+    setSnapshot((prev) => ({
+      ...prev,
+      avgUtilizationPct,
+      windowStart: forecastData.start ?? items[0]?.month ?? null,
+      windowEnd: forecastData.end ?? items[items.length - 1]?.month ?? null,
+      windowMonthCount: items.length,
+    }));
+  }, [forecastData.items, forecastData.start, forecastData.end]);
 
   const handleCardClick = (filter: FilterChipKey | null) => {
     if (!filter) return;
@@ -294,18 +311,18 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
   const cardValue = (key: KpiCardDef['key']): string => {
     switch (key) {
       case 'headcount':
-        return loading ? '—' : String(snapshot.headcount);
+        return combinedLoading ? '—' : String(snapshot.headcount);
       case 'avg_util':
-        return loading ? '—' : formatPct(snapshot.avgUtilizationPct);
+        return combinedLoading ? '—' : formatPct(snapshot.avgUtilizationPct);
       case 'over_alloc':
-        return loading ? '—' : String(snapshot.overAllocatedCount);
+        return combinedLoading ? '—' : String(snapshot.overAllocatedCount);
       case 'pending_req':
-        if (loading) return '—';
+        if (combinedLoading) return '—';
         return snapshot.pendingRequestsCount === null
           ? '—'
           : String(snapshot.pendingRequestsCount);
       case 'supply_gap':
-        return loading
+        return combinedLoading
           ? '—'
           : `${snapshot.supplyGapRoleCount} ${
               snapshot.supplyGapRoleCount === 1 ? 'role' : 'roles'
@@ -377,7 +394,7 @@ export function KPISummaryBar({ className }: KPISummaryBarProps) {
             <div
               className={cn(
                 'text-2xl font-semibold leading-none',
-                error || loading
+                error || combinedLoading
                   ? 'text-muted-foreground'
                   : 'text-foreground',
               )}

@@ -22,7 +22,7 @@
  * URL state mirrors the filters via `useSearchParams({ replace: true })`.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -238,6 +238,22 @@ export default function CapacityHistory() {
   const personaUserName = context?.user_name;
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  // v5.2 W6 Track C — §15 permission sweep. The History audit log is
+  // restricted to controller / cc_owner / executive per §12.1; PL never
+  // sees the nav and would otherwise hit a 403 on direct URL access.
+  // Redirect to the workspace, which then bounces PL to /availability.
+  //
+  // v5.2 W6 review fix (P1.3) — drive the redirect from a useEffect so
+  // we don't early-return *before* the hooks below, which would change
+  // the hook count across renders. See RequestsInbox.tsx for the same
+  // pattern + rationale.
+  const isAuthorized =
+    !role ||
+    role === 'controller' ||
+    role === 'cost_center_owner' ||
+    role === 'executive';
 
   const fallback = useMemo(() => defaultFilterForRole(role), [role]);
   const filters = useMemo(
@@ -258,6 +274,11 @@ export default function CapacityHistory() {
   const [projectOptions, setProjectOptions] = useState<DropdownOption[]>([]);
 
   useEffect(() => {
+    // v5.2 W6 review-pass-2 fix (P2.A) — skip dropdown-options fetches
+    // when the user isn't authorized; the redirect effect above will
+    // navigate them away. Without this guard we'd fire 4 stray fetches
+    // (history + roles + ccs + projects) that 403 before redirect.
+    if (role && !isAuthorized) return;
     let cancelled = false;
 
     rolesApi
@@ -326,7 +347,10 @@ export default function CapacityHistory() {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // P2.A — re-run if the gate flips so an authorized user navigating
+    // back from a redirect still gets dropdown options populated.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, isAuthorized]);
 
   // Optional "Me" entry for the user dropdown — only when the persona
   // resolves to a known person id.
@@ -372,10 +396,15 @@ export default function CapacityHistory() {
   );
 
   useEffect(() => {
+    // v5.2 W6 review-pass-2 fix (P2.A) — skip the history fetch when
+    // the user isn't authorized; the redirect effect navigates them
+    // away. Without this guard we'd fire one stray /api/capacity/history
+    // call that 403s before the redirect.
+    if (role && !isAuthorized) return;
     const controller = new AbortController();
     fetchHistory(controller.signal);
     return () => controller.abort();
-  }, [fetchHistory]);
+  }, [fetchHistory, role, isAuthorized]);
 
   // --- URL writers ---
 
@@ -404,6 +433,16 @@ export default function CapacityHistory() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // v5.2 W6 review fix (P1.3) — fire the §15 redirect from an effect so
+  // every hook above runs on every render regardless of role.
+  useEffect(() => {
+    if (role && !isAuthorized) {
+      navigate('/capacity', { replace: true });
+    }
+  }, [role, isAuthorized, navigate]);
+
+  if (role && !isAuthorized) return null;
 
   return (
     <div className="space-y-4">

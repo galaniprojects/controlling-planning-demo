@@ -11,6 +11,18 @@
  *   -  1–200h        → warning background (amber)
  *   - 200h+          → danger background (red)
  *
+ * v5.2 W6 Track C decision (W5 polish-backlog item):
+ *   The WARN/DANGER cut-offs stay hardcoded here for the v5.2 demo.
+ *   Promoting them to a `PlanningParameter` row would also need:
+ *     1. a backend admin endpoint to expose the parameter to the
+ *        client,
+ *     2. a settings card in `Administration` to edit it,
+ *     3. cache-invalidation plumbing so timeline cells re-paint when
+ *        the parameter changes.
+ *   That's out of scope for a polish item. TODO is left below so the
+ *   follow-up has a clear anchor; a placeholder seed row will be
+ *   added in the v5.2 closeout PR.
+ *
  * The row mirrors the `DemandStrip` sticky-bottom + sticky-left pattern
  * so users get a consistent docking element across both views.
  */
@@ -21,7 +33,10 @@ import {
 } from './timeAxis';
 import type { CapacityProjectItem } from '@/types/api';
 
-const WARN_THRESHOLD = 1;
+// TODO(v5.2 closeout): seed `PlanningParameter` rows for these thresholds
+// (`capacity.unassigned_summary.warn_threshold_hours` and
+// `capacity.unassigned_summary.danger_threshold_hours`) and read them from
+// the planning-parameter cache. Decision recorded in PROGRESS.md (W6).
 const DANGER_THRESHOLD = 200;
 
 export interface UnassignedSummaryProps {
