@@ -126,10 +126,15 @@ class Actuals(Base):
 class ForecastVersion(Base):
     """Immutable point-in-time snapshot of a project forecast.
 
-    Created automatically on CR approval [C-FV-02], cycle completion [C-FV-05],
-    or manually by a controller [C-FV-03]. version_number is sequential per
-    project (UniqueConstraint) [C-FV-04]. payload_json stores the full grid
-    snapshot per the schema defined in services/forecast_versioning.py [C-FV-07].
+    Created automatically on CR approval [C-FV-02] and on cycle completion
+    [C-FV-05]. version_number is sequential per project (UniqueConstraint)
+    [C-FV-04]. payload_json stores the full grid snapshot per the schema
+    defined in services/forecast_versioning.py [C-FV-07].
+
+    Historical note: a controller-triggered manual snapshot path
+    (``version_type='manual'`` per [C-FV-03]) was removed; the column still
+    accepts that literal so any pre-existing rows remain readable, but no
+    new manual versions are created.
     """
 
     __tablename__ = "forecast_versions"
@@ -143,7 +148,9 @@ class ForecastVersion(Base):
     # Sequential version number per project [C-FV-04]
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # version_type: 'cycle' | 'cr_approval' | 'manual' [C-FV-02, C-FV-03, C-FV-05]
+    # version_type: 'cycle' | 'cr_approval' [C-FV-02, C-FV-05]
+    # ('manual' is a legacy value still accepted by the column for historic
+    # rows; no new manual versions are written — see [C-FV-03] removal.)
     version_type: Mapped[str] = mapped_column(String(20), nullable=False)
 
     # Human-readable cycle label, e.g. "Q2 2026 Cycle"

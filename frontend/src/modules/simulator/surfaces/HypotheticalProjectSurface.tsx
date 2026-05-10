@@ -92,9 +92,9 @@ export function HypotheticalProjectSurface() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1">Type 1 — Run/Operate</SelectItem>
-                <SelectItem value="2">Type 2 — Change</SelectItem>
-                <SelectItem value="3">Type 3 — Pre-funded</SelectItem>
+                <SelectItem value="1">P1 — Run/Operate</SelectItem>
+                <SelectItem value="2">P2 — Change</SelectItem>
+                <SelectItem value="3">P3 — Pre-funded</SelectItem>
               </SelectContent>
             </Select>
           </div>

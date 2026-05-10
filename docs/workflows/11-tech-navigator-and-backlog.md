@@ -39,7 +39,7 @@ For lifecycle gates (DoI 0→5 transitions, Send-back, Pitch Board approval), se
 
 - `Project.tn_standardization`, `tn_usage`, `tn_maintenance`, `tn_financial_benefit`, `tn_payback`, `tn_competitive_advantage` (Integer 1-5).
 - Denormalised `complexity_score`, `value_creation_score`, `composite_score` (Numeric(4,2)) recomputed.
-- `Project.project_type` (1/2/3), `Project.transformation_level` (T0/T1/T2).
+- `Project.project_type` (1/2/3 — displayed in the UI as **P1 / P2 / P3** to avoid visual collision with the T-Level column), `Project.transformation_level` (T0/T1/T2).
 - `tshirt_size` recomputed from `total_budget` per active thresholds.
 - Backlog re-ranks; cutoff line may shift.
 

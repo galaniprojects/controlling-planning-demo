@@ -618,7 +618,7 @@ class TestBuildMixedGridLookback:
     ):
         """capture_version doesn't pass lookback_months — payloads stay v5."""
         from services.forecast_versioning import capture_version
-        fv = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.commit()
         payload = json.loads(fv.payload_json)
         # All cells in the snapshot should sit at or after demo_date.
@@ -659,7 +659,7 @@ class TestBuildMixedGridSubRowsDefault:
         """capture_version doesn't pass sub-row flags — snapshot stays
         forecast-only and byte-identical to Wave 3."""
         from services.forecast_versioning import capture_version
-        fv = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.commit()
         payload = json.loads(fv.payload_json)
         for row in payload["rows"]:
@@ -1249,14 +1249,14 @@ class TestSerializeForecastPayload:
 # ---------------------------------------------------------------------------
 
 class TestCaptureVersion:
-    """[C-FV-02, C-FV-03] Version capture."""
+    """[C-FV-02] Version capture (cycle + cr_approval)."""
 
     def test_creates_version_row(self, db, seeded_project, horizon_params, controller):
-        fv = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.commit()
         assert fv.id is not None
         assert fv.project_id == "proj-alpha"
-        assert fv.version_type == "manual"
+        assert fv.version_type == "cycle"
         assert fv.version_number == 1
         assert fv.payload_json is not None
         assert fv.cell_count is not None
@@ -1280,11 +1280,11 @@ class TestCaptureVersion:
         assert fv.cycle_id == "abc123"
 
     def test_sequential_version_numbers(self, db, seeded_project, horizon_params, controller):
-        fv1 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv1 = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.flush()
-        fv2 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv2 = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.flush()
-        fv3 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv3 = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.commit()
         assert fv1.version_number == 1
         assert fv2.version_number == 2
@@ -1349,9 +1349,9 @@ class TestListGetVersions:
         assert versions == []
 
     def test_list_versions_newest_first(self, db, seeded_project, horizon_params, controller):
-        capture_version(db, "proj-alpha", controller, version_type="manual")
+        capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.flush()
-        capture_version(db, "proj-alpha", controller, version_type="manual")
+        capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.commit()
         versions, total = list_versions(db, "proj-alpha")
         assert total == 2
@@ -1359,7 +1359,7 @@ class TestListGetVersions:
         assert versions[1].version_number == 1
 
     def test_get_version_by_id(self, db, seeded_project, horizon_params, controller):
-        fv = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.commit()
         fetched = get_version(db, fv.id)
         assert fetched is not None
@@ -1378,7 +1378,7 @@ class TestComputeDiff:
     """[C-RH-05]"""
 
     def test_happy_path_modified(self, db, seeded_project, horizon_params, controller):
-        fv1 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv1 = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.flush()
 
         # Modify a forecast row, then capture v2
@@ -1390,7 +1390,7 @@ class TestComputeDiff:
         row.amount_eur = 10000.0
         db.flush()
 
-        fv2 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv2 = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.commit()
 
         diff = compute_diff(db, fv1.id, fv2.id)
@@ -1399,9 +1399,9 @@ class TestComputeDiff:
         assert diff["summary"]["modified_count"] > 0 or diff["summary"]["total_changes"] > 0
 
     def test_all_unchanged(self, db, seeded_project, horizon_params, controller):
-        fv1 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv1 = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.flush()
-        fv2 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv2 = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.commit()
 
         diff = compute_diff(db, fv1.id, fv2.id)
@@ -1419,9 +1419,9 @@ class TestComputeDiff:
                             hours=40, amount_eur=5000.00, capex_opex="capex"))
         db.commit()
 
-        fv_a = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv_a = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.flush()
-        fv_b = capture_version(db, "proj-beta", controller, version_type="manual")
+        fv_b = capture_version(db, "proj-beta", controller, version_type="cycle")
         db.commit()
 
         diff = compute_diff(db, fv_a.id, fv_b.id)
@@ -1429,14 +1429,14 @@ class TestComputeDiff:
         assert diff["version_b_project_id"] == "proj-beta"
 
     def test_version_a_not_found(self, db, seeded_project, horizon_params, controller):
-        fv = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.commit()
         with pytest.raises(ValueError, match="99999"):
             compute_diff(db, 99999, fv.id)
 
     def test_removed_line_item(self, db, seeded_project, horizon_params, controller):
         """Forecast row present in v1 but deleted before v2 → shows as 'removed'."""
-        fv1 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv1 = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.flush()
 
         # Remove all external rows from forecast
@@ -1446,7 +1446,7 @@ class TestComputeDiff:
         ).delete()
         db.flush()
 
-        fv2 = capture_version(db, "proj-alpha", controller, version_type="manual")
+        fv2 = capture_version(db, "proj-alpha", controller, version_type="cycle")
         db.commit()
 
         diff = compute_diff(db, fv1.id, fv2.id)

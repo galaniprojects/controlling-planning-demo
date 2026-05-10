@@ -335,21 +335,21 @@ export const PROJECT_TYPES: ReadonlyArray<{
 }> = [
   {
     value: 1,
-    label: 'Type 1 — Project with business case',
+    label: 'P1 — Project with business case',
     ringClass: 'ring-foreground',
     description:
       'Standard investment with a quantified business case. Competes on score within the ranked budget envelope.',
   },
   {
     value: 2,
-    label: 'Type 2 — Strategic / consulting',
+    label: 'P2 — Strategic / consulting',
     ringClass: 'ring-amber-500',
     description:
       'Strategic need or consulting without a specific technology bet. Competes on score; strategic rationale may justify a score override.',
   },
   {
     value: 3,
-    label: 'Type 3 — Legal / compliance / security / lifecycle',
+    label: 'P3 — Legal / compliance / security / lifecycle',
     ringClass: 'ring-red-500',
     description:
       'Legal, compliance, security, or lifecycle need. Exempt from the cutoff and funded off the top of the budget before ranking.',

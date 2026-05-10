@@ -1,5 +1,5 @@
 /**
- * PreFundedSection — collapsible section showing Type 3 pre-funded projects.
+ * PreFundedSection — collapsible section showing P3 pre-funded projects.
  * [A-BK-18][A-TN-08]
  */
 
@@ -32,7 +32,7 @@ export function PreFundedSection({ items }: Props) {
           <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
         )}
         <span className="text-sm font-semibold text-foreground">
-          Pre-funded — Type 3
+          Pre-funded — P3
         </span>
         <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
           {items.length} project{items.length !== 1 ? 's' : ''}

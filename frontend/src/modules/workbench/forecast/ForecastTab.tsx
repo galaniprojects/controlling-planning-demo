@@ -7,10 +7,9 @@ import { ForecastComparisonChart } from './ForecastComparisonChart';
 import { VersionSelector } from './VersionSelector';
 import { VersionHistoryPanel } from './VersionHistoryPanel';
 import { VersionComparisonDialog } from './VersionComparisonDialog';
-import { ManualSnapshotDialog } from './ManualSnapshotDialog';
 import { useForecastVersions } from './useForecastVersions';
 import { workbenchApi } from '@/api/endpoints';
-import { Clock, Camera, CalendarRange, X } from 'lucide-react';
+import { Clock, CalendarRange, X } from 'lucide-react';
 // v5.2 W6 S11 (§13.9) — PL "Check availability" slide-over from F&P.
 import { useWideSlideOver } from '@/contexts/WideSlideOverContext';
 import PLAvailabilitySlideOver from '@/modules/capacity/availability/PLAvailabilitySlideOver';
@@ -39,7 +38,6 @@ export function ForecastTab({ projectId, role }: Props) {
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   const [pendingCR, setPendingCR] = useState<PendingCR | null>(null);
   const [diffDialogVersionId, setDiffDialogVersionId] = useState<number | null>(null);
-  const [snapshotDialogOpen, setSnapshotDialogOpen] = useState(false);
   // v5.2 W6 S11 — captured slot from the PL availability slide-over.
   // Renders as a banner above the grid until cleared. Spec §13.9: the
   // request form on the Workbench is populated with the selected role,
@@ -66,7 +64,6 @@ export function ForecastTab({ projectId, role }: Props) {
     diffLoading,
     deltaIndex,
     latestVersion,
-    reload: reloadVersions,
   } = useForecastVersions(projectId);
 
   // Reset wizard mode when switching projects.
@@ -160,17 +157,6 @@ export function ForecastTab({ projectId, role }: Props) {
           latestVersionId={latestVersion?.id ?? null}
         />
         <div className="flex items-center gap-3 flex-wrap">
-          {role === 'controller' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSnapshotDialogOpen(true)}
-              className="gap-1.5"
-            >
-              <Camera className="h-3.5 w-3.5" />
-              Take snapshot
-            </Button>
-          )}
           {role === 'project_lead' && projectStatus === 'active' && (
             <>
               {pendingCR && (
@@ -248,13 +234,6 @@ export function ForecastTab({ projectId, role }: Props) {
         versionBId={latestVersion?.id ?? null}
         versions={versions}
         nameMap={nameMap}
-      />
-
-      <ManualSnapshotDialog
-        open={snapshotDialogOpen}
-        onOpenChange={setSnapshotDialogOpen}
-        projectId={projectId}
-        onSnapshotCreated={reloadVersions}
       />
     </div>
   );

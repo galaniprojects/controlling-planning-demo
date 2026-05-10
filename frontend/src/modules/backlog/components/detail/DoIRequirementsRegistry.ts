@@ -40,10 +40,10 @@ export const DOI_REQUIREMENTS: Record<number, DoIFieldRequirement[]> = {
   1: [
     {
       field: 'project_type',
-      label: 'Project type (Type 1/2/3)',
+      label: 'Project type (P1/P2/P3)',
       section: 'tech_navigator',
       rationale:
-        'Type classification determines whether the project competes in the ranked envelope (T1/T2) or is pre-funded (T3).',
+        'Type classification determines whether the project competes in the ranked envelope (P1/P2) or is pre-funded (P3).',
     },
     {
       field: 'transformation_level',
