@@ -326,12 +326,12 @@
   {
     "id": "faq-v5-02",
     "question": "How do I score a project's Tech Navigator profile?",
-    "summary": "Open the project's Backlog detail, Scores & Ranking tab. Pick Project Type and Transformation Level, then score 3 Complexity sub-criteria (Standardization 40% / Usage 40% / Maintenance 20%) and 3 Value Creation sub-criteria (Financial 50% / Payback 40% / Competitive 10%) on a 1–5 scale.",
+    "summary": "Open the project's Backlog detail, Scores & Ranking tab. Pick Project type and Transformation Level, then score 3 Complexity sub-criteria (Standardization 40% / Usage 40% / Maintenance 20%) and 3 Value Creation sub-criteria (Financial 50% / Payback 40% / Competitive 10%) on a 1–5 scale.",
     "applicable_roles": ["project_lead", "controller"],
     "modules_involved": ["backlog"],
     "steps": [
       {"step_number": 1, "instruction": "Navigate to `/backlog/<project-id>` and open the **Scores & Ranking** tab.", "target_module": "backlog"},
-      {"step_number": 2, "instruction": "Pick **Project Type** (1 / 2 / 3). Type 3 (Legal / compliance / security / lifecycle) is exempt from the cutoff line."},
+      {"step_number": 2, "instruction": "Pick **Project type** (P1 / P2 / P3). P3 (Legal / compliance / security / lifecycle) is exempt from the cutoff line."},
       {"step_number": 3, "instruction": "Pick **Transformation level** (T0 just better / T1 paper to software / T2 new business). Categorical decorator only — does NOT factor into the composite score."},
       {"step_number": 4, "instruction": "Score the 3 Complexity sub-criteria: **Standardization** (40%), **Usage** (40%), **Maintenance & support** (20%) on a 1–5 scale. Convention: a HIGHER Complexity score means LOWER real-world complexity."},
       {"step_number": 5, "instruction": "Score the 3 Value Creation sub-criteria: **Financial benefit** (50%), **Payback** (40%), **Competitive advantage** (10%) on a 1–5 scale."},
@@ -537,11 +537,11 @@
     "modules_involved": ["backlog"],
     "steps": [
       {"step_number": 1, "instruction": "Navigate to `/backlog`. Inspect the **Cutoff Summary Strip** at the top: 6 KPI cells separated by dividers — Budget envelope, Contestable, Should-be cutoff, Reality cutoff, Misaligned projects (when present), Horizon.", "target_module": "backlog"},
-      {"step_number": 2, "instruction": "**Budget envelope** = total available budget. **Contestable** = envelope minus Σ(Type 3 projects' budgets) — Type 3 projects are pre-funded off the top before ranking."},
+      {"step_number": 2, "instruction": "**Budget envelope** = total available budget. **Contestable** = envelope minus Σ(P3 projects' budgets) — P3 projects are pre-funded off the top before ranking."},
       {"step_number": 3, "instruction": "**Should-be cutoff** = the rank at which cumulative project budgets exhaust the contestable envelope. Below this rank: 'unfunded' under pure score-based ranking."},
       {"step_number": 4, "instruction": "**Reality cutoff** = the rank reflecting controller override decisions on `within_cutoff` flags. May differ from Should-be when business reasons override pure-score ranking."},
       {"step_number": 5, "instruction": "**Misalignment zone** = the gap between the two lines, rendered as an amber band. The KPI strip shows the count of misaligned projects."},
-      {"step_number": 6, "instruction": "**Jump buttons** next to each KPI scroll the list to the relevant rank. **Within cutoff** filter narrows to funded projects (above Reality + Type 3 pre-funded). Sort override (e.g. by Composite score descending) suppresses the cutoff bands."},
+      {"step_number": 6, "instruction": "**Jump buttons** next to each KPI scroll the list to the relevant rank. **Within cutoff** filter narrows to funded projects (above Reality + P3 pre-funded). Sort override (e.g. by Composite score descending) suppresses the cutoff bands."},
       {"step_number": 7, "instruction": "See also: workflow W11.3 in `docs/workflows/11-tech-navigator-and-backlog.md` and `[A-BK-14..17]` decision tags."}
     ]
   },

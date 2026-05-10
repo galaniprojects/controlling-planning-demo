@@ -338,9 +338,9 @@ const PORTFOLIO_RULES: ActionDefinition[] = [
     id: 'cut-by-type',
     actionType: 'cut_by_type',
     scope: 'portfolio',
-    label: 'Cut by Type',
+    label: 'Cut by project type',
     description:
-      'Reduce all Type 1, Type 2, or all non-Type-3 projects by a percentage.',
+      'Reduce all P1, P2, or all non-P3 projects by a percentage.',
     leverCategory: 'forecast_grid',
     tier: 2,
     category: 'portfolioRules',
@@ -353,9 +353,9 @@ const PORTFOLIO_RULES: ActionDefinition[] = [
         type: 'select',
         required: true,
         options: [
-          { value: '1', label: 'Type 1 — Mandatory / regulatory' },
-          { value: '2', label: 'Type 2 — Discretionary change' },
-          { value: 'non_type_3', label: 'All non-Type-3' },
+          { value: '1', label: 'P1 — Mandatory / regulatory' },
+          { value: '2', label: 'P2 — Discretionary change' },
+          { value: 'non_type_3', label: 'All non-P3' },
         ],
       },
       {
@@ -409,7 +409,7 @@ const PORTFOLIO_RULES: ActionDefinition[] = [
     scope: 'portfolio',
     label: 'Across-the-board cut',
     description:
-      'Reduce all non-Type-3 projects by a percentage. Type 3 projects are exempt.',
+      'Reduce all non-P3 projects by a percentage. P3 projects are exempt.',
     leverCategory: 'forecast_grid',
     tier: 2,
     category: 'portfolioRules',

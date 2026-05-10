@@ -39,9 +39,9 @@ type ProjectType = 1 | 2 | 3;
 type CapexOpex = 'capex' | 'opex';
 
 const PROJECT_TYPE_OPTIONS: { value: ProjectType; label: string }[] = [
-  { value: 1, label: 'Type 1 — Business case' },
-  { value: 2, label: 'Type 2 — Strategic' },
-  { value: 3, label: 'Type 3 — Compliance / lifecycle (off-cutoff)' },
+  { value: 1, label: 'P1 — Business case' },
+  { value: 2, label: 'P2 — Strategic' },
+  { value: 3, label: 'P3 — Compliance / lifecycle (off-cutoff)' },
 ];
 
 export function SubmitProjectDialog({ open, onOpenChange, onSuccess }: Props) {

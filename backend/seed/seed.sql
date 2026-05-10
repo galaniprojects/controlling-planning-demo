@@ -1483,35 +1483,35 @@ UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardiz
 -- s12_pipeline — Pipeline stage + DoI gates per [A-PS-02] [A-DOI-01..03]
 -- =============================================================================
 
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-autobrake-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-autobrake';
-UPDATE projects SET pipeline_stage = 'Operate', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-cloud3-run';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-connveh';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-dwh-2026-01.pdf', within_cutoff = 1 WHERE id = 'proj-dwh';
-UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-erp2-2024-06.pdf', within_cutoff = 1 WHERE id = 'proj-erp2';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-greenedge';
-UPDATE projects SET pipeline_stage = 'Operate', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-iam-run';
-UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-mdh-rollout-2025-09.pdf', within_cutoff = 1 WHERE id = 'proj-mdh-rollout';
-UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-predmaint-2025-05.pdf', within_cutoff = 1 WHERE id = 'proj-predmaint';
-UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-railsafety-2025-11.pdf', within_cutoff = 1 WHERE id = 'proj-railsafety';
-UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-sensor-2025-02.pdf', within_cutoff = 1 WHERE id = 'proj-sensor';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-autobrake-2026-02.pdf' WHERE id = 'proj-autobrake';
+UPDATE projects SET pipeline_stage = 'Operate', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL WHERE id = 'proj-cloud3-run';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-connveh';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-dwh-2026-01.pdf' WHERE id = 'proj-dwh';
+UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-erp2-2024-06.pdf' WHERE id = 'proj-erp2';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-greenedge';
+UPDATE projects SET pipeline_stage = 'Operate', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL WHERE id = 'proj-iam-run';
+UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-mdh-rollout-2025-09.pdf' WHERE id = 'proj-mdh-rollout';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-predmaint-2025-05.pdf' WHERE id = 'proj-predmaint';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-railsafety-2025-11.pdf' WHERE id = 'proj-railsafety';
+UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-sensor-2025-02.pdf' WHERE id = 'proj-sensor';
 
 -- Backlog seed expansion (16 DoI 0-2 projects).
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk01-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-bk01';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk02-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-bk02';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk03-2026-01.pdf', within_cutoff = 1 WHERE id = 'proj-bk03';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk04-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-bk04';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk05-2026-03.pdf', within_cutoff = 1 WHERE id = 'proj-bk05';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk06-2026-01.pdf', within_cutoff = 1 WHERE id = 'proj-bk06';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk07-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-bk07';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk08-2026-01.pdf', within_cutoff = 1 WHERE id = 'proj-bk08';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk09-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-bk09';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk10-2026-01.pdf', within_cutoff = 1 WHERE id = 'proj-bk10';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk11-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-bk11';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-bk12';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-bk13';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-bk14';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-bk15';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-bk16';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk01-2026-02.pdf' WHERE id = 'proj-bk01';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk02-2026-02.pdf' WHERE id = 'proj-bk02';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk03-2026-01.pdf' WHERE id = 'proj-bk03';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk04-2026-02.pdf' WHERE id = 'proj-bk04';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk05-2026-03.pdf' WHERE id = 'proj-bk05';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk06-2026-01.pdf' WHERE id = 'proj-bk06';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk07-2026-02.pdf' WHERE id = 'proj-bk07';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk08-2026-01.pdf' WHERE id = 'proj-bk08';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk09-2026-02.pdf' WHERE id = 'proj-bk09';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk10-2026-01.pdf' WHERE id = 'proj-bk10';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk11-2026-02.pdf' WHERE id = 'proj-bk11';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-bk12';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-bk13';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-bk14';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-bk15';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-bk16';
 
 -- 27 projects updated.
 

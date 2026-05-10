@@ -72,9 +72,9 @@ const STATIC_OPTIONS: Partial<Record<ReferenceSource, FieldOption[]>> = {
     { value: 'external', label: 'External rates' },
   ],
   project_types: [
-    { value: '1', label: 'Type 1 — Mandatory / regulatory' },
-    { value: '2', label: 'Type 2 — Discretionary change' },
-    { value: '3', label: 'Type 3 — Strategic transformation' },
+    { value: '1', label: 'P1 — Mandatory / regulatory' },
+    { value: '2', label: 'P2 — Discretionary change' },
+    { value: '3', label: 'P3 — Strategic transformation' },
   ],
   transformation_levels: [
     { value: 'T0', label: 'T0 — Run-the-business' },

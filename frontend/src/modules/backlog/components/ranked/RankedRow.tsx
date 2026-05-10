@@ -1,7 +1,7 @@
 /**
  * RankedRow — one row in the ranked backlog table. [A-BK-15][A-BK-16][A-TN-08]
  *
- * Type ring (border-l-4): Type 1 = slate, Type 2 = amber, Type 3 = red.
+ * Project-type ring (border-l-4): P1 = slate, P2 = amber, P3 = red.
  * Action-cell slot is reserved for A8 controller actions.
  */
 
@@ -88,7 +88,7 @@ export function RankedRow({ item, isMisaligned = false, actionCell }: Props) {
         </div>
       </td>
 
-      {/* Type badge */}
+      {/* Project type badge */}
       <td className="px-3 py-2.5 text-center">
         {item.project_type ? (
           <span
@@ -96,8 +96,9 @@ export function RankedRow({ item, isMisaligned = false, actionCell }: Props) {
               'rounded px-1.5 py-0.5 text-xs font-medium',
               TYPE_BADGE[item.project_type],
             )}
+            title={`Project type ${item.project_type}`}
           >
-            T{item.project_type}
+            P{item.project_type}
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>

@@ -19,7 +19,7 @@ export const RANKED_TABLE_HEADERS: {
 }[] = [
   { key: 'rank', label: '#', sortField: 'rank' },
   { key: 'name', label: 'Project', sortField: 'project_name' },
-  { key: 'type', label: 'Type', align: 'text-center' },
+  { key: 'type', label: 'Project type', align: 'text-center' },
   { key: 'tlevel', label: 'T-Level', align: 'text-center' },
   { key: 'size', label: 'Size', align: 'text-center' },
   { key: 'score', label: 'Composite', sortField: 'composite_score', align: 'text-right' },

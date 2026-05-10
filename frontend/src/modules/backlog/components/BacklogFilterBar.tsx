@@ -40,10 +40,10 @@ const PIPELINE_STAGES = [
 ];
 
 const PROJECT_TYPES = [
-  { value: '', label: 'All Types' },
-  { value: '1', label: 'Type 1 — Business case' },
-  { value: '2', label: 'Type 2 — Strategic' },
-  { value: '3', label: 'Type 3 — Compliance' },
+  { value: '', label: 'All project types' },
+  { value: '1', label: 'P1 — Business case' },
+  { value: '2', label: 'P2 — Strategic' },
+  { value: '3', label: 'P3 — Compliance' },
 ];
 
 const TSHIRT_SIZES = [

@@ -333,10 +333,10 @@ function ProfileSelectorRow({
       <div className="rounded-md border border-border bg-card p-3">
         <div className="mb-2">
           <h3 className="text-sm font-semibold text-foreground">
-            Project Type
+            Project type
           </h3>
           <p className="text-xs text-muted-foreground">
-            Determines how prioritization treats the project. Type 3 is exempt
+            Determines how prioritization treats the project. P3 is exempt
             from the cutoff line.
           </p>
         </div>
