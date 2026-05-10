@@ -7871,7 +7871,12 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 
 -- Resource Requests for proj-autobrake (DoI 2 intake demo + multi-CC fan-out)
 INSERT INTO resource_requests (id, project_id, cost_center_id, request_type, role_type_id, cost_type_id, hours_or_amount_per_month, period_start, period_end, priority, status, assigned_person_id, adjusted_value, explanation, change_request_id, created_at, modified_at) VALUES
-(100, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-arch', NULL, 40, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+-- v5.2 closeout: assigned_person_id set to 'p-brenner' (Sr Architect at
+-- cc-muc-apd) so PersonDetail's pending-requests card has a row to render,
+-- making the §9.1 entry-point #3 ("Review project") click-testable
+-- end-to-end. Pre-closeout no seed RR carried an assigned_person_id, so
+-- the bridge code was wired but unreachable from the demo.
+(100, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-arch', NULL, 40, '2026-06', '2027-12', 'high', 'pending', 'p-brenner', NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (101, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 80, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (102, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-dev', NULL, 100, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (103, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-qa', NULL, 40, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
