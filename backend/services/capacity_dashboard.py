@@ -161,7 +161,17 @@ def compute_dashboard_forecast(
 ) -> dict:
     """Monthly available / allocated / incoming-demand hours per scope.
 
-    Returns the time-series payload backing GET /api/capacity/dashboard/forecast.
+    Backs ``GET /api/capacity/dashboard/forecast``. The window defaults to
+    ``DEMO_DATE`` + 11 months forward when ``start`` / ``end`` are omitted.
+
+    Returns ``{items, total, scope, start, end, total_capacity_hours}``
+    where each ``items[i]`` carries ``month``, ``available_hours``,
+    ``allocated_hours`` and ``demand_hours`` (pending RR hours summed
+    against the same month range, regardless of confirm status).
+
+    Scope vocabulary matches ``_parse_scope`` — ``all`` /
+    ``cost_center:<id>`` / ``location:<id>`` / ``hierarchy:<id>``.
+    Invalid scopes raise ``ValueError`` so the router can surface 400.
     """
     if not start:
         start = DEMO_DATE
@@ -397,7 +407,17 @@ def compute_headcount_breakdown(
 ) -> dict:
     """Headcount split by dimension (location | hierarchy | role | cost_center).
 
-    Backs GET /api/capacity/dashboard/headcount-breakdown.
+    Backs ``GET /api/capacity/dashboard/headcount-breakdown``. Returns
+    ``{items, total, dimension, scope}`` where each item has ``id``,
+    ``label`` and ``count``. The dimension is validated; anything outside
+    the allow-list raises ``ValueError`` (router surfaces 400).
+
+    Counts are over distinct active people in the scope. The internal
+    series is dense for the four built-in dimensions: ``location`` and
+    ``cost_center`` always emit one row per existing entity in scope (zero
+    counts hidden); ``role`` emits one row per role that any in-scope
+    person carries; ``hierarchy`` emits one row per top-level grouping
+    entity reachable from in-scope projects.
     """
     if dimension not in ("location", "hierarchy", "role", "cost_center"):
         raise ValueError(
@@ -544,8 +564,20 @@ def compute_hotspots(
 ) -> list[dict]:
     """Top-N capacity issues ranked by three-category severity.
 
-    Categories per spec §11.6: over-allocation, chronic under-utilization,
-    unfulfilled demand. Returns ranked list with severity icon + summary.
+    Backs ``GET /api/capacity/dashboard/hotspots``. Categories per spec §11.6:
+      * ``over_allocation`` — person whose monthly utilization exceeds 100%.
+        Severity = ``3 × (peak_pct − 100) × months_affected``.
+      * ``unfulfilled_demand`` — pending RRs summed by ``role_type_id``.
+        Severity = ``2 × total_unassigned_hours``. v5.2 closeout: each
+        item also carries ``cost_center_id`` / ``cost_center_name`` /
+        ``multi_cc`` for the highest-hour CC.
+      * ``under_utilization`` — chronic ≥6-month run with avg < 10%.
+        Severity = ``run_length × (10 − avg_pct)``.
+
+    Returns a list (length ≤ ``limit``) sorted by severity desc. ``scope``
+    follows the same vocabulary as the other dashboard endpoints; an
+    empty scope or scope with zero people yields an empty list (never
+    raises).
     """
     if limit < 1:
         limit = 5
