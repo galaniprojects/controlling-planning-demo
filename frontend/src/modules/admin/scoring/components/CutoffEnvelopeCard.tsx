@@ -15,14 +15,30 @@ interface Props {
   value: number;
   onChange: (next: number) => void;
   saved: number;
+  /** Server-computed pre-funded total of Type 3 projects. The cutoff walk
+   * subtracts this from total_available_budget. Pass 0 if none. */
+  type3PreFundedTotal: number;
+  /** Server-computed committed-overhead of operate-stage projects.
+   * Also subtracted from total_available_budget. Pass 0 if none. */
+  hyperMaintenanceCommittedTotal: number;
 }
 
 function formatEur(n: number): string {
   return new Intl.NumberFormat('de-DE').format(Math.round(n));
 }
 
-export function CutoffEnvelopeCard({ value, onChange, saved }: Props) {
+export function CutoffEnvelopeCard({
+  value,
+  onChange,
+  saved,
+  type3PreFundedTotal,
+  hyperMaintenanceCommittedTotal,
+}: Props) {
   const dirty = saved !== value;
+  const contestable = Math.max(
+    0,
+    value - type3PreFundedTotal - hyperMaintenanceCommittedTotal,
+  );
 
   return (
     <Card className="p-5 space-y-3">
@@ -45,7 +61,6 @@ export function CutoffEnvelopeCard({ value, onChange, saved }: Props) {
             Total Available Budget
           </div>
           <div className="text-xs text-muted-foreground">
-            Sets should-be and reality cutoff lines on the ranked backlog.
             Currently {formatEur(value)} €.
           </div>
         </div>
@@ -58,10 +73,31 @@ export function CutoffEnvelopeCard({ value, onChange, saved }: Props) {
           step={100000}
           onChange={(e) => {
             const n = Number(e.target.value);
-            if (Number.isFinite(n) && n >= 0) onChange(n);
+            if (Number.isFinite(n)) {
+              onChange(Math.max(0, n));
+            }
           }}
           aria-label="Total Available Budget in EUR"
         />
+      </div>
+
+      <div className="text-xs text-muted-foreground space-y-0.5 pt-1 border-t border-border">
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <span>− Type 3 pre-funded</span>
+          <span className="tabular-nums">{formatEur(type3PreFundedTotal)} €</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span>− Hyper-maintenance committed</span>
+          <span className="tabular-nums">{formatEur(hyperMaintenanceCommittedTotal)} €</span>
+        </div>
+        <div className="flex items-center justify-between gap-3 pt-1 font-medium text-foreground">
+          <span>= Contestable envelope</span>
+          <span className="tabular-nums">{formatEur(contestable)} €</span>
+        </div>
+        <div className="pt-1 text-muted-foreground italic">
+          The contestable envelope is what the should-be / reality cutoffs
+          compare cumulative budget against on the ranked backlog.
+        </div>
       </div>
     </Card>
   );

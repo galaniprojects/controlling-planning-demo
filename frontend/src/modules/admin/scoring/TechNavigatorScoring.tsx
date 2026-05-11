@@ -19,7 +19,7 @@
  * On Save, a single bulk PUT applies all dirty rows.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Compass, Scale, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -86,7 +86,11 @@ type Weights = TechNavigatorScoringData['weights'];
 
 interface WorkingState {
   weights: Weights;
-  ranking_envelope: number;
+  /** The editable Total Available Budget (raw). The contestable envelope
+   * used in the cutoff walk is derived from this by subtracting
+   * type3_pre_funded_total + hyper_maintenance_committed_total from the
+   * server-side breakdown, which doesn't move on slider drag. */
+  total_available_budget: number;
 }
 
 const KEY_MAP_TN: Record<string, (w: Weights) => number> = {
@@ -107,7 +111,7 @@ const KEY_MAP_TN: Record<string, (w: Weights) => number> = {
 const RANKING_KEY = 'ranking_total_available_budget';
 
 function isDirty(working: WorkingState, saved: WorkingState): boolean {
-  if (working.ranking_envelope !== saved.ranking_envelope) return true;
+  if (working.total_available_budget !== saved.total_available_budget) return true;
   for (const key of Object.keys(KEY_MAP_TN)) {
     const getter = KEY_MAP_TN[key];
     if (getter(working.weights) !== getter(saved.weights)) return true;
@@ -125,8 +129,8 @@ function diffChanges(
     const s = getter(saved.weights);
     if (w !== s) out.push({ key, new_value: String(w) });
   }
-  if (working.ranking_envelope !== saved.ranking_envelope) {
-    out.push({ key: RANKING_KEY, new_value: String(working.ranking_envelope) });
+  if (working.total_available_budget !== saved.total_available_budget) {
+    out.push({ key: RANKING_KEY, new_value: String(working.total_available_budget) });
   }
   return out;
 }
@@ -142,23 +146,27 @@ export function TechNavigatorScoring() {
   const [resetOpen, setResetOpen] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
 
-  const fetchData = () => {
-    setLoading(true);
-    setError(null);
-    adminApi
-      .getTechNavigatorScoringData()
-      .then((d) => {
-        setData(d);
-        const initial: WorkingState = {
-          weights: d.weights,
-          ranking_envelope: d.ranking_envelope,
-        };
-        setSaved(initial);
-        setWorking(initial);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoading(false));
-  };
+  const fetchData = () =>
+    new Promise<void>((resolve) => {
+      setLoading(true);
+      setError(null);
+      adminApi
+        .getTechNavigatorScoringData()
+        .then((d) => {
+          setData(d);
+          const initial: WorkingState = {
+            weights: d.weights,
+            total_available_budget: d.envelope.total_available_budget,
+          };
+          setSaved(initial);
+          setWorking(initial);
+        })
+        .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+        .finally(() => {
+          setLoading(false);
+          resolve();
+        });
+    });
 
   useEffect(() => {
     fetchData();
@@ -192,39 +200,53 @@ export function TechNavigatorScoring() {
     [working],
   );
 
+  // Ref-based in-flight guards. The `disabled` state on the button is the
+  // intent, but React's setState is async and StrictMode can re-invoke
+  // handlers — these refs are a true single source of "request in flight"
+  // that won't drift from any state-update timing.
+  const saveInFlight = useRef(false);
+  const resetInFlight = useRef(false);
+
   const handleSave = async () => {
+    if (saveInFlight.current) return;
     if (!working || !saved) return;
     const changes = diffChanges(working, saved);
     if (changes.length === 0) return;
+    saveInFlight.current = true;
     setSaving(true);
     setFlash(null);
     try {
       await adminApi.updateParameters(changes);
       // Save succeeded — re-fetch so we pick up any server-side recompute
       // (composite scores on all projects) and the saved weights mirror
-      // the fresh DB state.
-      fetchData();
+      // the fresh DB state. Await the fetch before showing success so the
+      // flash text is true at the moment it appears.
+      await fetchData();
       setFlash(`Saved ${changes.length} parameter(s).`);
       setTimeout(() => setFlash(null), 2000);
     } catch (e) {
       setFlash(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
+      saveInFlight.current = false;
       setSaving(false);
     }
   };
 
   const handleReset = async () => {
+    if (resetInFlight.current) return;
+    resetInFlight.current = true;
     setResetting(true);
     setFlash(null);
     try {
       const keys = [...Object.keys(KEY_MAP_TN), RANKING_KEY];
       await adminApi.resetParameters(keys);
-      fetchData();
+      await fetchData();
       setFlash('Parameters reset to defaults.');
       setTimeout(() => setFlash(null), 2000);
     } catch (e) {
       setFlash(`Reset failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
+      resetInFlight.current = false;
       setResetting(false);
       setResetOpen(false);
     }
@@ -259,7 +281,7 @@ export function TechNavigatorScoring() {
           ranking: { ...prev.weights.ranking },
           tshirt: { ...prev.weights.tshirt },
         },
-        ranking_envelope: prev.ranking_envelope,
+        total_available_budget: prev.total_available_budget,
       };
       mut(next);
       return next;
@@ -434,15 +456,23 @@ export function TechNavigatorScoring() {
       </div>
 
       <CutoffEnvelopeCard
-        value={working.ranking_envelope}
-        onChange={(n) => update((s) => { s.ranking_envelope = n; })}
-        saved={saved.ranking_envelope}
+        value={working.total_available_budget}
+        onChange={(n) => update((s) => { s.total_available_budget = n; })}
+        saved={saved.total_available_budget}
+        type3PreFundedTotal={data.envelope.type3_pre_funded_total}
+        hyperMaintenanceCommittedTotal={data.envelope.hyper_maintenance_committed_total}
       />
 
       <QuadrantScatter
         projects={data.projects}
         weights={working.weights}
-        rankingEnvelope={working.ranking_envelope}
+        contestableEnvelope={Math.max(
+          0,
+          working.total_available_budget
+            - data.envelope.type3_pre_funded_total
+            - data.envelope.hyper_maintenance_committed_total,
+        )}
+        tiebreakers={data.tiebreakers}
       />
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>

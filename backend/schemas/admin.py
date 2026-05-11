@@ -244,13 +244,20 @@ class TechNavigatorScoringProject(BaseModel):
     composite_score, and tshirt_size from these inputs against the
     currently-edited (unsaved) weights so the scatter animates as sliders
     move, without an API round-trip per drag.
+
+    ``competes_in_ranking`` mirrors the walk pool used in
+    services.ranking.compute_ranked_backlog (BACKLOG_STAGES, project_type != 3)
+    so the client's cutoff math is provably identical to the server's.
+    ``doi`` is included so the client can apply the configured tiebreakers.
     """
 
     id: str
     name: str
     project_type: int | None
     pipeline_stage: str
+    doi: int | None
     total_budget: float | None
+    competes_in_ranking: bool
     tn_standardization: int
     tn_usage: int
     tn_maintenance: int
@@ -266,7 +273,25 @@ class TechNavigatorScoringWeights(BaseModel):
     tshirt: dict[str, int]
 
 
+class TechNavigatorScoringEnvelope(BaseModel):
+    """Budget envelope breakdown for the backlog cutoff math.
+
+    contestable_envelope is what the should-be / reality walks compare
+    cumulative budget against, NOT total_available_budget directly. The
+    backend computes it as total_available − type3_pre_funded
+    − hyper_maintenance_committed, clamped to a non-negative floor.
+    """
+
+    total_available_budget: float
+    type3_pre_funded_total: float
+    hyper_maintenance_committed_total: float
+    contestable_envelope: float
+
+
 class TechNavigatorScoringResponse(BaseModel):
     weights: TechNavigatorScoringWeights
-    ranking_envelope: float
+    envelope: TechNavigatorScoringEnvelope
+    # Tiebreakers as a list of (field, direction) pairs in apply order. The
+    # primary composite_score:desc sort is implicit and not included here.
+    tiebreakers: list[list[str]]
     projects: list[TechNavigatorScoringProject]

@@ -48,6 +48,22 @@ Prior iteration (a "light path" that just added the rows to the existing Plannin
 
 **Operational note** (per memory `project_schema_migration.md`): rows-only change, no column added. After pulling, hit `POST /api/admin/reset-demo` so the new tn_* PlanningParameter rows are present; until then the new page will fall back to code defaults but will fail to PUT (404 on missing keys).
 
+**Post-review hardening (commit on top of the three earlier commits)** addresses every Critical and Important finding from PR #100's independent code review:
+
+*Critical — client cutoff math drifted from backend:* the live iso-composite line was being computed against the raw `total_available_budget` (not the `contestable_envelope` = total − Type-3-pre-funded − hyper-maintenance), the walk pool included Operate-stage and Type-3 projects (backend walks only `BACKLOG_STAGES ∩ project_type != 3`), and ties used only composite-desc (backend applies configured tiebreakers + project_id final stable sort). All three fixed together: endpoint payload is now `{ weights, envelope: {total_available_budget, type3_pre_funded_total, hyper_maintenance_committed_total, contestable_envelope}, tiebreakers, projects[] }` where each project carries `doi` + `competes_in_ranking`. Client's `computeCutoffComposite` accepts the contestable envelope + tiebreakers, filters by `competes_in_ranking`, sorts by `(composite desc, ...tiebreakers, id asc)`. Non-competing projects still render on the scatter but with a dashed outline + reduced opacity so they're visible but visually distinct from the competing pool.
+
+*Important fixes:*
+- `WeightControl` and `TshirtThresholdsCard` clamp numeric input to their declared range (HTML `min`/`max` aren't enforced for typed input — a controller could type 150 or -50 and produce negative weighted-averages downstream).
+- `TshirtThresholdsCard` shows a non-blocking amber warning if `xs_max > s_max > m_max > l_max` is violated (one or more bands unreachable).
+- `routers/admin.reset_parameters` mirrors the PUT path's `parameter_key_triggers_recompute` check so resetting `ranking_total_available_budget` fans out to `recompute_within_cutoff_for_backlog`, not just `recompute_all_scores` on `tn_*` keys.
+- `TechNavigatorScoring.handleSave`/`handleReset` now have `useRef`-based in-flight guards (the `disabled` button state isn't a true guard against fast double-clicks under React 19 + StrictMode), and the post-save flash awaits the refetch instead of firing optimistically.
+- The endpoint is bound to `TechNavigatorScoringResponse` (`response_model=...`) for OpenAPI doc + Pydantic drift detection.
+- The Recharts `Scatter shape` callback has a comment pinning the verified `node.z` contract (recharts@3.7.x).
+
+*Test additions in `test_router_admin.py::TestTechNavigatorScoringData` — 5 new tests (was 8, now 13):* soft-deleted project exclusion; `competes_in_ranking=True` for P2 backlog projects; `competes_in_ranking=False` for Type 3; `competes_in_ranking=False` for Operate-stage; empty pool returns 200 with `projects=[]`. Existing tests updated for the new payload shape (`envelope` object, `tiebreakers`, project `doi` field). All 1705 backend tests pass (1700 → 1705).
+
+Screenshots: `qa/screenshots/admin-tn-scoring-v2-{light,dark}.png`. Envelope card now shows the breakdown line by line; iso-composite line at 3.42 (vs 3.35 before — the change reflects the correct contestable envelope of 13.3M, not the raw 14.44M).
+
 ### Backlog Pipeline Stage column (2026-05-11, branch `feature/backlog-stage-column`)
 
 Follow-up to PR #97 (which promoted 5 projects to Approved to balance the Cutoff badge column). Two related UX gaps remained: (a) the 3 Active projects (`proj-erp2`, `proj-mdh-rollout`, `proj-sensor`) showed only a "—" in the Cutoff column because `recompute_within_cutoff_for_backlog` (ranking.py:544-553) computes `within_cutoff` only for Approved projects by design, and (b) the pipeline stage was buried as muted subtext under each project name (`RankedRow.tsx:86`), so "what's actually running?" required scanning every row.

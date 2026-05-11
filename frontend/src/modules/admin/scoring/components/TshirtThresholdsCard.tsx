@@ -8,7 +8,7 @@
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Shirt } from 'lucide-react';
+import { AlertTriangle, Shirt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Thresholds {
@@ -36,6 +36,14 @@ function formatEur(n: number): string {
 }
 
 export function TshirtThresholdsCard({ value, onChange, saved }: Props) {
+  // Monotonicity check: xs ≤ s ≤ m ≤ l. Violations don't crash anything
+  // (`deriveTshirt` always returns *something*) but produce unreachable
+  // bands (e.g. if s_max < xs_max, no project can ever be "S").
+  const nonMonotonic =
+    value.xs_max > value.s_max ||
+    value.s_max > value.m_max ||
+    value.m_max > value.l_max;
+
   return (
     <Card className="p-5 space-y-3">
       <div className="flex items-center gap-2">
@@ -73,8 +81,9 @@ export function TshirtThresholdsCard({ value, onChange, saved }: Props) {
                 step={1000}
                 onChange={(e) => {
                   const n = Number(e.target.value);
-                  if (Number.isFinite(n) && n >= 0) {
-                    onChange({ ...value, [r.key]: n });
+                  if (Number.isFinite(n)) {
+                    // Clamp to >= 0 (negative budgets are nonsense).
+                    onChange({ ...value, [r.key]: Math.max(0, n) });
                   }
                 }}
                 aria-label={r.label}
@@ -85,6 +94,16 @@ export function TshirtThresholdsCard({ value, onChange, saved }: Props) {
         <div className="pt-2 text-xs text-muted-foreground">
           Above {formatEur(value.l_max)} € = XL.
         </div>
+        {nonMonotonic ? (
+          <div className="mt-2 flex items-start gap-2 rounded border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden />
+            <span>
+              Thresholds aren't monotonic (xs ≤ s ≤ m ≤ l). The lower bound
+              wins, so one or more bands will be unreachable. Save will still
+              work, but T-shirt assignment may not behave as expected.
+            </span>
+          </div>
+        ) : null}
       </div>
     </Card>
   );

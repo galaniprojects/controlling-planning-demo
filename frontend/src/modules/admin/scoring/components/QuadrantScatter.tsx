@@ -29,6 +29,7 @@ import {
   computeProjectScores,
   isoCompositeEndpoints,
   type TshirtSizeLetter,
+  type Tiebreaker,
 } from '../lib/scoringMath';
 import type {
   TechNavigatorScoringProject,
@@ -38,7 +39,10 @@ import type {
 interface Props {
   projects: TechNavigatorScoringProject[];
   weights: TechNavigatorScoringData['weights'];
-  rankingEnvelope: number;
+  /** Contestable envelope from the server (total − type3 − hyper). NOT the
+   * raw total_available_budget — the cutoff walk uses this exact value. */
+  contestableEnvelope: number;
+  tiebreakers: Tiebreaker[];
 }
 
 interface ScatterPoint {
@@ -49,6 +53,9 @@ interface ScatterPoint {
   composite: number;
   tshirt: TshirtSizeLetter | null;
   z: number; // ZAxis-driven dot size
+  competesInRanking: boolean;
+  totalBudget: number | null;
+  doi: number | null;
 }
 
 const TSHIRT_SIZE: Record<TshirtSizeLetter, number> = {
@@ -70,7 +77,12 @@ function compositeColor(composite: number): string {
   return `hsl(${h.toFixed(0)}, ${s.toFixed(0)}%, ${l.toFixed(0)}%)`;
 }
 
-export function QuadrantScatter({ projects, weights, rankingEnvelope }: Props) {
+export function QuadrantScatter({
+  projects,
+  weights,
+  contestableEnvelope,
+  tiebreakers,
+}: Props) {
   const points: ScatterPoint[] = useMemo(() => {
     const tnWeights = {
       complexity: weights.complexity,
@@ -92,6 +104,9 @@ export function QuadrantScatter({ projects, weights, rankingEnvelope }: Props) {
           composite: s.composite_score,
           tshirt: s.tshirt_size,
           z: s.tshirt_size ? TSHIRT_SIZE[s.tshirt_size] : TSHIRT_SIZE.M,
+          competesInRanking: p.competes_in_ranking,
+          totalBudget: p.total_budget,
+          doi: p.doi,
         };
       })
       .filter((p): p is ScatterPoint => p !== null);
@@ -101,13 +116,16 @@ export function QuadrantScatter({ projects, weights, rankingEnvelope }: Props) {
     () =>
       computeCutoffComposite(
         points.map((p) => ({
+          id: p.id,
           composite_score: p.composite,
-          total_budget:
-            projects.find((pr) => pr.id === p.id)?.total_budget ?? null,
+          total_budget: p.totalBudget,
+          doi: p.doi,
+          competes_in_ranking: p.competesInRanking,
         })),
-        rankingEnvelope,
+        contestableEnvelope,
+        tiebreakers,
       ),
-    [points, projects, rankingEnvelope],
+    [points, contestableEnvelope, tiebreakers],
   );
 
   const isoLine = useMemo(() => {
@@ -186,6 +204,11 @@ export function QuadrantScatter({ projects, weights, rankingEnvelope }: Props) {
                         T-shirt {p.tshirt}
                       </div>
                     ) : null}
+                    {!p.competesInRanking ? (
+                      <div className="text-muted-foreground mt-0.5 italic">
+                        does not compete in cutoff walk
+                      </div>
+                    ) : null}
                   </div>
                 );
               }}
@@ -211,6 +234,10 @@ export function QuadrantScatter({ projects, weights, rankingEnvelope }: Props) {
             <Scatter
               name="Projects"
               data={points}
+              // Custom shape: Recharts (verified against recharts@3.7.x) passes
+              // a `node.z` reflecting the ZAxis-resolved size (the [40, 260]
+              // range from our <ZAxis>); if a future Recharts release changes
+              // this contract, dots silently fall back to the M default.
               shape={(props: { cx?: number; cy?: number; payload?: ScatterPoint; node?: { z?: number } }) => {
                 const { cx = 0, cy = 0, payload, node } = props;
                 if (!payload) return <g />;
@@ -222,10 +249,11 @@ export function QuadrantScatter({ projects, weights, rankingEnvelope }: Props) {
                     cy={cy}
                     r={r}
                     fill={compositeColor(payload.composite)}
-                    fillOpacity={0.85}
+                    fillOpacity={payload.competesInRanking ? 0.85 : 0.45}
                     stroke="var(--foreground)"
-                    strokeOpacity={0.25}
+                    strokeOpacity={payload.competesInRanking ? 0.25 : 0.15}
                     strokeWidth={1}
+                    strokeDasharray={payload.competesInRanking ? undefined : '2 2'}
                   />
                 );
               }}
@@ -237,11 +265,12 @@ export function QuadrantScatter({ projects, weights, rankingEnvelope }: Props) {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span>size = T-shirt (XS → XL)</span>
         <span>colour = composite (low → high)</span>
+        <span>dashed outline = does not compete in cutoff walk (Type 3 or operate-stage)</span>
         {isoLine ? (
           <span>diagonal = iso-composite at the should-be cutoff threshold</span>
         ) : (
           <span className="text-amber-600 dark:text-amber-400">
-            cutoff line hidden — no project crosses the budget envelope at these weights
+            cutoff line hidden — no project crosses the contestable envelope at these weights
           </span>
         )}
       </div>

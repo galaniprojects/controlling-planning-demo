@@ -77,7 +77,11 @@ export function WeightControl({
           step={step}
           onChange={(e) => {
             const n = Number(e.target.value);
-            if (Number.isFinite(n)) onChange(n);
+            if (!Number.isFinite(n)) return;
+            // Clamp to [min, max] — HTML min/max attrs aren't enforced for
+            // typed input; without this a user can type 150 (or -50) and
+            // produce nonsense weighted-averages downstream.
+            onChange(Math.max(min, Math.min(max, n)));
           }}
           aria-label={`${label} numeric`}
         />

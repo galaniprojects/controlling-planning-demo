@@ -143,36 +143,85 @@ export function computeProjectScores(
 }
 
 /**
- * Compute the composite score at the should-be cutoff rank, given a set of
- * projects (already scored under the live weights) and the budget envelope.
+ * Compute the composite score at the should-be cutoff rank.
  *
- * Walks projects in descending composite order, accumulating total_budget;
- * the first project whose cumulative crosses the envelope is the cutoff
- * trigger. Returns that project's composite score.
+ * Mirrors backend `services/ranking.compute_ranked_backlog` exactly:
  *
- * Returns null if no project crosses the envelope (every project fits) or
- * the project list is empty.
+ *   1. Walk pool excludes anything `competes_in_ranking === false`
+ *      (Type 3 pre-funded projects and operate-stage projects).
+ *   2. Sort by composite_score DESC, then apply each configured tiebreaker
+ *      in order (e.g. `doi:asc`, `total_budget:desc`), then `id` ASC as a
+ *      final stable tiebreaker so ties resolve identically every call.
+ *   3. Cumulative-sum `total_budget` along the sort; the first project
+ *      whose cumulative exceeds `contestableEnvelope` is the cutoff.
+ *   4. Returns that project's composite score, or null if no project
+ *      crosses the envelope (every project fits).
+ *
+ * `contestableEnvelope` is NOT `total_available_budget`; it's
+ *   total_available − type3_pre_funded − hyper_maintenance_committed
+ * (computed server-side and shipped in the API payload).
  */
-export interface ProjectWithComposite {
+export interface ProjectWalkRow {
+  id: string;
   composite_score: number | null;
   total_budget: number | null;
+  doi: number | null;
+  competes_in_ranking: boolean;
+}
+
+export type TiebreakerField = 'composite_score' | 'doi' | 'total_budget';
+export type TiebreakerDir = 'asc' | 'desc';
+export type Tiebreaker = [TiebreakerField | string, TiebreakerDir | string];
+
+function readField(row: ProjectWalkRow, field: string): number {
+  // Treat nulls as -Infinity for desc / +Infinity for asc would distort
+  // ties; instead use 0 as a neutral sentinel matching the backend's
+  // `getattr(project, field) or 0` pattern in _project_sort_key.
+  switch (field) {
+    case 'composite_score':
+      return row.composite_score ?? 0;
+    case 'doi':
+      return row.doi ?? 0;
+    case 'total_budget':
+      return row.total_budget ?? 0;
+    default:
+      return 0;
+  }
 }
 
 export function computeCutoffComposite(
-  scored: ProjectWithComposite[],
-  envelope: number,
+  scored: ProjectWalkRow[],
+  contestableEnvelope: number,
+  tiebreakers: Tiebreaker[] = [],
 ): number | null {
-  const ranked = scored
-    .filter((p) => p.composite_score !== null && p.total_budget !== null)
-    .slice()
-    .sort(
-      (a, b) =>
-        (b.composite_score as number) - (a.composite_score as number),
-    );
+  const competing = scored.filter(
+    (p) =>
+      p.competes_in_ranking &&
+      p.composite_score !== null &&
+      p.total_budget !== null,
+  );
+
+  const ranked = competing.slice().sort((a, b) => {
+    // Primary axis is always composite_score:desc (matches backend).
+    const compDiff = (b.composite_score as number) - (a.composite_score as number);
+    if (compDiff !== 0) return compDiff;
+    for (const [field, dir] of tiebreakers) {
+      // Skip composite_score in the tiebreaker list — it's the primary axis.
+      if (field === 'composite_score') continue;
+      const av = readField(a, field);
+      const bv = readField(b, field);
+      if (av === bv) continue;
+      return dir === 'asc' ? av - bv : bv - av;
+    }
+    // Final stable tiebreaker: project id ASC (matches Python's sort stability
+    // after .all() ordered by Project.id in the bulk query path).
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+
   let cum = 0;
   for (const p of ranked) {
     cum += p.total_budget as number;
-    if (cum > envelope) {
+    if (cum > contestableEnvelope) {
       return p.composite_score;
     }
   }
