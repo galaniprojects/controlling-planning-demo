@@ -805,3 +805,32 @@ class TestListAndGetProfiles:
     def test_get_profile_for_entity_returns_none_when_absent(self, db):
         result = get_profile_for_entity(db, "ce-nonexistent", 2026)
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Regression: seed.sql TEXT format (no microseconds)
+# ---------------------------------------------------------------------------
+
+class TestComputeUmSnapshotSeedFormat:
+    """Reproduces the bug PR #99 fixes. ``seed.sql`` writes
+    ``imported_at`` as TEXT without microseconds; SQLAlchemy's ``DateTime``
+    binding adds ``.000000`` to Python ``datetime`` parameters, so a
+    Python-bound filter would never match seed rows. The ORM-based tests
+    above can't catch this because both write and read round-trip through
+    the same ``.000000`` binding.
+    """
+
+    def test_seed_format_no_microseconds_resolves(self, db):
+        from sqlalchemy import text
+        _make_cl(db, "cl-de-muc", "DE-MUC-001")
+        db.execute(text(
+            "INSERT INTO user_measurements "
+            "(year, quarter, s_code, charging_location_id, value, source, imported_at) "
+            "VALUES (2026, 1, 'S0001', 'cl-de-muc', 100.0, 'seed', "
+            "'2026-01-15 10:00:00')"
+        ))
+        db.commit()
+        snap = compute_um_snapshot(db, "S0001", 2026, 1)
+        assert len(snap.rows) == 1
+        assert snap.imported_at == datetime(2026, 1, 15, 10, 0, 0)
+        assert snap.rows[0].percentage == 100.0
