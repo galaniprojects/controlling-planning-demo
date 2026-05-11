@@ -662,6 +662,79 @@ def recompute_scores(
     return {"recomputed": count}
 
 
+@router.get("/tech-navigator/scoring-data")
+def get_tech_navigator_scoring_data(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """Bulk payload for the Tech Navigator Scoring admin page.
+
+    Returns the current weights snapshot, the ranking budget envelope, and
+    every backlog/operate project that has all six sub-criteria scored. The
+    page recomputes complexity_score, value_creation_score, composite_score,
+    and tshirt_size client-side from these inputs against the live (unsaved)
+    weights so the scatter animates as sliders move, without an API
+    round-trip per drag.
+
+    Returns:
+      {
+        "weights": {complexity, value_creation, ranking, tshirt},
+        "ranking_envelope": float,
+        "projects": [ {id, name, project_type, pipeline_stage,
+                       total_budget, six sub-criteria}, ... ]
+      }
+    """
+    from services.tech_navigator import load_weights
+    from services.ranking import load_config
+    from services.pipeline import BACKLOG_STAGES, OPERATE_STAGES
+
+    weights = load_weights(db)
+    ranking_config = load_config(db)
+
+    valid_stages = list(BACKLOG_STAGES | OPERATE_STAGES)
+    rows = (
+        db.query(Project)
+        .filter(
+            Project.is_active.is_(True),
+            Project.pipeline_stage.in_(valid_stages),
+            Project.tn_standardization.isnot(None),
+            Project.tn_usage.isnot(None),
+            Project.tn_maintenance.isnot(None),
+            Project.tn_financial_benefit.isnot(None),
+            Project.tn_payback.isnot(None),
+            Project.tn_competitive_advantage.isnot(None),
+        )
+        .order_by(Project.id)
+        .all()
+    )
+
+    return {
+        "weights": {
+            "complexity": weights.complexity,
+            "value_creation": weights.value_creation,
+            "ranking": weights.ranking,
+            "tshirt": weights.tshirt,
+        },
+        "ranking_envelope": ranking_config.total_available_budget,
+        "projects": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "project_type": p.project_type,
+                "pipeline_stage": p.pipeline_stage,
+                "total_budget": float(p.total_budget) if p.total_budget is not None else None,
+                "tn_standardization": p.tn_standardization,
+                "tn_usage": p.tn_usage,
+                "tn_maintenance": p.tn_maintenance,
+                "tn_financial_benefit": p.tn_financial_benefit,
+                "tn_payback": p.tn_payback,
+                "tn_competitive_advantage": p.tn_competitive_advantage,
+            }
+            for p in rows
+        ],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Grouping Hierarchy (ADM-01) — 10 endpoints
 # ---------------------------------------------------------------------------

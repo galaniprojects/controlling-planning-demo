@@ -61,78 +61,14 @@ interface Props {
 const DEBOUNCE_MS = 300;
 const SAVED_INDICATOR_MS = 1500;
 
-// ---------------------------------------------------------------------------
-// Local recompute helpers — mirror backend services/tech_navigator.py.
-// Kept inline so the component stays self-contained.
-// ---------------------------------------------------------------------------
-
-function weightedAverage(
-  values: Array<number | null>,
-  weights: number[],
-): number | null {
-  if (values.some((v) => v === null || v === undefined)) return null;
-  const totalWeight = weights.reduce<number>((s, w) => s + w, 0);
-  if (totalWeight <= 0) return null;
-  const weighted = values.reduce<number>(
-    (s, v, i) => s + (v as number) * weights[i],
-    0,
-  );
-  return Math.round((weighted / totalWeight) * 100) / 100;
-}
-
-function recomputeComplexity(
-  profile: TechNavigatorProfile,
-  weights: TechNavigatorWeights,
-): number | null {
-  return weightedAverage(
-    [
-      profile.tn_standardization,
-      profile.tn_usage,
-      profile.tn_maintenance,
-    ],
-    [
-      weights.complexity.standardization,
-      weights.complexity.usage,
-      weights.complexity.maintenance,
-    ],
-  );
-}
-
-function recomputeValueCreation(
-  profile: TechNavigatorProfile,
-  weights: TechNavigatorWeights,
-): number | null {
-  return weightedAverage(
-    [
-      profile.tn_financial_benefit,
-      profile.tn_payback,
-      profile.tn_competitive_advantage,
-    ],
-    [
-      weights.value_creation.financial,
-      weights.value_creation.payback,
-      weights.value_creation.competitive,
-    ],
-  );
-}
-
-function recomputeComposite(
-  complexity: number | null,
-  value: number | null,
-  weights: TechNavigatorWeights,
-): number | null {
-  if (complexity === null || value === null) return null;
-  const total = weights.ranking.value + weights.ranking.complexity;
-  if (total <= 0) return null;
-  return (
-    Math.round(
-      ((value * weights.ranking.value +
-        complexity * weights.ranking.complexity) /
-        total) *
-        100,
-    ) / 100
-  );
-}
+// Recompute helpers live in the shared scoring-math module so the
+// dedicated Tech Navigator Scoring admin page and this rubric stay in
+// lock-step with backend services/tech_navigator.py.
+import {
+  computeComplexity as recomputeComplexity,
+  computeValueCreation as recomputeValueCreation,
+  computeComposite as recomputeComposite,
+} from '@/modules/admin/scoring/lib/scoringMath';
 
 // ---------------------------------------------------------------------------
 // Component

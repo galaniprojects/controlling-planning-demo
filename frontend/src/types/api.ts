@@ -1455,6 +1455,31 @@ export interface AdminParameter {
   group: string;
 }
 
+export interface TechNavigatorScoringProject {
+  id: string;
+  name: string;
+  project_type: number | null;
+  pipeline_stage: string;
+  total_budget: number | null;
+  tn_standardization: number;
+  tn_usage: number;
+  tn_maintenance: number;
+  tn_financial_benefit: number;
+  tn_payback: number;
+  tn_competitive_advantage: number;
+}
+
+export interface TechNavigatorScoringData {
+  weights: {
+    complexity: { standardization: number; usage: number; maintenance: number };
+    value_creation: { financial: number; payback: number; competitive: number };
+    ranking: { value: number; complexity: number };
+    tshirt: { xs_max: number; s_max: number; m_max: number; l_max: number };
+  };
+  ranking_envelope: number;
+  projects: TechNavigatorScoringProject[];
+}
+
 export interface AuditLogEntry {
   id: number;
   timestamp: string;

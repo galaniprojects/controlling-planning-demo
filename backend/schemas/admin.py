@@ -233,3 +233,40 @@ class RolePermissionGrantBulkUpdate(BaseModel):
     """Bulk replace grants — convenient for Section 5 admin grid UI."""
 
     grants: list[RolePermissionGrantCreate]
+
+
+# --- Tech Navigator Scoring page ---
+class TechNavigatorScoringProject(BaseModel):
+    """One row in the scoring-data payload — sub-criteria + budget + stage.
+
+    Drives the client-side live preview on the Tech Navigator Scoring admin
+    page. Frontend recomputes complexity_score, value_creation_score,
+    composite_score, and tshirt_size from these inputs against the
+    currently-edited (unsaved) weights so the scatter animates as sliders
+    move, without an API round-trip per drag.
+    """
+
+    id: str
+    name: str
+    project_type: int | None
+    pipeline_stage: str
+    total_budget: float | None
+    tn_standardization: int
+    tn_usage: int
+    tn_maintenance: int
+    tn_financial_benefit: int
+    tn_payback: int
+    tn_competitive_advantage: int
+
+
+class TechNavigatorScoringWeights(BaseModel):
+    complexity: dict[str, float]
+    value_creation: dict[str, float]
+    ranking: dict[str, float]
+    tshirt: dict[str, int]
+
+
+class TechNavigatorScoringResponse(BaseModel):
+    weights: TechNavigatorScoringWeights
+    ranking_envelope: float
+    projects: list[TechNavigatorScoringProject]
