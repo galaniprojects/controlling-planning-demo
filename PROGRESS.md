@@ -14,6 +14,29 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 
 **v5.2 cycle complete** — six waves, six PRs (#88 / #90 / #91 / #92 / #93 / #94) plus the closeout PR. Capacity Module Redesign closed 2026-05-10.
 
+### Define-page redesign — feature complete (2026-05-11, branch `feature/define-page-redesign`, agent team `define-page-redesign`)
+
+Single-session 4-teammate parallel team replaced the "+ New" popup with a tabbed Define page that is the canonical project home at every DoI level. The Workbench is no longer auto-redirected to at DoI 3+ — an explicit "Open in Workbench" header button appears once approved. Per-tab Save buttons replace the legacy autosave-on-blur pattern (the only true autosave site in the codebase was the TN rubric, which got gutted; everything else already used explicit Save or local-cell-edit-on-blur). Per-tab descriptions appear in the sections below:
+
+- **Task #1 (backend-dev)** — `POST /api/projects/define`, `GET /{id}/define`, `PUT /identity`, `PUT /approval-milestones`, `PUT /baseline-grid`. 36 tests; full 1745-test suite green. See "Define-page redesign — backend API surface" below.
+- **Task #2 (shell-builder)** — `frontend/src/modules/define/{DefineProjectPage,DefineShell,IdentityTab,DoIOverlay,useDirtyBuffer,api}.tsx/.ts`; routing for `/define/new`+`/define/:id`; `BacklogProjectDetailPage` converted to thin redirect; `SubmitProjectDialog` stubbed; "+ New" button rewired; `DoIRequirementsRegistry` extended with `target_tab`+`field_anchor` for deep-linking.
+- **Task #3 (tabs-builder)** — `TechNavigatorTab.tsx`, `FinancialsTab.tsx`. Workbench Phase 3 forecast grid refactored into `frontend/src/components/shared/MonthCategoryGrid.tsx` (pure presentational primitive; same grid powers Workbench forecast writes and Define baseline writes). Legacy `TechNavigatorRubric.tsx` autosave gutted.
+- **Task #4 (sweep-builder)** — `ApprovalMilestonesTab.tsx`; autosave-sweep audit confirmed zero remaining sites; transformation_level moved off the TN tab per the boundary contract. See "Define-page redesign — Approval & Milestones tab + autosave sweep" below.
+- **Team-lead patch** — added `MilestoneTypeListResponse` to `types/milestones.ts` to satisfy shell-builder's milestone CRUD import (commit `0c70994`).
+
+**Verification** — both `/define/new` (empty form, Save disabled until name) and `/define/{existing-id}` (DoI 3 case with active "Open in Workbench" button + "Project approved" overlay banner) verified at 1440px in Chrome DevTools MCP. 14 teammate-produced screenshots in `qa/screenshots/` cover golden path + dark mode + per-tab states. `/backlog/:id` redirect verified to land on `/define/:id` preserving query+hash. `npm run build` introduced **zero new TypeScript errors** (all remaining errors are pre-existing on `main`). Full backend pytest suite green (1745 tests).
+
+9 commits total on the branch:
+- `5d8011c` — Define-page: backend API surface (backend-dev)
+- `75b2fe3` — Define page: extract MonthCategoryGrid shared primitive (tabs-builder)
+- `866e76f` — Workbench: refactor Phase 3 forecast grid onto MonthCategoryGrid (tabs-builder)
+- `6cf9122` — Backlog: gut autosave from legacy TechNavigatorRubric (tabs-builder)
+- `41516df` — Define page: add Tech Navigator and Financials tabs (tabs-builder)
+- `82f6ca7` — Define page: shared TS types + milestone CRUD on milestonesApi (shell-builder)
+- `2b82fbd` — Define page: Approval & Milestones tab + page wire-up (sweep-builder, bundled shell-builder's files)
+- `415e806` — Define page: move transformation_level off the TN tab (sweep-builder, boundary fix)
+- `0c70994` — Define page: add MilestoneTypeListResponse to fix milestone CRUD import (team-lead)
+
 ### Define-page redesign — backend API surface (2026-05-11, branch `feature/define-page-redesign`, agent team `define-page-redesign`)
 
 Backend half of the Define-page redesign (Task #1 of the 4-teammate team). Replaces the "+ New" popup with a tabbed Define page that becomes the canonical project home at every DoI level. Frontend work owned by shell-builder / tabs-builder / sweep-builder is tracked separately.
