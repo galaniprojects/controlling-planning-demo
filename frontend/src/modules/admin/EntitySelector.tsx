@@ -26,6 +26,7 @@ import {
   Calendar,
   UserCog,
   KeyRound,
+  Compass,
 } from 'lucide-react';
 import {
   LeftRailNav,
@@ -54,6 +55,7 @@ const REFERENCE_SECTIONS: LeftRailNavItem[] = [
 
 const PLANNING_SECTIONS: LeftRailNavItem[] = [
   { id: 'parameters', label: 'Planning Parameters', icon: Settings },
+  { id: 'tn_scoring', label: 'Tech Navigator Scoring', icon: Compass },
 ];
 
 const HIERARCHY_SECTIONS: LeftRailNavItem[] = [

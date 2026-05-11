@@ -26,6 +26,7 @@ import { LocationsPanel } from './entities/LocationsPanel';
 import { PeoplePanel } from './entities/PeoplePanel';
 import { RateTablePanel } from './entities/RateTablePanel';
 import { PlanningParameters } from './parameters/PlanningParameters';
+import { TechNavigatorScoring } from './scoring/TechNavigatorScoring';
 import { AuditLogV2Panel } from './audit/AuditLogV2Panel';
 import { PortfolioHierarchyPanel } from './hierarchy/PortfolioHierarchyPanel';
 // === D3 panels ===
@@ -155,6 +156,8 @@ export function Administration() {
       // Section 3 — Planning & Ranking
       case 'parameters':
         return <PlanningParameters />;
+      case 'tn_scoring':
+        return <TechNavigatorScoring />;
 
       // Section 4 — Portfolio Hierarchy
       case 'portfolio_hierarchy':

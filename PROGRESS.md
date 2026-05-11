@@ -14,6 +14,67 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 
 **v5.2 cycle complete** — six waves, six PRs (#88 / #90 / #91 / #92 / #93 / #94) plus the closeout PR. Capacity Module Redesign closed 2026-05-10.
 
+### Tech Navigator Scoring admin page (2026-05-11, branch `feature/admin-tn-weights`)
+
+A dedicated admin page that surfaces the entire backlog scoring formula with live controls — the composite formula in readable form, slider + number-input controls for every weight, and a live Tech Navigator quadrant scatter that animates dots and the iso-composite cutoff line on every slider drag.
+
+Prior iteration (a "light path" that just added the rows to the existing Planning Parameters page) was reverted at the user's request — too plain for the demo moment. Branch was deleted and recreated off main; this commit lands fresh.
+
+**Backend** (`backend/`):
+- `seed/seed.sql` — 12 new `tn_*` rows in the existing `INSERT INTO planning_parameters` block (`param_group='tech_navigator'`), values matching `tech_navigator.py:26-42` defaults exactly so `load_weights()` returns the same snapshot it did before and every project's stored composite/complexity/value_creation/tshirt remains unchanged on cold reseed.
+- `routers/admin.py` — new `GET /api/admin/tech-navigator/scoring-data` endpoint (Controller-only). Returns `{weights, ranking_envelope, projects[]}` where each project carries its 6 raw sub-criteria + total_budget so the page recomputes everything client-side per slider drag with no API round-trip. Filters out projects with any null sub-criterion and projects outside `BACKLOG_STAGES ∪ OPERATE_STAGES` (so Cancelled/Retired don't bloat the scatter).
+- `schemas/admin.py` — new `TechNavigatorScoringProject`, `TechNavigatorScoringWeights`, `TechNavigatorScoringResponse` Pydantic models.
+- `tests/test_router_admin.py` — new `TestTechNavigatorScoringData` class with 8 tests (envelope shape, includes fully-scored project, filters partial sub-criteria, filters out-of-scope stages, Controller-200 / PL-403 / Executive-403, project shape).
+
+**Frontend** (`frontend/src/`):
+- `components/ui/slider.tsx` — NEW shadcn Slider component using the radix-ui umbrella (already in deps).
+- `modules/admin/scoring/lib/scoringMath.ts` — shared client-side math: `weightedAverage`, `computeComplexity`, `computeValueCreation`, `computeComposite`, `deriveTshirt`, `computeProjectScores`, `computeCutoffComposite` (walks the budget envelope to find the cutoff-rank's composite), and `isoCompositeEndpoints` (solves the iso-composite line `cutoff = (V·wV + X·wC)/(wV+wC)` for two endpoints inside the 1..5 quadrant; degenerate-weights case returns null). Mirrors backend `services/tech_navigator.py` exactly so both surfaces stay in lock-step.
+- `modules/admin/scoring/components/` — six new components: `FormulaCard` (typography-only formula display, no math library), `WeightControl` (Slider + Input synced two-ways through parent state, with dirty highlight), `AxisWeightsCard` (reusable card with live sum indicator that turns amber when sum ≠ 100), `TshirtThresholdsCard` (four EUR thresholds with band labels), `CutoffEnvelopeCard` (Total Available Budget input), `QuadrantScatter` (Recharts `ScatterChart` + `ReferenceLine` for the iso-composite diagonal; dot colour via HSL ramp 220° slate → 150° emerald based on composite; dot size via `ZAxis` driven by T-shirt letter; custom shape callback paints circles with composite-coloured fill).
+- `modules/admin/scoring/TechNavigatorScoring.tsx` — main page. Owns the working/saved state split, fetches `getTechNavigatorScoringData`, renders all cards, handles bulk Save (PUT `/api/admin/parameters` with diffed changes) and Reset all (POST `/api/admin/parameters/reset` with all 13 keys). Confirmation dialog on reset.
+- `modules/admin/EntitySelector.tsx` — `{ id: 'tn_scoring', label: 'Tech Navigator Scoring', icon: Compass }` added to `PLANNING_SECTIONS`.
+- `modules/admin/Administration.tsx` — registered the new `case 'tn_scoring'` section.
+- `api/endpoints.ts` + `types/api.ts` — typed client method + `TechNavigatorScoringData` / `TechNavigatorScoringProject` types.
+- `modules/backlog/components/TechNavigatorRubric.tsx` — local `weightedAverage` / `recomputeComplexity` / `recomputeValueCreation` / `recomputeComposite` removed and replaced by imports from the new shared `scoringMath` module. Same call shapes, so call sites unchanged.
+
+**Documentation**: rewrote the "Tech Navigator Scoring" section of `backend/seed/fixtures/manuals/administration.json` describing the dedicated page (the prior text mentioned a non-existent function and a non-existent sum-to-1.0 validation). Updated the "5-Section Sidebar Navigation" section to list the new sub-item.
+
+**Behavioural invariance verified**: 5 representative projects' (`proj-bk01`, `proj-bk08`, `proj-sensor`, `proj-erp2`, `proj-railsafety`) 4 score columns each snapshotted before the change; on cold reseed (`POST /api/admin/reset-demo`) all values match the baseline exactly.
+
+**Round-trip verified end-to-end**: PUT `tn_w_value` 70→80 writes an audit row (category `configuration`), the auto-recompute fires (`recompute_all_scores` and `recompute_within_cutoff_for_backlog`), reset returns the parameter to default. The live scatter on the page updates as sliders drag (iso-composite line rotates / shifts; dot colours shift; dot positions shift when sub-criteria weights change) — verified by DOM measurement + screenshots.
+
+**All 1700 backend tests pass** (1692 existing + 8 new). `tsc --noEmit` clean. No console errors at `/admin?section=tn_scoring`. Screenshots: `qa/screenshots/admin-tn-scoring-{light,dark,after-drag}.png`.
+
+**Pre-existing quirk surfaced but not introduced**: seed.sql hardcodes literal `composite_score` / `value_creation_score` / `complexity_score` values per project that don't always match what `compute_*` would produce from the same sub-criteria. On the first `tn_*` edit the auto-recompute hook normalizes those literals; a few projects' scores shift by ~0.05. Independent of this PR — anyone editing tn_* params today would hit the same one-time shift; this change just makes the path reachable through the UI.
+
+**Operational note** (per memory `project_schema_migration.md`): rows-only change, no column added. After pulling, hit `POST /api/admin/reset-demo` so the new tn_* PlanningParameter rows are present; until then the new page will fall back to code defaults but will fail to PUT (404 on missing keys).
+
+**Post-review hardening (commit on top of the three earlier commits)** addresses every Critical and Important finding from PR #100's independent code review:
+
+*Critical — client cutoff math drifted from backend:* the live iso-composite line was being computed against the raw `total_available_budget` (not the `contestable_envelope` = total − Type-3-pre-funded − hyper-maintenance), the walk pool included Operate-stage and Type-3 projects (backend walks only `BACKLOG_STAGES ∩ project_type != 3`), and ties used only composite-desc (backend applies configured tiebreakers + project_id final stable sort). All three fixed together: endpoint payload is now `{ weights, envelope: {total_available_budget, type3_pre_funded_total, hyper_maintenance_committed_total, contestable_envelope}, tiebreakers, projects[] }` where each project carries `doi` + `competes_in_ranking`. Client's `computeCutoffComposite` accepts the contestable envelope + tiebreakers, filters by `competes_in_ranking`, sorts by `(composite desc, ...tiebreakers, id asc)`. Non-competing projects still render on the scatter but with a dashed outline + reduced opacity so they're visible but visually distinct from the competing pool.
+
+*Important fixes:*
+- `WeightControl` and `TshirtThresholdsCard` clamp numeric input to their declared range (HTML `min`/`max` aren't enforced for typed input — a controller could type 150 or -50 and produce negative weighted-averages downstream).
+- `TshirtThresholdsCard` shows a non-blocking amber warning if `xs_max > s_max > m_max > l_max` is violated (one or more bands unreachable).
+- `routers/admin.reset_parameters` mirrors the PUT path's `parameter_key_triggers_recompute` check so resetting `ranking_total_available_budget` fans out to `recompute_within_cutoff_for_backlog`, not just `recompute_all_scores` on `tn_*` keys.
+- `TechNavigatorScoring.handleSave`/`handleReset` now have `useRef`-based in-flight guards (the `disabled` button state isn't a true guard against fast double-clicks under React 19 + StrictMode), and the post-save flash awaits the refetch instead of firing optimistically.
+- The endpoint is bound to `TechNavigatorScoringResponse` (`response_model=...`) for OpenAPI doc + Pydantic drift detection.
+- The Recharts `Scatter shape` callback has a comment pinning the verified `node.z` contract (recharts@3.7.x).
+
+*Test additions in `test_router_admin.py::TestTechNavigatorScoringData` — 5 new tests (was 8, now 13):* soft-deleted project exclusion; `competes_in_ranking=True` for P2 backlog projects; `competes_in_ranking=False` for Type 3; `competes_in_ranking=False` for Operate-stage; empty pool returns 200 with `projects=[]`. Existing tests updated for the new payload shape (`envelope` object, `tiebreakers`, project `doi` field). All 1705 backend tests pass (1700 → 1705).
+
+Screenshots: `qa/screenshots/admin-tn-scoring-v2-{light,dark}.png`. Envelope card now shows the breakdown line by line; iso-composite line at 3.42 (vs 3.35 before — the change reflects the correct contestable envelope of 13.3M, not the raw 14.44M).
+
+**Round-2 review fixes (commit on top of the previous fix commit).** A second independent code review caught four follow-up issues. All addressed in `feature/admin-tn-weights` head:
+
+- *Null-doi tiebreaker divergence.* Client `readField` returned `0` for null values; backend `_project_sort_key` (`ranking.py:275-280`) uses `_MISSING_ASC = +inf` so nulls sink to the bottom for both asc and desc. For Paused projects (which sit in `BACKLOG_STAGES` but carry `doi=None`), the client's iso-line sort could place them ABOVE non-null rows on a `doi:asc` tiebreaker — diverging from backend ranking. `scoringMath.ts` now returns the raw value (or null) from `readField` and a new `compareField` helper sinks nulls to the bottom regardless of direction, matching the backend exactly.
+- *Save-in-flight discarded concurrent edits.* `handleSave`'s `await fetchData()` calls `setWorking(initial)`, overwriting any slider movement the user made during the network round-trip. Added a `formDisabled = saving || resetting` flag threaded as a new `disabled?: boolean` prop on `WeightControl` / `TshirtThresholdsCard` / `CutoffEnvelopeCard`, locking the controls (both Radix Slider and number Inputs) for the duration of save/reset.
+- *Missing reset-recompute test.* The fix path (`reset_parameters` fanning out to `recompute_within_cutoff_for_backlog` when a ranking-trigger key resets) was previously code-only. New `TestResetParametersRecomputesWithinCutoff` seeds an Approved project with `within_cutoff=None` plus a non-default `ranking_total_available_budget`, POSTs `/parameters/reset`, asserts the flag flipped to a concrete bool (proving the recompute fan-out ran).
+- *Tiebreakers schema too loose.* `tiebreakers: list[list[str]]` accepted entries of any length and direction. Added a Pydantic `@field_validator` to `TechNavigatorScoringResponse` enforcing exact arity-2 and direction ∈ `{"asc", "desc"}`. Wire format unchanged.
+
+Plus two trivial nice-to-haves: T-shirt monotonicity check now uses `>=` (equal adjacent bounds also make a band unreachable), and the misleading `readField` comment now correctly references `_project_sort_key` instead of `_project_walk_budget`.
+
+All 1706 backend tests pass (1705 + 1 new). `tsc --noEmit` clean. Screenshots: `qa/screenshots/admin-tn-scoring-v3-light.png`.
+
 ### Backlog Pipeline Stage column (2026-05-11, branch `feature/backlog-stage-column`)
 
 Follow-up to PR #97 (which promoted 5 projects to Approved to balance the Cutoff badge column). Two related UX gaps remained: (a) the 3 Active projects (`proj-erp2`, `proj-mdh-rollout`, `proj-sensor`) showed only a "—" in the Cutoff column because `recompute_within_cutoff_for_backlog` (ranking.py:544-553) computes `within_cutoff` only for Approved projects by design, and (b) the pipeline stage was buried as muted subtext under each project name (`RankedRow.tsx:86`), so "what's actually running?" required scanning every row.

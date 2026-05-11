@@ -82,6 +82,7 @@ import type {
   RefPerson,
   AdminRateEntry,
   AdminParameter,
+  TechNavigatorScoringData,
   AuditLogEntry,
   FAQSummary,
   FAQDetail,
@@ -878,6 +879,10 @@ export const adminApi = {
     api.put<ListResponse<{ key: string; name: string; current_value: string }>>('/api/admin/parameters', { changes }),
   resetParameters: (keys?: string[]) =>
     api.post<ListResponse<{ key: string; name: string; current_value: string }>>('/api/admin/parameters/reset', { keys: keys ?? null }),
+
+  // Tech Navigator Scoring page — bulk payload for the live scatter
+  getTechNavigatorScoringData: () =>
+    api.get<TechNavigatorScoringData>('/api/admin/tech-navigator/scoring-data'),
 
   // Grouping Hierarchy (ADM-01)
   getEntityTypes: () =>

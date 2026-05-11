@@ -1455,6 +1455,49 @@ export interface AdminParameter {
   group: string;
 }
 
+export interface TechNavigatorScoringProject {
+  id: string;
+  name: string;
+  project_type: number | null;
+  pipeline_stage: string;
+  doi: number | null;
+  total_budget: number | null;
+  /** Whether this project counts in the should-be cutoff walk.
+   * True for BACKLOG_STAGES ∩ project_type ≠ 3; false for Type 3
+   * (pre-funded) and operate-stage projects. Mirrors the backend's
+   * compute_ranked_backlog walk pool definition. */
+  competes_in_ranking: boolean;
+  tn_standardization: number;
+  tn_usage: number;
+  tn_maintenance: number;
+  tn_financial_benefit: number;
+  tn_payback: number;
+  tn_competitive_advantage: number;
+}
+
+export interface TechNavigatorScoringEnvelope {
+  total_available_budget: number;
+  type3_pre_funded_total: number;
+  hyper_maintenance_committed_total: number;
+  /** Pre-clamped to >= 0. This is what the cutoff walk compares
+   * cumulative budget against, NOT total_available_budget. */
+  contestable_envelope: number;
+}
+
+export interface TechNavigatorScoringData {
+  weights: {
+    complexity: { standardization: number; usage: number; maintenance: number };
+    value_creation: { financial: number; payback: number; competitive: number };
+    ranking: { value: number; complexity: number };
+    tshirt: { xs_max: number; s_max: number; m_max: number; l_max: number };
+  };
+  envelope: TechNavigatorScoringEnvelope;
+  /** Tiebreaker order applied after the implicit composite_score:desc
+   * primary sort. Each entry is [field, "asc" | "desc"]. */
+  tiebreakers: Array<[string, string]>;
+  projects: TechNavigatorScoringProject[];
+}
+
 export interface AuditLogEntry {
   id: number;
   timestamp: string;

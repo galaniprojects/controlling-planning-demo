@@ -81,7 +81,25 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 -- Demo envelope for the ranked backlog cutoff lines [A-BK-09]. Sized so the
 -- 25-project demo backlog crosses both should-be and reality cutoffs roughly
 -- mid-list (default in code is 50_000_000 — too high to be visible at demo scale).
-('ranking_total_available_budget', 'Ranking: Total Available Budget', 'Annual budget envelope used to draw should-be / reality cutoff lines on the ranked backlog. Demo value sized so cutoffs land mid-list (should-be ~12, reality ~16).', '14440000', '50000000', 'integer', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('ranking_total_available_budget', 'Ranking: Total Available Budget', 'Annual budget envelope used to draw should-be / reality cutoff lines on the ranked backlog. Demo value sized so cutoffs land mid-list (should-be ~12, reality ~16).', '14440000', '50000000', 'integer', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+-- Tech Navigator weights and T-shirt size thresholds [A-TN-01..A-TN-09].
+-- Values mirror the code defaults in services/tech_navigator.py:26-42 so the
+-- seeded snapshot equals the fall-back snapshot — no project's composite_score,
+-- complexity_score, value_creation_score, or tshirt_size changes when these
+-- rows are present versus absent. Editable from the dedicated
+-- "Tech Navigator Scoring" admin page.
+('tn_complexity_weight_standardization', 'Complexity: Standardization weight', 'Weight of the Standardization sub-criterion in the Complexity axis (weighted average of Standardization, Usage, Maintenance).', '40', '40', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_complexity_weight_usage', 'Complexity: Usage weight', 'Weight of the Usage sub-criterion in the Complexity axis.', '40', '40', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_complexity_weight_maintenance', 'Complexity: Maintenance weight', 'Weight of the Maintenance sub-criterion in the Complexity axis.', '20', '20', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_value_weight_financial', 'Value Creation: Financial benefit weight', 'Weight of the Financial benefit sub-criterion in the Value Creation axis.', '50', '50', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_value_weight_payback', 'Value Creation: Payback weight', 'Weight of the Payback sub-criterion in the Value Creation axis.', '40', '40', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_value_weight_competitive', 'Value Creation: Competitive advantage weight', 'Weight of the Competitive advantage sub-criterion in the Value Creation axis.', '10', '10', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_w_value', 'Composite: Value Creation axis weight', 'Weight of the Value Creation axis in the composite ranking score: composite = (value_creation*w_value + complexity*w_complexity) / (w_value + w_complexity).', '70', '70', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_w_complexity', 'Composite: Complexity axis weight', 'Weight of the Complexity axis in the composite ranking score (see Value Creation axis weight for the formula).', '30', '30', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_tshirt_xs_max', 'T-shirt size: XS upper bound (EUR)', 'Projects with total_budget at or below this value render as XS.', '100000', '100000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_tshirt_s_max', 'T-shirt size: S upper bound (EUR)', 'Projects above XS and at or below this value render as S.', '250000', '250000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_tshirt_m_max', 'T-shirt size: M upper bound (EUR)', 'Projects above S and at or below this value render as M.', '500000', '500000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_tshirt_l_max', 'T-shirt size: L upper bound (EUR)', 'Projects above M and at or below this value render as L. Above this value renders as XL.', '1000000', '1000000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- s01_taxonomy / 7. KPI Definitions (built-in catalogue)
