@@ -35,6 +35,14 @@ const TLEVEL_BADGE: Record<string, string> = {
   T2: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
 };
 
+const STAGE_BADGE: Record<string, string> = {
+  'Active': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  'Approved': 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
+  'Under Evaluation': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  'Proposed': 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
+  'Paused': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+};
+
 function fmtScore(n: number | null): string {
   if (n === null) return '—';
   return formatDecimal(n, 2);
@@ -77,15 +85,30 @@ export function RankedRow({ item, isMisaligned = false, actionCell }: Props) {
         {item.rank ?? '—'}
       </td>
 
-      {/* Project name + stage */}
+      {/* Project name */}
       <td className="px-3 py-2.5">
-        <div className="text-sm font-medium text-foreground">
+        <div className="text-sm font-medium text-foreground truncate">
           {item.project_name}
         </div>
         <div className="text-xs text-muted-foreground">
-          {item.pipeline_stage ?? '—'}
-          {item.doi !== null ? ` · DoI ${item.doi}` : ''}
+          {item.doi !== null ? `DoI ${item.doi}` : '—'}
         </div>
+      </td>
+
+      {/* Pipeline stage badge */}
+      <td className="px-3 py-2.5 text-center">
+        {item.pipeline_stage ? (
+          <span
+            className={cn(
+              'rounded px-1.5 py-0.5 text-xs font-medium whitespace-nowrap',
+              STAGE_BADGE[item.pipeline_stage] ?? 'bg-muted text-muted-foreground',
+            )}
+          >
+            {item.pipeline_stage}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
       </td>
 
       {/* Project type badge */}
