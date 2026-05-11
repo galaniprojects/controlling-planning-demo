@@ -38,6 +38,8 @@ import { ResourcePlanPage } from '@/modules/workbench/submission/ResourcePlanPag
 // === Backlog (A6) — replaces A7's BacklogDetailStub ===
 import { BacklogPage } from '@/modules/backlog/BacklogPage';
 import { BacklogProjectDetailPage } from '@/modules/backlog/BacklogProjectDetailPage';
+// === Define-page redesign — canonical project home for every DoI ===
+import { DefineProjectPage } from '@/modules/define/DefineProjectPage';
 // === Charging & Allocations (F4 / F5) [E-10] ===
 import { Charging } from '@/modules/charging/Charging';
 
@@ -121,7 +123,13 @@ export default function App() {
                 <Route path="/docs/*" element={<DocumentationHub />} />
                 {/* === Backlog (A6) === */}
                 <Route path="/backlog" element={<BacklogPage />} />
+                {/* /backlog/:projectId redirects into the canonical Define
+                    page at every DoI; the legacy detail component is now
+                    a thin redirect shell. */}
                 <Route path="/backlog/:projectId" element={<BacklogProjectDetailPage />} />
+                {/* === Define page — canonical project home === */}
+                <Route path="/define/new" element={<DefineProjectPage />} />
+                <Route path="/define/:projectId" element={<DefineProjectPage />} />
                 {/* === Charging & Allocations (F4 / F5) [E-10] === */}
                 <Route path="/charging/*" element={<Charging />} />
               </Routes>
