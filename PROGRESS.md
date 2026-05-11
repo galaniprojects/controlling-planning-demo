@@ -14,6 +14,34 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 
 **v5.2 cycle complete** — six waves, six PRs (#88 / #90 / #91 / #92 / #93 / #94) plus the closeout PR. Capacity Module Redesign closed 2026-05-10.
 
+### Define-page redesign — backend API surface (2026-05-11, branch `feature/define-page-redesign`, agent team `define-page-redesign`)
+
+Backend half of the Define-page redesign (Task #1 of the 4-teammate team). Replaces the "+ New" popup with a tabbed Define page that becomes the canonical project home at every DoI level. Frontend work owned by shell-builder / tabs-builder / sweep-builder is tracked separately.
+
+**Plan reference**: `/Users/vasilis/.claude/plans/i-want-to-make-virtual-lake.md`. The plan calls for name-only project creation, four tab surfaces (Identity / Tech Navigator / Financials / Approval & Milestones), and explicit per-tab Save (no autosave). The Tech Navigator and milestone CRUD endpoints are reused as-is from existing routers; this slice adds five new endpoints.
+
+**Backend** (`backend/`):
+- `schemas/projects_define.py` — NEW. Pydantic v2 models for the five endpoints: `ProjectDefineCreate`, `ProjectDefineResponse`, `ProjectIdentityUpdate`, `ProjectApprovalMilestonesUpdate`, `ProjectFinancialsUpdate`, `BaselineGridRow` / `BaselineGridMonthCell` / `BaselineGridResponse{,Row}` / `ProjectFinancialsResponse`.
+- `routers/projects_define.py` — NEW. Five endpoints all mounted at `/api/projects`:
+  - `POST /define` — name-only create. Supplies defaults (`status='draft'`, `capex_opex='opex'`, `start_month=config.DEMO_DATE`, `pipeline_stage='Proposed'`, `doi=0`, `ai_council_approved=False`, `is_service=False`, `project_type=None`) so a draft exists with only a typed name. Auth: project_lead / controller / executive; PL substitutes self when `pl_person_id` omitted.
+  - `GET /{id}/define` — full project read shared by all tabs. PL filtering: PLs reading another PL's project get 403; controllers/executives/CC owners see everything.
+  - `PUT /{id}/identity` — patch-style Identity tab Save. Audits every changed field under `entity_type='project'` / `category='master_data'`. Cross-field check: `end_month >= start_month`. `lob_id` updates `ProjectGroupingAssignment`.
+  - `PUT /{id}/approval-milestones` — bundle Save for AI Council screening + transformation level + optional `advance_to_doi`. DoI advance reuses `services/pipeline.validate_doi_gate`; gate-unmet returns 409 with `{error: 'doi_gate_unmet', target_doi, missing_fields[]}`. Controllers may supply `override_reason` to bypass. PLs may target DoI ≤ 2 only (DoI 3+ requires controller).
+  - `PUT /{id}/baseline-grid` — Financials tab Save. Quick Sizing block (`total_budget` + `capex_opex`) patches the Project row; `rows[]` does delete-then-insert per `(category, sub_category)` pair (untouched pairs preserved). Recomputes Tech-Navigator-derived `tshirt_size` / composite scores. Returns the refreshed project AND the hydrated baseline grid in one round trip.
+- `main.py` — wire up the new router.
+- `tests/test_router_projects_define.py` — NEW. 36 tests covering all five endpoints across all role permutations:
+  - 8 tests on create (defaults supplied, controller unassigned, CC-403, missing/empty name, unknown PL, LoB assignment, unknown LoB).
+  - 4 tests on GET (404, controller-any, PL-on-own, PL-cannot-read-other).
+  - 8 tests on Identity (PL writes own, PL/CC/Exec rejected on others, end<start 422, invalid project_type, LoB updated, no-op audit suppression).
+  - 9 tests on Approval & Milestones (AI Council set, transformation level, gate-unmet 409, controller override, PL DoI-2 limit, PL DoI-2 with gate passing, invalid level, CC-403, PL-other-403).
+  - 6 tests on Baseline grid (PL write 200, quick-sizing only, delete-then-insert replace, untouched pairs preserved, unknown role_type_id, CC-403).
+  - 1 cross-endpoint integration: PL round-trip create → GET → identity → approval → baseline.
+- All **36 new tests pass**; **full backend suite of 1745 tests passes** (1709 existing + 36 new), confirming no regression in the existing intake / pipeline / tech-navigator / milestones routers (which the Define page reuses).
+
+**Schema**: zero column changes. The Define page exploits existing nullable columns (`project_type`, `description`, `end_month`, etc.) plus runtime defaults on create. **No DB reset required** when pulling this branch.
+
+**API contract published** to teammate inboxes (`shell-builder`, `tabs-builder`, `sweep-builder`, `team-lead`) at the start of work so frontend teammates could unblock immediately on the response shapes.
+
 ### Tech Navigator Scoring admin page (2026-05-11, branch `feature/admin-tn-weights`)
 
 A dedicated admin page that surfaces the entire backlog scoring formula with live controls — the composite formula in readable form, slider + number-input controls for every weight, and a live Tech Navigator quadrant scatter that animates dots and the iso-composite cutoff line on every slider drag.
