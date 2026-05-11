@@ -23,6 +23,10 @@ interface Props {
   varName?: string;
   /** Weight variable subscript shown after the unit, e.g. "s" → "(w_s)". */
   weightVarName?: string;
+  /** When true, both the slider and the numeric input are disabled so an
+   * in-flight save can't have its post-save refetch silently overwrite
+   * user-side edits made during the round-trip. */
+  disabled?: boolean;
 }
 
 export function WeightControl({
@@ -37,6 +41,7 @@ export function WeightControl({
   isDirty = false,
   varName,
   weightVarName,
+  disabled = false,
 }: Props) {
   return (
     <div
@@ -65,6 +70,7 @@ export function WeightControl({
         step={step}
         onValueChange={(arr) => onChange(arr[0])}
         aria-label={label}
+        disabled={disabled}
       />
       <div className="flex items-center gap-1.5">
         <Input
@@ -75,6 +81,7 @@ export function WeightControl({
           min={min}
           max={max}
           step={step}
+          disabled={disabled}
           onChange={(e) => {
             const n = Number(e.target.value);
             if (!Number.isFinite(n)) return;

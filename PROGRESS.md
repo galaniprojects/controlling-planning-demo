@@ -64,6 +64,17 @@ Prior iteration (a "light path" that just added the rows to the existing Plannin
 
 Screenshots: `qa/screenshots/admin-tn-scoring-v2-{light,dark}.png`. Envelope card now shows the breakdown line by line; iso-composite line at 3.42 (vs 3.35 before — the change reflects the correct contestable envelope of 13.3M, not the raw 14.44M).
 
+**Round-2 review fixes (commit on top of the previous fix commit).** A second independent code review caught four follow-up issues. All addressed in `feature/admin-tn-weights` head:
+
+- *Null-doi tiebreaker divergence.* Client `readField` returned `0` for null values; backend `_project_sort_key` (`ranking.py:275-280`) uses `_MISSING_ASC = +inf` so nulls sink to the bottom for both asc and desc. For Paused projects (which sit in `BACKLOG_STAGES` but carry `doi=None`), the client's iso-line sort could place them ABOVE non-null rows on a `doi:asc` tiebreaker — diverging from backend ranking. `scoringMath.ts` now returns the raw value (or null) from `readField` and a new `compareField` helper sinks nulls to the bottom regardless of direction, matching the backend exactly.
+- *Save-in-flight discarded concurrent edits.* `handleSave`'s `await fetchData()` calls `setWorking(initial)`, overwriting any slider movement the user made during the network round-trip. Added a `formDisabled = saving || resetting` flag threaded as a new `disabled?: boolean` prop on `WeightControl` / `TshirtThresholdsCard` / `CutoffEnvelopeCard`, locking the controls (both Radix Slider and number Inputs) for the duration of save/reset.
+- *Missing reset-recompute test.* The fix path (`reset_parameters` fanning out to `recompute_within_cutoff_for_backlog` when a ranking-trigger key resets) was previously code-only. New `TestResetParametersRecomputesWithinCutoff` seeds an Approved project with `within_cutoff=None` plus a non-default `ranking_total_available_budget`, POSTs `/parameters/reset`, asserts the flag flipped to a concrete bool (proving the recompute fan-out ran).
+- *Tiebreakers schema too loose.* `tiebreakers: list[list[str]]` accepted entries of any length and direction. Added a Pydantic `@field_validator` to `TechNavigatorScoringResponse` enforcing exact arity-2 and direction ∈ `{"asc", "desc"}`. Wire format unchanged.
+
+Plus two trivial nice-to-haves: T-shirt monotonicity check now uses `>=` (equal adjacent bounds also make a band unreachable), and the misleading `readField` comment now correctly references `_project_sort_key` instead of `_project_walk_budget`.
+
+All 1706 backend tests pass (1705 + 1 new). `tsc --noEmit` clean. Screenshots: `qa/screenshots/admin-tn-scoring-v3-light.png`.
+
 ### Backlog Pipeline Stage column (2026-05-11, branch `feature/backlog-stage-column`)
 
 Follow-up to PR #97 (which promoted 5 projects to Approved to balance the Cutoff badge column). Two related UX gaps remained: (a) the 3 Active projects (`proj-erp2`, `proj-mdh-rollout`, `proj-sensor`) showed only a "—" in the Cutoff column because `recompute_within_cutoff_for_backlog` (ranking.py:544-553) computes `within_cutoff` only for Approved projects by design, and (b) the pipeline stage was buried as muted subtext under each project name (`RankedRow.tsx:86`), so "what's actually running?" required scanning every row.

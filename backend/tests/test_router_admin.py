@@ -270,3 +270,81 @@ class TestTechNavigatorScoringData:
         assert p["pipeline_stage"] == "Approved"
         assert p["total_budget"] == 500_000.0
         assert p["doi"] == 3
+
+
+class TestResetParametersRecomputesWithinCutoff:
+    """End-to-end test for the bug fix where POST /parameters/reset on a
+    ranking_* key wasn't fanning out to recompute_within_cutoff_for_backlog.
+
+    Setup: seed an Approved project plus the ranking_total_available_budget
+    parameter with a custom value where the project is currently within
+    cutoff. POST reset on that key → default is much larger, so the project
+    should still be within cutoff (or unchanged from before). The key
+    behaviour to assert: recompute_within_cutoff_for_backlog ran, i.e. the
+    within_cutoff flag is consistent with the formula at the default
+    envelope. The simplest verifiable signal: a project whose flag was None
+    (e.g. Approved-mid-transition) gets set to True/False after reset.
+    """
+
+    def test_reset_ranking_envelope_recomputes_within_cutoff(
+        self, test_client, db, seed_personas,
+    ):
+        from models.projects import Project
+
+        # Seed one Approved project that competes in ranking with a
+        # composite_score set; within_cutoff starts as None so we can verify
+        # the recompute fired (None → True or False).
+        db.add(Project(
+            id="proj-reset-test", name="Reset Test Project",
+            status="active", capex_opex="capex",
+            start_month="2026-01", end_month="2026-12",
+            pipeline_stage="Approved", doi=3,
+            project_type=2, total_budget=500_000,
+            tn_standardization=4, tn_usage=4, tn_maintenance=3,
+            tn_financial_benefit=5, tn_payback=4, tn_competitive_advantage=4,
+            complexity_score=3.8, value_creation_score=4.6, composite_score=4.36,
+            within_cutoff=None,
+        ))
+        # Seed the ranking envelope parameter with a non-default custom value
+        # so the reset has something to reset *from*. default_value is large
+        # enough that the project will land within cutoff post-reset.
+        db.add(PlanningParameter(
+            key="ranking_total_available_budget",
+            name="Ranking: Total Available Budget",
+            current_value="1000000",
+            default_value="50000000",
+            data_type="integer",
+            param_group="ranking",
+        ))
+        db.commit()
+
+        before = (
+            db.query(Project)
+            .filter(Project.id == "proj-reset-test")
+            .first()
+            .within_cutoff
+        )
+        assert before is None
+
+        resp = test_client.post(
+            "/api/admin/parameters/reset",
+            headers=HEADERS_CTRL,
+            json={"keys": ["ranking_total_available_budget"]},
+        )
+        assert resp.status_code == 200
+
+        # Refresh from DB
+        db.expire_all()
+        after = (
+            db.query(Project)
+            .filter(Project.id == "proj-reset-test")
+            .first()
+            .within_cutoff
+        )
+        # within_cutoff must now be a bool (the recompute set it). The exact
+        # value depends on whether the project's cumulative budget at its
+        # rank crosses 50M; with this one project at 500k, it fits → True.
+        assert after is True, (
+            "Reset on ranking_total_available_budget must fan out to "
+            "recompute_within_cutoff_for_backlog. within_cutoff is still None."
+        )

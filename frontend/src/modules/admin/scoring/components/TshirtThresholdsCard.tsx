@@ -22,6 +22,7 @@ interface Props {
   value: Thresholds;
   onChange: (next: Thresholds) => void;
   saved: Thresholds;
+  disabled?: boolean;
 }
 
 const ROWS: Array<{ key: keyof Thresholds; label: string; bandLabel: string }> = [
@@ -35,14 +36,15 @@ function formatEur(n: number): string {
   return new Intl.NumberFormat('de-DE').format(Math.round(n));
 }
 
-export function TshirtThresholdsCard({ value, onChange, saved }: Props) {
-  // Monotonicity check: xs ≤ s ≤ m ≤ l. Violations don't crash anything
-  // (`deriveTshirt` always returns *something*) but produce unreachable
-  // bands (e.g. if s_max < xs_max, no project can ever be "S").
+export function TshirtThresholdsCard({ value, onChange, saved, disabled = false }: Props) {
+  // Monotonicity check: xs < s < m < l (strict). Equal adjacent bounds
+  // (e.g. xs_max == s_max) also make a band unreachable, so we flag those.
+  // Violations don't crash anything (`deriveTshirt` always returns
+  // *something*) but produce bands the user can't ever land in.
   const nonMonotonic =
-    value.xs_max > value.s_max ||
-    value.s_max > value.m_max ||
-    value.m_max > value.l_max;
+    value.xs_max >= value.s_max ||
+    value.s_max >= value.m_max ||
+    value.m_max >= value.l_max;
 
   return (
     <Card className="p-5 space-y-3">
@@ -79,6 +81,7 @@ export function TshirtThresholdsCard({ value, onChange, saved }: Props) {
                 value={v}
                 min={0}
                 step={1000}
+                disabled={disabled}
                 onChange={(e) => {
                   const n = Number(e.target.value);
                   if (Number.isFinite(n)) {

@@ -173,20 +173,41 @@ export type TiebreakerField = 'composite_score' | 'doi' | 'total_budget';
 export type TiebreakerDir = 'asc' | 'desc';
 export type Tiebreaker = [TiebreakerField | string, TiebreakerDir | string];
 
-function readField(row: ProjectWalkRow, field: string): number {
-  // Treat nulls as -Infinity for desc / +Infinity for asc would distort
-  // ties; instead use 0 as a neutral sentinel matching the backend's
-  // `getattr(project, field) or 0` pattern in _project_sort_key.
+/** Read a tiebreaker field from a row, preserving null. The comparator
+ * needs to distinguish null (sentinel: pushes to bottom) from 0 (a real
+ * value that participates in the order). Mirrors backend
+ * `services/ranking.py::_project_sort_key` (line 275-280), which uses
+ * `_MISSING_ASC = +inf` for missing values in both asc and desc
+ * directions. (Distinct from the budget-walk helper
+ * `_project_walk_budget` which treats null total_budget as 0.0 — that's
+ * a different code path.) */
+function readField(row: ProjectWalkRow, field: string): number | null {
   switch (field) {
     case 'composite_score':
-      return row.composite_score ?? 0;
+      return row.composite_score;
     case 'doi':
-      return row.doi ?? 0;
+      return row.doi;
     case 'total_budget':
-      return row.total_budget ?? 0;
+      return row.total_budget;
     default:
-      return 0;
+      return null;
   }
+}
+
+/** Compare two field values for a given direction, treating null as a
+ * sentinel that sinks to the bottom regardless of direction (matches
+ * ranking.py:_project_sort_key). Returns 0 on equality so the caller
+ * falls through to the next tiebreaker. */
+function compareField(
+  a: number | null,
+  b: number | null,
+  dir: string,
+): number {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1; // a sinks to bottom
+  if (b === null) return -1; // b sinks to bottom
+  if (a === b) return 0;
+  return dir === 'asc' ? a - b : b - a;
 }
 
 export function computeCutoffComposite(
@@ -208,10 +229,8 @@ export function computeCutoffComposite(
     for (const [field, dir] of tiebreakers) {
       // Skip composite_score in the tiebreaker list — it's the primary axis.
       if (field === 'composite_score') continue;
-      const av = readField(a, field);
-      const bv = readField(b, field);
-      if (av === bv) continue;
-      return dir === 'asc' ? av - bv : bv - av;
+      const diff = compareField(readField(a, field), readField(b, field), dir);
+      if (diff !== 0) return diff;
     }
     // Final stable tiebreaker: project id ASC (matches Python's sort stability
     // after .all() ordered by Project.id in the bulk query path).

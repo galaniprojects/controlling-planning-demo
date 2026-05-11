@@ -174,6 +174,11 @@ export function TechNavigatorScoring() {
 
   const dirty = working && saved ? isDirty(working, saved) : false;
 
+  // Freeze the form during the save/reset round-trip. Without this, slider
+  // movement during the in-flight network call would be silently overwritten
+  // by the post-save refetch in fetchData() (setWorking(initial)).
+  const formDisabled = saving || resetting;
+
   const sumComplexity = useMemo(
     () =>
       working
@@ -332,6 +337,7 @@ export function TechNavigatorScoring() {
             label="Value Creation"
             varName="V"
             weightVarName="V"
+            disabled={formDisabled}
             value={working.weights.ranking.value}
             onChange={(n) => update((s) => { s.weights.ranking.value = n; })}
             isDirty={saved.weights.ranking.value !== working.weights.ranking.value}
@@ -340,6 +346,7 @@ export function TechNavigatorScoring() {
             label="Complexity"
             varName="X"
             weightVarName="C"
+            disabled={formDisabled}
             value={working.weights.ranking.complexity}
             onChange={(n) => update((s) => { s.weights.ranking.complexity = n; })}
             isDirty={
@@ -369,6 +376,7 @@ export function TechNavigatorScoring() {
             label="Standardization"
             varName="s"
             weightVarName="s"
+            disabled={formDisabled}
             value={working.weights.complexity.standardization}
             onChange={(n) => update((s) => { s.weights.complexity.standardization = n; })}
             isDirty={
@@ -380,6 +388,7 @@ export function TechNavigatorScoring() {
             label="Usage"
             varName="u"
             weightVarName="u"
+            disabled={formDisabled}
             value={working.weights.complexity.usage}
             onChange={(n) => update((s) => { s.weights.complexity.usage = n; })}
             isDirty={saved.weights.complexity.usage !== working.weights.complexity.usage}
@@ -388,6 +397,7 @@ export function TechNavigatorScoring() {
             label="Maintenance"
             varName="m"
             weightVarName="m"
+            disabled={formDisabled}
             value={working.weights.complexity.maintenance}
             onChange={(n) => update((s) => { s.weights.complexity.maintenance = n; })}
             isDirty={
@@ -417,6 +427,7 @@ export function TechNavigatorScoring() {
             label="Financial benefit"
             varName="f"
             weightVarName="f"
+            disabled={formDisabled}
             value={working.weights.value_creation.financial}
             onChange={(n) => update((s) => { s.weights.value_creation.financial = n; })}
             isDirty={
@@ -428,6 +439,7 @@ export function TechNavigatorScoring() {
             label="Payback"
             varName="p"
             weightVarName="p"
+            disabled={formDisabled}
             value={working.weights.value_creation.payback}
             onChange={(n) => update((s) => { s.weights.value_creation.payback = n; })}
             isDirty={
@@ -439,6 +451,7 @@ export function TechNavigatorScoring() {
             label="Competitive adv."
             varName="c"
             weightVarName="c"
+            disabled={formDisabled}
             value={working.weights.value_creation.competitive}
             onChange={(n) => update((s) => { s.weights.value_creation.competitive = n; })}
             isDirty={
@@ -452,6 +465,7 @@ export function TechNavigatorScoring() {
           value={working.weights.tshirt}
           onChange={(t) => update((s) => { s.weights.tshirt = t; })}
           saved={saved.weights.tshirt}
+          disabled={formDisabled}
         />
       </div>
 
@@ -461,6 +475,7 @@ export function TechNavigatorScoring() {
         saved={saved.total_available_budget}
         type3PreFundedTotal={data.envelope.type3_pre_funded_total}
         hyperMaintenanceCommittedTotal={data.envelope.hyper_maintenance_committed_total}
+        disabled={formDisabled}
       />
 
       <QuadrantScatter

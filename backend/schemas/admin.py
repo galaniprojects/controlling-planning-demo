@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 # --- Cost Center ---
@@ -293,5 +293,21 @@ class TechNavigatorScoringResponse(BaseModel):
     envelope: TechNavigatorScoringEnvelope
     # Tiebreakers as a list of (field, direction) pairs in apply order. The
     # primary composite_score:desc sort is implicit and not included here.
+    # Wire format is JSON `[["field", "asc"], ...]`; runtime validator
+    # enforces exact arity-2 and direction ∈ {"asc", "desc"}.
     tiebreakers: list[list[str]]
     projects: list[TechNavigatorScoringProject]
+
+    @field_validator("tiebreakers")
+    @classmethod
+    def _check_tiebreaker_entries(cls, v: list[list[str]]) -> list[list[str]]:
+        for entry in v:
+            if len(entry) != 2:
+                raise ValueError(
+                    f"tiebreaker entry must be a 2-element [field, direction] pair, got {entry!r}"
+                )
+            if entry[1] not in ("asc", "desc"):
+                raise ValueError(
+                    f"tiebreaker direction must be 'asc' or 'desc', got {entry[1]!r}"
+                )
+        return v

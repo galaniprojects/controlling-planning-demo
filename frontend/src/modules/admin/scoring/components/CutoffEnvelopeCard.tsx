@@ -21,6 +21,7 @@ interface Props {
   /** Server-computed committed-overhead of operate-stage projects.
    * Also subtracted from total_available_budget. Pass 0 if none. */
   hyperMaintenanceCommittedTotal: number;
+  disabled?: boolean;
 }
 
 function formatEur(n: number): string {
@@ -33,6 +34,7 @@ export function CutoffEnvelopeCard({
   saved,
   type3PreFundedTotal,
   hyperMaintenanceCommittedTotal,
+  disabled = false,
 }: Props) {
   const dirty = saved !== value;
   const contestable = Math.max(
@@ -71,6 +73,7 @@ export function CutoffEnvelopeCard({
           value={value}
           min={0}
           step={100000}
+          disabled={disabled}
           onChange={(e) => {
             const n = Number(e.target.value);
             if (Number.isFinite(n)) {
