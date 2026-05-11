@@ -42,6 +42,36 @@ Backend half of the Define-page redesign (Task #1 of the 4-teammate team). Repla
 
 **API contract published** to teammate inboxes (`shell-builder`, `tabs-builder`, `sweep-builder`, `team-lead`) at the start of work so frontend teammates could unblock immediately on the response shapes.
 
+### Define-page redesign — Approval & Milestones tab + autosave sweep (2026-05-11, branch `feature/define-page-redesign`, sweep-builder)
+
+Task #4 of the 4-teammate Define-page redesign team. The fourth and final tab — AI Council screening + per-row milestone CRUD + DoI 3 readiness — plus the global autosave-removal audit.
+
+**Frontend** (`frontend/`):
+- `types/define.ts` — NEW. Canonical TypeScript mirrors of `backend/schemas/projects_define.py`: `ProjectDefineCreate`, `ProjectDefineResponse`, `ProjectIdentityUpdate`, `ProjectApprovalMilestonesUpdate`, `ProjectFinancialsUpdate`, `BaselineGridRow`, `ProjectFinancialsSaveResponse`. All four Define tabs (Identity / TN / Financials / Approval & Milestones) and shell-builder's `modules/define/api.ts` import from here.
+- `api/endpoints.ts` — extended `milestonesApi` from list-only to full CRUD: `.create()`, `.update()`, `.remove()`, `.listTypes()` (the milestone-types catalogue). Baseline-date override-reason semantic per [A-MS-03] is captured on the request type. Define-page endpoints (`POST /define`, `PUT /identity`, etc.) live module-locally in `modules/define/api.ts` as shell-builder's `defineApi`; a comment in `endpoints.ts` documents the split.
+- `modules/define/ApprovalMilestonesTab.tsx` — NEW (883 lines). Three cards plus a footer Save:
+  1. **AI Council screening** — buffered `ai_council_approved` checkbox + `ai_council_doc_url` input via `useDirtyBuffer`. Footer Save flushes through `PUT /api/projects/{id}/approval-milestones`. `transformation_level` is intentionally absent — it lives on the Tech Navigator tab per the plan; the backend accepts it on this endpoint for completeness but the tab does not surface it.
+  2. **DoI 3 readiness** — three-state derived banner from `pipeline.gate_status`: amber when gates pending, emerald when next-DoI gate is met, emerald with "ready for execution" once DoI ≥ 3. Missing fields enumerated inline.
+  3. **Milestones list** — per-row inline edit. Each milestone is an atomic unit with its own server-side validation (sequence-number uniqueness, baseline-date override-reason at controller-only), so each row carries its own Save / Cancel / Delete instead of rolling into the tab-level dirty buffer. Add-new form appends at sequence_number = max+1. Colour resolution falls back to the linked `MilestoneType.default_color`. Inputs use the `define-anchor-ai-council-approved` anchor so the DoI overlay deep-links land here.
+- `modules/define/DefineProjectPage.tsx` — wired the new tab into the shell, replacing shell-builder's `TabPlaceholder`. Loading / error states mirror the Identity tab. `onSaved` triggers a `reloadPipeline()` so the overlay updates without manual refresh.
+
+**Autosave-removal sweep** (Task #4 scope):
+- Grep for `flushSave|debounceTimerRef|setTimeout.*[Ss]ave|onBlur.*save|onBlur=.*Save` across `frontend/src/` returned **exactly one** real autosave-on-blur site: `modules/backlog/components/TechNavigatorRubric.tsx` (300 ms debounce + flushSave via `techNavigatorApi.update`). That file is owned by tabs-builder and is already gutted in commit `6cf9122` ("Backlog: gut autosave from legacy TechNavigatorRubric").
+- Other `onBlur` hits in `EditableIntakeGrid.tsx`, `EditableCRGrid.tsx`, `ResourcePlanPage.tsx`, `MonthCategoryGrid.tsx` are local-cell-edit-commit (blur stuffs the typed value into local React state); the actual server write happens through explicit Confirm / Save / Submit buttons. No autosave there.
+- Admin grids (`PlanningParameters`, `TechNavigatorScoring`, `WorkflowTemplateEditor`, `ScheduledChangesPanel`) all already use explicit Save buttons — verified by re-reading each component.
+- Workbench Forecast grid (`Phase3EditForecast`, `MixedGranularityGrid`) and External-Costs (`ExternalCostsMonthlyGrid`) use Save-and-Review or full-screen submit flows; no autosave anywhere in those trees.
+- **Progress tracker exemption is moot**: the codebase currently has no edit surface for `status_narrative` / `next_milestone_confidence` / `deliverable_checked_at` — both `ProgressTrackerTile` and `ProgressVsBurnDialog` are read-only displays. There is no autosave to remove and nothing to exempt; the plan's "progress tracker keeps autosave" clause refers to a not-yet-built editor.
+
+**Net result**: after tabs-builder's `6cf9122` gutting of TechNavigatorRubric, the entire frontend uses explicit Save semantics. No surface-by-surface sweep commits were needed because no other autosave sites exist.
+
+**Backend dependencies**: reuses backend-dev's `5d8011c` Define-page API endpoints (POST /define, GET /{id}/define, PUT /identity, PUT /approval-milestones, PUT /baseline-grid) and the existing milestones router (POST/PUT/DELETE /api/projects/{id}/milestones unchanged). Zero schema changes — **no DB reset required**.
+
+**Verification**:
+- `npx tsc --noEmit` clean.
+- `npx eslint src/modules/define/ApprovalMilestonesTab.tsx src/types/define.ts` clean (max-warnings=0).
+- Backend tests: full suite **1745 passing** (`pytest tests/`) including the 36 new `test_router_projects_define` + 30 existing `test_router_milestones`.
+- Visual verification at 1440px against a DoI 3 project (proj-bk01) and the `/define/new` empty state, both light and dark themes. Screenshots in `qa/screenshots/define-approval-milestones-*.png`. DoI badge, "Open in Workbench" affordance, AI Council card with checkbox + URL, emerald "Project approved" banner, and per-row milestone list with slip indicators all render correctly. Dark mode uses semantic `bg-card` / `border-border` / `text-foreground` / `bg-emerald-900/20` patterns — no hardcoded colours.
+
 ### Tech Navigator Scoring admin page (2026-05-11, branch `feature/admin-tn-weights`)
 
 A dedicated admin page that surfaces the entire backlog scoring formula with live controls — the composite formula in readable form, slider + number-input controls for every weight, and a live Tech Navigator quadrant scatter that animates dots and the iso-composite cutoff line on every slider drag.
