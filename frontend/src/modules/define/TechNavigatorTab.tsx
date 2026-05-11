@@ -27,7 +27,6 @@ import { techNavigatorApi } from '@/api/endpoints';
 import {
   COMPLEXITY_SUB_CRITERIA,
   PROJECT_TYPES,
-  TRANSFORMATION_LEVELS,
   VALUE_CREATION_SUB_CRITERIA,
   type SubCriterionRubric,
 } from '@/modules/backlog/data/rubricLabels';
@@ -43,7 +42,6 @@ import type {
   SubCriterionScore,
   TechNavigatorProfile,
   TechNavigatorUpdate,
-  TransformationLevel,
 } from '@/types/techNavigator';
 import { useDirtyBuffer } from './useDirtyBuffer';
 
@@ -59,9 +57,15 @@ interface Props {
 }
 
 // Only these fields participate in the PUT payload.
+//
+// Boundary note (team-lead Task #3 follow-up): `transformation_level` lives
+// on the Approval & Milestones tab — it ships through the backend
+// `PUT /api/projects/{id}/approval-milestones` endpoint, not this tab's
+// `PUT /api/projects/{id}/tech-navigator`. Sweep-builder relies on that
+// boundary. The TN tab therefore does not edit transformation_level even
+// though the underlying `TechNavigatorUpdate` schema would accept it.
 type TNEditableKey =
   | 'project_type'
-  | 'transformation_level'
   | 'tn_standardization'
   | 'tn_usage'
   | 'tn_maintenance'
@@ -71,7 +75,6 @@ type TNEditableKey =
 
 const EDITABLE_KEYS: TNEditableKey[] = [
   'project_type',
-  'transformation_level',
   'tn_standardization',
   'tn_usage',
   'tn_maintenance',
@@ -205,14 +208,10 @@ export function TechNavigatorTab({
         saving={buffer.saving}
       />
 
-      <ProfileSelectorRow
+      <ProjectTypeSelector
         projectType={profile.project_type}
-        transformationLevel={profile.transformation_level}
         readOnly={readOnly}
         onProjectTypeChange={(v) => updateField('project_type', v)}
-        onTransformationLevelChange={(v) =>
-          updateField('transformation_level', v)
-        }
       />
 
       <RubricBlock
@@ -275,123 +274,78 @@ export function TechNavigatorTab({
 // Sub-views
 // ---------------------------------------------------------------------------
 
-interface ProfileSelectorRowProps {
+interface ProjectTypeSelectorProps {
   projectType: ProjectType | null;
-  transformationLevel: TransformationLevel | null;
   readOnly: boolean;
   onProjectTypeChange: (v: ProjectType) => void;
-  onTransformationLevelChange: (v: TransformationLevel) => void;
 }
 
-function ProfileSelectorRow({
+/**
+ * Project type (P1/P2/P3) selector for the TN tab. Transformation level
+ * deliberately lives on the Approval & Milestones tab — see the boundary
+ * note next to `EDITABLE_KEYS` above.
+ */
+function ProjectTypeSelector({
   projectType,
-  transformationLevel,
   readOnly,
   onProjectTypeChange,
-  onTransformationLevelChange,
-}: ProfileSelectorRowProps) {
+}: ProjectTypeSelectorProps) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <div
-        id="define-anchor-project-type"
-        data-define-anchor="define-anchor-project-type"
-        className="rounded-md border border-border bg-card p-3"
-      >
-        <div className="mb-2">
-          <h3 className="text-sm font-semibold text-foreground">
-            Project type
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            Determines how prioritization treats the project. P3 is exempt
-            from the cutoff line.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2" role="radiogroup">
-          {PROJECT_TYPES.map((opt) => {
-            const selected = projectType === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                disabled={readOnly}
-                onClick={() => onProjectTypeChange(opt.value)}
-                className={cn(
-                  'flex items-start gap-2 rounded-md border px-3 py-2 text-left transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  selected
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border bg-background hover:bg-accent hover:text-accent-foreground',
-                  readOnly && 'cursor-not-allowed opacity-60',
-                )}
-              >
-                <span
-                  className={cn(
-                    'mt-1 inline-block size-3 shrink-0 rounded-full border-2 ring-2 ring-offset-2 ring-offset-background',
-                    opt.ringClass,
-                    selected ? 'bg-primary' : 'bg-background',
-                  )}
-                  aria-hidden
-                />
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-foreground">
-                    {opt.label}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {opt.description}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+    <div
+      id="define-anchor-project-type"
+      data-define-anchor="define-anchor-project-type"
+      className="rounded-md border border-border bg-card p-3"
+    >
+      <div className="mb-2">
+        <h3 className="text-sm font-semibold text-foreground">Project type</h3>
+        <p className="text-xs text-muted-foreground">
+          Determines how prioritization treats the project. P3 is exempt
+          from the cutoff line. Transformation level (T0/T1/T2) is set on
+          the Approval &amp; Milestones tab.
+        </p>
       </div>
-
       <div
-        id="define-anchor-transformation-level"
-        data-define-anchor="define-anchor-transformation-level"
-        className="rounded-md border border-border bg-card p-3"
+        className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+        role="radiogroup"
       >
-        <div className="mb-2">
-          <h3 className="text-sm font-semibold text-foreground">
-            Transformation level
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            Categorical decorator. Filterable in the backlog cube but does not
-            factor into the ranking score.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2" role="radiogroup">
-          {TRANSFORMATION_LEVELS.map((opt) => {
-            const selected = transformationLevel === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                disabled={readOnly}
-                onClick={() => onTransformationLevelChange(opt.value)}
+        {PROJECT_TYPES.map((opt) => {
+          const selected = projectType === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              disabled={readOnly}
+              onClick={() => onProjectTypeChange(opt.value)}
+              className={cn(
+                'flex items-start gap-2 rounded-md border px-3 py-2 text-left transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                selected
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border bg-background hover:bg-accent hover:text-accent-foreground',
+                readOnly && 'cursor-not-allowed opacity-60',
+              )}
+            >
+              <span
                 className={cn(
-                  'rounded-md border px-3 py-2 text-left transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  selected
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border bg-background hover:bg-accent hover:text-accent-foreground',
-                  readOnly && 'cursor-not-allowed opacity-60',
+                  'mt-1 inline-block size-3 shrink-0 rounded-full border-2 ring-2 ring-offset-2 ring-offset-background',
+                  opt.ringClass,
+                  selected ? 'bg-primary' : 'bg-background',
                 )}
-              >
+                aria-hidden
+              />
+              <div className="flex-1">
                 <div className="text-sm font-medium text-foreground">
                   {opt.label}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {opt.description}
                 </div>
-              </button>
-            );
-          })}
-        </div>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
