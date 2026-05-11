@@ -142,8 +142,12 @@ def list_user_measurement(
     """
     # imported_at lives in a SQLite TEXT column. SQLAlchemy's DateTime binding
     # appends ".000000" microseconds, which doesn't match seeded values that
-    # were inserted without microseconds. Keep the equality comparison
-    # server-side (subquery / strftime) so the format mismatch never bites.
+    # were inserted without microseconds. Both branches below build a single
+    # ``target_query`` and use it twice: once as ``.scalar()`` (materialised
+    # for the response payload, used only via .isoformat()) and once as
+    # ``.scalar_subquery()`` (server-side filter — the equality stays inside
+    # SQLite as TEXT-vs-TEXT, so SQLAlchemy's ``.000000`` binding can never
+    # be applied to the comparison value).
     base_filter = (
         UserMeasurement.year == year,
         UserMeasurement.quarter == quarter,
@@ -154,31 +158,28 @@ def list_user_measurement(
             ts = datetime.fromisoformat(imported_at)
         except ValueError:
             raise HTTPException(400, f"Invalid imported_at timestamp: {imported_at}")
+        # NOTE: func.strftime is SQLite-only; revisit if the engine changes.
+        # Used as a second-precision lookup key — picks ONE concrete stored
+        # imported_at TEXT value, then the row filter exact-matches it so
+        # microsecond-distinct same-second batches stay distinguishable.
         norm_ts = ts.strftime("%Y-%m-%d %H:%M:%S")
-        time_filter = func.strftime(
-            "%Y-%m-%d %H:%M:%S", UserMeasurement.imported_at,
-        ) == norm_ts
-        target_at_value = (
+        target_query = (
             db.query(UserMeasurement.imported_at)
             .filter(*base_filter)
-            .filter(time_filter)
+            .filter(
+                func.strftime("%Y-%m-%d %H:%M:%S", UserMeasurement.imported_at)
+                == norm_ts,
+            )
             .order_by(desc(UserMeasurement.imported_at))
             .limit(1)
-            .scalar()
         )
     else:
-        latest_subq = (
+        target_query = (
             db.query(func.max(UserMeasurement.imported_at))
             .filter(*base_filter)
-            .scalar_subquery()
-        )
-        time_filter = UserMeasurement.imported_at == latest_subq
-        target_at_value = (
-            db.query(func.max(UserMeasurement.imported_at))
-            .filter(*base_filter)
-            .scalar()
         )
 
+    target_at_value = target_query.scalar()
     if target_at_value is None:
         return UserMeasurementListResponse(
             items=[], total=0, year=year, quarter=quarter, imported_at=None,
@@ -187,7 +188,7 @@ def list_user_measurement(
     rows = (
         db.query(UserMeasurement)
         .filter(*base_filter)
-        .filter(time_filter)
+        .filter(UserMeasurement.imported_at == target_query.scalar_subquery())
         .join(ChargingLocation, ChargingLocation.id == UserMeasurement.charging_location_id, isouter=True)
         .order_by(UserMeasurement.s_code, UserMeasurement.charging_location_id)
         .all()

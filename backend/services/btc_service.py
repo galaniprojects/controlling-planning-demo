@@ -70,20 +70,6 @@ class BTCValidationError(Exception):
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _latest_um_batch_timestamp(db: Session, year: int, quarter: int) -> Optional[datetime]:
-    """Return the most recent ``imported_at`` for the given (year, quarter) UM batch."""
-    row = (
-        db.query(UserMeasurement.imported_at)
-        .filter(
-            UserMeasurement.year == year,
-            UserMeasurement.quarter == quarter,
-        )
-        .order_by(UserMeasurement.imported_at.desc())
-        .first()
-    )
-    return row.imported_at if row else None
-
-
 def _current_quarter(year: int | None = None, quarter: int | None = None) -> tuple[int, int]:
     """Return (year, quarter) for looking up UM data.
 
@@ -196,33 +182,32 @@ def compute_um_snapshot(
     parameters — the service raises rather than silently zeroing per F3's
     design decision (Key Risk 3 in the plan).
     """
-    # Find the most recent batch timestamp for this (year, quarter).
-    latest_ts = _latest_um_batch_timestamp(db, year, quarter)
+    # Resolve the latest batch's imported_at once and use it two ways:
+    #   - .scalar()         → materialised value for the error message + snapshot
+    #   - .scalar_subquery() → server-side filter (TEXT-vs-TEXT, side-steps
+    #                          SQLAlchemy's ".000000" binding on Python datetime
+    #                          parameters that the seeded TEXT values don't carry)
+    base_filter = (
+        UserMeasurement.year == year,
+        UserMeasurement.quarter == quarter,
+    )
+    latest_query = (
+        db.query(func.max(UserMeasurement.imported_at))
+        .filter(*base_filter)
+    )
+    latest_ts = latest_query.scalar()
     if latest_ts is None:
         raise BTCValidationError(
             f"No UM data found for year={year}, quarter={quarter}. "
             f"Import a UM CSV before creating an automatic BTC profile.",
         )
 
-    # Fetch all rows for this s_code in the most recent batch. The imported_at
-    # comparison is kept server-side via a scalar subquery — SQLAlchemy's
-    # DateTime binding appends ".000000" microseconds that the seeded TEXT
-    # values don't carry, so a Python-side ``latest_ts`` would never match.
-    latest_subq = (
-        db.query(func.max(UserMeasurement.imported_at))
-        .filter(
-            UserMeasurement.year == year,
-            UserMeasurement.quarter == quarter,
-        )
-        .scalar_subquery()
-    )
     rows = (
         db.query(UserMeasurement)
         .filter(
-            UserMeasurement.year == year,
-            UserMeasurement.quarter == quarter,
+            *base_filter,
             UserMeasurement.s_code == s_code,
-            UserMeasurement.imported_at == latest_subq,
+            UserMeasurement.imported_at == latest_query.scalar_subquery(),
         )
         .all()
     )

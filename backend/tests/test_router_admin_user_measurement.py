@@ -153,6 +153,57 @@ class TestVersionsAndList:
 
 
 # ---------------------------------------------------------------------------
+# Regression: seed.sql TEXT format (no microseconds)
+# ---------------------------------------------------------------------------
+
+class TestSeedFormatRegression:
+    """The seed inserts ``imported_at`` TEXT without microseconds; SQLAlchemy's
+    ``DateTime`` binding appends ``.000000`` to Python ``datetime`` parameters.
+    A Python-bound filter against seed rows would silently return zero cells.
+    The ORM-based tests above can't catch this because they round-trip
+    ``.000000`` on both write and read; raw SQL inserts are required to
+    reproduce the seed format end-to-end.
+    """
+
+    def _insert_seed_format_row(
+        self, db, *, s_code="S0001", cl_id="cl-de-muc", value=12.5,
+        imported_at="2026-01-15 10:00:00",
+    ):
+        from sqlalchemy import text
+        db.execute(text(
+            "INSERT INTO user_measurements "
+            "(year, quarter, s_code, charging_location_id, value, source, imported_at) "
+            "VALUES (2026, 1, :s_code, :cl_id, :value, 'seed', :imported_at)"
+        ), {"s_code": s_code, "cl_id": cl_id, "value": value, "imported_at": imported_at})
+        db.commit()
+
+    def test_latest_path_finds_seed_format_rows(
+        self, test_client, db, seed_personas, seed_charging_locations,
+    ):
+        self._insert_seed_format_row(db)
+        resp = test_client.get(
+            "/api/admin/user-measurement?year=2026&quarter=1",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 1
+        assert body["imported_at"].startswith("2026-01-15T10:00:00")
+
+    def test_explicit_path_finds_seed_format_rows(
+        self, test_client, db, seed_personas, seed_charging_locations,
+    ):
+        self._insert_seed_format_row(db)
+        resp = test_client.get(
+            "/api/admin/user-measurement?year=2026&quarter=1"
+            "&imported_at=2026-01-15T10:00:00",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["total"] == 1
+
+
+# ---------------------------------------------------------------------------
 # CSV import
 # ---------------------------------------------------------------------------
 
