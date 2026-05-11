@@ -1443,11 +1443,72 @@ export const intakeApi = {
   getQueue: () => api.get<{ items: IntakeQueueItem[]; total: number }>('/api/intake/queue'),
 };
 
+import type { MilestoneResponse, MilestoneTypeListResponse } from '@/types/milestones';
+
+/** Milestone CRUD body for POST /api/projects/{id}/milestones — [A-MS-02]. */
+export interface MilestoneCreateBody {
+  sequence_number: number;
+  name: string;
+  milestone_type_id?: string | null;
+  baseline_start: string;          // YYYY-MM
+  baseline_end: string;
+  forecast_start: string;
+  forecast_end: string;
+  color?: string | null;
+}
+
+/**
+ * Milestone update body for PUT /api/projects/{id}/milestones/{mid}.
+ * All fields optional. `override_reason` is mandatory (controller-only)
+ * when changing baseline_start / baseline_end per [A-MS-03].
+ */
+export interface MilestoneUpdateBody {
+  sequence_number?: number;
+  name?: string;
+  milestone_type_id?: string | null;
+  baseline_start?: string;
+  baseline_end?: string;
+  forecast_start?: string;
+  forecast_end?: string;
+  color?: string | null;
+  override_reason?: string | null;
+}
+
 export const milestonesApi = {
   /** GET /api/projects/{id}/milestones — read-only milestone list. */
   list: (projectId: string) =>
     api.get<MilestoneListResponse>(`/api/projects/${projectId}/milestones`),
+
+  /** POST /api/projects/{id}/milestones — create a new milestone. */
+  create: (projectId: string, body: MilestoneCreateBody) =>
+    api.post<MilestoneResponse>(`/api/projects/${projectId}/milestones`, body),
+
+  /**
+   * PUT /api/projects/{id}/milestones/{mid} — partial update. Baseline-date
+   * changes require `override_reason` (controller-only) per [A-MS-03].
+   */
+  update: (projectId: string, milestoneId: number, body: MilestoneUpdateBody) =>
+    api.put<MilestoneResponse>(
+      `/api/projects/${projectId}/milestones/${milestoneId}`,
+      body,
+    ),
+
+  /** DELETE /api/projects/{id}/milestones/{mid}. */
+  remove: (projectId: string, milestoneId: number) =>
+    api.delete<{ deleted: boolean; id: number }>(
+      `/api/projects/${projectId}/milestones/${milestoneId}`,
+    ),
+
+  /** GET /api/admin/milestone-types — read-only catalogue per [A-BK-34]. */
+  listTypes: () =>
+    api.get<MilestoneTypeListResponse>('/api/admin/milestone-types'),
 };
+
+// Define-page endpoints (POST /api/projects/define, PUT /identity, etc.) live
+// in `frontend/src/modules/define/api.ts` as `defineApi`. Kept module-local so
+// the Define tabs can import from a single co-located surface without the
+// circular dependency that would form if endpoints.ts also imported from
+// modules/define.
 
 // ---------------------------------------------------------------------------
 // === Progress Tracker (E1) [E-04c] [E-05a]
