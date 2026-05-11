@@ -16,17 +16,18 @@ export const RANKED_TABLE_HEADERS: {
   label: string;
   sortField?: SortField;
   align?: string;
+  widthPct: number;
 }[] = [
-  { key: 'rank', label: '#', sortField: 'rank' },
-  { key: 'name', label: 'Project', sortField: 'project_name' },
-  { key: 'stage', label: 'Stage', align: 'text-center' },
-  { key: 'type', label: 'Project type', align: 'text-center' },
-  { key: 'tlevel', label: 'T-Level', align: 'text-center' },
-  { key: 'size', label: 'Size', align: 'text-center' },
-  { key: 'score', label: 'Composite', sortField: 'composite_score', align: 'text-right' },
-  { key: 'budget', label: 'Budget', sortField: 'total_budget', align: 'text-right' },
-  { key: 'cutoff', label: 'Cutoff', align: 'text-center' },
-  { key: 'actions', label: '', align: 'text-right' },
+  { key: 'rank', label: '#', sortField: 'rank', widthPct: 3.5 },
+  { key: 'name', label: 'Project', sortField: 'project_name', widthPct: 33 },
+  { key: 'stage', label: 'Stage', align: 'text-center', widthPct: 11 },
+  { key: 'type', label: 'Project type', align: 'text-center', widthPct: 9 },
+  { key: 'tlevel', label: 'T-Level', align: 'text-center', widthPct: 7 },
+  { key: 'size', label: 'Size', align: 'text-center', widthPct: 5.5 },
+  { key: 'score', label: 'Composite', sortField: 'composite_score', align: 'text-right', widthPct: 10 },
+  { key: 'budget', label: 'Budget', sortField: 'total_budget', align: 'text-right', widthPct: 10 },
+  { key: 'cutoff', label: 'Cutoff', align: 'text-center', widthPct: 7 },
+  { key: 'actions', label: '', align: 'text-right', widthPct: 4 },
 ];
 
 interface Props {
@@ -60,7 +61,12 @@ export function RankedListTable({
   return (
     <>
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
-        <table className="w-full">
+        <table className="w-full table-fixed">
+          <colgroup>
+            {RANKED_TABLE_HEADERS.map((h) => (
+              <col key={h.key} style={{ width: `${h.widthPct}%` }} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="border-b border-border bg-muted/40">
               {RANKED_TABLE_HEADERS.map((h) => (

@@ -44,7 +44,12 @@ export function PreFundedSection({ items }: Props) {
 
       {open ? (
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-fixed">
+            <colgroup>
+              {RANKED_TABLE_HEADERS.map((h) => (
+                <col key={h.key} style={{ width: `${h.widthPct}%` }} />
+              ))}
+            </colgroup>
             <thead>
               <tr className="border-t border-border">
                 {RANKED_TABLE_HEADERS.map((h) => (
