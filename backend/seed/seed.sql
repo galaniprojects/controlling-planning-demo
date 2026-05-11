@@ -542,15 +542,15 @@ INSERT INTO projects (id, name, description, status, rag_status, capex_opex, sta
 ('proj-iam-run', 'Identity & Access Management Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 310000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 -- Backlog seed expansion (16 DoI 0-2 projects) so the ranked-list cutoff
 -- lines have enough rows above and below to be visible in the demo.
-('proj-bk01', 'AI Customer Service Assistant', NULL, 'draft', NULL, 'capex', '2026-09', '2028-03', '2028-03', 'p-sharma', 0, NULL, 1850000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk02', 'Mobile Workforce Application', NULL, 'draft', NULL, 'capex', '2026-08', '2027-09', '2027-09', 'p-weber', 0, NULL, 680000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk03', 'Cybersecurity Hardening Programme', NULL, 'draft', NULL, 'capex', '2026-07', '2027-12', '2027-12', 'p-brenner', 0, NULL, 1200000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk01', 'AI Customer Service Assistant', NULL, 'planned', 'green', 'capex', '2026-09', '2028-03', '2028-03', 'p-sharma', 0, NULL, 1850000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk02', 'Mobile Workforce Application', NULL, 'planned', 'green', 'capex', '2026-08', '2027-09', '2027-09', 'p-weber', 0, NULL, 680000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk03', 'Cybersecurity Hardening Programme', NULL, 'planned', 'green', 'capex', '2026-07', '2027-12', '2027-12', 'p-brenner', 0, NULL, 1200000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-bk04', 'Supplier Portal Modernization', NULL, 'draft', NULL, 'capex', '2026-10', '2027-08', '2027-08', 'p-sharma', 0, NULL, 540000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-bk05', 'Real-time Analytics Platform', NULL, 'pending_cc_confirmation', NULL, 'capex', '2026-09', '2028-12', '2028-12', 'p-weber', 0, NULL, 2300000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-bk06', 'Document Management Refresh', NULL, 'draft', NULL, 'opex', '2026-08', '2027-04', '2027-04', 'p-brenner', 0, NULL, 320000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-bk07', 'Manufacturing Execution Upgrade', NULL, 'draft', NULL, 'capex', '2026-11', '2028-06', '2028-06', 'p-sharma', 0, NULL, 1450000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk08', 'API Gateway Consolidation', NULL, 'draft', NULL, 'capex', '2026-08', '2027-06', '2027-06', 'p-brenner', 0, NULL, 480000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk09', 'Customer Identity Federation', NULL, 'draft', NULL, 'capex', '2026-09', '2027-10', '2027-10', 'p-brenner', 0, NULL, 760000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk08', 'API Gateway Consolidation', NULL, 'planned', 'green', 'capex', '2026-08', '2027-06', '2027-06', 'p-brenner', 0, NULL, 480000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-bk09', 'Customer Identity Federation', NULL, 'planned', 'green', 'capex', '2026-09', '2027-10', '2027-10', 'p-brenner', 0, NULL, 760000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-bk10', 'Test Automation Platform', NULL, 'draft', NULL, 'opex', '2026-07', '2027-03', '2027-03', 'p-sharma', 0, NULL, 280000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-bk11', 'Compliance Reporting Engine', NULL, 'draft', NULL, 'capex', '2026-10', '2027-12', '2027-12', 'p-weber', 0, NULL, 620000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-bk12', 'Field Service Telematics', NULL, 'draft', NULL, 'capex', '2026-12', '2028-04', '2028-04', 'p-weber', 0, NULL, 880000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
@@ -1496,15 +1496,15 @@ UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_
 UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-sensor-2025-02.pdf' WHERE id = 'proj-sensor';
 
 -- Backlog seed expansion (16 DoI 0-2 projects).
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk01-2026-02.pdf' WHERE id = 'proj-bk01';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk02-2026-02.pdf' WHERE id = 'proj-bk02';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk03-2026-01.pdf' WHERE id = 'proj-bk03';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk01-2026-02.pdf' WHERE id = 'proj-bk01';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk02-2026-02.pdf' WHERE id = 'proj-bk02';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk03-2026-01.pdf' WHERE id = 'proj-bk03';
 UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk04-2026-02.pdf' WHERE id = 'proj-bk04';
 UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk05-2026-03.pdf' WHERE id = 'proj-bk05';
 UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk06-2026-01.pdf' WHERE id = 'proj-bk06';
 UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk07-2026-02.pdf' WHERE id = 'proj-bk07';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk08-2026-01.pdf' WHERE id = 'proj-bk08';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk09-2026-02.pdf' WHERE id = 'proj-bk09';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk08-2026-01.pdf' WHERE id = 'proj-bk08';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk09-2026-02.pdf' WHERE id = 'proj-bk09';
 UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk10-2026-01.pdf' WHERE id = 'proj-bk10';
 UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk11-2026-02.pdf' WHERE id = 'proj-bk11';
 UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-bk12';
