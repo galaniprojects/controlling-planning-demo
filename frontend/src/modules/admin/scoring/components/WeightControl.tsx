@@ -19,6 +19,10 @@ interface Props {
   unit?: string;
   hint?: string;
   isDirty?: boolean;
+  /** Variable name shown in brackets after the label, e.g. "s" → "Standardization (s)". */
+  varName?: string;
+  /** Weight variable subscript shown after the unit, e.g. "s" → "(w_s)". */
+  weightVarName?: string;
 }
 
 export function WeightControl({
@@ -31,16 +35,25 @@ export function WeightControl({
   unit = '%',
   hint,
   isDirty = false,
+  varName,
+  weightVarName,
 }: Props) {
   return (
     <div
       className={cn(
-        'grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] items-center gap-3 py-1.5',
+        'grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto] items-center gap-3 py-1.5',
         isDirty && '-mx-2 px-2 rounded bg-amber-50 dark:bg-amber-900/20',
       )}
     >
       <div className="min-w-0">
-        <div className="text-sm font-medium text-foreground truncate">{label}</div>
+        <div className="text-sm font-medium text-foreground truncate">
+          {label}
+          {varName ? (
+            <span className="ml-1.5 font-mono text-muted-foreground">
+              ({varName})
+            </span>
+          ) : null}
+        </div>
         {hint ? (
           <div className="text-xs text-muted-foreground truncate">{hint}</div>
         ) : null}
@@ -53,7 +66,7 @@ export function WeightControl({
         onValueChange={(arr) => onChange(arr[0])}
         aria-label={label}
       />
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
         <Input
           type="number"
           inputMode="numeric"
@@ -68,9 +81,14 @@ export function WeightControl({
           }}
           aria-label={`${label} numeric`}
         />
-        {unit ? (
-          <span className="text-xs text-muted-foreground w-3">{unit}</span>
-        ) : null}
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {unit ? <span>{unit}</span> : null}
+          {weightVarName ? (
+            <span className="ml-1 font-mono">
+              (w<sub>{weightVarName}</sub>)
+            </span>
+          ) : null}
+        </span>
       </div>
     </div>
   );

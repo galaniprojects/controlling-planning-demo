@@ -41,6 +41,35 @@ import { TshirtThresholdsCard } from './components/TshirtThresholdsCard';
 import { CutoffEnvelopeCard } from './components/CutoffEnvelopeCard';
 import { QuadrantScatter } from './components/QuadrantScatter';
 
+/**
+ * Mini-formula rendered inside an axis card. Mirrors the visual style of
+ * FormulaCard at the top of the page: name = (numerator) / (denominator)
+ * with a thin divider rule. Uses subscripted weight variables (w_s, w_u, ...).
+ */
+function AxisFormula({
+  letter,
+  vars,
+}: {
+  letter: string;
+  vars: [string, string, string];
+}) {
+  const [a, b, c] = vars;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs text-foreground">
+      <span className="text-muted-foreground">{letter}</span>
+      <span aria-hidden>=</span>
+      <span className="inline-flex flex-col items-center">
+        <span className="px-2 pb-0.5 whitespace-nowrap">
+          {a} · w<sub>{a}</sub> + {b} · w<sub>{b}</sub> + {c} · w<sub>{c}</sub>
+        </span>
+        <span className="px-2 pt-0.5 border-t border-foreground/60 whitespace-nowrap">
+          w<sub>{a}</sub> + w<sub>{b}</sub> + w<sub>{c}</sub>
+        </span>
+      </span>
+    </div>
+  );
+}
+
 type Weights = TechNavigatorScoringData['weights'];
 
 interface WorkingState {
@@ -259,13 +288,17 @@ export function TechNavigatorScoring() {
           hintNonStandardSum={sumComposite !== 100}
         >
           <WeightControl
-            label="Value Creation (wV)"
+            label="Value Creation"
+            varName="V"
+            weightVarName="V"
             value={working.weights.ranking.value}
             onChange={(n) => update((s) => { s.weights.ranking.value = n; })}
             isDirty={saved.weights.ranking.value !== working.weights.ranking.value}
           />
           <WeightControl
-            label="Complexity (wC)"
+            label="Complexity"
+            varName="X"
+            weightVarName="C"
             value={working.weights.ranking.complexity}
             onChange={(n) => update((s) => { s.weights.ranking.complexity = n; })}
             isDirty={
@@ -280,9 +313,12 @@ export function TechNavigatorScoring() {
           icon={Compass}
           sum={sumComplexity}
           hintNonStandardSum={sumComplexity !== 100}
+          formula={<AxisFormula letter="X" vars={['s', 'u', 'm']} />}
         >
           <WeightControl
             label="Standardization"
+            varName="s"
+            weightVarName="s"
             value={working.weights.complexity.standardization}
             onChange={(n) => update((s) => { s.weights.complexity.standardization = n; })}
             isDirty={
@@ -292,12 +328,16 @@ export function TechNavigatorScoring() {
           />
           <WeightControl
             label="Usage"
+            varName="u"
+            weightVarName="u"
             value={working.weights.complexity.usage}
             onChange={(n) => update((s) => { s.weights.complexity.usage = n; })}
             isDirty={saved.weights.complexity.usage !== working.weights.complexity.usage}
           />
           <WeightControl
             label="Maintenance"
+            varName="m"
+            weightVarName="m"
             value={working.weights.complexity.maintenance}
             onChange={(n) => update((s) => { s.weights.complexity.maintenance = n; })}
             isDirty={
@@ -312,9 +352,12 @@ export function TechNavigatorScoring() {
           icon={Sparkles}
           sum={sumValue}
           hintNonStandardSum={sumValue !== 100}
+          formula={<AxisFormula letter="V" vars={['f', 'p', 'c']} />}
         >
           <WeightControl
             label="Financial benefit"
+            varName="f"
+            weightVarName="f"
             value={working.weights.value_creation.financial}
             onChange={(n) => update((s) => { s.weights.value_creation.financial = n; })}
             isDirty={
@@ -324,6 +367,8 @@ export function TechNavigatorScoring() {
           />
           <WeightControl
             label="Payback"
+            varName="p"
+            weightVarName="p"
             value={working.weights.value_creation.payback}
             onChange={(n) => update((s) => { s.weights.value_creation.payback = n; })}
             isDirty={
@@ -332,7 +377,9 @@ export function TechNavigatorScoring() {
             }
           />
           <WeightControl
-            label="Competitive advantage"
+            label="Competitive adv."
+            varName="c"
+            weightVarName="c"
             value={working.weights.value_creation.competitive}
             onChange={(n) => update((s) => { s.weights.value_creation.competitive = n; })}
             isDirty={

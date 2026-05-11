@@ -18,6 +18,12 @@ interface Props {
   sum?: number;
   /** Show a small "sum ≠ 100" hint when true. Purely informational. */
   hintNonStandardSum?: boolean;
+  /**
+   * Optional mini-formula block rendered between the header and the row
+   * list — gives each axis card the same self-explanatory "name = formula"
+   * affordance as the top-level FormulaCard.
+   */
+  formula?: React.ReactNode;
 }
 
 export function AxisWeightsCard({
@@ -26,6 +32,7 @@ export function AxisWeightsCard({
   children,
   sum,
   hintNonStandardSum,
+  formula,
 }: Props) {
   return (
     <Card className="p-5 space-y-3">
@@ -53,6 +60,7 @@ export function AxisWeightsCard({
           </span>
         ) : null}
       </div>
+      {formula ? <div className="pt-0.5">{formula}</div> : null}
       <Separator />
       <div className="space-y-0.5">{children}</div>
     </Card>
