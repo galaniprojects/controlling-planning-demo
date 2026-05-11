@@ -34,7 +34,6 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { adminApi } from '@/api/endpoints';
 import type { TechNavigatorScoringData } from '@/types/api';
 
-import { FormulaCard } from './components/FormulaCard';
 import { AxisWeightsCard } from './components/AxisWeightsCard';
 import { WeightControl } from './components/WeightControl';
 import { TshirtThresholdsCard } from './components/TshirtThresholdsCard';
@@ -42,28 +41,41 @@ import { CutoffEnvelopeCard } from './components/CutoffEnvelopeCard';
 import { QuadrantScatter } from './components/QuadrantScatter';
 
 /**
- * Mini-formula rendered inside an axis card. Mirrors the visual style of
- * FormulaCard at the top of the page: name = (numerator) / (denominator)
- * with a thin divider rule. Uses subscripted weight variables (w_s, w_u, ...).
+ * Mini-formula rendered inside an axis card. Renders
+ *   letter = (v · w_w + …) / (w_w + …)
+ * in the standard fraction style — same idiom whether the formula has
+ * two terms (the composite mixer) or three (each axis card).
  */
 function AxisFormula({
   letter,
-  vars,
+  terms,
 }: {
   letter: string;
-  vars: [string, string, string];
+  /** Each term contributes one `v · w_w` to the numerator and one `w_w` to
+   * the denominator. `v` is the variable name (e.g. 's'); `w` is the weight
+   * subscript (typically the same as `v`, but distinct for the composite
+   * mixer where `V` pairs with `w_V` and `X` pairs with `w_C`). */
+  terms: Array<{ v: string; w: string }>;
 }) {
-  const [a, b, c] = vars;
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs text-foreground">
       <span className="text-muted-foreground">{letter}</span>
       <span aria-hidden>=</span>
       <span className="inline-flex flex-col items-center">
         <span className="px-2 pb-0.5 whitespace-nowrap">
-          {a} · w<sub>{a}</sub> + {b} · w<sub>{b}</sub> + {c} · w<sub>{c}</sub>
+          {terms.map((t, i) => (
+            <span key={i}>
+              {i > 0 ? ' + ' : ''}
+              {t.v} · w<sub>{t.w}</sub>
+            </span>
+          ))}
         </span>
         <span className="px-2 pt-0.5 border-t border-foreground/60 whitespace-nowrap">
-          w<sub>{a}</sub> + w<sub>{b}</sub> + w<sub>{c}</sub>
+          {terms.map((t, i) => (
+            <span key={i}>
+              {i > 0 ? ' + ' : ''}w<sub>{t.w}</sub>
+            </span>
+          ))}
         </span>
       </span>
     </div>
@@ -278,14 +290,21 @@ export function TechNavigatorScoring() {
         </div>
       </div>
 
-      <FormulaCard />
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <AxisWeightsCard
-          title="Composite mixer"
+          title="Composite ranking"
           icon={Scale}
           sum={sumComposite}
           hintNonStandardSum={sumComposite !== 100}
+          formula={
+            <AxisFormula
+              letter="composite"
+              terms={[
+                { v: 'V', w: 'V' },
+                { v: 'X', w: 'C' },
+              ]}
+            />
+          }
         >
           <WeightControl
             label="Value Creation"
@@ -313,7 +332,16 @@ export function TechNavigatorScoring() {
           icon={Compass}
           sum={sumComplexity}
           hintNonStandardSum={sumComplexity !== 100}
-          formula={<AxisFormula letter="X" vars={['s', 'u', 'm']} />}
+          formula={
+            <AxisFormula
+              letter="X"
+              terms={[
+                { v: 's', w: 's' },
+                { v: 'u', w: 'u' },
+                { v: 'm', w: 'm' },
+              ]}
+            />
+          }
         >
           <WeightControl
             label="Standardization"
@@ -352,7 +380,16 @@ export function TechNavigatorScoring() {
           icon={Sparkles}
           sum={sumValue}
           hintNonStandardSum={sumValue !== 100}
-          formula={<AxisFormula letter="V" vars={['f', 'p', 'c']} />}
+          formula={
+            <AxisFormula
+              letter="V"
+              terms={[
+                { v: 'f', w: 'f' },
+                { v: 'p', w: 'p' },
+                { v: 'c', w: 'c' },
+              ]}
+            />
+          }
         >
           <WeightControl
             label="Financial benefit"

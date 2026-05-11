@@ -20,8 +20,7 @@ interface Props {
   hintNonStandardSum?: boolean;
   /**
    * Optional mini-formula block rendered between the header and the row
-   * list — gives each axis card the same self-explanatory "name = formula"
-   * affordance as the top-level FormulaCard.
+   * list — gives each card a self-explanatory "name = formula" affordance.
    */
   formula?: React.ReactNode;
 }
