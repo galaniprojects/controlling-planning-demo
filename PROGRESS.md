@@ -14,6 +14,18 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 
 **v5.2 cycle complete** — six waves, six PRs (#88 / #90 / #91 / #92 / #93 / #94) plus the closeout PR. Capacity Module Redesign closed 2026-05-10.
 
+### Backlog Pipeline Stage column (2026-05-11, branch `feature/backlog-stage-column`)
+
+Follow-up to PR #97 (which promoted 5 projects to Approved to balance the Cutoff badge column). Two related UX gaps remained: (a) the 3 Active projects (`proj-erp2`, `proj-mdh-rollout`, `proj-sensor`) showed only a "—" in the Cutoff column because `recompute_within_cutoff_for_backlog` (ranking.py:544-553) computes `within_cutoff` only for Approved projects by design, and (b) the pipeline stage was buried as muted subtext under each project name (`RankedRow.tsx:86`), so "what's actually running?" required scanning every row.
+
+Decision: keep the Cutoff column's existing semantic (the "should we proceed?" question for Approved projects) and add a separate, scannable **Stage** column. Frontend-only change — `RankedProjectItem.pipeline_stage` was already on the row data.
+
+Files touched:
+- `frontend/src/modules/backlog/components/ranked/RankedListTable.tsx` — added `{ key: 'stage', label: 'Stage', align: 'text-center' }` to the exported `RANKED_TABLE_HEADERS` between `name` and `type`. `PreFundedSection.tsx` imports the same array, so the P3 pre-funded table picks up the header automatically.
+- `frontend/src/modules/backlog/components/ranked/RankedRow.tsx` — added `STAGE_BADGE` constant (Active=blue, Approved=sky, Under Evaluation=slate, Proposed=neutral, Paused=amber, all with `dark:` variants); inserted a new `<td>` between the project-name cell and the project-type cell rendering a coloured pill via that map; dropped the stage from the muted subtext under the project name so the subtext now shows only "DoI N". Blue (not emerald) for Active to avoid clashing with the green "In" cutoff badge.
+
+No backend, type, or test changes. `tsc --noEmit` clean. Verified at `localhost:5173/backlog` at 1440px in both light and dark mode — all five stage colours render correctly across the 25 competing rows and the 2 pre-funded rows; `proj-sensor` row at rank 16 correctly shows blue Active badge + "—" cutoff + amber misalignment-zone tint coexisting (the accepted trade-off). No console errors. Screenshots: `qa/screenshots/backlog-stage-column-light.png`, `qa/screenshots/backlog-stage-column-dark.png`.
+
 ### Workbench + Backlog polish (2026-05-10, branch `fix/workbench-backlog-polish`)
 
 Three user-found issues from a manual demo walkthrough — single solo session, three thin streams.
