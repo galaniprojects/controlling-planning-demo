@@ -28,6 +28,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models.charging import (
@@ -203,14 +204,25 @@ def compute_um_snapshot(
             f"Import a UM CSV before creating an automatic BTC profile.",
         )
 
-    # Fetch all rows for this s_code in the most recent batch.
+    # Fetch all rows for this s_code in the most recent batch. The imported_at
+    # comparison is kept server-side via a scalar subquery — SQLAlchemy's
+    # DateTime binding appends ".000000" microseconds that the seeded TEXT
+    # values don't carry, so a Python-side ``latest_ts`` would never match.
+    latest_subq = (
+        db.query(func.max(UserMeasurement.imported_at))
+        .filter(
+            UserMeasurement.year == year,
+            UserMeasurement.quarter == quarter,
+        )
+        .scalar_subquery()
+    )
     rows = (
         db.query(UserMeasurement)
         .filter(
             UserMeasurement.year == year,
             UserMeasurement.quarter == quarter,
             UserMeasurement.s_code == s_code,
-            UserMeasurement.imported_at == latest_ts,
+            UserMeasurement.imported_at == latest_subq,
         )
         .all()
     )

@@ -140,7 +140,11 @@ def list_user_measurement(
     timestamp matching the value returned by ``/versions``) to address a
     specific version. Read-visible to all CRETA users per [F-UM-04].
     """
-    base = db.query(UserMeasurement).filter(
+    # imported_at lives in a SQLite TEXT column. SQLAlchemy's DateTime binding
+    # appends ".000000" microseconds, which doesn't match seeded values that
+    # were inserted without microseconds. Keep the equality comparison
+    # server-side (subquery / strftime) so the format mismatch never bites.
+    base_filter = (
         UserMeasurement.year == year,
         UserMeasurement.quarter == quarter,
     )
@@ -150,18 +154,40 @@ def list_user_measurement(
             ts = datetime.fromisoformat(imported_at)
         except ValueError:
             raise HTTPException(400, f"Invalid imported_at timestamp: {imported_at}")
-        target_at = ts
+        norm_ts = ts.strftime("%Y-%m-%d %H:%M:%S")
+        time_filter = func.strftime(
+            "%Y-%m-%d %H:%M:%S", UserMeasurement.imported_at,
+        ) == norm_ts
+        target_at_value = (
+            db.query(UserMeasurement.imported_at)
+            .filter(*base_filter)
+            .filter(time_filter)
+            .order_by(desc(UserMeasurement.imported_at))
+            .limit(1)
+            .scalar()
+        )
     else:
-        target_at_row = base.order_by(desc(UserMeasurement.imported_at)).first()
-        if target_at_row is None:
-            return UserMeasurementListResponse(
-                items=[], total=0, year=year, quarter=quarter, imported_at=None,
-            )
-        target_at = target_at_row.imported_at
+        latest_subq = (
+            db.query(func.max(UserMeasurement.imported_at))
+            .filter(*base_filter)
+            .scalar_subquery()
+        )
+        time_filter = UserMeasurement.imported_at == latest_subq
+        target_at_value = (
+            db.query(func.max(UserMeasurement.imported_at))
+            .filter(*base_filter)
+            .scalar()
+        )
+
+    if target_at_value is None:
+        return UserMeasurementListResponse(
+            items=[], total=0, year=year, quarter=quarter, imported_at=None,
+        )
 
     rows = (
-        base
-        .filter(UserMeasurement.imported_at == target_at)
+        db.query(UserMeasurement)
+        .filter(*base_filter)
+        .filter(time_filter)
         .join(ChargingLocation, ChargingLocation.id == UserMeasurement.charging_location_id, isouter=True)
         .order_by(UserMeasurement.s_code, UserMeasurement.charging_location_id)
         .all()
@@ -180,12 +206,17 @@ def list_user_measurement(
         )
         for r in rows
     ]
+    target_at_iso = (
+        target_at_value.isoformat()
+        if hasattr(target_at_value, "isoformat")
+        else str(target_at_value)
+    )
     return UserMeasurementListResponse(
         items=items,
         total=len(items),
         year=year,
         quarter=quarter,
-        imported_at=target_at.isoformat(),
+        imported_at=target_at_iso,
     )
 
 
