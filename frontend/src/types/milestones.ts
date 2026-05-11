@@ -10,6 +10,11 @@ export interface MilestoneTypeResponse {
   is_active: boolean;
 }
 
+export interface MilestoneTypeListResponse {
+  items: MilestoneTypeResponse[];
+  total: number;
+}
+
 export interface MilestoneResponse {
   id: number;
   project_id: string;
