@@ -10,11 +10,10 @@
  * regression, so the rendering is bespoke while the active-state pattern
  * stays aligned.
  */
-import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { SubmitProjectDialog } from '@/components/shared/SubmitProjectDialog';
 import { cn } from '@/lib/utils';
 import type { WorkbenchProjectListItem } from '@/types/api';
 import { PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react';
@@ -27,6 +26,12 @@ interface Props {
   collapsed: boolean;
   onToggleCollapse: () => void;
   isProjectLead?: boolean;
+  /**
+   * Define-page redesign: the popup is gone — `+ New` now routes the
+   * PL to `/define/new`. `onProjectCreated` is retained for the
+   * historic call sites but is no longer invoked from this panel
+   * (the Workbench refetches project lists on focus).
+   */
   onProjectCreated?: () => void;
 }
 
@@ -60,9 +65,8 @@ export function ProjectListPanel({
   collapsed,
   onToggleCollapse,
   isProjectLead,
-  onProjectCreated,
 }: Props) {
-  const [submitOpen, setSubmitOpen] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <div
@@ -84,7 +88,8 @@ export function ProjectListPanel({
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs text-primary hover:text-primary hover:bg-primary/5"
-              onClick={() => setSubmitOpen(true)}
+              onClick={() => navigate('/define/new')}
+              title="Create a new project on the Define page"
             >
               <Plus className="h-3.5 w-3.5 mr-0.5" />
               New
@@ -163,11 +168,6 @@ export function ProjectListPanel({
         </div>
       )}
 
-      <SubmitProjectDialog
-        open={submitOpen}
-        onOpenChange={setSubmitOpen}
-        onSuccess={onProjectCreated}
-      />
     </div>
   );
 }

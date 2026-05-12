@@ -18,37 +18,39 @@
  *
  * The wizard contract (`workingChanges: ForecastChange[]`, `onCellChange`)
  * is unchanged so the existing review/submit phases continue to work.
+ *
+ * Refactor note (define-page-redesign): the grid rendering moved into the
+ * shared `MonthCategoryGrid` primitive at
+ * `frontend/src/components/shared/MonthCategoryGrid.tsx`. This file remains
+ * the forecast-cycle integration point (data fetch, working-change tracking,
+ * quarterly-distribution, change-summary footer) but no longer owns the
+ * table layout. The Define Financials tab consumes the same primitive with
+ * baseline-write callbacks.
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { Badge } from '@/components/ui/badge';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { ChevronDown, ChevronRight, Info } from 'lucide-react';
-import { formatCurrency, formatCurrencyCompact, formatCurrencyDetailed, formatNumber } from '@/lib/formatters';
+import { Info } from 'lucide-react';
+import { formatCurrencyCompact } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { workbenchApi } from '@/api/endpoints';
+import {
+  MonthCategoryGrid,
+  type MonthCategoryGridColumn,
+  type MonthCategoryGridRow,
+  type MonthCategoryGridCellState,
+} from '@/components/shared/MonthCategoryGrid';
 import type {
   ForecastGridRow,
   ForecastChange,
-  ForecastMonthCell,
   SuggestionItem,
   MixedGridResponse,
-  MixedGridColumn,
 } from '@/types/api';
 
 const DEMO_DATE = '2026-04';
@@ -61,16 +63,6 @@ interface Props {
   onCellChange: (change: ForecastChange) => void;
   onSaveAndReview: () => void;
   loading: boolean;
-}
-
-const MONTH_SHORT = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
-
-function formatMonth(m: string): string {
-  const [y, mo] = m.split('-');
-  return `${MONTH_SHORT[parseInt(mo, 10) - 1] ?? ''} ${y.slice(2)}`;
 }
 
 function quarterMonths(qKey: string): string[] {
@@ -108,7 +100,6 @@ export function Phase3EditForecast({
   const [rows, setRows] = useState<ForecastGridRow[]>([]);
   const [grid, setGrid] = useState<MixedGridResponse | null>(null);
   const [gridLoading, setGridLoading] = useState(true);
-  const [editingCell, setEditingCell] = useState<string | null>(null);
   const [expandedQuarters, setExpandedQuarters] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -157,22 +148,23 @@ export function Phase3EditForecast({
   }, []);
 
   // Visible columns: pull mixed grid columns, optionally expand a quarterly
-  // column into its three constituent months (UI-only refinement).
-  const visibleColumns = useMemo<MixedGridColumn[]>(() => {
+  // column into its three constituent months (UI-only refinement). Then map
+  // into the MonthCategoryGrid column shape.
+  const visibleColumns = useMemo<MonthCategoryGridColumn[]>(() => {
     if (!grid) return [];
-    const out: MixedGridColumn[] = [];
+    const out: MonthCategoryGridColumn[] = [];
     for (const col of grid.columns) {
       if (col.cell_type === 'quarterly' && expandedQuarters.has(col.key)) {
         const months = quarterMonths(col.key);
         for (const m of months) {
           out.push({
             key: `${col.key}::expanded::${m}`,
-            label: m,
+            label: undefined,
             cell_type: 'monthly',
           });
         }
       }
-      out.push(col);
+      out.push({ key: col.key, label: undefined, cell_type: col.cell_type });
     }
     return out;
   }, [grid, expandedQuarters]);
@@ -188,15 +180,6 @@ export function Phase3EditForecast({
     }
     return map;
   }, [grid]);
-
-  const internalRows = useMemo(
-    () => rows.filter((r) => r.category === 'internal'),
-    [rows],
-  );
-  const externalRows = useMemo(
-    () => rows.filter((r) => r.category === 'external'),
-    [rows],
-  );
 
   const getWorkingValue = useCallback(
     (subCategory: string, month: string) =>
@@ -219,24 +202,6 @@ export function Phase3EditForecast({
   }, 0);
 
   const isEditableMonth = (month: string) => month >= DEMO_DATE;
-
-  // Identify the boundary column index for the blue divider.
-  const lastMonthlyIdx = useMemo(() => {
-    if (!grid) return -1;
-    let idx = -1;
-    grid.columns.forEach((c, i) => {
-      if (c.cell_type === 'monthly') idx = i;
-    });
-    return idx;
-  }, [grid]);
-
-  function isBoundaryColumn(col: MixedGridColumn, idx: number): boolean {
-    if (lastMonthlyIdx < 0) return false;
-    if (idx === 0) return false;
-    if (col.cell_type !== 'quarterly') return false;
-    const prev = visibleColumns[idx - 1];
-    return prev?.cell_type === 'monthly';
-  }
 
   /** Apply a monthly edit. Used both for direct monthly cells and as the
    * underlying primitive when a quarterly value distributes. */
@@ -266,8 +231,7 @@ export function Phase3EditForecast({
   );
 
   /** Apply a quarterly edit by fanning out into three monthly changes
-   * per `[C-FG-03]`. Uses display values (hours for internal, EUR for
-   * external) — same convention as monthly cells. */
+   * per `[C-FG-03]`. */
   const applyQuarterlyChange = useCallback(
     (
       category: string,
@@ -285,231 +249,102 @@ export function Phase3EditForecast({
     [applyMonthlyChange],
   );
 
-  function getDisplayValue(
-    category: string,
-    row: ForecastGridRow,
-    col: MixedGridColumn,
-  ): {
-    /** For monthly: months covered = [single]. For quarterly: covers 3 months. */
-    months: string[];
-    /** Sum of working+forecast values for those months. */
-    displayValue: number;
-    /** Original (pre-edit) total for those months. */
-    originalValue: number;
-    /** True if any monthly cell in the range has a working change. */
-    isChanged: boolean;
-    /** True if any working change came from a suggestion. */
-    isSuggested: boolean;
-    /** True if any constituent month is provisional. */
-    isProvisional: boolean;
-    /** True if every constituent month is editable (>= DEMO_DATE). */
-    canEdit: boolean;
-    /** Synthetic key like "Q2 2027" → resolves to the parent quarter for editing. */
-    editKey: string;
-    /** True for cells that came from quarter-expansion ("ghost" sub-months). */
-    isExpandedSub: boolean;
-  } {
-    const isInternal = category === 'internal';
-    const isExpandedSub = col.key.includes('::expanded::');
-    let monthsCovered: string[];
-    let editKey: string;
+  // ---- Adapt ForecastGridRow → MonthCategoryGridRow ------------------------
+  const adapterRows = useMemo<MonthCategoryGridRow[]>(
+    () =>
+      rows.map((r) => ({
+        category: r.category,
+        sub_category: r.sub_category,
+        sub_category_name: r.sub_category_name,
+        capex_opex: r.capex_opex,
+        hourly_rate: r.hourly_rate,
+      })),
+    [rows],
+  );
 
-    if (isExpandedSub) {
-      const month = col.key.split('::')[2];
-      monthsCovered = [month];
-      editKey = month;
-    } else if (col.cell_type === 'monthly') {
-      monthsCovered = [col.key];
-      editKey = col.key;
-    } else {
-      monthsCovered = quarterMonths(col.key);
-      editKey = col.key;
-    }
+  const rowByKey = useMemo(() => {
+    const map = new Map<string, ForecastGridRow>();
+    for (const r of rows) map.set(`${r.category}|${r.sub_category}`, r);
+    return map;
+  }, [rows]);
 
-    let originalValue = 0;
-    let displayValue = 0;
-    let isChanged = false;
-    let isSuggested = false;
-    let isProvisional = false;
-    let canEdit = monthsCovered.length > 0;
-
-    for (const m of monthsCovered) {
-      const cell = row.months.find((c) => c.month === m);
-      const orig = cell ? (isInternal ? cell.forecast_hours : cell.forecast_amount) : 0;
-      originalValue += orig;
-      const change = getWorkingValue(row.sub_category, m);
-      const eff = change ? change.new_value : orig;
-      displayValue += eff;
-      if (change) {
-        isChanged = true;
-        if (change.suggestion_id != null) isSuggested = true;
+  // ---- Per-cell state derivation (forecast-cycle semantics) ----------------
+  const getCellState = useCallback(
+    (
+      mcRow: MonthCategoryGridRow,
+      col: MonthCategoryGridColumn,
+    ): MonthCategoryGridCellState => {
+      const row = rowByKey.get(`${mcRow.category}|${mcRow.sub_category}`);
+      if (!row) {
+        return { displayValue: 0, canEdit: false, isEmpty: true };
       }
-      if (provisionalIndex.get(`${category}|${row.sub_category}|${m}`)) {
-        isProvisional = true;
+      const isInternal = mcRow.category === 'internal';
+      const expandedSub = col.key.includes('::expanded::');
+      let monthsCovered: string[];
+      if (expandedSub) {
+        monthsCovered = [col.key.split('::')[2]];
+      } else if (col.cell_type === 'monthly') {
+        monthsCovered = [col.key];
+      } else {
+        monthsCovered = quarterMonths(col.key);
       }
-      if (!isEditableMonth(m)) canEdit = false;
-    }
 
-    return {
-      months: monthsCovered,
-      displayValue: Math.round(displayValue * 100) / 100,
-      originalValue: Math.round(originalValue * 100) / 100,
-      isChanged,
-      isSuggested,
-      isProvisional,
-      canEdit,
-      editKey,
-      isExpandedSub,
-    };
-  }
+      let originalValue = 0;
+      let displayValue = 0;
+      let isChanged = false;
+      let isSuggested = false;
+      let isProvisional = false;
+      let canEdit = monthsCovered.length > 0;
+      for (const m of monthsCovered) {
+        const cell = row.months.find((c) => c.month === m);
+        const orig = cell ? (isInternal ? cell.forecast_hours : cell.forecast_amount) : 0;
+        originalValue += orig;
+        const change = getWorkingValue(row.sub_category, m);
+        const eff = change ? change.new_value : orig;
+        displayValue += eff;
+        if (change) {
+          isChanged = true;
+          if (change.suggestion_id != null) isSuggested = true;
+        }
+        if (provisionalIndex.get(`${mcRow.category}|${row.sub_category}|${m}`)) {
+          isProvisional = true;
+        }
+        if (!isEditableMonth(m)) canEdit = false;
+      }
+      void originalValue; // available if a future caller wants delta display
 
-  function commitEdit(
-    category: string,
-    row: ForecastGridRow,
-    col: MixedGridColumn,
-    raw: string,
-  ) {
-    const newVal = parseFloat(raw);
-    if (Number.isNaN(newVal) || newVal < 0) {
-      setEditingCell(null);
-      return;
-    }
-    const { isExpandedSub } = getDisplayValue(category, row, col);
-    if (isExpandedSub) {
-      // Synthetic monthly column under an expanded quarter — write the
-      // single month directly.
-      const month = col.key.split('::')[2];
-      applyMonthlyChange(category, row, month, newVal);
-    } else if (col.cell_type === 'monthly') {
-      applyMonthlyChange(category, row, col.key, newVal);
-    } else {
-      applyQuarterlyChange(category, row, col.key, newVal);
-    }
-    setEditingCell(null);
-  }
+      return {
+        displayValue: Math.round(displayValue * 100) / 100,
+        isChanged,
+        isSuggested,
+        isProvisional,
+        canEdit,
+      };
+    },
+    [rowByKey, getWorkingValue, provisionalIndex],
+  );
 
-  function renderProvisionalDot() {
-    return (
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span
-              aria-label="Provisional value"
-              className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 dark:bg-amber-400 mr-1 align-middle"
-            />
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            <span className="text-xs">
-              Provisional. Manual edit will clear the flag on save per [C-FG-07].
-            </span>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-
-  function renderEditableCell(
-    category: string,
-    row: ForecastGridRow,
-    col: MixedGridColumn,
-  ) {
-    const isInternal = category === 'internal';
-    const display = getDisplayValue(category, row, col);
-    const cellKey = `${row.sub_category}:${col.key}`;
-    const isEditing = editingCell === cellKey;
-
-    if (isEditing && display.canEdit) {
-      return (
-        <Input
-          type="number"
-          step="any"
-          className="h-7 w-24 text-right text-sm p-1"
-          defaultValue={display.displayValue}
-          autoFocus
-          onBlur={(e) => commitEdit(category, row, col, e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              commitEdit(category, row, col, (e.target as HTMLInputElement).value);
-            }
-            if (e.key === 'Escape') setEditingCell(null);
-          }}
-        />
-      );
-    }
-
-    if (display.months.length === 0) {
-      return <span className="text-muted-foreground/40">—</span>;
-    }
-
-    const rate = isInternal ? row.hourly_rate ?? 0 : 0;
-    const eurValue = isInternal ? display.displayValue * rate : display.displayValue;
-
-    if (!display.canEdit) {
-      return (
-        <div className="bg-muted/50 rounded px-1.5 py-0.5 inline-block min-w-[60px]">
-          <span className="text-sm text-muted-foreground inline-flex items-center">
-            {display.isProvisional && renderProvisionalDot()}
-            {isInternal
-              ? `${formatNumber(display.displayValue)} hrs`
-              : formatCurrency(display.displayValue)}
-          </span>
-        </div>
-      );
-    }
-
-    return (
-      <div>
-        <button
-          className={cn(
-            'text-sm font-medium cursor-pointer px-1.5 py-0.5 rounded transition-colors w-full text-right',
-            display.isSuggested && 'bg-primary/5 text-primary',
-            display.isChanged &&
-              !display.isSuggested &&
-              'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400',
-            !display.isChanged && 'hover:bg-accent',
-          )}
-          onClick={() => setEditingCell(cellKey)}
-        >
-          <span className="inline-flex items-center justify-end gap-1">
-            {display.isProvisional && renderProvisionalDot()}
-            {isInternal
-              ? `${formatNumber(display.displayValue)} hrs`
-              : formatCurrency(display.displayValue)}
-          </span>
-        </button>
-        {isInternal && rate > 0 && (
-          <span className="block text-[10px] text-muted-foreground text-right pr-1.5">
-            {formatCurrencyDetailed(eurValue)}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  function formatColumnLabel(col: MixedGridColumn): string {
-    if (col.key.includes('::expanded::')) {
-      return formatMonth(col.key.split('::')[2]);
-    }
-    if (col.cell_type === 'monthly') return formatMonth(col.key);
-    return col.key.slice(5); // 'YYYY-QN' → 'QN'
-  }
-
-  function columnYear(col: MixedGridColumn): number {
-    return parseInt(col.key.slice(0, 4), 10);
-  }
-
-  // Group years for the year header row.
-  const yearGroups = useMemo(() => {
-    const map = new Map<number, MixedGridColumn[]>();
-    for (const col of visibleColumns) {
-      const y = columnYear(col);
-      if (!map.has(y)) map.set(y, []);
-      map.get(y)!.push(col);
-    }
-    return Array.from(map.entries())
-      .map(([year, cols]) => ({ year, count: cols.length }))
-      .sort((a, b) => a.year - b.year);
-  }, [visibleColumns]);
+  // ---- onCellChange adapter ----------------------------------------------
+  const handleCellChange = useCallback(
+    (
+      mcRow: MonthCategoryGridRow,
+      col: MonthCategoryGridColumn,
+      newValue: number,
+    ) => {
+      const row = rowByKey.get(`${mcRow.category}|${mcRow.sub_category}`);
+      if (!row) return;
+      const expandedSub = col.key.includes('::expanded::');
+      if (expandedSub) {
+        const month = col.key.split('::')[2];
+        applyMonthlyChange(mcRow.category, row, month, newValue);
+      } else if (col.cell_type === 'monthly') {
+        applyMonthlyChange(mcRow.category, row, col.key, newValue);
+      } else {
+        applyQuarterlyChange(mcRow.category, row, col.key, newValue);
+      }
+    },
+    [rowByKey, applyMonthlyChange, applyQuarterlyChange],
+  );
 
   if (gridLoading) {
     return (
@@ -576,213 +411,20 @@ export function Phase3EditForecast({
         </TooltipProvider>
       </div>
 
-      <div className="border border-border rounded-lg overflow-x-auto max-w-full">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead
-                className="sticky left-0 bg-muted/50 z-10 border-r border-border whitespace-nowrap min-w-[200px]"
-                rowSpan={2}
-              >
-                Line item
-              </TableHead>
-              {yearGroups.map((g) => (
-                <TableHead
-                  key={`yr-${g.year}`}
-                  colSpan={g.count}
-                  className="text-center border-l-2 border-border text-xs font-semibold text-primary"
-                >
-                  {g.year}
-                </TableHead>
-              ))}
-            </TableRow>
-            <TableRow className="bg-muted/30">
-              {visibleColumns.map((col, idx) => {
-                const isQuarterly = col.cell_type === 'quarterly';
-                const expandable = isQuarterly && !col.key.includes('::expanded::');
-                const isExpanded = expandable && expandedQuarters.has(col.key);
-                const isExpandedSub = col.key.includes('::expanded::');
-                const yearStart =
-                  idx === 0 || columnYear(col) !== columnYear(visibleColumns[idx - 1]);
-                const boundary = isBoundaryColumn(col, idx);
-                const monthEditable =
-                  col.cell_type === 'monthly' && !isExpandedSub && !isEditableMonth(col.key);
-                return (
-                  <TableHead
-                    key={`col-${col.key}`}
-                    className={cn(
-                      'text-right min-w-[90px] text-xs',
-                      yearStart && 'border-l-2 border-border',
-                      boundary &&
-                        'border-l-4 border-l-blue-400 dark:border-l-blue-500 bg-blue-50/40 dark:bg-blue-900/20',
-                      isQuarterly &&
-                        !isExpandedSub &&
-                        'bg-blue-50/40 dark:bg-blue-900/20',
-                      isExpandedSub && 'bg-blue-50/20 dark:bg-blue-900/10 italic',
-                      monthEditable && 'bg-muted/30',
-                    )}
-                  >
-                    {expandable ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleQuarter(col.key)}
-                        className="inline-flex items-center gap-1 cursor-pointer hover:text-primary transition-colors"
-                      >
-                        {isExpanded ? (
-                          <ChevronDown className="h-3 w-3" />
-                        ) : (
-                          <ChevronRight className="h-3 w-3" />
-                        )}
-                        <span className="font-tabular font-semibold">
-                          {formatColumnLabel(col)}
-                        </span>
-                      </button>
-                    ) : (
-                      <span
-                        className={cn(
-                          'font-tabular',
-                          isQuarterly && 'font-semibold',
-                          isExpandedSub && 'text-muted-foreground',
-                        )}
-                      >
-                        {formatColumnLabel(col)}
-                        {col.cell_type === 'monthly' &&
-                          !isExpandedSub &&
-                          !isEditableMonth(col.key) && (
-                            <span className="block text-[9px] text-muted-foreground">
-                              read-only
-                            </span>
-                          )}
-                      </span>
-                    )}
-                  </TableHead>
-                );
-              })}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {internalRows.length > 0 && (
-              <>
-                <TableRow className="bg-muted/30">
-                  <TableCell
-                    colSpan={visibleColumns.length + 1}
-                    className="font-medium text-xs text-muted-foreground uppercase tracking-wide"
-                  >
-                    Internal Resources (Hours)
-                  </TableCell>
-                </TableRow>
-                {internalRows.map((row) => (
-                  <TableRow key={`${row.category}-${row.sub_category}`}>
-                    <TableCell className="sticky left-0 bg-card font-medium text-sm z-10 border-r border-border whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <span>{row.sub_category_name}</span>
-                        {row.capex_opex && (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              'text-[9px] px-1 py-0 h-3.5',
-                              row.capex_opex === 'capex'
-                                ? 'text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800'
-                                : 'text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800',
-                            )}
-                          >
-                            {row.capex_opex === 'capex' ? 'CapEx' : 'OpEx'}
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    {visibleColumns.map((col, idx) => {
-                      const yearStart =
-                        idx === 0 ||
-                        columnYear(col) !== columnYear(visibleColumns[idx - 1]);
-                      const boundary = isBoundaryColumn(col, idx);
-                      const isQuarterly =
-                        col.cell_type === 'quarterly' &&
-                        !col.key.includes('::expanded::');
-                      return (
-                        <TableCell
-                          key={`${row.sub_category}-${col.key}`}
-                          className={cn(
-                            'p-1',
-                            yearStart && 'border-l-2 border-border',
-                            boundary &&
-                              'border-l-4 border-l-blue-400 dark:border-l-blue-500',
-                            isQuarterly && 'bg-blue-50/30 dark:bg-blue-900/10',
-                            col.key.includes('::expanded::') &&
-                              'bg-blue-50/10 dark:bg-blue-900/5',
-                          )}
-                        >
-                          {renderEditableCell('internal', row, col)}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))}
-              </>
-            )}
-
-            {externalRows.length > 0 && (
-              <>
-                <TableRow className="bg-muted/30">
-                  <TableCell
-                    colSpan={visibleColumns.length + 1}
-                    className="font-medium text-xs text-muted-foreground uppercase tracking-wide"
-                  >
-                    External Costs (EUR)
-                  </TableCell>
-                </TableRow>
-                {externalRows.map((row) => (
-                  <TableRow key={`${row.category}-${row.sub_category}`}>
-                    <TableCell className="sticky left-0 bg-card font-medium text-sm z-10 border-r border-border whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <span>{row.sub_category_name}</span>
-                        {row.capex_opex && (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              'text-[9px] px-1 py-0 h-3.5',
-                              row.capex_opex === 'capex'
-                                ? 'text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800'
-                                : 'text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800',
-                            )}
-                          >
-                            {row.capex_opex === 'capex' ? 'CapEx' : 'OpEx'}
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    {visibleColumns.map((col, idx) => {
-                      const yearStart =
-                        idx === 0 ||
-                        columnYear(col) !== columnYear(visibleColumns[idx - 1]);
-                      const boundary = isBoundaryColumn(col, idx);
-                      const isQuarterly =
-                        col.cell_type === 'quarterly' &&
-                        !col.key.includes('::expanded::');
-                      return (
-                        <TableCell
-                          key={`${row.sub_category}-${col.key}`}
-                          className={cn(
-                            'p-1',
-                            yearStart && 'border-l-2 border-border',
-                            boundary &&
-                              'border-l-4 border-l-blue-400 dark:border-l-blue-500',
-                            isQuarterly && 'bg-blue-50/30 dark:bg-blue-900/10',
-                            col.key.includes('::expanded::') &&
-                              'bg-blue-50/10 dark:bg-blue-900/5',
-                          )}
-                        >
-                          {renderEditableCell('external', row, col)}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))}
-              </>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <MonthCategoryGrid
+        rows={adapterRows}
+        columns={visibleColumns}
+        getCellState={getCellState}
+        onCellChange={handleCellChange}
+        groups={[
+          { key: 'internal', label: 'Internal Resources (Hours)' },
+          { key: 'external', label: 'External Costs (EUR)' },
+        ]}
+        quarterExpansion={{
+          expanded: expandedQuarters,
+          onToggle: toggleQuarter,
+        }}
+      />
 
       {/* Change summary bar */}
       <div className="flex items-center justify-between bg-muted/50 border border-border rounded-lg px-4 py-3">

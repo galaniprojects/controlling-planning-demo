@@ -1,33 +1,29 @@
 /**
- * TechNavigatorRubric — Tech Navigator scoring rubric for a single project
- * [A-TN-01] [A-TN-02] [A-TN-03] [A-TN-04] [A-TN-06] [A-TN-07] [A-TN-08] [A-TN-09].
+ * TechNavigatorRubric — legacy Tech Navigator scoring rubric.
  *
- * This component is the entire "Scores & Ranking" tab content for the Backlog
- * project detail view. A6 will integrate it later; A7 ships it as a
- * self-contained reusable component.
+ * v5.2 Define-page redesign: this component is now a thin presentational
+ * shell. Its autosave-on-blur logic was deleted as part of the
+ * autosave-removal redesign (Define page is the canonical TN editor —
+ * `frontend/src/modules/define/TechNavigatorTab.tsx`). The legacy
+ * Backlog detail page that mounted this component is itself being
+ * redirected to `/define/{id}`, so in normal usage this file is no
+ * longer reached.
  *
- * Layout (top to bottom):
- *   1. ScoreSummaryCard — computed Complexity / Value Creation / Composite + t-shirt size
- *   2. Project profile row — Project Type (1/2/3) + Transformation level (T0/T1/T2)
- *   3. Complexity sub-criteria block (3 rows: Standardization, Usage, Maintenance)
- *   4. Value Creation sub-criteria block (3 rows: Financial benefit, Payback, Competitive advantage)
- *   5. Active weights footer (read-only sub-criterion weights with note pointing to Admin)
+ * Kept for the brief transition window (and for any test that still
+ * imports it directly) — but it intentionally:
  *
- * Real-time strategy:
- *   - Local state holds the optimistic profile after each user action.
- *   - Computed scores are derived locally on the fly using the same weighted-
- *     average formula as the backend (services/tech_navigator.py) so they
- *     update instantly.
- *   - Every change triggers a debounced (300 ms) PUT. The server's authoritative
- *     response replaces local computed scores once it returns, ensuring the
- *     displayed numbers stay in sync with backend rounding semantics.
+ *   • does NOT debounce a PUT on edit (autosave removed);
+ *   • does NOT mount its own writable buffer (caller is expected to be
+ *     read-only or to wire `onPatch` for explicit saves);
+ *   • surfaces optimistic edits locally only.
  *
- * Read-only mode is toggled via the `readOnly` prop. Driven from the host page
- * by role (controllers + assigned PL can edit; executive + CC owners read-only).
+ * For new surfaces use `TechNavigatorTab` directly. For PR review
+ * convenience this file keeps the same exported component name and
+ * `Props` so call-sites compile without modification during the
+ * Define-page redesign rollout.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { techNavigatorApi } from '@/api/endpoints';
 import {
@@ -48,6 +44,11 @@ import type {
 import { ScoreSummaryCard } from './ScoreSummaryCard';
 import { RubricSubCriterionRow } from './RubricSubCriterionRow';
 import { cn } from '@/lib/utils';
+import {
+  computeComplexity as recomputeComplexity,
+  computeValueCreation as recomputeValueCreation,
+  computeComposite as recomputeComposite,
+} from '@/modules/admin/scoring/lib/scoringMath';
 
 interface Props {
   projectId: string;
@@ -58,18 +59,6 @@ interface Props {
   readOnly?: boolean;
 }
 
-const DEBOUNCE_MS = 300;
-const SAVED_INDICATOR_MS = 1500;
-
-// Recompute helpers live in the shared scoring-math module so the
-// dedicated Tech Navigator Scoring admin page and this rubric stay in
-// lock-step with backend services/tech_navigator.py.
-import {
-  computeComplexity as recomputeComplexity,
-  computeValueCreation as recomputeValueCreation,
-  computeComposite as recomputeComposite,
-} from '@/modules/admin/scoring/lib/scoringMath';
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -78,23 +67,19 @@ export function TechNavigatorRubric({ projectId, readOnly = false }: Props) {
   const [profile, setProfile] = useState<TechNavigatorProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [savedFlash, setSavedFlash] = useState(false);
 
-  // Hold the latest pending update body and a debounce timer.
-  const pendingRef = useRef<TechNavigatorUpdate>({});
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Initial load.
+  // Initial load. No subsequent save round-trips — autosave was removed in the
+  // v5.2 Define-page redesign; TechNavigatorTab in `modules/define/` owns
+  // explicit Save semantics now. State resets deferred to the async
+  // callbacks to satisfy `react-hooks/set-state-in-effect`.
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setError(null);
     techNavigatorApi
       .get(projectId)
       .then((data) => {
         if (!alive) return;
         setProfile(data);
+        setError(null);
       })
       .catch((e: Error) => {
         if (!alive) return;
@@ -105,12 +90,12 @@ export function TechNavigatorRubric({ projectId, readOnly = false }: Props) {
       });
     return () => {
       alive = false;
-      if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [projectId]);
 
-  // Locally derived computed scores. The backend is authoritative once a PUT
-  // completes; until then, this provides instant visual feedback.
+  // Local computed scores. The legacy rubric used to round-trip a PUT after
+  // each edit; with the autosave removal these stay in local state only.
+  // Anyone surfacing real persistence should use TechNavigatorTab instead.
   const computed = useMemo(() => {
     if (!profile) {
       return { complexity: null, value: null, composite: null };
@@ -121,44 +106,18 @@ export function TechNavigatorRubric({ projectId, readOnly = false }: Props) {
     return { complexity, value, composite };
   }, [profile]);
 
-  // Schedule a debounced save with the merged pending body.
-  const flushSave = useCallback(() => {
-    const body = pendingRef.current;
-    pendingRef.current = {};
-    if (Object.keys(body).length === 0) return;
-    setSaving(true);
-    techNavigatorApi
-      .update(projectId, body)
-      .then((data) => {
-        setProfile(data);
-        setSavedFlash(true);
-        window.setTimeout(() => setSavedFlash(false), SAVED_INDICATOR_MS);
-      })
-      .catch((e: Error) => {
-        setError(e.message ?? 'Failed to save Tech Navigator update');
-      })
-      .finally(() => setSaving(false));
-  }, [projectId]);
-
-  const queueUpdate = useCallback(
-    (patch: TechNavigatorUpdate) => {
-      pendingRef.current = { ...pendingRef.current, ...patch };
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(flushSave, DEBOUNCE_MS);
-    },
-    [flushSave],
-  );
-
-  // Optimistic local update — also schedules a debounced PUT.
+  // Local-only optimistic update. No PUT. Legacy callers will eventually be
+  // routed through the Define page; until then edits made here vanish on
+  // reload, which is the intentional "demo gone bad" state during the
+  // transition.
   const updateField = useCallback(
     <K extends keyof TechNavigatorUpdate>(
       key: K,
       value: TechNavigatorUpdate[K],
     ) => {
       setProfile((prev) => (prev ? { ...prev, [key]: value } : prev));
-      queueUpdate({ [key]: value } as TechNavigatorUpdate);
     },
-    [queueUpdate],
+    [],
   );
 
   if (loading) {
@@ -191,8 +150,6 @@ export function TechNavigatorRubric({ projectId, readOnly = false }: Props) {
         tshirtSize={profile.tshirt_size}
         totalBudget={profile.total_budget}
         weights={w}
-        saving={saving}
-        saved={savedFlash}
       />
 
       <ProfileSelectorRow
@@ -240,7 +197,7 @@ export function TechNavigatorRubric({ projectId, readOnly = false }: Props) {
         reservedSlotsHint
       />
 
-      <WeightsFooter weights={w} saving={saving} />
+      <WeightsFooter weights={w} />
     </div>
   );
 }
@@ -415,24 +372,16 @@ function RubricBlock({
 
 interface WeightsFooterProps {
   weights: TechNavigatorWeights;
-  saving: boolean;
 }
 
-function WeightsFooter({ weights, saving }: WeightsFooterProps) {
+function WeightsFooter({ weights }: WeightsFooterProps) {
   const fmtPct = (n: number) => `${n.toFixed(0)} %`;
   return (
     <div className="rounded-md border border-border bg-muted/30 px-3 py-3 text-xs">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="font-medium text-foreground">Active weights</span>
-        <span className="flex items-center gap-1 text-muted-foreground">
-          {saving ? (
-            <>
-              <Loader2 className="size-3 animate-spin" aria-hidden />
-              Saving…
-            </>
-          ) : (
-            'Read-only — edit in Admin → Tech Navigator Weights'
-          )}
+        <span className="text-muted-foreground">
+          Read-only — edit in Admin → Tech Navigator Weights
         </span>
       </div>
       <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-3">

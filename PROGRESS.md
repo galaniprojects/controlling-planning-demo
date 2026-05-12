@@ -14,6 +14,87 @@ Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative sp
 
 **v5.2 cycle complete** — six waves, six PRs (#88 / #90 / #91 / #92 / #93 / #94) plus the closeout PR. Capacity Module Redesign closed 2026-05-10.
 
+### Define-page redesign — feature complete (2026-05-11, branch `feature/define-page-redesign`, agent team `define-page-redesign`)
+
+Single-session 4-teammate parallel team replaced the "+ New" popup with a tabbed Define page that is the canonical project home at every DoI level. The Workbench is no longer auto-redirected to at DoI 3+ — an explicit "Open in Workbench" header button appears once approved. Per-tab Save buttons replace the legacy autosave-on-blur pattern (the only true autosave site in the codebase was the TN rubric, which got gutted; everything else already used explicit Save or local-cell-edit-on-blur). Per-tab descriptions appear in the sections below:
+
+- **Task #1 (backend-dev)** — `POST /api/projects/define`, `GET /{id}/define`, `PUT /identity`, `PUT /approval-milestones`, `PUT /baseline-grid`. 36 tests; full 1745-test suite green. See "Define-page redesign — backend API surface" below.
+- **Task #2 (shell-builder)** — `frontend/src/modules/define/{DefineProjectPage,DefineShell,IdentityTab,DoIOverlay,useDirtyBuffer,api}.tsx/.ts`; routing for `/define/new`+`/define/:id`; `BacklogProjectDetailPage` converted to thin redirect; `SubmitProjectDialog` stubbed; "+ New" button rewired; `DoIRequirementsRegistry` extended with `target_tab`+`field_anchor` for deep-linking.
+- **Task #3 (tabs-builder)** — `TechNavigatorTab.tsx`, `FinancialsTab.tsx`. Workbench Phase 3 forecast grid refactored into `frontend/src/components/shared/MonthCategoryGrid.tsx` (pure presentational primitive; same grid powers Workbench forecast writes and Define baseline writes). Legacy `TechNavigatorRubric.tsx` autosave gutted.
+- **Task #4 (sweep-builder)** — `ApprovalMilestonesTab.tsx`; autosave-sweep audit confirmed zero remaining sites; transformation_level moved off the TN tab per the boundary contract. See "Define-page redesign — Approval & Milestones tab + autosave sweep" below.
+- **Team-lead patch** — added `MilestoneTypeListResponse` to `types/milestones.ts` to satisfy shell-builder's milestone CRUD import (commit `0c70994`).
+
+**Verification** — both `/define/new` (empty form, Save disabled until name) and `/define/{existing-id}` (DoI 3 case with active "Open in Workbench" button + "Project approved" overlay banner) verified at 1440px in Chrome DevTools MCP. 14 teammate-produced screenshots in `qa/screenshots/` cover golden path + dark mode + per-tab states. `/backlog/:id` redirect verified to land on `/define/:id` preserving query+hash. `npm run build` introduced **zero new TypeScript errors** (all remaining errors are pre-existing on `main`). Full backend pytest suite green (1745 tests).
+
+9 commits total on the branch:
+- `5d8011c` — Define-page: backend API surface (backend-dev)
+- `75b2fe3` — Define page: extract MonthCategoryGrid shared primitive (tabs-builder)
+- `866e76f` — Workbench: refactor Phase 3 forecast grid onto MonthCategoryGrid (tabs-builder)
+- `6cf9122` — Backlog: gut autosave from legacy TechNavigatorRubric (tabs-builder)
+- `41516df` — Define page: add Tech Navigator and Financials tabs (tabs-builder)
+- `82f6ca7` — Define page: shared TS types + milestone CRUD on milestonesApi (shell-builder)
+- `2b82fbd` — Define page: Approval & Milestones tab + page wire-up (sweep-builder, bundled shell-builder's files)
+- `415e806` — Define page: move transformation_level off the TN tab (sweep-builder, boundary fix)
+- `0c70994` — Define page: add MilestoneTypeListResponse to fix milestone CRUD import (team-lead)
+
+### Define-page redesign — backend API surface (2026-05-11, branch `feature/define-page-redesign`, agent team `define-page-redesign`)
+
+Backend half of the Define-page redesign (Task #1 of the 4-teammate team). Replaces the "+ New" popup with a tabbed Define page that becomes the canonical project home at every DoI level. Frontend work owned by shell-builder / tabs-builder / sweep-builder is tracked separately.
+
+**Plan reference**: `/Users/vasilis/.claude/plans/i-want-to-make-virtual-lake.md`. The plan calls for name-only project creation, four tab surfaces (Identity / Tech Navigator / Financials / Approval & Milestones), and explicit per-tab Save (no autosave). The Tech Navigator and milestone CRUD endpoints are reused as-is from existing routers; this slice adds five new endpoints.
+
+**Backend** (`backend/`):
+- `schemas/projects_define.py` — NEW. Pydantic v2 models for the five endpoints: `ProjectDefineCreate`, `ProjectDefineResponse`, `ProjectIdentityUpdate`, `ProjectApprovalMilestonesUpdate`, `ProjectFinancialsUpdate`, `BaselineGridRow` / `BaselineGridMonthCell` / `BaselineGridResponse{,Row}` / `ProjectFinancialsResponse`.
+- `routers/projects_define.py` — NEW. Five endpoints all mounted at `/api/projects`:
+  - `POST /define` — name-only create. Supplies defaults (`status='draft'`, `capex_opex='opex'`, `start_month=config.DEMO_DATE`, `pipeline_stage='Proposed'`, `doi=0`, `ai_council_approved=False`, `is_service=False`, `project_type=None`) so a draft exists with only a typed name. Auth: project_lead / controller / executive; PL substitutes self when `pl_person_id` omitted.
+  - `GET /{id}/define` — full project read shared by all tabs. PL filtering: PLs reading another PL's project get 403; controllers/executives/CC owners see everything.
+  - `PUT /{id}/identity` — patch-style Identity tab Save. Audits every changed field under `entity_type='project'` / `category='master_data'`. Cross-field check: `end_month >= start_month`. `lob_id` updates `ProjectGroupingAssignment`.
+  - `PUT /{id}/approval-milestones` — bundle Save for AI Council screening + transformation level + optional `advance_to_doi`. DoI advance reuses `services/pipeline.validate_doi_gate`; gate-unmet returns 409 with `{error: 'doi_gate_unmet', target_doi, missing_fields[]}`. Controllers may supply `override_reason` to bypass. PLs may target DoI ≤ 2 only (DoI 3+ requires controller).
+  - `PUT /{id}/baseline-grid` — Financials tab Save. Quick Sizing block (`total_budget` + `capex_opex`) patches the Project row; `rows[]` does delete-then-insert per `(category, sub_category)` pair (untouched pairs preserved). Recomputes Tech-Navigator-derived `tshirt_size` / composite scores. Returns the refreshed project AND the hydrated baseline grid in one round trip.
+- `main.py` — wire up the new router.
+- `tests/test_router_projects_define.py` — NEW. 36 tests covering all five endpoints across all role permutations:
+  - 8 tests on create (defaults supplied, controller unassigned, CC-403, missing/empty name, unknown PL, LoB assignment, unknown LoB).
+  - 4 tests on GET (404, controller-any, PL-on-own, PL-cannot-read-other).
+  - 8 tests on Identity (PL writes own, PL/CC/Exec rejected on others, end<start 422, invalid project_type, LoB updated, no-op audit suppression).
+  - 9 tests on Approval & Milestones (AI Council set, transformation level, gate-unmet 409, controller override, PL DoI-2 limit, PL DoI-2 with gate passing, invalid level, CC-403, PL-other-403).
+  - 6 tests on Baseline grid (PL write 200, quick-sizing only, delete-then-insert replace, untouched pairs preserved, unknown role_type_id, CC-403).
+  - 1 cross-endpoint integration: PL round-trip create → GET → identity → approval → baseline.
+- All **36 new tests pass**; **full backend suite of 1745 tests passes** (1709 existing + 36 new), confirming no regression in the existing intake / pipeline / tech-navigator / milestones routers (which the Define page reuses).
+
+**Schema**: zero column changes. The Define page exploits existing nullable columns (`project_type`, `description`, `end_month`, etc.) plus runtime defaults on create. **No DB reset required** when pulling this branch.
+
+**API contract published** to teammate inboxes (`shell-builder`, `tabs-builder`, `sweep-builder`, `team-lead`) at the start of work so frontend teammates could unblock immediately on the response shapes.
+
+### Define-page redesign — Approval & Milestones tab + autosave sweep (2026-05-11, branch `feature/define-page-redesign`, sweep-builder)
+
+Task #4 of the 4-teammate Define-page redesign team. The fourth and final tab — AI Council screening + per-row milestone CRUD + DoI 3 readiness — plus the global autosave-removal audit.
+
+**Frontend** (`frontend/`):
+- `types/define.ts` — NEW. Canonical TypeScript mirrors of `backend/schemas/projects_define.py`: `ProjectDefineCreate`, `ProjectDefineResponse`, `ProjectIdentityUpdate`, `ProjectApprovalMilestonesUpdate`, `ProjectFinancialsUpdate`, `BaselineGridRow`, `ProjectFinancialsSaveResponse`. All four Define tabs (Identity / TN / Financials / Approval & Milestones) and shell-builder's `modules/define/api.ts` import from here.
+- `api/endpoints.ts` — extended `milestonesApi` from list-only to full CRUD: `.create()`, `.update()`, `.remove()`, `.listTypes()` (the milestone-types catalogue). Baseline-date override-reason semantic per [A-MS-03] is captured on the request type. Define-page endpoints (`POST /define`, `PUT /identity`, etc.) live module-locally in `modules/define/api.ts` as shell-builder's `defineApi`; a comment in `endpoints.ts` documents the split.
+- `modules/define/ApprovalMilestonesTab.tsx` — NEW. Three cards plus a footer Save:
+  1. **AI Council screening &amp; transformation level** — buffered `ai_council_approved` checkbox + `ai_council_doc_url` input + `transformation_level` (T0/T1/T2 + Not-set) dropdown via `useDirtyBuffer`. Footer Save flushes all three fields through `PUT /api/projects/{id}/approval-milestones` in a single call. Transformation level was originally on the TN tab; tabs-builder moved it here in commit `415e806` because it is a categorical decorator (not a TN scoring input) and the contract endpoint already accepts it. Sweep-builder added the dropdown in commit `a726c4b` to match the contract clarification.
+  2. **DoI 3 readiness** — three-state derived banner from `pipeline.gate_status`: amber when gates pending, emerald when next-DoI gate is met, emerald with "ready for execution" once DoI ≥ 3. Missing fields enumerated inline.
+  3. **Milestones list** — per-row inline edit. Each milestone is an atomic unit with its own server-side validation (sequence-number uniqueness, baseline-date override-reason at controller-only), so each row carries its own Save / Cancel / Delete instead of rolling into the tab-level dirty buffer. Add-new form appends at sequence_number = max+1. Colour resolution falls back to the linked `MilestoneType.default_color`. Inputs use the `define-anchor-ai-council-approved` and `define-anchor-transformation-level` anchors so the DoI overlay deep-links land here.
+- `modules/define/DefineProjectPage.tsx` — wired the new tab into the shell, replacing shell-builder's `TabPlaceholder`. Loading / error states mirror the Identity tab. Passes the canonical `project: ProjectDefineResponse` payload down so the tab can baseline `transformation_level`. `onSaved` adopts the response into `project` state and triggers a `reloadPipeline()` so the overlay updates without manual refresh.
+
+**Autosave-removal sweep** (Task #4 scope):
+- Grep for `flushSave|debounceTimerRef|setTimeout.*[Ss]ave|onBlur.*save|onBlur=.*Save` across `frontend/src/` returned **exactly one** real autosave-on-blur site: `modules/backlog/components/TechNavigatorRubric.tsx` (300 ms debounce + flushSave via `techNavigatorApi.update`). That file is owned by tabs-builder and is already gutted in commit `6cf9122` ("Backlog: gut autosave from legacy TechNavigatorRubric").
+- Other `onBlur` hits in `EditableIntakeGrid.tsx`, `EditableCRGrid.tsx`, `ResourcePlanPage.tsx`, `MonthCategoryGrid.tsx` are local-cell-edit-commit (blur stuffs the typed value into local React state); the actual server write happens through explicit Confirm / Save / Submit buttons. No autosave there.
+- Admin grids (`PlanningParameters`, `TechNavigatorScoring`, `WorkflowTemplateEditor`, `ScheduledChangesPanel`) all already use explicit Save buttons — verified by re-reading each component.
+- Workbench Forecast grid (`Phase3EditForecast`, `MixedGranularityGrid`) and External-Costs (`ExternalCostsMonthlyGrid`) use Save-and-Review or full-screen submit flows; no autosave anywhere in those trees.
+- **Progress tracker exemption is moot**: the codebase currently has no edit surface for `status_narrative` / `next_milestone_confidence` / `deliverable_checked_at` — both `ProgressTrackerTile` and `ProgressVsBurnDialog` are read-only displays. There is no autosave to remove and nothing to exempt; the plan's "progress tracker keeps autosave" clause refers to a not-yet-built editor.
+
+**Net result**: after tabs-builder's `6cf9122` gutting of TechNavigatorRubric, the entire frontend uses explicit Save semantics. No surface-by-surface sweep commits were needed because no other autosave sites exist.
+
+**Backend dependencies**: reuses backend-dev's `5d8011c` Define-page API endpoints (POST /define, GET /{id}/define, PUT /identity, PUT /approval-milestones, PUT /baseline-grid) and the existing milestones router (POST/PUT/DELETE /api/projects/{id}/milestones unchanged). Zero schema changes — **no DB reset required**.
+
+**Verification**:
+- `npx tsc --noEmit` clean.
+- `npx eslint src/modules/define/ApprovalMilestonesTab.tsx src/types/define.ts` clean (max-warnings=0).
+- Backend tests: full suite **1745 passing** (`pytest tests/`) including the 36 new `test_router_projects_define` + 30 existing `test_router_milestones`.
+- Visual verification at 1440px against a DoI 3 project (proj-bk01) and the `/define/new` empty state, both light and dark themes. Screenshots in `qa/screenshots/define-approval-milestones-*.png`. DoI badge, "Open in Workbench" affordance, AI Council card with checkbox + URL, emerald "Project approved" banner, and per-row milestone list with slip indicators all render correctly. Dark mode uses semantic `bg-card` / `border-border` / `text-foreground` / `bg-emerald-900/20` patterns — no hardcoded colours.
+
 ### Tech Navigator Scoring admin page (2026-05-11, branch `feature/admin-tn-weights`)
 
 A dedicated admin page that surfaces the entire backlog scoring formula with live controls — the composite formula in readable form, slider + number-input controls for every weight, and a live Tech Navigator quadrant scatter that animates dots and the iso-composite cutoff line on every slider drag.

@@ -269,6 +269,7 @@ Endpoints are grouped by domain:
 | Tech Navigator | `/api/projects` | Per-project Tech Navigator profile (read + partial update with score recompute) |
 | Pipeline | `/api/projects` | Pipeline stage + DoI transitions, AI Council flag, within-cutoff override |
 | Project Milestones | `/api/projects` | Milestone CRUD with controller-only baseline-edit gating |
+| Define (project workflow) | `/api/projects` | Define-page surface: name-only `POST /define`, full `GET /{id}/define`, per-tab Save (`PUT /{id}/identity`, `PUT /{id}/approval-milestones`, `PUT /{id}/baseline-grid`) |
 | Capacity | `/api/capacity` | Heatmap, drill-down, resource requests, role availability, dashboard (forecast / headcount-breakdown / hotspots / **utilization-distribution** v5.2 W4), audit history, inbox (project-per-CC triage queue, v5.2 W3), **`GET /planning-parameters?group=…`** read-only feed for client-side display thresholds (v5.2 closeout — any persona; trimmed payload vs the controller-only `/api/admin/parameters`) |
 | Scenarios | `/api/scenarios` | CRUD, actions, comparison, AI advisor, BTC sandbox, 8-dimension impact, anchor + rebase + archive, promote, apply-to-forecast |
 | Reports | `/api/reports` | Five standard reports, saved views, AI report builder |
@@ -294,4 +295,4 @@ Or use the **Reset Demo** button in Administration. The reset is destructive (dr
 
 ## Quality Assurance
 
-A regression test plan lives in [`qa/test-plan.md`](qa/test-plan.md) — 198 scenarios across 15 test suites covering all modules, personas, and features. Backend unit tests run with `python -m pytest tests/ -v` (1554 tests).
+A regression test plan lives in [`qa/test-plan.md`](qa/test-plan.md) — 198 scenarios across 15 test suites covering all modules, personas, and features. Backend unit tests run with `python -m pytest tests/ -v` (1745 tests).
