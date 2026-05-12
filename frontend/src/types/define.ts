@@ -96,8 +96,14 @@ export interface ProjectFinancialsUpdate {
   rows?: BaselineGridRow[];
 }
 
+export interface BaselineGridResponseRow extends BaselineGridRow {
+  /** Resolved display name (role label or external cost-type label). */
+  sub_category_name?: string | null;
+}
+
 export interface BaselineGridResponse {
-  rows: BaselineGridRow[];
+  items: BaselineGridResponseRow[];
+  total: number;
 }
 
 export interface ProjectFinancialsSaveResponse {

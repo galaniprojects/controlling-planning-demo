@@ -206,7 +206,11 @@ def _build_response(db: Session, project: Project) -> ProjectDefineResponse:
 
 
 def _project_or_404(db: Session, project_id: str) -> Project:
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = (
+        db.query(Project)
+        .filter(Project.id == project_id, Project.is_active.is_(True))
+        .first()
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
@@ -668,6 +672,11 @@ def update_approval_milestones(
         recompute_project(project, weights)
 
     if "advance_to_doi" in payload and payload["advance_to_doi"] is not None:
+        # Flush the in-session field writes so validate_doi_gate sees the
+        # latest AI Council / transformation_level / etc. values when it
+        # walks the project row — defensive against future refactors that
+        # might route the gate through a fresh db.query(Project).
+        db.flush()
         _apply_doi_advance(
             db, project, user,
             target_doi=int(payload["advance_to_doi"]),

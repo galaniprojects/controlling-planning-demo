@@ -210,7 +210,15 @@ export function useDirtyBuffer<T>({
     setError(null);
   }, []);
 
+  // Synchronous in-flight guard. The `saving` state cannot be relied on
+  // here because React batches state updates — two rapid `save()` calls
+  // in the same tick (e.g. a fast double-click) would both see `saving`
+  // as false. The ref flips synchronously and is cleared in `finally`.
+  const savingRef = useRef(false);
+
   const save = useCallback(async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     try {
@@ -224,6 +232,7 @@ export function useDirtyBuffer<T>({
       setError(msg);
       throw e;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }, [onSave, value]);

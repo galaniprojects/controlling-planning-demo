@@ -95,21 +95,19 @@ const EMPTY_BUFFER_SENTINEL: FinancialsBuffer = {
 function pivotForecastRowsToBaseline(
   rows: ForecastGridRow[],
 ): BaselineGridRow[] {
+  // Keep every month the server sent — including legitimate zero-valued
+  // baseline cells. Dropping zeros would hide rows the user explicitly
+  // set to zero (and that the grid needs to display so the user can
+  // edit them back).
   return rows.map((r) => ({
     category: r.category as 'internal' | 'external',
     sub_category: r.sub_category,
     capex_opex: (r.capex_opex as CapexOpex | undefined) ?? undefined,
-    months: r.months
-      .filter(
-        (m) =>
-          (m.baseline_amount ?? 0) > 0 ||
-          (m.baseline_hours ?? 0) > 0,
-      )
-      .map((m) => ({
-        month: m.month,
-        amount_eur: m.baseline_amount ?? 0,
-        hours: r.category === 'internal' ? m.baseline_hours ?? 0 : null,
-      })),
+    months: r.months.map((m) => ({
+      month: m.month,
+      amount_eur: m.baseline_amount ?? 0,
+      hours: r.category === 'internal' ? m.baseline_hours ?? 0 : null,
+    })),
   }));
 }
 
@@ -265,21 +263,19 @@ export function FinancialsTab({
         return current;
       }
       const result = await defineApi.updateFinancials(project.id, patch);
-      // Update sub_category names if the response carries new rows.
-      const refreshedRows = result.baseline_rows.rows;
+      // Update sub_category names from the hydrated response rows. Backend
+      // wraps the rowset in `{items, total}` per the project's list-response
+      // convention.
+      const refreshedRows = result.baseline_rows.items;
       setSubCategoryNames((prev) => {
         const next = { ...prev };
         for (const r of refreshedRows) {
           const k = `${r.category}|${r.sub_category}`;
-          if (!next[k]) {
-            // No name in the response shape — leave the existing label or
-            // fall back to the raw id. Server-side `_resolve_sub_category_name`
-            // is exposed as `sub_category_name` on the response row, which
-            // is part of `BaselineGridResponseRow` but the
-            // BaselineGridResponse type here keeps the field optional.
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const named = (r as any).sub_category_name as string | undefined;
-            next[k] = named ?? r.sub_category;
+          const named = r.sub_category_name ?? null;
+          if (named) {
+            next[k] = named;
+          } else if (!next[k]) {
+            next[k] = r.sub_category;
           }
         }
         return next;
