@@ -3,6 +3,12 @@
  *   - AI Council screening (`ai_council_approved`, `ai_council_doc_url`).
  *     Buffered via `useDirtyBuffer`; the tab footer Save flushes these
  *     fields through `PUT /api/projects/{id}/approval-milestones`.
+ *   - Transformation level (`transformation_level`: T0 | T1 | T2 | null).
+ *     Originally lived on the Tech Navigator tab; tabs-builder moved it
+ *     off in commit 415e806 because it is a categorical decorator (not
+ *     a TN scoring input) and the backend's `PUT /approval-milestones`
+ *     already accepts it. Buffered alongside the AI Council fields and
+ *     persisted by the same tab-level Save.
  *   - Per-row milestone CRUD (sequence, name, type, baseline_start /
  *     baseline_end, forecast_start / forecast_end, optional colour).
  *     Each milestone row carries its own inline Save / Delete actions and
@@ -12,11 +18,6 @@
  *     override-reason at controller-only), so a per-row Save model is
  *     cleaner than rolling them into the tab-level dirty buffer.
  *   - DoI 3 readiness summary derived from `pipeline.gate_status`.
- *
- * Transformation level lives on the Tech Navigator tab and is therefore
- * intentionally absent here — backend-dev's `ProjectApprovalMilestonesUpdate`
- * accepts it for completeness, but the Approval & Milestones tab does
- * not surface it.
  *
  * Per the team-lead's brief the progress tracker (modules/workbench/
  * progress/*) keeps autosave for demo pacing; this tab uses an explicit
@@ -52,6 +53,10 @@ import type {
 import { useDirtyBuffer } from './useDirtyBuffer';
 import { defineApi } from './api';
 import type { PipelineState } from '@/types/pipeline';
+import type {
+  ProjectDefineResponse,
+  TransformationLevel,
+} from '@/types/define';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -61,7 +66,13 @@ import { cn } from '@/lib/utils';
 interface Props {
   /** `null` on `/define/new` — milestones / approval need a persisted row. */
   projectId: string | null;
-  /** Currently-loaded canonical state, or null while pipeline loads. */
+  /**
+   * Canonical Define-page project payload — supplies the
+   * `transformation_level` baseline (PipelineState does not carry it).
+   * Null while loading or on `/define/new`.
+   */
+  project: ProjectDefineResponse | null;
+  /** Currently-loaded pipeline state, or null while it loads. */
   pipeline: PipelineState | null;
   /** Whether the persona can edit (controller / PL on own project). */
   readOnly: boolean;
@@ -69,14 +80,41 @@ interface Props {
   focusAnchor: string | null;
   /** Bubble dirty state up for the shell's tab pip. */
   onDirtyChange?: (dirty: boolean) => void;
-  /** Called after AI Council / milestone changes persist so the parent can re-fetch pipeline. */
-  onSaved?: () => void;
+  /**
+   * Called after AI Council / transformation level / milestone changes
+   * persist so the parent can re-fetch pipeline + project.
+   */
+  onSaved?: (updated?: ProjectDefineResponse) => void;
 }
 
 interface ApprovalBuffer {
   ai_council_approved: boolean;
   ai_council_doc_url: string;
+  /** T0 | T1 | T2 | null — categorical decorator, not part of TN scoring. */
+  transformation_level: TransformationLevel | null;
 }
+
+const TRANSFORMATION_LEVEL_OPTIONS: ReadonlyArray<{
+  value: TransformationLevel;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: 'T0',
+    label: 'T0 — Run / lifecycle',
+    description: 'Operational upkeep. Not a transformation project.',
+  },
+  {
+    value: 'T1',
+    label: 'T1 — Standardise / consolidate',
+    description: 'Brings an existing capability onto the strategic stack.',
+  },
+  {
+    value: 'T2',
+    label: 'T2 — Net-new capability',
+    description: 'Introduces a capability the organisation does not yet have.',
+  },
+] as const;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -84,6 +122,7 @@ interface ApprovalBuffer {
 
 export function ApprovalMilestonesTab({
   projectId,
+  project,
   pipeline,
   readOnly,
   focusAnchor,
@@ -91,16 +130,22 @@ export function ApprovalMilestonesTab({
   onSaved,
 }: Props) {
   // -------------------------------------------------------------------------
-  // Approval buffer — AI Council fields
+  // Approval buffer — AI Council fields + transformation_level
   // -------------------------------------------------------------------------
 
-  // Baseline derived from pipeline state — AI Council fields live there.
+  // Baseline composed from pipeline (AI Council flags) + the canonical
+  // project payload (transformation_level — PipelineState doesn't carry it).
   const baseline = useMemo<ApprovalBuffer>(
     () => ({
       ai_council_approved: pipeline?.ai_council_approved ?? false,
       ai_council_doc_url: pipeline?.ai_council_doc_url ?? '',
+      transformation_level: project?.transformation_level ?? null,
     }),
-    [pipeline?.ai_council_approved, pipeline?.ai_council_doc_url],
+    [
+      pipeline?.ai_council_approved,
+      pipeline?.ai_council_doc_url,
+      project?.transformation_level,
+    ],
   );
 
   const buffer = useDirtyBuffer<ApprovalBuffer>({
@@ -108,12 +153,17 @@ export function ApprovalMilestonesTab({
     onSave: async (value) => {
       if (!projectId) return value;
       const trimmedUrl = (value.ai_council_doc_url ?? '').trim();
-      await defineApi.updateApprovalMilestones(projectId, {
+      const updated = await defineApi.updateApprovalMilestones(projectId, {
         ai_council_approved: value.ai_council_approved,
         ai_council_doc_url: trimmedUrl.length > 0 ? trimmedUrl : null,
+        transformation_level: value.transformation_level,
       });
-      onSaved?.();
-      return { ...value, ai_council_doc_url: trimmedUrl };
+      onSaved?.(updated);
+      return {
+        ai_council_approved: updated.ai_council_approved,
+        ai_council_doc_url: updated.ai_council_doc_url ?? '',
+        transformation_level: updated.transformation_level ?? null,
+      };
     },
   });
 
@@ -224,15 +274,16 @@ export function ApprovalMilestonesTab({
 
   return (
     <div ref={containerRef} className="space-y-6">
-      {/* AI Council card */}
+      {/* AI Council + transformation level card */}
       <section className="rounded-md border border-border bg-card p-4 space-y-4">
         <header>
           <h2 className="text-base font-semibold text-foreground">
-            AI Council screening
+            AI Council screening &amp; transformation level
           </h2>
           <p className="text-xs text-muted-foreground">
-            Required before the project can advance to DoI 3 (Approved). Capture
-            the approval flag and optionally link the decision document.
+            Council sign-off is required before the project can advance to
+            DoI 3 (Approved); transformation level is a categorical
+            decorator persisted on the same Save.
           </p>
         </header>
 
@@ -285,6 +336,53 @@ export function ApprovalMilestonesTab({
             Optional. Surfaced on the project header so reviewers can jump to
             the decision record.
           </p>
+        </div>
+
+        {/* Transformation level — categorical decorator, lives on this tab
+            since 415e806 moved it off the Tech Navigator. The backend
+            already accepts it on PUT /approval-milestones. */}
+        <div className="space-y-1.5 pt-2 border-t border-border">
+          <label
+            htmlFor="define-anchor-transformation-level"
+            className="text-sm font-medium text-foreground"
+          >
+            Transformation level
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Categorical decorator — filterable in the backlog cube but does
+            not factor into the Tech Navigator ranking score.
+          </p>
+          <Select
+            value={v.transformation_level ?? '__none__'}
+            onValueChange={(s) =>
+              buffer.patch({
+                transformation_level:
+                  s === '__none__' ? null : (s as TransformationLevel),
+              })
+            }
+            disabled={readOnly}
+          >
+            <SelectTrigger
+              id="define-anchor-transformation-level"
+              data-define-anchor="define-anchor-transformation-level"
+              className="w-full sm:w-[420px]"
+            >
+              <SelectValue placeholder="Select transformation level" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">— Not set —</SelectItem>
+              {TRANSFORMATION_LEVEL_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  <span className="flex flex-col items-start">
+                    <span className="text-sm">{opt.label}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {opt.description}
+                    </span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </section>
 
@@ -405,15 +503,16 @@ export function ApprovalMilestonesTab({
           {buffer.saving ? (
             <span className="inline-flex items-center gap-1.5">
               <Loader2 className="size-3 animate-spin" aria-hidden />
-              Saving AI Council…
+              Saving approval &amp; level…
             </span>
           ) : buffer.error ? (
             <span className="text-destructive">{buffer.error}</span>
           ) : buffer.isDirty ? (
-            <span>Unsaved AI Council changes.</span>
+            <span>Unsaved AI Council / transformation-level changes.</span>
           ) : (
             <span>
-              AI Council saved. Milestone rows save inline as you edit them.
+              Approval &amp; level saved. Milestone rows save inline as you
+              edit them.
             </span>
           )}
         </div>
@@ -436,7 +535,7 @@ export function ApprovalMilestonesTab({
             }}
           >
             <Save className="size-4" aria-hidden />
-            Save AI Council
+            Save approval &amp; level
           </Button>
         </div>
       </div>

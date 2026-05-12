@@ -286,11 +286,13 @@ export function DefineProjectPage() {
         ) : (
           <ApprovalMilestonesTab
             projectId={projectId}
+            project={project}
             pipeline={pipeline}
             readOnly={identityReadOnly}
             focusAnchor={activeTab === 'approval_milestones' ? focusAnchor : null}
             onDirtyChange={(d) => setTabDirty('approval_milestones', d)}
-            onSaved={() => {
+            onSaved={(updated) => {
+              if (updated) setProject(updated);
               void reloadPipeline();
             }}
           />
