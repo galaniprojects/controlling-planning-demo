@@ -31,10 +31,25 @@
  * fully encapsulated here.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/shared/Skeleton';
 import {
   MonthCategoryGrid,
@@ -42,7 +57,7 @@ import {
   type MonthCategoryGridRow,
   type MonthCategoryGridCellState,
 } from '@/components/shared/MonthCategoryGrid';
-import { workbenchApi } from '@/api/endpoints';
+import { referenceApi, workbenchApi } from '@/api/endpoints';
 import { defineApi } from './api';
 import { useDirtyBuffer } from './useDirtyBuffer';
 import type {
@@ -52,10 +67,11 @@ import type {
   ProjectFinancialsUpdate,
   TshirtSize,
 } from '@/types/define';
-import type { ForecastGridRow } from '@/types/api';
+import type { ForecastGridRow, RefRole } from '@/types/api';
 import { cn } from '@/lib/utils';
 import { formatCurrencyDetailed } from '@/lib/formatters';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { addMonths, monthsBetween } from '@/lib/months';
 
 interface Props {
   /** Canonical project record loaded by the Define shell at the page level. */
@@ -167,6 +183,14 @@ export function FinancialsTab({
   const [initialBuffer, setInitialBuffer] = useState<FinancialsBuffer | null>(
     null,
   );
+  // Reference catalogues for the Add-Line-Item modal. Loaded once per
+  // project view; the catalogues are small and demo-stable.
+  const [roleTypes, setRoleTypes] = useState<RefRole[]>([]);
+  const [costTypes, setCostTypes] = useState<
+    { id: string; name: string }[]
+  >([]);
+  // Add-Line-Item modal state.
+  const [addOpen, setAddOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [gridExpanded, setGridExpanded] = useState(false);
   // Column horizon: derived from the loaded ForecastGridRow data (and
@@ -181,6 +205,69 @@ export function FinancialsTab({
   const [hourlyRates, setHourlyRates] = useState<Record<string, number | null>>(
     {},
   );
+
+  // Grid month columns derive from the project's planning horizon
+  // (start_month → end_month inclusive). Services / open-ended projects
+  // with no end_month fall back to start + 12 months so PLs can still
+  // plan a year forward.
+  const horizonMonths = useMemo(() => {
+    const start = project.start_month;
+    const end = project.end_month ?? addMonths(start, 12);
+    return monthsBetween(start, end);
+  }, [project.start_month, project.end_month]);
+
+  useEffect(() => {
+    setColumns(
+      horizonMonths.map((m) => ({ key: m, cell_type: 'monthly' as const })),
+    );
+  }, [horizonMonths]);
+
+  // Reference catalogues for the Add Line Item modal. Demo-stable
+  // catalogues; one fetch per mount is fine.
+  useEffect(() => {
+    let alive = true;
+    referenceApi
+      .getRoles()
+      .then((res) => {
+        if (!alive) return;
+        // Stable alphabetical order for the dropdown.
+        const sorted = [...res.items].sort((a, b) =>
+          a.name.localeCompare(b.name),
+        );
+        setRoleTypes(sorted);
+        // Seed hourly rates from the reference response (any competence
+        // center's rate is fine for the local EUR preview; the backend
+        // recomputes against the canonical rate table on Save).
+        setHourlyRates((prev) => {
+          const next = { ...prev };
+          for (const r of sorted) {
+            const k = `internal|${r.id}`;
+            if (next[k] == null) {
+              next[k] = r.rates[0]?.hourly_rate ?? null;
+            }
+          }
+          return next;
+        });
+      })
+      .catch(() => {
+        if (alive) setRoleTypes([]);
+      });
+    referenceApi
+      .getCostTypes()
+      .then((res) => {
+        if (!alive) return;
+        const sorted = [...res.items].sort((a, b) =>
+          a.name.localeCompare(b.name),
+        );
+        setCostTypes(sorted);
+      })
+      .catch(() => {
+        if (alive) setCostTypes([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Initial load — pivot the forecast read into a baseline-shaped buffer.
   // State resets are deferred into the async callbacks so we don't trigger
@@ -198,18 +285,6 @@ export function FinancialsTab({
       .then((res) => {
         if (!alive) return;
         const rows = pivotForecastRowsToBaseline(res.items);
-        const cols: MonthCategoryGridColumn[] = [];
-        const seen = new Set<string>();
-        for (const r of res.items) {
-          for (const c of r.months) {
-            if (!seen.has(c.month)) {
-              seen.add(c.month);
-              cols.push({ key: c.month, cell_type: 'monthly' });
-            }
-          }
-        }
-        cols.sort((a, b) => a.key.localeCompare(b.key));
-        setColumns(cols);
         setSubCategoryNames(
           Object.fromEntries(
             res.items.map((r) => [
@@ -218,14 +293,15 @@ export function FinancialsTab({
             ]),
           ),
         );
-        setHourlyRates(
-          Object.fromEntries(
+        setHourlyRates((prev) => ({
+          ...prev,
+          ...Object.fromEntries(
             res.items.map((r) => [
               `${r.category}|${r.sub_category}`,
               r.hourly_rate ?? null,
             ]),
           ),
-        );
+        }));
         setInitialBuffer({
           total_budget: project.total_budget,
           capex_opex: project.capex_opex,
@@ -237,7 +313,8 @@ export function FinancialsTab({
       .catch((e: Error) => {
         if (!alive) return;
         // If there are no forecast rows yet, the buffer is still usable —
-        // empty rows / pristine quick-sizing inputs.
+        // empty rows / pristine quick-sizing inputs. The user can add
+        // line items via the Add Line Item modal.
         setLoadError(e.message ?? 'Failed to load baseline rows');
         setInitialBuffer({
           total_budget: project.total_budget,
@@ -251,6 +328,60 @@ export function FinancialsTab({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
+
+  // Append a freshly-created row to the buffer. The new row has cells
+  // at amount=0 (hours=0 for internal) for every month in the horizon —
+  // editing them in the grid flips `rowsDirty`.
+  const handleAddRow = useCallback(
+    (input: {
+      category: 'internal' | 'external';
+      sub_category: string;
+      sub_category_name: string;
+      description?: string | null;
+      vendor?: string | null;
+    }) => {
+      const key = `${input.category}|${input.sub_category}`;
+      setSubCategoryNames((prev) => ({
+        ...prev,
+        [key]: input.sub_category_name,
+      }));
+      buffer.setValue((prev) => {
+        if (!prev) return prev;
+        // No-op if the user already added the same (category, sub_category).
+        if (
+          prev.rows.some(
+            (r) =>
+              r.category === input.category &&
+              r.sub_category === input.sub_category,
+          )
+        ) {
+          return prev;
+        }
+        const isInternal = input.category === 'internal';
+        const months = horizonMonths.map((m) => ({
+          month: m,
+          amount_eur: 0,
+          hours: isInternal ? 0 : null,
+        }));
+        const newRow: BaselineGridRow = {
+          category: input.category,
+          sub_category: input.sub_category,
+          months,
+          capex_opex: project.capex_opex,
+          description: input.description ?? null,
+          vendor: input.vendor ?? null,
+          role_type_id: isInternal ? input.sub_category : null,
+        };
+        return { ...prev, rows: [...prev.rows, newRow], rowsDirty: true };
+      });
+      // Expand the grid so the user lands on the new row.
+      setGridExpanded(true);
+      setAddOpen(false);
+    },
+    // buffer is captured fresh on every render anyway; eslint quiet.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [horizonMonths, project.capex_opex],
+  );
 
   // Sync the buffer when the shell pushes a new project (e.g. after a
   // sibling tab Save changed capex_opex).
@@ -519,31 +650,45 @@ export function FinancialsTab({
 
       {/* Collapsible baseline grid */}
       <section className="rounded-md border border-border bg-card p-4">
-        <button
-          type="button"
-          onClick={() => setGridExpanded((x) => !x)}
-          className="flex w-full items-center justify-between text-left"
-        >
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              {gridExpanded ? (
-                <ChevronDown className="size-4" aria-hidden />
-              ) : (
-                <ChevronRight className="size-4" aria-hidden />
-              )}
-              Baseline plan grid
-            </h2>
-            <p className="ml-6 text-xs text-muted-foreground">
-              Month-by-month × category-by-category baseline rows. Writes to
-              the Baseline table — independent of Forecast.
-            </p>
-          </div>
-          {adapterRows.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {adapterRows.length} row{adapterRows.length === 1 ? '' : 's'}
-            </span>
+        <div className="flex items-start justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setGridExpanded((x) => !x)}
+            className="flex flex-1 items-center justify-between text-left"
+          >
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                {gridExpanded ? (
+                  <ChevronDown className="size-4" aria-hidden />
+                ) : (
+                  <ChevronRight className="size-4" aria-hidden />
+                )}
+                Baseline plan grid
+              </h2>
+              <p className="ml-6 text-xs text-muted-foreground">
+                Month-by-month × category-by-category baseline rows. Writes
+                to the Baseline table — independent of Forecast.
+              </p>
+            </div>
+            {adapterRows.length > 0 && (
+              <span className="mr-3 text-xs text-muted-foreground">
+                {adapterRows.length} row{adapterRows.length === 1 ? '' : 's'}
+              </span>
+            )}
+          </button>
+          {!readOnly && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAddOpen(true)}
+              className="shrink-0"
+            >
+              <Plus className="size-3.5" aria-hidden />
+              Add line item
+            </Button>
           )}
-        </button>
+        </div>
 
         {gridExpanded && (
           <div className="mt-4">
@@ -555,7 +700,7 @@ export function FinancialsTab({
             {adapterRows.length === 0 ? (
               <EmptyState
                 title="No baseline rows yet"
-                description="The baseline plan grid will appear once the project has line items (internal roles or external cost types) seeded from the Workbench."
+                description='Click "Add line item" above to add a role or external cost type. Columns span the project from start to end month.'
               />
             ) : (
               <MonthCategoryGrid
@@ -573,6 +718,15 @@ export function FinancialsTab({
           </div>
         )}
       </section>
+
+      <AddLineItemDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        roleTypes={roleTypes}
+        costTypes={costTypes}
+        existingRows={v.rows}
+        onConfirm={handleAddRow}
+      />
 
       <FooterSaveBar
         isDirty={buffer.isDirty}
@@ -657,3 +811,210 @@ function FooterSaveBar({
 // (Demo build relies on the buffer init path, but exposing the sentinel
 // keeps test-side wiring simple.)
 export { EMPTY_BUFFER_SENTINEL };
+
+// ---------------------------------------------------------------------------
+// AddLineItemDialog — pick category + sub-category, append new BaselineGridRow
+// ---------------------------------------------------------------------------
+
+interface AddLineItemDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  roleTypes: RefRole[];
+  costTypes: { id: string; name: string }[];
+  /** Existing rows used to disable already-added (category, sub_category) pairs. */
+  existingRows: BaselineGridRow[];
+  onConfirm: (input: {
+    category: 'internal' | 'external';
+    sub_category: string;
+    sub_category_name: string;
+    description?: string | null;
+    vendor?: string | null;
+  }) => void;
+}
+
+function AddLineItemDialog({
+  open,
+  onOpenChange,
+  roleTypes,
+  costTypes,
+  existingRows,
+  onConfirm,
+}: AddLineItemDialogProps) {
+  const [category, setCategory] = useState<'internal' | 'external'>('internal');
+  const [subCategory, setSubCategory] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
+  const [vendor, setVendor] = useState<string>('');
+
+  // Reset form whenever the dialog reopens so a previous in-progress
+  // pick doesn't bleed into a fresh add.
+  useEffect(() => {
+    if (open) {
+      setCategory('internal');
+      setSubCategory('');
+      setDescription('');
+      setVendor('');
+    }
+  }, [open]);
+
+  const existingKeys = useMemo(
+    () => new Set(existingRows.map((r) => `${r.category}|${r.sub_category}`)),
+    [existingRows],
+  );
+
+  const subCategoryName =
+    category === 'internal'
+      ? roleTypes.find((r) => r.id === subCategory)?.name ?? null
+      : costTypes.find((c) => c.id === subCategory)?.name ?? null;
+
+  const canConfirm = subCategory.length > 0 && subCategoryName !== null;
+
+  const handleConfirm = () => {
+    if (!canConfirm) return;
+    onConfirm({
+      category,
+      sub_category: subCategory,
+      sub_category_name: subCategoryName!,
+      description:
+        category === 'external' && description.trim()
+          ? description.trim()
+          : null,
+      vendor:
+        category === 'external' && vendor.trim() ? vendor.trim() : null,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add line item</DialogTitle>
+          <DialogDescription>
+            New rows span the project from start to end month with all
+            cells initialised at zero. Fill in the values inline after
+            adding.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Category radio (two-button toggle — no radio-group shadcn) */}
+          <div>
+            <label className="text-xs font-medium text-foreground">
+              Category
+            </label>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory('internal');
+                  setSubCategory('');
+                }}
+                className={cn(
+                  'rounded-md border px-3 py-2 text-sm transition-colors',
+                  category === 'internal'
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-border bg-background text-foreground hover:bg-accent',
+                )}
+              >
+                Internal (Role)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory('external');
+                  setSubCategory('');
+                }}
+                className={cn(
+                  'rounded-md border px-3 py-2 text-sm transition-colors',
+                  category === 'external'
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-border bg-background text-foreground hover:bg-accent',
+                )}
+              >
+                External (Cost type)
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-category dropdown */}
+          <div>
+            <label className="text-xs font-medium text-foreground">
+              {category === 'internal' ? 'Role' : 'Cost type'}
+            </label>
+            <Select value={subCategory} onValueChange={setSubCategory}>
+              <SelectTrigger className="mt-1">
+                <SelectValue
+                  placeholder={
+                    category === 'internal' ? 'Select a role' : 'Select a cost type'
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {(category === 'internal' ? roleTypes : costTypes).map((opt) => {
+                  const k = `${category}|${opt.id}`;
+                  const alreadyAdded = existingKeys.has(k);
+                  return (
+                    <SelectItem
+                      key={opt.id}
+                      value={opt.id}
+                      disabled={alreadyAdded}
+                    >
+                      {opt.name}
+                      {alreadyAdded ? ' (already added)' : ''}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* External-only fields */}
+          {category === 'external' && (
+            <>
+              <div>
+                <label className="text-xs font-medium text-foreground">
+                  Description (optional)
+                </label>
+                <Input
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g. SAP integration consultant"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground">
+                  Vendor (optional)
+                </label>
+                <Input
+                  value={vendor}
+                  onChange={(e) => setVendor(e.target.value)}
+                  placeholder="e.g. Accenture"
+                  className="mt-1"
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={!canConfirm}
+            onClick={handleConfirm}
+          >
+            Add line item
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
