@@ -282,24 +282,6 @@ export function IdentityTab({
             )}
           </Field>
 
-          <Field label="CapEx / OpEx">
-            <Select
-              value={v.capex_opex}
-              onValueChange={(s) =>
-                buffer.patch({ capex_opex: s as CapexOpex })
-              }
-              disabled={readOnly}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select treatment" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="capex">CapEx</SelectItem>
-                <SelectItem value="opex">OpEx</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-
           <Field label="Line of business">
             {refLoading ? (
               <Skeleton className="h-9 w-full" />
