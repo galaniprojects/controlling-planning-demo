@@ -1445,15 +1445,22 @@ export const intakeApi = {
 
 import type { MilestoneResponse, MilestoneTypeListResponse } from '@/types/milestones';
 
-/** Milestone CRUD body for POST /api/projects/{id}/milestones — [A-MS-02]. */
+/**
+ * Milestone CRUD body for POST /api/projects/{id}/milestones — [A-MS-02].
+ *
+ * `forecast_start` / `forecast_end` are optional: the Define page asks
+ * only for baseline dates, and the backend's `MilestoneCreate` Pydantic
+ * validator defaults forecast_* to baseline_* when omitted. Workbench /
+ * other callers that want explicit forecast dates can still pass them.
+ */
 export interface MilestoneCreateBody {
   sequence_number: number;
   name: string;
   milestone_type_id?: string | null;
   baseline_start: string;          // YYYY-MM
   baseline_end: string;
-  forecast_start: string;
-  forecast_end: string;
+  forecast_start?: string;
+  forecast_end?: string;
   color?: string | null;
 }
 

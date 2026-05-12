@@ -235,6 +235,51 @@ class TestCreateMilestone:
         )
         assert resp.status_code == 403
 
+    def test_forecast_dates_default_to_baseline_when_omitted(
+        self, test_client, proj_with_milestones,
+    ):
+        body = {
+            "sequence_number": 5,
+            "name": "Go-live",
+            "milestone_type_id": "mt-hypermaint",
+            "baseline_start": "2027-01",
+            "baseline_end": "2027-02",
+            # forecast_start / forecast_end intentionally omitted — the
+            # Define-page milestone create form no longer collects them.
+        }
+        resp = test_client.post(
+            f"/api/projects/{proj_with_milestones}/milestones",
+            headers=HEADERS_CTRL, json=body,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["baseline_start"] == "2027-01"
+        assert data["baseline_end"] == "2027-02"
+        assert data["forecast_start"] == "2027-01"
+        assert data["forecast_end"] == "2027-02"
+
+    def test_explicit_forecast_dates_are_preserved(
+        self, test_client, proj_with_milestones,
+    ):
+        body = {
+            "sequence_number": 6,
+            "name": "Retire",
+            "milestone_type_id": "mt-hypermaint",
+            "baseline_start": "2027-03",
+            "baseline_end": "2027-04",
+            "forecast_start": "2027-04",
+            "forecast_end": "2027-06",
+        }
+        resp = test_client.post(
+            f"/api/projects/{proj_with_milestones}/milestones",
+            headers=HEADERS_CTRL, json=body,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        # Explicit forecast dates flow through unchanged when provided.
+        assert data["forecast_start"] == "2027-04"
+        assert data["forecast_end"] == "2027-06"
+
 
 # ---------------------------------------------------------------------------
 # PUT /api/projects/{id}/milestones/{milestone_id}

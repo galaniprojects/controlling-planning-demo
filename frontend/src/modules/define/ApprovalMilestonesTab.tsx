@@ -758,12 +758,17 @@ function MilestoneForm({
     (baselineStart !== initial.baseline_start ||
       baselineEnd !== initial.baseline_end);
 
+  // In create mode the Define page asks only for baseline dates;
+  // forecast dates default to baseline server-side. In edit mode (the
+  // Workbench's job once execution starts) all four dates remain
+  // explicitly editable.
   const canSubmit =
     name.trim().length > 0 &&
     /^\d{4}-\d{2}$/.test(baselineStart) &&
     /^\d{4}-\d{2}$/.test(baselineEnd) &&
-    /^\d{4}-\d{2}$/.test(forecastStart) &&
-    /^\d{4}-\d{2}$/.test(forecastEnd) &&
+    (mode === 'create' ||
+      (/^\d{4}-\d{2}$/.test(forecastStart) &&
+        /^\d{4}-\d{2}$/.test(forecastEnd))) &&
     seq > 0 &&
     (!baselineTouched || overrideReason.trim().length > 0);
 
@@ -772,14 +777,15 @@ function MilestoneForm({
     setError(null);
     try {
       if (mode === 'create') {
+        // Define-page create flow: baseline dates only. Backend
+        // defaults forecast_start/forecast_end to baseline values
+        // via MilestoneCreate's @model_validator.
         const created = await milestonesApi.create(projectId, {
           sequence_number: seq,
           name: name.trim(),
           milestone_type_id: typeId,
           baseline_start: baselineStart,
           baseline_end: baselineEnd,
-          forecast_start: forecastStart,
-          forecast_end: forecastEnd,
           color: color.trim() || null,
         });
         onComplete(created);
@@ -860,7 +866,13 @@ function MilestoneForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div
+        className={
+          mode === 'edit'
+            ? 'grid grid-cols-2 sm:grid-cols-4 gap-2'
+            : 'grid grid-cols-2 gap-2'
+        }
+      >
         <div className="space-y-1">
           <label className="text-xs font-medium text-foreground">
             Baseline start
@@ -881,27 +893,37 @@ function MilestoneForm({
             onChange={(e) => setBaselineEnd(e.target.value)}
           />
         </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-foreground">
-            Forecast start
-          </label>
-          <Input
-            type="month"
-            value={forecastStart}
-            onChange={(e) => setForecastStart(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-foreground">
-            Forecast end
-          </label>
-          <Input
-            type="month"
-            value={forecastEnd}
-            onChange={(e) => setForecastEnd(e.target.value)}
-          />
-        </div>
+        {mode === 'edit' && (
+          <>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">
+                Forecast start
+              </label>
+              <Input
+                type="month"
+                value={forecastStart}
+                onChange={(e) => setForecastStart(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">
+                Forecast end
+              </label>
+              <Input
+                type="month"
+                value={forecastEnd}
+                onChange={(e) => setForecastEnd(e.target.value)}
+              />
+            </div>
+          </>
+        )}
       </div>
+      {mode === 'create' && (
+        <p className="text-xs text-muted-foreground">
+          Forecast dates default to the baseline above. You can adjust them
+          later from the Workbench once the project is approved.
+        </p>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div className="space-y-1">
