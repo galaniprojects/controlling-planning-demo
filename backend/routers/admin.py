@@ -35,6 +35,7 @@ from schemas.admin import (
     PersonCreate,
     PersonUpdate,
     RatesUpdate,
+    TechNavigatorScoringResponse,
 )
 from schemas.common import CurrentUser
 
@@ -616,8 +617,19 @@ def reset_parameters(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("controller")),
 ):
-    """Reset planning parameters to default values."""
+    """Reset planning parameters to default values.
+
+    Mirrors the PUT path's recompute hooks: any tn_* reset fans out to
+    ``recompute_all_scores``; any ranking-trigger key reset (including
+    ``ranking_total_available_budget``) fans out to
+    ``recompute_within_cutoff_for_backlog`` so the Backlog within_cutoff
+    flag stays consistent with the new envelope. [A-TN-07][A-BK-14]
+    """
     from services.tech_navigator import recompute_all_scores
+    from services.ranking import (
+        parameter_key_triggers_recompute,
+        recompute_within_cutoff_for_backlog,
+    )
 
     query = db.query(PlanningParameter)
     if body.keys:
@@ -625,16 +637,24 @@ def reset_parameters(
     params = query.all()
     updated = []
     tn_changed = False
+    ranking_recompute_needed = False
     for param in params:
         if param.current_value != param.default_value:
             _log_audit(db, user, "planning_parameter", param.key, param.name, "update", "current_value", param.current_value, param.default_value, category="configuration")
             param.current_value = param.default_value
             if param.key.startswith("tn_"):
                 tn_changed = True
+            if parameter_key_triggers_recompute(param.key):
+                ranking_recompute_needed = True
         updated.append({"key": param.key, "name": param.name, "current_value": param.current_value})
     db.commit()
     if tn_changed:
         recompute_all_scores(db)
+    if ranking_recompute_needed:
+        try:
+            recompute_within_cutoff_for_backlog(db)
+        except Exception:  # noqa: BLE001 — defensive: trigger best-effort.
+            db.rollback()
     return {"items": updated, "total": len(updated)}
 
 
@@ -660,6 +680,104 @@ def recompute_scores(
     except Exception:  # noqa: BLE001 — defensive: trigger best-effort.
         db.rollback()
     return {"recomputed": count}
+
+
+@router.get("/tech-navigator/scoring-data", response_model=TechNavigatorScoringResponse)
+def get_tech_navigator_scoring_data(
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role("controller")),
+):
+    """Bulk payload for the Tech Navigator Scoring admin page.
+
+    Returns the current weights snapshot, the full budget-envelope breakdown,
+    the configured tiebreaker order, and every backlog/operate project
+    that has all six sub-criteria scored. The page recomputes
+    complexity_score, value_creation_score, composite_score, and
+    tshirt_size client-side against the live (unsaved) weights so the
+    scatter animates as sliders move, without an API round-trip per drag.
+
+    The envelope breakdown plus per-project ``competes_in_ranking`` flag
+    let the client's cutoff walk mirror the backend's
+    :func:`compute_ranked_backlog` exactly:
+      contestable_envelope =
+          total_available − type3_pre_funded − hyper_maintenance_committed
+      walk pool = BACKLOG_STAGES ∩ project_type != 3
+      sort = composite_score DESC + configured tiebreakers + project_id
+    """
+    from services.tech_navigator import load_weights
+    from services.ranking import (
+        load_config,
+        compute_pre_funded_total,
+        compute_hyper_maintenance_total,
+        compute_contestable_envelope,
+    )
+    from services.pipeline import BACKLOG_STAGES, OPERATE_STAGES
+
+    weights = load_weights(db)
+    ranking_config = load_config(db)
+    type3_total = compute_pre_funded_total(db)
+    hyper_maint_total = compute_hyper_maintenance_total(db)
+    contestable = compute_contestable_envelope(
+        ranking_config, type3_total, hyper_maint_total,
+    )
+
+    valid_stages = list(BACKLOG_STAGES | OPERATE_STAGES)
+    rows = (
+        db.query(Project)
+        .filter(
+            Project.is_active.is_(True),
+            Project.pipeline_stage.in_(valid_stages),
+            Project.tn_standardization.isnot(None),
+            Project.tn_usage.isnot(None),
+            Project.tn_maintenance.isnot(None),
+            Project.tn_financial_benefit.isnot(None),
+            Project.tn_payback.isnot(None),
+            Project.tn_competitive_advantage.isnot(None),
+        )
+        .order_by(Project.id)
+        .all()
+    )
+
+    return {
+        "weights": {
+            "complexity": weights.complexity,
+            "value_creation": weights.value_creation,
+            "ranking": weights.ranking,
+            "tshirt": weights.tshirt,
+        },
+        "envelope": {
+            "total_available_budget": ranking_config.total_available_budget,
+            "type3_pre_funded_total": type3_total,
+            "hyper_maintenance_committed_total": hyper_maint_total,
+            "contestable_envelope": contestable,
+        },
+        "tiebreakers": [[f, d] for f, d in ranking_config.tiebreakers],
+        "projects": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "project_type": p.project_type,
+                "pipeline_stage": p.pipeline_stage,
+                "doi": p.doi,
+                "total_budget": (
+                    float(p.total_budget) if p.total_budget is not None else None
+                ),
+                # Walk pool mirrors compute_ranked_backlog (ranking.py:337-345):
+                # BACKLOG_STAGES only, project_type != 3.
+                "competes_in_ranking": (
+                    p.pipeline_stage in BACKLOG_STAGES
+                    and (p.project_type or 0) != 3
+                ),
+                "tn_standardization": p.tn_standardization,
+                "tn_usage": p.tn_usage,
+                "tn_maintenance": p.tn_maintenance,
+                "tn_financial_benefit": p.tn_financial_benefit,
+                "tn_payback": p.tn_payback,
+                "tn_competitive_advantage": p.tn_competitive_advantage,
+            }
+            for p in rows
+        ],
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,427 @@
+/**
+ * CapacityWorkspace — top-level component for `/capacity`.
+ *
+ * v5.2 W3 integration: replaces the W2 placeholder slots with the real
+ * components shipped by Tracks A–D. The workspace tree is wrapped in
+ * `<CapacitySidePanelProvider>` so the timeline + demand strip can open
+ * `PersonDetail` / `CellDetail` without prop drilling. Layout (top to
+ * bottom): ScopeBar → KPISummaryBar → DashboardLayer → FilterChipBar →
+ * CapacityTimeline + DemandStrip. The side panel itself is rendered by
+ * AppLayout from the shared SidePanelContext; openPerson / openCell pass
+ * concrete content (PersonDetail / CellDetail) per call.
+ *
+ * v5.2 W4 Track A (Session 6a): URL-param assignment-panel entry point.
+ *   - Reads `?assignment_project=`, `?cc=`, `?cr=` on mount.
+ *   - Calls `enterAssignmentMode(...)` and registers `AssignmentPanel`
+ *     as the `assignment` handler in `CapacitySidePanelContext`.
+ *   - `AssignmentStateProvider` wraps the workspace so the side panel and
+ *     the timeline overlay (S6b) share the same context instance.
+ *
+ * v5.2 W4 Track B (Session 7): DashboardLayer (§11) inserted between
+ * KPISummaryBar and FilterChipBar. Self-contained — handles its own
+ * visibility rules (Controller / Executive + multi-CC scope) and slide-up
+ * animation, so no conditional rendering is needed at the parent level.
+ *
+ * Spec: guides/Capacity_Module_Redesign_Spec.md §1.3, §2 layout, §9.1, §11.
+ */
+import { useEffect, useMemo, useRef } from 'react';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Card, CardContent } from '@/components/ui/card';
+import { useRole } from '@/contexts/RoleContext';
+import { useCapacityScope } from '@/contexts/CapacityScopeContext';
+import { useSidePanel } from '@/contexts/SidePanelContext';
+import { ScopeBar } from './ScopeBar';
+import { useScopeQueryParams } from './hooks/useScopeQueryParams';
+import { useScopedTimelineData } from './hooks/useScopedTimelineData';
+import { useCapacityProjectsData } from './hooks/useCapacityProjectsData';
+import { CapacityTimeline } from './timeline';
+import { KPISummaryBar } from './kpi/KPISummaryBar';
+import { FilterChipBar } from './filters/FilterChipBar';
+import { filterPeople, type TimelineRow } from './filters/filterPeople';
+import { DemandStrip } from './demand/DemandStrip';
+import {
+  CapacitySidePanelProvider,
+  useCapacitySidePanel,
+} from './sidepanel/CapacitySidePanelContext';
+import { useAssignmentState } from './assignment/AssignmentStateContext';
+import { AssignmentPanel } from './assignment/AssignmentPanel';
+import { ProjectSummaryPanel } from './sidepanel/ProjectSummaryPanel';
+import { DashboardLayer } from './dashboard';
+import { CAPACITY_PANEL_WIDTH } from './sidepanel/widths';
+import type { CapacityProjectItem } from '@/types/api';
+
+/**
+ * Build the loose `TimelineRow[]` array consumed by FilterChipBar
+ * (badge counts) from the timeline hook's output. The `has_pending_*`
+ * predicates aren't sourced by the heatmap endpoints in W3, so they
+ * default to `false`; the inbox + role-availability surfaces would
+ * supply richer signals in a follow-up.
+ */
+function buildFilterRows(
+  roleGroups: ReturnType<typeof useScopedTimelineData>['roleGroups'],
+  flatPeople: ReturnType<typeof useScopedTimelineData>['flatPeople'],
+): TimelineRow[] {
+  const rows: TimelineRow[] = [];
+  const visit = (personId: string, cellsByMonth: Record<string, { utilization: number }> | undefined) => {
+    const monthly = cellsByMonth
+      ? Object.values(cellsByMonth).map((c) => c.utilization)
+      : [];
+    rows.push({
+      person_id: personId,
+      monthly_utilization: monthly,
+      has_pending_request: false,
+      has_unassigned_months: false,
+    });
+  };
+  for (const group of roleGroups) {
+    for (const person of group.people) visit(person.personId, person.cellsByMonth);
+  }
+  for (const person of flatPeople) visit(person.personId, person.cellsByMonth);
+  return rows;
+}
+
+/**
+ * AssignmentEntryPoint — v5.2 W4 Track A (Session 6a).
+ *
+ * Reads URL params `assignment_project`, `cc`, and optional `cr` on
+ * mount and whenever they change.  When all required params are present,
+ * calls `enterAssignmentMode(...)` and opens the assignment side panel.
+ *
+ * Also registers `AssignmentPanel` as the `assignment` handler in
+ * `CapacitySidePanelContext` once on mount (unregisters on unmount).
+ * The handler calls `openPanel(...)` from the shared `SidePanelContext`
+ * directly, mirroring the pattern used by `openPerson` / `openCell` in
+ * `CapacitySidePanelContext`.
+ *
+ * Renders nothing — purely a side-effect component.
+ *
+ * Spec: guides/Capacity_Module_Redesign_Spec.md §9.1 (URL-param entry),
+ *       guides/Capacity_Module_Redesign_Implementation_Guide.md §S6a.
+ */
+function AssignmentEntryPoint() {
+  const [searchParams] = useSearchParams();
+  const { registerAssignmentHandler, openAssignment } = useCapacitySidePanel();
+  const { openPanel, closePanel: closeSidePanel } = useSidePanel();
+  const { enterAssignmentMode, session } = useAssignmentState();
+
+  // Keep a ref to the latest openPanel / closeSidePanel so the registered
+  // handler always invokes the current values even if they change (they
+  // shouldn't — they're stable useCallbacks — but this is safer).
+  const openPanelRef = useRef(openPanel);
+  const closePanelRef = useRef(closeSidePanel);
+  openPanelRef.current = openPanel;
+  closePanelRef.current = closeSidePanel;
+
+  // Register AssignmentPanel as the assignment handler — once on mount.
+  useEffect(() => {
+    const unregister = registerAssignmentHandler(
+      (projectId: string, opts?: { ccId?: string; crId?: number }) => {
+        openPanelRef.current(
+          'Assign project',
+          <AssignmentPanel
+            projectId={projectId}
+            ccId={opts?.ccId}
+            crId={opts?.crId}
+            onClose={closePanelRef.current}
+          />,
+          { width: 400 },
+        );
+      },
+    );
+
+    return unregister;
+    // registerAssignmentHandler is stable — declared as useCallback([]) in
+    // context. openPanelRef / closePanelRef are refs (exempt from the deps
+    // rule), so eslint reports no missing deps here.
+  }, [registerAssignmentHandler]);
+
+  // Read URL params and enter assignment mode when present.
+  useEffect(() => {
+    const projectId = searchParams.get('assignment_project');
+    const ccId = searchParams.get('cc');
+    const crParam = searchParams.get('cr');
+    const crId = crParam ? parseInt(crParam, 10) : undefined;
+
+    if (!projectId || !ccId) return;
+
+    // Idempotency guard: `searchParams` identity changes whenever ANY
+    // param changes — including ScopeBar interactions writing scope/cc/
+    // group via useScopeQueryParams. Skip the re-entry when the active
+    // session already matches; otherwise we'd wipe in-flight edits.
+    // (AssignmentStateContext.enterAssignmentMode also short-circuits
+    // for state correctness; this guard avoids the redundant openPanel
+    // call and side-panel flicker.)
+    if (
+      session &&
+      session.projectId === projectId &&
+      session.ccId === ccId &&
+      session.crId === crId
+    ) {
+      return;
+    }
+
+    enterAssignmentMode(projectId, ccId, crId, 'url_param');
+    openAssignment(projectId, { ccId, crId });
+  // `searchParams` object identity changes whenever any param changes.
+  // `enterAssignmentMode` / `openAssignment` are stable useCallback refs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, session]);
+
+  return null;
+}
+
+/**
+ * ProjectSummaryEntryPoint — v5.2 W5 Track B (Session 9).
+ *
+ * Registers `ProjectSummaryPanel` as the `project_summary` handler in
+ * `CapacitySidePanelContext`. The handler resolves the requested
+ * `projectId` against the parent's project-data cache (passed via the
+ * `getItem` callback) so the panel always renders the freshest payload
+ * the timeline already has in hand.
+ *
+ * Renders nothing — purely a side-effect component. Mirrors the
+ * `AssignmentEntryPoint` pattern (§S6a) for consistency.
+ *
+ * Spec: guides/Capacity_Module_Redesign_Spec.md §10.8.
+ */
+function ProjectSummaryEntryPoint({
+  getItem,
+}: {
+  getItem: (projectId: string) => CapacityProjectItem | undefined;
+}) {
+  const { registerProjectSummaryHandler, openAssignment } = useCapacitySidePanel();
+  const { openPanel, closePanel } = useSidePanel();
+  const { enterAssignmentMode } = useAssignmentState();
+  const navigate = useNavigate();
+
+  // Refs so the registered handler always reads the latest cache /
+  // open / close functions. Side-panel content renders OUTSIDE
+  // CapacitySidePanelProvider (the shared `<SidePanel>` lives in
+  // AppLayout, above the workspace tree), so the panel content
+  // cannot call `useCapacitySidePanel` directly. We capture stable
+  // closures here and inject them as props.
+  const openPanelRef = useRef(openPanel);
+  const closePanelRef = useRef(closePanel);
+  const openAssignmentRef = useRef(openAssignment);
+  const enterAssignmentModeRef = useRef(enterAssignmentMode);
+  const navigateRef = useRef(navigate);
+  const getItemRef = useRef(getItem);
+  openPanelRef.current = openPanel;
+  closePanelRef.current = closePanel;
+  openAssignmentRef.current = openAssignment;
+  enterAssignmentModeRef.current = enterAssignmentMode;
+  navigateRef.current = navigate;
+  getItemRef.current = getItem;
+
+  useEffect(() => {
+    const unregister = registerProjectSummaryHandler((projectId: string) => {
+      // v5.2 W6 Track A — pass the optional cached item AND the
+      // projectId so ProjectSummaryPanel can issue its own cache-miss
+      // fallback fetch when the workspace cache hasn't seen this id
+      // yet (e.g., deep-link entry, or scope changed since the cache
+      // was warmed). The panel renders a loading skeleton while the
+      // fallback fetch is in flight and a friendly empty-state when
+      // the project isn't visible in the active scope.
+      const item = getItemRef.current(projectId);
+      const handleReviewAssign = (projectItem: CapacityProjectItem) => {
+        // Prefer an unfulfilled slot's CC; fall back to the first
+        // assigned person's CC; degrade to workbench if neither.
+        const ccId =
+          projectItem.unfulfilled_slots[0]?.cc_id ??
+          projectItem.assigned_people[0]?.cost_center_id ??
+          null;
+        if (!ccId) {
+          navigateRef.current(
+            `/workbench?project=${encodeURIComponent(projectItem.project_id)}`,
+          );
+          return;
+        }
+        const crId =
+          projectItem.unfulfilled_slots[0]?.change_request_id ?? undefined;
+        enterAssignmentModeRef.current(
+          projectItem.project_id,
+          ccId,
+          crId,
+          'inbox',
+        );
+        openAssignmentRef.current(projectItem.project_id, { ccId, crId });
+      };
+      openPanelRef.current(
+        'Project summary',
+        <ProjectSummaryPanel
+          item={item}
+          projectId={projectId}
+          onReviewAssign={handleReviewAssign}
+          onClosePanel={() => closePanelRef.current()}
+          navigate={(path) => navigateRef.current(path)}
+        />,
+        { width: CAPACITY_PANEL_WIDTH.project_summary },
+      );
+    });
+
+    return unregister;
+    // registerProjectSummaryHandler is a stable useCallback ref; everything
+    // else read inside the effect is a ref or import (exempt from the
+    // exhaustive-deps rule).
+  }, [registerProjectSummaryHandler]);
+
+  return null;
+}
+
+function WorkspaceBody() {
+  const { groupBy, ccId, scope, activeFilters } = useCapacityScope();
+  const { openPerson, openCell } = useCapacitySidePanel();
+
+  // Hoisted timeline fetch so FilterChipBar can compute badge counts
+  // off the same dataset the timeline renders.
+  const data = useScopedTimelineData();
+
+  // v5.2 W5 §10 — hoisted project-view fetch (only fires when
+  // `groupBy === 'project'`). Drives `FilterChipBar` chip counts in
+  // project mode AND feeds the `ProjectSummaryEntryPoint` cache so
+  // side-panel summaries hit a warm payload.
+  const projectData = useCapacityProjectsData(groupBy === 'project');
+
+  // Cached lookup for the project-summary handler.
+  const projectsById = useMemo(() => {
+    const map = new Map<string, CapacityProjectItem>();
+    for (const it of projectData.items) map.set(it.project_id, it);
+    return map;
+  }, [projectData.items]);
+
+  const filterRows = useMemo(
+    () => buildFilterRows(data.roleGroups, data.flatPeople),
+    [data.roleGroups, data.flatPeople],
+  );
+
+  // Filter the rows here so the chip count UX matches reality, even
+  // though CapacityTimeline does its own internal fetch in W3.
+  const visibleFilteredCount = useMemo(
+    () => filterPeople(filterRows, activeFilters).length,
+    [filterRows, activeFilters],
+  );
+
+  const handlePersonClick = (personId: string) => {
+    if (!ccId) return;
+    openPerson(ccId, personId);
+  };
+
+  // The demand strip needs a CC context for the unfulfilled-RR list;
+  // when the user is on All-CCs it stays an aggregate strip with no
+  // side-panel hookup until W4 wires the cross-CC list.
+  const demandClickEnabled = scope.kind !== 'all_ccs';
+
+  return (
+    <div className="space-y-4">
+      <ProjectSummaryEntryPoint getItem={(id) => projectsById.get(id)} />
+
+      <Card>
+        <CardContent className="py-4">
+          <ScopeBar />
+        </CardContent>
+      </Card>
+
+      <KPISummaryBar />
+
+      {/* Dashboard layer (§11): Controller / Executive + multi-CC scope only.
+          DashboardLayer handles its own visibility and slide-up animation. */}
+      <DashboardLayer />
+
+      {/* v5.2 W5 §10.10 — pass project items to FilterChipBar when
+          group-by-project is active so chip counts and the `Needs
+          staffing` chip surface project-level semantics. */}
+      <FilterChipBar
+        rows={filterRows}
+        projectItems={groupBy === 'project' ? projectData.items : undefined}
+      />
+
+      {/* Hint when filters hide every row, so the empty timeline state
+          isn't mistaken for a loading or scope problem. ProjectGroupView
+          owns the empty-state hint in project mode (different message).
+          Slim copy — CapacityTimeline below renders the standard
+          EmptyState for the no-rows case. */}
+      {groupBy !== 'project' &&
+        !activeFilters.includes('all') &&
+        visibleFilteredCount === 0 && (
+          <Card className="border-dashed">
+            <CardContent className="py-3 text-center text-xs text-muted-foreground">
+              No people match the active filter combination. Click &quot;All&quot;
+              in the chip bar to reset.
+            </CardContent>
+          </Card>
+        )}
+
+      <CapacityTimeline
+        data={data}
+        projectData={projectData}
+        onPersonClick={handlePersonClick}
+      />
+
+      {/* Demand strip is hidden in the project view per §10.7.
+          v5.2 W5 Track A (S6b §9.1 entry #2): clicking a demand cell
+          opens the side panel in `demand` mode. CellDetail renders the
+          pending-request list filtered by the clicked period; each row
+          has a "Review project" button that calls
+          `openAssignment(projectId, {ccId, crId})` to spin up an
+          assignment session for the parent project.
+
+          TODO (W5 Track B / S9 §10.5): the project-view's unassigned-
+          slot rows must also trigger openAssignment when clicked. The
+          Lead wires that handler post-merge inside ProjectGroupView's
+          UnassignedSlotRow once Track B's tree lands. */}
+      {groupBy !== 'project' && (
+        <DemandStrip
+          onCellClick={
+            demandClickEnabled
+              ? (period) => {
+                  // For collapsed periods (quarter / year), the cell's
+                  // first month is a representative anchor — CellDetail
+                  // shows pending demand across the full window so a
+                  // narrower month label is fine.
+                  const firstMonth = period.monthKeys[0];
+                  openCell({
+                    dimensionId: 'demand',
+                    pivot: 'demand',
+                    month: firstMonth,
+                    rowLabel: `Unfulfilled demand · ${period.label}`,
+                  });
+                }
+              : undefined
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+export function CapacityWorkspace() {
+  const { context } = useRole();
+  const role = context?.role;
+
+  // Sync ScopeBar state with the URL query string. Called unconditionally
+  // before the PL gate to keep hook ordering stable across renders.
+  useScopeQueryParams();
+
+  // Project Lead has no access to the workspace. Redirect during render
+  // (not in an effect) so PL never sees a one-frame flash of the
+  // workspace shell before the navigation fires.
+  if (role === 'project_lead') {
+    return <Navigate to="/capacity/availability" replace />;
+  }
+
+  return (
+    // AssignmentStateProvider lives at App.tsx root level (alongside
+    // SidePanelProvider) so AssignmentPanel rendered as SidePanel
+    // content can read session state across the provider boundary.
+    <CapacitySidePanelProvider>
+      {/*
+       * AssignmentEntryPoint registers the AssignmentPanel handler and
+       * responds to ?assignment_project / ?cc / ?cr URL params.
+       */}
+      <AssignmentEntryPoint />
+      <WorkspaceBody />
+    </CapacitySidePanelProvider>
+  );
+}
+
+export default CapacityWorkspace;

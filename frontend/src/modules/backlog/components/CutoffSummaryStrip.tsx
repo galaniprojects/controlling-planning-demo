@@ -1,5 +1,5 @@
 /**
- * CutoffSummaryStrip — KPI strip showing envelope, Type 3 total, misalignment
+ * CutoffSummaryStrip — KPI strip showing envelope, P3 total, misalignment
  * count, and jump buttons. [A-BK-16][A-BK-17]
  */
 
@@ -49,7 +49,7 @@ export function CutoffSummaryStrip({
         value={fmtEur(cutoff.contestable_envelope)}
         subtext={
           cutoff.type3_pre_funded_total > 0
-            ? `After ${fmtEur(cutoff.type3_pre_funded_total)} Type 3 pre-funded`
+            ? `After ${fmtEur(cutoff.type3_pre_funded_total)} P3 pre-funded`
             : undefined
         }
       />

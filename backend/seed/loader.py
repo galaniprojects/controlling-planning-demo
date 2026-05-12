@@ -132,7 +132,11 @@ def seed_database() -> dict:
     # emitted directly by `generate_seed_v5/s18_progress.py` as deterministic
     # SQL — the legacy `_seed_progress_tracker_data` Python helper has been
     # retired by S1 [F-DG-01..03] [E-04c].
+    # Plans + resource assignments for the five Approved bk* projects must run
+    # before forecast versioning so the captured snapshots include them.
+    _seed_promoted_project_plans()
     _seed_forecast_versions()
+    _recompute_within_cutoff()
     fixtures = load_fixtures()
     print("[seed] Seed complete.")
     return fixtures
@@ -143,6 +147,10 @@ def _seed_forecast_versions() -> None:
 
     v1: 'Q1 2026 Cycle' — payload = current forecast * 1.05 (prior-cycle estimate)
     v2: 'Q2 2026 Cycle' — payload = current forecast (current state)
+
+    Both versions use ``version_type='cycle'``. Manual snapshots are no longer
+    part of the workflow and are not seeded here — versions are only ever
+    captured automatically (cycle close, CR approval).
 
     Uses SQLAlchemy ORM against the live database, matching the C1 schema.
     Runs after load_seed_sql() so all tables and rows exist.
@@ -272,6 +280,85 @@ def _seed_forecast_versions() -> None:
         db.close()
 
 
+def _seed_promoted_project_plans() -> None:
+    """Generate plans + resource assignments for the five bk* projects that
+    are seeded as Approved/DoI 3 (so the Workbench, Capacity, and Reporting
+    surfaces have something to render). Best-effort with logged failure.
+
+    See ``backend/seed/promoted_project_plans.py`` for the per-project mix.
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine(
+        f"sqlite:///{get_db_path()}",
+        connect_args={"check_same_thread": False},
+    )
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
+
+    try:
+        import models  # noqa: F401 — registers all ORM classes
+        from seed.promoted_project_plans import seed_promoted_plans
+        totals = seed_promoted_plans(db)
+        print(
+            f"[seed] Generated plans+allocations for promoted projects "
+            f"(baselines={totals['baselines']}, forecasts={totals['forecasts']}, "
+            f"allocations={totals['allocations']}, milestones={totals['milestones']}, "
+            f"skipped={totals['skipped']})"
+        )
+    except Exception as exc:
+        db.rollback()
+        print(f"[seed] WARNING: _seed_promoted_project_plans failed: {exc}")
+    finally:
+        db.close()
+
+
+def _recompute_within_cutoff() -> None:
+    """Run the [A-PS-06] orchestrator so seeded ``within_cutoff`` values match
+    the spec — only Approved projects carry a meaningful flag; everything
+    else (Proposed / Under Evaluation / Active / Paused) must be NULL.
+    Without this, the Backlog UI's per-row Cutoff column lights up "In" on
+    every row because the seed UPDATE block hardcodes ``within_cutoff = 1``.
+
+    The orchestrator (``services.ranking.recompute_within_cutoff_for_backlog``)
+    walks the ranking, computes ``cumulative_should_be <= envelope`` for
+    each Approved project, clears the rest, and commits.
+
+    Best-effort — silent failure on import errors so an unrelated migration
+    can't block first-time seeding.
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine(
+        f"sqlite:///{get_db_path()}",
+        connect_args={"check_same_thread": False},
+    )
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
+
+    try:
+        import models  # noqa: F401 — registers all ORM classes
+        from services.ranking import recompute_within_cutoff_for_backlog
+        result = recompute_within_cutoff_for_backlog(db)
+        print(
+            f"[seed] Recomputed within_cutoff for {result['recomputed']} backlog "
+            f"projects ({result['changed']} changed) [A-PS-06]"
+        )
+    except Exception as exc:
+        db.rollback()
+        print(f"[seed] WARNING: _recompute_within_cutoff failed: {exc}")
+    finally:
+        db.close()
+
+
 # Retired by S1: `_seed_progress_tracker_data` v4 helper is subsumed by
 # `generate_seed_v5/s18_progress.py` emitting deterministic SQL [E-04c].
 
@@ -309,8 +396,12 @@ def reset_database() -> dict:
     # Reload seed data and fixtures
     load_seed_sql()
     # Progress tracker state seeded inline by s18_progress.py (S1).
+    # Plans + resource assignments for the five Approved bk* projects must run
+    # before forecast versioning so the captured snapshots include them.
+    _seed_promoted_project_plans()
     # C1: generate 2 forecast versions per project [C-FV-05]
     _seed_forecast_versions()
+    _recompute_within_cutoff()
     fixtures = load_fixtures()
     print("[seed] Reset complete.")
     return fixtures

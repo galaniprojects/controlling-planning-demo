@@ -1,38 +1,101 @@
-"""Capacity Management endpoints (Section 10.5) — 14 endpoints."""
+"""Capacity Management endpoints.
+
+v5.2 Wave 1 adds four endpoints under ``/api/capacity/*``:
+  * ``GET /dashboard/forecast`` — capacity forecast time series (§11.4 / §11.10).
+  * ``GET /dashboard/headcount-breakdown`` — headcount per dimension (§11.5).
+  * ``GET /dashboard/hotspots`` — top-N capacity issues (§11.6).
+  * ``GET /history`` — paginated capacity audit trail (§12.15).
+
+Wave 1 also enhances:
+  * ``GET /role-availability`` — adds ``competing_demand_count`` and an
+    optional ``location_summary[]`` per §13.10.
+  * ``PUT /requests/{cc}/{rid}/assignments`` — accepts the new multi-person
+    body shape ``[{month, assignments: [{person_id, hours}]}]`` per §9.5,
+    with backward compatibility for the legacy single-person shape.
+
+Audit log writes flow through ``services/capacity_audit.log_capacity_action``
+(§12.10) — wired from the four mutating handlers (confirm / decline /
+assignments / partially-fulfill).
+"""
 from __future__ import annotations
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
+import json
+import logging
+from datetime import date, datetime, timedelta
+from typing import Any
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from database import get_db
-from dependencies import get_current_user, require_role
-from models.capacity import Allocation, ResourceRequest, ResourceRequestAssignment
+from dependencies import get_current_user, pl_project_filter, require_role
+from models.capacity import Allocation, CapacityActionLog, ResourceRequest, ResourceRequestAssignment
+
+logger = logging.getLogger(__name__)
 from models.change_requests import ChangeRequest
 from models.financial import Forecast
 from models.people import RateTable
 from models.organization import CostCenter, GroupingEntity, Location
+from models.system import PlanningParameter
 from services.portfolio_service import _get_projects_for_entity_recursive, get_project_entity_info, get_top_level_entity_type_id
 from models.people import Person, RoleType
 from models.projects import Project
 from schemas.capacity import (
-    CapacityContext, ConfirmRequest, CounterProposeRequest, DeclineRequest,
-    ExternalCapacityRow, OrgExternalSummary, OrgHeatmapRow, OrgSummary,
+    AssignmentEntry,
+    CapacityContext,
+    CapacityHistoryEntry, CapacityHistoryResponse,
+    CapacityInboxItem, CapacityInboxResponse, CapacityInboxRoleBadge,
+    CapacityPlanningParameter, CapacityPlanningParametersResponse,
+    CapacityProjectAssignedPerson, CapacityProjectAssignedPersonMonth,
+    CapacityProjectExternalCost, CapacityProjectItem, CapacityProjectMonth,
+    CapacityProjectSlot, CapacityProjectSlotMonth, CapacityProjectsResponse,
+    ConfirmRequest, CounterProposeRequest,
+    DashboardForecastPoint, DashboardForecastResponse,
+    DeclineRequest,
+    ExternalCapacityRow, HeadcountBreakdownResponse, HeadcountBreakdownSegment,
+    HotspotItem, HotspotResponse,
+    LocationAvailabilitySummary,
+    MonthAssignment,
+    OrgExternalSummary, OrgHeatmapRow, OrgSummary,
     PartialFulfillRequest, PersonHeatmapRow, RequestItem,
     RoleAvailabilityResponse, RoleAvailabilityRow, RoleHeatmapRow,
     SaveAssignmentsRequest, TeamSummary, UtilizationCell,
+    UtilizationDistributionBucket, UtilizationDistributionResponse,
 )
 from schemas.common import CurrentUser
 from services.calculations import (
     FTE_HOURS, add_months, compute_utilization_pct, generate_month_range,
     get_standard_hours, resolve_hourly_rate, utilization_color_bucket,
 )
+from services.capacity_audit import log_capacity_action
+from services.capacity_dashboard import (
+    compute_dashboard_forecast,
+    compute_headcount_breakdown,
+    compute_hotspots,
+    compute_utilization_distribution,
+)
+from services.capacity_projects import compute_capacity_projects
 
 router = APIRouter(prefix="/api/capacity", tags=["Capacity Management"])
 
 
 def _verify_cc_access(user: CurrentUser, cost_center_id: str):
-    """Verify user owns the cost center (CC owners only see their own CC)."""
+    """Verify user owns the cost center (CC owners only see their own CC).
+
+    v5.2 W6 Track C decision (W5 polish-backlog item):
+        Cross-CC visibility for CC Owners stays restricted — a CC Owner
+        cannot read or write capacity data on cost centres they do not own.
+        Read-only cross-CC views were considered (e.g. a CC Owner peeking
+        at sister teams during planning) and rejected for v5.2 because:
+          1. The §15 permissions matrix already lists CC Owner as
+             "own CC only" for both read and write.
+          2. Adding read-only cross-CC paths would require splitting every
+             write-bearing endpoint into a read variant + a write variant,
+             and re-validating the side-panel mutations the workspace
+             ships in W4/W5.
+          3. The Controller persona already covers the "cross-CC peek"
+             use case for the demo audience.
+        Re-evaluate post-v5.2 if the user research surfaces a real need.
+    """
     if user.role == "cost_center_owner" and user.cost_center_id != cost_center_id:
         raise HTTPException(403, "Forbidden: cannot access other cost centers")
 
@@ -605,6 +668,59 @@ def get_request_assignments(
     return {"items": items, "total": len(items)}
 
 
+def _normalise_assignment_body(
+    raw_assignments: list[dict[str, Any]],
+) -> list[tuple[str, list[tuple[str, float | None]]]]:
+    """Sniff legacy vs v5.2 multi-person body shape per spec §9.5 / §9.9.
+
+    Returns ``[(month, [(person_id, hours_or_None), ...]), ...]`` regardless
+    of which shape was received. ``hours`` is None for legacy entries
+    (route falls back to forecast-derived hours per the existing v4 logic).
+
+    Legacy shape:    ``{"month": ..., "person_id": ...}``
+    v5.2 shape:      ``{"month": ..., "assignments": [{"person_id":...,"hours":...}]}``
+
+    Mixing shapes within a single request is permitted (we sniff per-entry),
+    although the test plan only exercises homogeneous bodies.
+    """
+    out: list[tuple[str, list[tuple[str, float | None]]]] = []
+    for entry in raw_assignments:
+        month = entry.get("month")
+        if not isinstance(month, str):
+            raise HTTPException(400, "Each assignment entry requires a 'month' field")
+
+        if "assignments" in entry and entry["assignments"] is not None:
+            # v5.2 multi-person shape
+            people: list[tuple[str, float | None]] = []
+            for sub in entry["assignments"]:
+                pid = sub.get("person_id")
+                if not isinstance(pid, str) or not pid:
+                    raise HTTPException(400, f"Missing person_id in month '{month}'")
+                hrs = sub.get("hours")
+                if hrs is not None:
+                    try:
+                        hrs = float(hrs)
+                    except (TypeError, ValueError):
+                        raise HTTPException(400, f"Invalid hours for {pid} in {month}")
+                people.append((pid, hrs))
+            if not people:
+                raise HTTPException(400, f"Empty assignments list for month '{month}'")
+            out.append((month, people))
+        elif "person_id" in entry:
+            # Legacy single-person shape
+            pid = entry["person_id"]
+            if not isinstance(pid, str) or not pid:
+                raise HTTPException(400, f"Missing person_id in legacy entry for '{month}'")
+            out.append((month, [(pid, None)]))
+        else:
+            raise HTTPException(
+                400,
+                f"Assignment for '{month}' missing 'person_id' (legacy) or "
+                f"'assignments' (v5.2) key.",
+            )
+    return out
+
+
 @router.put("/requests/{cost_center_id}/{request_id}/assignments")
 def save_request_assignments(
     cost_center_id: str, request_id: int,
@@ -612,7 +728,13 @@ def save_request_assignments(
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role("cost_center_owner", "controller")),
 ):
-    """Save per-month person assignments for a resource request."""
+    """Save per-month person assignments for a resource request.
+
+    Accepts two body shapes per spec §9.5 / §9.9 — legacy single-person
+    ``{month, person_id}`` and v5.2 multi-person
+    ``{month, assignments: [{person_id, hours}]}``. Saving a draft writes
+    a CapacityActionLog row with action_type='assign_draft' (§12.10).
+    """
     _verify_cc_access(_user, cost_center_id)
     req = _get_request(db, cost_center_id, request_id)
 
@@ -620,23 +742,30 @@ def save_request_assignments(
         raise HTTPException(409, f"Request status is '{req.status}', cannot assign")
 
     valid_months = set(generate_month_range(req.period_start, req.period_end))
+    parsed = _normalise_assignment_body(body.assignments)
 
-    # Validate assignments
+    # Validate months + people up front so a bad row aborts before any deletes.
     seen_months: set[str] = set()
-    for entry in body.assignments:
-        if entry.month not in valid_months:
-            raise HTTPException(400, f"Month '{entry.month}' is outside request period")
-        if entry.month in seen_months:
-            raise HTTPException(400, f"Duplicate month '{entry.month}'")
-        seen_months.add(entry.month)
+    person_cache: dict[str, Person] = {}
+    for month, people in parsed:
+        if month not in valid_months:
+            raise HTTPException(400, f"Month '{month}' is outside request period")
+        if month in seen_months:
+            raise HTTPException(400, f"Duplicate month '{month}'")
+        seen_months.add(month)
+        for pid, _hrs in people:
+            if pid not in person_cache:
+                pobj = (
+                    db.query(Person)
+                    .filter(Person.id == pid, Person.is_active.is_(True))
+                    .first()
+                )
+                if not pobj:
+                    raise HTTPException(400, f"Person '{pid}' not found or inactive")
+                person_cache[pid] = pobj
 
-        person = db.query(Person).filter(
-            Person.id == entry.person_id, Person.is_active == True
-        ).first()
-        if not person:
-            raise HTTPException(400, f"Person '{entry.person_id}' not found or inactive")
-
-    # Build forecast hours lookup (aggregated by month)
+    # Build forecast-derived per-month hours so legacy entries (no explicit
+    # hours) get the right number; v5.2 entries override per-person.
     category = "internal" if req.request_type == "resource" else "external"
     sub_cat = req.role_type_id if category == "internal" else req.cost_type_id
     forecast_rows = (
@@ -660,26 +789,70 @@ def save_request_assignments(
         else:
             forecast_hours[f.month] = float(f.total_amount) if f.total_amount is not None else 0
 
-    # Delete existing assignments
+    # Wipe all existing assignments — PUT semantics per §9.9.
     db.query(ResourceRequestAssignment).filter(
         ResourceRequestAssignment.resource_request_id == req.id
     ).delete()
 
-    # Insert new assignments
-    for entry in body.assignments:
-        hours = forecast_hours.get(entry.month, float(req.hours_or_amount_per_month))
-        db.add(ResourceRequestAssignment(
-            resource_request_id=req.id,
-            month=entry.month,
-            person_id=entry.person_id,
-            hours=hours,
-        ))
+    # Multi-person rows write one assignment row per (request, month, person);
+    # the (resource_request_id, month, person_id) unique constraint enforces
+    # one slot per person per month.
+    person_freq: dict[str, int] = {}
+    audit_assignments: list[dict[str, Any]] = []
+    for month, people in parsed:
+        for pid, explicit_hours in people:
+            if explicit_hours is not None:
+                hours_value = explicit_hours
+            else:
+                hours_value = forecast_hours.get(
+                    month, float(req.hours_or_amount_per_month)
+                )
+            db.add(ResourceRequestAssignment(
+                resource_request_id=req.id,
+                month=month,
+                person_id=pid,
+                hours=hours_value,
+            ))
+            person_freq[pid] = person_freq.get(pid, 0) + 1
+            audit_assignments.append({
+                "person_id": pid,
+                "person_name": person_cache[pid].name,
+                "month": month,
+                "hours": hours_value,
+            })
 
-    # Update assigned_person_id to most-frequently-assigned person (backward compat)
-    if body.assignments:
-        from collections import Counter
-        person_counts = Counter(e.person_id for e in body.assignments)
-        req.assigned_person_id = person_counts.most_common(1)[0][0]
+    # Update assigned_person_id to most-frequently-assigned person (back-compat
+    # for v4 callers that read this field).
+    if person_freq:
+        req.assigned_person_id = max(person_freq.items(), key=lambda x: x[1])[0]
+
+    # ---------------- Capacity audit log (§12.10) ----------------
+    role_label = (
+        req.role_type.name if req.role_type else (req.role_type_id or "")
+    )
+    summary = (
+        f"Saved draft assignments for {role_label}: "
+        f"{len(audit_assignments)} person-month{'s' if len(audit_assignments) != 1 else ''}"
+    )
+    log_capacity_action(
+        db, _user,
+        action_type="assign_draft",
+        project_id=req.project_id,
+        cost_center_id=cost_center_id,
+        summary=summary,
+        detail_payload={
+            "requests_affected": [{
+                "request_id": req.id,
+                "role": role_label,
+                "months": len(seen_months),
+                "hours": sum(a["hours"] for a in audit_assignments),
+            }],
+            "assignments": audit_assignments,
+            "cr_id": req.change_request_id,
+            "decline_reason": None,
+        },
+        change_request_id=req.change_request_id,
+    )
 
     db.commit()
 
@@ -770,6 +943,39 @@ def partially_fulfill_request(
             cr.cc_status = "confirmed"
             cr.cc_confirmation_timestamp = datetime.utcnow()
             cr.status = "pending_controller_approval"
+
+    # Audit log per §12.10 — partial confirmation event.
+    role_label = req.role_type.name if req.role_type else (req.role_type_id or "")
+    assigned_name = None
+    if body.assigned_person_id:
+        ap = db.query(Person).filter(Person.id == body.assigned_person_id).first()
+        assigned_name = ap.name if ap else body.assigned_person_id
+    log_capacity_action(
+        db, user,
+        action_type="partial_confirm",
+        project_id=req.project_id,
+        cost_center_id=cost_center_id,
+        summary=(
+            f"Partially fulfilled {role_label} request: "
+            f"{body.adjusted_value:g} adjusted hours"
+            + (f" assigned to {assigned_name}" if assigned_name else "")
+        ),
+        detail_payload={
+            "requests_affected": [{
+                "request_id": req.id,
+                "role": role_label,
+                "adjusted_value": float(body.adjusted_value or 0),
+            }],
+            "assignments": (
+                [{"person_id": body.assigned_person_id, "person_name": assigned_name}]
+                if body.assigned_person_id else []
+            ),
+            "cr_id": req.change_request_id,
+            "decline_reason": None,
+        },
+        change_request_id=req.change_request_id,
+    )
+
     db.commit()
     return _request_to_dict(req, db)
 
@@ -814,6 +1020,33 @@ def decline_request(
             cr.cc_owner_id = user.person_id
             cr.cc_status = "declined"
             cr.cc_comments = body.reason
+
+    # Audit log per §12.10 — single-request decline within the assignment panel.
+    role_label = req.role_type.name if req.role_type else (req.role_type_id or "")
+    months_count = len(generate_month_range(req.period_start, req.period_end))
+    log_capacity_action(
+        db, user,
+        action_type="decline_request",
+        project_id=req.project_id,
+        cost_center_id=cost_center_id,
+        summary=(
+            f"Declined {role_label} request "
+            f"({req.period_start}–{req.period_end}): {body.reason}"
+        ),
+        detail_payload={
+            "requests_affected": [{
+                "request_id": req.id,
+                "role": role_label,
+                "months": months_count,
+                "hours": float(req.hours_or_amount_per_month or 0) * months_count,
+            }],
+            "assignments": [],
+            "cr_id": req.change_request_id,
+            "decline_reason": body.reason,
+        },
+        change_request_id=req.change_request_id,
+    )
+
     db.commit()
     return _request_to_dict(req, db)
 
@@ -1020,6 +1253,115 @@ def confirm_project_resources(
             deep_link_tab="intake",
         ))
 
+    # Capacity audit log per §12.10. Bucket under the CC of the first pending
+    # request; one record per project confirmation. action_type branches on:
+    #   - any pending request with change_request_id → cr_reconfirm
+    #   - any month where sum(assignments) < requested hours → partial_confirm
+    #     (per §9.5 / §9.7 "Confirm partial & send to controller")
+    #   - else                                                  → confirm
+    role_breakdown: dict[str, dict[str, float]] = {}
+    requests_affected: list[dict] = []
+    cr_ids: list[int] = []
+    partial_months_total = 0
+    full_months_total = 0
+
+    # Bulk-fetch all RRA rows in one query (P1 #1 — was N+1 inside the loop).
+    pending_req_ids = [r.id for r in pending_requests]
+    rra_by_req: dict[int, list[ResourceRequestAssignment]] = {}
+    if pending_req_ids:
+        for a in (
+            db.query(ResourceRequestAssignment)
+            .filter(ResourceRequestAssignment.resource_request_id.in_(pending_req_ids))
+            .all()
+        ):
+            rra_by_req.setdefault(a.resource_request_id, []).append(a)
+
+    for req in pending_requests:
+        role_label = req.role_type.name if req.role_type else (req.role_type_id or "")
+        months = generate_month_range(req.period_start, req.period_end)
+        months_count = len(months)
+        hours = float(req.hours_or_amount_per_month or 0) * months_count
+        agg = role_breakdown.setdefault(role_label, {"count": 0, "hours": 0.0})
+        agg["count"] += 1
+        agg["hours"] += hours
+        requests_affected.append({
+            "request_id": req.id,
+            "role": role_label,
+            "months": months_count,
+            "hours": hours,
+        })
+        if req.change_request_id and req.change_request_id not in cr_ids:
+            cr_ids.append(req.change_request_id)
+
+        # Partial detection: per-month sum(ResourceRequestAssignment.hours)
+        # vs. req.hours_or_amount_per_month. Resource requests with no
+        # assignment rows count every month as fully-unassigned (still
+        # "partial" for audit purposes — the project went out the door
+        # without a person on those months).
+        if req.request_type == "resource":
+            per_month_sum: dict[str, float] = {}
+            for a in rra_by_req.get(req.id, []):
+                per_month_sum[a.month] = per_month_sum.get(a.month, 0.0) + float(a.hours)
+            requested_per_month = float(req.hours_or_amount_per_month or 0)
+            for m in months:
+                if requested_per_month <= 0:
+                    full_months_total += 1
+                elif per_month_sum.get(m, 0.0) + 1e-6 >= requested_per_month:
+                    full_months_total += 1
+                else:
+                    partial_months_total += 1
+
+    total_hours = sum(b["hours"] for b in role_breakdown.values())
+    summary_cc = pending_requests[0].cost_center_id if pending_requests else (
+        user.cost_center_id or "unknown"
+    )
+    cr_action = bool(cr_ids)
+    primary_cr_id = cr_ids[0] if cr_ids else None
+    # P1 #5 precedence change: when both CR-bound and partially fulfilled, the
+    # `partial_confirm` signal is more actionable for the controller (they need
+    # to chase missing assignments) and reaches the §12.12 history "Partial"
+    # filter. CR context is preserved in detail_payload (`cr_id`) and in the
+    # summary suffix, so no information is lost.
+    is_partial = partial_months_total > 0
+    if is_partial:
+        action_type = "partial_confirm"
+        summary_prefix = "Partially re-confirmed via CR" if cr_action else "Partially confirmed"
+    elif cr_action:
+        action_type = "cr_reconfirm"
+        summary_prefix = "Re-confirmed via CR"
+    else:
+        action_type = "confirm"
+        summary_prefix = "Confirmed"
+    cr_suffix = (
+        f" (CR #{', #'.join(str(c) for c in cr_ids)})" if cr_action else ""
+    )
+    partial_suffix = (
+        f" — {partial_months_total} of "
+        f"{partial_months_total + full_months_total} months partial"
+        if is_partial
+        else ""
+    )
+    log_capacity_action(
+        db, user,
+        action_type=action_type,
+        project_id=project.id,
+        cost_center_id=summary_cc,
+        summary=(
+            f"{summary_prefix} {len(role_breakdown)} role"
+            f"{'s' if len(role_breakdown) != 1 else ''}, "
+            f"{total_hours:.0f}h total for {project.name}{cr_suffix}{partial_suffix}"
+        ),
+        detail_payload={
+            "requests_affected": requests_affected,
+            "assignments": [],
+            "cr_id": primary_cr_id,
+            "decline_reason": None,
+            "partial_months": partial_months_total,
+            "full_months": full_months_total,
+        },
+        change_request_id=primary_cr_id,
+    )
+
     db.commit()
     db.refresh(project)
 
@@ -1065,6 +1407,34 @@ def decline_project_resources(
             deep_link_entity_id=project.id,
             deep_link_tab="diff",
         ))
+
+    # Capacity audit log per §12.10 — action_type='decline'. decline_reason
+    # carried in detail_payload for the history page's expanded row.
+    summary_cc = (
+        pending_requests[0].cost_center_id
+        if pending_requests
+        else (user.cost_center_id or "unknown")
+    )
+    log_capacity_action(
+        db, user,
+        action_type="decline",
+        project_id=project.id,
+        cost_center_id=summary_cc,
+        summary=f"Declined {project.name} — sent back to PL",
+        detail_payload={
+            "requests_affected": [
+                {"request_id": req.id,
+                 "role": (req.role_type.name if req.role_type else (req.role_type_id or "")),
+                 "months": len(generate_month_range(req.period_start, req.period_end)),
+                 "hours": float(req.hours_or_amount_per_month or 0) * len(
+                     generate_month_range(req.period_start, req.period_end))}
+                for req in pending_requests
+            ],
+            "assignments": [],
+            "cr_id": None,
+            "decline_reason": body.reason,
+        },
+    )
 
     db.commit()
     db.refresh(project)
@@ -1359,6 +1729,528 @@ def _apply_cr_to_forecast_on_cc_confirm(cr: ChangeRequest, db: Session) -> None:
 
 
 # ---------------------------------------------------------------------------
+# v5.2 W1 — Dashboard layer (§11.10 / §11.4 / §11.5 / §11.6)
+# ---------------------------------------------------------------------------
+#
+# Three dashboard endpoints powering the executive/controller dashboard
+# (CapacityWorkspace > DashboardLayer per §11). Per §11.1 the dashboard
+# is visible to Controller + Executive; CC Owner has access too because
+# the layer is hidden UI-side when scope = "My CC" (single CC) — the API
+# accepts CC Owner queries (e.g. for org-level scopes). Project Lead is
+# blocked at the API per §15.
+#
+# Scope vocabulary: see ``services.capacity_dashboard._parse_scope`` —
+# accepts "all" (default), "location:<id>", "hierarchy:<id>",
+# "cost_center:<id>". Invalid prefix → 400.
+
+
+_DASHBOARD_ROLES = ("controller", "executive", "cost_center_owner")
+
+
+@router.get(
+    "/dashboard/utilization-distribution",
+    response_model=UtilizationDistributionResponse,
+)
+def get_dashboard_utilization_distribution(
+    scope: str = "all",
+    start: str | None = None,
+    end: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(*_DASHBOARD_ROLES)),
+):
+    """Per-person mean utilization bucketed for the §11.3 distribution card.
+
+    Added in v5.2 W4 P1 fix: the spec assumed client-side aggregation from
+    timeline data, but the timeline isn't fetched at multi-CC scope (W3
+    deferral) — exactly the scope where the dashboard renders. Server-
+    side bucketing closes the gap.
+    """
+    try:
+        result = compute_utilization_distribution(db, scope=scope, start=start, end=end)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return UtilizationDistributionResponse(
+        items=[UtilizationDistributionBucket(**row) for row in result["items"]],
+        total_people=result["total_people"],
+        scope=result["scope"],
+        start=result["start"],
+        end=result["end"],
+    )
+
+
+@router.get(
+    "/dashboard/forecast",
+    response_model=DashboardForecastResponse,
+)
+def get_dashboard_forecast(
+    scope: str = "all",
+    start: str | None = None,
+    end: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(*_DASHBOARD_ROLES)),
+):
+    """Capacity forecast time series — available / allocated / demand hours.
+
+    Per spec §11.4 / §11.10. Returns one ``DashboardForecastPoint`` per
+    month inclusive of ``start..end``. Defaults to a 12-month window
+    starting at the current demo month when bounds are omitted.
+    """
+    try:
+        result = compute_dashboard_forecast(db, scope=scope, start=start, end=end)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return DashboardForecastResponse(
+        items=[DashboardForecastPoint(**row) for row in result["items"]],
+        total=result["total"],
+        scope=result["scope"],
+        start=result["start"],
+        end=result["end"],
+    )
+
+
+@router.get(
+    "/dashboard/headcount-breakdown",
+    response_model=HeadcountBreakdownResponse,
+)
+def get_dashboard_headcount_breakdown(
+    scope: str = "all",
+    dimension: str = "location",
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(*_DASHBOARD_ROLES)),
+):
+    """Headcount split by ``dimension`` for the headcount breakdown card.
+
+    Per spec §11.5 / §11.10. ``dimension`` is one of
+    ``location | hierarchy | role | cost_center`` — invalid values 400.
+    Empty scopes return an empty list (not 404).
+    """
+    try:
+        result = compute_headcount_breakdown(db, scope=scope, dimension=dimension)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return HeadcountBreakdownResponse(
+        items=[HeadcountBreakdownSegment(**row) for row in result["items"]],
+        total=result["total"],
+        dimension=result["dimension"],
+        scope=result["scope"],
+    )
+
+
+@router.get(
+    "/dashboard/hotspots",
+    response_model=HotspotResponse,
+)
+def get_dashboard_hotspots(
+    scope: str = "all",
+    limit: int = 5,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(*_DASHBOARD_ROLES)),
+):
+    """Top-N capacity issues across three severity categories.
+
+    Per spec §11.6 / §11.10. Categories: ``over_allocation``,
+    ``unfulfilled_demand``, ``under_utilization``. Sorted by severity
+    descending. Empty scopes return an empty list.
+    """
+    try:
+        items = compute_hotspots(db, scope=scope, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return HotspotResponse(
+        items=[HotspotItem(**row) for row in items],
+        total=len(items),
+        scope=scope or "all",
+    )
+
+
+# ---------------------------------------------------------------------------
+# v5.2 W1 — Capacity history (audit trail) endpoint (§12.15)
+# ---------------------------------------------------------------------------
+
+
+def _parse_iso_date_to_dt(s: str) -> datetime:
+    """Parse 'YYYY-MM-DD' (inclusive bound) into a datetime.
+
+    For the ``from`` bound we use 00:00:00; for ``to`` the route appends
+    23:59:59 so the day is fully included.
+    """
+    return datetime.combine(date.fromisoformat(s), datetime.min.time())
+
+
+@router.get(
+    "/history",
+    response_model=CapacityHistoryResponse,
+)
+def get_capacity_history(
+    acting_user_id: str | None = None,
+    action_type: str | None = None,  # comma-separated
+    cost_center_id: str | None = None,  # comma-separated
+    project_id: str | None = None,
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    sort: str = "timestamp",
+    sort_dir: str = "desc",
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(
+        require_role("controller", "executive", "cost_center_owner")
+    ),
+):
+    """Paginated capacity audit trail per spec §12.15.
+
+    Server-side scoping per §12.14:
+      * Controller / Executive: full visibility.
+      * CC Owner: forced filter ``cost_center_id = managed_cc``. Note that
+        spec §12.1's summary row says "own CC, own actions" but §12.14 is
+        the authoritative detail and explicitly says "includes actions by
+        any user on their CC, not just their own actions" — that's the
+        transparency use case ("did the Controller reassign someone on my
+        team?"). The frontend defaults the acting-user filter to "Me" per
+        §12.12, but a CC Owner CAN switch it to "All" or a specific user
+        and the server returns those rows; that is intended.
+      * PL: 403 (enforced by ``require_role``).
+    """
+    q = db.query(CapacityActionLog)
+
+    # --- Server-side scoping (§12.14) ---
+    if user.role == "cost_center_owner":
+        if not user.cost_center_id:
+            raise HTTPException(403, "CC Owner persona missing managed cost center")
+        q = q.filter(CapacityActionLog.cost_center_id == user.cost_center_id)
+
+    # --- Filters ---
+    if acting_user_id:
+        q = q.filter(CapacityActionLog.acting_user_id == acting_user_id)
+    if action_type:
+        action_types = [a.strip() for a in action_type.split(",") if a.strip()]
+        if action_types:
+            q = q.filter(CapacityActionLog.action_type.in_(action_types))
+    if cost_center_id:
+        ccs = [c.strip() for c in cost_center_id.split(",") if c.strip()]
+        if ccs:
+            q = q.filter(CapacityActionLog.cost_center_id.in_(ccs))
+    if project_id:
+        q = q.filter(CapacityActionLog.project_id == project_id)
+    if from_:
+        try:
+            dt_from = _parse_iso_date_to_dt(from_)
+        except ValueError:
+            raise HTTPException(400, f"Invalid 'from' date: '{from_}'. Expected YYYY-MM-DD.")
+        q = q.filter(CapacityActionLog.timestamp >= dt_from)
+    if to:
+        try:
+            dt_to = _parse_iso_date_to_dt(to) + timedelta(days=1) - timedelta(seconds=1)
+        except ValueError:
+            raise HTTPException(400, f"Invalid 'to' date: '{to}'. Expected YYYY-MM-DD.")
+        q = q.filter(CapacityActionLog.timestamp <= dt_to)
+
+    # --- Sorting ---
+    sort_col = {
+        "timestamp": CapacityActionLog.timestamp,
+        "action_type": CapacityActionLog.action_type,
+        "project_id": CapacityActionLog.project_id,
+        "cost_center_id": CapacityActionLog.cost_center_id,
+        "acting_user_id": CapacityActionLog.acting_user_id,
+    }.get(sort, CapacityActionLog.timestamp)
+    if (sort_dir or "desc").lower() == "asc":
+        q = q.order_by(sort_col.asc())
+    else:
+        q = q.order_by(sort_col.desc())
+
+    total = q.count()
+    rows = q.offset((page - 1) * page_size).limit(page_size).all()
+
+    # Pre-fetch joined names to avoid N+1.
+    person_names: dict[str, str] = {}
+    project_names: dict[str, str] = {}
+    cc_names: dict[str, str] = {}
+    if rows:
+        person_ids = list({r.acting_user_id for r in rows})
+        proj_ids = list({r.project_id for r in rows})
+        cc_ids = list({r.cost_center_id for r in rows})
+        for p in db.query(Person).filter(Person.id.in_(person_ids)).all():
+            person_names[p.id] = p.name
+        for p in db.query(Project).filter(Project.id.in_(proj_ids)).all():
+            project_names[p.id] = p.name
+        for c in db.query(CostCenter).filter(CostCenter.id.in_(cc_ids)).all():
+            cc_names[c.id] = c.name
+
+    items: list[CapacityHistoryEntry] = []
+    for r in rows:
+        payload: dict[str, Any] | None = None
+        if r.detail_payload:
+            try:
+                payload = json.loads(r.detail_payload)
+            except (ValueError, TypeError):
+                logger.warning(
+                    "Corrupt detail_payload on capacity_action_log id=%s; treating as null",
+                    r.id,
+                )
+        items.append(CapacityHistoryEntry(
+            id=r.id,
+            timestamp=r.timestamp,
+            action_type=r.action_type,
+            acting_user_id=r.acting_user_id,
+            acting_user_name=person_names.get(r.acting_user_id, r.acting_user_id),
+            project_id=r.project_id,
+            project_name=project_names.get(r.project_id),
+            cost_center_id=r.cost_center_id,
+            cost_center_name=cc_names.get(r.cost_center_id),
+            summary=r.summary,
+            detail_payload=payload,
+            cr_id=r.cr_id,
+        ))
+
+    return CapacityHistoryResponse(
+        items=items, total=total, page=page, page_size=page_size,
+    )
+
+
+# ---------------------------------------------------------------------------
+# v5.2 W3 §12.3 — Resource Requests inbox (project-per-CC triage queue)
+# ---------------------------------------------------------------------------
+
+# Priority ordering used to derive a project-row priority from its requests
+# (high beats medium beats low). Values are stored lowercase in the DB.
+_PRIORITY_RANK = {"high": 3, "medium": 2, "low": 1}
+
+
+def _max_priority(values: list[str]) -> str:
+    """Return the highest priority among a list of priority strings.
+
+    Defaults to ``"medium"`` when the list is empty (defensive — a group
+    that survived the inbox query always has at least one request).
+    """
+    best = "medium"
+    best_rank = _PRIORITY_RANK.get(best, 0)
+    for v in values:
+        rank = _PRIORITY_RANK.get(v, 0)
+        if rank > best_rank:
+            best, best_rank = v, rank
+    return best
+
+
+@router.get("/inbox", response_model=CapacityInboxResponse)
+def get_capacity_inbox(
+    status: str | None = None,
+    role_type_id: str | None = None,  # comma-separated
+    pl_person_id: str | None = None,  # comma-separated
+    cost_center_id: str | None = None,  # comma-separated
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller", "cost_center_owner")),
+):
+    """Aggregated triage queue: one row per (project, cost-center) per spec §12.3.
+
+    A project that fans out across multiple CCs returns multiple rows
+    (one per CC) so each CC Owner sees only the slice they're responsible
+    for. CR-triggered re-confirmations are returned as separate rows with
+    ``type='change_request'`` and ``cr_id`` populated, distinct from
+    new-project-intake rows.
+
+    Authorization (per spec §12.1):
+      * Controller — sees all CCs.
+      * CC Owner   — server-side scoped to ``managed_cost_center_id`` only.
+      * Executive  — 403 (read-only role; not on the triage queue).
+      * PL         — 403 (no inbox access).
+
+    Optional filters are AND-combined and shrink the pre-computed row set
+    after grouping (so role/PL filters narrow visible rows but don't change
+    role-badge counts within a row that survives the filter).
+    """
+    # --- Base query: pending or partially-fulfilled resource requests ---
+    rr_query = db.query(ResourceRequest).filter(
+        ResourceRequest.status.in_(["pending", "partially_fulfilled"]),
+    )
+
+    # CC-Owner server-side scoping per §12.14 / §15.
+    if user.role == "cost_center_owner":
+        if not user.cost_center_id:
+            return CapacityInboxResponse(items=[], total=0)
+        rr_query = rr_query.filter(
+            ResourceRequest.cost_center_id == user.cost_center_id,
+        )
+    elif cost_center_id:
+        # Controller filter (multi-select).
+        cc_ids = [c for c in cost_center_id.split(",") if c]
+        if cc_ids:
+            rr_query = rr_query.filter(ResourceRequest.cost_center_id.in_(cc_ids))
+
+    requests = rr_query.all()
+    if not requests:
+        return CapacityInboxResponse(items=[], total=0)
+
+    # --- Pre-fetch joined names in bulk to avoid N+1 ---
+    project_ids = {r.project_id for r in requests}
+    cc_ids_in_play = {r.cost_center_id for r in requests}
+    cr_ids = {r.change_request_id for r in requests if r.change_request_id is not None}
+    role_ids = {r.role_type_id for r in requests if r.role_type_id}
+
+    projects = {
+        p.id: p
+        for p in db.query(Project).filter(Project.id.in_(project_ids)).all()
+    }
+    ccs = {
+        c.id: c
+        for c in db.query(CostCenter).filter(CostCenter.id.in_(cc_ids_in_play)).all()
+    }
+    crs = (
+        {c.id: c for c in db.query(ChangeRequest).filter(ChangeRequest.id.in_(cr_ids)).all()}
+        if cr_ids else {}
+    )
+    role_names = {
+        rt.id: rt.name
+        for rt in db.query(RoleType).filter(RoleType.id.in_(role_ids)).all()
+    } if role_ids else {}
+
+    # PL person names (and any other people referenced as PLs).
+    pl_ids = {p.pl_person_id for p in projects.values() if p.pl_person_id}
+    pl_people = {
+        p.id: p
+        for p in db.query(Person).filter(Person.id.in_(pl_ids)).all()
+    } if pl_ids else {}
+
+    # --- Aggregate assignment hours per request to compute unassigned_hours ---
+    assigned_hours_by_request: dict[int, float] = {}
+    if requests:
+        rr_ids = [r.id for r in requests]
+        assigned_rows = (
+            db.query(
+                ResourceRequestAssignment.resource_request_id,
+                func.coalesce(func.sum(ResourceRequestAssignment.hours), 0.0).label("h"),
+            )
+            .filter(ResourceRequestAssignment.resource_request_id.in_(rr_ids))
+            .group_by(ResourceRequestAssignment.resource_request_id)
+            .all()
+        )
+        assigned_hours_by_request = {row[0]: float(row[1]) for row in assigned_rows}
+
+    # --- Group by (project_id, cost_center_id, change_request_id) ---
+    # Tuple key keeps CR-triggered groups distinct from new-intake groups for
+    # the same (project, cc) pair, so the same project can appear twice if
+    # it has both a pending intake and a pending CR re-confirmation.
+    groups: dict[tuple[str, str, int | None], list[ResourceRequest]] = {}
+    for r in requests:
+        key = (r.project_id, r.cost_center_id, r.change_request_id)
+        groups.setdefault(key, []).append(r)
+
+    # --- Resolve hierarchy node names (lazy — only for projects we have) ---
+    top_type = get_top_level_entity_type_id(db)
+
+    # --- Build inbox rows ---
+    items: list[CapacityInboxItem] = []
+    now = datetime.utcnow()
+
+    for (proj_id, cc_id, cr_id), grp in groups.items():
+        project = projects.get(proj_id)
+        if project is None:
+            continue
+        cc = ccs.get(cc_id)
+        if cc is None:
+            continue
+
+        # --- Role badges (only `resource` requests; external_cost has no role) ---
+        role_counts: dict[str, int] = {}
+        for r in grp:
+            if r.request_type == "resource" and r.role_type_id:
+                role_counts[r.role_type_id] = role_counts.get(r.role_type_id, 0) + 1
+        role_badges = [
+            CapacityInboxRoleBadge(
+                role_type_id=rid,
+                role_name=role_names.get(rid, rid),
+                count=count,
+            )
+            for rid, count in sorted(
+                role_counts.items(), key=lambda kv: (-kv[1], role_names.get(kv[0], kv[0])),
+            )
+        ]
+
+        # --- Unassigned hours: sum requested - sum assigned across all RRs in group ---
+        # Per request, requested = hours_or_amount_per_month * months_inclusive.
+        unassigned = 0.0
+        for r in grp:
+            if r.request_type != "resource":
+                continue  # external_cost rows aren't measured in hours
+            months = generate_month_range(r.period_start, r.period_end)
+            requested_total = float(r.hours_or_amount_per_month) * len(months)
+            assigned_total = assigned_hours_by_request.get(r.id, 0.0)
+            unassigned += max(0.0, requested_total - assigned_total)
+
+        # --- Status derivation ---
+        if cr_id is not None:
+            row_status = "re_confirm"
+        elif any(assigned_hours_by_request.get(r.id, 0.0) > 0 for r in grp):
+            row_status = "in_progress"
+        else:
+            row_status = "new"
+
+        # --- Project priority from the requests' priorities ---
+        project_priority = _max_priority([r.priority for r in grp])
+
+        # --- Earliest pending request date drives the age column ---
+        earliest = min(r.created_at for r in grp)
+        age_days = max(0, (now - earliest).days)
+
+        # --- Hierarchy node name (LoB by default) ---
+        entity_info = get_project_entity_info(db, project.id, top_type)
+        hier_name = entity_info["name"] if entity_info else None
+
+        # --- PL info ---
+        pl = pl_people.get(project.pl_person_id) if project.pl_person_id else None
+
+        # --- CR metadata ---
+        cr_summary = None
+        if cr_id is not None:
+            cr_obj = crs.get(cr_id)
+            if cr_obj is not None:
+                cr_summary = cr_obj.summary or f"CR #{cr_obj.id}"
+
+        items.append(CapacityInboxItem(
+            project_id=project.id,
+            project_name=project.name,
+            project_priority=project_priority,
+            hierarchy_node_name=hier_name,
+            type="change_request" if cr_id is not None else "project",
+            cr_id=cr_id,
+            cr_summary=cr_summary,
+            cc_id=cc.id,
+            cc_name=cc.name,
+            pl_person_id=pl.id if pl else None,
+            pl_name=pl.name if pl else None,
+            role_badges=role_badges,
+            unassigned_hours=round(unassigned, 2),
+            age_days=age_days,
+            status=row_status,
+            earliest_request_date=earliest,
+        ))
+
+    # --- Apply post-aggregation filters ---
+    if status and status != "all":
+        items = [it for it in items if it.status == status]
+    if role_type_id:
+        wanted_roles = {r for r in role_type_id.split(",") if r}
+        if wanted_roles:
+            items = [
+                it for it in items
+                if any(b.role_type_id in wanted_roles for b in it.role_badges)
+            ]
+    if pl_person_id:
+        wanted_pls = {p for p in pl_person_id.split(",") if p}
+        if wanted_pls:
+            items = [it for it in items if it.pl_person_id in wanted_pls]
+
+    # --- Default sort: priority desc → age desc (per spec §12.3) ---
+    items.sort(
+        key=lambda it: (
+            -_PRIORITY_RANK.get(it.project_priority, 0),
+            -it.age_days,
+        ),
+    )
+
+    return CapacityInboxResponse(items=items, total=len(items))
+
+
+# ---------------------------------------------------------------------------
 # v5 Session E2 — PL-friendly role-availability aggregation [E-06a]
 # ---------------------------------------------------------------------------
 
@@ -1460,7 +2352,58 @@ def get_role_availability(
             allocated_map.get(cell_key, 0.0) + float(row.total)
         )
 
-    # 4. Build response rows
+    # 4. Build (role, location, month) -> competing_demand_count map per §13.10.
+    #
+    # Per spec: "competing demand" = pending resource requests AT THIS
+    # role+location+month authored by a PL OTHER THAN the requesting PL.
+    # We resolve "this role+location" by walking the request's CC -> location
+    # so the count reflects the geographic context the PL would actually
+    # see when planning a new request.
+    pl_owned_project_ids: set[str] = set()
+    if _user.role == "project_lead":
+        pl_owned_project_ids = set(_user.project_ids or [])
+        # Fold in dynamically-assigned projects (Project.pl_person_id)
+        for p in db.query(Project.id).filter(
+            Project.pl_person_id == _user.person_id
+        ).all():
+            pl_owned_project_ids.add(p[0])
+
+
+    role_filter_set = (
+        {role_type_id} if role_type_id
+        else {role for (role, _loc) in cell_meta.keys()}
+    )
+    location_filter_set = (
+        {location_id} if location_id
+        else {loc for (_role, loc) in cell_meta.keys()}
+    )
+
+    competing_q = (
+        db.query(ResourceRequest)
+        .filter(
+            ResourceRequest.request_type == "resource",
+            ResourceRequest.status == "pending",
+            ResourceRequest.role_type_id.in_(role_filter_set),
+        )
+    )
+    competing_requests = competing_q.all()
+    if pl_owned_project_ids:
+        competing_requests = [
+            r for r in competing_requests if r.project_id not in pl_owned_project_ids
+        ]
+
+    competing_map: dict[tuple[str, str, str], int] = {}
+    for r in competing_requests:
+        loc_id_for_req = cc_to_location.get(r.cost_center_id, "")
+        if loc_id_for_req not in location_filter_set:
+            continue
+        for m in generate_month_range(r.period_start, r.period_end):
+            if m < month_from or m > month_to:
+                continue
+            key = (r.role_type_id, loc_id_for_req, m)
+            competing_map[key] = competing_map.get(key, 0) + 1
+
+    # 5. Build response rows
     standard = get_standard_hours(db)
     items: list[RoleAvailabilityRow] = []
     for (role_id, loc_id), meta in cell_meta.items():
@@ -1484,7 +2427,134 @@ def get_role_availability(
                 allocated_hours=round(allocated, 2),
                 available_hours=round(available, 2),
                 utilization_pct=util,
+                competing_demand_count=competing_map.get((role_id, loc_id, month), 0),
             ))
 
     items.sort(key=lambda r: (r.role_type_name, r.location_name, r.month))
-    return RoleAvailabilityResponse(items=items, total=len(items), months=months)
+
+    # 6. Optional location_summary[] per §13.10 (only when location_id omitted)
+    location_summary: list[LocationAvailabilitySummary] | None = None
+    if not location_id and items:
+        # Aggregate available % across (role × month) cells per location.
+        per_loc: dict[str, dict] = {}
+        for row in items:
+            entry = per_loc.setdefault(row.location_id, {
+                "name": row.location_name,
+                "person_ids": set(),
+                "avail_sum": 0.0,
+                "cap_sum": 0.0,
+            })
+            entry["avail_sum"] += row.available_hours
+            entry["cap_sum"] += row.standard_hours
+        # Headcount per location uses the seeded ``cell_meta`` person sets
+        # (counts each person once even if they appear under multiple roles —
+        # though our model is one role per person, so this is the natural count).
+        for (role_id, loc_id), meta in cell_meta.items():
+            if loc_id not in per_loc:
+                continue
+            per_loc[loc_id]["person_ids"].update(meta["person_ids"])
+
+        location_summary = []
+        for loc_id, agg in per_loc.items():
+            cap = agg["cap_sum"]
+            avail_pct = round(
+                (agg["avail_sum"] / cap) * 100, 1
+            ) if cap > 0 else 0.0
+            location_summary.append(LocationAvailabilitySummary(
+                location_id=loc_id,
+                location_name=agg["name"],
+                total_headcount=len(agg["person_ids"]),
+                avg_availability_pct=avail_pct,
+            ))
+        location_summary.sort(key=lambda e: e.location_name)
+
+    return RoleAvailabilityResponse(
+        items=items, total=len(items), months=months,
+        location_summary=location_summary,
+    )
+
+
+# ---------------------------------------------------------------------------
+# v5.2 W5 §10 — Group-by-project aggregation
+# ---------------------------------------------------------------------------
+
+_PROJECTS_VIEW_ROLES = ("controller", "executive", "cost_center_owner")
+
+
+@router.get("/projects", response_model=CapacityProjectsResponse)
+def get_capacity_projects(
+    scope: str = "all",
+    start: str | None = None,
+    end: str | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(*_PROJECTS_VIEW_ROLES)),
+):
+    """Group-by-project aggregation for the workspace timeline (spec §10).
+
+    Returns one row per visible project with three child collections
+    (assigned people, unfulfilled slots, external costs) plus per-month
+    fulfillment data. The frontend renders this when ``groupBy === 'project'``.
+
+    Scope vocabulary matches the dashboard endpoints (see
+    ``services.capacity_dashboard._parse_scope``). Per spec §10.12 the
+    scope filters which PROJECTS appear, not which people within a project
+    — the response always includes all allocated people regardless of CC.
+
+    v5.2 W6 Track A — the legacy ``filter_chip`` query parameter has been
+    removed. Filter-chip semantics now live exclusively in the frontend
+    (``frontend/src/modules/capacity/timeline/projectFilters.ts``) so
+    they double-duty as the chip-count source the FilterChipBar renders.
+    The server-side code path was never wired up post-W5.
+
+    Authorization (per spec §15):
+      * Controller / Executive — full access.
+      * CC Owner               — full access; the workspace defaults their
+                                 scope to their CC but the API is not
+                                 server-restricted, allowing legitimate
+                                 cross-CC views (e.g. shared projects).
+      * Project Lead           — 403 (no project-view access).
+    """
+    try:
+        result = compute_capacity_projects(
+            db, scope=scope, start=start, end=end,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return CapacityProjectsResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# v5.2 closeout — read-only planning parameters for capacity surfaces
+# ---------------------------------------------------------------------------
+
+
+@router.get("/planning-parameters", response_model=CapacityPlanningParametersResponse)
+def get_capacity_planning_parameters(
+    group: str | None = Query(default=None, description="Optional param_group filter (e.g. 'thresholds')"),
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Read-only planning-parameter feed for capacity surfaces.
+
+    Returns a trimmed payload (key / current_value / data_type) — admin-only
+    fields like description and default_value live behind
+    ``GET /api/admin/parameters`` (Controller-only).
+
+    Authorized for any authenticated demo persona (Controller / CC Owner /
+    Executive / Project Lead) so that read-mostly surfaces such as the
+    project-view ``UnassignedSummary`` thresholds can hydrate values
+    without re-implementing the seed defaults client-side.
+    """
+    query = db.query(PlanningParameter)
+    if group:
+        query = query.filter(PlanningParameter.param_group == group)
+    rows = query.order_by(PlanningParameter.key).all()
+    items = [
+        CapacityPlanningParameter(
+            key=p.key,
+            current_value=p.current_value,
+            data_type=p.data_type,
+        )
+        for p in rows
+    ]
+    return CapacityPlanningParametersResponse(items=items, total=len(items))

@@ -1,5 +1,788 @@
 # CRETA Demo — Build Progress
 
+## v5.2 Implementation — wave status
+
+Active spec: `guides/Capacity_Module_Redesign_Spec.md` (~115 KB authoritative spec). Execution sequencing: `guides/Capacity_Module_Redesign_Implementation_Guide.md` (14 sessions across 5 phases). Plan: 6 waves, one PR per wave, fresh planning session per wave, user-review gate between each. Agent teams used within each wave for max parallelism.
+
+- [x] **Wave 1** — Capacity backend foundation (S1): schema relaxation + `CapacityActionLog` table + 4 new endpoints (`/dashboard/forecast`, `/dashboard/headcount-breakdown`, `/dashboard/hotspots`, `/history`) + 2 enhanced endpoints (role-availability with `competing_demand_count` + `location_summary`; assignments PUT with multi-person body shape) + audit log writes wired into 4 mutating handlers + seed enrichment per spec §1 acceptance criteria — branch `feat/v5_2-capacity-foundation` (PR #88 merged 2026-05-08)
+- [x] **Wave 2** — Frontend workspace shell (S2): routes, ScopeBar, workspace skeleton, SidePanel width parameterization — branch `feat/v5_2-capacity-shell` (PR #90 merged 2026-05-08)
+- [x] **Wave 3** — Core surfaces (S3+S4+S5a+S5b, 4-teammate team): timeline + KPIs/filters/demand strip + side panel + inbox/history page — branch `feat/v5_2-capacity-core-surfaces` (PR #91 merged 2026-05-08)
+- [x] **Wave 4** — Complex features (S6a+S7+S8, 3-teammate team): assignment panel + dashboard layer + PL availability view — branch `feat/v5_2-capacity-complex-features` (PR #92 merged 2026-05-08)
+- [x] **Wave 5** — Second-wave features (S6b+S9+S10, 3-teammate team): timeline overlay/gestures + project view + multi-person UI + audit wiring verification — branch `feat/v5_2-capacity-w5-secondwave` (PR #93 merged 2026-05-10, sha `3809fd9`)
+- [x] **Wave 6** — Integration + polish (S11+S12, 3-teammate team): entry-point sweep + dashboard click wiring + Workbench §13.9 slide-over + a11y + empty states + W3/W4/W5 polish backlog — branch `feat/v5_2-capacity-w6-integration-polish` (PR #94 merged 2026-05-10, sha `750d0f0`)
+- [x] **Closeout** — single-PR follow-up bundling the deferred polish backlog (W4/W5/W6 P2/P3 stragglers), the v5.2 closeout commitment (UnassignedSummary thresholds become PlanningParameter rows + new read-only endpoint + dynamic hook), the W4-deferred HotspotListCard CC-context bug, working-tree hygiene, and Path 3 seed enablement — branch `fix/v5_2-closeout-polish` (PR pending user review)
+
+**v5.2 cycle complete** — six waves, six PRs (#88 / #90 / #91 / #92 / #93 / #94) plus the closeout PR. Capacity Module Redesign closed 2026-05-10.
+
+### Define-page redesign — feature complete (2026-05-11, branch `feature/define-page-redesign`, agent team `define-page-redesign`)
+
+Single-session 4-teammate parallel team replaced the "+ New" popup with a tabbed Define page that is the canonical project home at every DoI level. The Workbench is no longer auto-redirected to at DoI 3+ — an explicit "Open in Workbench" header button appears once approved. Per-tab Save buttons replace the legacy autosave-on-blur pattern (the only true autosave site in the codebase was the TN rubric, which got gutted; everything else already used explicit Save or local-cell-edit-on-blur). Per-tab descriptions appear in the sections below:
+
+- **Task #1 (backend-dev)** — `POST /api/projects/define`, `GET /{id}/define`, `PUT /identity`, `PUT /approval-milestones`, `PUT /baseline-grid`. 36 tests; full 1745-test suite green. See "Define-page redesign — backend API surface" below.
+- **Task #2 (shell-builder)** — `frontend/src/modules/define/{DefineProjectPage,DefineShell,IdentityTab,DoIOverlay,useDirtyBuffer,api}.tsx/.ts`; routing for `/define/new`+`/define/:id`; `BacklogProjectDetailPage` converted to thin redirect; `SubmitProjectDialog` stubbed; "+ New" button rewired; `DoIRequirementsRegistry` extended with `target_tab`+`field_anchor` for deep-linking.
+- **Task #3 (tabs-builder)** — `TechNavigatorTab.tsx`, `FinancialsTab.tsx`. Workbench Phase 3 forecast grid refactored into `frontend/src/components/shared/MonthCategoryGrid.tsx` (pure presentational primitive; same grid powers Workbench forecast writes and Define baseline writes). Legacy `TechNavigatorRubric.tsx` autosave gutted.
+- **Task #4 (sweep-builder)** — `ApprovalMilestonesTab.tsx`; autosave-sweep audit confirmed zero remaining sites; transformation_level moved off the TN tab per the boundary contract. See "Define-page redesign — Approval & Milestones tab + autosave sweep" below.
+- **Team-lead patch** — added `MilestoneTypeListResponse` to `types/milestones.ts` to satisfy shell-builder's milestone CRUD import (commit `0c70994`).
+
+**Verification** — both `/define/new` (empty form, Save disabled until name) and `/define/{existing-id}` (DoI 3 case with active "Open in Workbench" button + "Project approved" overlay banner) verified at 1440px in Chrome DevTools MCP. 14 teammate-produced screenshots in `qa/screenshots/` cover golden path + dark mode + per-tab states. `/backlog/:id` redirect verified to land on `/define/:id` preserving query+hash. `npm run build` introduced **zero new TypeScript errors** (all remaining errors are pre-existing on `main`). Full backend pytest suite green (1745 tests).
+
+9 commits total on the branch:
+- `5d8011c` — Define-page: backend API surface (backend-dev)
+- `75b2fe3` — Define page: extract MonthCategoryGrid shared primitive (tabs-builder)
+- `866e76f` — Workbench: refactor Phase 3 forecast grid onto MonthCategoryGrid (tabs-builder)
+- `6cf9122` — Backlog: gut autosave from legacy TechNavigatorRubric (tabs-builder)
+- `41516df` — Define page: add Tech Navigator and Financials tabs (tabs-builder)
+- `82f6ca7` — Define page: shared TS types + milestone CRUD on milestonesApi (shell-builder)
+- `2b82fbd` — Define page: Approval & Milestones tab + page wire-up (sweep-builder, bundled shell-builder's files)
+- `415e806` — Define page: move transformation_level off the TN tab (sweep-builder, boundary fix)
+- `0c70994` — Define page: add MilestoneTypeListResponse to fix milestone CRUD import (team-lead)
+
+### Define-page redesign — backend API surface (2026-05-11, branch `feature/define-page-redesign`, agent team `define-page-redesign`)
+
+Backend half of the Define-page redesign (Task #1 of the 4-teammate team). Replaces the "+ New" popup with a tabbed Define page that becomes the canonical project home at every DoI level. Frontend work owned by shell-builder / tabs-builder / sweep-builder is tracked separately.
+
+**Plan reference**: `/Users/vasilis/.claude/plans/i-want-to-make-virtual-lake.md`. The plan calls for name-only project creation, four tab surfaces (Identity / Tech Navigator / Financials / Approval & Milestones), and explicit per-tab Save (no autosave). The Tech Navigator and milestone CRUD endpoints are reused as-is from existing routers; this slice adds five new endpoints.
+
+**Backend** (`backend/`):
+- `schemas/projects_define.py` — NEW. Pydantic v2 models for the five endpoints: `ProjectDefineCreate`, `ProjectDefineResponse`, `ProjectIdentityUpdate`, `ProjectApprovalMilestonesUpdate`, `ProjectFinancialsUpdate`, `BaselineGridRow` / `BaselineGridMonthCell` / `BaselineGridResponse{,Row}` / `ProjectFinancialsResponse`.
+- `routers/projects_define.py` — NEW. Five endpoints all mounted at `/api/projects`:
+  - `POST /define` — name-only create. Supplies defaults (`status='draft'`, `capex_opex='opex'`, `start_month=config.DEMO_DATE`, `pipeline_stage='Proposed'`, `doi=0`, `ai_council_approved=False`, `is_service=False`, `project_type=None`) so a draft exists with only a typed name. Auth: project_lead / controller / executive; PL substitutes self when `pl_person_id` omitted.
+  - `GET /{id}/define` — full project read shared by all tabs. PL filtering: PLs reading another PL's project get 403; controllers/executives/CC owners see everything.
+  - `PUT /{id}/identity` — patch-style Identity tab Save. Audits every changed field under `entity_type='project'` / `category='master_data'`. Cross-field check: `end_month >= start_month`. `lob_id` updates `ProjectGroupingAssignment`.
+  - `PUT /{id}/approval-milestones` — bundle Save for AI Council screening + transformation level + optional `advance_to_doi`. DoI advance reuses `services/pipeline.validate_doi_gate`; gate-unmet returns 409 with `{error: 'doi_gate_unmet', target_doi, missing_fields[]}`. Controllers may supply `override_reason` to bypass. PLs may target DoI ≤ 2 only (DoI 3+ requires controller).
+  - `PUT /{id}/baseline-grid` — Financials tab Save. Quick Sizing block (`total_budget` + `capex_opex`) patches the Project row; `rows[]` does delete-then-insert per `(category, sub_category)` pair (untouched pairs preserved). Recomputes Tech-Navigator-derived `tshirt_size` / composite scores. Returns the refreshed project AND the hydrated baseline grid in one round trip.
+- `main.py` — wire up the new router.
+- `tests/test_router_projects_define.py` — NEW. 36 tests covering all five endpoints across all role permutations:
+  - 8 tests on create (defaults supplied, controller unassigned, CC-403, missing/empty name, unknown PL, LoB assignment, unknown LoB).
+  - 4 tests on GET (404, controller-any, PL-on-own, PL-cannot-read-other).
+  - 8 tests on Identity (PL writes own, PL/CC/Exec rejected on others, end<start 422, invalid project_type, LoB updated, no-op audit suppression).
+  - 9 tests on Approval & Milestones (AI Council set, transformation level, gate-unmet 409, controller override, PL DoI-2 limit, PL DoI-2 with gate passing, invalid level, CC-403, PL-other-403).
+  - 6 tests on Baseline grid (PL write 200, quick-sizing only, delete-then-insert replace, untouched pairs preserved, unknown role_type_id, CC-403).
+  - 1 cross-endpoint integration: PL round-trip create → GET → identity → approval → baseline.
+- All **36 new tests pass**; **full backend suite of 1745 tests passes** (1709 existing + 36 new), confirming no regression in the existing intake / pipeline / tech-navigator / milestones routers (which the Define page reuses).
+
+**Schema**: zero column changes. The Define page exploits existing nullable columns (`project_type`, `description`, `end_month`, etc.) plus runtime defaults on create. **No DB reset required** when pulling this branch.
+
+**API contract published** to teammate inboxes (`shell-builder`, `tabs-builder`, `sweep-builder`, `team-lead`) at the start of work so frontend teammates could unblock immediately on the response shapes.
+
+### Define-page redesign — Approval & Milestones tab + autosave sweep (2026-05-11, branch `feature/define-page-redesign`, sweep-builder)
+
+Task #4 of the 4-teammate Define-page redesign team. The fourth and final tab — AI Council screening + per-row milestone CRUD + DoI 3 readiness — plus the global autosave-removal audit.
+
+**Frontend** (`frontend/`):
+- `types/define.ts` — NEW. Canonical TypeScript mirrors of `backend/schemas/projects_define.py`: `ProjectDefineCreate`, `ProjectDefineResponse`, `ProjectIdentityUpdate`, `ProjectApprovalMilestonesUpdate`, `ProjectFinancialsUpdate`, `BaselineGridRow`, `ProjectFinancialsSaveResponse`. All four Define tabs (Identity / TN / Financials / Approval & Milestones) and shell-builder's `modules/define/api.ts` import from here.
+- `api/endpoints.ts` — extended `milestonesApi` from list-only to full CRUD: `.create()`, `.update()`, `.remove()`, `.listTypes()` (the milestone-types catalogue). Baseline-date override-reason semantic per [A-MS-03] is captured on the request type. Define-page endpoints (`POST /define`, `PUT /identity`, etc.) live module-locally in `modules/define/api.ts` as shell-builder's `defineApi`; a comment in `endpoints.ts` documents the split.
+- `modules/define/ApprovalMilestonesTab.tsx` — NEW. Three cards plus a footer Save:
+  1. **AI Council screening &amp; transformation level** — buffered `ai_council_approved` checkbox + `ai_council_doc_url` input + `transformation_level` (T0/T1/T2 + Not-set) dropdown via `useDirtyBuffer`. Footer Save flushes all three fields through `PUT /api/projects/{id}/approval-milestones` in a single call. Transformation level was originally on the TN tab; tabs-builder moved it here in commit `415e806` because it is a categorical decorator (not a TN scoring input) and the contract endpoint already accepts it. Sweep-builder added the dropdown in commit `a726c4b` to match the contract clarification.
+  2. **DoI 3 readiness** — three-state derived banner from `pipeline.gate_status`: amber when gates pending, emerald when next-DoI gate is met, emerald with "ready for execution" once DoI ≥ 3. Missing fields enumerated inline.
+  3. **Milestones list** — per-row inline edit. Each milestone is an atomic unit with its own server-side validation (sequence-number uniqueness, baseline-date override-reason at controller-only), so each row carries its own Save / Cancel / Delete instead of rolling into the tab-level dirty buffer. Add-new form appends at sequence_number = max+1. Colour resolution falls back to the linked `MilestoneType.default_color`. Inputs use the `define-anchor-ai-council-approved` and `define-anchor-transformation-level` anchors so the DoI overlay deep-links land here.
+- `modules/define/DefineProjectPage.tsx` — wired the new tab into the shell, replacing shell-builder's `TabPlaceholder`. Loading / error states mirror the Identity tab. Passes the canonical `project: ProjectDefineResponse` payload down so the tab can baseline `transformation_level`. `onSaved` adopts the response into `project` state and triggers a `reloadPipeline()` so the overlay updates without manual refresh.
+
+**Autosave-removal sweep** (Task #4 scope):
+- Grep for `flushSave|debounceTimerRef|setTimeout.*[Ss]ave|onBlur.*save|onBlur=.*Save` across `frontend/src/` returned **exactly one** real autosave-on-blur site: `modules/backlog/components/TechNavigatorRubric.tsx` (300 ms debounce + flushSave via `techNavigatorApi.update`). That file is owned by tabs-builder and is already gutted in commit `6cf9122` ("Backlog: gut autosave from legacy TechNavigatorRubric").
+- Other `onBlur` hits in `EditableIntakeGrid.tsx`, `EditableCRGrid.tsx`, `ResourcePlanPage.tsx`, `MonthCategoryGrid.tsx` are local-cell-edit-commit (blur stuffs the typed value into local React state); the actual server write happens through explicit Confirm / Save / Submit buttons. No autosave there.
+- Admin grids (`PlanningParameters`, `TechNavigatorScoring`, `WorkflowTemplateEditor`, `ScheduledChangesPanel`) all already use explicit Save buttons — verified by re-reading each component.
+- Workbench Forecast grid (`Phase3EditForecast`, `MixedGranularityGrid`) and External-Costs (`ExternalCostsMonthlyGrid`) use Save-and-Review or full-screen submit flows; no autosave anywhere in those trees.
+- **Progress tracker exemption is moot**: the codebase currently has no edit surface for `status_narrative` / `next_milestone_confidence` / `deliverable_checked_at` — both `ProgressTrackerTile` and `ProgressVsBurnDialog` are read-only displays. There is no autosave to remove and nothing to exempt; the plan's "progress tracker keeps autosave" clause refers to a not-yet-built editor.
+
+**Net result**: after tabs-builder's `6cf9122` gutting of TechNavigatorRubric, the entire frontend uses explicit Save semantics. No surface-by-surface sweep commits were needed because no other autosave sites exist.
+
+**Backend dependencies**: reuses backend-dev's `5d8011c` Define-page API endpoints (POST /define, GET /{id}/define, PUT /identity, PUT /approval-milestones, PUT /baseline-grid) and the existing milestones router (POST/PUT/DELETE /api/projects/{id}/milestones unchanged). Zero schema changes — **no DB reset required**.
+
+**Verification**:
+- `npx tsc --noEmit` clean.
+- `npx eslint src/modules/define/ApprovalMilestonesTab.tsx src/types/define.ts` clean (max-warnings=0).
+- Backend tests: full suite **1745 passing** (`pytest tests/`) including the 36 new `test_router_projects_define` + 30 existing `test_router_milestones`.
+- Visual verification at 1440px against a DoI 3 project (proj-bk01) and the `/define/new` empty state, both light and dark themes. Screenshots in `qa/screenshots/define-approval-milestones-*.png`. DoI badge, "Open in Workbench" affordance, AI Council card with checkbox + URL, emerald "Project approved" banner, and per-row milestone list with slip indicators all render correctly. Dark mode uses semantic `bg-card` / `border-border` / `text-foreground` / `bg-emerald-900/20` patterns — no hardcoded colours.
+
+### Tech Navigator Scoring admin page (2026-05-11, branch `feature/admin-tn-weights`)
+
+A dedicated admin page that surfaces the entire backlog scoring formula with live controls — the composite formula in readable form, slider + number-input controls for every weight, and a live Tech Navigator quadrant scatter that animates dots and the iso-composite cutoff line on every slider drag.
+
+Prior iteration (a "light path" that just added the rows to the existing Planning Parameters page) was reverted at the user's request — too plain for the demo moment. Branch was deleted and recreated off main; this commit lands fresh.
+
+**Backend** (`backend/`):
+- `seed/seed.sql` — 12 new `tn_*` rows in the existing `INSERT INTO planning_parameters` block (`param_group='tech_navigator'`), values matching `tech_navigator.py:26-42` defaults exactly so `load_weights()` returns the same snapshot it did before and every project's stored composite/complexity/value_creation/tshirt remains unchanged on cold reseed.
+- `routers/admin.py` — new `GET /api/admin/tech-navigator/scoring-data` endpoint (Controller-only). Returns `{weights, ranking_envelope, projects[]}` where each project carries its 6 raw sub-criteria + total_budget so the page recomputes everything client-side per slider drag with no API round-trip. Filters out projects with any null sub-criterion and projects outside `BACKLOG_STAGES ∪ OPERATE_STAGES` (so Cancelled/Retired don't bloat the scatter).
+- `schemas/admin.py` — new `TechNavigatorScoringProject`, `TechNavigatorScoringWeights`, `TechNavigatorScoringResponse` Pydantic models.
+- `tests/test_router_admin.py` — new `TestTechNavigatorScoringData` class with 8 tests (envelope shape, includes fully-scored project, filters partial sub-criteria, filters out-of-scope stages, Controller-200 / PL-403 / Executive-403, project shape).
+
+**Frontend** (`frontend/src/`):
+- `components/ui/slider.tsx` — NEW shadcn Slider component using the radix-ui umbrella (already in deps).
+- `modules/admin/scoring/lib/scoringMath.ts` — shared client-side math: `weightedAverage`, `computeComplexity`, `computeValueCreation`, `computeComposite`, `deriveTshirt`, `computeProjectScores`, `computeCutoffComposite` (walks the budget envelope to find the cutoff-rank's composite), and `isoCompositeEndpoints` (solves the iso-composite line `cutoff = (V·wV + X·wC)/(wV+wC)` for two endpoints inside the 1..5 quadrant; degenerate-weights case returns null). Mirrors backend `services/tech_navigator.py` exactly so both surfaces stay in lock-step.
+- `modules/admin/scoring/components/` — six new components: `FormulaCard` (typography-only formula display, no math library), `WeightControl` (Slider + Input synced two-ways through parent state, with dirty highlight), `AxisWeightsCard` (reusable card with live sum indicator that turns amber when sum ≠ 100), `TshirtThresholdsCard` (four EUR thresholds with band labels), `CutoffEnvelopeCard` (Total Available Budget input), `QuadrantScatter` (Recharts `ScatterChart` + `ReferenceLine` for the iso-composite diagonal; dot colour via HSL ramp 220° slate → 150° emerald based on composite; dot size via `ZAxis` driven by T-shirt letter; custom shape callback paints circles with composite-coloured fill).
+- `modules/admin/scoring/TechNavigatorScoring.tsx` — main page. Owns the working/saved state split, fetches `getTechNavigatorScoringData`, renders all cards, handles bulk Save (PUT `/api/admin/parameters` with diffed changes) and Reset all (POST `/api/admin/parameters/reset` with all 13 keys). Confirmation dialog on reset.
+- `modules/admin/EntitySelector.tsx` — `{ id: 'tn_scoring', label: 'Tech Navigator Scoring', icon: Compass }` added to `PLANNING_SECTIONS`.
+- `modules/admin/Administration.tsx` — registered the new `case 'tn_scoring'` section.
+- `api/endpoints.ts` + `types/api.ts` — typed client method + `TechNavigatorScoringData` / `TechNavigatorScoringProject` types.
+- `modules/backlog/components/TechNavigatorRubric.tsx` — local `weightedAverage` / `recomputeComplexity` / `recomputeValueCreation` / `recomputeComposite` removed and replaced by imports from the new shared `scoringMath` module. Same call shapes, so call sites unchanged.
+
+**Documentation**: rewrote the "Tech Navigator Scoring" section of `backend/seed/fixtures/manuals/administration.json` describing the dedicated page (the prior text mentioned a non-existent function and a non-existent sum-to-1.0 validation). Updated the "5-Section Sidebar Navigation" section to list the new sub-item.
+
+**Behavioural invariance verified**: 5 representative projects' (`proj-bk01`, `proj-bk08`, `proj-sensor`, `proj-erp2`, `proj-railsafety`) 4 score columns each snapshotted before the change; on cold reseed (`POST /api/admin/reset-demo`) all values match the baseline exactly.
+
+**Round-trip verified end-to-end**: PUT `tn_w_value` 70→80 writes an audit row (category `configuration`), the auto-recompute fires (`recompute_all_scores` and `recompute_within_cutoff_for_backlog`), reset returns the parameter to default. The live scatter on the page updates as sliders drag (iso-composite line rotates / shifts; dot colours shift; dot positions shift when sub-criteria weights change) — verified by DOM measurement + screenshots.
+
+**All 1700 backend tests pass** (1692 existing + 8 new). `tsc --noEmit` clean. No console errors at `/admin?section=tn_scoring`. Screenshots: `qa/screenshots/admin-tn-scoring-{light,dark,after-drag}.png`.
+
+**Pre-existing quirk surfaced but not introduced**: seed.sql hardcodes literal `composite_score` / `value_creation_score` / `complexity_score` values per project that don't always match what `compute_*` would produce from the same sub-criteria. On the first `tn_*` edit the auto-recompute hook normalizes those literals; a few projects' scores shift by ~0.05. Independent of this PR — anyone editing tn_* params today would hit the same one-time shift; this change just makes the path reachable through the UI.
+
+**Operational note** (per memory `project_schema_migration.md`): rows-only change, no column added. After pulling, hit `POST /api/admin/reset-demo` so the new tn_* PlanningParameter rows are present; until then the new page will fall back to code defaults but will fail to PUT (404 on missing keys).
+
+**Post-review hardening (commit on top of the three earlier commits)** addresses every Critical and Important finding from PR #100's independent code review:
+
+*Critical — client cutoff math drifted from backend:* the live iso-composite line was being computed against the raw `total_available_budget` (not the `contestable_envelope` = total − Type-3-pre-funded − hyper-maintenance), the walk pool included Operate-stage and Type-3 projects (backend walks only `BACKLOG_STAGES ∩ project_type != 3`), and ties used only composite-desc (backend applies configured tiebreakers + project_id final stable sort). All three fixed together: endpoint payload is now `{ weights, envelope: {total_available_budget, type3_pre_funded_total, hyper_maintenance_committed_total, contestable_envelope}, tiebreakers, projects[] }` where each project carries `doi` + `competes_in_ranking`. Client's `computeCutoffComposite` accepts the contestable envelope + tiebreakers, filters by `competes_in_ranking`, sorts by `(composite desc, ...tiebreakers, id asc)`. Non-competing projects still render on the scatter but with a dashed outline + reduced opacity so they're visible but visually distinct from the competing pool.
+
+*Important fixes:*
+- `WeightControl` and `TshirtThresholdsCard` clamp numeric input to their declared range (HTML `min`/`max` aren't enforced for typed input — a controller could type 150 or -50 and produce negative weighted-averages downstream).
+- `TshirtThresholdsCard` shows a non-blocking amber warning if `xs_max > s_max > m_max > l_max` is violated (one or more bands unreachable).
+- `routers/admin.reset_parameters` mirrors the PUT path's `parameter_key_triggers_recompute` check so resetting `ranking_total_available_budget` fans out to `recompute_within_cutoff_for_backlog`, not just `recompute_all_scores` on `tn_*` keys.
+- `TechNavigatorScoring.handleSave`/`handleReset` now have `useRef`-based in-flight guards (the `disabled` button state isn't a true guard against fast double-clicks under React 19 + StrictMode), and the post-save flash awaits the refetch instead of firing optimistically.
+- The endpoint is bound to `TechNavigatorScoringResponse` (`response_model=...`) for OpenAPI doc + Pydantic drift detection.
+- The Recharts `Scatter shape` callback has a comment pinning the verified `node.z` contract (recharts@3.7.x).
+
+*Test additions in `test_router_admin.py::TestTechNavigatorScoringData` — 5 new tests (was 8, now 13):* soft-deleted project exclusion; `competes_in_ranking=True` for P2 backlog projects; `competes_in_ranking=False` for Type 3; `competes_in_ranking=False` for Operate-stage; empty pool returns 200 with `projects=[]`. Existing tests updated for the new payload shape (`envelope` object, `tiebreakers`, project `doi` field). All 1705 backend tests pass (1700 → 1705).
+
+Screenshots: `qa/screenshots/admin-tn-scoring-v2-{light,dark}.png`. Envelope card now shows the breakdown line by line; iso-composite line at 3.42 (vs 3.35 before — the change reflects the correct contestable envelope of 13.3M, not the raw 14.44M).
+
+**Round-2 review fixes (commit on top of the previous fix commit).** A second independent code review caught four follow-up issues. All addressed in `feature/admin-tn-weights` head:
+
+- *Null-doi tiebreaker divergence.* Client `readField` returned `0` for null values; backend `_project_sort_key` (`ranking.py:275-280`) uses `_MISSING_ASC = +inf` so nulls sink to the bottom for both asc and desc. For Paused projects (which sit in `BACKLOG_STAGES` but carry `doi=None`), the client's iso-line sort could place them ABOVE non-null rows on a `doi:asc` tiebreaker — diverging from backend ranking. `scoringMath.ts` now returns the raw value (or null) from `readField` and a new `compareField` helper sinks nulls to the bottom regardless of direction, matching the backend exactly.
+- *Save-in-flight discarded concurrent edits.* `handleSave`'s `await fetchData()` calls `setWorking(initial)`, overwriting any slider movement the user made during the network round-trip. Added a `formDisabled = saving || resetting` flag threaded as a new `disabled?: boolean` prop on `WeightControl` / `TshirtThresholdsCard` / `CutoffEnvelopeCard`, locking the controls (both Radix Slider and number Inputs) for the duration of save/reset.
+- *Missing reset-recompute test.* The fix path (`reset_parameters` fanning out to `recompute_within_cutoff_for_backlog` when a ranking-trigger key resets) was previously code-only. New `TestResetParametersRecomputesWithinCutoff` seeds an Approved project with `within_cutoff=None` plus a non-default `ranking_total_available_budget`, POSTs `/parameters/reset`, asserts the flag flipped to a concrete bool (proving the recompute fan-out ran).
+- *Tiebreakers schema too loose.* `tiebreakers: list[list[str]]` accepted entries of any length and direction. Added a Pydantic `@field_validator` to `TechNavigatorScoringResponse` enforcing exact arity-2 and direction ∈ `{"asc", "desc"}`. Wire format unchanged.
+
+Plus two trivial nice-to-haves: T-shirt monotonicity check now uses `>=` (equal adjacent bounds also make a band unreachable), and the misleading `readField` comment now correctly references `_project_sort_key` instead of `_project_walk_budget`.
+
+All 1706 backend tests pass (1705 + 1 new). `tsc --noEmit` clean. Screenshots: `qa/screenshots/admin-tn-scoring-v3-light.png`.
+
+### Backlog Pipeline Stage column (2026-05-11, branch `feature/backlog-stage-column`)
+
+Follow-up to PR #97 (which promoted 5 projects to Approved to balance the Cutoff badge column). Two related UX gaps remained: (a) the 3 Active projects (`proj-erp2`, `proj-mdh-rollout`, `proj-sensor`) showed only a "—" in the Cutoff column because `recompute_within_cutoff_for_backlog` (ranking.py:544-553) computes `within_cutoff` only for Approved projects by design, and (b) the pipeline stage was buried as muted subtext under each project name (`RankedRow.tsx:86`), so "what's actually running?" required scanning every row.
+
+Decision: keep the Cutoff column's existing semantic (the "should we proceed?" question for Approved projects) and add a separate, scannable **Stage** column. Frontend-only change — `RankedProjectItem.pipeline_stage` was already on the row data.
+
+Files touched:
+- `frontend/src/modules/backlog/components/ranked/RankedListTable.tsx` — added `{ key: 'stage', label: 'Stage', align: 'text-center' }` to the exported `RANKED_TABLE_HEADERS` between `name` and `type`. `PreFundedSection.tsx` imports the same array, so the P3 pre-funded table picks up the header automatically.
+- `frontend/src/modules/backlog/components/ranked/RankedRow.tsx` — added `STAGE_BADGE` constant (Active=blue, Approved=sky, Under Evaluation=slate, Proposed=neutral, Paused=amber, all with `dark:` variants); inserted a new `<td>` between the project-name cell and the project-type cell rendering a coloured pill via that map; dropped the stage from the muted subtext under the project name so the subtext now shows only "DoI N". Blue (not emerald) for Active to avoid clashing with the green "In" cutoff badge.
+
+No backend, type, or test changes. `tsc --noEmit` clean. Verified at `localhost:5173/backlog` at 1440px in both light and dark mode — all five stage colours render correctly across the 25 competing rows and the 2 pre-funded rows; `proj-sensor` row at rank 16 correctly shows blue Active badge + "—" cutoff + amber misalignment-zone tint coexisting (the accepted trade-off). No console errors. Screenshots: `qa/screenshots/backlog-stage-column-light.png`, `qa/screenshots/backlog-stage-column-dark.png`.
+
+**Follow-up — Pre-funded and main table columns drifted.** After the Stage column landed, the pre-funded P3 table's columns no longer aligned with the main ranked table (Stage header 38px off, every column to the right also shifted). Root cause is structural and pre-existed the Stage column: `PreFundedSection.tsx` and `RankedListTable.tsx` render **two physically separate `<table>` elements**, both with default `table-layout: auto`, so the browser sized each table's columns from *its own* longest content (Project column ended up 372px in the pre-funded table vs 410px in the main table). The Stage column made the drift obvious because "Active" (6 chars) vs "Under Evaluation" (16 chars) gave auto-layout much more to disagree about per table.
+
+Fix: extended the shared `RANKED_TABLE_HEADERS` array with a `widthPct: number` per column, switched both `<table>` elements to `table-fixed`, and emitted an identical `<colgroup>` driven by the array in both tables. Widths: # 3.5 / Project 33 / Stage 11 / Project type 9 / T-Level 7 / Size 5.5 / Composite 10 / Budget 10 / Cutoff 7 / Actions 4 (sum 100%). Also added `truncate` to the project-name `<div>` in `RankedRow.tsx` so any hypothetical oversized name ellipsises on a single line instead of wrapping under fixed-layout. Re-measured at 1440px: every column header in the pre-funded table now sits at the same `left` and same `width` as the corresponding header in the main table (sub-pixel match across all 10 columns). Screenshots: `qa/screenshots/backlog-stage-column-aligned-{light,dark}.png`. `tsc --noEmit` clean; no console errors.
+
+### Workbench + Backlog polish (2026-05-10, branch `fix/workbench-backlog-polish`)
+
+Three user-found issues from a manual demo walkthrough — single solo session, three thin streams.
+
+**Stream 1 — F&P grid sticky cells become opaque.** In `frontend/src/modules/workbench/forecast/MixedGranularityGrid.tsx` the year header (L579/L594), corner cell (L581), month header (L646), year-total month header (L629), and subtotal sticky-left cell (L928) all used semi-transparent `bg-muted/30..50` backgrounds. When content scrolled underneath, it bled through and produced a "blurry" effect. Replaced each with opaque `bg-muted`. Body left column (L716 `bg-card`) and sub-row left column (L824 `bg-muted`) were already opaque — no change. Verified visually in light + dark mode.
+
+**Stream 2 — "Take snapshot" feature removed.** A controller-only `Take snapshot` button (and the `ManualSnapshotDialog`, `POST /api/projects/{id}/forecast/versions` endpoint, `ManualSnapshotRequest` schema, and the `version_type='manual'` flow in tests) was unrequested and is gone. Kept the `ForecastVersion` model and the `cycle` / `cr_approval` capture paths intact — those are still load-bearing. The `version_type` column still accepts the legacy `'manual'` literal so any historic rows remain readable. Affected files: `frontend/src/modules/workbench/forecast/{ForecastTab.tsx, ManualSnapshotDialog.tsx (deleted)}`, `frontend/src/api/endpoints.ts`, `backend/routers/workbench.py`, `backend/schemas/workbench.py`, `backend/services/forecast_versioning.py` (docstring/default narrowed), `backend/seed/loader.py` (comment), `backend/seed/fixtures/manuals/{project_workbench, administration}.json`, `docs/data-model.md`, `docs/workflows/03-forecast-cycle.md`, `backend/models/financial.py` (model docstring + column comment), `backend/tests/test_router_forecast_versions.py` + `test_router_forecast_diff.py` + `test_forecast_versioning_service.py` (tests rewritten to seed via `capture_version` directly; one new test asserts `POST` now returns 405). All 1692 backend tests pass; `tsc --noEmit` clean.
+
+**Stream 3 — Backlog cutoff bands now demo-visible.** With only 4 backlog (DoI 0–2) projects in the seed, the cumulative-budget walk in `services/ranking.py::compute_ranked_backlog` never crossed the contestable envelope, so `should_be_cutoff_rank` and `reality_cutoff_rank` came back NULL and the `<CutoffBand>` rows in `RankedListTable.tsx` never rendered. Added 16 new backlog projects (`proj-bk01` … `proj-bk16`) to `backend/seed/seed.sql` across five blocks (project rows, chargeable_entities, project_grouping_assignments, Tech Navigator scoring updates, pipeline_stage + DoI updates), with composite scores spread 1.8–4.6 and budgets 95K–2.3M EUR. Bumped `proj-sensor` (Sensor Data Pipeline, rank 16) from €0.72M to €11M — credible for a 22-month rail-fleet IoT capex programme and necessary so cumulative *committed* budget reaches the envelope along the ranking. Seeded a new `ranking_total_available_budget` PlanningParameter at `14,440,000` EUR (default in code is 50M — too high for demo scale) so the contestable envelope (14.44M − 1.14M Type 3 pre-funded = 13.30M) crosses both walks mid-list. Result: `should_be_cutoff_rank=12`, `reality_cutoff_rank=16`, 4-rank misalignment zone (rank 12–15). The ranked list has 23 items (20 DoI 0–2 + 3 existing Active/Approved DoI 3 projects; `proj-railsafety` and `proj-bk11` move to the Pre-funded Type-3 section). Reworded the two cutoff-band tooltips in `frontend/src/modules/backlog/components/ranked/RankedListTable.tsx` to make the should-be vs reality distinction explicit (the prior wording suggested two budget envelopes; there is only one envelope, with two different cumulative walks). Verified visually at `/backlog`.
+
+**Stream 5 — Promote 5 backlog projects to Approved with complete plan + resource data.** With only `proj-predmaint` in `Approved` state, the per-row Cutoff badge column landed on a single red "Out" and 22 dashes — spec-correct but visually thin for the demo. Promoted **5** `proj-bk*` projects from `Under Evaluation` → `Approved` (`doi = 3`, `status = 'planned'`, `rag_status = 'green'`) in `backend/seed/seed.sql`: three above the should-be cutoff (`bk01` rank 1, `bk02` rank 3, `bk03` rank 4 — now render green **In**) and two at/below it (`bk08` rank 12, `bk09` rank 13 — now render red **Out**, alongside the existing `proj-predmaint`). `bk10` reverted to its original `Under Evaluation`/DoI 1 state.
+
+Critical to the change: each Approved project must have **accurate plans and resource assignments** to render correctly across Workbench / Capacity / Reporting. Hand-authoring ~1500 SQL rows or rewriting the v5 seed generator's fixed roster were both too heavy. Middle path: a new `backend/seed/promoted_project_plans.py` module emits `Baseline`, `Forecast`, `Allocation`, and `ProjectMilestone` rows for the 5 promoted projects via SQLAlchemy ORM, wired into `loader.py::seed_database()` and `reset_database()` between `load_seed_sql()` and `_seed_forecast_versions()`. Per project: 3–5 internal roles + 1 external cost line, all amounts deterministically derived from `total_budget` × ROLE_MIX so each project's plan sums exactly to its budget (€1.85M / €0.68M / €1.20M / €0.48M / €0.76M). Allocations assign 2 people per role from the existing people roster. Milestones use the standard catalogue (Discovery/Planning → Build → Test → Rollout/Cutover) anchored to the project's active range, with `current_milestone_id` set to whichever milestone's window contains DEMO_DATE 2026-04. Total emitted: **431 baselines + 431 forecasts + 710 allocations + 19 milestones across the 5 projects**.
+
+Cutoff math preserved (should-be=12, reality=16, misalignment zone 12–15) because the three above-line promotions become "committed" via `Approved+within_cutoff=True` but their combined budget (~€3.73M added to cum_committed) stays well under the €13.30M contestable envelope — reality still crosses at rank 16 via proj-sensor's €11M. Per-row badge state: 3 green "In" + 3 red "Out" + 17 dashes. All 1692 backend tests pass; `tsc --noEmit` clean. Verified the Workbench Overview, F&P grid, and Capacity dashboard all populate correctly for each promoted project (screenshots: `2026-05-11-backlog-five-approved.png`, `2026-05-11-workbench-bk01.png`, `2026-05-11-workbench-bk08-fp.png`, `2026-05-11-capacity-with-promoted.png`).
+
+**Operational note:** Seed changes do not auto-apply to a running backend. After pulling, hit `POST /api/admin/reset-demo` (or restart) so the FastAPI process reads the updated `seed.sql` and the new `_seed_promoted_project_plans()` helper runs. The earlier Stream 4 verification screenshot was misleadingly stale because I had reseeded via a separate Python process while the backend held an open file descriptor to the deleted DB.
+
+**Stream 4 — Per-row Cutoff column truthful + project_type rename to P1/P2/P3.** Two follow-up fixes after a manual demo walkthrough.
+
+*Cutoff column (`within_cutoff` recompute):* The Backlog ranked list's rightmost "Cutoff" column was showing a green "In" pill on every row. Root cause: the seed's `s12_pipeline` UPDATE block hardcoded `, within_cutoff = 1` on every backlog project regardless of stage, contradicting `[A-PS-06]` (the flag is only meaningful on `pipeline_stage='Approved'` projects). The recompute orchestrator `services.ranking.recompute_within_cutoff_for_backlog` already existed and was wired to 7 runtime trigger sites, but never called during seed load. Fix: added `_recompute_within_cutoff()` helper to `backend/seed/loader.py` and wired it into both `seed_database()` and `reset_database()` after `_seed_forecast_versions()`. Also stripped the redundant `, within_cutoff = 1` clauses from all 27 pipeline UPDATEs in `seed.sql` (orchestrator overwrites them anyway). Result: 22 of 23 ranked rows show "—" dash; only `proj-predmaint` (Approved at rank 14, past should-be cutoff at rank 12) shows a red "Out" badge — spec-correct.
+
+*Project type rename (T1/T2/T3 → P1/P2/P3):* The Backlog ranked list rendered `project_type` as `T1/T2/T3`, which collided visually with the adjacent Transformation Level column (`T0/T1/T2`). Pure UI rename — column header `Type` → `Project type`, badge text `T{n}` → `P{n}`, plus a `title="Project type N"` hover-tooltip on the badge. Data stays integer 1/2/3; no schema changes. Updated 11 frontend files (badge + column header + filter dropdown + rubric labels + DoI registry + cutoff strip + pre-funded section + workbench project header + simulator project-type surface and catalogue + submit-project dialog), 1 in-app FAQ entry, and added a "displayed as P1/P2/P3" note in `docs/workflows/11-tech-navigator-and-backlog.md` (data-model.md and other dev docs intentionally keep `Type 1/2/3` referring to the data semantics). All 1692 backend tests still pass; `tsc --noEmit` clean. Verified visually at `/backlog`, `qa/screenshots/2026-05-10-backlog-cutoff-and-ptype.png`.
+
+### v5.2 Closeout — polish backlog + UnassignedSummary wiring + Path 3 seed (2026-05-10, branch `fix/v5_2-closeout-polish`)
+
+Single solo session (no agent team) — five thin streams, one PR.
+
+**Stream 1 — UnassignedSummary closeout (full wiring) (`f791470`):**
+- `backend/seed/seed.sql` — two new PlanningParameter rows in the `thresholds` group: `capacity.unassigned_summary.warn_threshold_hours` (default `1`) + `capacity.unassigned_summary.danger_threshold_hours` (default `200`). Picks up the W6 #14 placeholder commitment.
+- `backend/routers/capacity.py` — NEW `GET /api/capacity/planning-parameters?group=…` (read-only, any persona). Trimmed payload (key / current_value / data_type) — admin-only fields like `description` / `default_value` stay behind `/api/admin/parameters` (Controller-only).
+- `backend/schemas/capacity.py` — `CapacityPlanningParameter` + `CapacityPlanningParametersResponse` types.
+- `backend/tests/test_router_capacity_planning_parameters.py` — 8 tests (shape, group filter, role gating across all 4 personas + missing-header rejection).
+- `frontend/src/api/endpoints.ts` + `frontend/src/types/api.ts` — typed client + types.
+- NEW `frontend/src/modules/capacity/hooks/useCapacityThresholds.ts` — module-level inflight dedup mirroring `useDashboardForecastData` (W6 P2.B); hardcoded fallback (`1`, `200`) on fetch failure so the UI never breaks.
+- `frontend/src/modules/capacity/timeline/UnassignedSummary.tsx` — `thresholdClasses(hours, warn, danger)` reads from the hook; docstring rewritten to point at the new wiring; pre-closeout TODO removed.
+
+**Stream 2 — HotspotListCard demand-cell carries CC (W4 P2 deferral) (`acd0f1b`):**
+- `backend/services/capacity_dashboard.py::compute_hotspots` — for each role's pending-demand aggregation, tracks per-CC hour totals; picks the CC with the most unassigned hours and flags `multi_cc=True` when more than one CC contributes. Single roundtrip for CC name resolution.
+- `backend/schemas/capacity.py` — `HotspotItem` gains optional `cost_center_id` / `cost_center_name` / `multi_cc` fields.
+- `backend/tests/test_router_capacity_dashboard.py` — `TestHotspotsUnfulfilledDemandCCAttribution` × 2 cases (single-CC returns the cc_id; multi-CC picks highest-hour CC + flags multi_cc).
+- `frontend/src/types/api.ts` — `HotspotItem` extended.
+- `frontend/src/modules/capacity/sidepanel/CapacitySidePanelContext.tsx` — `OpenCellArgs` + `mode.cell` carry the new fields.
+- `frontend/src/modules/capacity/sidepanel/CellDetail.tsx` — `CellHeader` renders "Cost centre: <name> (+ other cost centres)" for demand pivots; `DemandCellBody` filters the inbox to the focused CC when provided so the user sees only the originating CC's pending requests.
+- `frontend/src/modules/capacity/dashboard/HotspotListCard.tsx` — threads the new fields into the synthesized `openCell` payload.
+
+**Stream 3 — Polish (`c46e609`):**
+- `backend/services/capacity_dashboard.py` — beefed up docstrings on `compute_dashboard_forecast`, `compute_headcount_breakdown`, `compute_hotspots` (returns shape, scope vocab, error paths, severity formulas).
+- `frontend/src/modules/capacity/hooks/useCapacityProjectsData.ts` — added module-level inflight `Map<scopeKey, Promise>` (mirrors `useDashboardForecastData` W6 P2.B); function-level JSDoc on the `enabled` gate.
+- Eslint-disable audit: walked all 6 directives in `frontend/src/modules/capacity/{CapacityHistory.tsx, PLAvailabilityView.tsx, hooks/useScopeQueryParams.ts, kpi/KPISummaryBar.tsx, timeline/ProjectGroup.tsx}`. Each already has an inline explanation comment above it (per W6 #13). No additional polish needed — the W6 reviewer's punch list was over-eager.
+
+**Stream 4 — Hygiene (`<seed-commit>`):**
+- Removed 2 `qa/_tmp_w6_track_b_*.mjs` scratch scripts that were accidentally committed in W6.
+- `.gitignore` — added `qa/_tmp_*.mjs` and `.clone/` so future scratch artefacts stop appearing in `git status`.
+- (User-side) deleted 13 stale `creta_demo.db.preXXX` snapshots from the working tree.
+
+**Stream 5 — Path 3 seed enablement (`<seed-commit>`):**
+- `backend/seed/seed.sql` ResourceRequest id=100 (proj-autobrake / cc-muc-apd / role-sr-arch) → `assigned_person_id='p-brenner'`. PROGRESS.md:32 (W6 Track A) had documented that no seed RR carried `assigned_person_id`, leaving the §9.1 entry-point #3 ("Review project" on PersonDetail's pending-requests card) wired but unreachable. Brenner is the cc-muc-apd Sr Architect (role matches), and his persona is the CC Owner — so both Brenner-as-CC-Owner and Anna-as-Controller can now click through end-to-end.
+
+**Polish items from prior reviewer passes that were NOT acted on (and why):**
+- `UtilizationBucketKey` single source of truth — needs API codegen infra; W6 #15 SKIPPED note still stands.
+- `AssignedPersonRow.standardHours` removal — still requires project payload to thread location-aware std hours.
+- `SidePanel` focus trap — pre-existing deferral; landed `aria-modal` in W6 P3.A.
+- Cross-CC visibility for CC Owners — design call documented in W6 #14, no user-research signal to revisit.
+- W4 utilization-distribution scope filter — verified appears correct on inspection (W6 polish note); no change needed.
+
+**Verification:** see closeout commit message — pytest baseline preserved (1685) plus new tests (8 planning-params + 2 hotspot-CC); tsc clean; visual verification of UnassignedSummary dynamic threshold + HotspotListCard CC context + Path 3 click flow in light + dark.
+
+### v5.2 Wave 6 — Track A (2026-05-10, branch `feat/v5_2-capacity-w6-integration-polish`)
+
+`react-specialist` teammate `track-a` on the 3-track team (`v5_2-w6-integration-polish`). Owns S11 entry-points + dashboard wiring + deprecation polish (4 tasks #1–#4). Tracks B/C own WideSlideOver + a11y/empty states + S12 polish backlog. All teammates committed straight to the shared branch.
+
+**Track A commits:**
+
+- **#1 forecast→timeline expand-month consumer (`0862122`)** — Wired the `capacity:expand-month` event consumer in `CapacityTimeline.tsx` (the dashboard's `CapacityForecastCard` already dispatched it post-W4 with no consumer per spec §11.4 deferral note). Window-level `useEffect` listener invokes `setAxisState` via the existing `toggleQuarter` reducer (auto-expanding the parent year when needed) and then scrolls the column into view via `scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'})`. Added a `data-month` attribute to row 2 month-label cells in `TimeAxisHeader.tsx` so the scroll target is queryable from outside the component. Verified end-to-end: Q3 2026 (collapsed by default — out of current quarter) expands to show Jul/Aug/Sep when `2026-09` is dispatched, and the cell scrolls into view.
+
+- **#2 ProjectSummaryPanel cache-miss fallback (`ec672aa`)** — Spec §10.8 deep-link case: pre-W6, the workspace's `ProjectSummaryEntryPoint` closed the panel when the cache had no record of the requested projectId, breaking deep-link bookmarks and post-scope-change re-opens. `ProjectSummaryPanel` now accepts an optional `item` plus the required `projectId`. When `item` is undefined, the panel issues a `capacityApi.getProjects({scope:'all'})` fallback fetch (same `CapacityProjectItem` payload shape — no backend changes per the W6 plan), shows a Skeleton-based loading state while the fetch is in flight, and renders a clear `AlertTriangle` empty-state with a Close CTA when the project still isn't visible in the current scope. Render path factored into an inner `ProjectSummaryPanelContent` so loader / empty / found branches share zero hook state.
+
+- **#3 §9.1 entry-point matrix verification (Playwright + matrix screenshots)** — End-to-end verification at 1440×900 light + dark across all four personas; 17 screenshots in `qa/screenshots/v5_2_w6_track_a/`. Results:
+  * **PASS** — Path 1 (URL param entry, light + dark)
+  * **PASS** — Path 6 (deprecation redirect, light + dark) **after fixing a redirect bug** — see below.
+  * **PASS** — Path 2 (Inbox "Review & Assign")
+  * **PASS** — Path 4 (Demand-strip cell click → CellDetail → "Review project")
+  * **PASS** — Path 5 (Project-view unassigned slot click → assignment mode, W5 wiring)
+  * **PASS (verified by code path; not click-testable in current seed)** — Path 3 (PersonDetail "Review project"). The bridge from PersonDetail → `onAssignmentRequest` → `openAssignment` is wired in `CapacitySidePanelContext.openPerson` + `PersonDetail.PendingRequestsCard`, but the seed data has no pending RR with `assigned_person_id` set, so no person panel renders the pending-requests section. Verified by source: `frontend/src/modules/capacity/sidepanel/PersonDetail.tsx:347-405` + `CapacitySidePanelContext.tsx:181-186`. Once the demo seed adds a person-assigned pending RR, this surface is testable end-to-end.
+  * **PASS** — bonus §11.4 expand-month wiring (light + dark): before=3 month columns, after=6, target month found.
+  * **PASS** — bonus §10.8 cache-miss fallback (warm cache exercised via project-view click).
+  * **PASS** — Persona routing: Controller → /capacity, CC Owner → /capacity?scope=my_cc&cc=…, PL → /capacity/availability (redirect), Executive → /capacity.
+
+  **Bug fixed inline:** the deprecation redirect at `frontend/src/App.tsx::ProjectAssignmentRedirect` was dropping the `?cc=` (and any `?cr=`) query string when rewriting `/capacity/project-assignment/{pid}` → `/capacity?assignment_project={pid}`. Without `cc`, the workspace's `AssignmentEntryPoint` short-circuits because the assignment session needs both `projectId` and `ccId` to spin up. Fix: `useLocation` now sources the original search string and the redirect preserves all params; additionally, when `cc=` is present and no explicit `scope=` is supplied, the redirect pins `scope=my_cc` so the workspace's `useScopeQueryParams` writer doesn't strip `cc` on the next render (which it does whenever the active scope is `all_ccs`). Pre-W6 bookmarks against the legacy URL pattern now resolve cleanly.
+
+- **#4 dead `filter_chip` server-side param removal (`9aa1d06`)** — PROGRESS.md line 219 flagged this duplication: `compute_capacity_projects(filter_chip=...)` and `_apply_filter_chip` were never wired into the React layer post-W5. Filter-chip semantics live in `frontend/src/modules/capacity/timeline/projectFilters.ts` where they double-duty as the source for both `FilterChipBar` badge counts and the rendered project-list filter — a parallel server-side implementation is a perpetual drift hazard for zero benefit. Removed:
+  * `backend/services/capacity_projects.py`: dropped `filter_chip` arg + `_apply_filter_chip` helper (~25 LOC).
+  * `backend/routers/capacity.py`: dropped the `filter_chip` query param.
+  * `backend/tests/test_router_capacity_projects.py`: removed 3 `TestProjectsFilterChip` cases (-3 from pytest baseline; 1688 → 1685).
+  * `frontend/src/types/api.ts`: dropped `CapacityProjectsFilterChip` enum (never imported anywhere) and the `filter_chip` field from `CapacityProjectsParams`.
+  * `frontend/src/api/endpoints.ts`: dropped the param-write branch.
+  * `frontend/src/modules/capacity/timeline/projectFilters.ts`: docstring update.
+
+**Verification:**
+- `tsc --noEmit` clean across all Track A edits.
+- `pytest` 1685 passed (= W5 baseline 1688 − 3 filter_chip tests removed).
+- 17 screenshots in `qa/screenshots/v5_2_w6_track_a/` covering all 6 §9.1 paths + bonus W6 wirings + persona routing.
+
+### v5.2 Wave 6 — Track B (2026-05-10, branch `feat/v5_2-capacity-w6-integration-polish`)
+
+`react-specialist` teammate `track-b` on the 3-track team (`v5_2-w6-integration-polish`). Owns the §13.9 Workbench PL availability slide-over (S11 deliverable) plus 4 polish-backlog items spread across SidePanel / PersonPicker / DashboardLayer / useScopedTimelineData.
+
+**Track B commits (4 commits — task ID order):**
+
+- **#5 WideSlideOver shared primitive (`777772d`)** — NEW `frontend/src/contexts/WideSlideOverContext.tsx` (provider + hook + render-slot, mirrors `BottomDrawerContext`) + NEW `frontend/src/components/shared/WideSlideOver.tsx` (50vw drawer, clamped 600–900px, right slide-in via CSS transform, dimmed backdrop with click-outside close, × close button, Escape-to-close, lightweight focus trap with focus restoration to trigger on close). Wired `<WideSlideOverProvider>` in `App.tsx` next to `<BottomDrawerProvider>` + render slot in `AppLayout`. Orthogonal to the existing 380px `SidePanel` — separate primitives.
+
+- **#6 PLAvailabilitySlideOver wrapper + slide-over mode (`2284e09`)** — NEW `frontend/src/modules/capacity/availability/PLAvailabilitySlideOver.tsx` thin wrapper exposing `onRequestRole(slot)` to the host. MODIFIED `PLAvailabilityView.tsx` — accepts `mode='page' | 'slideover'` (default `'page'`). In `slideover` mode: hides page-level `ModuleHeader`, skips URL sync of filter state (slide-over is ephemeral), renders the side panel inline beneath the grid (no panel-within-panel), and routes "Request this role" through `onRequestRole(slot)` where `slot` carries role / location / suggested_month (spec §13.7 — picks the month with highest `available_hours`). MODIFIED `AvailabilitySidePanel` + `QuickRequestAction` to accept optional `onRequest` override + `helperText`. `'page'` mode behaviour unchanged for the standalone `/capacity/availability` route.
+
+- **#7 Workbench Forecast & Planning "Check availability" CTA (`a3c4ae8`)** — MODIFIED `frontend/src/modules/workbench/forecast/ForecastTab.tsx`:
+  * New "Check availability" button in the F&P actions cluster, gated to PL + active project (next to "Rolling Forecast Review").
+  * Opens the `WideSlideOver` with `<PLAvailabilitySlideOver />`, pre-selecting any previously-captured location/role (so Edit re-opens with prior context).
+  * `onRequestRole(slot)` callback closes the slide-over and stores the captured slot in local state.
+  * NEW `CapturedRequestBanner` renders above the grid showing role / location / suggested period (the month with highest available hours) with Edit / Clear (×) controls. Clears on project switch.
+  * Visual verification (1440×900, light + dark, persona-pl) — 5 screenshots in `qa/screenshots/v5_2_w6_track_b/`: F&P tab with the new button next to RFR; 50vw slide-over open with scope/KPIs/grid + dimmed backdrop; inline AvailabilitySidePanel after role selection; banner populated with `Data Engineer / All locations / Jan 2027` after request and slide-over closed; standalone `/capacity/availability` page still uses `ModuleHeader` + the shared 280px `SidePanel` (unchanged).
+
+- **#8 polish backlog (`cb5b9ee`)** — 4 small items:
+  * **#8.1 — `SidePanelContext.openPanel` race**: clear `beforeCloseRef.current` at the top of `openPanel` so swapping content without closing first doesn't leave a stale unsaved-changes guard registered against the previous content. ~5 LOC.
+  * **#8.2 — PersonPicker batch projection cache**: hoisted the per-`(cc, request, person, month)` projection lookup into a module-level `Map` so rapid picker re-opens reuse already-fetched values; coalesces concurrent in-flight requests via a separate inflight `Map` so two re-mounts don't double-fetch the same key; hydrates synchronously from the cache where available. ~50 LOC.
+  * **#8.3 — DashboardLayer responsive max-height clip**: the flat `max-h-[320px]` clipped the bottom row of cards on viewports shorter than ~900px. Switched to `max-h-none` default + `[@media(min-height:900px)]:max-h-[320px]` on tall screens (preserves the existing compact layout). Bumped the outer slide-up wrapper to 720px so the responsive single-column stack isn't clipped by the *outer* animation. ~15 LOC.
+  * **#8.4 — `useScopedTimelineData` deps audit**: read every `useEffect`/`useCallback` for stale-closure risks; documented findings in a comment block above the deps array. No bugs found; existing patterns (token sentinel for async staleness, `scope.kind/scope.id` destructuring, `activeFilters.join(',')` change signal) are correct. ~15 LOC of comments.
+
+**Verification:**
+- `tsc --noEmit` clean across all Track B edits.
+- `pytest` baseline preserved (no backend changes from Track B).
+- Visual verification at 1440×900 light + dark via Playwright — 5 + 2 screenshots in `qa/screenshots/v5_2_w6_track_b/`.
+
+### v5.2 Wave 6 — Track C (2026-05-10, branch `feat/v5_2-capacity-w6-integration-polish`)
+
+`react-specialist` teammate `track-c` on the 3-track team (`v5_2-w6-integration-polish`). Owns S12 polish + a11y + W3/W4/W5 polish-backlog sweep (8 tasks #9–#16). Tracks A/B own S11 integration + WideSlideOver + entry-point sweep. All teammates committed straight to the shared branch (worktree isolation didn't take effect — same pattern as W2/W3/W5 — but file ownership stayed clean).
+
+**Track C commits (8 commits — task ID order shown for clarity):**
+
+- **#9 a11y polish (`fc484db`)** — `frontend/src/components/layout/SidePanel.tsx`: window keydown listener registered while panel is mounted; Escape closes via the same `handleClose` path as the close button (respects `onBeforeClose` dirty-guard). Handler stashed in a ref so the listener binds once but always sees the latest props. Added `role="dialog"` + `aria-label={title}` so screen readers announce the panel on open. Verified `FilterChipBar` already exposes `aria-pressed` (W3 Track B / W5 Track B) — no change needed.
+
+- **#13 eslint-disable audit (`d83b732`)** — Reduced `eslint-disable` directives in `frontend/src/modules/capacity/**` from 15 → 10. Removed 5 unused directives:
+  * `PLAvailabilityView.tsx:356` — `selectedRoleIds` wasn't read in the effect at all (client-side filter), so eslint had nothing to flag.
+  * `CapacityWorkspace.tsx:134, :262` — refs are exempt from the rule.
+  * `AssignmentPanel.tsx:101` — `setShowUnsavedDialog` is a stable React setter (exempt).
+  * `DemandStrip.tsx:213` — defensive `console.log` fallback converted to a silent no-op (CapacityWorkspace always wires `onCellClick` in production).
+
+  The remaining 10 are all justified third-party / intentional-omission cases: 3× Recharts `no-explicit-any` (Tooltip `content` prop), 3× `useScopeQueryParams` / `useScopedTimelineData` self-write avoidance, plus 4 deps-stability cases in `PersonPicker` / `KPISummaryBar` / `CapacityWorkspace.tsx:166` / `PLAvailabilityView.tsx:321`.
+
+- **#12 W3 polish backlog (`1e6057b`)** — Verifications + design-call doc:
+  * Orphan-role label fallback present in `UnassignedSlotRow.tsx:69` (`'Unspecified role'` fallback). `AssignedPersonRow` renders the role badge conditionally — no broken UI when `role_name` is null. Verified.
+  * `RoleType.is_active` filter — `RoleType` has no `is_active` column (`backend/models/people.py`); model only has `id` / `name` / `created_at` + relationships. Filtering happens on `Person.is_active` downstream. The original audit item is a no-op. Verified.
+  * Demand-strip cell-click — wired in `CapacityWorkspace.tsx:364` via `onCellClick → openCell`. Verified.
+  * **DECISION**: Keep static `personaPersonId` map (`frontend/src/modules/capacity/shared/personaPersonId.ts`). Rationale recorded in the file's docstring: adding `person_id` to `CurrentUser` / `RoleContext` requires backend schema + frontend type updates that are out of scope for a polish item; demo personas are pinned by seed.sql and don't change at runtime.
+
+- **#14 W5 polish backlog (`6041586` + bits in `9aa1d06`)** — 8 items:
+  * `ProjectGroup` wrapped in `React.memo` (skips re-renders when callback identity is stable).
+  * `compute_capacity_projects` per-RR demand cache — pre-computes `demand_by_rr` once outside the per-project loop. Eliminates ~75% of `_request_monthly_demand` calls on a 100-project window. (Landed via Track A's `9aa1d06` commit due to shared working tree.)
+  * **DECISION**: `UnassignedSummary` thresholds stay hardcoded for v5.2. Promoting to a `PlanningParameter` would also need an admin endpoint, settings card, and cache-invalidation plumbing — out of scope. TODO + decision doc anchored in the file; placeholder seed row to be added in v5.2 closeout PR.
+  * **DECISION**: `aggregatePeriodGhost` keeps MAX over per-month ghosts (not avg). Averaging would visually understate over-allocation in a single hot month inside a quarter, contradicting §9.4 intent.
+  * `PersonChip.utilBucket` — added `1e-6` epsilon constant so boundary values like `99.999998` don't drift into the wrong bucket.
+  * `ProjectGroup` collapse-on-filter-change — encoded `activeFilters` into each `ProjectGroup`'s React key in `ProjectGroupView`, forcing remount that resets local `expanded` state when the chip set changes.
+  * `AssignedPersonRow.standardHours` — verified the only caller (`ProjectGroup`) does not thread the prop. Documented why the default 160 must stay (project payload lacks per-person std hrs). Removal deferred until a future wave threads location-aware std hours through the project payload.
+  * **DECISION**: Cross-CC visibility for CC Owners stays restricted (read + write own CC only). Documented in `backend/routers/capacity.py::_verify_cc_access` (landed via `9aa1d06`). Re-evaluate post-v5.2 if user research surfaces a real need.
+
+- **#15 refactoring opportunities (`a1d92f2`)** — 3 items:
+  * `useCapacityProjectsData` consolidation — `CapacityTimeline` now accepts a `projectData` prop and threads it into `ProjectGroupView`. Workspace passes its hoisted snapshot; `ProjectGroupView` keeps its internal fetch as a fallback for standalone callers. Eliminates the redundant project-view fetch in production.
+  * NEW `frontend/src/modules/capacity/hooks/useDashboardForecastData.ts` — shared hook around `GET /api/capacity/dashboard/forecast` consumed by both `CapacityForecastCard` (chart) and `KPISummaryBar` (avg-utilization KPI). KPISummaryBar's allSettled batch trimmed from 4 → 3 endpoints; a dedicated effect merges forecast-derived snapshot fields whenever the hook returns a new payload. HTTP-level dedup deferred (would need a request cache) — saving is in code, not bandwidth.
+  * `UtilizationBucketKey` single source of truth — SKIPPED per brief ("don't add new infra for a polish task"). No openapi-typescript / API codegen exists. Documented the duplication on both sides (`frontend/src/types/api.ts` + `backend/services/capacity_dashboard.py`) with cross-references and a post-v5.2 follow-up note.
+
+- **#10 empty states sweep (`ec13f51`)** — Standardised to shared `EmptyState`:
+  * `CapacityTimeline`: replaced inline "No people..." with EmptyState (Users icon).
+  * `ProjectGroupView`: both empty branches now use EmptyState (FolderOpen for "no projects in scope", FilterX for "no projects match the filters").
+  * `DemandStrip`: hide entirely when no period carries pending demand (spec §8.5 + S12 brief).
+  * `RequestTable` (inbox): swapped Inbox icon for `CheckCircle2` and rewrote title to "All caught up" (spec §12.7 celebratory empty state).
+  * Already-good surfaces (no change): `HotspotListCard` (W4 green check), `HistoryTable` (W3 EmptyState), `PLAvailabilityView` (W2/W3 EmptyState).
+
+- **#11 §15 permission sweep + panel transition (`4c0c542`)** — Frontend permission gates:
+  * `RequestsInbox`: redirect non-controller / non-cc_owner roles to `/capacity` (prevents stale 403 banner on direct URL access by Project Lead or Executive).
+  * `CapacityHistory`: redirect Project Lead to `/capacity` (Controller / CC Owner / Executive remain authorised per §12.1).
+  * `SidePanel`: added `transition-[width] duration-200 ease-out` so capacity panels swap smoothly between 280px (person/cell/project_summary) and 400px (assignment) — previously snapped between widths.
+
+- **#16 perf check** — Demo data has only 12 total people (largest scope = "All CCs" via `GET /api/capacity/dashboard/headcount-breakdown?scope=all&dimension=role` → `total: 12`). Per the brief's guidance ("if no CC has 50+ people, document the largest scope tested"), there's no perf bottleneck risk to investigate at the demo data scale. Initial nav + networkidle ~3.3s on Munich scope (cold). No fixes needed.
+
+### v5.2 Wave 6 — Independent reviewer pass (2026-05-10, commit `dad4345`)
+
+A read-only `code-reviewer-fresh` agent walked all 14 W6 commits since the Lead pre-work `a250f8f` and produced a prioritised report (7 P1s + 10 P2s + 8 P3s + a long "Looks good" section). The 3 must-fix P1s + 4 cheap P2s landed in `dad4345`:
+
+- **P1.1 + P1.3** — Rules of Hooks violation in `RequestsInbox.tsx` and `CapacityHistory.tsx`. Track C's W6 §15 perm gates early-returned `<Navigate>` BEFORE subsequent hooks ran. Because `role` transitions undefined → concrete on first render after RoleContext resolves, the hook count fluctuated and React would throw "Rendered fewer hooks than expected" when a PL/Executive hit either route directly. Fix: drive the redirect from a `useEffect` + `navigate(...)` pattern (matches `CapacityWorkspace.tsx`); render returns null while the effect is in flight to avoid a flash of disallowed content.
+- **P1.4** — `WideSlideOver` didn't lock body scroll. Mouse-wheel over the visible workbench scrolled the page underneath even though clicks were intercepted by the backdrop. Fix: `document.body.style.overflow = 'hidden'` while open; restore previous value on cleanup. Spec §13.9 says the workbench should be visible-but-inert.
+- **P1.6** — `_request_monthly_demand` cache had wider blast radius than pre-W6. The Track C cache `demand_by_rr` dict comprehension would crash the whole projects endpoint on a single malformed RR (e.g. `period_start=None`); pre-W6 the same call was per-iteration so only one project failed. Fix: per-RR try/except that logs + skips bad rows. Downstream `demand_by_rr.get(rr.id, {})` already tolerates a missing entry.
+- **P2.5** — `ProjectGroupView` React-key encoding (`key={`${pid}::${filterKey}`}`) defeated the W6 #14 `React.memo` wrapper, caused a full remount of every visible group + its children on every chip toggle (visible repaint on 30-project view), and reset the timeline scroll position. Fix: replaced with a `resetSignal: number` prop bumped on filter change; `ProjectGroup` useEffects on it to reset `expanded` state. Same UX without the remount cost.
+- **P2.6** — `KPISummaryBar` two-effect split caused loading-state flicker (avg-utilization tile flipped from '—' to a value while other tiles still showed '—'). Fix: `combinedLoading = loading || forecastData.isLoading` used for ALL tile value/sub-text/style branches.
+- **P2.8** — `ForecastTab` leaked `WideSlideOver` across project switches (slide-over opened for project A stayed open with project-A context after navigating to project B). Fix: thread `closeSlideOver` into the project-switch reset effect.
+- **P2.9** — `SidePanel` Escape swallowed Esc inside text inputs (would close the panel even if the user was clearing a search input). Fix: skip Esc when `event.target` is inside `input`, `textarea`, or `[contenteditable]`. AssignmentPanel's dirty-guard still catches unsaved-form cases.
+
+**Borderline P1s deferred:**
+- **P1.5** (WideSlideOver onClose stability) — not a current bug; all callers pass stable `useCallback([])` refs. Documented as a fragile contract for future maintainers.
+- **P1.7** (`ProjectAssignmentRedirect` overwriting pre-existing `assignment_project` query param) — implausible code path; the legacy URL pattern is the path param, not the query param.
+
+**Remaining 10 P2s + 8 P3s** (dashboard chart out-of-window guard, dead-import cleanups, JSDoc improvements, in-flight request dedup, eslint-disable comment polish, etc.) deferred to a post-v5.2 polish session per the W3/W4/W5 precedent.
+
+**Verification:** pytest 1685 passed (W6 baseline preserved; P1.6 added a defensive skip path which doesn't fire on clean seed data); tsc clean across all fixes; capacity-specific tests 36 passed in 7.13s.
+
+The reviewer's "Looks good" section explicitly called out: `SidePanelContext.openPanel` race fix's clear comment, `PersonPicker` numeric input `onChange` clamp, `ProjectSummaryPanel` cancellation-flag pattern, `CapacityTimeline` rAF×2 deferral chain comment, the documented design decisions in `UnassignedSummary` / `assignmentGhostOverlay` / `_verify_cc_access`, the `Promise.allSettled` graceful-degradation pattern, and `DemandStrip` auto-hide on no-demand.
+
+### v5.2 Wave 6 — Second independent reviewer pass (2026-05-10, commit `a1094de`)
+
+A second `code-reviewer-fresh` agent walked all 17 W6 commits through `44f688f` to verify the `dad4345` fix commit didn't introduce regressions. Verdict: **ship as-is** — line-by-line verified all 7 fixes from `dad4345` are clean (Rules of Hooks pattern stable; body scroll lock cleanup correct; per-RR try/except scoped right; resetSignal effect correct; combinedLoading propagated to all 5 tile branches + 1 style branch; closeSlideOver in deps without churn; Escape skip selector covers all input surfaces). Doc accuracy verified (W4 SHA `69948fd` matches `git log`). 0 P1s, 3 new P2s + 5 P3s found — all small. User opted to fold them in pre-push:
+
+- **P2.A** `RequestsInbox` / `CapacityHistory` stray 403 fetches before redirect — gated each fetch effect on `if (role && !isAuthorized) return;`. Removes 1-4 stray /api/capacity/* calls when PL/Executive direct-URL into protected routes.
+- **P2.B** `useDashboardForecastData` HTTP-level dedup — module-level inflight `Map<apiScope, Promise>` (cleared in `.finally()`) so concurrent KPISummaryBar + CapacityForecastCard mounts share one in-flight request. Mirrors the W6 #8.2 PersonPicker pattern.
+- **P2.C** `ProjectGroup` resetSignal explicit guard — `if (resetSignal === undefined || resetSignal === 0) return;` documents the initial-mount-skip contract instead of relying on `useState(defaultExpanded)` lazy initialisation matching.
+- **P3.A** `SidePanel` `aria-modal="true"` (focus trap remains deferred — pre-existing).
+- **P3.B** `WideSlideOver` Escape-stack code comment documents the document-vs-window listener priority + intentional layering.
+- **P3.C** `ProjectAssignmentRedirect` pre-existing query-param guard — `if (!params.has('assignment_project'))` so a redirect-chain caller can override the path param.
+- **P3.D** Trimmed stale ProjectGroup docstring (pre-`dad4345` React-key block superseded by current resetSignal description).
+- **P3.E** Dropped redundant `key={item.project_id}` on ProjectSummaryPanel single-child wrapper.
+
+**Verification:** tsc clean; capacity-specific tests 36 passed; full pytest 1685 preserved.
+
+**Verification:**
+- `tsc --noEmit` clean across all Track C edits.
+- `pytest` 1685 passed (= W5 baseline 1688 minus 3 from Track A's `filter_chip` removal — no regressions from Track C edits).
+- 10 screenshots saved to `qa/screenshots/v5_2_w6_track_c/` (4 light + 1 dark workspace; inbox empty light + dark; project-view filter; PL availability; PL → /requests redirect to /availability; PL → /history redirect to /availability; Exec → /requests redirect to /capacity).
+
+### v5.2 Wave 5 — Second-wave features (2026-05-09, branch `feat/v5_2-capacity-w5-secondwave`)
+
+3-teammate `react-specialist` agent team (`v5_2-w5-capacity-secondwave`) running in parallel with worktree isolation off the shared branch. Lead pre-work landed first (backend endpoint + frontend seams + comment refresh); 3 teammates ran concurrently and committed straight to the shared branch (worktree isolation didn't take effect — same pattern as W2 — but file ownership stayed clean and there were no merge collisions); Lead verified end-to-end after silent completion.
+
+**Lead pre-work (2 commits, `0b75d2d` / `9792196`):**
+- `GET /api/capacity/projects` endpoint per spec §10 — `services/capacity_projects.py` aggregation (visible-project resolution per §10.12, fulfillment math per §10.3, sort per §10.9, filter chips per §10.10) + 8 new Pydantic models in `schemas/capacity.py` + route handler in `routers/capacity.py` (Controller / Executive / CC Owner; PL = 403). 18 pytest cases in `test_router_capacity_projects.py` covering authorization, response shape, fulfillment math (zero / full / partial / dual-layer utilization), reference-max scaling, sort order, scope filtering (location / cost_center / invalid → 400), and three filter chips (needs_staffing / under_utilized / pending_requests). pytest baseline post-pre-work: 1680 (was 1662 W4 + 18 new).
+- API client + types: `capacityApi.getProjects(params)` in `frontend/src/api/endpoints.ts` + `CapacityProjectItem` / `CapacityProjectAssignedPerson` / `CapacityProjectSlot` / `CapacityProjectExternalCost` / `CapacityProjectsResponse` / `CapacityProjectsParams` in `frontend/src/types/api.ts` (consumed by Track B's `useCapacityProjectsData` hook).
+- TimelineView switch seam in `CapacityTimeline.tsx` — branches on `groupBy === 'project'` and mounts a stub `ProjectGroupView` (Track B replaced the stub's placeholder with the §10 component tree). Removed `'project-view-pending'` empty-state branch from `useScopedTimelineData.ts` so project view flows through its own data feed.
+- `CapacitySidePanelContext` comment refresh — the `registerProjectSummaryHandler` seam was already shipped in W3; updated stale "Wave 4 Session 9" comments to point Track B at "Wave 5 Session 9".
+- Demand-strip stub comment update at `CapacityWorkspace.tsx:230` — pointed the next reader at W5 Track A / S6b §9.1 entry-point #2; prop wiring left intact for Track A to plug into.
+- Seed-data spot check: `RR#102` (proj-autobrake / cc-muc-apd / role-dev / 100h/mo / 3 matching candidates in CC) is a clean multi-person split demo path — no seed changes needed.
+
+
+
+**Track C — `react-specialist` (Session 10 — multi-person split + audit verification, 3 commits, `257c95f` / `b2affa3` / `413d1e9`):**
+
+Implements the §9.5 multi-person partial assignment UX on the Wave 4 assignment panel and rounds out the §12.10 audit-log coverage so the project-level confirm endpoint distinguishes full from partial fulfilment.
+
+- MODIFY `frontend/src/modules/capacity/assignment/AssignmentStateContext.tsx` — extends the W4 single-person model with three new actions: `addPersonToMonth(reqId, month, personId, hours, rebalanceAmount?)` (append-or-update with explicit overflow rebalance against the largest other share, with cascade to additional shares if the largest isn't enough), `removePersonFromMonth(reqId, month, personId)` (drops one person from a multi-person split; falls through to clear-month when it was the last one), and `setMonthAssignmentList(reqId, month, list)` (replace primitive). Existing `setMonthAssignment` / `clearMonthAssignment` semantics are unchanged for the W4 [Assign] entry point.
+- MODIFY `frontend/src/modules/capacity/assignment/PersonPicker.tsx` — adds `showHoursInput` + `defaultHours` + `excludedPersonIds` props. When invoked from [+ Add], the picker renders an editable hours number input above the candidate list pre-filled with the remaining hours, hides already-assigned people from the list, and commits with the typed value; when invoked from [Assign], the picker remains the W4 full-hours commit shape.
+- MODIFY `frontend/src/modules/capacity/assignment/MonthRow.tsx` — replaces the W4 disabled tooltip-stub [+ Add] button with a working popover anchored to the row. Computes `assignedTotal` / `remainingHours` / `isPartial` per spec §9.5 and an explicit `rebalanceAmount = max(0, assignedTotal + hours - requestedHours)` so the parent keeps the requested-hours invariant only when a typed value would over-commit. Renders an "Nh remaining" badge between the chips and the [+ Add] button while the row is partial.
+- MODIFY `frontend/src/modules/capacity/assignment/PersonChip.tsx` — optional `hours` prop renders the per-person portion in multi-person months ("F. Keller 40h (72%)") per the spec example. Optional `showPartialIndicator` highlights partial single-person assignments with an amber chip border. Chip ✕ click stops propagation so the chip remove never bubbles into the [+ Add] popover toggle.
+- MODIFY `frontend/src/modules/capacity/assignment/RoleSection.tsx` — threads `onAddPerson` through to MonthRow with a request-id-prefixed handler.
+- MODIFY `frontend/src/modules/capacity/assignment/AssignmentPanel.tsx` — provides `handleAddPerson` (delegates to `addPersonToMonth`) and a smarter `handleRemove` that branches on list size: single-person months clear the row, multi-person months drop the named person only. Per-month evaluation against `hours_or_amount` so a month with sum < requested counts toward the new `partialMonths` total. `isFullyAssigned` now requires both full coverage AND zero partials so the action bar's "Confirm" branch stays accurate.
+- MODIFY `frontend/src/modules/capacity/assignment/AssignmentProgress.tsx` — adds a `partial` prop and renders a "N full · N partial · N unassigned" detail line. Bar turns amber when every month has at least one person but some are partial — green only on full coverage at requested hours.
+- MODIFY `backend/routers/capacity.py::confirm_project_resources` — walks each pending request's per-month sum(ResourceRequestAssignment.hours) vs. its requested `hours_or_amount_per_month` and tallies `full_months` / `partial_months`. action_type now branches three ways:
+  * any pending request carries a CR → `cr_reconfirm` (W4 behaviour)
+  * else `partial_months > 0` → `partial_confirm` per spec §12.10 row 1 (the "or partial_confirm" branch that was missing pre-W5)
+  * else → `confirm`
+
+  Resource requests with no assignment rows count every month as partial. Floating-point comparison uses 1e-6 epsilon so a 40 + 40 = 80 split round-trips clean. detail_payload now carries `partial_months` and `full_months` so the §12.13 history-detail expansion can render "{N} of {M} months partial" without recomputing. The summary string adds " — N of M months partial" suffix on partial. external_cost requests are intentionally excluded from the partial calculation — they don't have person assignments to compare against.
+- MODIFY `backend/seed/fixtures/manuals/capacity_management.json` — adds two new sections: "Multi-Person Month Splits (v5.2)" describing the [+ Add] flow + rebalance behaviour + partial confirmation, and "Recently Completed & Audit Trail (v5.2)" describing the inbox section + history page + the six audit action types per spec §12.10.
+- MODIFY `README.md` — extends the Capacity Management feature blurb with the W5 multi-person split UI + recently-completed inbox section + the six §12.10 audit action types including the new `partial_confirm` server-side branch.
+
+**Backend tests (+7 → 1687 passed; W4 baseline 1680):**
+- `test_capacity_audit_log.py`:
+  * `TestProjectConfirmPartialBranch::test_partial_assignment_logs_partial_confirm` — 2-month request, 1 month assigned + 1 month empty → `partial_confirm`, payload has `partial_months=1, full_months=1`.
+  * `TestProjectConfirmFullBranch::test_full_coverage_logs_confirm` — both months covered → `confirm`, `partial_months=0`.
+  * `TestProjectConfirmMultiPersonFullSplit::test_two_people_summing_to_full_logs_confirm` — 40 + 40 = 80 single month → `confirm`, `full_months=1`.
+  * `TestAllSixActionTypesEndToEnd::test_assign_draft_then_full_confirm_records_two_log_lines` — multi-person save draft + project confirm round-trip records `[assign_draft, confirm]`.
+  * `TestDeclineRequestKeepsProjectStatus::test_decline_single_request_leaves_project_pending` — `decline_request` does NOT mutate project status (only project-level `decline` advances the project state).
+- `test_router_capacity_assignments_multiperson.py`:
+  * `TestMultiPersonAuditDetail::test_audit_payload_lists_each_person` — assign_draft `detail_payload.assignments` lists each per-person split with their hours.
+  * `TestPartialMultiPersonSavePersists::test_partial_split_round_trip` — 40 + 30 < 80 round-trip keeps both rows for downstream partial_confirm detection.
+
+**Existing audit verification (read-only):**
+- All 6 action types from §12.10 confirmed wired in W1 fix `21054ac` + Track C work above: `confirm` / `partial_confirm` / `decline` / `decline_request` / `assign_draft` / `cr_reconfirm`. Single-request `confirm_request` (PUT /requests/{cc}/{rid}/confirm) is intentionally not logged per impl-guide. Recently-completed section (`frontend/src/modules/capacity/requests/RecentlyCompletedSection.tsx`) is wired against `getCapacityHistory` with a 7-day window and the five "completed" action types, plus a refresh nonce that bumps after a successful decline so the section auto-updates.
+
+**Visual verification (Lead via Playwright at 1440×900):**
+- 11 + 4 screenshots saved to `qa/screenshots/v5_2_w5_track_c/` covering: assignment panel light/dark with progress detail line ("44 full · 51 unassigned"); [+ Add] popover open with hours input ("20 of 40h requested") and candidates ranked by projected utilisation; partial-split state showing two-chip rows + "Nh remaining" indicator; CR re-confirmation panel with hours diffs and partial-confirm action bar warning; recently-completed inbox section with seeded `assign_draft` + live `decline_request` entry; capacity history page with both entries visible and action-type badges.
+- Decline-request audit chain verified end-to-end via `PUT /api/capacity/requests/cc-muc-apd/102/decline` → 1 row in history with action_type=`decline_request`, summary "Declined Developer request (2026-06–2027-12): Capacity constrained — recommending defer to Q4", and the recently-completed inbox section auto-refreshing to show "Declined request today" / "Declined request" red badge.
+
+**Out of scope (Track A / Track B):**
+- Timeline ghost overlay during assignment mode + assignment gestures (Track A — Session 6b).
+- Group-by-project view (Track B — Session 9).
+
+**Track B — `react-specialist` (Session 9 — group-by-project view, 8 commits, `e6ada39` → `7c03320`):**
+
+Implements the §10 component tree for the workspace timeline when `groupBy === 'project'`. Replaces the Lead pre-work placeholder in `frontend/src/modules/capacity/timeline/ProjectGroupView.tsx` with the full §10.13 tree, wires the project-summary side panel (§10.8), and adapts `FilterChipBar` for project-mode chip semantics (§10.10).
+
+- **Case-collision unblock (`e6ada39`)** — Track A's S6b work added both `GhostOverlay.tsx` (component) and `ghostOverlay.ts` (helper). On macOS's case-insensitive APFS the lowercase file shadowed the React component → `import { GhostOverlay } from './GhostOverlay'` failed at vite scan and the timeline tree rendered as a blank page. Renamed `ghostOverlay.ts` → `assignmentGhostOverlay.ts` and updated 6 importers (FlatPersonRow / RoleGroup / PersonTimelineRow / GhostOverlay / useAssignmentOverlay / CapacityTimeline). Helper API unchanged. Without this fix all of Wave 5 visual verification is blocked on macOS.
+- **`needs_staffing` chip + project predicates (`0915f69`)** — Extends `FilterChipKey` union with `'needs_staffing'`. NEW `frontend/src/modules/capacity/timeline/projectFilters.ts` — pure `projectMatchesChip` / `filterProjects` / `countProjectsMatching` mirroring backend `_apply_filter_chip` semantics in `services/capacity_projects.py`: over_allocated → any assigned person had any month >100%; under_utilized → fulfillment_pct < 50; pending_requests / unassigned_months → unfulfilled_slots non-empty (merged per §10.10); needs_staffing → fulfillment_pct < 100.
+- **Bar primitives (`901f8a5`)** — NEW `FulfillmentBar.tsx` (§10.3, solid + dashed segments scaled to `referenceMaxHours`), `DualLayerBar.tsx` (§10.4, faded total-utilization background + solid project-color foreground + over-allocation outline), `GhostBar.tsx` (§10.5, dashed-border bar with partial-month split mirror). All use `useProjectColor()` for stable fills shared with role-view segments.
+- **Row components (`32f87a7`)** — NEW `ProjectGroupRow.tsx` (§10.3, sticky-name with chevron + project name + hierarchy badge + PL + green/amber/red staffing-status pill), `AssignedPersonRow.tsx` (§10.4, indented name + role badge + DualLayerBar per column), `UnassignedSlotRow.tsx` (§10.5, italic role + status pill + GhostBar per column + `onSlotClick(projectId, requestId)` prop), `ExternalCostRow.tsx` (§10.6, Euro icon + thin neutral 8px bar over period + Check/Clock status icon).
+- **ProjectGroup container + UnassignedSummary (`960a60b`)** — NEW `ProjectGroup.tsx` (§10.2, owns local `expanded` state, composes header + people + slots + costs in spec sort order), `UnassignedSummary.tsx` (§10.7, sticky-bottom row REPLACING DemandStrip in project mode; sums unfulfilled-slot remainders per visible column with thresholds 0/1–200/200+ → empty/amber/red).
+- **ProjectSummaryPanel + useCapacityProjectsData hook (`eeb15fd`)** — NEW `frontend/src/modules/capacity/hooks/useCapacityProjectsData.ts` (single fetch hook for `GET /api/capacity/projects`, returns `{items, referenceMaxHours, total, isLoading, error, scope}`, `enabled`-gated). NEW `frontend/src/modules/capacity/sidepanel/ProjectSummaryPanel.tsx` (§10.8, 280px) — header with project color dot + name + meta, Fulfillment / Requests KPI cards, role-by-role assignment progress (one row per unfulfilled slot with `Nh / Mh` colored pill), Total allocated hours, "Review & assign" + "View in workbench" buttons. **Provider-boundary pattern**: panel takes `onReviewAssign / onClosePanel / navigate` as props closure-captured by the workspace from inside `CapacitySidePanelProvider` — the panel renders inside the SHARED `<SidePanel>` (mounted in AppLayout, ABOVE the workspace tree) so it can't call `useCapacitySidePanel()` itself. Mirrors the W4 AssignmentPanel pattern.
+- **ProjectGroupView assembly + FilterChipBar adaptation + workspace integration (`7c03320`)** —
+  * REWRITE `ProjectGroupView.tsx` — replaces placeholder with §10.13 tree. Optional `data` prop falls back to internal `useCapacityProjectsData()` for standalone callers. Filters items client-side via `filterProjects(items, activeFilters)`. Registers visible project ids with `ProjectColorMap`. Click handlers: project header → `openProjectSummary`; person row → `openPerson(ccId, personId)` (resolves ccId from assigned-people list when scope has none); unassigned slot → `enterAssignmentMode + openAssignment` per §10.5.
+  * MODIFY `FilterChipBar.tsx` — accepts optional `projectItems` prop; in project mode swaps PEOPLE_CHIPS for PROJECT_CHIPS (drops "Unassigned months" merged into "Pending requests", adds "Needs staffing"); counts via `countProjectsMatching` (project-level predicates).
+  * MODIFY `CapacityWorkspace.tsx` — hoists `useCapacityProjectsData(groupBy === 'project')` so both FilterChipBar counts AND the ProjectSummaryEntryPoint cache use one fetch. NEW `ProjectSummaryEntryPoint` component (mirrors W4 `AssignmentEntryPoint`) registers a handler with `registerProjectSummaryHandler` that resolves projectId against the cache and renders `<ProjectSummaryPanel>` with closure-captured `onReviewAssign / onClosePanel / navigate`. People-level "no rows match" hint skipped in project mode (ProjectGroupView owns its own copy).
+
+**Verification:**
+- `npx tsc --noEmit` clean across all Track B commits.
+- `pytest tests/ -q` baseline 1680 passing maintained pre-Track-C (no Track-B backend changes — endpoint shipped in Lead pre-work `0b75d2d` with 18 tests).
+- Visual verification at 1440×900 light + dark via Playwright; screenshots in `qa/screenshots/v5_2_w5_track_b/`:
+  * `01_controller_project_view_my_cc` (light + dark): MUC / Application Development scope. Project rows for ERP Integration (`0/1` red staffing pill, TBS hierarchy badge, Priya... PL) and Autonomous (`2/8` amber staffing pill). Assigned person rows under each (Lucas / Ananya / SAP Functional Consultant / etc) with DualLayerBar segments and red over-allocation outlines on >100% months. Italic unassigned-slot rows (Senio.../unassigned, Devel.../unassigned) with dashed GhostBars. Filter chip bar shows project-mode chips: `All 7, Over-allocated 4, Under-utilized 1, Pending requests 2, Needs staffing 2`.
+  * `02_controller_project_view_needs_staffing_chip` (light + dark): "Needs staffing" chip activates correctly; both projects remain visible (both have fulfillment < 100%).
+  * `03_controller_project_summary_panel` (light + dark): clicking the ERP Integratio... header opens the side panel at 280px. Header `ERP Integration Phase 2` + project color dot + `TRUCK & BUS SYSTEMS (TBS)` + `PL: Priya Sharma · Active`. Fulfillment `0%` + Requests `0/1` KPI cards. Assignment progress row `Senior Developer 0h / 360h` with red pill. Total allocated (window) `2175h`. Review & assign + View in workbench buttons render correctly.
+  * `04_controller_project_view_all_ccs` (light + dark): All-CCs scope shows the full Capacity Dashboard above the project timeline. Filter chip bar: `All 11, Over-allocated 6, Under-utilized 2, Pending requests 2, Needs staffing 2`.
+  * `05_controller_unassigned_slot_to_assignment` (light + dark): clicking an italic unassigned-slot row routes to AssignmentPanel at 400px width with the full ERP Integration assignment session (CR-9 banner, Senior Developer role section, monthly assignment rows). Confirms §10.5 click-through.
+  * `06_cc_owner_project_view`: CC-Owner (Thomas Brenner) project view — no dashboard (correct per §11.1).
+
+**Out of scope (deferred to later waves):**
+- ProjectSummaryPanel cache-miss fallback to `getProjectSummary` for deep-linked entries — W6.
+- Project-view scroll-to-role on assignment-panel open (§10.5 "pre-scrolled to the relevant role section") — AssignmentPanel-side behaviour.
+
+**Refactoring opportunities (deferred):**
+- The workspace fetches projects twice when `groupBy === 'project'`: once via `WorkspaceBody.useCapacityProjectsData()` (drives FilterChipBar + ProjectSummary cache) and once via `ProjectGroupView`'s internal fallback fetch. Could thread the hoisted snapshot through `CapacityTimeline` (`projectData` prop) so ProjectGroupView always uses the workspace's cache.
+- `CellDetail.tsx` / `PersonDetail.tsx` carry pre-existing uncommitted working-tree changes from a prior session that mirror the same provider-boundary pattern Track B implemented in `ProjectSummaryPanel`. Lead should review before W5 PR — they're consistent and address the same `useCapacitySidePanel must be used inside <CapacitySidePanelProvider>` runtime error that surfaces when the demand-mode side panel renders pending-request CTAs.
+
+**Track A — `react-specialist` (Session 6b — timeline overlay + gestures + entry points, 5 commits, `4d786d6` / `f2a53b1` / `d92db76` / `a68d20d` / `eef8cf3`):**
+
+Implements §9.4 ghost overlay during assignment mode + §9.6 assignment gestures + §9.1 cross-component entry points, decorating Wave 3 Track A's `PersonTimelineRow` / `RoleGroup` without disturbing the role-view rendering path.
+
+- NEW `frontend/src/modules/capacity/timeline/assignmentGhostOverlay.ts` — pure-function model that derives, for the active `AssignmentState.session`, the per-person × per-month ghost set: matching candidates (1.5px dashed, 30% opacity, project color) vs. fallback candidates (1px dashed, 15% opacity); over-allocation override (red dashed) when ghost + existing > 100%; CR direction override (blue for `increase`, orange for `decrease`) per §9.8; auto-expand role-group set so collapsed groups containing matching candidates pop open when the panel opens.
+- NEW `frontend/src/modules/capacity/timeline/useAssignmentOverlay.ts` — hook reading `AssignmentState` + the active `useScopedTimelineData` snapshot + cross-CC request fetch (`zero-404` fix in `eef8cf3` filters non-scope CCs out before the request loop so an Executive at All-CCs doesn't 404 on every CC-scoped request endpoint).
+- NEW `frontend/src/modules/capacity/timeline/GhostOverlay.tsx` + `GhostBar.tsx` — visual layers that absolute-position over the regular `SegmentBar`. Click-ghost → `setMonthAssignment(reqId, month, personId, fullRemainingHours)` and the segment solidifies. Click-just-assigned-solid (within session) shows "✕ Remove" tooltip → `clearMonthAssignment`.
+- MODIFY `frontend/src/modules/capacity/timeline/PersonTimelineRow.tsx` — composes `GhostOverlay` over the existing `SegmentBar` row. Click-name-cell → confirmation tooltip "Assign {name} to {N} months of {role}? Confirm/Cancel" → bulk-assigns the person to all unassigned matching-role months (never overwrites already-assigned).
+- MODIFY `frontend/src/modules/capacity/timeline/RoleGroup.tsx` — auto-expand role groups containing matching candidates whenever assignment mode opens (driven by `assignmentGhostOverlay`'s exposed set).
+- MODIFY `frontend/src/modules/capacity/sidepanel/PersonDetail.tsx` — pending-request card carries a closure-captured `onAssignmentRequest` prop; the side panel hands it down via `CapacitySidePanelContext.openPerson` (cross-provider bridge). Clicking "Review project" reaches `enterAssignmentMode` end-to-end.
+- MODIFY `frontend/src/modules/capacity/sidepanel/CellDetail.tsx` — same closure-captured `onAssignmentRequest` bridge for the demand-mode pending-request CTAs (resolves the `useCapacitySidePanel must be used inside <CapacitySidePanelProvider>` runtime error Track B noted in its handover).
+- MODIFY `frontend/src/modules/capacity/CapacityWorkspace.tsx` — replaces the demand-cell `void period` no-op with a real handler that fetches the period's pending-RR list and opens the side panel with a filtered `<DemandPeriodRequests />` content node; each row's "Review project" CTA → `openAssignment(projectId, { ccId, crId })`.
+- Open-while-dirty integration: clicking any entry point while another assignment session is dirty surfaces the W4 unsaved-changes dialog from `AssignmentStateContext.requestExit` before swapping projects.
+
+**Lead integration (no merge commits — teammates committed straight to the shared branch; Lead verification only):**
+
+- `npx tsc --noEmit` clean across the integrated branch.
+- `pytest tests/ -q` 1687 passed (1680 W4 baseline + 18 Lead-pre-work projects-endpoint tests + 7 Track-C audit/multi-person tests; the 18 from pre-work were already counted in the post-pre-work baseline so the W5 net new = 25). Background run completed in 124s.
+- Visual verification at 1440×900 via Playwright across all four personas in light + dark; screenshots in `qa/screenshots/v5_2_w5/`:
+  * `01_project_view_default_persona.png` / `02_project_view_viewport.png` — Controller @ All-CCs project view: full project list with fulfillment bars, dashboard cards visible above (multi-CC scope per §11.1), filter chips including "Needs staffing".
+  * `03_project_summary_side_panel.png` — clicking "Autonomous Braking Prototype" project group opens 280px Project Summary panel with role-by-role progress (`Senior Solution Ar... 640h / 640h` ✓ green; multiple `0h / Nh` red), `Total allocated (window) 0h`, "Review & assign" + "View in workbench" CTAs.
+  * `04_assignment_mode_panel.png` / `05_assignment_mode_full_page.png` — "Review & assign" → 400px AssignmentPanel with multi-person split rows (`F. Heinr... 80h` + `P. Sharma 80h` chips on each month).
+  * `06_role_view_baseline.png` — role view at MUC / Application Development scope, no regression.
+  * `07_role_view_assignment_ghosts.png` / `08_role_view_assignment_viewport.png` — role view + ?assignment_project=proj-autobrake URL param entry; live DOM check confirms 40 dashed-border ghost segments (sample: `border-color: rgb(133, 183, 235)` matching candidate; `rgb(220, 38, 38)` over-allocation; `border-width: 1px`, `opacity: 0.15` matches §9.4 fallback rule).
+  * `09_dark_role_view_assignment.png` — dark mode role view + assignment panel; semantic Tailwind classes carry through cleanly.
+  * `10_dark_project_view_cc_owner.png` — CC-Owner (Thomas Brenner) @ My-CC project view in dark mode; dashboard correctly hidden per §11.1, "Needs staffing" chip count visible.
+  * `11_pl_redirect_availability.png` — PL navigates to `/capacity` and is redirected to `/capacity/availability` per §15.
+  * `12_dark_project_view_executive.png` — Executive (Dr. Klaus Weber) @ All-CCs project view in dark mode; tabs are Workspace + History only (no Requests — correct per §12.1); KPI bar shows graceful "—" on `Pending requests` card after the W4 P1 fix (Promise.allSettled tolerates the expected 403 on `/api/capacity/inbox`).
+- Cross-track integration NOT needed — Track B's `ProjectGroupView.handleSlotClick` already wires `UnassignedSlotRow` → `enterAssignmentMode + openAssignment` end-to-end (the Lead pre-work brief had the wire-up scheduled as a Lead post-merge step but Track B took it).
+
+**Independent fresh-context reviewer pass (1 commit, `3bd765d`):**
+A read-only `code-reviewer-fresh` agent walked all 20 commits since `69948fd` and produced a prioritised report (7 P1s + 12 P2s + 13 P3s + a long "Looks good" section). All 7 P1s + 2 easy P2s addressed in `3bd765d`:
+- **P1 #1** — `confirm_project_resources` N+1 RRA fetch: bulk-fetch all `ResourceRequestAssignment` rows in one query before the per-request loop, group by `resource_request_id`. Was one round trip per pending request.
+- **P1 #2** — `useAssignmentOverlay` race: replaced fetch-token ref with the `cancelled`-flag pattern from `useCapacityProjectsData`. Each await stage now checks the flag, so a stale fetch can't pollute state if the user changes scope or exits assignment mode mid-flight.
+- **P1 #3** — Executive demand-cell graceful degradation: detect role client-side; Executive (no inbox access per §12.1) sees a calm "Demand details are read-only at your access level" empty state instead of the prior "Failed to load demand: 403" error banner.
+- **P1 #4 (defensive)** — `_visible_project_ids` hierarchy scope union: hierarchy branch now unions membership-assigned projects with allocation-derived projects, consistent with the `cost_center` / `location` branches. Spec §10.12 strict reading is preserved as a subset.
+- **P1 #5 (defensive)** — CR-reconfirm + partial precedence: when a CC Owner confirms a CR-bound project that's also partially fulfilled, the audit row now writes `partial_confirm` (was `cr_reconfirm`). Partial is the more actionable signal for the controller and surfaces in the §12.12 history "Partial" filter; CR context is preserved in `cr_id` column + `detail_payload.cr_id` + summary suffix ("Partially re-confirmed via CR — N of M months partial"). Added `test_cr_bound_partial_assignment_logs_partial_confirm`.
+- **P1 #6** — `ProjectGroupRow` 0/0 staffing badge: projects with zero RRs now render a neutral em-dash (`—`) badge using `bg-muted text-muted-foreground` instead of green ✓ which read as "fully assigned".
+- **P1 #7 (defensive)** — `compute_capacity_projects` PL role lookup ordering: load PLs into the `people` map BEFORE building `role_ids` so a future change rendering "PL role" in the response wouldn't silently miss the lookup. No active behaviour change.
+- **P2 #13** — `PersonPicker` hours input clamp on `onChange` (HTML `max` is only enforced at form submission; paste/type of `999` would commit out-of-bounds hours).
+- **P2 #14** — `UnassignedSlotRow` status badge: distinct red (unassigned) vs. amber (partial) classes per spec §10.5; pre-fix both branches used identical amber classes (dead ternary).
+
+The remaining 10 P2s + 13 P3s are deferred to a polish session — see the "Polish-session backlog" entries in the project-status memory.
+
+pytest 1688 passed (1687 W5 baseline + 1 new CR-bound-partial test). tsc clean. The independent reviewer's "Looks good" section explicitly called out: 18-case `/projects` test depth, full audit-vocabulary coverage including `decline_request` regression guard, cross-portal handler refs, idempotency guard rationale comments, dark-mode discipline (no slate-* leakage), and the legacy single-person assignment body-shape forward compat.
+
+**Out of scope (deferred to W6 by design — don't re-flag):**
+- Workbench → PL availability slide-over (§13.9) — Session 11.
+- End-to-end entry-point sweep + deprecation redirect audit across other modules (Portfolio approval queue / Launchpad pending actions still link to `/capacity/project-assignment/{pid}`) — Session 11.
+- Empty-state polish + keyboard navigation + horizontal-scroll sticky behaviour + responsive narrow viewports + perf at 50+ people × 36 months — Session 12.
+- W4 P2 / P3 polish backlog (utilization-distribution scope filter, `useDashboardData` shared hook, `UtilizationBucketKey` source of truth, hotspot row ccId resolution, etc.) — polish session post-W6.
+
+### v5.2 Wave 4 — Complex features (2026-05-08, branch `feat/v5_2-capacity-complex-features`)
+
+3-teammate `react-specialist` agent team (`v5_2-w4-capacity-complex-features`) running in parallel with worktree isolation off the shared branch. Lead pre-work + 3 tracks + Lead integration + 2 P1 fixes found during visual verification.
+
+**Lead pre-work (1 commit, `3148a28`):**
+- MODIFY `frontend/src/api/endpoints.ts` — widens `saveRequestAssignments` client signature to accept both legacy `[{month, person_id}]` and v5.2 multi-person `[{month, assignments: [{person_id, hours}]}]` shapes per spec §9.5 / §9.9. The W1 backend handles both via `_normalise_assignment_body`. The legacy `AssignmentGrid.tsx` keeps using the single-person shape; the new `AssignmentPanel.tsx` uses the v5.2 shape.
+
+**Track A — `react-specialist` (Session 6a, assignment panel UI, 3 commits, `90dea36` / `e9d2f7b` / `228f903`):**
+- NEW `frontend/src/modules/capacity/assignment/*` (12 files): `AssignmentStateContext` (single source of truth — projectId, optional crId, per-request `Map<reqId, Map<month, MonthPersonAssignment[]>>`, dirty flag, entry source; actions `enterAssignmentMode`, `setMonthAssignment`, `clearMonthAssignment`, `markSaved`, `exit`, `getRequestPayload`, `getDirtyRequestIds`); `AssignmentPanel` (registered via `registerAssignmentHandler`, widens panel to 400px via existing W3 width seam, fetches project detail + team heatmap + CC requests in parallel, filters requests to CC scope to prevent 404s on cross-CC projects); `ProjectHeader` + `CRBanner`; `AssignmentProgress` (progress bar + "N of M months assigned" — info-blue when incomplete, success-green at 100%); `RoleSection` + `RoleSectionHeader` (role name, request meta `80h/mo | high priority | Jun–Dec 2026`, completion badge `7/7` green or `3/7` amber, chevron); `QuickFill` (popover person picker + Fill button — assigns to all unassigned months in section without overwriting); `MonthRow` (month label + hours with CR diff `80h → 120h (+40h)` blue increase / orange decrease, unassigned: `── unassigned ──` + [Assign], assigned: PersonChip + disabled [+ Add] stub); `PersonChip` (abbreviated name + projected utilization colored by bucket + ✕ remove); `PersonPicker` (inline dropdown with "Matching role" / "Other roles" groups, type-to-filter search, projected util via `getRequestAssignmentPreview`, red + warning icon when >100%); `ExternalCostSection` (Confirm/Decline rows for `request_type='external_cost'` requests — inline textarea for decline reason); `AssignmentActionBar` (sticky bottom: "Save draft" / "Confirm & send to controller" / "Confirm partial & send to controller" / "Decline" — with success/declined state transitions); `index.ts` barrel export of `AssignmentStateProvider`, `useAssignmentState`, `AssignmentPanel`, and all types for W5 S6b consumption.
+- MODIFY `frontend/src/modules/capacity/CapacityWorkspace.tsx` — adds `AssignmentEntryPoint` component reading `?assignment_project=`, `?cc=`, optional `?cr=` URL params on mount + when params change; calls `enterAssignmentMode` and `openAssignment`; registers `<AssignmentPanel />` content via `registerAssignmentHandler`. Replaces the W3 placeholder banner.
+- MODIFY `frontend/src/App.tsx` — adds `<AssignmentStateProvider>` at root level (alongside `<SidePanelProvider>`) so the AssignmentPanel rendered as shared SidePanel content can read session state across the provider boundary.
+- MODIFY `frontend/src/contexts/SidePanelContext.tsx` — adds `registerBeforeClose` and `getBeforeCloseGuard` so panel content can intercept the × button click. Used by AssignmentPanel for unsaved-changes protection.
+- MODIFY `frontend/src/components/layout/SidePanel.tsx` + `AppLayout.tsx` — wires the before-close guard factory through to the close button click handler.
+- Single-person flow only; `[+ Add]` rendered-but-disabled per spec (W5 S10 activates the multi-person split UI). CR re-confirmation: month-row diffs render correctly. Ghost timeline borders deferred to W5 S6b.
+
+**Track B — `react-specialist` (Session 7, dashboard layer, 2 commits, `1fd18a6` / `abd2eb0`):**
+- NEW `frontend/src/modules/capacity/dashboard/*` (7 files): `DashboardLayer` (collapsible wrapper with 2×2 card grid; visibility = `(role === 'controller' || role === 'executive') && scope.kind !== 'cost_center'`; `localStorage` key `creta_capacity_dashboard_collapsed`; slide-up animation via `max-height` CSS transition); `DashboardToggle` (chevron + "Capacity Dashboard" label using Lucide `ChevronDown` / `ChevronRight`); `UtilizationDistributionCard` (Recharts vertical `BarChart`, 6 buckets >100% / 76–100% / 51–75% / 26–50% / 1–25% / 0% — see W4 P1 fix below for data source); `CapacityForecastCard` (Recharts `ComposedChart` with `Area` for Available + Allocated and `Line strokeDasharray="4 4"` for Demand; green surplus shading; month click dispatches `capacity:expand-month` CustomEvent for W5 timeline wiring); `HeadcountBreakdownCard` (single horizontal stacked `BarChart` with dimension switcher dropdown — location/hierarchy/role/CC; `localStorage` key `creta_capacity_headcount_dimension`; click segment → `setScope` for location/hierarchy/CC dimensions); `HotspotListCard` (plain HTML/CSS ranked list — `openPerson` for over-allocation/under-utilization rows, `openCell({dimensionId:'demand', pivot:'role'})` synthesized payload for unfulfilled-demand rows per user decision 2a; "View all / Show less" toggle; `CheckCircle` empty state); `index.ts` barrel.
+- MODIFY `frontend/src/modules/capacity/CapacityWorkspace.tsx` — slot insertion: imports `DashboardLayer` and renders it between `<KPISummaryBar />` and `<FilterChipBar />`. Updates docstring.
+
+**Track C — `react-specialist` (Session 8, PL availability view, 6 commits, `4edb0c2` / `05bcd83` / `0303ece` / `be0d577` / `9c0a997` / `c490e3c`):**
+- NEW `frontend/src/modules/capacity/availability/*` (8 files): `types.ts` (internal `RoleData` + `SelectedRole` view-layer types); `AvailabilityScopeBar` (single-select location dropdown with `(headcount)` labels — zero-headcount locations hidden; multi-select role filter via `Popover` + `Command` with checkbox indicators; reset button); `AvailabilityKPIs` (3 `SummaryCard` instances — Roles shown / Total headcount / Avg availability); `AvailabilityGrid` (imports `TimeAxisHeader` from W3 timeline — same year/quarter/month collapse behaviour; owns its own `TimeAxisState`; default 12-month window with Q2 2026 expanded to months); `RoleAvailabilityRow` (two-layer bar: dark allocated / light available; color thresholds ≥50% green / 20–49% amber / <20% red / 0% fully dark + small red `Full` label; competing-demand badge via Lucide `Zap`); `AvailabilitySidePanel` (header + monthly breakdown table Capacity/Allocated/Available/Competing + location comparison section visible only when "All locations" + `QuickRequestAction` CTA navigating to `/workbench?request_role={id}&location={loc_id}`); `QuickRequestAction` (Request this role button); `index.ts` barrel.
+- REWRITE `frontend/src/modules/capacity/PLAvailabilityView.tsx` — replaces W2 placeholder with full implementation. Self-contained — no `CapacityScopeContext` dependency. URL-synced `?location=` and `?role=` params via `useSearchParams`. Fetches `getRoleAvailability({location_id, role_type_id, start, end})`. Merges multi-location rows when "All locations" selected. Client-side role filter. Opens panel via shared `useSidePanel()` at 280px.
+- MODIFY `frontend/src/types/api.ts` — extends `RoleAvailabilityRow` with `competing_demand_count` field, adds `LocationAvailabilitySummary` type, adds optional `location_summary?` field to `RoleAvailabilityResponse` per spec §13.10.
+- Privacy verification: `grep -rn "person_name|project_name|cost_center_name|pl_name" frontend/src/modules/capacity/availability/ frontend/src/modules/capacity/PLAvailabilityView.tsx` returns zero matches.
+- Slide-over wrapper for the Workbench entry point deferred to W6 S11.
+
+**Lead integration (2 merge commits, `728ff78` / `3513c97`):**
+- Merge Track B worktree branch — 2 trivial doc/import conflicts in `CapacityWorkspace.tsx` (Track A and Track B both edited the file in different sections). Resolved by keeping both improvements: Track A's URL-param entry docstring + Track A's `useAssignmentState` / `AssignmentPanel` imports + Track B's `DashboardLayer` import + Track B's slot insertion. Combined docstring.
+- Merge Track C worktree branch — clean ort merge; no conflicts.
+- `npx tsc --noEmit` clean across all 3 tracks + integration.
+- Backend `pytest tests/ -v` — 1653 passed (W3 baseline maintained — no new tests at this stage).
+
+**P1 fixes found during visual verification (2 commits, `f508a24` / `ef3e81d`):**
+- **P1-1 — Utilization Distribution card empty at multi-CC scope** (`f508a24`): Track B sourced bucketing from `useScopedTimelineData()` per the spec's "client-side aggregation" assumption, but that hook returns `unsupportedReason='org-scope-not-yet-supported'` at any scope other than a single CC (W3 deferral). Result: the card showed "No data available for current scope" on every Controller/Executive landing — exactly the scope where the dashboard renders per §11.1.
+  - NEW `GET /api/capacity/dashboard/utilization-distribution?scope=&start=&end=` endpoint. Server-side computes per-person mean utilization across the visible window and returns `{bucket, count}[]` for all 6 buckets (`zero | 1_25 | 26_50 | 51_75 | 76_100 | over_100`). Empty buckets are included so the chart axis is stable across scope changes.
+  - NEW service function `compute_utilization_distribution` in `backend/services/capacity_dashboard.py` reusing `_scoped_person_ids` and `compute_utilization_pct`.
+  - NEW schema `UtilizationDistributionBucket` + `UtilizationDistributionResponse` in `backend/schemas/capacity.py`.
+  - NEW typed client `getDashboardUtilizationDistribution(scope, start?, end?)` in `frontend/src/api/endpoints.ts`.
+  - NEW types `UtilizationBucketKey` + `UtilizationDistributionBucket` + `UtilizationDistributionResponse` in `frontend/src/types/api.ts`.
+  - REWRITE `UtilizationDistributionCard.tsx` — fetches from the new endpoint via `scopeToApiParam(scope, ccId)`; loading/error states. Bucket colors switched from the oklch chart-X palette (which doesn't map to spec semantics in light mode) to stable Tailwind hex values (red `#ef4444` / amber `#f59e0b` / green `#22c55e` / blue `#3b82f6` / light-blue `#93c5fd` / gray `#9ca3af`) that read correctly in both themes per spec §11.3.
+  - 9 new backend tests in `test_router_capacity_dashboard.py`: shape × 3 (200 status, response envelope, all-six-buckets-present-even-when-empty), semantics × 3 (total = sum-of-buckets, idle person → zero bucket, invalid window → 400), role gating × 3 (PL forbidden, Executive can read, CC Owner can read).
+- **P1-2 — KPI bar blanks every card for Executive** (`ef3e81d`): KPISummaryBar called `Promise.all([...getInbox])`, but `getInbox` returns 403 for Executive per spec §12.1 (Executive doesn't action requests). One rejection killed the whole chain → all five cards showed `—`.
+  - Switch to `Promise.allSettled` so partial failures degrade gracefully. Pending requests shows 0 for Executive (correct — they can't see the queue anyway). The error banner only fires when ALL of headcount/forecast/hotspots fail; one missing endpoint just leaves that card's input empty.
+
+**Verification (Lead):**
+- `npx tsc --noEmit` clean.
+- Backend `pytest tests/ -q` — **1662 passed** (1653 W3 baseline + 9 new W4 utilization-distribution tests). 0 failures.
+- Visual verification at 1440×900 light + dark via Chrome DevTools MCP, screenshots in `qa/screenshots/v5_2_w4/`:
+  * Controller @ All-CCs (light + dark): dashboard layer renders four cards with real data — Utilization Distribution (21/15/7/5/1/0 across the six buckets, total 49 matching the API), Capacity Forecast (3 series with green gap shading), Headcount Breakdown (Munich 20 / Budapest 16 / Pune 13, total 49), Capacity Hotspots (15 issues: 4 unfulfilled-demand + 1 chronic under-utilization). Dashboard hides on My-CC scope with slide-up animation; timeline + KPI bar unchanged from W3 baseline.
+  * CC Owner navigation `/capacity/requests` → click "Review & assign" on Autonomous Braking Prototype: routes to `/capacity?assignment_project=proj-autobrake&cc=cc-muc-apd&scope=my_cc`; AssignmentPanel renders at 400px with project header (TBS / PL Priya Sharma / period), progress bar `44 of 95 months assigned`, role section "Senior Solution Architect" with `10/10` completion, Quick Fill row, month rows Jun 2026 – Apr 2027 with assignment slots; CR re-confirmation pre-fills unchanged months.
+  * PL `/capacity/availability` (light + dark): Resource Availability page renders 12 role rows × 12 month bars with two-layer fill (allocated dark / available light); KPIs `Roles shown: 12 / Total headcount: 49 / Avg availability: 84%`; click Senior Developer row → side panel opens at 280px with monthly breakdown table (Capacity/Allocated/Available/Competing); privacy preserved (no person/project/CC/PL names rendered).
+  * Executive @ All-CCs: dashboard renders with all KPI cards populated (P1-2 fix); "Read-only view" indicator shown; My CC pill hidden; Requests nav link hidden per §12.1.
+  * Hotspot click flow: clicking the "Developer — 3 open requests, 5700h unassigned" hotspot opens the side panel with the synthesized demand-cell payload (decision 2a). The panel shows the role context; richer demand-mode rendering is a W5 polish follow-up.
+- Screenshots: 01 controller all-CCs light (pre-fix, shows P1-1 empty state for documentation), 02 controller my-CC dashboard hidden, 03 cc-owner inbox, 04 + 04b cc-owner assignment panel, 05 PL availability light, 06 PL availability side panel, 07 PL availability dark, 08 + 08b controller dashboard fixed light, 09 controller dashboard dark, 10 hotspot demand click → CellDetail, 11 executive dashboard read-only.
+
+**Out of scope (deferred to later waves):**
+- Multi-person split UI — Wave 5 S10 activates the `[+ Add]` button.
+- Timeline ghost overlay during assignment mode + assignment gestures + non-URL entry-point wiring (person-detail "Review project", demand strip, project view) — Wave 5 S6b.
+- Group-by-project view — Wave 5 S9.
+- Workbench slide-over of PL availability — Wave 6 S11.
+- CellDetail "demand" mode richer rendering (currently shows the role context + "No project allocations for this period" placeholder; could be enriched to show pending-request list per role/month) — Wave 5 polish or W6.
+
+**Refactoring opportunities (deferred):**
+- KPI bar's per-card data sourcing is duplicated across `KPISummaryBar.tsx` (uses `getDashboardForecast`) and `CapacityForecastCard.tsx` (also uses `getDashboardForecast`). A shared `useDashboardData()` hook would deduplicate the network call.
+- `UtilizationBucketKey` vocabulary lives in both `frontend/src/types/api.ts` and `backend/services/capacity_dashboard.py` (`_DISTRIBUTION_BUCKETS`). Consider a single source of truth — e.g., generate from the OpenAPI schema or codify in a shared constants module.
+
+### v5.2 Wave 3 — Core surfaces (2026-05-08, branch `feat/v5_2-capacity-core-surfaces`)
+
+Branch cut by Lead from `main` post-W2 merge. 4-teammate `react-specialist` team (`v5_2-w3-capacity-core-surfaces`) running in parallel with clean file ownership; all teammates committed directly to the shared branch.
+
+**Lead pre-work (5 commits, `f4c6b13` / `010cbe1` / `ecd043f` / `202b77b` / `0d13862`):**
+- ADD shadcn primitives via CLI: `popover`, `command`, `scroll-area` (for filter dropdowns + searchable multi-selects + timeline scroll viewport). Pulls in `cmdk@^1.1.1`.
+- MODIFY `frontend/src/api/endpoints.ts` — wires the W1 dashboard/history endpoints into `capacityApi` (`getDashboardForecast`, `getDashboardHeadcountBreakdown`, `getDashboardHotspots`, `getCapacityHistory`) and adds the new W3 `getInbox(filters)` client. NEW `frontend/src/lib/capacityScopeApi.ts::scopeToApiParam(scope, ccId)` translates the W2 frontend `CapacityScope` shape to the W1 backend scope vocabulary (`all` / `cost_center:<id>` / `location:<id>` / `hierarchy:<id>`).
+- NEW `frontend/src/lib/projectColors.ts` — 7-color rotating project palette per spec §3.2 (hex). NEW `frontend/src/contexts/ProjectColorMapContext.tsx` — Provider with `registerVisibleProjects()` (append-only) + `useProjectColor(projectId)` hook.
+- MODIFY `frontend/src/contexts/CapacityScopeContext.tsx` — adds `FilterChipKey` union (`all` / `over_allocated` / `under_utilized` / `pending_requests` / `unassigned_months`) per §6, `activeFilters` + `setActiveFilters` + `normalizeActiveFilters()` helper enforcing mutual exclusivity, and `pendingRequestsKpi` + `setPendingRequestsKpi` seam so the W3 KPI bar can publish the value to the `CapacityModuleNav` Requests badge without a duplicate fetch.
+- NEW `backend/routers/capacity.py::GET /api/capacity/inbox` per spec §12.3 — project-per-CC triage queue with role badges, unassigned hours, age, priority, status (new/in_progress/re_confirm), CR distinction. Server-side aggregation per CLAUDE.md "frontend receives ready-to-render data". Authorization: Controller all CCs; CC Owner own CC server-scoped; Executive 403; PL 403. NEW `backend/schemas/capacity.py::CapacityInboxItem` + `CapacityInboxResponse` + `CapacityInboxRoleBadge`. NEW `backend/tests/test_router_capacity_inbox.py` — 21 tests (shape, role gating, multi-CC fan-out, CR distinction, status derivation, role-badge aggregation, unassigned-hours math, project priority from highest RR, age, default sort priority/age, status/role/CC/PL filters, empty state).
+
+**Track A — `react-specialist` (Session 3, timeline + collapsible time axis, 7 commits):**
+- NEW `frontend/src/modules/capacity/timeline/timeAxis.ts` — `TimeAxisState` type, `defaultTimeAxisState(window, demoDate)` per §4.5 (current FY → quarters; current quarter → months; past/future years collapsed), `buildVisibleColumns(state, months)` returning the flattened column list with each column's level (`year|quarter|month`) and width (48/48/42px per §4.6), `computePeriodSummary` for collapsed-period averages (§4.4).
+- NEW `frontend/src/modules/capacity/timeline/TimeAxisHeader.tsx` — two-row header (year/quarter row + month row), chevron click handlers per §4.3.
+- NEW `frontend/src/modules/capacity/timeline/SegmentBar.tsx` + `PersonTimelineRow.tsx` — name cell 160px sticky-left + bar cells with stacked colored project segments. Over-allocation 1.5px red border at >100% (§3.1). Summary bars at 0.85 opacity for collapsed periods (§4.4) including red border when any hidden month exceeds 100%. Tooltips on segments (`Project: Xh`) and gaps (`Available: Xh`).
+- NEW `frontend/src/modules/capacity/timeline/RoleGroup.tsx` + `FlatPersonRow.tsx` — expandable role section with chevron + aggregate bar at 50% opacity (§3.3); flat variant for `groupBy === 'person'` sorted by peak utilization desc (§3.6).
+- NEW `frontend/src/modules/capacity/hooks/useScopedTimelineData.ts` — fetches based on `(scope, groupBy)`: `cost_center:<id>` → `getTeamHeatmap(ccId)`; other scopes return `unsupportedReason='org-scope-not-yet-supported'` with an explanatory empty state (org-scope timeline lifts to W4 dashboard layer per §11). Per-person `getPersonDetail` calls merge project segments into the heatmap utilization cells.
+- NEW `frontend/src/modules/capacity/timeline/CapacityTimeline.tsx` — composition root: scroll-area + `TimeAxisHeader` + sorted `RoleGroup`s (or `FlatPersonRow`s). Owns `TimeAxisState` locally (NOT in scope context per §4.2). Registers visible project ids with `ProjectColorMapProvider` so segment colors stay stable. + barrel `index.ts`.
+
+**Track B — `react-specialist` (Session 4, KPI bar + filter chips + demand strip, 4 commits):**
+- NEW `frontend/src/modules/capacity/filters/filterPeople.ts` — pure utility `filterPeople(rows, activeFilters) → rows` plus `rowMatchesFilter` predicate exported for chip-badge counts. Loose `TimelineRow` shape (`person_id`, `monthly_utilization`, `has_pending_request`, `has_unassigned_months`) so any data source can feed it. `UNDER_UTILIZED_THRESHOLD=40` per §6.1.
+- NEW `frontend/src/modules/capacity/kpi/KPISummaryBar.tsx` — 5 SummaryCard tiles per §5.2 (Headcount / Avg utilization / Over-allocated / Pending requests / Supply gap). Data sourced from `getDashboardHeadcountBreakdown` (count) + `getDashboardForecast` (windowed avg + over-allocation count derived) + `getDashboardHotspots` (filtered to `over_allocation+target_type=person` and `unfulfilled_demand+target_type=role`) + `getInbox` (sum of role badges). Click handlers route to `setActiveFilters` per §5.4. Pending-requests value publishes to `setPendingRequestsKpi` so `CapacityModuleNav` reads the same number.
+- NEW `frontend/src/modules/capacity/filters/FilterChipBar.tsx` — 5 pill buttons (All / Over-allocated / Under-utilized / Pending requests / Unassigned months) with count badges via `countMatching(rows, chip)`. Mutual exclusivity with All per §6.2; multi-specifics AND. Active state inverts colors per §6.3. Reads `activeFilters` from CapacityScopeContext.
+- NEW `frontend/src/modules/capacity/demand/DemandStrip.tsx` — sticky-bottom row, one cell per visible time column showing `+N` of unfulfilled requests. Color thresholds: 0=empty, 1–2=warning amber, 3+=danger rose (with dark variants per CLAUDE.md). Collapsed period shows peak (not sum/avg) per §8.3. `peakForPeriod` helper. Data sourced from `getDashboardForecast.demand_hours` divided by `RR_HOURS_PER_MONTH` proxy. Hidden when `groupBy === 'project'` per §10.7.
+
+**Track C — `react-specialist` (Session 5a, side panel + person/cell detail, 4 commits):**
+- NEW `frontend/src/modules/capacity/sidepanel/widths.ts` — `CapacityPanelKind` enum + `CAPACITY_PANEL_WIDTH` (person=280, cell=280, project_summary=280, assignment=400 per §7.1 / §9.2 / §10.8).
+- NEW `frontend/src/modules/capacity/sidepanel/CapacitySidePanelContext.tsx` — capacity-scoped wrapper around the shared `useSidePanel()`. Exposes `mode`, `openPerson(ccId, personId)`, `openCell({dimensionId, pivot, month, rowLabel})`, `openProjectSummary` (no-op stub for W4 S6a), `openAssignment` (no-op stub for W4 S6a) + `registerProjectSummaryHandler` / `registerAssignmentHandler` plug-in seams. Width-per-mode dispatch via `openPanel(title, content, { width })`. Lead integration commit replaces the dispatcher-node pattern with concrete `<PersonDetail />` / `<CellDetail />` content per call (the shared SidePanel renders content outside the provider tree).
+- NEW `frontend/src/modules/capacity/sidepanel/PersonDetail.tsx` — header (name / role / location badge), Allocations section with project color dots from `useProjectColor` + names + hours/month (project name links to `/workbench?project={id}`), Monthly summary (utilization-by-quarter colored buckets), conditional Pending requests + Demand pipeline sections. "Review project" buttons emit a callback that downstream tracks (W4 S6a) wire to assignment-mode entry.
+- NEW `frontend/src/modules/capacity/sidepanel/CellDetail.tsx` — header (row label + period), summary block (Allocated / Available / Delta with color), expandable project-allocations list with per-person breakdown.
+- NEW `frontend/src/modules/capacity/sidepanel/CapacityPanelContent.tsx` (kept for downstream W4 use, currently unused by Lead integration) + barrel `index.ts`.
+
+**Track D — `react-specialist` (Session 5b, inbox + history, 12 commits):**
+- NEW `frontend/src/modules/capacity/shared/Pagination.tsx` — small custom prev / numbered / next pager (shadcn doesn't ship a Pagination primitive in this codebase). Used by the History page.
+- NEW `frontend/src/modules/capacity/shared/personaPersonId.ts` — demo persona → `person_id` mapping. Used by the History "Me" default and the inbox's recently-completed "current user" filter.
+- NEW `frontend/src/modules/capacity/requests/InboxFilterBar.tsx` — status pill group + Role / PL / Cost-center popovers (cmdk command list with checkbox indicators). CC dropdown hidden for CC Owners.
+- NEW `frontend/src/modules/capacity/requests/RequestRow.tsx` — one (project, CC) row per spec §12.3 with CR pill + summary line, hierarchy node badge, role badges, age + status + priority pills (colour rules), and "Review & assign" + "Decline all" action group. Decline opens an inline `<DeclineInlineForm>` beneath the row; row gets a strikethrough + fade-out animation post-decline.
+- NEW `frontend/src/modules/capacity/requests/DeclineInlineForm.tsx` — inline expansion textarea + Cancel / Confirm decline buttons.
+- NEW `frontend/src/modules/capacity/requests/RequestTable.tsx` — sortable shadcn table with default `priority desc → age desc` (matches the server) and an EmptyState card when the filtered set is empty.
+- NEW `frontend/src/modules/capacity/requests/RecentlyCompletedSection.tsx` — collapsed-by-default section at the bottom of the inbox listing the last 7 days of completed actions (`getCapacityHistory` filtered to confirm/partial/decline/cr_reconfirm; CC Owner is server-scoped, Controller is filtered to their own person_id). "View full history" link → /capacity/history. Refreshable via a parent nonce so post-decline actions update without a remount.
+- REWRITE `frontend/src/modules/capacity/RequestsInbox.tsx` — page composition + URL state (`useSearchParams({ replace: true })` for filter + sort) + decline orchestration (3-second strikethrough + concurrent inbox refresh + recently-completed bump).
+- NEW `frontend/src/modules/capacity/history/HistoryFilterBar.tsx` — User searchable dropdown (with role-aware "Me" entry), Action multi-select pill group, multi-select Cost-center popover (hidden for CC Owners), Project searchable dropdown, From/To date inputs. Reset filters button + active-state detection compare against the role-default fallback.
+- NEW `frontend/src/modules/capacity/history/HistoryRow.tsx` — Date / User / Action badge / Project / CC / Summary columns + chevron toggle.
+- NEW `frontend/src/modules/capacity/history/HistoryDetailExpand.tsx` — structured detail_payload breakdown: roles affected, people assigned, optional CR info, decline reason, "View project in workbench" link.
+- NEW `frontend/src/modules/capacity/history/HistoryTable.tsx` — sortable shadcn table; sort is server-side via `getCapacityHistory` params. EmptyState card when filters yield nothing.
+- REWRITE `frontend/src/modules/capacity/CapacityHistory.tsx` — page composition + URL state (filter + sort + page) + dropdown options (users from rolesApi mapped via PERSONA_TO_PERSON_ID, CCs from referenceApi, projects from workbenchApi) + Pagination footer. Default filter rules per spec §12.12: CC Owner → User=Me, Controller / Executive → User=All; date range default = last 30 days.
+
+**Verification (Track D):**
+- `tsc --noEmit` clean.
+- Backend `/api/capacity/inbox` + `/api/capacity/history` consumed unchanged.
+- Visual verification at 1920×1000 across Controller (all CCs visible), CC Owner (CC column hidden, server-scoped) and Executive (read-only history) personas; light + dark themes; Decline-all inline form expansion; History expanded-row payload rendering. Screenshots: `qa/screenshots/w3-trackd-{01..09}*.png`.
+
+**Lead integration (2 commits, `e90ae51` / `60c23ef`):**
+- REWRITE `frontend/src/modules/capacity/CapacityWorkspace.tsx` — replaces W2 placeholder slots with the real components in spec §1.3 layout order (ScopeBar → KPISummaryBar → FilterChipBar → CapacityTimeline → DemandStrip). Wraps the workspace tree in `<CapacitySidePanelProvider>`. Lifts `useScopedTimelineData()` to the workspace level so FilterChipBar gets live badge counts off the same dataset the timeline renders. Hint card when an active filter combination hides every row.
+- MODIFY `frontend/src/modules/capacity/CapacityModuleNav.tsx` — Requests badge source change. When the `CapacityScopeProvider` is mounted (workspace + inbox + history routes), the badge reads the live `pendingRequestsKpi` value published by KPISummaryBar (Lead 0.4 seam). Falls back to the layout shell's `pendingRequestCount` prop when the provider isn't available (e.g., the PL availability route). New `useCapacityScopeOptional()` hook on the context for safe non-throwing access.
+- MODIFY `frontend/src/App.tsx` — lifts `<ProjectColorMapProvider>` to the App level (above `<AppLayout>`). The shared `SidePanel` renders captured content nodes inside `AppLayout`, *outside* any per-route provider — so when the side panel hosted PersonDetail (which calls `useProjectColor`), the per-workspace provider was unreachable. The lift gives timeline rows AND side-panel allocation dots a single shared map.
+- MODIFY `frontend/src/modules/capacity/timeline/CapacityTimeline.tsx` — drops its inner `ProjectColorMapProvider` (lifted to App.tsx) so the map is a single instance across the workspace + the side panel.
+- MODIFY `frontend/src/modules/capacity/sidepanel/CapacitySidePanelContext.tsx` — replaces the dispatcher-node pattern with concrete content per call: `openPerson` passes `<PersonDetail ccId personId />` directly; `openCell` passes `<CellDetail ... />` directly. Track C's original dispatcher relied on `<CapacityPanelContent />` re-reading `mode` from the capacity context at render time — but that node is captured as a React element by the shared `SidePanelContext` and rendered later inside `AppLayout`, where the capacity context is unreachable. Concrete content sidesteps that.
+
+**Verification (Lead):**
+- `npx tsc --noEmit` clean across all 4 tracks + integration.
+- Backend `pytest tests/ -v` — 1653 passing (1632 W1 baseline + 21 new W3 inbox tests). 0 failures.
+- Curl-smoke `/api/capacity/inbox`: Controller sees 5 rows including proj-autobrake's 3-CC fan-out (cc-muc-apd / cc-bud-apd / cc-pun-apd); CC Owner (Thomas Brenner) sees 3 own-CC rows; Executive 403; PL 403.
+- Visual verification at 1440×900 in light + dark mode (Chrome DevTools MCP):
+  * Workspace at My CC / MUC App Dev (Controller): KPI bar shows 5 / 27.6% / 1 / 6 / 5 roles; filter chips show All=20 / Over-allocated=2 / Under-utilized=14 / Pending=0 / Unassigned=0; timeline renders 5 role groups (Developer, Junior Developer, QA / Test Engineer, Senior Solution Architect, Senior Developer) with 11 person rows; default time-axis collapse (Q2 2026 expanded to Apr/May/Jun, others collapsed to year/quarter); Lena Fischer's Q2 row shows the red over-allocation border with stacked ERP Integration Phase 2 segments at 165h/mo.
+  * Person detail panel (click Lena Fischer): renders at 280px with project color dots matching the timeline segments, Allocations section "ERP Integration Phase 2: 123h/mo", Monthly summary 2026 Q2=103% Q3=50% Q4=0%.
+  * Demand strip: monthly cells +2 / +2 / +5 / +4 / +4 / ... at My-CC scope (CC Owner-scoped, cc-muc-apd only); aggregate +2 / +2 / +8 / +7 / ... at All-CCs scope.
+  * `/capacity/requests` Controller: 5 rows with proj-autobrake 3-CC fan-out, "CR" pill on ERP Integration Phase 2 + Sensor Data Pipeline rows, status badges (Re-confirm blue, In progress amber, New gray).
+  * `/capacity/requests` CC Owner: 3 own-CC rows, no CC column rendered (matches §12.6).
+  * `/capacity/history`: 3 entries, action-type pill multi-select active for all 5 categories, date range last-30-days default, sort timestamp desc, action badges colored (Draft saved gray, Re-confirmed blue, Confirmed green).
+  * PL persona auto-redirects from `/capacity` → `/capacity/availability` (W2 placeholder, real implementation lands in W4 S8); CapacityModuleNav hidden for PL.
+  * Dark mode rendered correctly across all surfaces (semantic Tailwind tokens, dark-variant classes for status badges).
+  * Screenshots: `qa/screenshots/v5_2_w3/{01..08}*.png` (Controller workspace light + dark, person detail, inbox, history, CC Owner inbox, PL redirect).
+
+**Out of scope (deferred to later waves):**
+- Group-by-project view (§10) — Wave 5 S9.
+- Dashboard layer charts (§11 — utilization distribution, capacity forecast, headcount breakdown, hotspot list) — Wave 4 S7.
+- Assignment panel (§9) including timeline overlay + gestures (§9.4 / §9.6) — Wave 4 S6a + Wave 5 S6b.
+- PL read-only availability view (§13) — Wave 4 S8.
+- Multi-person assignment UI on the assignment panel (§9.5) — Wave 5 S10.
+- Org-scope timeline rendering — currently shows an "org-scope timeline coming in W3 Track B / S7" empty state when `scope ≠ my_cc`. The KPI bar + dashboard cards (W4) carry the org-wide view; the spec doesn't require per-person timeline rows at All-CCs scope.
+- FilterChipBar `pending_requests` + `unassigned_months` chip predicates currently default to `false` per row because the timeline data feed doesn't include per-person request linkage. The chip count badges therefore under-report; both predicates light up once the timeline merges resource-request data in W4 S6a.
+
+**Refactoring opportunities (deferred):**
+- `Track D` shipped a `personaPersonId.ts` helper that overlaps with `RoleContext.context.person_id`. Consolidate in a future polish pass.
+- Lead integration `buildFilterRows` adapter could be replaced once `useScopedTimelineData` natively exposes the shape FilterChipBar wants (drops the duplication).
+
+### v5.2 Wave 2 — Frontend workspace shell (2026-05-08)
+
+Branch: `feat/v5_2-capacity-shell`. Closes Implementation Guide Session 2 — frontend shell only, no backend work. Two-teammate agent team (`v5_2-w2-capacity-shell`) with clean file ownership; both worktrees committed directly to the shared branch (worktree isolation didn't take effect, but file split prevented collisions).
+
+**Track A — `react-specialist` (5 commits, `0e72a8a` / `8a19aa6` / `c5706cb` / `e470da1` / `f43a120`):**
+- NEW `frontend/src/contexts/CapacityScopeContext.tsx` — provider + hook exposing `{ scope, groupBy, ccId, setScope, setGroupBy, setCcId }`. Role-aware defaults: CC Owner → `my_cc` pinned to `managed_cost_center_id`; Controller → `all_ccs`; Executive → `all_ccs`. Default groupBy `role`.
+- NEW `frontend/src/modules/capacity/hooks/useScopeQueryParams.ts` — syncs scope/groupBy/cc state with `?scope=…&group=…&cc=…` via `useSearchParams`. Restored on mount; `replace`-navigates on change.
+- NEW `frontend/src/modules/capacity/ScopeBar.tsx` — pill groups per spec §2.1: scope (`All CCs` / `My CC` / per-Location / per-top-level-hierarchy-node) + group-by (`Role` / `Project` / `Person`). Controller `My CC` selection renders a searchable shadcn `Select` dropdown next to the pill (replaces legacy `CapacityManagement.tsx:77–95`). CC Owner: My CC pinned, no dropdown. Executive: My CC pill hidden + "Read-only view" indicator (per §2.5). Master data via `referenceApi.getLocations()` + `capacityApi.getOrgHeatmap('lob')` (existing patterns).
+- NEW `frontend/src/modules/capacity/CapacityWorkspace.tsx` — top-level workspace under `/capacity`: renders `<ScopeBar />` + 5 labelled placeholder slot Cards (KPI bar / Dashboard layer / Filter chips / Timeline / Side panel) each with a "Wave 3" deferral note.
+- REFACTOR `frontend/src/modules/capacity/CapacityManagement.tsx` (191 → 47 LOC) — shrunk to a thin layout shell: `ModuleHeader` + `<CapacityModuleNav />` + `<Outlet />`. PL gate redirects to `/capacity/availability`. Removed legacy CC selector + Tabs + inner `<Routes>`.
+- MODIFY `frontend/src/App.tsx` — registered new `/capacity/*` route tree with `CapacityManagement` layout wrapping the four child routes; `/capacity/project-assignment/:id` deprecation redirect → `/capacity?assignment_project={id}`.
+
+**Track B — `react-specialist` (3 commits, `63d8306` / `581b78e` / `e3c75b2`):**
+- MODIFY `frontend/src/contexts/SidePanelContext.tsx` — added `width: number` to context state and `opts?: { width?: number }` to `openPanel()`. Default 380px (extracted to `frontend/src/lib/sidePanelConstants.ts` to keep React Fast Refresh happy). Width resets to default on `closePanel`. NEW `frontend/src/lib/sidePanelConstants.ts` exports `DEFAULT_SIDE_PANEL_WIDTH=380`.
+- MODIFY `frontend/src/components/layout/SidePanel.tsx` — removed hardcoded `w-[380px]` Tailwind class; reads `width` from context, applies via inline `style={{ width }}` with default fall-through. `frontend/src/components/layout/AppLayout.tsx` updated similarly so the main margin-right tracks the panel width (no more hardcoded `mr-[380px]`).
+- NEW `frontend/src/modules/capacity/CapacityModuleNav.tsx` — secondary nav strip (`Workspace | Requests (N) | History`) per spec §12.1. Role visibility: Controller (3 links), CC Owner (3 links), Executive (Workspace + History only — Requests hidden), PL (nav not rendered). Badge count on Requests sourced from `pendingRequestCount` prop (parent layout passes `CapacityContext.pending_request_count` from W1 backend); badge hides when count is 0.
+- NEW placeholder skeletons — `frontend/src/modules/capacity/RequestsInbox.tsx`, `CapacityHistory.tsx`, `PLAvailabilityView.tsx`. Each renders `ModuleHeader` + page title + a deferred-to-later-wave note (W3 / W3 / W4 respectively).
+
+**Out of scope (intentional, per plan):**
+- Existing My Team / Org / RequestManagement code stays in repo but unrouted — the legacy `modules/capacity/myteam/`, `org/`, `requests/` directories are now dead code, scheduled for deletion as W3 (S5b) lands the real Inbox and W3 (S3+S4) lands the real Workspace timeline + KPI bar.
+- The `/capacity/requests` route is now a placeholder; the functional CC Owner triage queue from v5.1 is *temporarily* unavailable between this PR's merge and the W3 PR's merge. Decision locked with user (clean-cut over preserve-legacy).
+- Slots in `CapacityWorkspace` are visual placeholders only — no data fetches off scope changes yet.
+
+**Verification:**
+- `tsc --noEmit` clean.
+- `npm run lint` — 5 new `react-refresh/only-export-components` warnings on `CapacityScopeContext.tsx` (matches pre-existing pattern in `ThemeContext.tsx`, `RoleContext.tsx`, etc. — codebase baseline). Also `CapacityManagement.tsx:47` has a `react-hooks/set-state-in-effect` warning, preserved from the pre-W2 location at line 119 of the same file (not a new regression).
+- pytest 1632 passed (W1 baseline preserved, frontend-only change as expected).
+- Visual verification via Chrome DevTools MCP at 1440px in BOTH light and dark mode across all 4 personas: Controller (Anna Meier) sees 3-link nav + ScopeBar with My CC dropdown; CC Owner (Thomas Brenner) sees My CC pinned to `cc-muc-apd`; Executive (Klaus Weber) sees All CCs + Workspace/History nav (no Requests, no My CC pill, "Read-only" indicator); PL (Priya Sharma) auto-redirects to `/capacity/availability`. Deprecation redirect `/capacity/project-assignment/proj-pmpoc` → `/capacity?assignment_project=proj-pmpoc` verified. Existing SidePanel callers (Help FAQ on backlog) still render at 380px default — no regression. Screenshots in `qa/screenshots/v5_2_w2/` (8 shots).
+
+**Refactoring opportunities (deferred):**
+- `CapacityScopeContext.tsx` could split exports into a constants file like Track B did with `sidePanelConstants.ts` to clear the 5 fast-refresh warnings — same pattern is already accepted across the codebase, so deferred until a broader sweep.
+
+**Next session (W3):** Read `guides/Capacity_Module_Redesign_Spec.md` §3–§8, §10, §11 + Implementation Guide §S3/S4/S5a/S5b. Branch `feat/v5_2-capacity-core-surfaces` from `main` after W2 PR merges. Plan only Wave 3 (per `feedback_wave_sessions.md` — don't pre-plan beyond current wave).
+
+### v5.2 Wave 1 — Capacity foundation (2026-05-07)
+
+Branch: `feat/v5_2-capacity-foundation`. Closes Implementation Guide Session 1 — backend foundation only, no frontend work.
+
+**Lead pre-work (`447e27f`):**
+- Stub files: `backend/services/capacity_dashboard.py`, `backend/services/capacity_audit.py`, `backend/seed/generate_seed_v5/s22_v5_2_capacity_seed.py`.
+- Pre-verified zero `(resource_request_id, month, person_id)` duplicates in current seed (38 rows / 38 distinct triples) so Teammate A's constraint relaxation is a safe migration.
+
+**Teammate A — `sql-pro` (`a81b5c5` / `14d7c53`):**
+- Relaxed `uq_rra_request_month` → `uq_rra_request_month_person` `(resource_request_id, month, person_id)` per spec §9.5.
+- Added `CapacityActionLog` SQLAlchemy model in `models/capacity.py` with 4 composite indexes (`ix_capacity_action_log_user`, `ix_capacity_action_log_project`, `ix_capacity_action_log_cc`, `ix_capacity_action_log_time`). Registered in `models/__init__.py`.
+
+**Teammate B — `fastapi-developer` (5 commits, `0c38816` / `b40a89b` / `99da8aa` / `8b4b29e`):**
+- NEW `services/capacity_dashboard.py` (~640 LOC) — `compute_dashboard_forecast`, `compute_headcount_breakdown`, `compute_hotspots`. Reuses `compute_utilization_pct`, `add_months`, `generate_month_range`, `get_standard_hours` from `services/calculations.py`. Scope vocabulary: `all | location:<id> | hierarchy:<id> | cost_center:<id>`.
+- NEW `services/capacity_audit.py` — `log_capacity_action()` helper writing to `CapacityActionLog`. Mirrors the `routers/admin._log_audit()` pattern (no-commit, caller commits). `ACTION_TYPES` tuple exported for type-checking.
+- NEW endpoints in `routers/capacity.py`: `GET /api/capacity/dashboard/{forecast,headcount-breakdown,hotspots}` (Controller / CC Owner / Executive; PL → 403). `GET /api/capacity/history` with server-side scope enforcement per spec §12.14 (Controller all; CCO own CC; Exec all read; PL → 403).
+- Enhanced `GET /api/capacity/role-availability`: added `competing_demand_count` per (role, location, month) excluding the requesting PL's own projects; added top-level `location_summary` array when `location_id` omitted (per spec §13.10).
+- Enhanced `PUT /api/capacity/requests/{cc}/{rid}/assignments`: accepts new body shape `[{month, assignments: [{person_id, hours}]}]` per spec §9.5; backward-compatible with the legacy single-person body.
+- Wired `log_capacity_action()` into 4 existing mutating handlers per spec §12.10: project-confirmation/confirm (`confirm` or `partial_confirm`), project-confirmation/decline (`decline`), requests/assignments PUT (`assign_draft`), requests/partially-fulfill (`partial_confirm`).
+
+**Teammate C — `fastapi-developer` (3 commits, `c227985` / `b621811`):**
+- Enriched `s14_allocations.py`: `proj-autobrake` intake fans out to 3 cost centers (cc-muc-apd / cc-bud-apd / cc-pun-apd) via RR 110 / 111 / 112 — satisfies (i) ≥3 pending requests across ≥2 role types and ≥2 CCs, and (ii) ≥1 project with multi-CC fan-out per spec §12.6.
+- Enriched `s15_change_requests.py`: emit two CR-triggered re-confirmation rows with `change_direction='increase'` (RR 120 → CR #9 sr-dev MUC 100→120h; RR 121 → CR #15 ext-cloud 0→5000 EUR) per spec §9.8 / §12.5.
+- NEW `s22_v5_2_capacity_seed.py` (~530 LOC, `random.seed(522)`): 8 `CapacityActionLog` rows spanning 6 action_types (within last 30 days from 2026-04-15), and 1 multi-person assignment example (RR 102 split p-schmidt 60h / p-bauer 40h across 2026-06 → 2026-08). Verifies the relaxed constraint via concrete rows.
+- Regenerated `seed.sql` end-to-end (s01–s20) → append s21 v5.1 W5 → append s22.
+
+**Teammate D — `test-writer` (`7a5c228`):**
+- 5 new test files (1777 LOC): `test_router_capacity_dashboard.py`, `test_router_capacity_history.py`, `test_capacity_audit_log.py`, `test_router_capacity_assignments_multiperson.py`, `test_router_capacity_role_availability_v52.py`. Coverage: shape, role gating (Controller/Exec/CCO 200, PL 403), scope filtering, empty state, hotspot severity ranking + all 3 categories, history pagination + scope enforcement, audit-log writes per action type, multi-person body + legacy body backward compat, `competing_demand_count` PL-own-project exclusion + `location_summary`.
+
+**Lead simplify cleanup (`c14b49f`):**
+- High: dropped unreachable `reassign` action_type (no call site emitted it; spec §12.10 vocabulary is the 6-value set); replaced lazy `_resolve_log_model()` scaffolding in `capacity_audit.py` with top-level import; same in `routers/capacity.py::get_capacity_history`.
+- Medium: pre-fetch CC→location map in `compute_hotspots` (eliminates per-person query in chronic-under-util loop); collapsed two-pass best_run computation into single linear walk; renamed indexes `idx_*` → `ix_*` per existing convention; corrupt JSON in detail_payload now logged via `logger.warning` instead of silently nulled.
+- Low: dropped unused imports (`Forecast`, `and_`, `or_`); removed redundant `cc_to_location_full` alias; moved `import json` to module top-level; stripped "Teammate A/B" narrative comments.
+
+**Verification:**
+- pytest 1630 passed (W6/v5.1 baseline 1554 + 76 new W1 tests). 0 failures.
+- All 6 changed/new endpoints curl-smoke-verified end-to-end after `mv backend/creta_demo.db ...preW1-postintegration` reset:
+  * `/dashboard/forecast?scope=all` → 200, 12-month time series with `available_hours`, `allocated_hours`, `demand_hours` per month
+  * `/dashboard/headcount-breakdown?scope=all&dimension=location` → 200, 3 locations (BUD/MUC/PUN) with counts + avg utilization
+  * `/dashboard/hotspots?scope=all&limit=5` → 200, 5 entries spanning 2 categories (`unfulfilled_demand`, `under_utilization` — including S. Braun chronic 0% for 7 months from the seed scenario)
+  * `/history?page=1&page_size=5` as Controller → 200, all 8 seeded `CapacityActionLog` rows visible across 6 action_types
+  * `/history` as PL → 403 with "Role 'project_lead' not permitted"
+  * `/role-availability` as PL → 200 with `competing_demand_count` per row + top-level `location_summary` array of 3 locations
+- Seed verification queries: 8 CapacityActionLog rows / 6 distinct action_types / 3 multi-person assignment rows (RR 102 across 3 months) / 5 external_cost requests / proj-autobrake fan-out across 3 CCs / 3 distinct CCs and 5 distinct role types in pending requests / S. Braun (`p-braun`) has zero allocation rows for 2026-04 → 2026-10 (7 consecutive zero-util months as designed).
+- `simplify` skill: 3 reviewers ran in parallel (reuse, quality, efficiency); 8 fixes applied in a single cleanup commit; deferred items flagged below.
+- `security-review` skill: 6 candidate findings surfaced, all filtered below confidence-8 threshold (pre-existing concerns out of PR scope per skill instructions, "lack of audit logs" hard exclusion, documented design intent for CC Owner dashboard access). 0 actionable findings.
+
+**DB ritual:** Schema change requires `rm backend/creta_demo.db` (or `mv` to a backup) after pulling the branch — no Alembic in this codebase. PR description must call this out (per `project_schema_migration.md` memory).
+
+**Out of scope (deferred to follow-up):**
+- Extract `_quote` / `_load_seed_into_memory` / `_seed_path` to `seed/generate_seed_v5/_common.py` (s21 + s22 currently copy-paste; medium severity; defer until a third generator copies the pattern).
+- Add `ActionType` / `HotspotCategory` Literals to `schemas/capacity.py` (currently plain `str`; existing pattern in `schemas/external_costs.py:23` uses Literal).
+- Subclass `schemas.common.PaginatedResponse` for the 3 new list-with-metadata response shapes (`DashboardForecastResponse`, `HeadcountBreakdownResponse`, `HotspotResponse`, `CapacityHistoryResponse`).
+- Consolidate persona-X-Current-User fixtures into `conftest.py` (5 test files repeat the same `HEADERS_CTRL/CCO/EXEC/PL` constants).
+- Collapse N+1 in `compute_headcount_breakdown` per-segment queries (medium severity, acceptable at demo scale; ~5 queries at current scope-pill density).
+- Make `detail_payload` `nullable=False` (every call site provides one — schema mismatch is currently latent).
+
 ## v5.1 Implementation — wave status
 
 Active spec: `guides/CRETA_v5_1_Change_Specification.md` (16 items: 5 bug fixes, 2 seed enrichments, 9 features). Plan: 6 waves, one wave per session, PR review gate between every wave. Agent teams used within each wave. v5 spec + impl guide archived to `docs_archive/`.

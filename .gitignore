@@ -37,8 +37,15 @@ guides/
 qa/screenshots/*
 !qa/screenshots/.gitkeep
 
+# Ad-hoc Playwright / MCP scratch scripts. Real test scripts live elsewhere;
+# these are the throwaway files an interactive session leaves behind.
+qa/_tmp_*.mjs
+
 # Playwright / Chrome DevTools MCP session artefacts
 .playwright-mcp/
 
 # Agent-team worktrees scratch dir
 .claude/worktrees/
+
+# Stray .clone directory left behind by past worktree experiments.
+.clone/

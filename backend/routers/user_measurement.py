@@ -140,7 +140,15 @@ def list_user_measurement(
     timestamp matching the value returned by ``/versions``) to address a
     specific version. Read-visible to all CRETA users per [F-UM-04].
     """
-    base = db.query(UserMeasurement).filter(
+    # imported_at lives in a SQLite TEXT column. SQLAlchemy's DateTime binding
+    # appends ".000000" microseconds, which doesn't match seeded values that
+    # were inserted without microseconds. Both branches below build a single
+    # ``target_query`` and use it twice: once as ``.scalar()`` (materialised
+    # for the response payload, used only via .isoformat()) and once as
+    # ``.scalar_subquery()`` (server-side filter — the equality stays inside
+    # SQLite as TEXT-vs-TEXT, so SQLAlchemy's ``.000000`` binding can never
+    # be applied to the comparison value).
+    base_filter = (
         UserMeasurement.year == year,
         UserMeasurement.quarter == quarter,
     )
@@ -150,18 +158,37 @@ def list_user_measurement(
             ts = datetime.fromisoformat(imported_at)
         except ValueError:
             raise HTTPException(400, f"Invalid imported_at timestamp: {imported_at}")
-        target_at = ts
-    else:
-        target_at_row = base.order_by(desc(UserMeasurement.imported_at)).first()
-        if target_at_row is None:
-            return UserMeasurementListResponse(
-                items=[], total=0, year=year, quarter=quarter, imported_at=None,
+        # NOTE: func.strftime is SQLite-only; revisit if the engine changes.
+        # Used as a second-precision lookup key — picks ONE concrete stored
+        # imported_at TEXT value, then the row filter exact-matches it so
+        # microsecond-distinct same-second batches stay distinguishable.
+        norm_ts = ts.strftime("%Y-%m-%d %H:%M:%S")
+        target_query = (
+            db.query(UserMeasurement.imported_at)
+            .filter(*base_filter)
+            .filter(
+                func.strftime("%Y-%m-%d %H:%M:%S", UserMeasurement.imported_at)
+                == norm_ts,
             )
-        target_at = target_at_row.imported_at
+            .order_by(desc(UserMeasurement.imported_at))
+            .limit(1)
+        )
+    else:
+        target_query = (
+            db.query(func.max(UserMeasurement.imported_at))
+            .filter(*base_filter)
+        )
+
+    target_at_value = target_query.scalar()
+    if target_at_value is None:
+        return UserMeasurementListResponse(
+            items=[], total=0, year=year, quarter=quarter, imported_at=None,
+        )
 
     rows = (
-        base
-        .filter(UserMeasurement.imported_at == target_at)
+        db.query(UserMeasurement)
+        .filter(*base_filter)
+        .filter(UserMeasurement.imported_at == target_query.scalar_subquery())
         .join(ChargingLocation, ChargingLocation.id == UserMeasurement.charging_location_id, isouter=True)
         .order_by(UserMeasurement.s_code, UserMeasurement.charging_location_id)
         .all()
@@ -180,12 +207,17 @@ def list_user_measurement(
         )
         for r in rows
     ]
+    target_at_iso = (
+        target_at_value.isoformat()
+        if hasattr(target_at_value, "isoformat")
+        else str(target_at_value)
+    )
     return UserMeasurementListResponse(
         items=items,
         total=len(items),
         year=year,
         quarter=quarter,
-        imported_at=target_at.isoformat(),
+        imported_at=target_at_iso,
     )
 
 

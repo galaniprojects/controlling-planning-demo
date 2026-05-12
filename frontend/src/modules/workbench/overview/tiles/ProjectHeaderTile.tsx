@@ -23,9 +23,9 @@ interface Props {
 }
 
 const PROJECT_TYPE_LABEL: Record<number, string> = {
-  1: 'Type 1',
-  2: 'Type 2',
-  3: 'Type 3',
+  1: 'P1',
+  2: 'P2',
+  3: 'P3',
 };
 
 function ragDot(rag: string | null | undefined) {

@@ -54,11 +54,11 @@ export function ProjectConfirmationBanner({ onConfirmComplete, highlightCrId }: 
     p.type === 'change_request' ? `cr-${p.cr_id}` : `proj-${p.id}`;
 
   const handleReviewAssign = (item: PendingItem) => {
+    const params = new URLSearchParams({ assignment_project: item.id });
     if (item.type === 'change_request' && item.cr_id != null) {
-      navigate(`/capacity/project-assignment/${item.id}?cr=${item.cr_id}`);
-    } else {
-      navigate(`/capacity/project-assignment/${item.id}`);
+      params.set('cr', String(item.cr_id));
     }
+    navigate(`/capacity?${params.toString()}`);
   };
 
   const handleDecline = async (item: PendingItem) => {

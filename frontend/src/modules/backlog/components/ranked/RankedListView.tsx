@@ -56,7 +56,7 @@ export function RankedListView({
       <p className="text-xs text-muted-foreground">
         {filteredItems.length} of {data.total} projects shown
         {data.pre_funded_total > 0
-          ? ` · ${data.pre_funded_total} pre-funded (Type 3) above`
+          ? ` · ${data.pre_funded_total} pre-funded (P3) above`
           : ''}
       </p>
     </div>

@@ -42,7 +42,6 @@ import type {
   ProjectOverview,
   ForecastGridRow,
   MixedGridResponse,
-  ForecastVersionMeta,
   ForecastVersionListResponse,
   ForecastVersionDetail,
   ForecastVersionDiff,
@@ -83,6 +82,7 @@ import type {
   RefPerson,
   AdminRateEntry,
   AdminParameter,
+  TechNavigatorScoringData,
   AuditLogEntry,
   FAQSummary,
   FAQDetail,
@@ -96,6 +96,17 @@ import type {
   YoYResponse,
   AIBuilderStatus,
   AIConversationReply,
+  DashboardForecastResponse,
+  HeadcountBreakdownResponse,
+  HotspotResponse,
+  UtilizationDistributionResponse,
+  CapacityHistoryResponse,
+  CapacityHistoryFilters,
+  CapacityInboxResponse,
+  CapacityInboxFilters,
+  CapacityPlanningParametersResponse,
+  CapacityProjectsParams,
+  CapacityProjectsResponse,
 } from '@/types/api';
 
 export const rolesApi = {
@@ -376,13 +387,6 @@ export const workbenchApi = {
       `/api/projects/${projectId}/forecast/versions/${versionId}`,
     ),
 
-  // C1 — Manual snapshot (controller only) [C-FV-03]
-  createForecastVersion: (projectId: string, label?: string) =>
-    api.post<ForecastVersionMeta>(
-      `/api/projects/${projectId}/forecast/versions`,
-      { label: label ?? null },
-    ),
-
   // C1 — Diff two versions [C-RH-05]
   getForecastVersionDiff: (versionAId: number, versionBId: number) =>
     api.get<ForecastVersionDiff>(
@@ -565,7 +569,10 @@ export const capacityApi = {
   saveRequestAssignments: (
     ccId: string,
     reqId: number,
-    assignments: { month: string; person_id: string }[],
+    assignments: Array<
+      | { month: string; person_id: string }
+      | { month: string; assignments: { person_id: string; hours: number }[] }
+    >,
   ) =>
     api.put<ListResponse<RequestAssignment>>(
       `/api/capacity/requests/${ccId}/${reqId}/assignments`,
@@ -630,6 +637,102 @@ export const capacityApi = {
     if (month) q.set('month', month);
     return api.get<OrgDetailResponse>(
       `/api/capacity/org/heatmap/${dimId}/detail?${q}`,
+    );
+  },
+
+  // --- v5.2 W1 dashboard tier (spec §11.4–§11.6 / §11.10) ---
+  getDashboardForecast: (scope: string, start?: string, end?: string) => {
+    const q = new URLSearchParams({ scope });
+    if (start) q.set('start', start);
+    if (end) q.set('end', end);
+    return api.get<DashboardForecastResponse>(
+      `/api/capacity/dashboard/forecast?${q}`,
+    );
+  },
+  getDashboardHeadcountBreakdown: (
+    scope: string,
+    dimension: 'location' | 'hierarchy' | 'role' | 'cost_center',
+  ) => {
+    const q = new URLSearchParams({ scope, dimension });
+    return api.get<HeadcountBreakdownResponse>(
+      `/api/capacity/dashboard/headcount-breakdown?${q}`,
+    );
+  },
+  getDashboardHotspots: (scope: string, limit = 5) => {
+    const q = new URLSearchParams({ scope, limit: String(limit) });
+    return api.get<HotspotResponse>(`/api/capacity/dashboard/hotspots?${q}`);
+  },
+  getDashboardUtilizationDistribution: (
+    scope: string,
+    start?: string,
+    end?: string,
+  ) => {
+    const q = new URLSearchParams({ scope });
+    if (start) q.set('start', start);
+    if (end) q.set('end', end);
+    return api.get<UtilizationDistributionResponse>(
+      `/api/capacity/dashboard/utilization-distribution?${q}`,
+    );
+  },
+
+  // --- v5.2 W1 audit-trail history (spec §12.15) ---
+  getCapacityHistory: (filters: CapacityHistoryFilters = {}) => {
+    const q = new URLSearchParams();
+    if (filters.acting_user_id) q.set('acting_user_id', filters.acting_user_id);
+    if (filters.action_type?.length)
+      q.set('action_type', filters.action_type.join(','));
+    if (filters.cost_center_id?.length)
+      q.set('cost_center_id', filters.cost_center_id.join(','));
+    if (filters.project_id) q.set('project_id', filters.project_id);
+    if (filters.from) q.set('from', filters.from);
+    if (filters.to) q.set('to', filters.to);
+    if (filters.page) q.set('page', String(filters.page));
+    if (filters.page_size) q.set('page_size', String(filters.page_size));
+    if (filters.sort) q.set('sort', filters.sort);
+    if (filters.sort_dir) q.set('sort_dir', filters.sort_dir);
+    const qs = q.toString();
+    return api.get<CapacityHistoryResponse>(
+      `/api/capacity/history${qs ? '?' + qs : ''}`,
+    );
+  },
+
+  // --- v5.2 W5 group-by-project view (spec §10) ---
+  // v5.2 W6 Track A — dropped the `filter_chip` query param; chip filtering
+  // is purely client-side now (see `projectFilters.ts`).
+  getProjects: (params: CapacityProjectsParams = {}) => {
+    const q = new URLSearchParams();
+    if (params.scope) q.set('scope', params.scope);
+    if (params.start) q.set('start', params.start);
+    if (params.end) q.set('end', params.end);
+    const qs = q.toString();
+    return api.get<CapacityProjectsResponse>(
+      `/api/capacity/projects${qs ? '?' + qs : ''}`,
+    );
+  },
+
+  // --- v5.2 closeout — read-only PlanningParameter feed for capacity surfaces ---
+  getPlanningParameters: (group?: string) => {
+    const q = new URLSearchParams();
+    if (group) q.set('group', group);
+    const qs = q.toString();
+    return api.get<CapacityPlanningParametersResponse>(
+      `/api/capacity/planning-parameters${qs ? '?' + qs : ''}`,
+    );
+  },
+
+  // --- v5.2 W3 inbox (spec §12.3) — project-per-CC aggregated triage queue ---
+  getInbox: (filters: CapacityInboxFilters = {}) => {
+    const q = new URLSearchParams();
+    if (filters.status && filters.status !== 'all') q.set('status', filters.status);
+    if (filters.role_type_id?.length)
+      q.set('role_type_id', filters.role_type_id.join(','));
+    if (filters.pl_person_id?.length)
+      q.set('pl_person_id', filters.pl_person_id.join(','));
+    if (filters.cost_center_id?.length)
+      q.set('cost_center_id', filters.cost_center_id.join(','));
+    const qs = q.toString();
+    return api.get<CapacityInboxResponse>(
+      `/api/capacity/inbox${qs ? '?' + qs : ''}`,
     );
   },
 };
@@ -776,6 +879,10 @@ export const adminApi = {
     api.put<ListResponse<{ key: string; name: string; current_value: string }>>('/api/admin/parameters', { changes }),
   resetParameters: (keys?: string[]) =>
     api.post<ListResponse<{ key: string; name: string; current_value: string }>>('/api/admin/parameters/reset', { keys: keys ?? null }),
+
+  // Tech Navigator Scoring page — bulk payload for the live scatter
+  getTechNavigatorScoringData: () =>
+    api.get<TechNavigatorScoringData>('/api/admin/tech-navigator/scoring-data'),
 
   // Grouping Hierarchy (ADM-01)
   getEntityTypes: () =>
@@ -1336,11 +1443,79 @@ export const intakeApi = {
   getQueue: () => api.get<{ items: IntakeQueueItem[]; total: number }>('/api/intake/queue'),
 };
 
+import type { MilestoneResponse, MilestoneTypeListResponse } from '@/types/milestones';
+
+/**
+ * Milestone CRUD body for POST /api/projects/{id}/milestones — [A-MS-02].
+ *
+ * `forecast_start` / `forecast_end` are optional: the Define page asks
+ * only for baseline dates, and the backend's `MilestoneCreate` Pydantic
+ * validator defaults forecast_* to baseline_* when omitted. Workbench /
+ * other callers that want explicit forecast dates can still pass them.
+ */
+export interface MilestoneCreateBody {
+  sequence_number: number;
+  name: string;
+  milestone_type_id?: string | null;
+  baseline_start: string;          // YYYY-MM
+  baseline_end: string;
+  forecast_start?: string;
+  forecast_end?: string;
+  color?: string | null;
+}
+
+/**
+ * Milestone update body for PUT /api/projects/{id}/milestones/{mid}.
+ * All fields optional. `override_reason` is mandatory (controller-only)
+ * when changing baseline_start / baseline_end per [A-MS-03].
+ */
+export interface MilestoneUpdateBody {
+  sequence_number?: number;
+  name?: string;
+  milestone_type_id?: string | null;
+  baseline_start?: string;
+  baseline_end?: string;
+  forecast_start?: string;
+  forecast_end?: string;
+  color?: string | null;
+  override_reason?: string | null;
+}
+
 export const milestonesApi = {
   /** GET /api/projects/{id}/milestones — read-only milestone list. */
   list: (projectId: string) =>
     api.get<MilestoneListResponse>(`/api/projects/${projectId}/milestones`),
+
+  /** POST /api/projects/{id}/milestones — create a new milestone. */
+  create: (projectId: string, body: MilestoneCreateBody) =>
+    api.post<MilestoneResponse>(`/api/projects/${projectId}/milestones`, body),
+
+  /**
+   * PUT /api/projects/{id}/milestones/{mid} — partial update. Baseline-date
+   * changes require `override_reason` (controller-only) per [A-MS-03].
+   */
+  update: (projectId: string, milestoneId: number, body: MilestoneUpdateBody) =>
+    api.put<MilestoneResponse>(
+      `/api/projects/${projectId}/milestones/${milestoneId}`,
+      body,
+    ),
+
+  /** DELETE /api/projects/{id}/milestones/{mid}. */
+  remove: (projectId: string, milestoneId: number) =>
+    api.delete<{ deleted: boolean; id: number }>(
+      `/api/projects/${projectId}/milestones/${milestoneId}`,
+    ),
+
+  /** GET /api/admin/milestone-types — read-only catalogue per [A-BK-34]. */
+  listTypes: () =>
+    api.get<MilestoneTypeListResponse>('/api/admin/milestone-types'),
 };
+
+// Define-page endpoints (POST /api/projects/define, PUT /identity, etc.) live
+// in `frontend/src/modules/define/api.ts` as `defineApi`. Kept module-local so
+// the Define tabs can import from a single co-located surface without the
+// circular dependency that would form if endpoints.ts also imported from
+// modules/define.
 
 // ---------------------------------------------------------------------------
 // === Progress Tracker (E1) [E-04c] [E-05a]

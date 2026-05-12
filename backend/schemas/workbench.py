@@ -224,11 +224,6 @@ class ForecastVersionDiff(BaseModel):
     grand_totals: dict[str, float] # {version_a, version_b, delta}
 
 
-class ManualSnapshotRequest(BaseModel):
-    """Body for POST /api/projects/{id}/forecast/versions (manual snapshot) [C-FV-03]."""
-    label: Optional[str] = None   # optional human label stored as cycle_label
-
-
 # ---------------------------------------------------------------------------
 # E1 — Progress Tracker schemas [E-04c]
 # ---------------------------------------------------------------------------

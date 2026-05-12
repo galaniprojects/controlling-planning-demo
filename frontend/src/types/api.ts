@@ -95,12 +95,24 @@ export interface RoleAvailabilityRow {
   allocated_hours: number;
   available_hours: number;
   utilization_pct: number;
+  /** v5.2 §13.10 — count of pending ResourceRequests from other PLs for this role/location/month. */
+  competing_demand_count: number;
+}
+
+/** v5.2 §13.7 — location-level roll-up for the side panel location comparison section. */
+export interface LocationAvailabilitySummary {
+  location_id: string;
+  location_name: string;
+  total_headcount: number;
+  avg_availability_pct: number;
 }
 
 export interface RoleAvailabilityResponse {
   items: RoleAvailabilityRow[];
   total: number;
   months: string[];
+  /** Present only when location_id is omitted (all-locations query). */
+  location_summary?: LocationAvailabilitySummary[] | null;
 }
 
 // Project creation
@@ -908,6 +920,292 @@ export interface OrgDetailResponse {
   delta: number;
 }
 
+// --- v5.2 W1 capacity dashboard & history (spec §11.4–§11.6, §12.13–§12.15) ---
+
+/** One month in the capacity forecast time series (spec §11.4). */
+export interface DashboardForecastPoint {
+  month: string;
+  available_hours: number;
+  allocated_hours: number;
+  demand_hours: number;
+}
+
+export interface DashboardForecastResponse {
+  items: DashboardForecastPoint[];
+  total: number;
+  scope: string;
+  start: string;
+  end: string;
+}
+
+/** One segment of the headcount-breakdown stacked bar (spec §11.5). */
+export interface HeadcountBreakdownSegment {
+  label: string;
+  count: number;
+  avg_utilization_pct: number;
+  segment_id?: string | null;
+}
+
+export interface HeadcountBreakdownResponse {
+  items: HeadcountBreakdownSegment[];
+  total: number;
+  dimension: 'location' | 'hierarchy' | 'role' | 'cost_center' | string;
+  scope: string;
+}
+
+/** One bucket of the utilization-distribution histogram (spec §11.3).
+ *  Added in v5.2 W4 P1 fix: server-side bucketing replaces the spec's
+ *  client-side aggregation, which broke at multi-CC scope.
+ *
+ *  v5.2 W6 Track C — DUPLICATION NOTICE: this union mirrors the tuple
+ *  `_DISTRIBUTION_BUCKETS` in
+ *  `backend/services/capacity_dashboard.py`. Any change to one MUST be
+ *  mirrored in the other (and vice-versa) — the shape is exchanged
+ *  over the wire by name. No API-generation infra exists in this
+ *  codebase, so a single source of truth would require introducing
+ *  one (e.g. openapi-typescript). Out of scope for v5.2 polish; tracked
+ *  for a post-v5.2 follow-up. Both ends carry an aligned comment. */
+export type UtilizationBucketKey =
+  | 'zero'
+  | '1_25'
+  | '26_50'
+  | '51_75'
+  | '76_100'
+  | 'over_100';
+
+export interface UtilizationDistributionBucket {
+  bucket: UtilizationBucketKey;
+  count: number;
+}
+
+export interface UtilizationDistributionResponse {
+  items: UtilizationDistributionBucket[];
+  total_people: number;
+  scope: string;
+  start: string;
+  end: string;
+}
+
+/** One ranked capacity issue (spec §11.6). */
+export interface HotspotItem {
+  category: 'over_allocation' | 'unfulfilled_demand' | 'under_utilization' | string;
+  severity: number;
+  summary: string;
+  target_id: string;
+  target_type: 'person' | 'role' | 'request' | string;
+  /**
+   * v5.2 closeout — for `unfulfilled_demand` items, the CC carrying the
+   * most unassigned hours for the role. `null`/absent for other categories
+   * or when the originating RR has no CC.
+   */
+  cost_center_id?: string | null;
+  cost_center_name?: string | null;
+  /** True when the role's pending demand spans more than one CC. */
+  multi_cc?: boolean;
+}
+
+export interface HotspotResponse {
+  items: HotspotItem[];
+  total: number;
+  scope: string;
+}
+
+/** One row in the capacity audit history (spec §12.13). */
+export interface CapacityHistoryEntry {
+  id: number;
+  timestamp: string;
+  action_type: string;
+  acting_user_id: string;
+  acting_user_name: string;
+  project_id: string;
+  project_name: string | null;
+  cost_center_id: string;
+  cost_center_name: string | null;
+  summary: string;
+  detail_payload: Record<string, unknown> | null;
+  cr_id: number | null;
+}
+
+export interface CapacityHistoryResponse {
+  items: CapacityHistoryEntry[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface CapacityHistoryFilters {
+  acting_user_id?: string;
+  /** comma-joined; the client serializes from string[] to a single param */
+  action_type?: string[];
+  cost_center_id?: string[];
+  project_id?: string;
+  /** ISO date YYYY-MM-DD inclusive */
+  from?: string;
+  /** ISO date YYYY-MM-DD inclusive */
+  to?: string;
+  page?: number;
+  page_size?: number;
+  sort?: string;
+  sort_dir?: 'asc' | 'desc';
+}
+
+// --- v5.2 W3 capacity inbox (spec §12.3) — project-per-CC aggregated rows ---
+
+export type CapacityInboxItemType = 'project' | 'change_request';
+export type CapacityInboxStatus = 'new' | 'in_progress' | 're_confirm';
+
+export interface CapacityInboxRoleBadge {
+  role_type_id: string;
+  role_name: string;
+  count: number;
+}
+
+export interface CapacityInboxItem {
+  project_id: string;
+  project_name: string;
+  project_priority: string;
+  hierarchy_node_name: string | null;
+  type: CapacityInboxItemType;
+  cr_id: number | null;
+  cr_summary: string | null;
+  cc_id: string;
+  cc_name: string;
+  pl_person_id: string | null;
+  pl_name: string | null;
+  role_badges: CapacityInboxRoleBadge[];
+  unassigned_hours: number;
+  age_days: number;
+  status: CapacityInboxStatus;
+  earliest_request_date: string;
+}
+
+export interface CapacityInboxResponse {
+  items: CapacityInboxItem[];
+  total: number;
+}
+
+export interface CapacityInboxFilters {
+  status?: CapacityInboxStatus | 'all';
+  role_type_id?: string[];
+  pl_person_id?: string[];
+  cost_center_id?: string[];
+}
+
+// --- v5.2 W5 Group-by-project view (spec §10) ---
+
+export interface CapacityProjectMonth {
+  month: string;
+  requested_hours: number;
+  assigned_hours: number;
+}
+
+export interface CapacityProjectAssignedPersonMonth {
+  month: string;
+  this_project_hours: number;
+  total_hours_all_projects: number;
+  total_utilization_pct: number;
+}
+
+export interface CapacityProjectAssignedPerson {
+  person_id: string;
+  person_name: string;
+  role_type_id: string | null;
+  role_name: string | null;
+  cost_center_id: string | null;
+  cost_center_name: string | null;
+  monthly: CapacityProjectAssignedPersonMonth[];
+}
+
+export interface CapacityProjectSlotMonth {
+  month: string;
+  requested_hours: number;
+  assigned_hours: number;
+}
+
+export type CapacityProjectSlotStatus = 'pending' | 'partially_fulfilled';
+
+export interface CapacityProjectSlot {
+  request_id: number;
+  role_type_id: string | null;
+  role_name: string | null;
+  status: CapacityProjectSlotStatus;
+  period_start: string;
+  period_end: string;
+  cc_id: string;
+  cc_name: string | null;
+  priority: string | null;
+  change_request_id: number | null;
+  monthly: CapacityProjectSlotMonth[];
+}
+
+export interface CapacityProjectExternalCost {
+  request_id: number;
+  description: string | null;
+  cost_type_id: string | null;
+  cost_type_label: string | null;
+  period_start: string;
+  period_end: string;
+  status: string;
+  cc_id: string;
+  cc_name: string | null;
+}
+
+export interface CapacityProjectItem {
+  project_id: string;
+  project_name: string;
+  project_status: string | null;
+  hierarchy_node_id: string | null;
+  hierarchy_node_name: string | null;
+  pl_person_id: string | null;
+  pl_name: string | null;
+  fully_assigned_request_count: number;
+  total_request_count: number;
+  fulfillment_pct: number;
+  monthly_demand: CapacityProjectMonth[];
+  assigned_people: CapacityProjectAssignedPerson[];
+  unfulfilled_slots: CapacityProjectSlot[];
+  external_costs: CapacityProjectExternalCost[];
+}
+
+export interface CapacityProjectsResponse {
+  items: CapacityProjectItem[];
+  total: number;
+  scope: string;
+  start: string;
+  end: string;
+  reference_max_hours: number;
+}
+
+/**
+ * v5.2 W6 Track A — the legacy `filter_chip` query parameter was removed
+ * from the server side. Filter-chip semantics now live entirely in the
+ * frontend (`frontend/src/modules/capacity/timeline/projectFilters.ts`)
+ * so the chip-count source matches the chip-filter result by
+ * construction. The corresponding `CapacityProjectsFilterChip` enum was
+ * never imported anywhere and has been deleted with this change.
+ */
+export interface CapacityProjectsParams {
+  scope?: string;
+  start?: string;
+  end?: string;
+}
+
+/**
+ * v5.2 closeout — read-only PlanningParameter feed for capacity surfaces.
+ * Returned by `GET /api/capacity/planning-parameters`. Trimmed payload
+ * compared to the admin endpoint (no description / default_value / group).
+ */
+export interface CapacityPlanningParameter {
+  key: string;
+  current_value: string;
+  data_type: string;
+}
+
+export interface CapacityPlanningParametersResponse {
+  items: CapacityPlanningParameter[];
+  total: number;
+}
+
 // --- What-If Simulator ---
 
 export interface ScenarioListItem {
@@ -1155,6 +1453,49 @@ export interface AdminParameter {
   default_value: string;
   data_type: string;
   group: string;
+}
+
+export interface TechNavigatorScoringProject {
+  id: string;
+  name: string;
+  project_type: number | null;
+  pipeline_stage: string;
+  doi: number | null;
+  total_budget: number | null;
+  /** Whether this project counts in the should-be cutoff walk.
+   * True for BACKLOG_STAGES ∩ project_type ≠ 3; false for Type 3
+   * (pre-funded) and operate-stage projects. Mirrors the backend's
+   * compute_ranked_backlog walk pool definition. */
+  competes_in_ranking: boolean;
+  tn_standardization: number;
+  tn_usage: number;
+  tn_maintenance: number;
+  tn_financial_benefit: number;
+  tn_payback: number;
+  tn_competitive_advantage: number;
+}
+
+export interface TechNavigatorScoringEnvelope {
+  total_available_budget: number;
+  type3_pre_funded_total: number;
+  hyper_maintenance_committed_total: number;
+  /** Pre-clamped to >= 0. This is what the cutoff walk compares
+   * cumulative budget against, NOT total_available_budget. */
+  contestable_envelope: number;
+}
+
+export interface TechNavigatorScoringData {
+  weights: {
+    complexity: { standardization: number; usage: number; maintenance: number };
+    value_creation: { financial: number; payback: number; competitive: number };
+    ranking: { value: number; complexity: number };
+    tshirt: { xs_max: number; s_max: number; m_max: number; l_max: number };
+  };
+  envelope: TechNavigatorScoringEnvelope;
+  /** Tiebreaker order applied after the implicit composite_score:desc
+   * primary sort. Each entry is [field, "asc" | "desc"]. */
+  tiebreakers: Array<[string, string]>;
+  projects: TechNavigatorScoringProject[];
 }
 
 export interface AuditLogEntry {

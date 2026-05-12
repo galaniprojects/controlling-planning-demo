@@ -30,6 +30,7 @@ from _utils import month_range, sql_str
 from generate_seed_v5.config.entities import PROJECTS
 from generate_seed_v5.config.financials import (
     ASSIGNMENT_OVERRIDES,
+    CHRONIC_UNDERUTIL_PEOPLE,
     FORECAST_ADJUSTMENTS,
     PROJECT_STAFFING,
 )
@@ -66,10 +67,17 @@ def generate() -> str:
     parts.append("-- =============================================================================")
 
     # --- Build people-by-role lookup (only people with a CC).
+    # v5.2 W1 [C]: people listed in CHRONIC_UNDERUTIL_PEOPLE are excluded from
+    # the candidate pool so they emerge from seed with zero allocations across
+    # the entire planning horizon — populates the chronic under-utilisation
+    # hotspot for the Capacity redesign acceptance criteria (§1).
     people_by_role: dict[str, list[dict]] = defaultdict(list)
     for p in PEOPLE:
-        if p["cc"] is not None:
-            people_by_role[p["role"]].append(p)
+        if p["cc"] is None:
+            continue
+        if p["id"] in CHRONIC_UNDERUTIL_PEOPLE:
+            continue
+        people_by_role[p["role"]].append(p)
     for role in people_by_role:
         people_by_role[role].sort(key=lambda x: x["id"])
 
@@ -170,7 +178,15 @@ def generate() -> str:
     # --- Resource Requests (carried forward from v4 narrative shape) -------
     # The intake demo target is proj-autobrake (DoI 2 Under Eval late). 9
     # resource requests pre-staged for the CC Owner persona to confirm.
-    parts.append("\n-- Resource Requests for proj-autobrake (DoI 2 intake demo)")
+    #
+    # v5.2 W1 [C] fan-out enrichment per Capacity Module Redesign Spec §1
+    # acceptance criteria + §12.6: proj-autobrake additionally fans out to
+    # cc-bud-apd (Dev BUD 120h/mo, QA BUD 40h/mo) and cc-pun-apd (Dev PUN
+    # 80h/mo) — matching the project's PROJECT_STAFFING entries for those
+    # locations. This satisfies (i) ≥3 pending resource requests across ≥2
+    # role types and ≥2 CCs (it covers 5 role types across 3 CCs), and
+    # (ii) ≥1 project with resource requests fanned out to multiple CCs.
+    parts.append("\n-- Resource Requests for proj-autobrake (DoI 2 intake demo + multi-CC fan-out)")
     parts.append(
         "INSERT INTO resource_requests (id, project_id, cost_center_id, "
         "request_type, role_type_id, cost_type_id, hours_or_amount_per_month, "
@@ -184,7 +200,11 @@ def generate() -> str:
         "(105, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-consulting', 8000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),\n"
         "(106, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-sw-licenses', 5000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),\n"
         "(107, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-cloud', 6000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),\n"
-        "(108, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-other', 3000, '2026-06', '2027-12', 'low', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00');"
+        "(108, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-other', 3000, '2026-06', '2027-12', 'low', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),\n"
+        # v5.2 W1 [C]: multi-CC fan-out rows (ids 110-112) — see §12.6.
+        "(110, 'proj-autobrake', 'cc-bud-apd', 'resource', 'role-dev', NULL, 120, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),\n"
+        "(111, 'proj-autobrake', 'cc-pun-apd', 'resource', 'role-dev', NULL, 80, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),\n"
+        "(112, 'proj-autobrake', 'cc-bud-apd', 'resource', 'role-qa', NULL, 40, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00');"
     )
 
     # Pre-assign Sr Arch + Sr Dev so the CC Owner has partial work to inspect.

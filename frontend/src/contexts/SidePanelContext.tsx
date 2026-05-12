@@ -1,17 +1,49 @@
 import {
   createContext,
   useContext,
+  useRef,
   useState,
   useCallback,
   type ReactNode,
 } from 'react';
+import { DEFAULT_SIDE_PANEL_WIDTH } from '@/lib/sidePanelConstants';
+
+interface OpenPanelOptions {
+  /**
+   * Optional pixel width override for the side panel. Defaults to
+   * {@link DEFAULT_SIDE_PANEL_WIDTH} (380px) when omitted.
+   *
+   * v5.2 Capacity uses 280 (PersonDetail / CellDetail) and 400
+   * (AssignmentPanel) per spec §7.1 and §9.2.
+   */
+  width?: number;
+}
 
 interface SidePanelState {
   isOpen: boolean;
   content: ReactNode | null;
   title: string;
-  openPanel: (title: string, content: ReactNode) => void;
+  /** Current panel width in px (defaults to 380 when no override is set). */
+  width: number;
+  openPanel: (
+    title: string,
+    content: ReactNode,
+    opts?: OpenPanelOptions,
+  ) => void;
   closePanel: () => void;
+  /**
+   * Register a before-close guard.  The guard is called when the × button
+   * is clicked; return `false` to cancel the close.  Returns an unregister
+   * function.
+   *
+   * v5.2 W4 Track A — used by AssignmentPanel to intercept close when dirty.
+   */
+  registerBeforeClose: (guard: () => boolean | undefined) => () => void;
+  /**
+   * Returns the currently registered before-close guard (or undefined).
+   * Called by AppLayout to pass to the SidePanel component's × button.
+   */
+  getBeforeCloseGuard: () => (() => boolean | undefined) | undefined;
 }
 
 const SidePanelCtx = createContext<SidePanelState | null>(null);
@@ -20,21 +52,64 @@ export function SidePanelProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [content, setContent] = useState<ReactNode | null>(null);
   const [title, setTitle] = useState('');
+  const [width, setWidth] = useState<number>(DEFAULT_SIDE_PANEL_WIDTH);
+  const beforeCloseRef = useRef<(() => boolean | undefined) | undefined>(undefined);
 
-  const openPanel = useCallback((t: string, node: ReactNode) => {
-    setTitle(t);
-    setContent(node);
-    setIsOpen(true);
-  }, []);
+  const openPanel = useCallback(
+    (t: string, node: ReactNode, opts?: OpenPanelOptions) => {
+      // v5.2 W6 Track B (#8.1) — clear any stale before-close guard
+      // before swapping content. Without this, openPanel(...) into
+      // different content while a previous guard is still registered
+      // would ask the user to confirm an unsaved-changes dialog about
+      // the *previous* panel's data (a race when callers swap content
+      // without explicitly closing first).
+      beforeCloseRef.current = undefined;
+      setTitle(t);
+      setContent(node);
+      setWidth(opts?.width ?? DEFAULT_SIDE_PANEL_WIDTH);
+      setIsOpen(true);
+    },
+    [],
+  );
 
   const closePanel = useCallback(() => {
     setIsOpen(false);
     setContent(null);
     setTitle('');
+    setWidth(DEFAULT_SIDE_PANEL_WIDTH);
+    beforeCloseRef.current = undefined;
   }, []);
 
+  const registerBeforeClose = useCallback(
+    (guard: () => boolean | undefined) => {
+      beforeCloseRef.current = guard;
+      return () => {
+        if (beforeCloseRef.current === guard) {
+          beforeCloseRef.current = undefined;
+        }
+      };
+    },
+    [],
+  );
+
+  const getBeforeCloseGuard = useCallback(
+    () => beforeCloseRef.current,
+    [],
+  );
+
   return (
-    <SidePanelCtx.Provider value={{ isOpen, content, title, openPanel, closePanel }}>
+    <SidePanelCtx.Provider
+      value={{
+        isOpen,
+        content,
+        title,
+        width,
+        openPanel,
+        closePanel,
+        registerBeforeClose,
+        getBeforeCloseGuard,
+      }}
+    >
       {children}
     </SidePanelCtx.Provider>
   );

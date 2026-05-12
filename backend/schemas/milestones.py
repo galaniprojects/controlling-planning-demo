@@ -16,7 +16,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -75,9 +75,13 @@ class MilestoneListResponse(BaseModel):
 class MilestoneCreate(BaseModel):
     """Request body for ``POST /api/projects/{id}/milestones``.
 
-    All baseline / forecast dates are required at creation. ``color`` is
-    optional — when omitted, the response colour falls back to the linked
-    type's ``default_color``.
+    Baseline dates are required. Forecast dates default to their
+    baseline counterparts when omitted — milestones are created from
+    the Define page during project definition (before execution
+    starts), where there is no meaningful distinction between baseline
+    and forecast dates. Forecast dates remain editable later via the
+    Workbench. ``color`` is optional — when omitted, the response
+    colour falls back to the linked type's ``default_color``.
     """
 
     sequence_number: int = Field(ge=1)
@@ -85,9 +89,18 @@ class MilestoneCreate(BaseModel):
     milestone_type_id: Optional[str] = None
     baseline_start: str = Field(min_length=7, max_length=7)  # YYYY-MM
     baseline_end: str = Field(min_length=7, max_length=7)
-    forecast_start: str = Field(min_length=7, max_length=7)
-    forecast_end: str = Field(min_length=7, max_length=7)
+    forecast_start: Optional[str] = Field(default=None, min_length=7, max_length=7)
+    forecast_end: Optional[str] = Field(default=None, min_length=7, max_length=7)
     color: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _default_forecast_from_baseline(self) -> "MilestoneCreate":
+        """Forecast dates default to baseline counterparts when omitted."""
+        if self.forecast_start is None:
+            self.forecast_start = self.baseline_start
+        if self.forecast_end is None:
+            self.forecast_end = self.baseline_end
+        return self
 
 
 class MilestoneUpdate(BaseModel):

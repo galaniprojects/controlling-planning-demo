@@ -6678,7 +6678,7 @@ INSERT INTO actuals (project_id, month, category, sub_category, hours, amount_eu
 -- chargeable_entity_id is the canonical FK; project_id retained for v4 ABI.
 -- =============================================================================
 
--- Allocations (1179 rows)
+-- Allocations (1175 rows)
 INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
 ('p-bauer', 'proj-mdh-rollout', 'proj-mdh-rollout', '2025-10', 80.0, 1),
 ('p-bauer', 'proj-mdh-rollout', 'proj-mdh-rollout', '2025-11', 80.0, 1),
@@ -7029,9 +7029,9 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-fischer', 'proj-erp2', 'proj-erp2', '2026-01', 80, 1),
 ('p-fischer', 'proj-erp2', 'proj-erp2', '2026-02', 80, 1),
 ('p-fischer', 'proj-erp2', 'proj-erp2', '2026-03', 110, 1),
-('p-fischer', 'proj-erp2', 'proj-erp2', '2026-04', 110, 0),
-('p-fischer', 'proj-erp2', 'proj-erp2', '2026-05', 110, 0),
-('p-fischer', 'proj-erp2', 'proj-erp2', '2026-06', 80, 0),
+('p-fischer', 'proj-erp2', 'proj-erp2', '2026-04', 165, 0),
+('p-fischer', 'proj-erp2', 'proj-erp2', '2026-05', 165, 0),
+('p-fischer', 'proj-erp2', 'proj-erp2', '2026-06', 165, 0),
 ('p-fischer', 'proj-erp2', 'proj-erp2', '2026-07', 80, 0),
 ('p-fischer', 'proj-erp2', 'proj-erp2', '2026-08', 80, 1),
 ('p-fischer', 'proj-erp2', 'proj-erp2', '2026-09', 80, 1),
@@ -7090,7 +7090,6 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-keller', 'proj-mdh-rollout', 'proj-mdh-rollout', '2025-12', 40.0, 1),
 ('p-keller', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-01', 40.0, 1),
 ('p-keller', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-02', 40.0, 1),
-('p-keller', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-06', 40.0, 1),
 ('p-keller', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-07', 40.0, 1),
 ('p-keller', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-08', 40.0, 1),
 ('p-keller', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-09', 40.0, 1),
@@ -7183,9 +7182,9 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-menon', 'proj-iam-run', 'proj-iam-run', '2024-10', 30.0, 1),
 ('p-menon', 'proj-iam-run', 'proj-iam-run', '2024-11', 30.0, 1),
 ('p-menon', 'proj-iam-run', 'proj-iam-run', '2024-12', 30.0, 1),
-('p-menon', 'proj-iam-run', 'proj-iam-run', '2025-01', 30.0, 1);
+('p-menon', 'proj-iam-run', 'proj-iam-run', '2025-01', 30.0, 1),
+('p-menon', 'proj-iam-run', 'proj-iam-run', '2025-02', 30.0, 1);
 INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
-('p-menon', 'proj-iam-run', 'proj-iam-run', '2025-02', 30.0, 1),
 ('p-menon', 'proj-iam-run', 'proj-iam-run', '2025-03', 30.0, 1),
 ('p-menon', 'proj-iam-run', 'proj-iam-run', '2025-04', 30.0, 1),
 ('p-menon', 'proj-iam-run', 'proj-iam-run', '2025-05', 30.0, 1),
@@ -7284,9 +7283,9 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-neumann', 'proj-connveh', 'proj-connveh', '2026-10', 160.0, 1),
 ('p-neumann', 'proj-connveh', 'proj-connveh', '2026-11', 160.0, 1),
 ('p-neumann', 'proj-connveh', 'proj-connveh', '2026-12', 160.0, 1),
-('p-neumann', 'proj-connveh', 'proj-connveh', '2027-01', 160.0, 1);
+('p-neumann', 'proj-connveh', 'proj-connveh', '2027-01', 160.0, 1),
+('p-neumann', 'proj-connveh', 'proj-connveh', '2027-02', 160.0, 1);
 INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
-('p-neumann', 'proj-connveh', 'proj-connveh', '2027-02', 160.0, 1),
 ('p-neumann', 'proj-connveh', 'proj-connveh', '2027-03', 160.0, 1),
 ('p-neumann', 'proj-connveh', 'proj-connveh', '2027-04', 160.0, 1),
 ('p-neumann', 'proj-connveh', 'proj-connveh', '2027-05', 160.0, 1),
@@ -7357,9 +7356,6 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-patel', 'proj-erp2', 'proj-erp2', '2026-01', 60.0, 1),
 ('p-patel', 'proj-erp2', 'proj-erp2', '2026-02', 60.0, 1),
 ('p-patel', 'proj-erp2', 'proj-erp2', '2026-03', 30.0, 1),
-('p-patel', 'proj-erp2', 'proj-erp2', '2026-04', 30.0, 1),
-('p-patel', 'proj-erp2', 'proj-erp2', '2026-05', 30.0, 1),
-('p-patel', 'proj-erp2', 'proj-erp2', '2026-06', 60.0, 1),
 ('p-patel', 'proj-erp2', 'proj-erp2', '2026-07', 60.0, 1),
 ('p-patel', 'proj-erp2', 'proj-erp2', '2026-08', 60.0, 1),
 ('p-patel', 'proj-erp2', 'proj-erp2', '2026-09', 60.0, 1),
@@ -7385,12 +7381,12 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-rao', 'proj-erp2', 'proj-erp2', '2026-02', 40.0, 1),
 ('p-rao', 'proj-erp2', 'proj-erp2', '2026-03', 40.0, 1),
 ('p-rao', 'proj-erp2', 'proj-erp2', '2026-04', 40.0, 1),
-('p-rao', 'proj-erp2', 'proj-erp2', '2026-05', 40.0, 1);
-INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
+('p-rao', 'proj-erp2', 'proj-erp2', '2026-05', 40.0, 1),
 ('p-rao', 'proj-erp2', 'proj-erp2', '2026-06', 40.0, 1),
 ('p-rao', 'proj-erp2', 'proj-erp2', '2026-07', 40.0, 1),
 ('p-rao', 'proj-erp2', 'proj-erp2', '2026-08', 40.0, 1),
-('p-rao', 'proj-erp2', 'proj-erp2', '2026-09', 40.0, 1),
+('p-rao', 'proj-erp2', 'proj-erp2', '2026-09', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
 ('p-reddy', 'proj-erp2', 'proj-erp2', '2024-07', 40.0, 1),
 ('p-reddy', 'proj-erp2', 'proj-erp2', '2024-08', 40.0, 1),
 ('p-reddy', 'proj-erp2', 'proj-erp2', '2024-09', 40.0, 1),
@@ -7486,12 +7482,12 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2025-05', 30.0, 1),
 ('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2025-06', 30.0, 1),
 ('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2025-07', 30.0, 1),
-('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2025-08', 30.0, 1);
-INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
+('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2025-08', 30.0, 1),
 ('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2025-09', 30.0, 1),
 ('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2025-10', 30.0, 1),
 ('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2025-11', 30.0, 1),
-('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2025-12', 30.0, 1),
+('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2025-12', 30.0, 1);
+INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
 ('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2026-01', 30.0, 1),
 ('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2026-02', 30.0, 1),
 ('p-schmidt', 'proj-iam-run', 'proj-iam-run', '2026-03', 30.0, 1),
@@ -7587,12 +7583,12 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-singh', 'proj-railsafety', 'proj-railsafety', '2026-10', 80.0, 1),
 ('p-singh', 'proj-railsafety', 'proj-railsafety', '2026-11', 80.0, 1),
 ('p-singh', 'proj-railsafety', 'proj-railsafety', '2026-12', 80.0, 1),
-('p-singh', 'proj-railsafety', 'proj-railsafety', '2027-01', 80.0, 1);
-INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
+('p-singh', 'proj-railsafety', 'proj-railsafety', '2027-01', 80.0, 1),
 ('p-singh', 'proj-railsafety', 'proj-railsafety', '2027-02', 80.0, 1),
 ('p-singh', 'proj-railsafety', 'proj-railsafety', '2027-03', 80.0, 1),
 ('p-singh', 'proj-railsafety', 'proj-railsafety', '2027-04', 80.0, 1),
-('p-singh', 'proj-railsafety', 'proj-railsafety', '2027-05', 80.0, 1),
+('p-singh', 'proj-railsafety', 'proj-railsafety', '2027-05', 80.0, 1);
+INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
 ('p-singh', 'proj-railsafety', 'proj-railsafety', '2027-06', 80.0, 1),
 ('p-singh', 'proj-railsafety', 'proj-railsafety', '2027-07', 80.0, 1),
 ('p-singh', 'proj-railsafety', 'proj-railsafety', '2027-08', 80.0, 1),
@@ -7612,9 +7608,9 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-szabo', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-01', 40, 1),
 ('p-szabo', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-02', 40, 1),
 ('p-szabo', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-03', 80, 1),
-('p-szabo', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-04', 80, 1),
-('p-szabo', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-05', 80, 1),
-('p-szabo', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-06', 40, 1),
+('p-szabo', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-04', 180, 1),
+('p-szabo', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-05', 180, 1),
+('p-szabo', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-06', 180, 1),
 ('p-szabo', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-07', 40, 1),
 ('p-szabo', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-08', 40, 1),
 ('p-szabo', 'proj-mdh-rollout', 'proj-mdh-rollout', '2026-09', 40, 1),
@@ -7688,12 +7684,12 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-takacs', 'proj-iam-run', 'proj-iam-run', '2027-07', 40.0, 1),
 ('p-takacs', 'proj-iam-run', 'proj-iam-run', '2027-08', 40.0, 1),
 ('p-takacs', 'proj-iam-run', 'proj-iam-run', '2027-09', 40.0, 1),
-('p-takacs', 'proj-iam-run', 'proj-iam-run', '2027-10', 40.0, 1);
-INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
+('p-takacs', 'proj-iam-run', 'proj-iam-run', '2027-10', 40.0, 1),
 ('p-takacs', 'proj-iam-run', 'proj-iam-run', '2027-11', 40.0, 1),
 ('p-takacs', 'proj-iam-run', 'proj-iam-run', '2027-12', 40.0, 1),
 ('p-takacs', 'proj-iam-run', 'proj-iam-run', '2028-01', 40.0, 1),
-('p-takacs', 'proj-iam-run', 'proj-iam-run', '2028-02', 40.0, 1),
+('p-takacs', 'proj-iam-run', 'proj-iam-run', '2028-02', 40.0, 1);
+INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
 ('p-takacs', 'proj-iam-run', 'proj-iam-run', '2028-03', 40.0, 1),
 ('p-takacs', 'proj-iam-run', 'proj-iam-run', '2028-04', 40.0, 1),
 ('p-takacs', 'proj-iam-run', 'proj-iam-run', '2028-05', 40.0, 1),
@@ -7789,12 +7785,12 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-01', 30.0, 1),
 ('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-02', 30.0, 1),
 ('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-03', 30.0, 1),
-('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-04', 30.0, 1);
-INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
+('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-04', 30.0, 1),
 ('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-05', 30.0, 1),
 ('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-06', 30.0, 1),
 ('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-07', 30.0, 1),
-('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-08', 30.0, 1),
+('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-08', 30.0, 1);
+INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hours, is_confirmed) VALUES
 ('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-09', 30.0, 1),
 ('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-10', 30.0, 1),
 ('p-wagner', 'proj-iam-run', 'proj-iam-run', '2028-11', 30.0, 1),
@@ -7871,7 +7867,7 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 ('p-winter', 'proj-sensor', 'proj-sensor', '2026-11', 40.0, 1),
 ('p-winter', 'proj-sensor', 'proj-sensor', '2026-12', 40.0, 1);
 
--- Resource Requests for proj-autobrake (DoI 2 intake demo)
+-- Resource Requests for proj-autobrake (DoI 2 intake demo + multi-CC fan-out)
 INSERT INTO resource_requests (id, project_id, cost_center_id, request_type, role_type_id, cost_type_id, hours_or_amount_per_month, period_start, period_end, priority, status, assigned_person_id, adjusted_value, explanation, change_request_id, created_at, modified_at) VALUES
 (100, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-arch', NULL, 40, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (101, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 80, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
@@ -7881,7 +7877,10 @@ INSERT INTO resource_requests (id, project_id, cost_center_id, request_type, rol
 (105, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-consulting', 8000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (106, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-sw-licenses', 5000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (107, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-cloud', 6000, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
-(108, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-other', 3000, '2026-06', '2027-12', 'low', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00');
+(108, 'proj-autobrake', 'cc-muc-apd', 'external_cost', NULL, 'ext-other', 3000, '2026-06', '2027-12', 'low', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(110, 'proj-autobrake', 'cc-bud-apd', 'resource', 'role-dev', NULL, 120, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(111, 'proj-autobrake', 'cc-pun-apd', 'resource', 'role-dev', NULL, 80, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(112, 'proj-autobrake', 'cc-bud-apd', 'resource', 'role-qa', NULL, 40, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00');
 
 -- ResourceRequest Assignments for proj-autobrake (Sr Arch + Sr Dev pre-assigned)
 INSERT INTO resource_request_assignments (resource_request_id, month, person_id, hours, created_at, modified_at) VALUES
@@ -7956,6 +7955,11 @@ INSERT INTO cr_change_details (id, change_request_id, field_changed, old_value, 
 INSERT INTO cr_submission_snapshots (id, change_request_id, snapshot_type, created_by_id, forecast_data_json, comments, created_at, is_active) VALUES
 (1, 27, 'original', 'p-sharma', '[{"category": "internal", "sub_category": "role-sr-dev", "month": "2027-04", "hours": 60, "amount_eur": 7200}, {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-05", "hours": 60, "amount_eur": 7200}, {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-06", "hours": 60, "amount_eur": 7200}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-04", "hours": null, "amount_eur": 4000}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-05", "hours": null, "amount_eur": 4000}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-06", "hours": null, "amount_eur": 4000}]', NULL, '2026-02-20 10:00:00', 1),
 (2, 27, 'controller_proposed', 'p-meier', '[{"category": "internal", "sub_category": "role-sr-dev", "month": "2027-04", "hours": 50, "amount_eur": 6000}, {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-05", "hours": 50, "amount_eur": 6000}, {"category": "internal", "sub_category": "role-sr-dev", "month": "2027-06", "hours": 50, "amount_eur": 6000}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-04", "hours": null, "amount_eur": 3500}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-05", "hours": null, "amount_eur": 3500}, {"category": "external", "sub_category": "ext-sw-licenses", "month": "2027-06", "hours": null, "amount_eur": 3500}]', 'Reduced Sr Dev hours to 50/mo and ML license to 3500/mo for extended period.', '2026-02-20 10:00:00', 1);
+
+-- v5.2 W1 [C]: CR-triggered re-confirmation requests with change_direction
+INSERT INTO resource_requests (id, project_id, cost_center_id, request_type, role_type_id, cost_type_id, hours_or_amount_per_month, period_start, period_end, priority, status, assigned_person_id, adjusted_value, explanation, change_request_id, original_hours_per_month, change_direction, created_at, modified_at) VALUES
+(120, 'proj-erp2', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 120, '2026-04', '2026-06', 'high', 'pending', NULL, NULL, NULL, 9, 100, 'increase', '2026-03-05 09:00:00', '2026-03-05 09:00:00'),
+(121, 'proj-sensor', 'cc-muc-apd', 'external_cost', NULL, 'ext-cloud', 5000, '2026-04', '2027-12', 'high', 'pending', NULL, NULL, NULL, 15, 0, 'increase', '2026-03-08 09:30:00', '2026-03-08 09:30:00');
 
 -- =============================================================================
 -- s16 / Workflow Templates + Steps + Step Actions + Scheduled Changes

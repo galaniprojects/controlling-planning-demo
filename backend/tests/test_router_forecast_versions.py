@@ -1,8 +1,13 @@
-"""Router tests for forecast versions endpoints [C-FV-01..07, C-RH-01..04]."""
+"""Router tests for forecast versions endpoints [C-FV-01..07, C-RH-01..04].
+
+Manual-snapshot creation was removed; versions are now created only via
+forecast-cycle close and CR approval. These tests seed versions directly via
+``services.forecast_versioning.capture_version`` to exercise the read paths.
+"""
 from __future__ import annotations
 
 from unittest.mock import patch
-import pytest
+
 
 HEADERS_CTRL = {"X-Current-User": "persona-controller"}
 HEADERS_PL = {"X-Current-User": "persona-pl"}
@@ -26,6 +31,25 @@ def _setup_params(db):
     db.commit()
 
 
+def _seed_version(db, project_id: str, label: str | None = None):
+    """Seed a ForecastVersion via the service (cycle type) for read-path tests."""
+    from schemas.common import CurrentUser
+    from services.forecast_versioning import capture_version
+
+    user = CurrentUser(
+        user_id="persona-controller", person_id="p-controller",
+        name="Anna Meier", role="controller",
+        cost_center_id=None, project_ids=[],
+    )
+    fv = capture_version(
+        db=db, project_id=project_id, user=user,
+        version_type="cycle", cycle_label=label,
+    )
+    db.commit()
+    db.refresh(fv)
+    return fv
+
+
 @patch("routers.workbench.DEMO_DATE", "2026-04")
 @patch("config.DEMO_DATE", "2026-04")
 class TestListForecastVersions:
@@ -39,31 +63,24 @@ class TestListForecastVersions:
         assert data["total"] == 0
         assert data["items"] == []
 
-    def test_list_after_manual_create(self, test_client, seed_personas, create_test_project, db):
+    def test_list_with_seeded_version(self, test_client, seed_personas, create_test_project, db):
         _setup_params(db)
         create_test_project("proj-alpha")
-        # Create a manual version
-        resp_create = test_client.post(
-            "/api/projects/proj-alpha/forecast/versions",
-            json={"label": "test"},
-            headers=HEADERS_CTRL,
-        )
-        assert resp_create.status_code == 200
+        _seed_version(db, "proj-alpha", label="Q1 cycle")
 
         resp = test_client.get("/api/projects/proj-alpha/forecast/versions",
                                headers=HEADERS_CTRL)
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] == 1
-        assert data["items"][0]["version_type"] == "manual"
+        assert data["items"][0]["version_type"] == "cycle"
 
     def test_list_newest_first_sequencing(self, test_client, seed_personas, create_test_project, db):
         _setup_params(db)
         create_test_project("proj-alpha")
-        test_client.post("/api/projects/proj-alpha/forecast/versions",
-                         json={"label": "v1"}, headers=HEADERS_CTRL)
-        test_client.post("/api/projects/proj-alpha/forecast/versions",
-                         json={"label": "v2"}, headers=HEADERS_CTRL)
+        _seed_version(db, "proj-alpha", label="v1")
+        _seed_version(db, "proj-alpha", label="v2")
+
         resp = test_client.get("/api/projects/proj-alpha/forecast/versions",
                                headers=HEADERS_CTRL)
         items = resp.json()["items"]
@@ -96,14 +113,10 @@ class TestGetForecastVersion:
     def test_get_version_detail(self, test_client, seed_personas, create_test_project, db):
         _setup_params(db)
         create_test_project("proj-alpha")
-        create_resp = test_client.post(
-            "/api/projects/proj-alpha/forecast/versions",
-            json={"label": "smoke"},
-            headers=HEADERS_CTRL,
-        )
-        version_id = create_resp.json()["id"]
+        fv = _seed_version(db, "proj-alpha", label="smoke")
+
         resp = test_client.get(
-            f"/api/projects/proj-alpha/forecast/versions/{version_id}",
+            f"/api/projects/proj-alpha/forecast/versions/{fv.id}",
             headers=HEADERS_CTRL,
         )
         assert resp.status_code == 200
@@ -125,14 +138,10 @@ class TestGetForecastVersion:
         _setup_params(db)
         create_test_project("proj-alpha")
         create_test_project("proj-beta")
-        create_resp = test_client.post(
-            "/api/projects/proj-alpha/forecast/versions",
-            json={"label": "x"},
-            headers=HEADERS_CTRL,
-        )
-        version_id = create_resp.json()["id"]
+        fv = _seed_version(db, "proj-alpha", label="x")
+
         resp = test_client.get(
-            f"/api/projects/proj-beta/forecast/versions/{version_id}",
+            f"/api/projects/proj-beta/forecast/versions/{fv.id}",
             headers=HEADERS_CTRL,
         )
         assert resp.status_code == 404
@@ -140,46 +149,16 @@ class TestGetForecastVersion:
 
 @patch("routers.workbench.DEMO_DATE", "2026-04")
 @patch("config.DEMO_DATE", "2026-04")
-class TestManualSnapshot:
-    def test_controller_creates_version(self, test_client, seed_personas, create_test_project, db):
-        _setup_params(db)
-        create_test_project("proj-alpha")
-        resp = test_client.post(
-            "/api/projects/proj-alpha/forecast/versions",
-            json={"label": "smoke"},
-            headers=HEADERS_CTRL,
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["version_type"] == "manual"
-        assert data["cycle_label"] == "smoke"
-        assert data["version_number"] == 1
+class TestManualSnapshotRemoved:
+    """Manual snapshot endpoint was removed; POST must no longer succeed."""
 
-    def test_non_controller_denied(self, test_client, seed_personas, create_test_project, db):
+    def test_post_not_allowed(self, test_client, seed_personas, create_test_project, db):
         _setup_params(db)
         create_test_project("proj-alpha")
         resp = test_client.post(
             "/api/projects/proj-alpha/forecast/versions",
             json={"label": "x"},
-            headers=HEADERS_PL,
-        )
-        assert resp.status_code == 403
-
-    def test_no_label_allowed(self, test_client, seed_personas, create_test_project, db):
-        _setup_params(db)
-        create_test_project("proj-alpha")
-        resp = test_client.post(
-            "/api/projects/proj-alpha/forecast/versions",
-            json={},
             headers=HEADERS_CTRL,
         )
-        assert resp.status_code == 200
-        assert resp.json()["cycle_label"] is None
-
-    def test_project_not_found(self, test_client, seed_personas, db):
-        resp = test_client.post(
-            "/api/projects/nonexistent/forecast/versions",
-            json={"label": "x"},
-            headers=HEADERS_CTRL,
-        )
-        assert resp.status_code == 404
+        # FastAPI responds 405 when only GET is registered for a path.
+        assert resp.status_code in (404, 405)
