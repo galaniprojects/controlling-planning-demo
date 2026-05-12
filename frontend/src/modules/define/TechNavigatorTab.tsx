@@ -43,7 +43,7 @@ import type {
   TechNavigatorProfile,
   TechNavigatorUpdate,
 } from '@/types/techNavigator';
-import { useDirtyBuffer } from './useDirtyBuffer';
+import { deepEquals, useDirtyBuffer } from './useDirtyBuffer';
 
 interface Props {
   projectId: string;
@@ -147,7 +147,12 @@ export function TechNavigatorTab({
       if (!current) return undefined;
       return onSave(current);
     },
-    // Object compare via deep enough shallow — we only edit top-level fields.
+    // The TechNavigator profile carries a nested `weights` object. A
+    // server-side refetch can produce a new `weights` reference with
+    // identical values, which the default shallow compare would flag
+    // as dirty. Pass deepEquals so the buffer's isDirty signal stays
+    // accurate across refetches.
+    equals: deepEquals,
   });
 
   // Notify shell of dirty changes.

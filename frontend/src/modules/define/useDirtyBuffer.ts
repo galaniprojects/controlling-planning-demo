@@ -125,6 +125,15 @@ export interface UseDirtyBufferResult<T> {
   error: string | null;
 }
 
+/**
+ * Shallow key-equality for plain objects, falling back to `Object.is`
+ * for primitives / nulls. The shallow compare is sufficient for the
+ * Identity / Approval-AI-Council buffers whose values are flat
+ * structs of primitives. For payloads with nested object fields (e.g.
+ * the TechNavigator buffer's `weights`), supply `equals: deepEquals`
+ * — otherwise a refetched payload with a new nested-object reference
+ * but identical values will false-flag the buffer as dirty.
+ */
 function defaultEquals<T>(a: T, b: T): boolean {
   if (Object.is(a, b)) return true;
   if (
@@ -144,6 +153,41 @@ function defaultEquals<T>(a: T, b: T): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Recursive deep-equality walker for plain objects + arrays. Pass to
+ * `useDirtyBuffer({ equals: deepEquals })` when the buffer carries
+ * nested object / array fields that may be replaced by reference on
+ * refetch (e.g. server-side score recomputes that return a fresh
+ * `weights` object with identical values).
+ *
+ * Not a general-purpose deep-equal — does not handle Dates, Maps,
+ * Sets, RegExps, or class instances. Sufficient for the JSON-shaped
+ * payloads the Define page tabs hold.
+ */
+export function deepEquals<T>(a: T, b: T): boolean {
+  if (Object.is(a, b)) return true;
+  if (a === null || b === null) return false;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== 'object') return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEquals(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  const aObj = a as Record<string, unknown>;
+  const bObj = b as Record<string, unknown>;
+  const aKeys = Object.keys(aObj);
+  const bKeys = Object.keys(bObj);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) {
+    if (!deepEquals(aObj[k], bObj[k])) return false;
+  }
+  return true;
 }
 
 export function useDirtyBuffer<T>({
@@ -216,17 +260,36 @@ export function useDirtyBuffer<T>({
   // as false. The ref flips synchronously and is cleared in `finally`.
   const savingRef = useRef(false);
 
+  // Mirror of the latest `value` so the save callback can detect edits
+  // made during the network call (review finding I2).
+  const valueRef = useRef(value);
+  valueRef.current = value;
+
   const save = useCallback(async () => {
     if (savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
     setError(null);
+    // Snapshot the value at save-start. If the user types into the
+    // buffer between this point and `onSave` resolving, `valueRef.current`
+    // will have moved on — we must NOT clobber those edits with the
+    // promoted server payload. We still promote the baseline so the
+    // user's mid-flight edits correctly show as dirty against the new
+    // canonical state.
+    const snapshot = valueRef.current;
     try {
-      const result = await onSave(value);
-      const promoted = (result === undefined ? value : result) as T;
+      const result = await onSave(snapshot);
+      const promoted = (result === undefined ? snapshot : result) as T;
       initialRef.current = promoted;
       setBaseline(promoted);
-      setValueState(promoted);
+      if (equalsRef.current(valueRef.current, snapshot)) {
+        // No edits during save — adopt server-side enrichment in the
+        // working value too (composite scores, normalized fields, ...).
+        setValueState(promoted);
+      }
+      // Else: leave `value` alone. `isDirty = !equals(value, baseline)`
+      // will now reflect the user's mid-save edits against the new
+      // baseline — the keystrokes survive the round trip.
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Save failed';
       setError(msg);
@@ -235,7 +298,7 @@ export function useDirtyBuffer<T>({
       savingRef.current = false;
       setSaving(false);
     }
-  }, [onSave, value]);
+  }, [onSave]);
 
   return {
     value,

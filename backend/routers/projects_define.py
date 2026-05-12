@@ -788,9 +788,19 @@ def _replace_baseline_rows(
     The grid Save is conservative — the client always sends the full set
     of months it wants for a given row. Backend deletes existing rows for
     each (category, sub_category) pair, then re-inserts from the payload.
+
+    Pre-flight validation: every row's sub_category is validated before
+    any destructive operation, so a typo on row 5 does not roll back
+    rows 1-4 of in-session work (review finding C4).
     """
+    # Pass 1 — validate every row up front. Raises HTTPException(422)
+    # with the offending sub_category on the first invalid row.
     for row in rows:
         _validate_sub_category(db, row.category, row.sub_category)
+
+    # Pass 2 — perform the delete-then-insert per (category, sub_category)
+    # pair. All sub_categories are known to be valid at this point.
+    for row in rows:
         db.query(Baseline).filter(
             Baseline.project_id == project.id,
             Baseline.category == row.category,

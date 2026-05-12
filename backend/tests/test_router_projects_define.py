@@ -27,6 +27,7 @@ import pytest
 from config import DEMO_DATE
 from models.financial import Baseline, ExternalCostType
 from models.organization import ProjectGroupingAssignment
+from models.people import RoleType
 from models.projects import Project, ProjectMilestone
 from models.system import AuditLog, PlanningParameter
 
@@ -698,6 +699,82 @@ class TestUpdateBaselineGrid:
             headers=HEADERS_CC,
         )
         assert resp.status_code == 403
+
+    def test_validation_failure_does_not_partial_apply(
+        self, test_client, seed_personas, db,
+    ):
+        """Pre-flight validation (review finding C4): an invalid
+        sub_category on row 3 must reject the whole payload — rows 1
+        and 2 are not deleted or inserted before the 422 fires."""
+        proj = _seed_pl_owned_project(db)
+        # Seed a known internal baseline row that the test will
+        # attempt to overwrite as part of a payload whose 3rd row is
+        # invalid. After the failing PUT, the seed row must still be
+        # present (no partial delete).
+        seed_role = db.query(RoleType).first()
+        assert seed_role is not None
+        existing = Baseline(
+            project_id=proj.id,
+            month="2026-04",
+            category="internal",
+            sub_category=seed_role.id,
+            hours=10.0,
+            amount_eur=1000.0,
+            capex_opex=proj.capex_opex,
+        )
+        db.add(existing)
+        db.commit()
+
+        resp = test_client.put(
+            f"/api/projects/{proj.id}/baseline-grid",
+            json={
+                "rows": [
+                    # Row 1 — would overwrite the seeded existing row.
+                    {
+                        "category": "internal",
+                        "sub_category": seed_role.id,
+                        "months": [
+                            {"month": "2026-04", "amount_eur": 9999, "hours": 99},
+                        ],
+                    },
+                    # Row 2 — also valid.
+                    {
+                        "category": "internal",
+                        "sub_category": seed_role.id,
+                        "months": [
+                            {"month": "2026-05", "amount_eur": 5000, "hours": 40},
+                        ],
+                    },
+                    # Row 3 — invalid sub_category.
+                    {
+                        "category": "internal",
+                        "sub_category": "role-typo-not-a-thing",
+                        "months": [
+                            {"month": "2026-06", "amount_eur": 1, "hours": 1},
+                        ],
+                    },
+                ],
+            },
+            headers=HEADERS_PL,
+        )
+        assert resp.status_code == 422
+
+        # The seeded row must still exist with its original values —
+        # the validation failure on row 3 must not have deleted rows 1
+        # or 2 from the session before raising.
+        remaining = (
+            db.query(Baseline)
+            .filter(
+                Baseline.project_id == proj.id,
+                Baseline.category == "internal",
+                Baseline.sub_category == seed_role.id,
+            )
+            .all()
+        )
+        assert len(remaining) == 1
+        assert remaining[0].month == "2026-04"
+        assert float(remaining[0].amount_eur) == 1000.0
+        assert float(remaining[0].hours) == 10.0
 
 
 # ---------------------------------------------------------------------------
