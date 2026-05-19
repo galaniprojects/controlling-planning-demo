@@ -173,21 +173,45 @@ S_CODE_LOCS: list[tuple[str, list[str]]] = [
 
 
 # ---------------------------------------------------------------------------
-# Per-batch metadata (the (year, quarter, source, imported_at) tuple identifies
-# a UM batch per [F-UM-03]).
+# Per-version metadata. Charging/UM rework: CRETA is the system of record for
+# the authored UM matrix ([F-DIR-01]); ``source='seed'`` is the only
+# [F-UM-04]-legal greenfield provenance. A version is identified by
+# ``(year, quarter, activated_at)`` per [F-UM-02]:
+#   v1  2025-Q1  active  — historical frozen version
+#   v2  2026-Q1  active  — current version (drives 2026 BTC; resolved by
+#                          user_measurement_service.get_active_version)
+#   v3  2026-Q2  draft   — an editable draft (no activated_at) so the FD-2
+#                          authoring UI and the state-machine tests have a
+#                          draft fixture. Restricted to a small S-code subset
+#                          to keep seed.sql diffable.
+# Explicit ``version_id`` so cell rows can FK it deterministically.
 # ---------------------------------------------------------------------------
+_DRAFT_S_CODES = ("S042", "S999")
+
 UM_BATCHES: list[dict] = [
     {
+        "version_id": 1,
         "year": 2025,
         "quarter": 1,
-        "source": "csv_import_2025Q1",
-        "imported_at": "2025-01-20 10:00:00",
+        "status": "active",
+        "source": "seed",
+        "activated_at": "2025-01-20 10:00:00",
     },
     {
+        "version_id": 2,
         "year": 2026,
         "quarter": 1,
-        "source": "csv_import_2026Q1",
-        "imported_at": "2026-01-15 10:00:00",
+        "status": "active",
+        "source": "seed",
+        "activated_at": "2026-01-15 10:00:00",
+    },
+    {
+        "version_id": 3,
+        "year": 2026,
+        "quarter": 2,
+        "status": "draft",
+        "source": "seed",
+        "activated_at": None,
     },
 ]
 
@@ -204,8 +228,8 @@ HUB_LOCATIONS = frozenset({
 })
 
 
-def _value_for(s_code: str, year: int, quarter: int, loc_id: str, idx: int) -> float:
-    """Compute a deterministic UM value for one cell.
+def _value_for(s_code: str, year: int, quarter: int, loc_id: str, idx: int) -> int:
+    """Compute a deterministic **integer** UM value for one cell per [F-UM-01].
 
     Uses a seeded ``random.Random`` keyed on ``(s_code, year, quarter)`` so the
     sequence is reproducible. Within a batch each location gets a draw from
@@ -215,6 +239,11 @@ def _value_for(s_code: str, year: int, quarter: int, loc_id: str, idx: int) -> f
     Year-over-year drift: the 2026 batch advances the seed slightly so that
     percentages shift between 2025 and 2026 (visible in the BTC year-rollover
     UI). Magnitude order remains preserved (hubs still dominate).
+
+    Values are integers per [F-UM-01] (the consolidator pre-multiplies metrics
+    to remove decimals); ``max(1, ...)`` guarantees a non-zero cell so the
+    sparse-storage invariant (``ck_um_cell_nonzero``) is never tripped by
+    rounding a small draw to 0.
     """
     rng = random.Random(f"um|{s_code}|{year}|{quarter}|seed-v5")
     # Fast-forward the rng to position ``idx`` so per-loc sampling is stable
@@ -224,17 +253,26 @@ def _value_for(s_code: str, year: int, quarter: int, loc_id: str, idx: int) -> f
     base = rng.uniform(8.0, 80.0)
     multiplier = 2.0 if loc_id in HUB_LOCATIONS else 1.0
     drift = 1.0 + (year - 2025) * rng.uniform(-0.05, 0.10)
-    return round(base * multiplier * drift, 2)
+    return max(1, round(base * multiplier * drift))
 
 
 def _build_um_cells() -> list[dict]:
-    """Materialise all UM cells deterministically."""
+    """Materialise all UM cells deterministically.
+
+    ``year``/``quarter`` are kept on the cell dict for the read-only helpers
+    (``cells_for`` / ``percentages_for`` / ``total_value``) consumed by
+    s09_btc; the persisted cell row carries only ``version_id`` + ``value``
+    (year/quarter/source/activation live on the UMVersion header).
+    """
     out: list[dict] = []
     for batch in UM_BATCHES:
         for s_code, locs in S_CODE_LOCS:
+            if batch["status"] == "draft" and s_code not in _DRAFT_S_CODES:
+                continue
             for idx, loc_id in enumerate(locs):
                 out.append(
                     {
+                        "version_id": batch["version_id"],
                         "year": batch["year"],
                         "quarter": batch["quarter"],
                         "s_code": s_code,
@@ -242,8 +280,6 @@ def _build_um_cells() -> list[dict]:
                         "value": _value_for(
                             s_code, batch["year"], batch["quarter"], loc_id, idx,
                         ),
-                        "source": batch["source"],
-                        "imported_at": batch["imported_at"],
                     }
                 )
     return out

@@ -108,8 +108,9 @@ def generate() -> str:
     lines.append("")
     lines.append(
         "INSERT INTO chargeable_entities (id, entity_type, identifier, name, description, "
-        "hierarchy_node_id, responsible_person_id, to_business_pct, project_id, "
-        "termination_month, annual_cost, is_active, created_at, modified_at) VALUES"
+        "hierarchy_node_id, responsible_person_id, allocation_key, to_business_pct, "
+        "project_id, termination_month, annual_cost, is_active, created_at, "
+        "modified_at) VALUES"
     )
     rows = []
     for ent in all_chargeable_entities():
@@ -117,6 +118,7 @@ def generate() -> str:
             f"({sql_str(ent['id'])}, {sql_str(ent['entity_type'])}, "
             f"{sql_str(ent['identifier'])}, {sql_str(ent['name'])}, NULL, "
             f"{sql_str(ent['hierarchy_node_id'])}, {sql_str(ent['responsible_person_id'])}, "
+            f"{sql_str(ent['allocation_key'])}, "
             f"{ent['to_business_pct']}, {sql_str(ent['project_id'])}, "
             f"{sql_str(ent['termination_month'])}, {sql_str(ent['annual_cost'])}, "
             f"1, '{CREATED_AT}', '{CREATED_AT}')"
