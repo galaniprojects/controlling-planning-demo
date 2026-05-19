@@ -1,24 +1,32 @@
-"""UserMeasurement matrix admin endpoints per [F-UM-01..04].
+"""UserMeasurement matrix admin endpoints per [F-UM-01..05].
 
-Provides read access for the admin matrix viewer per [F-UM-04], CSV import
-per [F-UM-02] (every import creates a new version per [F-UM-03]), and a
-stubbed automatic-refresh status endpoint that returns 200 with a
-"not_connected" payload (per the working assumption captured in PROGRESS.md
-— a 501 would surface as a generic frontend network error, defeating the
-explanatory-tooltip UX described in [F-UM-02]).
+FD-1 legacy shim. The Charging/UM rework makes CRETA the system of record for
+an authored UM matrix with a draft/active state machine
+(``services/user_measurement_service``). This router keeps its existing paths
+(``/api/admin/user-measurement/*``) and response shapes so the Administration
+UM panel and `btc_service` keep working **untouched** through FD-1. The proper
+relocation into the Charging & Allocations namespace, the in-grid/CSV
+authoring UI, and the controller-review-before-activate flow are FD-2.
+
+Shim debt (recorded in PROGRESS.md, removed in FD-2):
+- ``POST /import`` creates a *draft* then **auto-activates** it in the same
+  call. Spec §2 says CSV import does not auto-activate, but the legacy
+  "import → immediately usable" contract (legacy tests + automatic BTC) must
+  hold until FD-2 builds the review flow.
+- ``/refresh-status`` still returns the SAP-stub payload; its language
+  contradicts [F-DIR-01] (UM is authored, SAP is export-only). Reframed in
+  FD-2, not here.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy import desc, func
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import get_db
 from dependencies import get_current_user, require_role
-from models.charging import ChargingLocation, UserMeasurement
+from models.charging import ChargingLocation, UMVersion, UserMeasurement
 from models.system import AuditLog
 from schemas.common import CurrentUser
 from schemas.user_measurement import (
@@ -29,7 +37,11 @@ from schemas.user_measurement import (
     UserMeasurementVersionResponse,
     UserMeasurementVersionsResponse,
 )
-from services.user_measurement_import import import_csv
+from services.user_measurement_import import parse_um_csv
+from services.user_measurement_service import (
+    activate_version,
+    get_active_version,
+)
 
 router = APIRouter(prefix="/api/admin/user-measurement", tags=["Administration: UserMeasurement"])
 
@@ -59,15 +71,22 @@ def _audit(
     )
 
 
+def _version_stamp(v: UMVersion) -> str:
+    """The version's representative timestamp for the legacy ``imported_at``.
+
+    Active versions report their freeze timestamp; drafts (no ``activated_at``)
+    fall back to ``created_at`` so the non-nullable response field is always a
+    string (legacy schema contract).
+    """
+    ts = v.activated_at or v.created_at
+    return ts.isoformat()
+
+
 @router.get("/refresh-status", response_model=UserMeasurementRefreshStatusResponse)
 def refresh_status(
     _user: CurrentUser = Depends(get_current_user),
 ):
-    """Stub for [F-UM-02] "automatic refresh".
-
-    Returns 200 with ``status="not_connected"`` so the frontend can render an
-    explanatory tooltip. Production replaces this with a SAP-API integration.
-    """
+    """Stub for [F-UM-02] "automatic refresh" (FD-2 reframes per [F-DIR-01])."""
     return UserMeasurementRefreshStatusResponse(
         status="not_connected",
         message=(
@@ -86,42 +105,38 @@ def list_versions(
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(get_current_user),
 ):
-    """List all UM import versions, optionally filtered by year/quarter.
+    """List UM versions, optionally filtered by year/quarter.
 
-    Read-visible to all CRETA users per [F-UM-04]; the import endpoint below
-    is admin-only.
+    Read-visible to all CRETA users per [F-DIR-03]; authoring/import is
+    controller-only.
     """
-    q = db.query(
-        UserMeasurement.year,
-        UserMeasurement.quarter,
-        UserMeasurement.imported_at,
-        UserMeasurement.source,
-        UserMeasurement.imported_by_person_id,
-        func.count(UserMeasurement.id).label("row_count"),
-    ).group_by(
-        UserMeasurement.year,
-        UserMeasurement.quarter,
-        UserMeasurement.imported_at,
-        UserMeasurement.source,
-        UserMeasurement.imported_by_person_id,
-    ).order_by(desc(UserMeasurement.year), desc(UserMeasurement.quarter), desc(UserMeasurement.imported_at))
-
+    counts = dict(
+        db.query(UserMeasurement.version_id, func.count(UserMeasurement.id))
+        .group_by(UserMeasurement.version_id)
+        .all()
+    )
+    q = db.query(UMVersion)
     if year is not None:
-        q = q.filter(UserMeasurement.year == year)
+        q = q.filter(UMVersion.year == year)
     if quarter is not None:
-        q = q.filter(UserMeasurement.quarter == quarter)
+        q = q.filter(UMVersion.quarter == quarter)
+    versions = q.order_by(
+        UMVersion.year.desc(),
+        UMVersion.quarter.desc(),
+        UMVersion.activated_at.desc(),
+        UMVersion.id.desc(),
+    ).all()
 
-    rows = q.all()
     items = [
         UserMeasurementVersionResponse(
-            year=r.year,
-            quarter=r.quarter,
-            imported_at=r.imported_at.isoformat(),
-            source=r.source,
-            row_count=r.row_count,
-            imported_by_person_id=r.imported_by_person_id,
+            year=v.year,
+            quarter=v.quarter,
+            imported_at=_version_stamp(v),
+            source=v.source,
+            row_count=counts.get(v.id, 0),
+            imported_by_person_id=v.created_by_person_id,
         )
-        for r in rows
+        for v in versions
     ]
     return UserMeasurementVersionsResponse(items=items, total=len(items))
 
@@ -136,88 +151,63 @@ def list_user_measurement(
 ):
     """Return UM cells for a (year, quarter) version.
 
-    Returns the latest version by default. Pass ``imported_at`` (ISO 8601
-    timestamp matching the value returned by ``/versions``) to address a
-    specific version. Read-visible to all CRETA users per [F-UM-04].
+    Returns the resolved active version by default. Pass ``imported_at`` (the
+    stamp returned by ``/versions``) to address a specific version.
+    Read-visible to all CRETA users per [F-DIR-03].
     """
-    # imported_at lives in a SQLite TEXT column. SQLAlchemy's DateTime binding
-    # appends ".000000" microseconds, which doesn't match seeded values that
-    # were inserted without microseconds. Both branches below build a single
-    # ``target_query`` and use it twice: once as ``.scalar()`` (materialised
-    # for the response payload, used only via .isoformat()) and once as
-    # ``.scalar_subquery()`` (server-side filter — the equality stays inside
-    # SQLite as TEXT-vs-TEXT, so SQLAlchemy's ``.000000`` binding can never
-    # be applied to the comparison value).
-    base_filter = (
-        UserMeasurement.year == year,
-        UserMeasurement.quarter == quarter,
-    )
-
     if imported_at:
-        try:
-            ts = datetime.fromisoformat(imported_at)
-        except ValueError:
-            raise HTTPException(400, f"Invalid imported_at timestamp: {imported_at}")
-        # NOTE: func.strftime is SQLite-only; revisit if the engine changes.
-        # Used as a second-precision lookup key — picks ONE concrete stored
-        # imported_at TEXT value, then the row filter exact-matches it so
-        # microsecond-distinct same-second batches stay distinguishable.
-        norm_ts = ts.strftime("%Y-%m-%d %H:%M:%S")
-        target_query = (
-            db.query(UserMeasurement.imported_at)
-            .filter(*base_filter)
-            .filter(
-                func.strftime("%Y-%m-%d %H:%M:%S", UserMeasurement.imported_at)
-                == norm_ts,
-            )
-            .order_by(desc(UserMeasurement.imported_at))
-            .limit(1)
+        version = next(
+            (
+                v
+                for v in db.query(UMVersion)
+                .filter(UMVersion.year == year, UMVersion.quarter == quarter)
+                .all()
+                if _version_stamp(v) == imported_at
+            ),
+            None,
         )
     else:
-        target_query = (
-            db.query(func.max(UserMeasurement.imported_at))
-            .filter(*base_filter)
-        )
+        version = get_active_version(db, year, quarter)
 
-    target_at_value = target_query.scalar()
-    if target_at_value is None:
+    if version is None:
         return UserMeasurementListResponse(
             items=[], total=0, year=year, quarter=quarter, imported_at=None,
         )
 
     rows = (
         db.query(UserMeasurement)
-        .filter(*base_filter)
-        .filter(UserMeasurement.imported_at == target_query.scalar_subquery())
-        .join(ChargingLocation, ChargingLocation.id == UserMeasurement.charging_location_id, isouter=True)
+        .filter(UserMeasurement.version_id == version.id)
+        .join(
+            ChargingLocation,
+            ChargingLocation.id == UserMeasurement.charging_location_id,
+            isouter=True,
+        )
         .order_by(UserMeasurement.s_code, UserMeasurement.charging_location_id)
         .all()
     )
+    stamp = _version_stamp(version)
     items = [
         UserMeasurementCellResponse(
             id=r.id,
-            year=r.year,
-            quarter=r.quarter,
+            year=version.year,
+            quarter=version.quarter,
             s_code=r.s_code,
             charging_location_id=r.charging_location_id,
-            charging_location_code=r.charging_location.code if r.charging_location else None,
+            charging_location_code=(
+                r.charging_location.code if r.charging_location else None
+            ),
             value=float(r.value),
-            source=r.source,
-            imported_at=r.imported_at.isoformat(),
+            source=version.source,
+            imported_at=stamp,
         )
         for r in rows
     ]
-    target_at_iso = (
-        target_at_value.isoformat()
-        if hasattr(target_at_value, "isoformat")
-        else str(target_at_value)
-    )
     return UserMeasurementListResponse(
         items=items,
         total=len(items),
-        year=year,
-        quarter=quarter,
-        imported_at=target_at_iso,
+        year=version.year,
+        quarter=version.quarter,
+        imported_at=stamp,
     )
 
 
@@ -227,9 +217,12 @@ async def import_user_measurement(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("controller")),
 ):
-    """Import a UM CSV per [F-UM-02]. Always creates a new version per [F-UM-03].
+    """Import a UM CSV per [F-UM-03]. FD-1 shim: creates a draft, then
+    auto-activates it (legacy "import → usable" contract; FD-2 adds the
+    controller-review-before-activate flow).
 
-    Expected CSV header: ``year, quarter, s_code, charging_location_code, value[, source]``.
+    Expected CSV header:
+    ``year, quarter, s_code, charging_location_code, value[, source]``.
     """
     content = await file.read()
     try:
@@ -238,46 +231,63 @@ async def import_user_measurement(
         raise HTTPException(400, "CSV file must be UTF-8 encoded")
 
     try:
-        result = import_csv(
-            db,
-            text,
-            default_source="csv_upload",
-            imported_by_person_id=user.person_id,
-        )
+        parsed = parse_um_csv(db, text, default_source="csv_upload")
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
-    if result.inserted == 0:
+    if not parsed.cells:
         # No rows landed; surface as 422 so the frontend can show parse errors.
         raise HTTPException(
             status_code=422,
             detail={
                 "message": "No rows imported",
-                "parse_errors": result.parse_errors,
-                "skipped_zero_rows": result.skipped_zero_rows,
+                "parse_errors": parsed.parse_errors,
+                "skipped_zero_rows": parsed.skipped_zero_rows,
             },
         )
 
-    _audit(
-        db,
-        user,
-        "user_measurement",
-        f"{result.year}-Q{result.quarter}-{result.imported_at.isoformat()}",
-        f"UM v{result.year}-Q{result.quarter}",
-        "create",
-        "row_count",
-        None,
-        str(result.row_count),
+    version = UMVersion(
+        year=parsed.year,
+        quarter=parsed.quarter,
+        status="draft",
+        source="csv_upload",
+        created_by_person_id=user.person_id,
     )
+    db.add(version)
+    db.flush()
+    for cell in parsed.cells:
+        db.add(
+            UserMeasurement(
+                version_id=version.id,
+                s_code=cell.s_code,
+                charging_location_id=cell.charging_location_id,
+                value=cell.value,
+            )
+        )
+        _audit(
+            db,
+            user,
+            "user_measurement_cell",
+            str(version.id),
+            f"UM v{version.id} {version.year}-Q{version.quarter}",
+            "create",
+            f"{cell.s_code}:{cell.charging_location_id}",
+            None,
+            str(cell.value),
+        )
+
+    # FD-1 shim: auto-activate so the imported version is immediately usable.
+    activate_version(db, version.id, actor_person_id=user.person_id)
     db.commit()
+    db.refresh(version)
 
     return UserMeasurementImportResponse(
-        year=result.year,
-        quarter=result.quarter,
-        imported_at=result.imported_at.isoformat(),
-        source=result.source,
-        row_count=result.row_count,
-        inserted=result.inserted,
-        skipped_zero_rows=result.skipped_zero_rows,
-        parse_errors=result.parse_errors,
+        year=version.year,
+        quarter=version.quarter,
+        imported_at=_version_stamp(version),
+        source=version.source,
+        row_count=len(parsed.cells),
+        inserted=len(parsed.cells),
+        skipped_zero_rows=parsed.skipped_zero_rows,
+        parse_errors=parsed.parse_errors,
     )

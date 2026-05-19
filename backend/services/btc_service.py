@@ -28,7 +28,6 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models.charging import (
@@ -174,47 +173,42 @@ def compute_um_snapshot(
 ) -> UMSnapshot:
     """Compute the BTC percentage distribution from the UM matrix.
 
-    Reads all UserMeasurement rows for the given (year, quarter, s_code)
-    from the most-recent import batch. Normalises values to percentages that
-    sum to 100%.
+    Reads all UserMeasurement cells for the given s_code from the resolved
+    active UM version for (year, quarter). Normalises values to percentages
+    that sum to 100%.
 
-    Raises ``BTCValidationError`` when no UM data is found for the given
-    parameters — the service raises rather than silently zeroing per F3's
-    design decision (Key Risk 3 in the plan).
+    Raises ``BTCValidationError`` when no active UM version / no UM data is
+    found — the service raises rather than silently zeroing per F3's design
+    decision (Key Risk 3 in the plan).
+
+    FD-1 shim: resolution moved from ``max(imported_at)`` to the resolved
+    active UM version (``user_measurement_service.get_active_version``),
+    which removed the seeded-TEXT-timestamp ``.000000`` binding workaround.
+    Behaviour-equivalent for the single-current-version seeded data. FD-4
+    collapses InternalService Stage-2 onto this fully.
     """
-    # Resolve the latest batch's imported_at once and use it two ways:
-    #   - .scalar()         → materialised value for the error message + snapshot
-    #   - .scalar_subquery() → server-side filter (TEXT-vs-TEXT, side-steps
-    #                          SQLAlchemy's ".000000" binding on Python datetime
-    #                          parameters that the seeded TEXT values don't carry)
-    base_filter = (
-        UserMeasurement.year == year,
-        UserMeasurement.quarter == quarter,
-    )
-    latest_query = (
-        db.query(func.max(UserMeasurement.imported_at))
-        .filter(*base_filter)
-    )
-    latest_ts = latest_query.scalar()
-    if latest_ts is None:
+    from services.user_measurement_service import get_active_version
+
+    version = get_active_version(db, year, quarter)
+    if version is None:
         raise BTCValidationError(
-            f"No UM data found for year={year}, quarter={quarter}. "
-            f"Import a UM CSV before creating an automatic BTC profile.",
+            f"No active UM version for year={year}, quarter={quarter}. "
+            f"Activate a UM version before creating an automatic BTC profile.",
         )
+    activated_at = version.activated_at
 
     rows = (
         db.query(UserMeasurement)
         .filter(
-            *base_filter,
+            UserMeasurement.version_id == version.id,
             UserMeasurement.s_code == s_code,
-            UserMeasurement.imported_at == latest_query.scalar_subquery(),
         )
         .all()
     )
     if not rows:
         raise BTCValidationError(
             f"No UM rows found for s_code='{s_code}' in year={year}, "
-            f"quarter={quarter} (latest batch {latest_ts.isoformat()}). "
+            f"quarter={quarter} (active version {version.id}). "
             f"Verify the S-code is present in the UM data.",
         )
 
@@ -250,7 +244,7 @@ def compute_um_snapshot(
 
     snapshot = UMSnapshot(
         s_code=s_code, year=year, quarter=quarter,
-        rows=snapshot_rows, imported_at=latest_ts, sums_to_100=True,
+        rows=snapshot_rows, imported_at=activated_at, sums_to_100=True,
     )
     return snapshot
 
