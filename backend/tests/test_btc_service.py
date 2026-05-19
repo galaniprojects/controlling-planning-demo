@@ -45,18 +45,43 @@ def _make_entity(db, entity_id="ce-test", entity_type="Offering", to_business_pc
     return ce
 
 
-def _make_um(db, s_code="S0001", year=2026, quarter=1, values=None):
-    """Insert UM rows. values = list of (cl_id, value)."""
+def _make_um(db, s_code="S0001", year=2026, quarter=1, values=None,
+             *, status="active", activated_at=None):
+    """Create an active UMVersion + integer cells; return its activated_at.
+
+    Charging/UM rework: a version replaces the (year,quarter,imported_at)
+    batch. Zero-valued entries are skipped (sparse storage / ck_um_cell_nonzero
+    invariant) — an s_code with only zero values therefore has no cells, which
+    ``compute_um_snapshot`` reports as "no UM rows" (the new equivalent of the
+    old zero-total path). ``compute_um_snapshot`` resolves the active version
+    and reports ``activated_at`` as the snapshot's ``imported_at``.
+    """
+    from models.charging import UMVersion
+
     if values is None:
         values = [("cl-test", 100.0)]
-    ts = datetime(2026, 1, 15, 10, 0, 0)
-    for cl_id, val in values:
-        row = UserMeasurement(
-            year=year, quarter=quarter, s_code=s_code,
-            charging_location_id=cl_id, value=val,
-            source="seed", imported_at=ts,
+    ts = activated_at or datetime(2026, 1, 15, 10, 0, 0)
+    version = (
+        db.query(UMVersion)
+        .filter_by(year=year, quarter=quarter, status=status)
+        .first()
+    )
+    if version is None:
+        version = UMVersion(
+            year=year, quarter=quarter, status=status, source="seed",
+            activated_at=ts if status == "active" else None,
         )
-        db.add(row)
+        db.add(version)
+        db.flush()
+    for cl_id, val in values:
+        if int(val) == 0:
+            continue
+        db.add(
+            UserMeasurement(
+                version_id=version.id, s_code=s_code,
+                charging_location_id=cl_id, value=int(val),
+            )
+        )
     db.flush()
     return ts
 
@@ -149,7 +174,7 @@ class TestComputeUMSnapshot:
 
     def test_missing_um_raises(self, db):
         _make_cl(db, "cl-a", "DE-A-001")
-        with pytest.raises(BTCValidationError, match="No UM data"):
+        with pytest.raises(BTCValidationError, match="No active UM version"):
             compute_um_snapshot(db, "S9999", 2026, 1)
 
     def test_s_code_not_in_batch_raises(self, db):
@@ -158,10 +183,13 @@ class TestComputeUMSnapshot:
         with pytest.raises(BTCValidationError, match="No UM rows"):
             compute_um_snapshot(db, "S9999", 2026, 1)
 
-    def test_zero_total_raises(self, db):
+    def test_zero_values_skipped_yield_no_rows(self, db):
+        # Sparse storage: a zero-valued cell is never stored
+        # (ck_um_cell_nonzero), so an s_code with only zeros has no rows —
+        # the new equivalent of the old zero-total path.
         _make_cl(db, "cl-a", "DE-A-001")
         _make_um(db, "S0001", values=[("cl-a", 0.0)])
-        with pytest.raises(BTCValidationError, match="zero or negative"):
+        with pytest.raises(BTCValidationError, match="No UM rows"):
             compute_um_snapshot(db, "S0001", 2026, 1)
 
 
@@ -252,7 +280,7 @@ class TestCreateAutomaticProfile:
 
     def test_missing_um_raises(self, db):
         _make_entity(db)
-        with pytest.raises(BTCValidationError, match="No UM data"):
+        with pytest.raises(BTCValidationError, match="No active UM version"):
             create_automatic_profile(db, "ce-test", 2026, "S9999", um_year=2026, um_quarter=1)
 
 
@@ -341,34 +369,33 @@ class TestRefreshFromUM:
         _make_cl(db, "cl-a", "DE-A-001")
         _make_cl(db, "cl-b", "DE-B-001")
         _make_entity(db)
-        ts = datetime(2026, 1, 15, 10, 0, 0)
-        # Initial UM: only cl-a
-        um1 = UserMeasurement(
-            year=2026, quarter=1, s_code="S0001",
-            charging_location_id="cl-a", value=100.0,
-            source="seed", imported_at=ts,
-        )
-        db.add(um1)
-        db.flush()
+        # Initial active version: only cl-a
+        _make_um(db, "S0001", values=[("cl-a", 100.0)])
         profile = create_automatic_profile(
             db, "ce-test", 2026, "S0001", um_year=2026, um_quarter=1,
         )
         db.commit()
         assert len(profile.lines) == 1
 
-        # New UM batch with both locations
-        ts2 = datetime(2026, 2, 15, 10, 0, 0)
-        um2 = UserMeasurement(
-            year=2026, quarter=1, s_code="S0001",
-            charging_location_id="cl-a", value=60.0,
-            source="seed", imported_at=ts2,
+        # Re-consolidation: the active version now also carries cl-b. (The
+        # test mutates the active version directly to simulate a new authored
+        # consolidation; the service guard against editing an active version
+        # is exercised separately in test_user_measurement_service.)
+        from services.user_measurement_service import get_active_version
+        version = get_active_version(db, 2026, 1)
+        um_a = (
+            db.query(UserMeasurement)
+            .filter_by(version_id=version.id, s_code="S0001",
+                       charging_location_id="cl-a")
+            .first()
         )
-        um3 = UserMeasurement(
-            year=2026, quarter=1, s_code="S0001",
-            charging_location_id="cl-b", value=40.0,
-            source="seed", imported_at=ts2,
+        um_a.value = 60
+        db.add(
+            UserMeasurement(
+                version_id=version.id, s_code="S0001",
+                charging_location_id="cl-b", value=40,
+            )
         )
-        db.add_all([um2, um3])
         db.commit()
 
         diff = refresh_from_um(db, profile.id, um_year=2026, um_quarter=1, dry_run=False)
@@ -811,26 +838,62 @@ class TestListAndGetProfiles:
 # Regression: seed.sql TEXT format (no microseconds)
 # ---------------------------------------------------------------------------
 
-class TestComputeUmSnapshotSeedFormat:
-    """Reproduces the bug PR #99 fixes. ``seed.sql`` writes
-    ``imported_at`` as TEXT without microseconds; SQLAlchemy's ``DateTime``
-    binding adds ``.000000`` to Python ``datetime`` parameters, so a
-    Python-bound filter would never match seed rows. The ORM-based tests
-    above can't catch this because both write and read round-trip through
-    the same ``.000000`` binding.
+class TestComputeUmSnapshotVersionResolution:
+    """Charging/UM rework: ``compute_um_snapshot`` resolves the active UM
+    version for (year, quarter) — the latest-activated one — and never a
+    draft. This supersedes the old ``max(imported_at)`` seed-TEXT-timestamp
+    regression (PR #99): version_id resolution removed that fragility
+    entirely. The institutional knowledge preserved here is the resolution
+    *rule*, not the timestamp-binding workaround.
     """
 
-    def test_seed_format_no_microseconds_resolves(self, db):
-        from sqlalchemy import text
-        _make_cl(db, "cl-de-muc", "DE-MUC-001")
-        db.execute(text(
-            "INSERT INTO user_measurements "
-            "(year, quarter, s_code, charging_location_id, value, source, imported_at) "
-            "VALUES (2026, 1, 'S0001', 'cl-de-muc', 100.0, 'seed', "
-            "'2026-01-15 10:00:00')"
+    def test_resolves_latest_activated_active_version(self, db):
+        from models.charging import UMVersion
+
+        _make_cl(db, "cl-a", "DE-A-001")
+        _make_cl(db, "cl-b", "DE-B-001")
+        # An older active version (cl-a only) and a newer active version
+        # (cl-b only) for the same (year, quarter).
+        old_v = UMVersion(
+            year=2026, quarter=1, status="active", source="seed",
+            activated_at=datetime(2026, 1, 15, 10, 0, 0),
+        )
+        db.add(old_v)
+        db.flush()
+        db.add(UserMeasurement(
+            version_id=old_v.id, s_code="S0001",
+            charging_location_id="cl-a", value=100,
+        ))
+        new_v = UMVersion(
+            year=2026, quarter=1, status="active", source="seed",
+            activated_at=datetime(2026, 2, 20, 9, 0, 0),
+        )
+        db.add(new_v)
+        db.flush()
+        db.add(UserMeasurement(
+            version_id=new_v.id, s_code="S0001",
+            charging_location_id="cl-b", value=100,
         ))
         db.commit()
+
         snap = compute_um_snapshot(db, "S0001", 2026, 1)
         assert len(snap.rows) == 1
-        assert snap.imported_at == datetime(2026, 1, 15, 10, 0, 0)
-        assert snap.rows[0].percentage == 100.0
+        assert snap.rows[0].charging_location_id == "cl-b"
+        assert snap.imported_at == datetime(2026, 2, 20, 9, 0, 0)
+
+    def test_draft_version_never_resolved(self, db):
+        from models.charging import UMVersion
+
+        _make_cl(db, "cl-a", "DE-A-001")
+        draft = UMVersion(
+            year=2026, quarter=1, status="draft", source="seed",
+        )
+        db.add(draft)
+        db.flush()
+        db.add(UserMeasurement(
+            version_id=draft.id, s_code="S0001",
+            charging_location_id="cl-a", value=100,
+        ))
+        db.commit()
+        with pytest.raises(BTCValidationError, match="No active UM version"):
+            compute_um_snapshot(db, "S0001", 2026, 1)
