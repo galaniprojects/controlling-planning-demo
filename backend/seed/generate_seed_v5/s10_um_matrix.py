@@ -34,27 +34,34 @@ def _sorted_cells() -> list[dict]:
     return sorted(
         UM_CELLS,
         key=lambda c: (
-            c["year"],
-            c["quarter"],
+            c["version_id"],
             c["s_code"],
             c["charging_location_id"],
         ),
     )
 
 
+def _version_row_sql(b: dict) -> str:
+    activated = f"'{b['activated_at']}'" if b["activated_at"] else "NULL"
+    return (
+        f"({b['version_id']}, {b['year']}, {b['quarter']}, "
+        f"{sql_str(b['status'])}, {sql_str(b['source'])}, {activated}, "
+        f"NULL, '{CREATED_AT}', NULL, '{CREATED_AT}')"
+    )
+
+
 def _row_sql(c: dict) -> str:
     return (
-        f"({c['year']}, {c['quarter']}, {sql_str(c['s_code'])}, "
-        f"{sql_str(c['charging_location_id'])}, {c['value']}, "
-        f"{sql_str(c['source'])}, '{c['imported_at']}', NULL)"
+        f"({c['version_id']}, {sql_str(c['s_code'])}, "
+        f"{sql_str(c['charging_location_id'])}, {c['value']})"
     )
 
 
 def _emit_insert_batch(rows: list[dict]) -> list[str]:
     """Emit a multi-row INSERT for a chunk of UM cells."""
     lines = [
-        "INSERT INTO user_measurements (year, quarter, s_code, charging_location_id, "
-        "value, source, imported_at, imported_by_person_id) VALUES"
+        "INSERT INTO user_measurements (version_id, s_code, "
+        "charging_location_id, value) VALUES"
     ]
     sql_rows = [_row_sql(c) for c in rows]
     lines.append(",\n".join(sql_rows) + ";")
@@ -71,14 +78,25 @@ def generate() -> str:
         f"({', '.join(f'{b['year']}-Q{b['quarter']}' for b in UM_BATCHES)}), "
         f"{len(S_CODE_LOCS)} S-codes."
     )
-    lines.append("-- Imported batch headers:")
+    lines.append("-- UM version headers (FK target — emitted before cells):")
     for b in UM_BATCHES:
-        loc_count_per_batch = sum(len(locs) for _, locs in S_CODE_LOCS)
         lines.append(
-            f"--   {b['year']}-Q{b['quarter']} source='{b['source']}' "
-            f"imported_at='{b['imported_at']}' rows={loc_count_per_batch}"
+            f"--   v{b['version_id']} {b['year']}-Q{b['quarter']} "
+            f"status={b['status']} source={b['source']} "
+            f"activated_at={b['activated_at']}"
         )
     lines.append("-- =============================================================================")
+    lines.append("")
+
+    # UMVersion header rows first so user_measurements.version_id FK resolves.
+    lines.append(
+        "INSERT INTO um_versions (id, year, quarter, status, source, "
+        "activated_at, copied_from_version_id, created_at, "
+        "created_by_person_id, modified_at) VALUES"
+    )
+    lines.append(
+        ",\n".join(_version_row_sql(b) for b in UM_BATCHES) + ";"
+    )
     lines.append("")
 
     # Chunk the cell list into 50-row INSERTs for readability.

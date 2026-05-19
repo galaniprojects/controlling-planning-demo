@@ -41,18 +41,23 @@ def _seed_base(db):
 
 
 def _seed_um(db):
+    from models.charging import UMVersion
     ts = datetime(2026, 1, 15, 10, 0, 0)
-    um1 = UserMeasurement(
-        year=2026, quarter=1, s_code="S0001",
-        charging_location_id="cl-a", value=60.0,
-        source="seed", imported_at=ts,
+    v = UMVersion(
+        year=2026, quarter=1, status="active", source="seed", activated_at=ts,
     )
-    um2 = UserMeasurement(
-        year=2026, quarter=1, s_code="S0001",
-        charging_location_id="cl-b", value=40.0,
-        source="seed", imported_at=ts,
-    )
-    db.add_all([um1, um2])
+    db.add(v)
+    db.flush()
+    db.add_all([
+        UserMeasurement(
+            version_id=v.id, s_code="S0001",
+            charging_location_id="cl-a", value=60,
+        ),
+        UserMeasurement(
+            version_id=v.id, s_code="S0001",
+            charging_location_id="cl-b", value=40,
+        ),
+    ])
     db.commit()
 
 

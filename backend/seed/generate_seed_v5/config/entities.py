@@ -362,6 +362,32 @@ INTERNAL_SERVICES: list[dict] = [
 ]
 
 
+# Allocation key per [F-AK-01] — the human-readable legend for what an
+# internal service's raw UM integer means / how it was derived. Free-text
+# with presets (FD-6 autocomplete); values intentionally repeat so the
+# distinct-values helper has dedup to do, and two are ``None`` to prove the
+# column is nullable and the helper filters empties. Keyed by service id.
+ALLOCATION_KEYS: dict[str, str | None] = {
+    "svc-ident-auth":       "Number of users",
+    "svc-infra-platform":   "Number of users ×100 (decimal protection)",
+    "svc-data-stewardship": "Number of managed data objects",
+    "svc-sap-basis":        "Number of SAP named users",
+    "svc-euc-support":      "Number of users",
+    "svc-net-sec":          "Number of users",
+    "svc-middleware":       "Number of transactions ×1000",
+    "svc-dba":              "Number of database instances",
+    "svc-rail-desk":        "Number of users",
+    "svc-rail-maint":       "Sales volume, EUR thousands",
+    "svc-signal-sup":       None,
+    "svc-tbs-maint":        "Sales volume, EUR thousands",
+    "svc-data-platform":    "Number of transactions ×1000",
+    "svc-iot-infra":        "Number of connected devices",
+    "svc-monitoring":       "Number of monitored endpoints",
+    "svc-itsm":             "Number of users",
+    "svc-devsec-tools":     None,
+}
+
+
 # ---------------------------------------------------------------------------
 # Roster banner — printed by the runner so Phase 2 teammates can sanity-check
 # the FROZEN entity counts.
@@ -399,6 +425,7 @@ def all_chargeable_entities() -> list[dict]:
                 "annual_cost": p.get("annual_cost"),
                 "project_id": p["id"],  # FK back into projects
                 "termination_month": None,
+                "allocation_key": None,  # [F-AK-01] — InternalService only
             }
         )
     for o in OFFERINGS:
@@ -414,6 +441,7 @@ def all_chargeable_entities() -> list[dict]:
                 "annual_cost": o["annual_cost"],
                 "project_id": None,
                 "termination_month": None,
+                "allocation_key": None,  # [F-AK-01] — InternalService only
             }
         )
     for s in INTERNAL_SERVICES:
@@ -429,6 +457,7 @@ def all_chargeable_entities() -> list[dict]:
                 "annual_cost": s["annual_cost"],
                 "project_id": None,
                 "termination_month": None,
+                "allocation_key": ALLOCATION_KEYS.get(s["id"]),  # [F-AK-01]
             }
         )
     return out

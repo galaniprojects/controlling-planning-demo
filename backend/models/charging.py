@@ -142,47 +142,55 @@ class LegalEntity(Base):
 
 
 class UserMeasurement(Base):
-    """Sparse, versioned UM matrix per [F-UM-01].
+    """Sparse UM matrix cell per [F-UM-01], FK'd to a ``UMVersion`` header.
 
-    A "version" is the set of rows sharing the same
-    ``(year, quarter, imported_at)`` triple. Each CSV import inserts a new
-    batch with a fresh ``imported_at`` timestamp; rows are never updated in
-    place per [F-UM-03]. The ``source`` column documents the import origin
-    (``csv_upload``, ``sap_api``, ``seed``, ``manual``) per [F-UM-02].
+    The Charging/UM rework (spec §2) makes CRETA the system of record for the
+    consolidated UM matrix: it is authored by a controller, not imported from
+    SAP. Version lifecycle, provenance, and the activation timestamp move to
+    the ``UMVersion`` header (mirroring ``BTCProfile``/``BTCProfileLine``);
+    this table now carries only the per-cell figure.
 
-    Only non-zero cells are stored; absence implies zero. Full-matrix
-    reconstruction at SAP export time (Cluster F session F3) walks all 90
-    charging locations and emits zeros for missing rows — that logic does not
-    live here.
+    ``value`` is **integer-typed** per [F-UM-01]: the consolidator
+    pre-multiplies certain metrics to remove decimals; the meaning of the
+    integer is carried by the service's allocation key, not inferred from the
+    number. The Python boundary (service + CSV parser) is the integer gate —
+    SQLite INTEGER affinity silently accepts floats, so the DB cannot enforce
+    it. Negative values are permitted (the spec does not forbid signed
+    pre-multiplied metrics).
+
+    Only non-zero cells are stored; absence implies zero (``ck_um_cell_nonzero``
+    enforces the sparse invariant). Full-matrix reconstruction at SAP export
+    time walks all charging locations and emits zeros for missing cells — that
+    logic does not live here.
     """
 
     __tablename__ = "user_measurements"
     __table_args__ = (
-        # A single import batch should not contain duplicate
-        # (s_code, charging_location_id) cells. Allows re-imports because
-        # ``imported_at`` differs per batch.
+        # One cell per (version, s_code, charging_location). The
+        # year/quarter/activation dimensions are reachable through version_id.
         UniqueConstraint(
-            "year", "quarter", "imported_at", "s_code", "charging_location_id",
+            "version_id", "s_code", "charging_location_id",
             name="uq_um_cell_per_version",
         ),
+        CheckConstraint("value <> 0", name="ck_um_cell_nonzero"),
+        Index("ix_um_cells_version", "version_id"),
+        Index("ix_um_cells_version_scode", "version_id", "s_code"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    year: Mapped[int] = mapped_column(Integer, nullable=False)
-    quarter: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-4
+    version_id: Mapped[int] = mapped_column(
+        ForeignKey("um_versions.id", ondelete="CASCADE"), nullable=False,
+    )
     s_code: Mapped[str] = mapped_column(String(20), nullable=False)
     charging_location_id: Mapped[str] = mapped_column(
         ForeignKey("charging_locations.id"), nullable=False,
     )
-    value: Mapped[float] = mapped_column(Numeric(14, 4), nullable=False)
-    source: Mapped[str] = mapped_column(String(30), nullable=False)
-    # csv_upload, sap_api, seed, manual
-    imported_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    imported_by_person_id: Mapped[Optional[str]] = mapped_column(
-        ForeignKey("people.id"), nullable=True,
-    )
+    value: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Relationships
+    version: Mapped["UMVersion"] = relationship(
+        "UMVersion", back_populates="cells",
+    )
     charging_location: Mapped["ChargingLocation"] = relationship()
 
 
@@ -266,6 +274,18 @@ class ChargeableEntity(Base):
     )
     responsible_person_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("people.id"), nullable=True,
+    )
+
+    # Allocation key per [F-AK-01] — the human-readable legend explaining what
+    # an internal service's raw UM integer means and how it was derived
+    # (e.g. "Number of users ×100 (decimal protection)"). Free-text with
+    # presets; per service, not per cell or UM version. Semantically scoped to
+    # the InternalService subtype but stored on the polymorphic root with no
+    # type-branch constraint (the root carries no entity-type branches by
+    # locked design / [F-OQ-11]). Editing surface = FD-6 admin panel; display
+    # surface = FD-5 dashboard triple-display / spec §7.
+    allocation_key: Mapped[Optional[str]] = mapped_column(
+        String(200), nullable=True,
     )
 
     # Stage 2 input per [F-DM-02] — the percentage of rolled-up cost that
@@ -555,3 +575,100 @@ class RollupCache(Base):
     # entity_id for stage1; "<entity_id>:<cl_id>" for stage2
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)
     computed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# ===========================================================================
+# Charging/UM rework — cluster FD-1: UM authored-version state machine.
+# Per [F-UM-01..05], [F-DIR-01]. Appended at end-of-file per this file's
+# established cluster-append convention (see the F2/F3 banners above).
+# ===========================================================================
+
+# UM version state machine, mirroring BTC_STATUSES per [F-UM-02]. Activation
+# is the freeze point; an active version is immutable.
+UM_VERSION_STATUSES = ("draft", "active")
+
+# Provenance per [F-UM-04]. ``sap_api`` is retired — UM is authored in CRETA,
+# SAP is export-only ([F-DIR-01]); it never described a real path.
+#   manual     — in-grid authoring
+#   csv_upload — CSV bulk-entry into a draft
+#   copy       — copied from a prior version
+#   seed       — greenfield seed data
+UM_VERSION_SOURCES = ("manual", "csv_upload", "copy", "seed")
+
+
+class UMVersion(Base):
+    """Authored UM matrix version header per [F-UM-02].
+
+    CRETA is the system of record for the consolidated UM matrix (spec §2):
+    a controller authors it, SAP is a downstream export target only. A
+    *version* is the set of cells sharing ``(year, quarter, activated_at)``.
+    The lifecycle mirrors ``BTCProfile`` for mental-model consistency across
+    the module:
+
+    - **draft** — editable; created empty, by CSV bulk-entry, or by copy from
+      a prior version.
+    - **active** — frozen and immutable; ``activated_at`` is the freeze
+      timestamp. Re-entry never overwrites an active version — it creates a
+      new draft that, on activation, becomes a new version. Historical active
+      versions remain intact for SAP-export reproducibility.
+
+    Immutability and "the resolved current version is the latest-activated
+    active version for a (year, quarter)" are enforced at the service layer
+    (``services/user_measurement_service.py``), not by DB constraint — the
+    same enforcement pattern ``BTCProfile`` uses, and SQLite partial unique
+    indexes are not portable here.
+    """
+
+    __tablename__ = "um_versions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('draft', 'active')", name="ck_um_version_status",
+        ),
+        CheckConstraint(
+            "source IN ('manual', 'csv_upload', 'copy', 'seed')",
+            name="ck_um_version_source",
+        ),
+        CheckConstraint(
+            "quarter >= 1 AND quarter <= 4", name="ck_um_version_quarter",
+        ),
+        Index("ix_um_versions_yq_status", "year", "quarter", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    quarter: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-4
+    status: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="draft",
+    )
+    source: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Set on activate(); the version's freeze timestamp and the activation
+    # component of its (year, quarter, activated_at) identity. NULL = draft.
+    activated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True,
+    )
+    # Provenance for source='copy', mirrors BTCProfile.copied_from_profile_id.
+    copied_from_version_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("um_versions.id", ondelete="SET NULL"), nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow,
+    )
+    # Carries the retired UserMeasurement.imported_by_person_id semantic.
+    created_by_person_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("people.id"), nullable=True,
+    )
+    modified_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow,
+    )
+
+    # Relationships
+    cells: Mapped[list["UserMeasurement"]] = relationship(
+        "UserMeasurement",
+        back_populates="version",
+        cascade="all, delete-orphan",
+    )
+    copied_from: Mapped[Optional["UMVersion"]] = relationship(
+        "UMVersion",
+        remote_side="UMVersion.id",
+        foreign_keys=[copied_from_version_id],
+    )

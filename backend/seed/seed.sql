@@ -75,31 +75,7 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('forecast_deadline', 'Forecast Deadline', 'Day of month when forecast is due', '15', '15', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_amber_threshold', 'RAG Amber Threshold', 'Budget variance % for amber status', '5', '5', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_red_threshold', 'RAG Red Threshold', 'Budget variance % for red status', '10', '10', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('capacity.unassigned_summary.warn_threshold_hours', 'Capacity: Unassigned Hours Warn Threshold', 'Hours/period at or above which the project-view unassigned-summary cell shows amber (below this value the cell is empty)', '1', '1', 'integer', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('capacity.unassigned_summary.danger_threshold_hours', 'Capacity: Unassigned Hours Danger Threshold', 'Hours/period at or above which the project-view unassigned-summary cell shows red instead of amber', '200', '200', 'integer', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
--- Demo envelope for the ranked backlog cutoff lines [A-BK-09]. Sized so the
--- 25-project demo backlog crosses both should-be and reality cutoffs roughly
--- mid-list (default in code is 50_000_000 — too high to be visible at demo scale).
-('ranking_total_available_budget', 'Ranking: Total Available Budget', 'Annual budget envelope used to draw should-be / reality cutoff lines on the ranked backlog. Demo value sized so cutoffs land mid-list (should-be ~12, reality ~16).', '14440000', '50000000', 'integer', 'ranking', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
--- Tech Navigator weights and T-shirt size thresholds [A-TN-01..A-TN-09].
--- Values mirror the code defaults in services/tech_navigator.py:26-42 so the
--- seeded snapshot equals the fall-back snapshot — no project's composite_score,
--- complexity_score, value_creation_score, or tshirt_size changes when these
--- rows are present versus absent. Editable from the dedicated
--- "Tech Navigator Scoring" admin page.
-('tn_complexity_weight_standardization', 'Complexity: Standardization weight', 'Weight of the Standardization sub-criterion in the Complexity axis (weighted average of Standardization, Usage, Maintenance).', '40', '40', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_complexity_weight_usage', 'Complexity: Usage weight', 'Weight of the Usage sub-criterion in the Complexity axis.', '40', '40', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_complexity_weight_maintenance', 'Complexity: Maintenance weight', 'Weight of the Maintenance sub-criterion in the Complexity axis.', '20', '20', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_value_weight_financial', 'Value Creation: Financial benefit weight', 'Weight of the Financial benefit sub-criterion in the Value Creation axis.', '50', '50', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_value_weight_payback', 'Value Creation: Payback weight', 'Weight of the Payback sub-criterion in the Value Creation axis.', '40', '40', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_value_weight_competitive', 'Value Creation: Competitive advantage weight', 'Weight of the Competitive advantage sub-criterion in the Value Creation axis.', '10', '10', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_w_value', 'Composite: Value Creation axis weight', 'Weight of the Value Creation axis in the composite ranking score: composite = (value_creation*w_value + complexity*w_complexity) / (w_value + w_complexity).', '70', '70', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_w_complexity', 'Composite: Complexity axis weight', 'Weight of the Complexity axis in the composite ranking score (see Value Creation axis weight for the formula).', '30', '30', 'percentage', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_tshirt_xs_max', 'T-shirt size: XS upper bound (EUR)', 'Projects with total_budget at or below this value render as XS.', '100000', '100000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_tshirt_s_max', 'T-shirt size: S upper bound (EUR)', 'Projects above XS and at or below this value render as S.', '250000', '250000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_tshirt_m_max', 'T-shirt size: M upper bound (EUR)', 'Projects above S and at or below this value render as M.', '500000', '500000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('tn_tshirt_l_max', 'T-shirt size: L upper bound (EUR)', 'Projects above M and at or below this value render as L. Above this value renders as XL.', '1000000', '1000000', 'integer', 'tech_navigator', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- s01_taxonomy / 7. KPI Definitions (built-in catalogue)
@@ -549,7 +525,7 @@ INSERT INTO users (id, username, display_name, email, role, person_id, tier3_fla
 INSERT INTO projects (id, name, description, status, rag_status, capex_opex, start_month, end_month, projected_end_month, pl_person_id, is_service, annual_budget, total_budget, last_forecast_submitted_month, ai_council_approved, progress_pct_manual_override, is_active, created_at, modified_at) VALUES
 ('proj-mdh-rollout', 'Master Data Hub Rollout', NULL, 'active', 'green', 'capex', '2025-10', '2026-12', '2026-12', 'p-sharma', 0, NULL, 880000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-erp2', 'ERP Integration Phase 2', NULL, 'active', 'red', 'capex', '2024-07', '2026-09', '2026-09', 'p-sharma', 0, NULL, 1810000, '2026-02', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-sensor', 'Sensor Data Pipeline', NULL, 'active', 'amber', 'capex', '2025-03', '2026-12', '2026-12', 'p-sharma', 0, NULL, 11000000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-sensor', 'Sensor Data Pipeline', NULL, 'active', 'amber', 'capex', '2025-03', '2026-12', '2026-12', 'p-sharma', 0, NULL, 720000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-predmaint', 'Predictive Maintenance PoC', NULL, 'active', 'amber', 'capex', '2025-06', '2027-03', '2027-03', 'p-sharma', 0, NULL, 510000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-autobrake', 'Autonomous Braking Prototype', NULL, 'pending_cc_confirmation', NULL, 'capex', '2026-06', '2027-12', '2027-12', 'p-sharma', 0, NULL, 920000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-railsafety', 'Rail Safety Compliance System', NULL, 'planned', 'green', 'capex', '2026-09', '2028-06', '2028-06', 'p-weber', 0, NULL, 520000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
@@ -557,25 +533,7 @@ INSERT INTO projects (id, name, description, status, rag_status, capex_opex, sta
 ('proj-greenedge', 'Green Edge Computing Pilot', NULL, 'draft', NULL, 'capex', '2026-11', '2027-04', '2027-04', 'p-weber', 0, NULL, 28440, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-connveh', 'Connected Vehicle Platform', NULL, 'draft', NULL, 'capex', '2026-10', '2028-12', '2028-12', 'p-weber', 0, NULL, 1150000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-cloud3-run', 'Cloud Platform Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 240000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-iam-run', 'Identity & Access Management Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 310000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
--- Backlog seed expansion (16 DoI 0-2 projects) so the ranked-list cutoff
--- lines have enough rows above and below to be visible in the demo.
-('proj-bk01', 'AI Customer Service Assistant', NULL, 'planned', 'green', 'capex', '2026-09', '2028-03', '2028-03', 'p-sharma', 0, NULL, 1850000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk02', 'Mobile Workforce Application', NULL, 'planned', 'green', 'capex', '2026-08', '2027-09', '2027-09', 'p-weber', 0, NULL, 680000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk03', 'Cybersecurity Hardening Programme', NULL, 'planned', 'green', 'capex', '2026-07', '2027-12', '2027-12', 'p-brenner', 0, NULL, 1200000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk04', 'Supplier Portal Modernization', NULL, 'draft', NULL, 'capex', '2026-10', '2027-08', '2027-08', 'p-sharma', 0, NULL, 540000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk05', 'Real-time Analytics Platform', NULL, 'pending_cc_confirmation', NULL, 'capex', '2026-09', '2028-12', '2028-12', 'p-weber', 0, NULL, 2300000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk06', 'Document Management Refresh', NULL, 'draft', NULL, 'opex', '2026-08', '2027-04', '2027-04', 'p-brenner', 0, NULL, 320000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk07', 'Manufacturing Execution Upgrade', NULL, 'draft', NULL, 'capex', '2026-11', '2028-06', '2028-06', 'p-sharma', 0, NULL, 1450000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk08', 'API Gateway Consolidation', NULL, 'planned', 'green', 'capex', '2026-08', '2027-06', '2027-06', 'p-brenner', 0, NULL, 480000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk09', 'Customer Identity Federation', NULL, 'planned', 'green', 'capex', '2026-09', '2027-10', '2027-10', 'p-brenner', 0, NULL, 760000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk10', 'Test Automation Platform', NULL, 'draft', NULL, 'opex', '2026-07', '2027-03', '2027-03', 'p-sharma', 0, NULL, 280000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk11', 'Compliance Reporting Engine', NULL, 'draft', NULL, 'capex', '2026-10', '2027-12', '2027-12', 'p-weber', 0, NULL, 620000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk12', 'Field Service Telematics', NULL, 'draft', NULL, 'capex', '2026-12', '2028-04', '2028-04', 'p-weber', 0, NULL, 880000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk13', 'Legacy ERP Decommission', NULL, 'draft', NULL, 'capex', '2027-01', '2028-09', '2028-09', 'p-sharma', 0, NULL, 410000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk14', 'Knowledge Graph Pilot', NULL, 'draft', NULL, 'capex', '2026-11', '2027-08', '2027-08', 'p-weber', 0, NULL, 240000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk15', 'Edge Sensor Network', NULL, 'draft', NULL, 'capex', '2027-02', '2028-12', '2028-12', 'p-weber', 0, NULL, 1100000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk16', 'Voice Bot Innovation Lab', NULL, 'draft', NULL, 'opex', '2026-09', '2027-04', '2027-04', 'p-brenner', 0, NULL, 95000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('proj-iam-run', 'Identity & Access Management Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 310000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- s06_chargeable_entities / 2. Chargeable Entities (34 — polymorphic) [F-DM-01]
@@ -583,60 +541,43 @@ INSERT INTO projects (id, name, description, status, rag_status, capex_opex, sta
 -- WBS is algorithmic (services/wbs_generator.py) per [F-DM-03] — never stored.
 -- =============================================================================
 
-INSERT INTO chargeable_entities (id, entity_type, identifier, name, description, hierarchy_node_id, responsible_person_id, to_business_pct, project_id, termination_month, annual_cost, is_active, created_at, modified_at) VALUES
-('proj-mdh-rollout', 'Project', 'IT012001', 'Master Data Hub Rollout', NULL, 'he-dnd', 'p-sharma', 0, 'proj-mdh-rollout', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-erp2', 'Project', 'IT012345', 'ERP Integration Phase 2', NULL, 'he-tbs-prog-dbp', 'p-sharma', 0, 'proj-erp2', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-sensor', 'Project', 'IT013477', 'Sensor Data Pipeline', NULL, 'he-tbs-prog-fleet', 'p-sharma', 0, 'proj-sensor', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-predmaint', 'Project', 'IT014821', 'Predictive Maintenance PoC', NULL, 'he-rvs', 'p-sharma', 0, 'proj-predmaint', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-autobrake', 'Project', 'IT015902', 'Autonomous Braking Prototype', NULL, 'he-tbs', 'p-sharma', 0, 'proj-autobrake', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-railsafety', 'Project', 'IT016045', 'Rail Safety Compliance System', NULL, 'he-rvs', 'p-weber', 0, 'proj-railsafety', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-dwh', 'Project', 'IT017210', 'Data Warehouse Consolidation', NULL, 'he-dnd', 'p-weber', 0, 'proj-dwh', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-greenedge', 'Project', 'IT018330', 'Green Edge Computing Pilot', NULL, 'he-cit', 'p-weber', 0, 'proj-greenedge', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-connveh', 'Project', 'IT019450', 'Connected Vehicle Platform', NULL, 'he-tbs', 'p-weber', 0, 'proj-connveh', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-cloud3-run', 'Project', 'IT011920', 'Cloud Platform Run', NULL, 'he-cit-prog-infra', 'p-brenner', 0, 'proj-cloud3-run', NULL, 240000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-iam-run', 'Project', 'IT011408', 'Identity & Access Management Run', NULL, 'he-cit', 'p-brenner', 0, 'proj-iam-run', NULL, 310000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('off-mdh', 'Offering', 'IT00S042', 'Master Data Hub', NULL, 'he-dnd', 'p-sharma', 95, NULL, NULL, 2400000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('off-eunify', 'Offering', 'IT00S118', 'Enterprise Unified Workspace', NULL, 'he-cit', 'p-brenner', 90, NULL, NULL, 980000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('off-bizinsights', 'Offering', 'IT00S067', 'Business Insights Platform', NULL, 'he-dnd', 'p-weber', 92, NULL, NULL, 1600000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('off-ecollab', 'Offering', 'IT00S210', 'Enterprise Collaboration Suite', NULL, 'he-cit', 'p-brenner', 88, NULL, NULL, 1200000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('off-fielddx', 'Offering', 'IT00S088', 'Field Diagnostics Service', NULL, 'he-tbs', 'p-weber', 85, NULL, NULL, 540000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('off-supplyvis', 'Offering', 'IT00S155', 'Supply Chain Visibility', NULL, 'he-tbs', 'p-weber', 80, NULL, NULL, 720000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-ident-auth', 'InternalService', 'ITF20011', 'Identity & Authentication Service', NULL, 'he-cit', 'p-brenner', 0, NULL, NULL, 620000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-infra-platform', 'InternalService', 'ITF20012', 'Infrastructure Platform Service', NULL, 'he-cit-prog-infra', 'p-brenner', 0, NULL, NULL, 1400000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-data-stewardship', 'InternalService', 'ITF20013', 'Data Stewardship Service', NULL, 'he-dnd', 'p-weber', 0, NULL, NULL, 380000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-sap-basis', 'InternalService', 'ITF20014', 'SAP Basis Operations', NULL, 'he-tbs', 'p-brenner', 0, NULL, NULL, 420000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-euc-support', 'InternalService', 'ITF20015', 'End User Computing Support', NULL, 'he-cit', 'p-brenner', 0, NULL, NULL, 230000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-net-sec', 'InternalService', 'ITF20016', 'Network & Security Operations', NULL, 'he-cit', 'p-brenner', 0, NULL, NULL, 410000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-middleware', 'InternalService', 'ITF20017', 'Enterprise Middleware', NULL, 'he-cit', 'p-brenner', 0, NULL, NULL, 290000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-dba', 'InternalService', 'ITF20018', 'Database Administration', NULL, 'he-cit', 'p-brenner', 0, NULL, NULL, 190000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-rail-desk', 'InternalService', 'ITF20019', 'Rail IT Service Desk', NULL, 'he-rvs', 'p-weber', 0, NULL, NULL, 260000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-rail-maint', 'InternalService', 'ITF20020', 'Rail Application Maintenance', NULL, 'he-rvs', 'p-weber', 0, NULL, NULL, 310000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-signal-sup', 'InternalService', 'ITF20021', 'Signaling Systems Support', NULL, 'he-rvs-prog-rail', 'p-weber', 0, NULL, NULL, 185000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-tbs-maint', 'InternalService', 'ITF20022', 'TBS Application Maintenance', NULL, 'he-tbs', 'p-weber', 0, NULL, NULL, 295000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-data-platform', 'InternalService', 'ITF20023', 'Data Platform Operations', NULL, 'he-dnd-prog-data', 'p-weber', 0, NULL, NULL, 230000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-iot-infra', 'InternalService', 'ITF20024', 'IoT Infrastructure Support', NULL, 'he-dnd', 'p-weber', 0, NULL, NULL, 160000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-monitoring', 'InternalService', 'ITF20025', 'Application Monitoring Service', NULL, 'he-cit', 'p-brenner', 0, NULL, NULL, 210000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-itsm', 'InternalService', 'ITF20026', 'ITSM Platform Service', NULL, 'he-cit', 'p-brenner', 0, NULL, NULL, 175000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-devsec-tools', 'InternalService', 'ITF20027', 'DevSecOps Toolchain Service', NULL, 'he-cit', 'p-brenner', 0, NULL, NULL, 145000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
--- Backlog seed expansion (16 DoI 0-2 Project entities).
-('proj-bk01', 'Project', 'IT020101', 'AI Customer Service Assistant', NULL, 'he-cit', 'p-sharma', 0, 'proj-bk01', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk02', 'Project', 'IT020102', 'Mobile Workforce Application', NULL, 'he-tbs', 'p-weber', 0, 'proj-bk02', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk03', 'Project', 'IT020103', 'Cybersecurity Hardening Programme', NULL, 'he-cit', 'p-brenner', 0, 'proj-bk03', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk04', 'Project', 'IT020104', 'Supplier Portal Modernization', NULL, 'he-tbs-prog-dbp', 'p-sharma', 0, 'proj-bk04', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk05', 'Project', 'IT020105', 'Real-time Analytics Platform', NULL, 'he-dnd-prog-data', 'p-weber', 0, 'proj-bk05', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk06', 'Project', 'IT020106', 'Document Management Refresh', NULL, 'he-cit', 'p-brenner', 0, 'proj-bk06', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk07', 'Project', 'IT020107', 'Manufacturing Execution Upgrade', NULL, 'he-tbs', 'p-sharma', 0, 'proj-bk07', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk08', 'Project', 'IT020108', 'API Gateway Consolidation', NULL, 'he-cit', 'p-brenner', 0, 'proj-bk08', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk09', 'Project', 'IT020109', 'Customer Identity Federation', NULL, 'he-cit', 'p-brenner', 0, 'proj-bk09', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk10', 'Project', 'IT020110', 'Test Automation Platform', NULL, 'he-cit', 'p-sharma', 0, 'proj-bk10', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk11', 'Project', 'IT020111', 'Compliance Reporting Engine', NULL, 'he-rvs', 'p-weber', 0, 'proj-bk11', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk12', 'Project', 'IT020112', 'Field Service Telematics', NULL, 'he-tbs-prog-fleet', 'p-weber', 0, 'proj-bk12', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk13', 'Project', 'IT020113', 'Legacy ERP Decommission', NULL, 'he-tbs-prog-dbp', 'p-sharma', 0, 'proj-bk13', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk14', 'Project', 'IT020114', 'Knowledge Graph Pilot', NULL, 'he-dnd', 'p-weber', 0, 'proj-bk14', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk15', 'Project', 'IT020115', 'Edge Sensor Network', NULL, 'he-rvs-prog-rail', 'p-weber', 0, 'proj-bk15', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-bk16', 'Project', 'IT020116', 'Voice Bot Innovation Lab', NULL, 'he-cit', 'p-brenner', 0, 'proj-bk16', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO chargeable_entities (id, entity_type, identifier, name, description, hierarchy_node_id, responsible_person_id, allocation_key, to_business_pct, project_id, termination_month, annual_cost, is_active, created_at, modified_at) VALUES
+('proj-mdh-rollout', 'Project', 'IT012001', 'Master Data Hub Rollout', NULL, 'he-dnd', 'p-sharma', NULL, 0, 'proj-mdh-rollout', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-erp2', 'Project', 'IT012345', 'ERP Integration Phase 2', NULL, 'he-tbs-prog-dbp', 'p-sharma', NULL, 0, 'proj-erp2', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-sensor', 'Project', 'IT013477', 'Sensor Data Pipeline', NULL, 'he-tbs-prog-fleet', 'p-sharma', NULL, 0, 'proj-sensor', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-predmaint', 'Project', 'IT014821', 'Predictive Maintenance PoC', NULL, 'he-rvs', 'p-sharma', NULL, 0, 'proj-predmaint', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-autobrake', 'Project', 'IT015902', 'Autonomous Braking Prototype', NULL, 'he-tbs', 'p-sharma', NULL, 0, 'proj-autobrake', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-railsafety', 'Project', 'IT016045', 'Rail Safety Compliance System', NULL, 'he-rvs', 'p-weber', NULL, 0, 'proj-railsafety', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-dwh', 'Project', 'IT017210', 'Data Warehouse Consolidation', NULL, 'he-dnd', 'p-weber', NULL, 0, 'proj-dwh', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-greenedge', 'Project', 'IT018330', 'Green Edge Computing Pilot', NULL, 'he-cit', 'p-weber', NULL, 0, 'proj-greenedge', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-connveh', 'Project', 'IT019450', 'Connected Vehicle Platform', NULL, 'he-tbs', 'p-weber', NULL, 0, 'proj-connveh', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-cloud3-run', 'Project', 'IT011920', 'Cloud Platform Run', NULL, 'he-cit-prog-infra', 'p-brenner', NULL, 0, 'proj-cloud3-run', NULL, 240000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-iam-run', 'Project', 'IT011408', 'Identity & Access Management Run', NULL, 'he-cit', 'p-brenner', NULL, 0, 'proj-iam-run', NULL, 310000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('off-mdh', 'Offering', 'IT00S042', 'Master Data Hub', NULL, 'he-dnd', 'p-sharma', NULL, 95, NULL, NULL, 2400000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('off-eunify', 'Offering', 'IT00S118', 'Enterprise Unified Workspace', NULL, 'he-cit', 'p-brenner', NULL, 90, NULL, NULL, 980000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('off-bizinsights', 'Offering', 'IT00S067', 'Business Insights Platform', NULL, 'he-dnd', 'p-weber', NULL, 92, NULL, NULL, 1600000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('off-ecollab', 'Offering', 'IT00S210', 'Enterprise Collaboration Suite', NULL, 'he-cit', 'p-brenner', NULL, 88, NULL, NULL, 1200000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('off-fielddx', 'Offering', 'IT00S088', 'Field Diagnostics Service', NULL, 'he-tbs', 'p-weber', NULL, 85, NULL, NULL, 540000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('off-supplyvis', 'Offering', 'IT00S155', 'Supply Chain Visibility', NULL, 'he-tbs', 'p-weber', NULL, 80, NULL, NULL, 720000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-ident-auth', 'InternalService', 'ITF20011', 'Identity & Authentication Service', NULL, 'he-cit', 'p-brenner', 'Number of users', 0, NULL, NULL, 620000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-infra-platform', 'InternalService', 'ITF20012', 'Infrastructure Platform Service', NULL, 'he-cit-prog-infra', 'p-brenner', 'Number of users ×100 (decimal protection)', 0, NULL, NULL, 1400000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-data-stewardship', 'InternalService', 'ITF20013', 'Data Stewardship Service', NULL, 'he-dnd', 'p-weber', 'Number of managed data objects', 0, NULL, NULL, 380000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-sap-basis', 'InternalService', 'ITF20014', 'SAP Basis Operations', NULL, 'he-tbs', 'p-brenner', 'Number of SAP named users', 0, NULL, NULL, 420000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-euc-support', 'InternalService', 'ITF20015', 'End User Computing Support', NULL, 'he-cit', 'p-brenner', 'Number of users', 0, NULL, NULL, 230000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-net-sec', 'InternalService', 'ITF20016', 'Network & Security Operations', NULL, 'he-cit', 'p-brenner', 'Number of users', 0, NULL, NULL, 410000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-middleware', 'InternalService', 'ITF20017', 'Enterprise Middleware', NULL, 'he-cit', 'p-brenner', 'Number of transactions ×1000', 0, NULL, NULL, 290000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-dba', 'InternalService', 'ITF20018', 'Database Administration', NULL, 'he-cit', 'p-brenner', 'Number of database instances', 0, NULL, NULL, 190000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-rail-desk', 'InternalService', 'ITF20019', 'Rail IT Service Desk', NULL, 'he-rvs', 'p-weber', 'Number of users', 0, NULL, NULL, 260000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-rail-maint', 'InternalService', 'ITF20020', 'Rail Application Maintenance', NULL, 'he-rvs', 'p-weber', 'Sales volume, EUR thousands', 0, NULL, NULL, 310000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-signal-sup', 'InternalService', 'ITF20021', 'Signaling Systems Support', NULL, 'he-rvs-prog-rail', 'p-weber', NULL, 0, NULL, NULL, 185000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-tbs-maint', 'InternalService', 'ITF20022', 'TBS Application Maintenance', NULL, 'he-tbs', 'p-weber', 'Sales volume, EUR thousands', 0, NULL, NULL, 295000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-data-platform', 'InternalService', 'ITF20023', 'Data Platform Operations', NULL, 'he-dnd-prog-data', 'p-weber', 'Number of transactions ×1000', 0, NULL, NULL, 230000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-iot-infra', 'InternalService', 'ITF20024', 'IoT Infrastructure Support', NULL, 'he-dnd', 'p-weber', 'Number of connected devices', 0, NULL, NULL, 160000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-monitoring', 'InternalService', 'ITF20025', 'Application Monitoring Service', NULL, 'he-cit', 'p-brenner', 'Number of monitored endpoints', 0, NULL, NULL, 210000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-itsm', 'InternalService', 'ITF20026', 'ITSM Platform Service', NULL, 'he-cit', 'p-brenner', 'Number of users', 0, NULL, NULL, 175000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-devsec-tools', 'InternalService', 'ITF20027', 'DevSecOps Toolchain Service', NULL, 'he-cit', 'p-brenner', NULL, 0, NULL, NULL, 145000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
--- chargeable_entities counts: 27 Project, 6 Offering, 17 InternalService.
+-- chargeable_entities counts: 11 Project, 6 Offering, 17 InternalService.
 
 -- =============================================================================
 -- s07_assignments / Project Grouping Assignments
@@ -654,24 +595,7 @@ INSERT INTO project_grouping_assignments (project_id, grouping_entity_id) VALUES
 ('proj-greenedge', 'he-cit'),
 ('proj-connveh', 'he-tbs'),
 ('proj-cloud3-run', 'he-cit-prog-infra'),
-('proj-iam-run', 'he-cit'),
--- Backlog seed expansion (16 DoI 0-2 projects).
-('proj-bk01', 'he-cit'),
-('proj-bk02', 'he-tbs'),
-('proj-bk03', 'he-cit'),
-('proj-bk04', 'he-tbs-prog-dbp'),
-('proj-bk05', 'he-dnd-prog-data'),
-('proj-bk06', 'he-cit'),
-('proj-bk07', 'he-tbs'),
-('proj-bk08', 'he-cit'),
-('proj-bk09', 'he-cit'),
-('proj-bk10', 'he-cit'),
-('proj-bk11', 'he-rvs'),
-('proj-bk12', 'he-tbs-prog-fleet'),
-('proj-bk13', 'he-tbs-prog-dbp'),
-('proj-bk14', 'he-dnd'),
-('proj-bk15', 'he-rvs-prog-rail'),
-('proj-bk16', 'he-cit');
+('proj-iam-run', 'he-cit');
 
 -- =============================================================================
 -- s08_distribution / Stage 1 distribution edges [F-S1-01..05]
@@ -781,66 +705,66 @@ INSERT INTO btc_profiles (entity_id, year, mode, s_code, um_snapshot_at, status,
 -- BTC profile lines (sums to 100% per profile within tolerance 0.01).
 -- Profile 1: off-eunify 2025 (automatic, s_code=S118) — 25 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(1, 'cl-at-vie', 5.33),
-(1, 'cl-cn-sha', 5.74),
-(1, 'cl-cz-prg', 1.08),
+(1, 'cl-at-vie', 5.35),
+(1, 'cl-cn-sha', 5.72),
+(1, 'cl-cz-prg', 1.11),
 (1, 'cl-de-ber', 1.91),
-(1, 'cl-de-col', 1.31),
-(1, 'cl-de-dus', 6.32),
+(1, 'cl-de-col', 1.27),
+(1, 'cl-de-dus', 6.36),
 (1, 'cl-de-fra', 5.01),
-(1, 'cl-de-ham', 4.54),
-(1, 'cl-de-muc', 5.87),
-(1, 'cl-de-stg', 2.45),
-(1, 'cl-de-wol', 2.87),
-(1, 'cl-es-bar', 2.26),
-(1, 'cl-es-mad', 1.07),
-(1, 'cl-fr-lyo', 5.27),
-(1, 'cl-fr-par', 3.15),
-(1, 'cl-hu-bud', 1.71),
-(1, 'cl-in-pun', 8.73),
-(1, 'cl-it-mil', 0.83),
+(1, 'cl-de-ham', 4.53),
+(1, 'cl-de-muc', 5.88),
+(1, 'cl-de-stg', 2.46),
+(1, 'cl-de-wol', 2.86),
+(1, 'cl-es-bar', 2.23),
+(1, 'cl-es-mad', 1.11),
+(1, 'cl-fr-lyo', 5.25),
+(1, 'cl-fr-par', 3.18),
+(1, 'cl-hu-bud', 1.67),
+(1, 'cl-in-pun', 8.74),
+(1, 'cl-it-mil', 0.79),
 (1, 'cl-it-rom', 2.94),
 (1, 'cl-nl-ams', 6.12),
-(1, 'cl-pl-poz', 5.55),
-(1, 'cl-uk-bir', 1.12),
-(1, 'cl-uk-lon', 9.48),
-(1, 'cl-uk-man', 3.78),
+(1, 'cl-pl-poz', 5.56),
+(1, 'cl-uk-bir', 1.11),
+(1, 'cl-uk-lon', 9.46),
+(1, 'cl-uk-man', 3.82),
 (1, 'cl-us-det', 5.56);
 
 -- Profile 2: off-mdh 2025 (automatic, s_code=S042) — 17 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(2, 'cl-de-ber', 5.71),
-(2, 'cl-de-fra', 2.71),
-(2, 'cl-de-ham', 2.47),
-(2, 'cl-de-muc', 13.89),
-(2, 'cl-de-stg', 4.09),
-(2, 'cl-de-wol', 2.22),
-(2, 'cl-es-mad', 4.02),
-(2, 'cl-fr-lyo', 8.6),
-(2, 'cl-fr-par', 10.52),
-(2, 'cl-hu-bud', 7.61),
+(2, 'cl-de-ber', 5.73),
+(2, 'cl-de-fra', 2.7),
+(2, 'cl-de-ham', 2.49),
+(2, 'cl-de-muc', 13.93),
+(2, 'cl-de-stg', 4.05),
+(2, 'cl-de-wol', 2.18),
+(2, 'cl-es-mad', 4.05),
+(2, 'cl-fr-lyo', 8.63),
+(2, 'cl-fr-par', 10.5),
+(2, 'cl-hu-bud', 7.59),
 (2, 'cl-in-pun', 11.85),
-(2, 'cl-it-mil', 4.27),
-(2, 'cl-nl-ams', 4.65),
+(2, 'cl-it-mil', 4.26),
+(2, 'cl-nl-ams', 4.68),
 (2, 'cl-pl-poz', 6.24),
-(2, 'cl-uk-lon', 2.71),
-(2, 'cl-uk-man', 2.38),
-(2, 'cl-us-det', 6.06);
+(2, 'cl-uk-lon', 2.7),
+(2, 'cl-uk-man', 2.39),
+(2, 'cl-us-det', 6.03);
 
 -- Profile 3: off-bizinsights 2026 (automatic, s_code=S067) — 12 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(3, 'cl-de-ber', 7.52),
-(3, 'cl-de-fra', 1.72),
-(3, 'cl-de-muc', 15.52),
-(3, 'cl-de-stg', 10.41),
-(3, 'cl-es-mad', 2.26),
-(3, 'cl-fr-lyo', 15.84),
-(3, 'cl-fr-par', 7.89),
-(3, 'cl-in-pun', 5.32),
-(3, 'cl-it-mil', 6.28),
-(3, 'cl-nl-ams', 6.02),
-(3, 'cl-uk-lon', 17.74),
-(3, 'cl-us-det', 3.48);
+(3, 'cl-de-ber', 7.46),
+(3, 'cl-de-fra', 1.75),
+(3, 'cl-de-muc', 15.5),
+(3, 'cl-de-stg', 10.37),
+(3, 'cl-es-mad', 2.21),
+(3, 'cl-fr-lyo', 15.85),
+(3, 'cl-fr-par', 7.93),
+(3, 'cl-in-pun', 5.36),
+(3, 'cl-it-mil', 6.29),
+(3, 'cl-nl-ams', 6.06),
+(3, 'cl-uk-lon', 17.72),
+(3, 'cl-us-det', 3.5);
 
 -- Profile 4: off-ecollab 2026 (manual) — 10 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
@@ -857,31 +781,31 @@ INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VAL
 
 -- Profile 5: off-eunify 2026 (automatic, s_code=S118) — 25 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(5, 'cl-at-vie', 2.56),
-(5, 'cl-cn-sha', 4.4),
-(5, 'cl-cz-prg', 3.01),
-(5, 'cl-de-ber', 3.3),
-(5, 'cl-de-col', 2.93),
-(5, 'cl-de-dus', 0.52),
-(5, 'cl-de-fra', 1.41),
-(5, 'cl-de-ham', 3.92),
-(5, 'cl-de-muc', 1.69),
-(5, 'cl-de-stg', 3.07),
-(5, 'cl-de-wol', 4.39),
+(5, 'cl-at-vie', 2.53),
+(5, 'cl-cn-sha', 4.37),
+(5, 'cl-cz-prg', 2.98),
+(5, 'cl-de-ber', 3.31),
+(5, 'cl-de-col', 2.92),
+(5, 'cl-de-dus', 0.53),
+(5, 'cl-de-fra', 1.39),
+(5, 'cl-de-ham', 3.91),
+(5, 'cl-de-muc', 1.72),
+(5, 'cl-de-stg', 3.05),
+(5, 'cl-de-wol', 4.37),
 (5, 'cl-es-bar', 4.77),
-(5, 'cl-es-mad', 5.32),
-(5, 'cl-fr-lyo', 6.59),
+(5, 'cl-es-mad', 5.3),
+(5, 'cl-fr-lyo', 6.63),
 (5, 'cl-fr-par', 4.84),
-(5, 'cl-hu-bud', 2.63),
-(5, 'cl-in-pun', 5.53),
-(5, 'cl-it-mil', 0.94),
-(5, 'cl-it-rom', 3.02),
-(5, 'cl-nl-ams', 5.48),
-(5, 'cl-pl-poz', 5.42),
-(5, 'cl-uk-bir', 4.62),
-(5, 'cl-uk-lon', 5.12),
+(5, 'cl-hu-bud', 2.65),
+(5, 'cl-in-pun', 5.57),
+(5, 'cl-it-mil', 0.93),
+(5, 'cl-it-rom', 3.05),
+(5, 'cl-nl-ams', 5.5),
+(5, 'cl-pl-poz', 5.43),
+(5, 'cl-uk-bir', 4.64),
+(5, 'cl-uk-lon', 5.1),
 (5, 'cl-uk-man', 4.9),
-(5, 'cl-us-det', 9.62);
+(5, 'cl-us-det', 9.61);
 
 -- Profile 6: off-fielddx 2026 (manual) — 4 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
@@ -912,20 +836,20 @@ INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VAL
 
 -- Profile 8: off-supplyvis 2026 (automatic, s_code=S155) — 14 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(8, 'cl-br-sao', 8.04),
-(8, 'cl-cn-sha', 14.12),
-(8, 'cl-cz-prg', 7.76),
-(8, 'cl-de-muc', 14.47),
+(8, 'cl-br-sao', 8.08),
+(8, 'cl-cn-sha', 14.14),
+(8, 'cl-cz-prg', 7.77),
+(8, 'cl-de-muc', 14.44),
 (8, 'cl-de-stg', 10.56),
-(8, 'cl-de-wol', 3.31),
-(8, 'cl-es-mad', 2.17),
-(8, 'cl-fr-lyo', 3.85),
-(8, 'cl-hu-bud', 5.07),
-(8, 'cl-in-pun', 9.7),
-(8, 'cl-it-mil', 3.37),
-(8, 'cl-mx-mex', 4.21),
-(8, 'cl-pl-poz', 6.69),
-(8, 'cl-us-det', 6.68);
+(8, 'cl-de-wol', 3.29),
+(8, 'cl-es-mad', 2.19),
+(8, 'cl-fr-lyo', 3.88),
+(8, 'cl-hu-bud', 5.08),
+(8, 'cl-in-pun', 9.66),
+(8, 'cl-it-mil', 3.39),
+(8, 'cl-mx-mex', 4.18),
+(8, 'cl-pl-poz', 6.67),
+(8, 'cl-us-det', 6.67);
 
 -- Profile 9: proj-cloud3-run 2026 (manual) — 4 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
@@ -970,35 +894,35 @@ INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VAL
 -- Profile 15: svc-euc-support 2026 (automatic, s_code=S312) — 30 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
 (15, 'cl-cn-sha', 5.27),
-(15, 'cl-cz-prg', 2.82),
-(15, 'cl-de-ber', 3.47),
-(15, 'cl-de-col', 2.67),
+(15, 'cl-cz-prg', 2.81),
+(15, 'cl-de-ber', 3.45),
+(15, 'cl-de-col', 2.69),
 (15, 'cl-de-dus', 0.76),
-(15, 'cl-de-fra', 1.13),
-(15, 'cl-de-ham', 2.44),
+(15, 'cl-de-fra', 1.11),
+(15, 'cl-de-ham', 2.46),
 (15, 'cl-de-lei', 3.22),
-(15, 'cl-de-muc', 8.94),
-(15, 'cl-de-nur', 3.37),
-(15, 'cl-de-stg', 5.67),
-(15, 'cl-de-wol', 3.05),
-(15, 'cl-es-bar', 3.81),
-(15, 'cl-es-mad', 2.3),
-(15, 'cl-fr-lyo', 3.95),
+(15, 'cl-de-muc', 8.95),
+(15, 'cl-de-nur', 3.39),
+(15, 'cl-de-stg', 5.68),
+(15, 'cl-de-wol', 3.04),
+(15, 'cl-es-bar', 3.8),
+(15, 'cl-es-mad', 2.28),
+(15, 'cl-fr-lyo', 3.92),
 (15, 'cl-fr-mar', 3.69),
 (15, 'cl-fr-par', 5.73),
-(15, 'cl-fr-tou', 1.19),
-(15, 'cl-hu-bud', 1.94),
-(15, 'cl-in-pun', 3.12),
-(15, 'cl-it-mil', 1.25),
-(15, 'cl-it-rom', 1.1),
-(15, 'cl-nl-ams', 1.73),
-(15, 'cl-pl-poz', 2.71),
-(15, 'cl-pl-war', 4.9),
-(15, 'cl-uk-bir', 4.67),
-(15, 'cl-uk-lon', 6.3),
+(15, 'cl-fr-tou', 1.17),
+(15, 'cl-hu-bud', 1.93),
+(15, 'cl-in-pun', 3.1),
+(15, 'cl-it-mil', 1.23),
+(15, 'cl-it-rom', 1.11),
+(15, 'cl-nl-ams', 1.76),
+(15, 'cl-pl-poz', 2.69),
+(15, 'cl-pl-war', 4.92),
+(15, 'cl-uk-bir', 4.68),
+(15, 'cl-uk-lon', 6.32),
 (15, 'cl-uk-man', 3.22),
-(15, 'cl-us-det', 2.27),
-(15, 'cl-us-nyc', 3.31);
+(15, 'cl-us-det', 2.28),
+(15, 'cl-us-nyc', 3.34);
 
 -- Profile 16: svc-ident-auth 2026 (manual) — 3 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
@@ -1022,24 +946,24 @@ INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VAL
 
 -- Profile 19: svc-itsm 2026 (automatic, s_code=S720) — 18 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(19, 'cl-cn-sha', 3.48),
-(19, 'cl-de-ber', 8.43),
-(19, 'cl-de-fra', 4.04),
-(19, 'cl-de-ham', 4.35),
-(19, 'cl-de-muc', 10.7),
-(19, 'cl-de-stg', 5.54),
-(19, 'cl-de-wol', 4.97),
-(19, 'cl-es-mad', 2.29),
-(19, 'cl-fr-lyo', 8.32),
-(19, 'cl-fr-par', 2.75),
-(19, 'cl-hu-bud', 1.25),
-(19, 'cl-in-pun', 7.72),
-(19, 'cl-it-mil', 1.07),
-(19, 'cl-nl-ams', 6.24),
-(19, 'cl-pl-poz', 1.25),
-(19, 'cl-uk-lon', 11.15),
-(19, 'cl-uk-man', 1.5),
-(19, 'cl-us-det', 14.95);
+(19, 'cl-cn-sha', 3.45),
+(19, 'cl-de-ber', 8.45),
+(19, 'cl-de-fra', 4.0),
+(19, 'cl-de-ham', 4.34),
+(19, 'cl-de-muc', 10.68),
+(19, 'cl-de-stg', 5.56),
+(19, 'cl-de-wol', 5.01),
+(19, 'cl-es-mad', 2.34),
+(19, 'cl-fr-lyo', 8.34),
+(19, 'cl-fr-par', 2.78),
+(19, 'cl-hu-bud', 1.22),
+(19, 'cl-in-pun', 7.68),
+(19, 'cl-it-mil', 1.11),
+(19, 'cl-nl-ams', 6.23),
+(19, 'cl-pl-poz', 1.22),
+(19, 'cl-uk-lon', 11.12),
+(19, 'cl-uk-man', 1.56),
+(19, 'cl-us-det', 14.91);
 
 -- Profile 20: svc-middleware 2026 (manual) — 4 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
@@ -1070,24 +994,24 @@ INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VAL
 
 -- Profile 24: svc-rail-maint 2026 (automatic, s_code=S408) — 6 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(24, 'cl-de-fra', 15.57),
-(24, 'cl-de-muc', 10.84),
-(24, 'cl-de-stg', 8.97),
-(24, 'cl-fr-par', 26.63),
-(24, 'cl-pl-poz', 4.04),
-(24, 'cl-uk-lon', 33.95);
+(24, 'cl-de-fra', 15.6),
+(24, 'cl-de-muc', 10.89),
+(24, 'cl-de-stg', 8.91),
+(24, 'cl-fr-par', 26.73),
+(24, 'cl-pl-poz', 3.96),
+(24, 'cl-uk-lon', 33.91);
 
 -- Profile 25: svc-sap-basis 2026 (automatic, s_code=S301) — 9 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(25, 'cl-de-muc', 18.39),
-(25, 'cl-de-stg', 10.58),
-(25, 'cl-es-mad', 9.75),
+(25, 'cl-de-muc', 18.43),
+(25, 'cl-de-stg', 10.61),
+(25, 'cl-es-mad', 9.72),
 (25, 'cl-fr-lyo', 17.3),
-(25, 'cl-hu-bud', 4.76),
-(25, 'cl-in-pun', 14.43),
-(25, 'cl-it-mil', 10.45),
-(25, 'cl-pl-poz', 6.87),
-(25, 'cl-uk-lon', 7.47);
+(25, 'cl-hu-bud', 4.8),
+(25, 'cl-in-pun', 14.39),
+(25, 'cl-it-mil', 10.48),
+(25, 'cl-pl-poz', 6.82),
+(25, 'cl-uk-lon', 7.45);
 
 -- Profile 26: svc-signal-sup 2026 (manual) — 2 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
@@ -1096,14 +1020,14 @@ INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VAL
 
 -- Profile 27: svc-tbs-maint 2026 (automatic, s_code=S503) — 8 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(27, 'cl-de-muc', 21.86),
-(27, 'cl-de-stg', 13.75),
-(27, 'cl-de-wol', 5.19),
-(27, 'cl-fr-lyo', 6.34),
-(27, 'cl-hu-bud', 16.71),
+(27, 'cl-de-muc', 21.82),
+(27, 'cl-de-stg', 13.71),
+(27, 'cl-de-wol', 5.08),
+(27, 'cl-fr-lyo', 6.35),
+(27, 'cl-hu-bud', 16.75),
 (27, 'cl-it-mil', 9.14),
 (27, 'cl-pl-poz', 7.61),
-(27, 'cl-us-det', 19.4);
+(27, 'cl-us-det', 19.54);
 
 -- Total btc_profiles: 27
 -- Total btc_profile_lines: 245
@@ -1111,340 +1035,366 @@ INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VAL
 
 -- =============================================================================
 -- s10_um_matrix / UM matrix snapshots [F-UM-01..04]
--- 312 rows total, 2 batches (2025-Q1, 2026-Q1), 12 S-codes.
--- Imported batch headers:
---   2025-Q1 source='csv_import_2025Q1' imported_at='2025-01-20 10:00:00' rows=156
---   2026-Q1 source='csv_import_2026Q1' imported_at='2026-01-15 10:00:00' rows=156
+-- 332 rows total, 3 batches (2025-Q1, 2026-Q1, 2026-Q2), 12 S-codes.
+-- UM version headers (FK target — emitted before cells):
+--   v1 2025-Q1 status=active source=seed activated_at=2025-01-20 10:00:00
+--   v2 2026-Q1 status=active source=seed activated_at=2026-01-15 10:00:00
+--   v3 2026-Q2 status=draft source=seed activated_at=None
 -- =============================================================================
 
-INSERT INTO user_measurements (year, quarter, s_code, charging_location_id, value, source, imported_at, imported_by_person_id) VALUES
-(2025, 1, 'S042', 'cl-de-ber', 54.95, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-de-fra', 26.1, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-de-ham', 23.81, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-de-muc', 133.75, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-de-stg', 39.37, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-de-wol', 21.41, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-es-mad', 38.73, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-fr-lyo', 82.8, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-fr-par', 101.3, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-hu-bud', 73.26, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-in-pun', 114.14, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-it-mil', 41.16, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-nl-ams', 44.74, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-pl-poz', 60.08, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-uk-lon', 26.11, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-uk-man', 22.9, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S042', 'cl-us-det', 58.31, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S067', 'cl-de-ber', 13.52, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S067', 'cl-de-fra', 26.25, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S067', 'cl-de-muc', 32.61, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S067', 'cl-de-stg', 93.91, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S067', 'cl-es-mad', 14.57, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S067', 'cl-fr-lyo', 55.56, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S067', 'cl-fr-par', 135.82, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S067', 'cl-in-pun', 68.09, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S067', 'cl-it-mil', 14.54, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S067', 'cl-nl-ams', 29.09, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S067', 'cl-uk-lon', 115.32, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S067', 'cl-us-det', 86.57, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S088', 'cl-de-muc', 137.97, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S088', 'cl-de-stg', 143.8, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S088', 'cl-de-wol', 19.29, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S088', 'cl-us-det', 79.38, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-at-vie', 66.91, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-cn-sha', 72.17, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-cz-prg', 13.62, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-de-ber', 24.05, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-de-col', 16.45, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-de-dus', 79.52, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-de-fra', 63.08, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-de-ham', 57.16, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-de-muc', 73.84, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-de-stg', 30.86, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-de-wol', 36.05, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-es-bar', 28.46, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-es-mad', 13.52, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-fr-lyo', 66.29, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-fr-par', 39.59, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-hu-bud', 21.47, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-in-pun', 109.8, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL);
+INSERT INTO um_versions (id, year, quarter, status, source, activated_at, copied_from_version_id, created_at, created_by_person_id, modified_at) VALUES
+(1, 2025, 1, 'active', 'seed', '2025-01-20 10:00:00', NULL, '2026-01-15 10:00:00', NULL, '2026-01-15 10:00:00'),
+(2, 2026, 1, 'active', 'seed', '2026-01-15 10:00:00', NULL, '2026-01-15 10:00:00', NULL, '2026-01-15 10:00:00'),
+(3, 2026, 2, 'draft', 'seed', NULL, NULL, '2026-01-15 10:00:00', NULL, '2026-01-15 10:00:00');
 
-INSERT INTO user_measurements (year, quarter, s_code, charging_location_id, value, source, imported_at, imported_by_person_id) VALUES
-(2025, 1, 'S118', 'cl-it-mil', 10.45, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-it-rom', 36.97, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-nl-ams', 77.04, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-pl-poz', 69.77, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-uk-bir', 14.06, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-uk-lon', 119.23, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-uk-man', 47.5, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S118', 'cl-us-det', 69.99, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-br-sao', 33.23, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-cn-sha', 101.25, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-cz-prg', 20.38, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-de-muc', 68.34, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-de-stg', 143.81, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-de-wol', 44.29, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-es-mad', 59.02, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-fr-lyo', 100.96, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-hu-bud', 23.6, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-in-pun', 42.41, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-it-mil', 47.92, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-mx-mex', 56.99, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-pl-poz', 73.79, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S155', 'cl-us-det', 81.47, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S210', 'cl-de-muc', 110.15, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S210', 'cl-de-stg', 51.5, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S210', 'cl-es-mad', 11.03, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S210', 'cl-fr-par', 59.78, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S210', 'cl-in-pun', 140.64, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S210', 'cl-it-mil', 43.06, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S210', 'cl-jp-tok', 113.7, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S210', 'cl-nl-ams', 40.82, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S210', 'cl-uk-lon', 64.06, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S210', 'cl-us-det', 146.56, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S301', 'cl-de-muc', 62.38, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S301', 'cl-de-stg', 82.71, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S301', 'cl-es-mad', 27.8, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S301', 'cl-fr-lyo', 16.44, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S301', 'cl-hu-bud', 53.95, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S301', 'cl-in-pun', 151.54, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S301', 'cl-it-mil', 67.94, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S301', 'cl-pl-poz', 60.76, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S301', 'cl-uk-lon', 110.33, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-cn-sha', 22.52, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-cz-prg', 30.29, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-de-ber', 21.18, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-de-col', 45.64, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-de-dus', 36.34, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-de-fra', 51.53, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-de-ham', 71.41, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-de-lei', 38.75, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-de-muc', 73.07, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL);
+INSERT INTO user_measurements (version_id, s_code, charging_location_id, value) VALUES
+(1, 'S042', 'cl-de-ber', 55),
+(1, 'S042', 'cl-de-fra', 26),
+(1, 'S042', 'cl-de-ham', 24),
+(1, 'S042', 'cl-de-muc', 134),
+(1, 'S042', 'cl-de-stg', 39),
+(1, 'S042', 'cl-de-wol', 21),
+(1, 'S042', 'cl-es-mad', 39),
+(1, 'S042', 'cl-fr-lyo', 83),
+(1, 'S042', 'cl-fr-par', 101),
+(1, 'S042', 'cl-hu-bud', 73),
+(1, 'S042', 'cl-in-pun', 114),
+(1, 'S042', 'cl-it-mil', 41),
+(1, 'S042', 'cl-nl-ams', 45),
+(1, 'S042', 'cl-pl-poz', 60),
+(1, 'S042', 'cl-uk-lon', 26),
+(1, 'S042', 'cl-uk-man', 23),
+(1, 'S042', 'cl-us-det', 58),
+(1, 'S067', 'cl-de-ber', 14),
+(1, 'S067', 'cl-de-fra', 26),
+(1, 'S067', 'cl-de-muc', 33),
+(1, 'S067', 'cl-de-stg', 94),
+(1, 'S067', 'cl-es-mad', 15),
+(1, 'S067', 'cl-fr-lyo', 56),
+(1, 'S067', 'cl-fr-par', 136),
+(1, 'S067', 'cl-in-pun', 68),
+(1, 'S067', 'cl-it-mil', 15),
+(1, 'S067', 'cl-nl-ams', 29),
+(1, 'S067', 'cl-uk-lon', 115),
+(1, 'S067', 'cl-us-det', 87),
+(1, 'S088', 'cl-de-muc', 138),
+(1, 'S088', 'cl-de-stg', 144),
+(1, 'S088', 'cl-de-wol', 19),
+(1, 'S088', 'cl-us-det', 79),
+(1, 'S118', 'cl-at-vie', 67),
+(1, 'S118', 'cl-cn-sha', 72),
+(1, 'S118', 'cl-cz-prg', 14),
+(1, 'S118', 'cl-de-ber', 24),
+(1, 'S118', 'cl-de-col', 16),
+(1, 'S118', 'cl-de-dus', 80),
+(1, 'S118', 'cl-de-fra', 63),
+(1, 'S118', 'cl-de-ham', 57),
+(1, 'S118', 'cl-de-muc', 74),
+(1, 'S118', 'cl-de-stg', 31),
+(1, 'S118', 'cl-de-wol', 36),
+(1, 'S118', 'cl-es-bar', 28),
+(1, 'S118', 'cl-es-mad', 14),
+(1, 'S118', 'cl-fr-lyo', 66),
+(1, 'S118', 'cl-fr-par', 40),
+(1, 'S118', 'cl-hu-bud', 21),
+(1, 'S118', 'cl-in-pun', 110);
 
-INSERT INTO user_measurements (year, quarter, s_code, charging_location_id, value, source, imported_at, imported_by_person_id) VALUES
-(2025, 1, 'S312', 'cl-de-nur', 48.51, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-de-stg', 53.25, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-de-wol', 41.92, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-es-bar', 52.89, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-es-mad', 23.31, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-fr-lyo', 57.67, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-fr-mar', 57.09, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-fr-par', 25.56, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-fr-tou', 52.57, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-hu-bud', 9.84, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-in-pun', 149.06, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-it-mil', 21.65, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-it-rom', 50.91, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-nl-ams', 77.32, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-pl-poz', 61.8, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-pl-war', 64.33, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-uk-bir', 51.23, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-uk-lon', 71.89, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-uk-man', 31.41, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-us-det', 116.56, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S312', 'cl-us-nyc', 68.74, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S408', 'cl-de-fra', 19.76, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S408', 'cl-de-muc', 152.73, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S408', 'cl-de-stg', 96.9, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S408', 'cl-fr-par', 112.53, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S408', 'cl-pl-poz', 58.42, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S408', 'cl-uk-lon', 131.13, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S503', 'cl-de-muc', 101.54, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S503', 'cl-de-stg', 146.64, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S503', 'cl-de-wol', 78.49, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S503', 'cl-fr-lyo', 123.27, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S503', 'cl-hu-bud', 46.96, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S503', 'cl-it-mil', 13.92, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S503', 'cl-pl-poz', 10.49, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S503', 'cl-us-det', 22.35, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-cn-sha', 87.3, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-de-ber', 32.56, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-de-fra', 48.93, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-de-ham', 36.48, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-de-muc', 145.57, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-de-stg', 111.81, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-de-wol', 30.22, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-es-mad', 34.73, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-fr-lyo', 53.01, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-fr-par', 49.99, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-hu-bud', 56.47, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-in-pun', 48.86, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-it-mil', 21.15, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-nl-ams', 47.91, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-pl-poz', 37.47, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL);
+INSERT INTO user_measurements (version_id, s_code, charging_location_id, value) VALUES
+(1, 'S118', 'cl-it-mil', 10),
+(1, 'S118', 'cl-it-rom', 37),
+(1, 'S118', 'cl-nl-ams', 77),
+(1, 'S118', 'cl-pl-poz', 70),
+(1, 'S118', 'cl-uk-bir', 14),
+(1, 'S118', 'cl-uk-lon', 119),
+(1, 'S118', 'cl-uk-man', 48),
+(1, 'S118', 'cl-us-det', 70),
+(1, 'S155', 'cl-br-sao', 33),
+(1, 'S155', 'cl-cn-sha', 101),
+(1, 'S155', 'cl-cz-prg', 20),
+(1, 'S155', 'cl-de-muc', 68),
+(1, 'S155', 'cl-de-stg', 144),
+(1, 'S155', 'cl-de-wol', 44),
+(1, 'S155', 'cl-es-mad', 59),
+(1, 'S155', 'cl-fr-lyo', 101),
+(1, 'S155', 'cl-hu-bud', 24),
+(1, 'S155', 'cl-in-pun', 42),
+(1, 'S155', 'cl-it-mil', 48),
+(1, 'S155', 'cl-mx-mex', 57),
+(1, 'S155', 'cl-pl-poz', 74),
+(1, 'S155', 'cl-us-det', 81),
+(1, 'S210', 'cl-de-muc', 110),
+(1, 'S210', 'cl-de-stg', 51),
+(1, 'S210', 'cl-es-mad', 11),
+(1, 'S210', 'cl-fr-par', 60),
+(1, 'S210', 'cl-in-pun', 141),
+(1, 'S210', 'cl-it-mil', 43),
+(1, 'S210', 'cl-jp-tok', 114),
+(1, 'S210', 'cl-nl-ams', 41),
+(1, 'S210', 'cl-uk-lon', 64),
+(1, 'S210', 'cl-us-det', 147),
+(1, 'S301', 'cl-de-muc', 62),
+(1, 'S301', 'cl-de-stg', 83),
+(1, 'S301', 'cl-es-mad', 28),
+(1, 'S301', 'cl-fr-lyo', 16),
+(1, 'S301', 'cl-hu-bud', 54),
+(1, 'S301', 'cl-in-pun', 152),
+(1, 'S301', 'cl-it-mil', 68),
+(1, 'S301', 'cl-pl-poz', 61),
+(1, 'S301', 'cl-uk-lon', 110),
+(1, 'S312', 'cl-cn-sha', 23),
+(1, 'S312', 'cl-cz-prg', 30),
+(1, 'S312', 'cl-de-ber', 21),
+(1, 'S312', 'cl-de-col', 46),
+(1, 'S312', 'cl-de-dus', 36),
+(1, 'S312', 'cl-de-fra', 52),
+(1, 'S312', 'cl-de-ham', 71),
+(1, 'S312', 'cl-de-lei', 39),
+(1, 'S312', 'cl-de-muc', 73);
 
-INSERT INTO user_measurements (year, quarter, s_code, charging_location_id, value, source, imported_at, imported_by_person_id) VALUES
-(2025, 1, 'S720', 'cl-uk-lon', 126.14, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-uk-man', 19.61, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S720', 'cl-us-det', 63.91, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S999', 'cl-de-muc', 31.19, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S999', 'cl-fr-par', 41.25, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2025, 1, 'S999', 'cl-uk-lon', 46.99, 'csv_import_2025Q1', '2025-01-20 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-de-ber', 8.62, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-de-fra', 37.37, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-de-ham', 12.09, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-de-muc', 46.98, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-de-stg', 16.77, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-de-wol', 19.12, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-es-mad', 46.17, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-fr-lyo', 57.0, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-fr-par', 118.5, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-hu-bud', 26.42, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-in-pun', 85.54, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-it-mil', 71.12, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-nl-ams', 28.74, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-pl-poz', 46.33, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-uk-lon', 59.5, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-uk-man', 8.72, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S042', 'cl-us-det', 69.44, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S067', 'cl-de-ber', 64.27, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S067', 'cl-de-fra', 14.74, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S067', 'cl-de-muc', 133.01, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S067', 'cl-de-stg', 89.21, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S067', 'cl-es-mad', 19.39, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S067', 'cl-fr-lyo', 135.76, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S067', 'cl-fr-par', 67.6, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S067', 'cl-in-pun', 45.6, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S067', 'cl-it-mil', 53.83, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S067', 'cl-nl-ams', 51.62, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S067', 'cl-uk-lon', 152.01, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S067', 'cl-us-det', 29.83, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S088', 'cl-de-muc', 83.03, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S088', 'cl-de-stg', 82.2, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S088', 'cl-de-wol', 13.38, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S088', 'cl-us-det', 51.62, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-at-vie', 38.46, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-cn-sha', 66.44, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-cz-prg', 45.45, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-de-ber', 49.81, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-de-col', 44.35, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-de-dus', 7.88, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-de-fra', 21.36, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-de-ham', 59.28, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-de-muc', 25.6, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-de-stg', 46.44, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-de-wol', 66.36, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL);
+INSERT INTO user_measurements (version_id, s_code, charging_location_id, value) VALUES
+(1, 'S312', 'cl-de-nur', 49),
+(1, 'S312', 'cl-de-stg', 53),
+(1, 'S312', 'cl-de-wol', 42),
+(1, 'S312', 'cl-es-bar', 53),
+(1, 'S312', 'cl-es-mad', 23),
+(1, 'S312', 'cl-fr-lyo', 58),
+(1, 'S312', 'cl-fr-mar', 57),
+(1, 'S312', 'cl-fr-par', 26),
+(1, 'S312', 'cl-fr-tou', 53),
+(1, 'S312', 'cl-hu-bud', 10),
+(1, 'S312', 'cl-in-pun', 149),
+(1, 'S312', 'cl-it-mil', 22),
+(1, 'S312', 'cl-it-rom', 51),
+(1, 'S312', 'cl-nl-ams', 77),
+(1, 'S312', 'cl-pl-poz', 62),
+(1, 'S312', 'cl-pl-war', 64),
+(1, 'S312', 'cl-uk-bir', 51),
+(1, 'S312', 'cl-uk-lon', 72),
+(1, 'S312', 'cl-uk-man', 31),
+(1, 'S312', 'cl-us-det', 117),
+(1, 'S312', 'cl-us-nyc', 69),
+(1, 'S408', 'cl-de-fra', 20),
+(1, 'S408', 'cl-de-muc', 153),
+(1, 'S408', 'cl-de-stg', 97),
+(1, 'S408', 'cl-fr-par', 113),
+(1, 'S408', 'cl-pl-poz', 58),
+(1, 'S408', 'cl-uk-lon', 131),
+(1, 'S503', 'cl-de-muc', 102),
+(1, 'S503', 'cl-de-stg', 147),
+(1, 'S503', 'cl-de-wol', 78),
+(1, 'S503', 'cl-fr-lyo', 123),
+(1, 'S503', 'cl-hu-bud', 47),
+(1, 'S503', 'cl-it-mil', 14),
+(1, 'S503', 'cl-pl-poz', 10),
+(1, 'S503', 'cl-us-det', 22),
+(1, 'S720', 'cl-cn-sha', 87),
+(1, 'S720', 'cl-de-ber', 33),
+(1, 'S720', 'cl-de-fra', 49),
+(1, 'S720', 'cl-de-ham', 36),
+(1, 'S720', 'cl-de-muc', 146),
+(1, 'S720', 'cl-de-stg', 112),
+(1, 'S720', 'cl-de-wol', 30),
+(1, 'S720', 'cl-es-mad', 35),
+(1, 'S720', 'cl-fr-lyo', 53),
+(1, 'S720', 'cl-fr-par', 50),
+(1, 'S720', 'cl-hu-bud', 56),
+(1, 'S720', 'cl-in-pun', 49),
+(1, 'S720', 'cl-it-mil', 21),
+(1, 'S720', 'cl-nl-ams', 48),
+(1, 'S720', 'cl-pl-poz', 37);
 
-INSERT INTO user_measurements (year, quarter, s_code, charging_location_id, value, source, imported_at, imported_by_person_id) VALUES
-(2026, 1, 'S118', 'cl-es-bar', 72.07, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-es-mad', 80.43, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-fr-lyo', 99.6, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-fr-par', 73.21, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-hu-bud', 39.81, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-in-pun', 83.53, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-it-mil', 14.15, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-it-rom', 45.69, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-nl-ams', 82.85, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-pl-poz', 81.93, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-uk-bir', 69.78, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-uk-lon', 77.31, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-uk-man', 74.08, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S118', 'cl-us-det', 145.37, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-br-sao', 80.68, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-cn-sha', 141.7, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-cz-prg', 77.86, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-de-muc', 145.19, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-de-stg', 106.01, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-de-wol', 33.24, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-es-mad', 21.79, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-fr-lyo', 38.68, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-hu-bud', 50.84, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-in-pun', 97.29, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-it-mil', 33.86, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-mx-mex', 42.22, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-pl-poz', 67.14, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S155', 'cl-us-det', 66.99, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S210', 'cl-de-muc', 129.08, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S210', 'cl-de-stg', 22.21, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S210', 'cl-es-mad', 51.44, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S210', 'cl-fr-par', 83.2, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S210', 'cl-in-pun', 127.61, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S210', 'cl-it-mil', 81.95, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S210', 'cl-jp-tok', 105.03, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S210', 'cl-nl-ams', 64.75, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S210', 'cl-uk-lon', 122.88, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S210', 'cl-us-det', 130.06, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S301', 'cl-de-muc', 145.86, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S301', 'cl-de-stg', 83.93, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S301', 'cl-es-mad', 77.31, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S301', 'cl-fr-lyo', 137.25, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S301', 'cl-hu-bud', 37.77, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S301', 'cl-in-pun', 114.45, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S301', 'cl-it-mil', 82.87, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S301', 'cl-pl-poz', 54.46, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S301', 'cl-uk-lon', 59.27, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-cn-sha', 90.07, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-cz-prg', 48.2, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-de-ber', 59.24, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL);
+INSERT INTO user_measurements (version_id, s_code, charging_location_id, value) VALUES
+(1, 'S720', 'cl-uk-lon', 126),
+(1, 'S720', 'cl-uk-man', 20),
+(1, 'S720', 'cl-us-det', 64),
+(1, 'S999', 'cl-de-muc', 31),
+(1, 'S999', 'cl-fr-par', 41),
+(1, 'S999', 'cl-uk-lon', 47),
+(2, 'S042', 'cl-de-ber', 9),
+(2, 'S042', 'cl-de-fra', 37),
+(2, 'S042', 'cl-de-ham', 12),
+(2, 'S042', 'cl-de-muc', 47),
+(2, 'S042', 'cl-de-stg', 17),
+(2, 'S042', 'cl-de-wol', 19),
+(2, 'S042', 'cl-es-mad', 46),
+(2, 'S042', 'cl-fr-lyo', 57),
+(2, 'S042', 'cl-fr-par', 119),
+(2, 'S042', 'cl-hu-bud', 26),
+(2, 'S042', 'cl-in-pun', 86),
+(2, 'S042', 'cl-it-mil', 71),
+(2, 'S042', 'cl-nl-ams', 29),
+(2, 'S042', 'cl-pl-poz', 46),
+(2, 'S042', 'cl-uk-lon', 59),
+(2, 'S042', 'cl-uk-man', 9),
+(2, 'S042', 'cl-us-det', 69),
+(2, 'S067', 'cl-de-ber', 64),
+(2, 'S067', 'cl-de-fra', 15),
+(2, 'S067', 'cl-de-muc', 133),
+(2, 'S067', 'cl-de-stg', 89),
+(2, 'S067', 'cl-es-mad', 19),
+(2, 'S067', 'cl-fr-lyo', 136),
+(2, 'S067', 'cl-fr-par', 68),
+(2, 'S067', 'cl-in-pun', 46),
+(2, 'S067', 'cl-it-mil', 54),
+(2, 'S067', 'cl-nl-ams', 52),
+(2, 'S067', 'cl-uk-lon', 152),
+(2, 'S067', 'cl-us-det', 30),
+(2, 'S088', 'cl-de-muc', 83),
+(2, 'S088', 'cl-de-stg', 82),
+(2, 'S088', 'cl-de-wol', 13),
+(2, 'S088', 'cl-us-det', 52),
+(2, 'S118', 'cl-at-vie', 38),
+(2, 'S118', 'cl-cn-sha', 66),
+(2, 'S118', 'cl-cz-prg', 45),
+(2, 'S118', 'cl-de-ber', 50),
+(2, 'S118', 'cl-de-col', 44),
+(2, 'S118', 'cl-de-dus', 8),
+(2, 'S118', 'cl-de-fra', 21),
+(2, 'S118', 'cl-de-ham', 59),
+(2, 'S118', 'cl-de-muc', 26),
+(2, 'S118', 'cl-de-stg', 46),
+(2, 'S118', 'cl-de-wol', 66);
 
-INSERT INTO user_measurements (year, quarter, s_code, charging_location_id, value, source, imported_at, imported_by_person_id) VALUES
-(2026, 1, 'S312', 'cl-de-col', 45.56, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-de-dus', 13.06, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-de-fra', 19.29, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-de-ham', 41.64, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-de-lei', 54.95, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-de-muc', 152.74, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-de-nur', 57.58, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-de-stg', 96.92, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-de-wol', 52.04, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-es-bar', 65.17, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-es-mad', 39.26, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-fr-lyo', 67.45, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-fr-mar', 63.02, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-fr-par', 97.96, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-fr-tou', 20.37, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-hu-bud', 33.23, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-in-pun', 53.32, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-it-mil', 21.33, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-it-rom', 18.88, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-nl-ams', 29.61, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-pl-poz', 46.31, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-pl-war', 83.74, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-uk-bir', 79.86, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-uk-lon', 107.6, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-uk-man', 54.99, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-us-det', 38.71, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S312', 'cl-us-nyc', 56.64, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S408', 'cl-de-fra', 62.88, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S408', 'cl-de-muc', 43.8, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S408', 'cl-de-stg', 36.25, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S408', 'cl-fr-par', 107.57, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S408', 'cl-pl-poz', 16.32, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S408', 'cl-uk-lon', 137.12, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S503', 'cl-de-muc', 86.24, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S503', 'cl-de-stg', 54.26, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S503', 'cl-de-wol', 20.48, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S503', 'cl-fr-lyo', 25.02, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S503', 'cl-hu-bud', 65.91, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S503', 'cl-it-mil', 36.08, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S503', 'cl-pl-poz', 30.02, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S503', 'cl-us-det', 76.54, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-cn-sha', 31.07, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-de-ber', 75.72, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-de-fra', 36.32, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-de-ham', 39.04, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-de-muc', 96.1, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-de-stg', 49.79, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-de-wol', 44.6, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-es-mad', 20.58, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-fr-lyo', 74.73, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL);
+INSERT INTO user_measurements (version_id, s_code, charging_location_id, value) VALUES
+(2, 'S118', 'cl-es-bar', 72),
+(2, 'S118', 'cl-es-mad', 80),
+(2, 'S118', 'cl-fr-lyo', 100),
+(2, 'S118', 'cl-fr-par', 73),
+(2, 'S118', 'cl-hu-bud', 40),
+(2, 'S118', 'cl-in-pun', 84),
+(2, 'S118', 'cl-it-mil', 14),
+(2, 'S118', 'cl-it-rom', 46),
+(2, 'S118', 'cl-nl-ams', 83),
+(2, 'S118', 'cl-pl-poz', 82),
+(2, 'S118', 'cl-uk-bir', 70),
+(2, 'S118', 'cl-uk-lon', 77),
+(2, 'S118', 'cl-uk-man', 74),
+(2, 'S118', 'cl-us-det', 145),
+(2, 'S155', 'cl-br-sao', 81),
+(2, 'S155', 'cl-cn-sha', 142),
+(2, 'S155', 'cl-cz-prg', 78),
+(2, 'S155', 'cl-de-muc', 145),
+(2, 'S155', 'cl-de-stg', 106),
+(2, 'S155', 'cl-de-wol', 33),
+(2, 'S155', 'cl-es-mad', 22),
+(2, 'S155', 'cl-fr-lyo', 39),
+(2, 'S155', 'cl-hu-bud', 51),
+(2, 'S155', 'cl-in-pun', 97),
+(2, 'S155', 'cl-it-mil', 34),
+(2, 'S155', 'cl-mx-mex', 42),
+(2, 'S155', 'cl-pl-poz', 67),
+(2, 'S155', 'cl-us-det', 67),
+(2, 'S210', 'cl-de-muc', 129),
+(2, 'S210', 'cl-de-stg', 22),
+(2, 'S210', 'cl-es-mad', 51),
+(2, 'S210', 'cl-fr-par', 83),
+(2, 'S210', 'cl-in-pun', 128),
+(2, 'S210', 'cl-it-mil', 82),
+(2, 'S210', 'cl-jp-tok', 105),
+(2, 'S210', 'cl-nl-ams', 65),
+(2, 'S210', 'cl-uk-lon', 123),
+(2, 'S210', 'cl-us-det', 130),
+(2, 'S301', 'cl-de-muc', 146),
+(2, 'S301', 'cl-de-stg', 84),
+(2, 'S301', 'cl-es-mad', 77),
+(2, 'S301', 'cl-fr-lyo', 137),
+(2, 'S301', 'cl-hu-bud', 38),
+(2, 'S301', 'cl-in-pun', 114),
+(2, 'S301', 'cl-it-mil', 83),
+(2, 'S301', 'cl-pl-poz', 54),
+(2, 'S301', 'cl-uk-lon', 59),
+(2, 'S312', 'cl-cn-sha', 90),
+(2, 'S312', 'cl-cz-prg', 48),
+(2, 'S312', 'cl-de-ber', 59);
 
-INSERT INTO user_measurements (year, quarter, s_code, charging_location_id, value, source, imported_at, imported_by_person_id) VALUES
-(2026, 1, 'S720', 'cl-fr-par', 24.72, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-hu-bud', 11.27, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-in-pun', 69.34, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-it-mil', 9.58, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-nl-ams', 56.08, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-pl-poz', 11.24, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-uk-lon', 100.13, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-uk-man', 13.5, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S720', 'cl-us-det', 134.28, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S999', 'cl-de-muc', 133.17, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S999', 'cl-fr-par', 148.32, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL),
-(2026, 1, 'S999', 'cl-uk-lon', 111.24, 'csv_import_2026Q1', '2026-01-15 10:00:00', NULL);
+INSERT INTO user_measurements (version_id, s_code, charging_location_id, value) VALUES
+(2, 'S312', 'cl-de-col', 46),
+(2, 'S312', 'cl-de-dus', 13),
+(2, 'S312', 'cl-de-fra', 19),
+(2, 'S312', 'cl-de-ham', 42),
+(2, 'S312', 'cl-de-lei', 55),
+(2, 'S312', 'cl-de-muc', 153),
+(2, 'S312', 'cl-de-nur', 58),
+(2, 'S312', 'cl-de-stg', 97),
+(2, 'S312', 'cl-de-wol', 52),
+(2, 'S312', 'cl-es-bar', 65),
+(2, 'S312', 'cl-es-mad', 39),
+(2, 'S312', 'cl-fr-lyo', 67),
+(2, 'S312', 'cl-fr-mar', 63),
+(2, 'S312', 'cl-fr-par', 98),
+(2, 'S312', 'cl-fr-tou', 20),
+(2, 'S312', 'cl-hu-bud', 33),
+(2, 'S312', 'cl-in-pun', 53),
+(2, 'S312', 'cl-it-mil', 21),
+(2, 'S312', 'cl-it-rom', 19),
+(2, 'S312', 'cl-nl-ams', 30),
+(2, 'S312', 'cl-pl-poz', 46),
+(2, 'S312', 'cl-pl-war', 84),
+(2, 'S312', 'cl-uk-bir', 80),
+(2, 'S312', 'cl-uk-lon', 108),
+(2, 'S312', 'cl-uk-man', 55),
+(2, 'S312', 'cl-us-det', 39),
+(2, 'S312', 'cl-us-nyc', 57),
+(2, 'S408', 'cl-de-fra', 63),
+(2, 'S408', 'cl-de-muc', 44),
+(2, 'S408', 'cl-de-stg', 36),
+(2, 'S408', 'cl-fr-par', 108),
+(2, 'S408', 'cl-pl-poz', 16),
+(2, 'S408', 'cl-uk-lon', 137),
+(2, 'S503', 'cl-de-muc', 86),
+(2, 'S503', 'cl-de-stg', 54),
+(2, 'S503', 'cl-de-wol', 20),
+(2, 'S503', 'cl-fr-lyo', 25),
+(2, 'S503', 'cl-hu-bud', 66),
+(2, 'S503', 'cl-it-mil', 36),
+(2, 'S503', 'cl-pl-poz', 30),
+(2, 'S503', 'cl-us-det', 77),
+(2, 'S720', 'cl-cn-sha', 31),
+(2, 'S720', 'cl-de-ber', 76),
+(2, 'S720', 'cl-de-fra', 36),
+(2, 'S720', 'cl-de-ham', 39),
+(2, 'S720', 'cl-de-muc', 96),
+(2, 'S720', 'cl-de-stg', 50),
+(2, 'S720', 'cl-de-wol', 45),
+(2, 'S720', 'cl-es-mad', 21),
+(2, 'S720', 'cl-fr-lyo', 75);
+
+INSERT INTO user_measurements (version_id, s_code, charging_location_id, value) VALUES
+(2, 'S720', 'cl-fr-par', 25),
+(2, 'S720', 'cl-hu-bud', 11),
+(2, 'S720', 'cl-in-pun', 69),
+(2, 'S720', 'cl-it-mil', 10),
+(2, 'S720', 'cl-nl-ams', 56),
+(2, 'S720', 'cl-pl-poz', 11),
+(2, 'S720', 'cl-uk-lon', 100),
+(2, 'S720', 'cl-uk-man', 14),
+(2, 'S720', 'cl-us-det', 134),
+(2, 'S999', 'cl-de-muc', 133),
+(2, 'S999', 'cl-fr-par', 148),
+(2, 'S999', 'cl-uk-lon', 111),
+(3, 'S042', 'cl-de-ber', 30),
+(3, 'S042', 'cl-de-fra', 45),
+(3, 'S042', 'cl-de-ham', 54),
+(3, 'S042', 'cl-de-muc', 82),
+(3, 'S042', 'cl-de-stg', 24),
+(3, 'S042', 'cl-de-wol', 55),
+(3, 'S042', 'cl-es-mad', 17),
+(3, 'S042', 'cl-fr-lyo', 157),
+(3, 'S042', 'cl-fr-par', 135),
+(3, 'S042', 'cl-hu-bud', 22),
+(3, 'S042', 'cl-in-pun', 104),
+(3, 'S042', 'cl-it-mil', 24),
+(3, 'S042', 'cl-nl-ams', 60),
+(3, 'S042', 'cl-pl-poz', 27),
+(3, 'S042', 'cl-uk-lon', 24),
+(3, 'S042', 'cl-uk-man', 14),
+(3, 'S042', 'cl-us-det', 63),
+(3, 'S999', 'cl-de-muc', 160),
+(3, 'S999', 'cl-fr-par', 132),
+(3, 'S999', 'cl-uk-lon', 134);
 
 -- UM rows per S-code (across all batches):
---   S042: 34 rows
+--   S042: 51 rows
 --   S067: 24 rows
 --   S088: 8 rows
 --   S118: 50 rows
@@ -1455,7 +1405,7 @@ INSERT INTO user_measurements (year, quarter, s_code, charging_location_id, valu
 --   S408: 12 rows
 --   S503: 16 rows
 --   S720: 36 rows
---   S999: 6 rows
+--   S999: 9 rows
 
 
 -- =============================================================================
@@ -1476,62 +1426,25 @@ UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardiz
 UPDATE projects SET project_type = 3, transformation_level = 'T0', tn_standardization = 3, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 4, tn_payback = 5, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.4, value_creation_score = 4.2, composite_score = 3.3, tshirt_size = 'M' WHERE id = 'proj-railsafety';
 UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.0, value_creation_score = 3.4, composite_score = 3.2, tshirt_size = 'M' WHERE id = 'proj-sensor';
 
--- Backlog seed expansion (16 DoI 0-2 projects). Composite scores spread
--- 1.8 → 4.6 so the ranked list spans both cutoff bands visibly.
-UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 5, tn_usage = 5, tn_maintenance = 4, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 5, complexity_score = 4.6, value_creation_score = 4.7, composite_score = 4.6, tshirt_size = 'XL' WHERE id = 'proj-bk01';
-UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 4, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 4, complexity_score = 4.0, value_creation_score = 4.5, composite_score = 4.4, tshirt_size = 'M' WHERE id = 'proj-bk02';
-UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 4, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 5, complexity_score = 4.0, value_creation_score = 4.5, composite_score = 4.3, tshirt_size = 'L' WHERE id = 'proj-bk03';
-UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 4, complexity_score = 3.6, value_creation_score = 4.3, composite_score = 4.1, tshirt_size = 'M' WHERE id = 'proj-bk04';
-UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 4, tn_usage = 4, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 4, complexity_score = 3.8, value_creation_score = 3.9, composite_score = 3.9, tshirt_size = 'XL' WHERE id = 'proj-bk05';
-UPDATE projects SET project_type = 1, transformation_level = 'T0', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 3, complexity_score = 3.2, value_creation_score = 3.7, composite_score = 3.6, tshirt_size = 'S' WHERE id = 'proj-bk06';
-UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 4, complexity_score = 3.2, value_creation_score = 3.6, composite_score = 3.5, tshirt_size = 'L' WHERE id = 'proj-bk07';
-UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 4, complexity_score = 3.4, value_creation_score = 3.4, composite_score = 3.4, tshirt_size = 'M' WHERE id = 'proj-bk08';
-UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 4, complexity_score = 3.0, value_creation_score = 3.4, composite_score = 3.3, tshirt_size = 'M' WHERE id = 'proj-bk09';
-UPDATE projects SET project_type = 1, transformation_level = 'T0', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 3, complexity_score = 3.0, value_creation_score = 3.1, composite_score = 3.1, tshirt_size = 'S' WHERE id = 'proj-bk10';
-UPDATE projects SET project_type = 3, transformation_level = 'T0', tn_standardization = 3, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 3, tn_payback = 4, tn_competitive_advantage = 2, complexity_score = 2.4, value_creation_score = 3.2, composite_score = 3.0, tshirt_size = 'M' WHERE id = 'proj-bk11';
-UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 2, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 3, complexity_score = 2.8, value_creation_score = 2.8, composite_score = 2.8, tshirt_size = 'M' WHERE id = 'proj-bk12';
-UPDATE projects SET project_type = 1, transformation_level = 'T0', tn_standardization = 4, tn_usage = 3, tn_maintenance = 2, tn_financial_benefit = 2, tn_payback = 3, tn_competitive_advantage = 2, complexity_score = 2.8, value_creation_score = 2.5, composite_score = 2.6, tshirt_size = 'M' WHERE id = 'proj-bk13';
-UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 2, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 3, tn_payback = 2, tn_competitive_advantage = 3, complexity_score = 2.0, value_creation_score = 2.6, composite_score = 2.4, tshirt_size = 'S' WHERE id = 'proj-bk14';
-UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 2, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 2, tn_payback = 2, tn_competitive_advantage = 3, complexity_score = 2.0, value_creation_score = 2.2, composite_score = 2.1, tshirt_size = 'L' WHERE id = 'proj-bk15';
-UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 1, tn_usage = 2, tn_maintenance = 1, tn_financial_benefit = 2, tn_payback = 2, tn_competitive_advantage = 2, complexity_score = 1.4, value_creation_score = 2.0, composite_score = 1.8, tshirt_size = 'XS' WHERE id = 'proj-bk16';
-
--- 27 projects scored; 0 Run-stage skipped.
+-- 11 projects scored; 0 Run-stage skipped.
 
 -- =============================================================================
 -- s12_pipeline — Pipeline stage + DoI gates per [A-PS-02] [A-DOI-01..03]
 -- =============================================================================
 
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-autobrake-2026-02.pdf' WHERE id = 'proj-autobrake';
-UPDATE projects SET pipeline_stage = 'Operate', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL WHERE id = 'proj-cloud3-run';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-connveh';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-dwh-2026-01.pdf' WHERE id = 'proj-dwh';
-UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-erp2-2024-06.pdf' WHERE id = 'proj-erp2';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-greenedge';
-UPDATE projects SET pipeline_stage = 'Operate', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL WHERE id = 'proj-iam-run';
-UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-mdh-rollout-2025-09.pdf' WHERE id = 'proj-mdh-rollout';
-UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-predmaint-2025-05.pdf' WHERE id = 'proj-predmaint';
-UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-railsafety-2025-11.pdf' WHERE id = 'proj-railsafety';
-UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-sensor-2025-02.pdf' WHERE id = 'proj-sensor';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-autobrake-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-autobrake';
+UPDATE projects SET pipeline_stage = 'Operate', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-cloud3-run';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-connveh';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-dwh-2026-01.pdf', within_cutoff = 1 WHERE id = 'proj-dwh';
+UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-erp2-2024-06.pdf', within_cutoff = 1 WHERE id = 'proj-erp2';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-greenedge';
+UPDATE projects SET pipeline_stage = 'Operate', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-iam-run';
+UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-mdh-rollout-2025-09.pdf', within_cutoff = 1 WHERE id = 'proj-mdh-rollout';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-predmaint-2025-05.pdf', within_cutoff = 1 WHERE id = 'proj-predmaint';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-railsafety-2025-11.pdf', within_cutoff = 1 WHERE id = 'proj-railsafety';
+UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-sensor-2025-02.pdf', within_cutoff = 1 WHERE id = 'proj-sensor';
 
--- Backlog seed expansion (16 DoI 0-2 projects).
-UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk01-2026-02.pdf' WHERE id = 'proj-bk01';
-UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk02-2026-02.pdf' WHERE id = 'proj-bk02';
-UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk03-2026-01.pdf' WHERE id = 'proj-bk03';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk04-2026-02.pdf' WHERE id = 'proj-bk04';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk05-2026-03.pdf' WHERE id = 'proj-bk05';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk06-2026-01.pdf' WHERE id = 'proj-bk06';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk07-2026-02.pdf' WHERE id = 'proj-bk07';
-UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk08-2026-01.pdf' WHERE id = 'proj-bk08';
-UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk09-2026-02.pdf' WHERE id = 'proj-bk09';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk10-2026-01.pdf' WHERE id = 'proj-bk10';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-bk11-2026-02.pdf' WHERE id = 'proj-bk11';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-bk12';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-bk13';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-bk14';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-bk15';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL WHERE id = 'proj-bk16';
-
--- 27 projects updated.
+-- 11 projects updated.
 
 -- =============================================================================
 -- s13_financials — baselines, forecasts, actuals
@@ -7982,20 +7895,7 @@ INSERT INTO allocations (person_id, project_id, chargeable_entity_id, month, hou
 
 -- Resource Requests for proj-autobrake (DoI 2 intake demo + multi-CC fan-out)
 INSERT INTO resource_requests (id, project_id, cost_center_id, request_type, role_type_id, cost_type_id, hours_or_amount_per_month, period_start, period_end, priority, status, assigned_person_id, adjusted_value, explanation, change_request_id, created_at, modified_at) VALUES
--- v5.2 closeout: assigned_person_id set to 'p-brenner' (Sr Architect at
--- cc-muc-apd) so PersonDetail's pending-requests card has a row to render,
--- making the §9.1 entry-point #3 ("Review project") click-testable
--- end-to-end. Pre-closeout no seed RR carried an assigned_person_id, so
--- the bridge code was wired but unreachable from the demo.
---
--- NOTE: this is intentionally an inconsistent state in model terms — the
--- runtime sets `assigned_person_id` only at confirm-time from the matching
--- ResourceRequestAssignment rows (routers/capacity.py::confirm_request),
--- and this RR is `status='pending'` with no RRA rows. Inbox aggregates
--- (`unassigned_hours`) compute from RRAs not the back-pointer, so they
--- are unaffected. Don't "fix" the seed back to NULL on principle — the
--- inconsistency is the demo affordance.
-(100, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-arch', NULL, 40, '2026-06', '2027-12', 'high', 'pending', 'p-brenner', NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+(100, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-arch', NULL, 40, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (101, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-sr-dev', NULL, 80, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (102, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-dev', NULL, 100, '2026-06', '2027-12', 'high', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
 (103, 'proj-autobrake', 'cc-muc-apd', 'resource', 'role-qa', NULL, 40, '2026-06', '2027-12', 'medium', 'pending', NULL, NULL, NULL, NULL, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
@@ -8322,277 +8222,3 @@ INSERT INTO audit_log (timestamp, user_person_id, entity_type, entity_id, entity
 ('2026-04-15 10:00:00', 'p-meier', 'scenario_action', 'scn-budget-pressure-15:3', 'Accelerate Rail Safety', 'promote', 'promoted_at', NULL, '2026-04-15T10:00:00', 'simulator'),
 ('2026-04-22 10:00:00', 'p-meier', 'planning_parameter', 'rag_amber_threshold', 'RAG Amber Threshold', 'create', NULL, NULL, 'scheduled_change_pending', 'scheduled_change_lifecycle');
 
--- =============================================================
--- v5.1 W5 C-09 External Costs top-up (generated by
---   backend/seed/generate_seed_v5/s21_v5_1_external_costs.py)
--- Run the generator once to refresh; the output below is
--- intended to be appended verbatim to seed.sql.
--- =============================================================
-
--- v5.1 W5 C-09 — Phase 1: populate new external-cost columns
--- ==========================================================
-UPDATE forecasts SET po_number = 'PO-2026-1001', contract_end_month = '2027-03' WHERE project_id = 'proj-cloud3-run' AND category = 'external' AND vendor = 'AWS' AND sub_category = 'ext-cloud' AND COALESCE(description, '') = 'AWS EC2 Reserved Instances';
-UPDATE actuals SET po_number = 'PO-2026-1001' WHERE project_id = 'proj-cloud3-run' AND category = 'external' AND vendor = 'AWS' AND sub_category = 'ext-cloud' AND COALESCE(description, '') = 'AWS EC2 Reserved Instances';
-UPDATE forecasts SET po_number = 'PO-2026-1002', contract_end_month = '2028-06' WHERE project_id = 'proj-cloud3-run' AND category = 'external' AND vendor = 'AWS' AND sub_category = 'ext-cloud' AND COALESCE(description, '') = 'AWS S3 Storage';
-UPDATE actuals SET po_number = 'PO-2026-1002' WHERE project_id = 'proj-cloud3-run' AND category = 'external' AND vendor = 'AWS' AND sub_category = 'ext-cloud' AND COALESCE(description, '') = 'AWS S3 Storage';
-UPDATE forecasts SET po_number = 'PO-2026-1003', contract_end_month = '2027-03' WHERE project_id = 'proj-erp2' AND category = 'external' AND vendor = 'Deloitte' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'SAP Implementation Support';
-UPDATE actuals SET po_number = 'PO-2026-1003' WHERE project_id = 'proj-erp2' AND category = 'external' AND vendor = 'Deloitte' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'SAP Implementation Support';
-UPDATE forecasts SET po_number = 'PO-2026-1004', contract_end_month = '2027-03' WHERE project_id = 'proj-erp2' AND category = 'external' AND vendor = 'MHP Consulting' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'Process Advisory';
-UPDATE actuals SET po_number = 'PO-2026-1004' WHERE project_id = 'proj-erp2' AND category = 'external' AND vendor = 'MHP Consulting' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'Process Advisory';
-UPDATE forecasts SET po_number = 'PO-2026-1005', contract_end_month = '2026-06' WHERE project_id = 'proj-erp2' AND category = 'external' AND vendor = 'Microsoft' AND sub_category = 'ext-sw-licenses' AND COALESCE(description, '') = 'Azure DevOps Licenses';
-UPDATE actuals SET po_number = 'PO-2026-1005' WHERE project_id = 'proj-erp2' AND category = 'external' AND vendor = 'Microsoft' AND sub_category = 'ext-sw-licenses' AND COALESCE(description, '') = 'Azure DevOps Licenses';
-UPDATE forecasts SET po_number = 'PO-2026-1006', contract_end_month = '2027-09' WHERE project_id = 'proj-erp2' AND category = 'external' AND vendor = 'SAP Education' AND sub_category = 'ext-training' AND COALESCE(description, '') = 'SAP S/4HANA Certification';
-UPDATE actuals SET po_number = 'PO-2026-1006' WHERE project_id = 'proj-erp2' AND category = 'external' AND vendor = 'SAP Education' AND sub_category = 'ext-training' AND COALESCE(description, '') = 'SAP S/4HANA Certification';
-UPDATE forecasts SET po_number = 'PO-2026-1007', contract_end_month = '2028-06' WHERE project_id = 'proj-erp2' AND category = 'external' AND vendor = 'SecureWorks' AND sub_category = 'ext-other' AND COALESCE(description, '') = 'Penetration Testing';
-UPDATE actuals SET po_number = 'PO-2026-1007' WHERE project_id = 'proj-erp2' AND category = 'external' AND vendor = 'SecureWorks' AND sub_category = 'ext-other' AND COALESCE(description, '') = 'Penetration Testing';
-UPDATE forecasts SET po_number = 'PO-2026-1008', contract_end_month = '2028-06' WHERE project_id = 'proj-erp2' AND category = 'external' AND vendor = 'TCS' AND sub_category = 'ext-leased-staff' AND COALESCE(description, '') = 'Application Developers (3 FTE)';
-UPDATE actuals SET po_number = 'PO-2026-1008' WHERE project_id = 'proj-erp2' AND category = 'external' AND vendor = 'TCS' AND sub_category = 'ext-leased-staff' AND COALESCE(description, '') = 'Application Developers (3 FTE)';
-UPDATE forecasts SET po_number = 'PO-2026-1009', contract_end_month = '2028-06' WHERE project_id = 'proj-iam-run' AND category = 'external' AND vendor = 'Cisco' AND sub_category = 'ext-hw-maint' AND COALESCE(description, '') = 'Cisco Network Equipment Support';
-UPDATE actuals SET po_number = 'PO-2026-1009' WHERE project_id = 'proj-iam-run' AND category = 'external' AND vendor = 'Cisco' AND sub_category = 'ext-hw-maint' AND COALESCE(description, '') = 'Cisco Network Equipment Support';
-UPDATE forecasts SET po_number = 'PO-2026-1010', contract_end_month = '2027-03' WHERE project_id = 'proj-iam-run' AND category = 'external' AND vendor = 'Internal' AND sub_category = 'ext-training' AND COALESCE(description, '') = 'Cybersecurity Awareness Training';
-UPDATE actuals SET po_number = 'PO-2026-1010' WHERE project_id = 'proj-iam-run' AND category = 'external' AND vendor = 'Internal' AND sub_category = 'ext-training' AND COALESCE(description, '') = 'Cybersecurity Awareness Training';
-UPDATE forecasts SET po_number = 'PO-2026-1011', contract_end_month = '2028-06' WHERE project_id = 'proj-iam-run' AND category = 'external' AND vendor = 'PwC' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'Security Operations Retainer';
-UPDATE actuals SET po_number = 'PO-2026-1011' WHERE project_id = 'proj-iam-run' AND category = 'external' AND vendor = 'PwC' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'Security Operations Retainer';
-UPDATE forecasts SET po_number = 'PO-2026-1012', contract_end_month = '2028-06' WHERE project_id = 'proj-iam-run' AND category = 'external' AND vendor = 'ServiceNow' AND sub_category = 'ext-sw-licenses' AND COALESCE(description, '') = 'ServiceNow ITSM Licenses';
-UPDATE actuals SET po_number = 'PO-2026-1012' WHERE project_id = 'proj-iam-run' AND category = 'external' AND vendor = 'ServiceNow' AND sub_category = 'ext-sw-licenses' AND COALESCE(description, '') = 'ServiceNow ITSM Licenses';
-UPDATE forecasts SET po_number = 'PO-2026-1013', contract_end_month = '2026-06' WHERE project_id = 'proj-mdh-rollout' AND category = 'external' AND vendor = 'Accenture' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'MDH Implementation Consulting';
-UPDATE actuals SET po_number = 'PO-2026-1013' WHERE project_id = 'proj-mdh-rollout' AND category = 'external' AND vendor = 'Accenture' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'MDH Implementation Consulting';
-UPDATE forecasts SET po_number = 'PO-2026-1014', contract_end_month = '2028-06' WHERE project_id = 'proj-mdh-rollout' AND category = 'external' AND vendor = 'Informatica' AND sub_category = 'ext-sw-licenses' AND COALESCE(description, '') = 'Master Data Governance Toolkit';
-UPDATE actuals SET po_number = 'PO-2026-1014' WHERE project_id = 'proj-mdh-rollout' AND category = 'external' AND vendor = 'Informatica' AND sub_category = 'ext-sw-licenses' AND COALESCE(description, '') = 'Master Data Governance Toolkit';
-UPDATE forecasts SET po_number = 'PO-2026-1015', contract_end_month = '2027-03' WHERE project_id = 'proj-mdh-rollout' AND category = 'external' AND vendor = 'Snowflake' AND sub_category = 'ext-cloud' AND COALESCE(description, '') = 'Snowflake Enterprise';
-UPDATE actuals SET po_number = 'PO-2026-1015' WHERE project_id = 'proj-mdh-rollout' AND category = 'external' AND vendor = 'Snowflake' AND sub_category = 'ext-cloud' AND COALESCE(description, '') = 'Snowflake Enterprise';
-UPDATE forecasts SET po_number = 'PO-2026-1016', contract_end_month = '2027-03' WHERE project_id = 'proj-mdh-rollout' AND category = 'external' AND vendor = 'Thoughtworks' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'Data Modelling Advisory';
-UPDATE actuals SET po_number = 'PO-2026-1016' WHERE project_id = 'proj-mdh-rollout' AND category = 'external' AND vendor = 'Thoughtworks' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'Data Modelling Advisory';
-UPDATE forecasts SET po_number = 'PO-2026-1017', contract_end_month = '2027-03' WHERE project_id = 'proj-predmaint' AND category = 'external' AND vendor = 'AWS' AND sub_category = 'ext-cloud' AND COALESCE(description, '') = 'Sensor Data Cloud Storage';
-UPDATE actuals SET po_number = 'PO-2026-1017' WHERE project_id = 'proj-predmaint' AND category = 'external' AND vendor = 'AWS' AND sub_category = 'ext-cloud' AND COALESCE(description, '') = 'Sensor Data Cloud Storage';
-UPDATE forecasts SET po_number = 'PO-2026-1018', contract_end_month = '2026-06' WHERE project_id = 'proj-predmaint' AND category = 'external' AND vendor = 'Databricks' AND sub_category = 'ext-sw-licenses' AND COALESCE(description, '') = 'ML Platform License';
-UPDATE actuals SET po_number = 'PO-2026-1018' WHERE project_id = 'proj-predmaint' AND category = 'external' AND vendor = 'Databricks' AND sub_category = 'ext-sw-licenses' AND COALESCE(description, '') = 'ML Platform License';
-UPDATE forecasts SET po_number = 'PO-2026-1019', contract_end_month = '2026-06' WHERE project_id = 'proj-predmaint' AND category = 'external' AND vendor = 'McKinsey Digital' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'Predictive Analytics Consulting';
-UPDATE actuals SET po_number = 'PO-2026-1019' WHERE project_id = 'proj-predmaint' AND category = 'external' AND vendor = 'McKinsey Digital' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'Predictive Analytics Consulting';
-UPDATE forecasts SET po_number = 'PO-2026-1020', contract_end_month = '2026-06' WHERE project_id = 'proj-sensor' AND category = 'external' AND vendor = 'AWS' AND sub_category = 'ext-cloud' AND COALESCE(description, '') = 'AWS Kinesis + S3 Pipeline';
-UPDATE actuals SET po_number = 'PO-2026-1020' WHERE project_id = 'proj-sensor' AND category = 'external' AND vendor = 'AWS' AND sub_category = 'ext-cloud' AND COALESCE(description, '') = 'AWS Kinesis + S3 Pipeline';
-UPDATE forecasts SET po_number = 'PO-2026-1021', contract_end_month = '2027-09' WHERE project_id = 'proj-sensor' AND category = 'external' AND vendor = 'Bosch Sensortec' AND sub_category = 'ext-other' AND COALESCE(description, '') = 'IoT Sensor Calibration';
-UPDATE actuals SET po_number = 'PO-2026-1021' WHERE project_id = 'proj-sensor' AND category = 'external' AND vendor = 'Bosch Sensortec' AND sub_category = 'ext-other' AND COALESCE(description, '') = 'IoT Sensor Calibration';
-UPDATE forecasts SET po_number = 'PO-2026-1022', contract_end_month = '2027-03' WHERE project_id = 'proj-sensor' AND category = 'external' AND vendor = 'Confluent' AND sub_category = 'ext-sw-licenses' AND COALESCE(description, '') = 'Kafka License';
-UPDATE actuals SET po_number = 'PO-2026-1022' WHERE project_id = 'proj-sensor' AND category = 'external' AND vendor = 'Confluent' AND sub_category = 'ext-sw-licenses' AND COALESCE(description, '') = 'Kafka License';
-UPDATE forecasts SET po_number = 'PO-2026-1023', contract_end_month = '2026-06' WHERE project_id = 'proj-sensor' AND category = 'external' AND vendor = 'Thoughtworks' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'Data Engineering Consulting';
-UPDATE actuals SET po_number = 'PO-2026-1023' WHERE project_id = 'proj-sensor' AND category = 'external' AND vendor = 'Thoughtworks' AND sub_category = 'ext-consulting' AND COALESCE(description, '') = 'Data Engineering Consulting';
-
--- For 'ordered' rows: po_amount mirrors amount_eur.
-UPDATE forecasts SET po_amount = amount_eur WHERE category = 'external' AND ext_status = 'ordered' AND vendor IS NOT NULL;
-
--- For 'accrual' forecast rows: accrual_amount mirrors amount_eur.
-UPDATE forecasts SET accrual_amount = amount_eur WHERE category = 'external' AND ext_status = 'accrual' AND vendor IS NOT NULL;
-
--- For 'accrual' actuals rows: spec [v5.1 W5 C-09] models accrual as estimated cost with no invoice journal yet, so amount_eur and invoiced_amount both reset to 0 (the recognised value lives on the forecast row's accrual_amount).
-UPDATE actuals SET amount_eur = 0, invoiced_amount = 0 WHERE category = 'external' AND ext_status = 'accrual' AND vendor IS NOT NULL;
-
--- For 'invoiced' actuals rows: invoiced_amount = amount_eur.
-UPDATE actuals SET invoiced_amount = amount_eur WHERE category = 'external' AND ext_status = 'invoiced' AND vendor IS NOT NULL;
-
--- For 'goods_received' actuals rows: cost recognised, invoice pending → invoiced_amount stays at 0.
-UPDATE actuals SET invoiced_amount = 0 WHERE category = 'external' AND ext_status = 'goods_received' AND vendor IS NOT NULL;
-
--- v5.1 W5 C-09 — Phase 2: 'open' status (partially fulfilled PO)
--- ==============================================================
-INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_eur, description, capex_opex, ext_status, po_number, vendor, role_type_id, is_provisional, po_amount, accrual_amount, contract_end_month) VALUES
-  ('proj-mdh-rollout', '2026-04', 'external', 'ext-consulting', NULL, 12000.0, 'MDH Implementation Consulting (open PO)', 'capex', 'open', 'PO-2026-9000', 'Accenture', 'role-sr-arch', 0, 12000.0, 0, '2027-12'),
-  ('proj-erp2', '2026-04', 'external', 'ext-consulting', NULL, 18000.0, 'SAP Implementation Support (open PO)', 'capex', 'open', 'PO-2026-9001', 'Deloitte', 'role-sr-arch', 0, 18000.0, 0, '2027-12'),
-  ('proj-sensor', '2026-04', 'external', 'ext-consulting', NULL, 9000.0, 'Data Engineering Consulting (open PO)', 'capex', 'open', 'PO-2026-9002', 'Thoughtworks', 'role-data-eng', 0, 9000.0, 0, '2027-12');
-
-INSERT INTO actuals (project_id, month, category, sub_category, hours, amount_eur, description, capex_opex, vendor, ext_status, role_type_id, po_number, invoiced_amount) VALUES
-  ('proj-mdh-rollout', '2026-04', 'external', 'ext-consulting', NULL, 4500.0, 'MDH Implementation Consulting (open PO)', 'capex', 'Accenture', 'open', 'role-sr-arch', 'PO-2026-9000', 2250.0),
-  ('proj-erp2', '2026-04', 'external', 'ext-consulting', NULL, 6000.0, 'SAP Implementation Support (open PO)', 'capex', 'Deloitte', 'open', 'role-sr-arch', 'PO-2026-9001', 3000.0),
-  ('proj-sensor', '2026-04', 'external', 'ext-consulting', NULL, 2500.0, 'Data Engineering Consulting (open PO)', 'capex', 'Thoughtworks', 'open', 'role-data-eng', 'PO-2026-9002', 1250.0);
-
--- v5.1 W5 C-09 — Phase 3: delivery schedule + invoice history (row-expansion content)
--- ====================================================================
-
-INSERT INTO external_cost_deliveries (project_id, vendor, po_number, sub_category, milestone_name, expected_month, expected_amount, delivered_month) VALUES
-  ('proj-cloud3-run', 'AWS', 'PO-2026-1001', 'ext-cloud', 'AWS milestone 1', '2024-01', 8000.0, NULL),
-  ('proj-cloud3-run', 'AWS', 'PO-2026-1001', 'ext-cloud', 'AWS milestone 24', '2025-12', 8000.0, NULL),
-  ('proj-cloud3-run', 'AWS', 'PO-2026-1001', 'ext-cloud', 'AWS milestone 47', '2029-01', 24000.0, NULL),
-  ('proj-cloud3-run', 'AWS', 'PO-2026-1002', 'ext-cloud', 'AWS milestone 1', '2024-01', 3000.0, NULL),
-  ('proj-cloud3-run', 'AWS', 'PO-2026-1002', 'ext-cloud', 'AWS milestone 24', '2025-12', 3000.0, NULL),
-  ('proj-cloud3-run', 'AWS', 'PO-2026-1002', 'ext-cloud', 'AWS milestone 47', '2029-01', 9000.0, NULL),
-  ('proj-erp2', 'Deloitte', 'PO-2026-1003', 'ext-consulting', 'Deloitte milestone 1', '2024-07', 15000.0, NULL),
-  ('proj-erp2', 'Deloitte', 'PO-2026-1003', 'ext-consulting', 'Deloitte milestone 14', '2025-08', 22000.0, NULL),
-  ('proj-erp2', 'Deloitte', 'PO-2026-1003', 'ext-consulting', 'Deloitte milestone 27', '2026-09', 22000.0, NULL),
-  ('proj-erp2', 'MHP Consulting', 'PO-2026-1004', 'ext-consulting', 'MHP Consulting milestone 1', '2024-07', 5000.0, NULL),
-  ('proj-erp2', 'MHP Consulting', 'PO-2026-1004', 'ext-consulting', 'MHP Consulting milestone 14', '2025-08', 5000.0, NULL),
-  ('proj-erp2', 'MHP Consulting', 'PO-2026-1004', 'ext-consulting', 'MHP Consulting milestone 27', '2026-09', 5000.0, NULL),
-  ('proj-erp2', 'Microsoft', 'PO-2026-1005', 'ext-sw-licenses', 'Microsoft milestone 1', '2024-07', 2000.0, NULL),
-  ('proj-erp2', 'Microsoft', 'PO-2026-1005', 'ext-sw-licenses', 'Microsoft milestone 14', '2025-08', 2000.0, NULL),
-  ('proj-erp2', 'Microsoft', 'PO-2026-1005', 'ext-sw-licenses', 'Microsoft milestone 27', '2026-09', 2000.0, NULL),
-  ('proj-erp2', 'SAP Education', 'PO-2026-1006', 'ext-training', 'SAP Education milestone 1', '2024-07', 3000.0, NULL),
-  ('proj-erp2', 'SAP Education', 'PO-2026-1006', 'ext-training', 'SAP Education milestone 14', '2025-08', 3000.0, NULL),
-  ('proj-erp2', 'SAP Education', 'PO-2026-1006', 'ext-training', 'SAP Education milestone 27', '2026-09', 3000.0, NULL),
-  ('proj-erp2', 'SecureWorks', 'PO-2026-1007', 'ext-other', 'SecureWorks milestone 1', '2024-07', 2000.0, NULL),
-  ('proj-erp2', 'SecureWorks', 'PO-2026-1007', 'ext-other', 'SecureWorks milestone 14', '2025-08', 2000.0, NULL),
-  ('proj-erp2', 'SecureWorks', 'PO-2026-1007', 'ext-other', 'SecureWorks milestone 27', '2026-09', 2000.0, NULL),
-  ('proj-erp2', 'TCS', 'PO-2026-1008', 'ext-leased-staff', 'TCS milestone 1', '2024-07', 12000.0, NULL),
-  ('proj-erp2', 'TCS', 'PO-2026-1008', 'ext-leased-staff', 'TCS milestone 14', '2025-08', 12000.0, NULL),
-  ('proj-erp2', 'TCS', 'PO-2026-1008', 'ext-leased-staff', 'TCS milestone 27', '2026-09', 15000.0, NULL),
-  ('proj-iam-run', 'Cisco', 'PO-2026-1009', 'ext-hw-maint', 'Cisco milestone 1', '2024-01', 2000.0, NULL),
-  ('proj-iam-run', 'Cisco', 'PO-2026-1009', 'ext-hw-maint', 'Cisco milestone 24', '2025-12', 2000.0, NULL),
-  ('proj-iam-run', 'Cisco', 'PO-2026-1009', 'ext-hw-maint', 'Cisco milestone 47', '2029-01', 6000.0, NULL),
-  ('proj-iam-run', 'Internal', 'PO-2026-1010', 'ext-training', 'Internal milestone 1', '2024-01', 1500.0, NULL),
-  ('proj-iam-run', 'Internal', 'PO-2026-1010', 'ext-training', 'Internal milestone 24', '2025-12', 1500.0, NULL),
-  ('proj-iam-run', 'Internal', 'PO-2026-1010', 'ext-training', 'Internal milestone 47', '2029-01', 4500.0, NULL),
-  ('proj-iam-run', 'PwC', 'PO-2026-1011', 'ext-consulting', 'PwC milestone 1', '2024-01', 4000.0, NULL),
-  ('proj-iam-run', 'PwC', 'PO-2026-1011', 'ext-consulting', 'PwC milestone 24', '2025-12', 4000.0, NULL),
-  ('proj-iam-run', 'PwC', 'PO-2026-1011', 'ext-consulting', 'PwC milestone 47', '2029-01', 12000.0, NULL),
-  ('proj-iam-run', 'ServiceNow', 'PO-2026-1012', 'ext-sw-licenses', 'ServiceNow milestone 1', '2024-01', 5600.0, NULL),
-  ('proj-iam-run', 'ServiceNow', 'PO-2026-1012', 'ext-sw-licenses', 'ServiceNow milestone 24', '2025-12', 5600.0, NULL),
-  ('proj-iam-run', 'ServiceNow', 'PO-2026-1012', 'ext-sw-licenses', 'ServiceNow milestone 47', '2029-01', 16800.0, NULL),
-  ('proj-mdh-rollout', 'Accenture', 'PO-2026-1013', 'ext-consulting', 'Accenture milestone 1', '2025-10', 12000.0, NULL),
-  ('proj-mdh-rollout', 'Accenture', 'PO-2026-1013', 'ext-consulting', 'Accenture milestone 8', '2026-05', 12000.0, NULL),
-  ('proj-mdh-rollout', 'Accenture', 'PO-2026-1013', 'ext-consulting', 'Accenture milestone 15', '2026-12', 12000.0, NULL),
-  ('proj-mdh-rollout', 'Informatica', 'PO-2026-1014', 'ext-sw-licenses', 'Informatica milestone 1', '2025-10', 4000.0, NULL),
-  ('proj-mdh-rollout', 'Informatica', 'PO-2026-1014', 'ext-sw-licenses', 'Informatica milestone 8', '2026-05', 4000.0, NULL),
-  ('proj-mdh-rollout', 'Informatica', 'PO-2026-1014', 'ext-sw-licenses', 'Informatica milestone 15', '2026-12', 4000.0, NULL),
-  ('proj-mdh-rollout', 'Snowflake', 'PO-2026-1015', 'ext-cloud', 'Snowflake milestone 1', '2025-10', 5000.0, NULL),
-  ('proj-mdh-rollout', 'Snowflake', 'PO-2026-1015', 'ext-cloud', 'Snowflake milestone 8', '2026-05', 5000.0, NULL),
-  ('proj-mdh-rollout', 'Snowflake', 'PO-2026-1015', 'ext-cloud', 'Snowflake milestone 15', '2026-12', 5000.0, NULL),
-  ('proj-mdh-rollout', 'Thoughtworks', 'PO-2026-1016', 'ext-consulting', 'Thoughtworks milestone 1', '2025-10', 6000.0, NULL),
-  ('proj-mdh-rollout', 'Thoughtworks', 'PO-2026-1016', 'ext-consulting', 'Thoughtworks milestone 8', '2026-05', 6000.0, NULL),
-  ('proj-mdh-rollout', 'Thoughtworks', 'PO-2026-1016', 'ext-consulting', 'Thoughtworks milestone 15', '2026-12', 6000.0, NULL),
-  ('proj-predmaint', 'AWS', 'PO-2026-1017', 'ext-cloud', 'AWS milestone 1', '2025-06', 3000.0, NULL),
-  ('proj-predmaint', 'AWS', 'PO-2026-1017', 'ext-cloud', 'AWS milestone 12', '2026-05', 3000.0, NULL),
-  ('proj-predmaint', 'AWS', 'PO-2026-1017', 'ext-cloud', 'AWS milestone 22', '2027-03', 3000.0, NULL),
-  ('proj-predmaint', 'Databricks', 'PO-2026-1018', 'ext-sw-licenses', 'Databricks milestone 1', '2025-06', 4000.0, NULL),
-  ('proj-predmaint', 'Databricks', 'PO-2026-1018', 'ext-sw-licenses', 'Databricks milestone 12', '2026-05', 4000.0, NULL),
-  ('proj-predmaint', 'Databricks', 'PO-2026-1018', 'ext-sw-licenses', 'Databricks milestone 22', '2027-03', 4000.0, NULL),
-  ('proj-predmaint', 'McKinsey Digital', 'PO-2026-1019', 'ext-consulting', 'McKinsey Digital milestone 1', '2025-06', 6000.0, NULL),
-  ('proj-predmaint', 'McKinsey Digital', 'PO-2026-1019', 'ext-consulting', 'McKinsey Digital milestone 12', '2026-05', 6000.0, NULL),
-  ('proj-predmaint', 'McKinsey Digital', 'PO-2026-1019', 'ext-consulting', 'McKinsey Digital milestone 22', '2027-03', 6000.0, NULL),
-  ('proj-sensor', 'AWS', 'PO-2026-1020', 'ext-cloud', 'AWS milestone 1', '2025-03', 6000.0, NULL),
-  ('proj-sensor', 'AWS', 'PO-2026-1020', 'ext-cloud', 'AWS milestone 12', '2026-02', 9000.0, '2026-02'),
-  ('proj-sensor', 'AWS', 'PO-2026-1020', 'ext-cloud', 'AWS milestone 22', '2026-12', 9000.0, NULL),
-  ('proj-sensor', 'Bosch Sensortec', 'PO-2026-1021', 'ext-other', 'Bosch Sensortec milestone 1', '2025-03', 2000.0, NULL),
-  ('proj-sensor', 'Bosch Sensortec', 'PO-2026-1021', 'ext-other', 'Bosch Sensortec milestone 12', '2026-02', 2000.0, '2026-02'),
-  ('proj-sensor', 'Bosch Sensortec', 'PO-2026-1021', 'ext-other', 'Bosch Sensortec milestone 22', '2026-12', 2000.0, NULL),
-  ('proj-sensor', 'Confluent', 'PO-2026-1022', 'ext-sw-licenses', 'Confluent milestone 1', '2025-03', 3000.0, NULL),
-  ('proj-sensor', 'Confluent', 'PO-2026-1022', 'ext-sw-licenses', 'Confluent milestone 12', '2026-02', 3000.0, '2026-02'),
-  ('proj-sensor', 'Confluent', 'PO-2026-1022', 'ext-sw-licenses', 'Confluent milestone 22', '2026-12', 3000.0, NULL),
-  ('proj-sensor', 'Thoughtworks', 'PO-2026-1023', 'ext-consulting', 'Thoughtworks milestone 1', '2025-03', 10000.0, NULL),
-  ('proj-sensor', 'Thoughtworks', 'PO-2026-1023', 'ext-consulting', 'Thoughtworks milestone 12', '2026-02', 14000.0, '2026-02'),
-  ('proj-sensor', 'Thoughtworks', 'PO-2026-1023', 'ext-consulting', 'Thoughtworks milestone 22', '2026-12', 14000.0, NULL),
-  ('proj-mdh-rollout', 'Accenture', 'PO-2026-9000', 'ext-consulting', 'Open PO milestone — Accenture', '2026-04', 4500.0, '2026-04'),
-  ('proj-mdh-rollout', 'Accenture', 'PO-2026-9000', 'ext-consulting', 'Open PO milestone — Accenture (remaining)', '2026-06', 6750.0, NULL),
-  ('proj-erp2', 'Deloitte', 'PO-2026-9001', 'ext-consulting', 'Open PO milestone — Deloitte', '2026-04', 6000.0, '2026-04'),
-  ('proj-erp2', 'Deloitte', 'PO-2026-9001', 'ext-consulting', 'Open PO milestone — Deloitte (remaining)', '2026-06', 9000.0, NULL),
-  ('proj-sensor', 'Thoughtworks', 'PO-2026-9002', 'ext-consulting', 'Open PO milestone — Thoughtworks', '2026-04', 2500.0, '2026-04'),
-  ('proj-sensor', 'Thoughtworks', 'PO-2026-9002', 'ext-consulting', 'Open PO milestone — Thoughtworks (remaining)', '2026-06', 3750.0, NULL);
-
-INSERT INTO external_cost_invoices (project_id, vendor, po_number, invoice_number, invoice_date, amount, status) VALUES
-  ('proj-cloud3-run', 'AWS', 'PO-2026-1001', 'INV-202601-60001', '2026-01-15', 8000.0, 'received'),
-  ('proj-cloud3-run', 'AWS', 'PO-2026-1001', 'INV-202602-60002', '2026-02-15', 8000.0, 'paid'),
-  ('proj-cloud3-run', 'AWS', 'PO-2026-1001', 'INV-202603-60003', '2026-03-15', 8000.0, 'received'),
-  ('proj-cloud3-run', 'AWS', 'PO-2026-1002', 'INV-202601-60004', '2026-01-15', 3000.0, 'paid'),
-  ('proj-cloud3-run', 'AWS', 'PO-2026-1002', 'INV-202602-60005', '2026-02-15', 3000.0, 'received'),
-  ('proj-cloud3-run', 'AWS', 'PO-2026-1002', 'INV-202603-60006', '2026-03-15', 3000.0, 'paid'),
-  ('proj-erp2', 'Deloitte', 'PO-2026-1003', 'INV-202601-60007', '2026-01-15', 22000.0, 'received'),
-  ('proj-erp2', 'Deloitte', 'PO-2026-1003', 'INV-202602-60008', '2026-02-15', 22000.0, 'paid'),
-  ('proj-erp2', 'Deloitte', 'PO-2026-1003', 'INV-202603-60009', '2026-03-15', 22000.0, 'received'),
-  ('proj-erp2', 'MHP Consulting', 'PO-2026-1004', 'INV-202601-60010', '2026-01-15', 5000.0, 'paid'),
-  ('proj-erp2', 'MHP Consulting', 'PO-2026-1004', 'INV-202602-60011', '2026-02-15', 5000.0, 'received'),
-  ('proj-erp2', 'MHP Consulting', 'PO-2026-1004', 'INV-202603-60012', '2026-03-15', 5000.0, 'paid'),
-  ('proj-erp2', 'Microsoft', 'PO-2026-1005', 'INV-202601-60013', '2026-01-15', 2000.0, 'received'),
-  ('proj-erp2', 'Microsoft', 'PO-2026-1005', 'INV-202602-60014', '2026-02-15', 2000.0, 'paid'),
-  ('proj-erp2', 'Microsoft', 'PO-2026-1005', 'INV-202603-60015', '2026-03-15', 2000.0, 'received'),
-  ('proj-erp2', 'SAP Education', 'PO-2026-1006', 'INV-202601-60016', '2026-01-15', 3000.0, 'paid'),
-  ('proj-erp2', 'SAP Education', 'PO-2026-1006', 'INV-202602-60017', '2026-02-15', 3000.0, 'received'),
-  ('proj-erp2', 'SAP Education', 'PO-2026-1006', 'INV-202603-60018', '2026-03-15', 3000.0, 'paid'),
-  ('proj-erp2', 'SecureWorks', 'PO-2026-1007', 'INV-202601-60019', '2026-01-15', 2000.0, 'received'),
-  ('proj-erp2', 'SecureWorks', 'PO-2026-1007', 'INV-202602-60020', '2026-02-15', 2000.0, 'paid'),
-  ('proj-erp2', 'SecureWorks', 'PO-2026-1007', 'INV-202603-60021', '2026-03-15', 2000.0, 'received'),
-  ('proj-erp2', 'TCS', 'PO-2026-1008', 'INV-202601-60022', '2026-01-15', 15000.0, 'paid'),
-  ('proj-erp2', 'TCS', 'PO-2026-1008', 'INV-202602-60023', '2026-02-15', 15000.0, 'received'),
-  ('proj-erp2', 'TCS', 'PO-2026-1008', 'INV-202603-60024', '2026-03-15', 15000.0, 'paid'),
-  ('proj-iam-run', 'Cisco', 'PO-2026-1009', 'INV-202601-60025', '2026-01-15', 2000.0, 'received'),
-  ('proj-iam-run', 'Cisco', 'PO-2026-1009', 'INV-202602-60026', '2026-02-15', 2000.0, 'paid'),
-  ('proj-iam-run', 'Cisco', 'PO-2026-1009', 'INV-202603-60027', '2026-03-15', 2000.0, 'received'),
-  ('proj-iam-run', 'Internal', 'PO-2026-1010', 'INV-202601-60028', '2026-01-15', 1500.0, 'paid'),
-  ('proj-iam-run', 'Internal', 'PO-2026-1010', 'INV-202602-60029', '2026-02-15', 1500.0, 'received'),
-  ('proj-iam-run', 'Internal', 'PO-2026-1010', 'INV-202603-60030', '2026-03-15', 1500.0, 'paid'),
-  ('proj-iam-run', 'PwC', 'PO-2026-1011', 'INV-202601-60031', '2026-01-15', 4000.0, 'received'),
-  ('proj-iam-run', 'PwC', 'PO-2026-1011', 'INV-202602-60032', '2026-02-15', 4000.0, 'paid'),
-  ('proj-iam-run', 'PwC', 'PO-2026-1011', 'INV-202603-60033', '2026-03-15', 4000.0, 'received'),
-  ('proj-iam-run', 'ServiceNow', 'PO-2026-1012', 'INV-202601-60034', '2026-01-15', 5600.0, 'paid'),
-  ('proj-iam-run', 'ServiceNow', 'PO-2026-1012', 'INV-202602-60035', '2026-02-15', 5600.0, 'received'),
-  ('proj-iam-run', 'ServiceNow', 'PO-2026-1012', 'INV-202603-60036', '2026-03-15', 5600.0, 'paid'),
-  ('proj-mdh-rollout', 'Accenture', 'PO-2026-1013', 'INV-202601-60037', '2026-01-15', 12000.0, 'received'),
-  ('proj-mdh-rollout', 'Accenture', 'PO-2026-1013', 'INV-202602-60038', '2026-02-15', 12000.0, 'paid'),
-  ('proj-mdh-rollout', 'Accenture', 'PO-2026-1013', 'INV-202603-60039', '2026-03-15', 12000.0, 'received'),
-  ('proj-mdh-rollout', 'Informatica', 'PO-2026-1014', 'INV-202601-60040', '2026-01-15', 4000.0, 'paid'),
-  ('proj-mdh-rollout', 'Informatica', 'PO-2026-1014', 'INV-202602-60041', '2026-02-15', 4000.0, 'received'),
-  ('proj-mdh-rollout', 'Informatica', 'PO-2026-1014', 'INV-202603-60042', '2026-03-15', 4000.0, 'paid'),
-  ('proj-mdh-rollout', 'Snowflake', 'PO-2026-1015', 'INV-202601-60043', '2026-01-15', 5000.0, 'received'),
-  ('proj-mdh-rollout', 'Snowflake', 'PO-2026-1015', 'INV-202602-60044', '2026-02-15', 5000.0, 'paid'),
-  ('proj-mdh-rollout', 'Snowflake', 'PO-2026-1015', 'INV-202603-60045', '2026-03-15', 5000.0, 'received'),
-  ('proj-mdh-rollout', 'Thoughtworks', 'PO-2026-1016', 'INV-202601-60046', '2026-01-15', 6000.0, 'paid'),
-  ('proj-mdh-rollout', 'Thoughtworks', 'PO-2026-1016', 'INV-202602-60047', '2026-02-15', 6000.0, 'received'),
-  ('proj-mdh-rollout', 'Thoughtworks', 'PO-2026-1016', 'INV-202603-60048', '2026-03-15', 6000.0, 'paid'),
-  ('proj-predmaint', 'AWS', 'PO-2026-1017', 'INV-202601-60049', '2026-01-15', 3000.0, 'received'),
-  ('proj-predmaint', 'AWS', 'PO-2026-1017', 'INV-202602-60050', '2026-02-15', 3000.0, 'paid'),
-  ('proj-predmaint', 'AWS', 'PO-2026-1017', 'INV-202603-60051', '2026-03-15', 3000.0, 'received'),
-  ('proj-predmaint', 'Databricks', 'PO-2026-1018', 'INV-202601-60052', '2026-01-15', 4000.0, 'paid'),
-  ('proj-predmaint', 'Databricks', 'PO-2026-1018', 'INV-202602-60053', '2026-02-15', 4000.0, 'received'),
-  ('proj-predmaint', 'Databricks', 'PO-2026-1018', 'INV-202603-60054', '2026-03-15', 4000.0, 'paid'),
-  ('proj-predmaint', 'McKinsey Digital', 'PO-2026-1019', 'INV-202601-60055', '2026-01-15', 6000.0, 'received'),
-  ('proj-predmaint', 'McKinsey Digital', 'PO-2026-1019', 'INV-202602-60056', '2026-02-15', 6000.0, 'paid'),
-  ('proj-predmaint', 'McKinsey Digital', 'PO-2026-1019', 'INV-202603-60057', '2026-03-15', 6000.0, 'received'),
-  ('proj-sensor', 'AWS', 'PO-2026-1020', 'INV-202601-60058', '2026-01-15', 9000.0, 'paid'),
-  ('proj-sensor', 'AWS', 'PO-2026-1020', 'INV-202602-60059', '2026-02-15', 9000.0, 'received'),
-  ('proj-sensor', 'AWS', 'PO-2026-1020', 'INV-202603-60060', '2026-03-15', 9000.0, 'paid'),
-  ('proj-sensor', 'Bosch Sensortec', 'PO-2026-1021', 'INV-202601-60061', '2026-01-15', 2000.0, 'received'),
-  ('proj-sensor', 'Bosch Sensortec', 'PO-2026-1021', 'INV-202602-60062', '2026-02-15', 2000.0, 'paid'),
-  ('proj-sensor', 'Bosch Sensortec', 'PO-2026-1021', 'INV-202603-60063', '2026-03-15', 2000.0, 'received'),
-  ('proj-sensor', 'Confluent', 'PO-2026-1022', 'INV-202601-60064', '2026-01-15', 3000.0, 'paid'),
-  ('proj-sensor', 'Confluent', 'PO-2026-1022', 'INV-202602-60065', '2026-02-15', 3000.0, 'received'),
-  ('proj-sensor', 'Confluent', 'PO-2026-1022', 'INV-202603-60066', '2026-03-15', 3000.0, 'paid'),
-  ('proj-sensor', 'Thoughtworks', 'PO-2026-1023', 'INV-202601-60067', '2026-01-15', 14000.0, 'received'),
-  ('proj-sensor', 'Thoughtworks', 'PO-2026-1023', 'INV-202602-60068', '2026-02-15', 14000.0, 'paid'),
-  ('proj-sensor', 'Thoughtworks', 'PO-2026-1023', 'INV-202603-60069', '2026-03-15', 14000.0, 'received'),
-  ('proj-mdh-rollout', 'Accenture', 'PO-2026-9000', 'INV-202604-60070', '2026-04-20', 2250.0, 'received'),
-  ('proj-erp2', 'Deloitte', 'PO-2026-9001', 'INV-202604-60071', '2026-04-20', 3000.0, 'received'),
-  ('proj-sensor', 'Thoughtworks', 'PO-2026-9002', 'INV-202604-60072', '2026-04-20', 1250.0, 'received');
-
--- End of v5.1 W5 C-09 top-up.
--- =============================================================
--- v5.2 W1 Capacity foundation top-up (generated by
---   backend/seed/generate_seed_v5/s22_v5_2_capacity_seed.py)
--- Run the generator once to refresh; output below is intended
--- to be appended verbatim to seed.sql.
--- =============================================================
-
--- v5.2 W1 [C] — CapacityActionLog seed entries (§12.10)
--- =====================================================
--- 8 entries spanning all 7 action_types within the last 30 days from the
--- 2026-04-15 demo today anchor. Drives /capacity/history and the inbox
--- 'Recently completed' section.
-
-INSERT INTO capacity_action_log (timestamp, action_type, acting_user_id, project_id, cost_center_id, cr_id, summary, detail_payload) VALUES
-  ('2026-04-11 11:30:00', 'confirm', 'p-brenner', 'proj-mdh-rollout', 'cc-bud-apd', 28, 'Confirmed Data Engineer BUD: 60h/mo for May–Dec 2026, assigned to Balazs Simon.', '{"requests_affected": [{"request_id": 28201, "role": "Data Engineer", "months": 8, "hours": 480}], "assignments": [{"person_id": "p-simon", "person_name": "Balazs Simon", "months": ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11", "2026-12"], "hours_per_month": 60}], "cr_id": 28, "decline_reason": null}'),
-  ('2026-04-12 09:15:00', 'cr_reconfirm', 'p-brenner', 'proj-mdh-rollout', 'cc-bud-apd', 28, 'Re-confirmed via CR #28: Data Engineer BUD increased 40h → 60h/mo (+20h).', '{"requests_affected": [{"request_id": 28201, "role": "Data Engineer", "months": 8, "hours_delta": 160}], "assignments": [{"person_id": "p-simon", "person_name": "Balazs Simon", "months": ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11", "2026-12"], "hours_per_month": 60}], "cr_id": 28, "decline_reason": null}'),
-  ('2026-04-05 16:45:00', 'partial_confirm', 'p-brenner', 'proj-erp2', 'cc-muc-apd', NULL, 'Partial confirm on proj-erp2: 2 of 3 roles staffed (Sr Dev MUC + QA MUC; Dev MUC pending capacity).', '{"requests_affected": [{"request_id": 901, "role": "Senior Developer", "months": 6, "hours": 720}, {"request_id": 902, "role": "QA / Test Engineer", "months": 6, "hours": 240}, {"request_id": 903, "role": "Developer", "months": 6, "hours": 360}], "assignments": [{"person_id": "p-fischer", "person_name": "Lena Fischer", "months": ["2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"], "hours_per_month": 120}, {"person_id": "p-jung", "person_name": "Sabine Jung", "months": ["2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"], "hours_per_month": 40}], "cr_id": null, "decline_reason": "Developer MUC over-subscribed in Q3 2026 \u2014 re-route to BUD or split with cc-pun-apd."}'),
-  ('2026-03-31 13:20:00', 'decline', 'p-brenner', 'proj-greenedge', 'cc-muc-inf', NULL, 'Declined Cloud Engineer 20h/mo for proj-greenedge: no MUC capacity until Q4 2026.', '{"requests_affected": [{"request_id": 1001, "role": "Cloud / Platform Engineer", "months": 6, "hours": 120}], "assignments": [], "cr_id": null, "decline_reason": "All cloud engineers in MUC fully booked through Q3 2026 on infrastructure migrations. Earliest availability is October 2026 \u2014 please re-submit with a Q4 start or consider BUD cloud capacity."}'),
-  ('2026-04-03 10:05:00', 'decline_request', 'p-brenner', 'proj-autobrake', 'cc-muc-apd', NULL, 'Declined Business Analyst 20h/mo (RR 104): BA capacity unavailable in MUC; please re-route to BUD.', '{"requests_affected": [{"request_id": 104, "role": "Business Analyst", "months": 19, "hours": 380}], "assignments": [], "cr_id": null, "decline_reason": "BA capacity in MUC is fully committed through 2027 on Master Data Hub and ERP2 streams. Recommend re-submitting this request against cc-bud-apd or cc-pun-bso."}'),
-  ('2026-04-13 17:30:00', 'assign_draft', 'p-brenner', 'proj-autobrake', 'cc-muc-apd', NULL, 'Saved draft on proj-autobrake: Sr Architect + Sr Developer pre-assigned, Dev / QA / BA still pending decision.', '{"requests_affected": [{"request_id": 100, "role": "Senior Solution Architect", "months": 19, "hours": 760}, {"request_id": 101, "role": "Senior Developer", "months": 19, "hours": 1520}], "assignments": [{"person_id": "p-brenner", "person_name": "Thomas Brenner", "months": [], "hours_per_month": 40}, {"person_id": "p-fischer", "person_name": "Lena Fischer", "months": [], "hours_per_month": 80}], "cr_id": null, "decline_reason": null}'),
-  ('2026-03-21 14:50:00', 'assign_draft', 'p-meier', 'proj-predmaint', 'cc-pun-apd', NULL, 'Saved draft on proj-predmaint: Developer PUN tentative assignment to Vikram Singh, 60h/mo Apr 2026 – Mar 2027.', '{"requests_affected": [{"request_id": 14801, "role": "Developer", "months": 12, "hours": 720}], "assignments": [{"person_id": "p-singh", "person_name": "Vikram Singh", "months": ["2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01", "2027-02", "2027-03"], "hours_per_month": 60}], "cr_id": null, "decline_reason": null}'),
-  ('2026-04-07 09:00:00', 'confirm', 'p-brenner', 'proj-sensor', 'cc-muc-apd', NULL, 'Confirmed Sr Developer MUC for proj-sensor: 40h/mo for May–Dec 2026, assigned to Felix Keller.', '{"requests_affected": [{"request_id": 13701, "role": "Senior Developer", "months": 8, "hours": 320}], "assignments": [{"person_id": "p-keller", "person_name": "Felix Keller", "months": ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11", "2026-12"], "hours_per_month": 40}], "cr_id": null, "decline_reason": null}');
-
--- v5.2 W1 [C] — Multi-person assignment example (relaxed (request, month, person) UQ)
--- ===============================================================================
--- RR 102 (proj-autobrake, role-dev MUC, 100h/mo) split across p-schmidt (60h)
--- and p-bauer (40h) for 2026-06 → 2026-08. Exercises uq_rra_request_month_person.
-INSERT INTO resource_request_assignments (resource_request_id, month, person_id, hours, created_at, modified_at) VALUES
-  (102, '2026-06', 'p-schmidt', 60, '2026-04-12 09:00:00', '2026-04-12 09:00:00'),
-  (102, '2026-06', 'p-bauer', 40, '2026-04-12 09:00:00', '2026-04-12 09:00:00'),
-  (102, '2026-07', 'p-schmidt', 60, '2026-04-12 09:00:00', '2026-04-12 09:00:00'),
-  (102, '2026-07', 'p-bauer', 40, '2026-04-12 09:00:00', '2026-04-12 09:00:00'),
-  (102, '2026-08', 'p-schmidt', 60, '2026-04-12 09:00:00', '2026-04-12 09:00:00'),
-  (102, '2026-08', 'p-bauer', 40, '2026-04-12 09:00:00', '2026-04-12 09:00:00');
-
--- End of v5.2 W1 capacity foundation top-up.
