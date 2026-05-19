@@ -41,6 +41,30 @@ class TestIntegerValidation:
         with pytest.raises(ums.UMValidationError, match="must be an integer"):
             ums.coerce_um_int("abc", context="cell")
 
+    def test_coerce_rejects_bool(self):
+        # bool is an int subclass — a stray True/False from a JSON body must
+        # not become 1/0 (False would otherwise sparse-delete a cell).
+        for b in (True, False):
+            with pytest.raises(ums.UMValidationError, match="must be an integer"):
+                ums.coerce_um_int(b, context="cell")
+
+    def test_coerce_rejects_scientific_notation(self):
+        with pytest.raises(ums.UMValidationError, match="must be an integer"):
+            ums.coerce_um_int("1e3", context="cell")
+
+    def test_coerce_rejects_non_finite(self):
+        # Previously leaked OverflowError/ValueError past the 409 mapping.
+        for bad in (float("inf"), float("-inf"), float("nan")):
+            with pytest.raises(ums.UMValidationError, match="must be an integer"):
+                ums.coerce_um_int(bad, context="cell")
+
+    def test_coerce_accepts_negative(self):
+        # Negatives are a deliberate, documented design decision (signed
+        # pre-multiplied metrics are not forbidden by the spec).
+        assert ums.coerce_um_int(-5, context="x") == -5
+        assert ums.coerce_um_int("-5", context="x") == -5
+        assert ums.coerce_um_int(-5.0, context="x") == -5
+
     def test_set_cell_rejects_non_integer_at_field(self, db):
         _cl(db)
         v = ums.create_draft(db, 2027, 1)
@@ -196,6 +220,18 @@ class TestPerCellAudit:
         assert rows[-1].action == "deactivate"
         assert rows[-1].old_value == "10" and rows[-1].new_value is None
 
+    def test_bulk_set_cells_one_audit_per_changed_cell(self, db):
+        _cl(db, "cl-a", "DE-A-001")
+        _cl(db, "cl-b", "DE-B-001")
+        v = ums.create_draft(db, 2032, 1)
+        muts = ums.bulk_set_cells(db, v.id, [
+            {"s_code": "S1", "charging_location_id": "cl-a", "value": 4},
+            {"s_code": "S1", "charging_location_id": "cl-b", "value": 6},
+        ], actor_person_id=ACTOR)
+        assert len(muts) == 2
+        # [F-UM-05]: one audit row per changed cell on the bulk path too.
+        assert len(self._um_audits(db)) == 2
+
     def test_no_op_set_writes_no_audit(self, db):
         _cl(db)
         v = ums.create_draft(db, 2030, 3)
@@ -235,6 +271,22 @@ class TestResolution:
         ums.activate_version(db, v2.id, actor_person_id=ACTOR)
         resolved = ums.get_active_version(db, 2031, 1)
         assert resolved.id == v2.id
+
+    def test_resolution_tiebreak_same_activated_at(self, db):
+        # activate_version uses datetime.utcnow(); two activations can collide
+        # at timestamp granularity. The id-DESC secondary sort makes the
+        # winner deterministic (latest-created among equal activated_at).
+        from datetime import datetime as _dt
+        ts = _dt(2031, 6, 1, 12, 0, 0)
+        v1 = UMVersion(year=2031, quarter=4, status="active",
+                        source="seed", activated_at=ts)
+        db.add(v1)
+        db.flush()
+        v2 = UMVersion(year=2031, quarter=4, status="active",
+                        source="seed", activated_at=ts)
+        db.add(v2)
+        db.flush()
+        assert ums.get_active_version(db, 2031, 4).id == max(v1.id, v2.id)
 
     def test_draft_not_resolved(self, db):
         ums.create_draft(db, 2031, 2)

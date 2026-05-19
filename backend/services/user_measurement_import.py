@@ -22,10 +22,15 @@ Contract (header row required):
 from __future__ import annotations
 
 import csv
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from io import StringIO
 from typing import Optional
+
+# Base-10 integer, optionally trailing-zero decimals; no exponent, no
+# inf/nan. Shared shape with user_measurement_service._UM_INT_RE.
+_UM_INT_RE = re.compile(r"[+-]?\d+(?:\.0+)?\Z")
 
 from sqlalchemy.orm import Session
 
@@ -90,19 +95,18 @@ def _parse_int(s: str, field_name: str, line: int) -> int:
 def _parse_int_strict(s: str, line: int) -> int:
     """Parse a UM value as an integer per [F-UM-01].
 
-    Accepts integral floats (``"42"``, ``"42.0"``); rejects true fractionals
-    (``"42.5"``) and non-numerics with a clear row-level message.
+    Accepted grammar: ``[+-]?digits`` optionally with trailing-zero decimals
+    (``"42"``, ``"42.0"``, ``"-5"``). Rejects fractionals (``"42.5"``),
+    scientific notation (``"1e3"``), ``inf``/``nan``, and non-numerics with a
+    clear row-level message — the same narrow grammar the service-layer
+    ``coerce_um_int`` gate enforces, so CSV and in-grid entry agree.
     """
     t = (s or "").strip()
     if not t:
         raise ValueError(f"line {line}: missing value")
-    try:
-        f = float(t)
-    except (ValueError, AttributeError):
-        raise ValueError(f"line {line}: non-integer value '{s}'")
-    if f != int(f):
+    if not _UM_INT_RE.match(t):
         raise ValueError(f"line {line}: value must be an integer, got '{s}'")
-    return int(f)
+    return int(float(t))
 
 
 def parse_um_csv(

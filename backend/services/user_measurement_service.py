@@ -23,6 +23,8 @@ Tags: [F-UM-01] integer values, [F-UM-02] draft/active state machine,
 
 from __future__ import annotations
 
+import math
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
@@ -79,25 +81,45 @@ class CellMutation:
 # Integer coercion (the field-level gate per [F-UM-01])
 # ---------------------------------------------------------------------------
 
+# Base-10 integer, optionally with trailing-zero decimals; no exponent, no
+# inf/nan. Shared shape with user_measurement_import._UM_INT_RE.
+_UM_INT_RE = re.compile(r"[+-]?\d+(?:\.0+)?\Z")
+
 def coerce_um_int(raw, *, context: str) -> int:
     """Coerce ``raw`` to an integer or raise ``UMValidationError``.
 
-    Accepts ints and integral floats/strings (``42``, ``"42"``, ``42.0``);
-    rejects true fractionals (``42.5``) and non-numerics. The Python boundary
-    is the authoritative integer gate — SQLite INTEGER affinity silently
-    accepts floats, so the DB cannot enforce [F-UM-01].
+    Accepted grammar (deliberately narrow — this is the authoritative
+    field-level gate per [F-UM-01], and FD-2's UI calls it with user input):
+    a Python ``int``; a finite ``float`` with no fractional part; or a string
+    matching ``[+-]?digits`` optionally with trailing-zero decimals
+    (``"42"``, ``"42.0"``, ``"-5"``). Negative values are allowed (the spec
+    does not forbid signed pre-multiplied metrics).
+
+    Explicitly rejected (each would otherwise widen the gate surprisingly):
+    ``bool`` (a Python ``int`` subclass — a stray ``True``/``False`` from a
+    JSON body must not become ``1``/``0``, and ``False`` would sparse-delete
+    a cell), scientific notation (``"1e3"``), and non-finite floats
+    (``inf``/``nan`` — these previously leaked ``OverflowError``/``ValueError``
+    past the 409 mapping). The DB cannot enforce any of this (SQLite INTEGER
+    affinity silently accepts floats).
     """
-    try:
-        f = float(raw)
-    except (ValueError, TypeError):
+    if isinstance(raw, bool):
         raise UMValidationError(
             f"{context}: value must be an integer, got {raw!r}",
         )
-    if f != int(f):
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        if not math.isfinite(raw) or raw != int(raw):
+            raise UMValidationError(
+                f"{context}: value must be an integer, got {raw!r}",
+            )
+        return int(raw)
+    if not _UM_INT_RE.match(str(raw).strip()):
         raise UMValidationError(
             f"{context}: value must be an integer, got {raw!r}",
         )
-    return int(f)
+    return int(float(str(raw).strip()))
 
 
 # ---------------------------------------------------------------------------
