@@ -1231,7 +1231,11 @@ export const adminD3Api = {
   deactivateLegalEntity: (id: string) =>
     api.put<LegalEntityItem>(`/api/admin/legal-entities/${id}/deactivate`),
 
-  // --- User Measurement (F1 / [F-UM-01..04]) ---
+  // --- User Measurement (DEPRECATED — FD-2 relocates to Charging) ---
+  // The authored-version API lives at `/api/charging/user-measurement/*` and
+  // is exposed via `userMeasurementApi` in `frontend/src/api/userMeasurement.ts`.
+  // These getters keep the legacy admin panel (UserMeasurementPanel.tsx)
+  // compiling until commit 7 deletes both it and the legacy router shim.
   getUMRefreshStatus: () =>
     api.get<UMRefreshStatus>('/api/admin/user-measurement/refresh-status'),
   getUMVersions: () =>

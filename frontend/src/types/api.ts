@@ -1596,6 +1596,9 @@ export interface LegalEntityItem {
 }
 
 // User measurement matrix (F1 / [F-UM-01..04])
+// @deprecated FD-2 — UM moved to the Charging namespace. Use the types in
+// `@/types/userMeasurement` (UMVersionSummary, UMCell, etc.). These shapes
+// remain only until commit 7 deletes the legacy admin shim.
 export interface UMVersionItem {
   imported_at: string;
   source: string;
