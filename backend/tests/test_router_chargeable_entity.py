@@ -7,6 +7,7 @@ import pytest
 from models.charging import ChargeableEntity
 from models.organization import GroupingEntity, GroupingEntityType
 from models.projects import Project
+from models.system import AuditLog
 
 
 @pytest.fixture
@@ -292,6 +293,160 @@ class TestDeactivateChargeableEntity:
             headers={"X-Current-User": "persona-controller"},
         )
         assert r.status_code == 404
+
+    def test_non_controller_forbidden(self, test_client, seed_chargeable_entities):
+        # FD-6: Deactivation is a master_data mutation — controller only.
+        r = test_client.put(
+            "/api/admin/chargeable-entities/ce-off-test/deactivate",
+            headers={"X-Current-User": "persona-pl"},
+        )
+        assert r.status_code == 403
+
+    def test_audit_row_written(self, test_client, seed_chargeable_entities, db):
+        # FD-6: deactivate emits a master_data audit row matching the Country
+        # pattern, so the Admin → Audit Log surface can render the trail.
+        r = test_client.put(
+            "/api/admin/chargeable-entities/ce-off-test/deactivate",
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert r.status_code == 200
+        rows = (
+            db.query(AuditLog)
+            .filter(AuditLog.entity_type == "chargeable_entity")
+            .filter(AuditLog.entity_id == "ce-off-test")
+            .filter(AuditLog.action == "deactivate")
+            .all()
+        )
+        assert len(rows) >= 1
+        assert rows[-1].category == "master_data"
+
+
+# ---------------------------------------------------------------------------
+# FD-6 [F-AK-01] — allocation_key plumbing
+# ---------------------------------------------------------------------------
+
+
+class TestAllocationKey:
+    def test_create_with_allocation_key_for_internal_service(
+        self, test_client, seed_chargeable_entities,
+    ):
+        r = test_client.post(
+            "/api/admin/chargeable-entities",
+            headers={"X-Current-User": "persona-controller"},
+            json={
+                "entity_type": "InternalService",
+                "identifier": "ITF44444",
+                "name": "Service with key",
+                "to_business_pct": 0.0,
+                "allocation_key": "Number of users",
+            },
+        )
+        assert r.status_code == 201
+        assert r.json()["allocation_key"] == "Number of users"
+
+    def test_create_allocation_key_null_default_for_project(
+        self, test_client, seed_chargeable_entities,
+    ):
+        # Project subtype: column is type-agnostic on the polymorphic root,
+        # but the admin UI does not surface the field. A POST without the key
+        # leaves it null.
+        r = test_client.post(
+            "/api/admin/chargeable-entities",
+            headers={"X-Current-User": "persona-controller"},
+            json={
+                "entity_type": "InternalService",
+                "identifier": "ITF33333",
+                "name": "No key service",
+                "to_business_pct": 0.0,
+            },
+        )
+        assert r.status_code == 201
+        assert r.json()["allocation_key"] is None
+
+    def test_update_allocation_key_round_trip(
+        self, test_client, seed_chargeable_entities, db,
+    ):
+        # PUT writes the new key; GET returns it; audit row written.
+        r = test_client.put(
+            "/api/admin/chargeable-entities/ce-svc-test",
+            headers={"X-Current-User": "persona-controller"},
+            json={"allocation_key": "Sales volume, EUR thousands"},
+        )
+        assert r.status_code == 200
+        assert r.json()["allocation_key"] == "Sales volume, EUR thousands"
+
+        r2 = test_client.get(
+            "/api/admin/chargeable-entities/ce-svc-test",
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert r2.json()["allocation_key"] == "Sales volume, EUR thousands"
+
+        # Audit row mirrors termination_month's audit pattern.
+        rows = (
+            db.query(AuditLog)
+            .filter(AuditLog.entity_type == "chargeable_entity")
+            .filter(AuditLog.entity_id == "ce-svc-test")
+            .filter(AuditLog.action == "update")
+            .filter(AuditLog.field_changed == "allocation_key")
+            .all()
+        )
+        assert len(rows) == 1
+        assert rows[0].new_value == "Sales volume, EUR thousands"
+        assert rows[0].category == "master_data"
+
+    def test_list_response_includes_allocation_key(
+        self, test_client, seed_chargeable_entities,
+    ):
+        r = test_client.get(
+            "/api/admin/chargeable-entities",
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert r.status_code == 200
+        for item in r.json()["items"]:
+            assert "allocation_key" in item
+
+
+# ---------------------------------------------------------------------------
+# FD-6 [F-ADM-01] — type metadata endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestListChargeableEntityTypes:
+    def test_lists_three_subtypes(self, test_client, seed_personas):
+        r = test_client.get(
+            "/api/admin/chargeable-entity-types",
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["total"] == 3
+        codes = {item["code"] for item in data["items"]}
+        assert codes == {"Project", "Offering", "InternalService"}
+
+    def test_metadata_shape(self, test_client, seed_personas):
+        r = test_client.get(
+            "/api/admin/chargeable-entity-types",
+            headers={"X-Current-User": "persona-controller"},
+        )
+        by_code = {item["code"]: item for item in r.json()["items"]}
+        assert by_code["Project"]["requires_project_id"] is True
+        assert by_code["Offering"]["requires_project_id"] is False
+        assert by_code["InternalService"]["requires_project_id"] is False
+        assert by_code["InternalService"]["supports_allocation_key"] is True
+        assert by_code["Project"]["supports_allocation_key"] is False
+        assert by_code["Offering"]["supports_allocation_key"] is False
+        # Labels are human-readable; verify the InternalService label is
+        # space-separated (panel uses it verbatim in chips).
+        assert by_code["InternalService"]["label"] == "Internal Service"
+
+    def test_pl_role_can_read(self, test_client, seed_personas):
+        # Metadata read is open to all four roles so the read-only Charging
+        # surfaces can render type chips.
+        r = test_client.get(
+            "/api/admin/chargeable-entity-types",
+            headers={"X-Current-User": "persona-pl"},
+        )
+        assert r.status_code == 200
 
 
 # ---------------------------------------------------------------------------
