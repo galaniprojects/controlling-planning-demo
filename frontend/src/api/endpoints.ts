@@ -1634,6 +1634,81 @@ export const chargeableEntitiesApi = {
 export type { ChargeableEntityItem, ChargeableEntityListResponse };
 
 // ---------------------------------------------------------------------------
+// === FD-6 / [F-ADM-01] — ChargeableEntity admin panel API
+// CRUD + types-metadata wrapper used by the Admin → Chargeable Entities panel.
+// Kept distinct from ``chargeableEntitiesApi`` (which is the read-only Run
+// Portfolio wrapper over the same /api/admin/chargeable-entities endpoint)
+// so the surfaces don't grow coupled to each other.
+// ---------------------------------------------------------------------------
+
+import type {
+  ChargeableEntityItem as AdminChargeableEntityItem,
+  ChargeableEntityCreateRequest,
+  ChargeableEntityUpdateRequest,
+  ChargeableEntityTypeMetadata,
+  ChargeableEntityType as AdminChargeableEntityType,
+} from '@/types/api';
+
+export const chargeableEntitiesAdminApi = {
+  /** GET /api/admin/chargeable-entity-types — drives the type-aware form. */
+  listTypes: () =>
+    api.get<ListResponse<ChargeableEntityTypeMetadata>>(
+      '/api/admin/chargeable-entity-types',
+    ),
+
+  /**
+   * GET /api/admin/chargeable-entities — filtered list. Pass
+   * ``is_active: null`` to include deactivated rows (the admin panel default
+   * so the Inactive badge is visible).
+   */
+  list: (params?: {
+    entity_type?: AdminChargeableEntityType;
+    hierarchy_node_id?: string;
+    is_active?: boolean | null;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.entity_type) q.set('entity_type', params.entity_type);
+    if (params?.hierarchy_node_id) {
+      q.set('hierarchy_node_id', params.hierarchy_node_id);
+    }
+    if (params?.is_active === null) q.set('is_active', 'null');
+    else if (params?.is_active !== undefined) {
+      q.set('is_active', String(params.is_active));
+    }
+    const qs = q.toString();
+    return api.get<ListResponse<AdminChargeableEntityItem>>(
+      `/api/admin/chargeable-entities${qs ? '?' + qs : ''}`,
+    );
+  },
+
+  /** GET /api/admin/chargeable-entities/{id}. */
+  get: (id: string) =>
+    api.get<AdminChargeableEntityItem>(
+      `/api/admin/chargeable-entities/${encodeURIComponent(id)}`,
+    ),
+
+  /** POST /api/admin/chargeable-entities — controller-only. */
+  create: (data: ChargeableEntityCreateRequest) =>
+    api.post<AdminChargeableEntityItem>(
+      '/api/admin/chargeable-entities',
+      data,
+    ),
+
+  /** PUT /api/admin/chargeable-entities/{id} — partial update, controller-only. */
+  update: (id: string, data: ChargeableEntityUpdateRequest) =>
+    api.put<AdminChargeableEntityItem>(
+      `/api/admin/chargeable-entities/${encodeURIComponent(id)}`,
+      data,
+    ),
+
+  /** PUT /api/admin/chargeable-entities/{id}/deactivate — one-way, controller-only. */
+  deactivate: (id: string) =>
+    api.put<AdminChargeableEntityItem>(
+      `/api/admin/chargeable-entities/${encodeURIComponent(id)}/deactivate`,
+    ),
+};
+
+// ---------------------------------------------------------------------------
 // === v5 Cluster E Session E5 — External cost views [E-08a..d] ===
 // Backed by E2's existing aggregation endpoints under
 //   /api/projects/{id}/external-costs/* and /api/portfolio/external-costs/*.
