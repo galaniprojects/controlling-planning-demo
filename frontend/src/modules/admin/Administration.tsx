@@ -36,7 +36,6 @@ import { CountriesPanel } from './entities/CountriesPanel';
 import { RegionsPanel } from './entities/RegionsPanel';
 import { ChargingLocationsPanel } from './entities/ChargingLocationsPanel';
 import { LegalEntitiesPanel } from './entities/LegalEntitiesPanel';
-import { UserMeasurementPanel } from './entities/UserMeasurementPanel';
 import { UsersPanel } from './entities/UsersPanel';
 import { ProjectDependenciesPanel } from './entities/ProjectDependenciesPanel';
 import { RolePermissionsGrid } from './system/RolePermissionsGrid';
@@ -142,8 +141,6 @@ export function Administration() {
         return <RegionsPanel />;
       case 'countries':
         return <CountriesPanel />;
-      case 'user_measurement':
-        return <UserMeasurementPanel />;
 
       // Section 2 — Reference Catalogues
       case 'role_types':

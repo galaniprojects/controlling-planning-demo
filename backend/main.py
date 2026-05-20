@@ -62,7 +62,6 @@ from routers.reports import router as reports_router  # noqa: E402
 from routers.scenarios import router as scenarios_router  # noqa: E402
 from routers.scheduled_changes import router as scheduled_changes_router  # noqa: E402
 from routers.tech_navigator import router as tech_navigator_router  # noqa: E402
-from routers.user_measurement import router as user_measurement_router  # noqa: E402
 from routers.user_measurement_charging import (  # noqa: E402
     router as user_measurement_charging_router,
 )
@@ -95,7 +94,6 @@ app.include_router(reports_router)
 app.include_router(scenarios_router)
 app.include_router(scheduled_changes_router)
 app.include_router(tech_navigator_router)
-app.include_router(user_measurement_router)
 app.include_router(user_measurement_charging_router)
 app.include_router(workbench_router)
 app.include_router(forecast_versions_router)

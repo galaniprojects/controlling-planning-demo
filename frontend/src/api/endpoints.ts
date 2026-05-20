@@ -9,10 +9,6 @@ import type {
   RegionItem,
   ChargingLocationItem,
   LegalEntityItem,
-  UMVersionItem,
-  UMCellItem,
-  UMRefreshStatus,
-  UMImportResult,
   WorkflowTemplateSummary,
   WorkflowTemplateDetail,
   WorkflowStepItem,
@@ -1231,45 +1227,8 @@ export const adminD3Api = {
   deactivateLegalEntity: (id: string) =>
     api.put<LegalEntityItem>(`/api/admin/legal-entities/${id}/deactivate`),
 
-  // --- User Measurement (DEPRECATED — FD-2 relocates to Charging) ---
-  // The authored-version API lives at `/api/charging/user-measurement/*` and
-  // is exposed via `userMeasurementApi` in `frontend/src/api/userMeasurement.ts`.
-  // These getters keep the legacy admin panel (UserMeasurementPanel.tsx)
-  // compiling until commit 7 deletes both it and the legacy router shim.
-  getUMRefreshStatus: () =>
-    api.get<UMRefreshStatus>('/api/admin/user-measurement/refresh-status'),
-  getUMVersions: () =>
-    api.get<ListResponse<UMVersionItem>>('/api/admin/user-measurement/versions'),
-  getUMCells: (params: { year: number; quarter: number; imported_at?: string }) => {
-    const q = new URLSearchParams();
-    q.set('year', String(params.year));
-    q.set('quarter', String(params.quarter));
-    if (params.imported_at) q.set('imported_at', params.imported_at);
-    return api.get<{
-      items: UMCellItem[];
-      total: number;
-      year: number;
-      quarter: number;
-      imported_at: string | null;
-      source: string | null;
-    }>(`/api/admin/user-measurement?${q.toString()}`);
-  },
-  importUMCsv: async (file: File): Promise<UMImportResult> => {
-    const form = new FormData();
-    form.append('file', file);
-    // Use fetch directly for multipart upload with X-Current-User header
-    const personaId = localStorage.getItem('currentRoleId') || 'persona-controller';
-    const resp = await fetch('/api/admin/user-measurement/import', {
-      method: 'POST',
-      body: form,
-      headers: { 'X-Current-User': personaId },
-    });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => 'Upload failed');
-      throw new Error(text || `HTTP ${resp.status}`);
-    }
-    return resp.json();
-  },
+  // User Measurement: relocated to Charging per FD-2 / [F-DIR-02].
+  // See `userMeasurementApi` in `frontend/src/api/userMeasurement.ts`.
 
   // --- Workflow Templates (D2 / [D-CAT-07..10]) ---
   getWorkflowTemplates: () =>

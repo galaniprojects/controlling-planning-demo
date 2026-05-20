@@ -20,7 +20,6 @@ import {
   Globe,
   Map,
   Coins,
-  TableProperties,
   GitBranch,
   Workflow,
   Calendar,
@@ -44,7 +43,6 @@ const MASTER_DATA_SECTIONS: LeftRailNavItem[] = [
   { id: 'legal_entities', label: 'Legal Entities', icon: Building2 },
   { id: 'regions', label: 'Regions', icon: Globe },
   { id: 'countries', label: 'Countries', icon: Globe },
-  { id: 'user_measurement', label: 'User Measurement', icon: TableProperties },
 ];
 
 const REFERENCE_SECTIONS: LeftRailNavItem[] = [
