@@ -9,9 +9,11 @@ Per ``[F-S1-01..05]`` and the Charging/UM rework cluster FD-3 (spec §4):
     v1 — id=1, active_from='2025-01-01', status='active', origin='seed',
          rationale='Initial seed distribution'. Every Stage 1 edge below
          FKs into this version.
-    v2 — id=2, active_from=NULL, status='draft', origin='copy_active',
-         copied_from_version_id=1, rationale=''. Empty draft — surfaces the
-         prepare-ahead affordance in the demo.
+    v2 — id=2, active_from=NULL, status='draft', origin='blank',
+         rationale=''. Empty draft — surfaces the prepare-ahead affordance
+         in the demo. Origin is 'blank' (not 'copy_active') because the
+         draft starts empty; a controller can copy v1's edges into a new
+         draft via the in-app 'copy active' CTA when they want to.
 - Scenario versions (``scenario_id IS NOT NULL``, permanent draft) are NOT
   seeded; the lever-12 service eager-creates them on first mutation.
 - One row per actually-flowing edge (sparse storage). Edges reference v1 via

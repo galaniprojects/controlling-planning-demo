@@ -59,7 +59,7 @@ from models.charging import (
     DistributionVersion,
 )
 from models.scenarios import Scenario, ScenarioAction
-from services.distribution_service import DistributionValidationError
+from services.distribution_service import DistributionValidationError, resolve_active_version
 
 
 # Sum-rule tolerance — kept in sync with
@@ -67,32 +67,6 @@ from services.distribution_service import DistributionValidationError
 # remains independent of teammate-b's FD-3 B1 refactor of the
 # distribution_service helpers.
 _SUM_TOLERANCE = 0.01
-
-
-def _resolve_active_distribution_version(
-    db: Session, evaluated_date: date,
-) -> Optional[DistributionVersion]:
-    """Inline production-version resolver pending FD-3 B1 service landing.
-
-    FD-3 [F-S1-02]: latest production ``DistributionVersion`` whose
-    ``active_from`` is on or before ``evaluated_date``. Scenario versions
-    (``scenario_id IS NOT NULL``) are excluded by spec.
-
-    Will be replaced by ``services.distribution_service.resolve_active_version``
-    once FD-3 B1 lands; the duplication is intentional and short-lived so
-    D1 (lever-12 refactor) can land independently of B1 timing.
-    """
-    return (
-        db.query(DistributionVersion)
-        .filter(
-            DistributionVersion.scenario_id.is_(None),
-            DistributionVersion.status == "active",
-            DistributionVersion.active_from.isnot(None),
-            DistributionVersion.active_from <= evaluated_date,
-        )
-        .order_by(DistributionVersion.active_from.desc())
-        .first()
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +150,7 @@ def _resolve_anchor_version_id(
     """
     if scenario.anchor_distribution_version_id is not None:
         return scenario.anchor_distribution_version_id
-    av = _resolve_active_distribution_version(db, _DEMO_FALLBACK_DATE)
+    av = resolve_active_version(db, _DEMO_FALLBACK_DATE)
     return av.id if av is not None else None
 
 

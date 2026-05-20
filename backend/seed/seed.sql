@@ -601,14 +601,14 @@ INSERT INTO project_grouping_assignments (project_id, grouping_entity_id) VALUES
 -- s08_distribution / Stage 1 versions + edges [F-S1-01..05]  (FD-3 effective-dated rework)
 -- 2 version headers, 39 edges (all FK'd into v1 / id=1).
 --   v1 active_from=2025-01-01 status=active origin=seed copied_from=None scenario_id=None
---   v2 active_from=None status=draft origin=copy_active copied_from=1 scenario_id=None
+--   v2 active_from=None status=draft origin=blank copied_from=None scenario_id=None
 -- Sparse storage: only flowing edges; self-retained = 100 - to_business - Σ(out%).
 -- Multi-step path: svc-infra-platform → svc-data-platform → off-bizinsights → To-Business.
 -- =============================================================================
 
 INSERT INTO distribution_versions (id, active_from, status, rationale, origin, copied_from_version_id, scenario_id, created_at, created_by_person_id, activated_at) VALUES
 (1, '2025-01-01', 'active', 'Initial seed distribution', 'seed', NULL, NULL, '2026-01-15 10:00:00', NULL, '2025-01-01 00:00:00'),
-(2, NULL, 'draft', '', 'copy_active', 1, NULL, '2026-01-15 10:00:00', NULL, NULL);
+(2, NULL, 'draft', '', 'blank', NULL, NULL, '2026-01-15 10:00:00', NULL, NULL);
 
 INSERT INTO distributions (version_id, source_entity_id, destination_entity_id, percentage, rationale, created_at, modified_at) VALUES
 (1, 'off-mdh', 'svc-data-stewardship', 5.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),

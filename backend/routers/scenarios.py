@@ -47,6 +47,7 @@ from schemas.scenarios import (
     ScenarioListResponse, ScenarioMetadataUpdate, ScenarioPublishRequest,
     ScenarioRebaseRequest, ToBusinessChange,
 )
+from services.distribution_service import resolve_active_version
 from services.scenario_apply_forecast import (
     ApplyToForecastError, apply_to_forecast,
 )
@@ -101,34 +102,6 @@ def _serialize_scenario(s: Scenario) -> ScenarioListItem:
 def _check_scenario_owner(scenario: Scenario, user: CurrentUser) -> None:
     if scenario.author_id != user.person_id:
         raise HTTPException(403, "Only the author can perform this action.")
-
-
-def _resolve_active_distribution_version_id(db: Session, evaluated_date) -> Optional[int]:
-    """Return the production ``DistributionVersion.id`` active on ``evaluated_date``.
-
-    Used at scenario creation to pin ``Scenario.anchor_distribution_version_id``
-    per FD-3 [F-S1-02] / spec §4 OQ #3 — see the lever-12 module docstring.
-    Returns ``None`` when no production version has been activated yet
-    (e.g. greenfield seed); the lever-12 read paths handle ``NULL`` anchors
-    gracefully by resolving at read time.
-
-    Pending FD-3 B1 (teammate-b) landing
-    ``services.distribution_service.resolve_active_version``, this duplicates
-    the resolution logic locally to keep D1 independent of B1 timing.
-    """
-    from models.charging import DistributionVersion
-    av = (
-        db.query(DistributionVersion)
-        .filter(
-            DistributionVersion.scenario_id.is_(None),
-            DistributionVersion.status == "active",
-            DistributionVersion.active_from.isnot(None),
-            DistributionVersion.active_from <= evaluated_date,
-        )
-        .order_by(DistributionVersion.active_from.desc())
-        .first()
-    )
-    return av.id if av is not None else None
 
 
 def _get_scenario_or_404(db: Session, scenario_id: int) -> Scenario:
@@ -296,7 +269,8 @@ def create_scenario(
     from config import DEMO_DATE
     _demo_today_year, _demo_today_month = (int(s) for s in DEMO_DATE.split("-"))
     _demo_today = _date(_demo_today_year, _demo_today_month, 1)
-    dist_anchor = _resolve_active_distribution_version_id(db, _demo_today)
+    _anchor_version = resolve_active_version(db, _demo_today)
+    dist_anchor = _anchor_version.id if _anchor_version is not None else None
 
     scenario = Scenario(
         name=body.name,

@@ -76,7 +76,7 @@ from services.distribution_service import (
 )
 from services.rollup_cache import (
     get_cache_status, invalidate_all, invalidate_for_btc_write,
-    invalidate_for_distribution_write, invalidate_for_entity_cost_write,
+    invalidate_for_entity_cost_write, invalidate_for_version,
 )
 from models.charging import DistributionVersion
 from services.rollup_query import (
@@ -959,9 +959,7 @@ def create_distribution(
         new_value=f"version_id={body.version_id}: {body.percentage}%",
         category="master_data",
     )
-    invalidate_for_distribution_write(
-        db, body.source_entity_id, year=0, version_id=body.version_id,
-    )
+    invalidate_for_version(db, body.version_id)
     db.commit()
     db.refresh(edge)
     return _serialize_distribution(edge)
@@ -996,9 +994,7 @@ def update_distribution(
         "update", "percentage", str(old_pct), str(body.percentage),
         category="master_data",
     )
-    invalidate_for_distribution_write(
-        db, edge.source_entity_id, year=0, version_id=edge.version_id,
-    )
+    invalidate_for_version(db, edge.version_id)
     db.commit()
     db.refresh(edge)
     return _serialize_distribution(edge)
@@ -1026,9 +1022,7 @@ def delete_distribution(
         old_value=f"version_id={edge_version_id}: {edge_pct}%",
         category="master_data",
     )
-    invalidate_for_distribution_write(
-        db, edge_source_id, year=0, version_id=edge_version_id,
-    )
+    invalidate_for_version(db, edge_version_id)
     db.commit()
     return {"id": edge_id, "deleted": True}
 
@@ -1272,9 +1266,10 @@ def get_entity_wbs_element(
 # DEMO_YEAR is the year axis used for own-cost lookup in the per-entity
 # Stage 1 view (effective-cost rollup). The Stage 1 graph is cadence-
 # agnostic, but own_cost surfaces from year-keyed columns
-# (Project.annual_budget, ChargeableEntity.annual_cost). Per CLAUDE.md the
-# demo date is April 2026.
-_DEMO_YEAR = 2026
+# (Project.annual_budget, ChargeableEntity.annual_cost). Derived from
+# config.DEMO_DATE so a demo-date bump propagates automatically.
+from config import DEMO_DATE as _DEMO_DATE  # noqa: E402
+_DEMO_YEAR = int(_DEMO_DATE.split("-")[0])
 
 
 def _count_edges(db: Session, version_id: int) -> int:

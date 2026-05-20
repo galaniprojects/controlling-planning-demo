@@ -33,7 +33,6 @@ from services.distribution_service import (
     delete_distribution_edge,
     delete_version,
     get_version,
-    is_known_version,
     list_edges_for_version,
     list_versions,
     resolve_active_version,
@@ -94,21 +93,6 @@ def draft_version(db, graph):
     db.add(v)
     db.commit()
     return v
-
-
-# ---------------------------------------------------------------------------
-# is_known_version — transitional shim (FD-3 B0)
-# ---------------------------------------------------------------------------
-
-
-class TestIsKnownVersion:
-    def test_shim_always_returns_true(self):
-        # FD-3 B0 shim — kept temporarily for backward-compat with the
-        # router import path; will be removed in B2 once the call site is
-        # deleted.
-        assert is_known_version("baseline") is True
-        assert is_known_version("forecast") is True
-        assert is_known_version("anything") is True
 
 
 # ---------------------------------------------------------------------------

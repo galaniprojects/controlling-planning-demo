@@ -799,17 +799,3 @@ def compute_version_diff(
     )
 
 
-# ---------------------------------------------------------------------------
-# Compatibility shim — `is_known_version`
-# ---------------------------------------------------------------------------
-
-
-def is_known_version(version: str) -> bool:
-    """Transitional shim — always returns True (FD-3 B0).
-
-    Kept temporarily so the existing router import line in
-    ``backend/routers/charging.py`` does not break before the router is
-    fully rewritten in FD-3 B2. The B2 commit removes the router's last
-    call site; the symbol is then deleted entirely.
-    """
-    return True
