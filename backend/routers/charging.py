@@ -2090,7 +2090,8 @@ def btc_year_rollover(
 @charging_router.get("/rollup", response_model=RollupListResponse)
 def get_rollup(
     year: int,
-    version: str = "forecast",
+    version_id: int | None = None,
+    evaluated_date: date | None = None,
     group_by: str = "entity_type",
     entity_type: str | None = None,
     db: Session = Depends(get_db),
@@ -2100,12 +2101,18 @@ def get_rollup(
 ) -> RollupListResponse:
     """Aggregate effective costs by dimension per [F-RV-01..06].
 
+    ``version_id`` (optional) selects the Stage-1 graph explicitly;
+    ``evaluated_date`` (optional) resolves the in-force production version;
+    both omitted = today's in-force production version.
+
     ``group_by`` can be: entity, entity_type, hierarchy_node, responsible,
-    change_or_run, charging_location, legal_entity, region, division, country, stage.
+    change_or_run, charging_location, legal_entity, region, division,
+    country, stage.
     """
+    version = _resolve_version_param(db, version_id, evaluated_date)
     try:
         result = query_rollup(
-            db, year, version,
+            db, year, version.id,
             group_by=group_by,
             entity_type=entity_type,
         )
@@ -2115,14 +2122,14 @@ def get_rollup(
     return RollupListResponse(
         dimension=result.dimension,
         year=result.year,
-        version=result.version,
+        version_id=result.version_id,
         rows=[
             {
                 "group_key": r.group_key,
                 "group_label": r.group_label,
                 "dimension": r.dimension,
                 "year": r.year,
-                "version": r.version,
+                "version_id": r.version_id,
                 "entity_count": r.entity_count,
                 "effective_cost": r.effective_cost,
                 "own_cost": r.own_cost,
@@ -2145,7 +2152,8 @@ def get_rollup_drill_down(
     cl_id: str,
     entity_id: str,
     year: int,
-    version: str = "forecast",
+    version_id: int | None = None,
+    evaluated_date: date | None = None,
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role(
         "controller", "executive", "project_lead", "cost_center_owner",
@@ -2155,8 +2163,11 @@ def get_rollup_drill_down(
     cl = db.query(ChargingLocation).filter_by(id=cl_id).first()
     if cl is None:
         raise HTTPException(404, f"ChargingLocation '{cl_id}' not found")
+    version = _resolve_version_param(db, version_id, evaluated_date)
     try:
-        result = drill_down_charging_location(db, entity_id, year, version, cl_id)
+        result = drill_down_charging_location(
+            db, entity_id, year, version.id, cl_id,
+        )
     except ValueError as e:
         raise HTTPException(404, str(e))
 
@@ -2164,7 +2175,7 @@ def get_rollup_drill_down(
         entity_id=result.entity_id,
         entity_name=result.entity_name,
         year=result.year,
-        version=result.version,
+        version_id=result.version_id,
         effective_cost=result.effective_cost,
         own_cost=result.own_cost,
         inflow_total=result.inflow_total,
@@ -2182,7 +2193,8 @@ def get_rollup_drill_down(
 def get_location_breakdown_endpoint(
     cl_id: str,
     year: int,
-    version: str = "forecast",
+    version_id: int | None = None,
+    evaluated_date: date | None = None,
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role(
         "controller", "executive", "project_lead", "cost_center_owner",
@@ -2192,8 +2204,9 @@ def get_location_breakdown_endpoint(
     level-4 drill. Returns chargeable-entity inflows + legal entities at the
     location.
     """
+    version = _resolve_version_param(db, version_id, evaluated_date)
     try:
-        result = get_location_breakdown(db, cl_id, year, version)
+        result = get_location_breakdown(db, cl_id, year, version.id)
     except ValueError as e:
         raise HTTPException(404, str(e))
 
@@ -2205,7 +2218,7 @@ def get_location_breakdown_endpoint(
         division=result.division,
         country_iso_code=result.country_iso_code,
         year=result.year,
-        version=result.version,
+        version_id=result.version_id,
         total_amount_eur=result.total_amount_eur,
         legal_entities=[
             {"id": le.id, "code": le.code, "name": le.name}
@@ -2291,7 +2304,8 @@ def get_entity_read_only(
 def get_entity_allocation_breakdown(
     entity_id: str,
     year: int,
-    version: str = "forecast",
+    version_id: int | None = None,
+    evaluated_date: date | None = None,
     sort_by: str = "amount",
     sort_dir: str = "desc",
     db: Session = Depends(get_db),
@@ -2307,9 +2321,10 @@ def get_entity_allocation_breakdown(
     region / country / division metadata. Sortable by location/region/division/
     percentage/amount in ascending or descending order.
     """
+    version = _resolve_version_param(db, version_id, evaluated_date)
     try:
         result = query_entity_allocation_breakdown(
-            db, entity_id, year, version,
+            db, entity_id, year, version.id,
             sort_by=sort_by, sort_dir=sort_dir,
         )
     except ValueError as e:
@@ -2319,7 +2334,7 @@ def get_entity_allocation_breakdown(
         entity_id=result.entity_id,
         entity_name=result.entity_name,
         year=result.year,
-        version=result.version,
+        version_id=result.version_id,
         to_business_pct=result.to_business_pct,
         effective_cost=result.effective_cost,
         business_amount_total=result.business_amount_total,
