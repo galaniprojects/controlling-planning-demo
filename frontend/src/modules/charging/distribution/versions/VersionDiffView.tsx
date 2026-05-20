@@ -100,6 +100,12 @@ export function VersionDiffView({
   const [diff, setDiff] = useState<DistributionVersionDiff | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // B2 returns 422 with "No default comparison partner available…" when the
+  // subject has no version preceding it by effective date AND the caller
+  // omits `compared_to_version_id`. That's a UI affordance signal — not an
+  // error — so we render a different empty state and prompt the user to
+  // pick an LHS manually.
+  const [noPartner, setNoPartner] = useState(false);
   const [comparedToId, setComparedToId] = useState<number | null>(
     initialComparedToVersionId,
   );
@@ -110,12 +116,20 @@ export function VersionDiffView({
   useEffect(() => {
     setLoading(true);
     setError(null);
+    setNoPartner(false);
     chargingApi
       .diffDistributionVersion(versionId, comparedToId ?? undefined)
       .then((d) => setDiff(d))
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : 'Failed to load diff'),
-      )
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : 'Failed to load diff';
+        // B2 contract: 422 "no default comparison partner". The detail body
+        // includes the literal phrase from the router. Treat as UI signal.
+        if (/no default comparison partner|no comparison partner/i.test(msg)) {
+          setNoPartner(true);
+        } else {
+          setError(msg);
+        }
+      })
       .finally(() => setLoading(false));
   }, [versionId, comparedToId]);
 
@@ -145,6 +159,70 @@ export function VersionDiffView({
         <Skeleton className="h-10 w-32" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (noPartner) {
+    // Per B2 [F-S1-07]: subject has no version preceding it by effective
+    // date and the caller did not specify `compared_to_version_id`. This is
+    // the expected state for the first-ever production version (e.g. the
+    // seed v1 with no prior). Prompt the user to pick an LHS explicitly
+    // rather than surfacing the raw 422 detail as an error.
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <Button variant="ghost" size="sm" onClick={onBack}>
+              <ArrowLeftRight className="h-3.5 w-3.5 mr-1 rotate-90" /> Back
+            </Button>
+          )}
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              Version diff
+            </h2>
+            <p className="text-[11px] text-muted-foreground">
+              Per <span className="font-mono">[F-S1-07]</span>. Default
+              comparison is the version this one supersedes by effective date.
+            </p>
+          </div>
+        </div>
+        <Card className="p-4 space-y-3">
+          <p className="text-sm text-foreground">
+            No prior version to compare against.
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            Version v{versionId} is the earliest production version on record,
+            so there is no preceding version to use as the default
+            left-hand side. Pick a version below to compare against — any
+            other production version is allowed.
+          </p>
+          <div className="max-w-md">
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+              Compared-to version (left)
+            </label>
+            <Select
+              value=""
+              onValueChange={(v) => setComparedToId(Number(v))}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Pick a comparison partner…" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[320px]">
+                {candidatesForLeft.map((v) => (
+                  <SelectItem key={v.id} value={String(v.id)}>
+                    v{v.id} ·{' '}
+                    {v.status === 'active'
+                      ? `Active from ${formatVersionDate(v.active_from)}`
+                      : v.active_from
+                        ? `Draft scheduled ${formatVersionDate(v.active_from)}`
+                        : 'Draft (unscheduled)'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </Card>
       </div>
     );
   }
