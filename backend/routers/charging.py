@@ -633,7 +633,7 @@ def list_chargeable_entity_types(
 def list_chargeable_entities(
     entity_type: str | None = None,
     hierarchy_node_id: str | None = None,
-    is_active: bool | None = True,
+    is_active: str | None = "true",
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role(
         "controller", "executive", "project_lead", "cost_center_owner",
@@ -641,16 +641,28 @@ def list_chargeable_entities(
 ) -> ChargeableEntityListResponse:
     """List chargeable entities with optional filters per [F-DM-01].
 
-    Default filter is ``is_active=True`` — pass ``is_active=null`` (literal
-    ``null`` in querystring) to include deactivated rows. ``entity_type`` and
-    ``hierarchy_node_id`` filter on the dimensions surfaced in the F4 module
-    sidebar. Read-open to all four roles per [A-05] — Charging & Allocations
-    is read-visible across personas; mutations remain controller-only.
+    ``is_active`` accepts ``true`` (default — active only), ``false`` (inactive
+    only), or ``null`` (include all). ``entity_type`` and ``hierarchy_node_id``
+    filter on the dimensions surfaced in the F4 module sidebar. Read-open to
+    all four roles per [A-05] — Charging & Allocations is read-visible across
+    personas; mutations remain controller-only.
     """
     if entity_type is not None and entity_type not in CHARGEABLE_ENTITY_TYPES:
         raise HTTPException(
             422,
             f"entity_type must be one of {CHARGEABLE_ENTITY_TYPES}, got '{entity_type}'",
+        )
+    active_filter: bool | None
+    if is_active is None or is_active.lower() == "null":
+        active_filter = None
+    elif is_active.lower() in ("true", "1"):
+        active_filter = True
+    elif is_active.lower() in ("false", "0"):
+        active_filter = False
+    else:
+        raise HTTPException(
+            422,
+            f"is_active must be 'true', 'false', or 'null'; got '{is_active}'",
         )
 
     q = db.query(ChargeableEntity)
@@ -658,8 +670,8 @@ def list_chargeable_entities(
         q = q.filter(ChargeableEntity.entity_type == entity_type)
     if hierarchy_node_id is not None:
         q = q.filter(ChargeableEntity.hierarchy_node_id == hierarchy_node_id)
-    if is_active is not None:
-        q = q.filter(ChargeableEntity.is_active == is_active)
+    if active_filter is not None:
+        q = q.filter(ChargeableEntity.is_active == active_filter)
 
     rows = q.order_by(ChargeableEntity.entity_type, ChargeableEntity.name).all()
     items = [_serialize_chargeable_entity(r) for r in rows]
