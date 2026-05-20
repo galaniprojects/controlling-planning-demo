@@ -63,6 +63,11 @@ class ChargeableEntityBase(BaseModel):
     termination_month: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}$")
     # F3: own running cost in EUR; primary source for Offerings/InternalServices.
     annual_cost: Optional[float] = Field(None, ge=0)
+    # FD-6 / [F-AK-01] — free-text-with-presets legend describing what an
+    # InternalService's raw UM integer means. Stored on the polymorphic root
+    # (column is type-agnostic per [F-OQ-11]); the FD-6 admin panel only
+    # surfaces the field on the InternalService subtype.
+    allocation_key: Optional[str] = Field(None, max_length=200)
 
 
 class ChargeableEntityCreate(ChargeableEntityBase):
@@ -99,6 +104,10 @@ class ChargeableEntityUpdate(BaseModel):
     termination_month: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}$")
     # F3: own running cost in EUR.
     annual_cost: Optional[float] = Field(None, ge=0)
+    # FD-6 / [F-AK-01] — editable on update; nullable (server treats explicit
+    # null as "no key"). Updates emit an audit row mirroring the other
+    # master-data field patches.
+    allocation_key: Optional[str] = Field(None, max_length=200)
 
 
 class ChargeableEntityResponse(BaseModel):
@@ -117,6 +126,7 @@ class ChargeableEntityResponse(BaseModel):
     annual_cost: Optional[float] = None
     project_id: Optional[str] = None
     termination_month: Optional[str] = None
+    allocation_key: Optional[str] = None
     is_active: bool
     is_change_or_run: str  # Derived; populated by router from the model property
 

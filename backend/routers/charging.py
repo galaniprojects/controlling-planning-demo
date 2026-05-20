@@ -565,6 +565,7 @@ def _serialize_chargeable_entity(ce: ChargeableEntity) -> ChargeableEntityRespon
         annual_cost=float(ce.annual_cost) if ce.annual_cost is not None else None,
         project_id=ce.project_id,
         termination_month=ce.termination_month,
+        allocation_key=ce.allocation_key,
         is_active=ce.is_active,
         is_change_or_run=ce.is_change_or_run,
     )
@@ -702,6 +703,7 @@ def create_chargeable_entity(
         annual_cost=body.annual_cost,
         project_id=body.project_id,
         termination_month=body.termination_month,
+        allocation_key=body.allocation_key,
     )
     db.add(ce)
     db.flush()
@@ -785,6 +787,17 @@ def update_chargeable_entity(
             category="master_data",
         )
         ce.termination_month = body.termination_month
+    if body.allocation_key is not None and body.allocation_key != ce.allocation_key:
+        # FD-6 / [F-AK-01] — audited patch mirroring termination_month. No
+        # type-branch guard: the column is nullable on the polymorphic root
+        # per the locked design. UI only surfaces editing on the
+        # InternalService subtype.
+        _audit(
+            db, user, "chargeable_entity", ce.id, ce.name, "update",
+            "allocation_key", ce.allocation_key, body.allocation_key,
+            category="master_data",
+        )
+        ce.allocation_key = body.allocation_key
     if body.annual_cost is not None:
         old_cost = float(ce.annual_cost) if ce.annual_cost is not None else None
         if old_cost != body.annual_cost:
