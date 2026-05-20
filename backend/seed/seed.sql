@@ -598,52 +598,58 @@ INSERT INTO project_grouping_assignments (project_id, grouping_entity_id) VALUES
 ('proj-iam-run', 'he-cit');
 
 -- =============================================================================
--- s08_distribution / Stage 1 distribution edges [F-S1-01..05]
--- 39 edges total, year=2026, version='forecast'.
+-- s08_distribution / Stage 1 versions + edges [F-S1-01..05]  (FD-3 effective-dated rework)
+-- 2 version headers, 39 edges (all FK'd into v1 / id=1).
+--   v1 active_from=2025-01-01 status=active origin=seed copied_from=None scenario_id=None
+--   v2 active_from=None status=draft origin=copy_active copied_from=1 scenario_id=None
 -- Sparse storage: only flowing edges; self-retained = 100 - to_business - Σ(out%).
 -- Multi-step path: svc-infra-platform → svc-data-platform → off-bizinsights → To-Business.
 -- =============================================================================
 
-INSERT INTO distributions (year, version, source_entity_id, destination_entity_id, percentage, created_at, modified_at) VALUES
-(2026, 'forecast', 'off-mdh', 'svc-data-stewardship', 5.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'proj-cloud3-run', 'svc-data-platform', 30.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'proj-cloud3-run', 'svc-infra-platform', 50.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'proj-cloud3-run', 'svc-monitoring', 20.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'proj-iam-run', 'off-ecollab', 10.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'proj-iam-run', 'off-eunify', 18.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'proj-iam-run', 'off-mdh', 12.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'proj-iam-run', 'svc-ident-auth', 60.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-data-platform', 'off-bizinsights', 72.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-data-platform', 'off-mdh', 8.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-data-platform', 'off-supplyvis', 20.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-data-stewardship', 'off-bizinsights', 70.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-data-stewardship', 'off-supplyvis', 30.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-dba', 'off-bizinsights', 70.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-dba', 'off-eunify', 30.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-devsec-tools', 'off-bizinsights', 100.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-euc-support', 'off-ecollab', 40.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-euc-support', 'off-eunify', 60.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-ident-auth', 'off-bizinsights', 15.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-ident-auth', 'off-ecollab', 20.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-ident-auth', 'off-eunify', 25.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-ident-auth', 'off-mdh', 30.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-infra-platform', 'off-ecollab', 20.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-infra-platform', 'off-eunify', 25.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-infra-platform', 'off-mdh', 18.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-infra-platform', 'svc-data-platform', 22.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-infra-platform', 'svc-monitoring', 15.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-iot-infra', 'off-supplyvis', 100.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-itsm', 'off-ecollab', 40.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-itsm', 'off-eunify', 60.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-middleware', 'off-bizinsights', 50.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-middleware', 'off-eunify', 50.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-monitoring', 'off-bizinsights', 50.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-monitoring', 'off-eunify', 40.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-net-sec', 'off-bizinsights', 30.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-net-sec', 'off-ecollab', 20.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-net-sec', 'off-eunify', 50.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-sap-basis', 'off-ecollab', 40.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-(2026, 'forecast', 'svc-sap-basis', 'off-eunify', 60.0, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO distribution_versions (id, active_from, status, rationale, origin, copied_from_version_id, scenario_id, created_at, created_by_person_id, activated_at) VALUES
+(1, '2025-01-01', 'active', 'Initial seed distribution', 'seed', NULL, NULL, '2026-01-15 10:00:00', NULL, '2025-01-01 00:00:00'),
+(2, NULL, 'draft', '', 'copy_active', 1, NULL, '2026-01-15 10:00:00', NULL, NULL);
+
+INSERT INTO distributions (version_id, source_entity_id, destination_entity_id, percentage, rationale, created_at, modified_at) VALUES
+(1, 'off-mdh', 'svc-data-stewardship', 5.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'proj-cloud3-run', 'svc-data-platform', 30.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'proj-cloud3-run', 'svc-infra-platform', 50.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'proj-cloud3-run', 'svc-monitoring', 20.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'proj-iam-run', 'off-ecollab', 10.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'proj-iam-run', 'off-eunify', 18.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'proj-iam-run', 'off-mdh', 12.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'proj-iam-run', 'svc-ident-auth', 60.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-data-platform', 'off-bizinsights', 72.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-data-platform', 'off-mdh', 8.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-data-platform', 'off-supplyvis', 20.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-data-stewardship', 'off-bizinsights', 70.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-data-stewardship', 'off-supplyvis', 30.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-dba', 'off-bizinsights', 70.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-dba', 'off-eunify', 30.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-devsec-tools', 'off-bizinsights', 100.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-euc-support', 'off-ecollab', 40.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-euc-support', 'off-eunify', 60.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-ident-auth', 'off-bizinsights', 15.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-ident-auth', 'off-ecollab', 20.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-ident-auth', 'off-eunify', 25.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-ident-auth', 'off-mdh', 30.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-infra-platform', 'off-ecollab', 20.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-infra-platform', 'off-eunify', 25.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-infra-platform', 'off-mdh', 18.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-infra-platform', 'svc-data-platform', 22.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-infra-platform', 'svc-monitoring', 15.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-iot-infra', 'off-supplyvis', 100.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-itsm', 'off-ecollab', 40.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-itsm', 'off-eunify', 60.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-middleware', 'off-bizinsights', 50.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-middleware', 'off-eunify', 50.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-monitoring', 'off-bizinsights', 50.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-monitoring', 'off-eunify', 40.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-net-sec', 'off-bizinsights', 30.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-net-sec', 'off-ecollab', 20.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-net-sec', 'off-eunify', 50.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-sap-basis', 'off-ecollab', 40.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(1, 'svc-sap-basis', 'off-eunify', 60.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- Sum-rule check (informational): for every source entity,
 --   Σ(distribution.percentage WHERE source=...) + chargeable_entities.to_business_pct ≤ 100.
