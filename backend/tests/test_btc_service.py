@@ -11,8 +11,8 @@ from models.charging import (
 )
 from models.organization import GroupingEntityType, GroupingEntity
 from services.btc_service import (
-    BTCValidationError, assert_btc_required, assert_sums_to_100,
-    build_wbs_matrix, change_mode, compute_sums_to_100,
+    BTCValidationError, activate_profile, assert_btc_required,
+    assert_sums_to_100, build_wbs_matrix, change_mode, compute_sums_to_100,
     compute_um_snapshot, copy_from_profile, create_automatic_profile,
     create_manual_profile, get_profile, get_profile_for_entity,
     list_profiles, refresh_from_um, update_profile, year_rollover,
@@ -976,3 +976,160 @@ class TestInternalServiceGate:
         )
         assert profile.mode == "automatic"
         assert profile.s_code == "S301"
+
+
+# ---------------------------------------------------------------------------
+# FD-4: activate_profile — snapshot freezes at activate-time
+# ---------------------------------------------------------------------------
+
+class TestActivateProfile:
+    def test_activate_manual_draft_flips_status(self, db):
+        _make_cl(db, "cl-a", "DE-A-001")
+        _make_entity(db)
+        profile = create_manual_profile(
+            db, "ce-test", 2026,
+            [{"charging_location_id": "cl-a", "percentage": 100.0}],
+        )
+        assert profile.status == "draft"
+        activate_profile(db, profile.id)
+        assert profile.status == "active"
+
+    def test_activate_manual_with_bad_sum_raises(self, db):
+        """Manual profile lines must still sum to 100 at activate time."""
+        _make_cl(db, "cl-a", "DE-A-001")
+        _make_cl(db, "cl-b", "DE-B-001")
+        _make_entity(db)
+        profile = create_manual_profile(
+            db, "ce-test", 2026,
+            [{"charging_location_id": "cl-a", "percentage": 60.0},
+             {"charging_location_id": "cl-b", "percentage": 40.0}],
+        )
+        # Mutate a line after creation to break the invariant.
+        profile.lines[0].percentage = 50.0
+        db.flush()
+        with pytest.raises(BTCValidationError, match="sum"):
+            activate_profile(db, profile.id)
+
+    def test_activate_automatic_freezes_against_current_um(self, db):
+        """Activate freezes against the UM version active at activate-time.
+
+        Draft created when UM v1 was the active version; we then activate
+        UM v2 between draft create and profile activate, and confirm that
+        the activated profile reflects UM v2 (lines + um_snapshot_at).
+        """
+        from models.charging import UMVersion
+
+        _make_cl(db, "cl-a", "DE-A-001")
+        _make_cl(db, "cl-b", "DE-B-001")
+        _make_entity(db)
+        # UM v1 (active at draft-create time) — single location cl-a.
+        v1 = UMVersion(
+            year=2026, quarter=1, status="active", source="seed",
+            activated_at=datetime(2026, 1, 10, 9, 0, 0),
+        )
+        db.add(v1)
+        db.flush()
+        db.add(UserMeasurement(
+            version_id=v1.id, s_code="S0001",
+            charging_location_id="cl-a", value=100,
+        ))
+        db.flush()
+        # Draft profile created — freezes against v1 lines.
+        profile = create_automatic_profile(
+            db, "ce-test", 2026, "S0001",
+            um_year=2026, um_quarter=1, status="draft",
+        )
+        assert profile.um_snapshot_at == datetime(2026, 1, 10, 9, 0, 0)
+        assert len(profile.lines) == 1
+        assert profile.lines[0].charging_location_id == "cl-a"
+        # UM v2 takes over — both stay status='active' (FD-1: resolution
+        # picks the latest activated_at). Adds cl-b alongside cl-a so the
+        # s_code has rows in both locations.
+        v2 = UMVersion(
+            year=2026, quarter=1, status="active", source="csv_upload",
+            activated_at=datetime(2026, 3, 15, 9, 0, 0),
+        )
+        db.add(v2)
+        db.flush()
+        db.add_all([
+            UserMeasurement(
+                version_id=v2.id, s_code="S0001",
+                charging_location_id="cl-a", value=50,
+            ),
+            UserMeasurement(
+                version_id=v2.id, s_code="S0001",
+                charging_location_id="cl-b", value=50,
+            ),
+        ])
+        db.flush()
+        # Activate now — should re-snapshot against v2.
+        activated = activate_profile(db, profile.id, um_year=2026, um_quarter=1)
+        db.flush()
+        db.expire(activated)
+        assert activated.status == "active"
+        assert activated.um_snapshot_at == datetime(2026, 3, 15, 9, 0, 0)
+        cl_ids = {line.charging_location_id for line in activated.lines}
+        assert cl_ids == {"cl-a", "cl-b"}
+
+    def test_activate_already_active_raises(self, db):
+        _make_cl(db, "cl-a", "DE-A-001")
+        _make_entity(db)
+        profile = create_manual_profile(
+            db, "ce-test", 2026,
+            [{"charging_location_id": "cl-a", "percentage": 100.0}],
+            status="active",
+        )
+        with pytest.raises(BTCValidationError, match="already active"):
+            activate_profile(db, profile.id)
+
+
+# ---------------------------------------------------------------------------
+# FD-4: refresh_from_um — reframed as "advance UM snapshot deliberately"
+# ---------------------------------------------------------------------------
+
+class TestRefreshAdvancesSnapshot:
+    def test_advance_moves_snapshot_watermark(self, db):
+        """Activated profile + newer UM version: refresh advances the snapshot."""
+        from models.charging import UMVersion
+
+        _make_cl(db, "cl-a", "DE-A-001")
+        _make_cl(db, "cl-b", "DE-B-001")
+        _make_entity(db)
+        # UM v1 — only cl-a; create + activate against this version.
+        v1 = UMVersion(
+            year=2026, quarter=1, status="active", source="seed",
+            activated_at=datetime(2026, 1, 10, 9, 0, 0),
+        )
+        db.add(v1)
+        db.flush()
+        db.add(UserMeasurement(
+            version_id=v1.id, s_code="S0001",
+            charging_location_id="cl-a", value=100,
+        ))
+        db.flush()
+        profile = create_automatic_profile(
+            db, "ce-test", 2026, "S0001",
+            um_year=2026, um_quarter=1, status="active",
+        )
+        original_watermark = profile.um_snapshot_at
+        # Now publish v2 (different distribution). Both versions stay
+        # status='active'; resolution picks the latest activated_at.
+        v2 = UMVersion(
+            year=2026, quarter=1, status="active", source="csv_upload",
+            activated_at=datetime(2026, 4, 1, 9, 0, 0),
+        )
+        db.add(v2)
+        db.flush()
+        db.add(UserMeasurement(
+            version_id=v2.id, s_code="S0001",
+            charging_location_id="cl-b", value=100,
+        ))
+        db.flush()
+        # Advance — should pull v2 values + advance watermark.
+        refresh_from_um(db, profile.id, um_year=2026, um_quarter=1, dry_run=False)
+        db.flush()
+        db.expire(profile)
+        assert profile.um_snapshot_at == datetime(2026, 4, 1, 9, 0, 0)
+        assert profile.um_snapshot_at != original_watermark
+        cl_ids = {line.charging_location_id for line in profile.lines}
+        assert cl_ids == {"cl-b"}
