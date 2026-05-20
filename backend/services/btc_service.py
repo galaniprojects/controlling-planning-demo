@@ -267,10 +267,19 @@ def create_manual_profile(
     ``status`` defaults to ``'draft'``.
 
     Does not commit — caller commits within the audit-log transaction.
+
+    Per [F-S2-01] (FD-4): InternalService entities cannot use manual mode —
+    their BTC is derivation-only from the UM matrix. Attempts raise 409.
     """
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
         raise BTCValidationError(f"ChargeableEntity '{entity_id}' not found")
+    if entity.entity_type == "InternalService":
+        raise BTCValidationError(
+            f"InternalService '{entity_id}' cannot have a manual BTC profile "
+            f"per [F-S2-01]. InternalService BTC is derived from the UM "
+            f"matrix — use mode='automatic' with an S-code.",
+        )
     if status not in ("draft", "active"):
         raise BTCValidationError(f"Invalid status '{status}'; must be 'draft' or 'active'")
 
@@ -560,9 +569,20 @@ def change_mode(
     For transitions that could lose data, ``confirm=False`` returns a warning;
     ``confirm=True`` proceeds.
 
+    Per [F-S2-01] (FD-4): InternalService entities cannot transition modes
+    — their BTC is derivation-only. Attempts raise 409.
+
     Does not commit — caller commits.
     """
     profile = get_profile(db, profile_id)
+
+    entity = db.query(ChargeableEntity).filter_by(id=profile.entity_id).first()
+    if entity is not None and entity.entity_type == "InternalService":
+        raise BTCValidationError(
+            f"InternalService '{profile.entity_id}' cannot change BTC mode "
+            f"per [F-S2-01]. InternalService BTC stays derivation-only from "
+            f"the UM matrix.",
+        )
 
     if (profile.mode, new_mode) not in VALID_MODE_TRANSITIONS:
         raise BTCValidationError(

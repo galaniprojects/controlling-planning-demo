@@ -600,14 +600,32 @@ class TestYearRollover:
         )
         db.add_all([proj, svc])
         db.flush()
-        # Active 2026 profiles for all three.
-        for ent_id in ("ce-off", "ce-proj", "ce-svc"):
+        # Active 2026 profiles for all three. Construct the InternalService
+        # profile directly (FD-4 [F-S2-01] forbids manual create on
+        # InternalService); year_rollover semantics don't care how the source
+        # profile was built, only that it exists with status='active'.
+        for ent_id in ("ce-off", "ce-proj"):
             create_manual_profile(
                 db, ent_id, 2026,
                 [{"charging_location_id": "cl-a", "percentage": 60.0},
                  {"charging_location_id": "cl-b", "percentage": 40.0}],
                 status="active",
             )
+        svc_profile = BTCProfile(
+            entity_id="ce-svc", year=2026, mode="manual", status="active",
+        )
+        db.add(svc_profile)
+        db.flush()
+        db.add_all([
+            BTCProfileLine(
+                profile_id=svc_profile.id,
+                charging_location_id="cl-a", percentage=60.0,
+            ),
+            BTCProfileLine(
+                profile_id=svc_profile.id,
+                charging_location_id="cl-b", percentage=40.0,
+            ),
+        ])
         db.commit()
         return ("ce-proj", "ce-off", "ce-svc")
 
@@ -897,3 +915,64 @@ class TestComputeUmSnapshotVersionResolution:
         db.commit()
         with pytest.raises(BTCValidationError, match="No active UM version"):
             compute_um_snapshot(db, "S0001", 2026, 1)
+
+
+# ---------------------------------------------------------------------------
+# FD-4: InternalService manual-mode gate per [F-S2-01]
+# ---------------------------------------------------------------------------
+
+class TestInternalServiceGate:
+    """InternalService entities cannot use manual mode — BTC is UM-derived only."""
+
+    def _make_internal_service(self, db, entity_id="ce-svc"):
+        get_type = GroupingEntityType(id="get-t", name="LoB")
+        ge = GroupingEntity(id="lob-t", entity_type_id="get-t", name="Test LoB")
+        db.add_all([get_type, ge])
+        db.flush()
+        ce = ChargeableEntity(
+            id=entity_id, entity_type="InternalService", identifier="ITF20099",
+            name="Test Internal Service", to_business_pct=0.0,
+            hierarchy_node_id="lob-t", is_active=True,
+        )
+        db.add(ce)
+        db.flush()
+        return ce
+
+    def test_create_manual_for_internal_service_raises(self, db):
+        _make_cl(db, "cl-a", "DE-A-001")
+        self._make_internal_service(db)
+        with pytest.raises(BTCValidationError, match="InternalService"):
+            create_manual_profile(
+                db, "ce-svc", 2026,
+                [{"charging_location_id": "cl-a", "percentage": 100.0}],
+            )
+
+    def test_change_mode_on_internal_service_raises(self, db):
+        """An InternalService profile (constructed directly) cannot change mode."""
+        _make_cl(db, "cl-a", "DE-A-001")
+        self._make_internal_service(db)
+        # Construct an automatic profile directly (bypass the create function).
+        profile = BTCProfile(
+            entity_id="ce-svc", year=2026, mode="automatic",
+            s_code="S301", status="draft",
+        )
+        db.add(profile)
+        db.flush()
+        db.add(BTCProfileLine(
+            profile_id=profile.id,
+            charging_location_id="cl-a", percentage=100.0,
+        ))
+        db.commit()
+        with pytest.raises(BTCValidationError, match="InternalService"):
+            change_mode(db, profile.id, "manual", confirm=True)
+
+    def test_create_automatic_for_internal_service_succeeds(self, db):
+        """Automatic mode remains the supported path for InternalService."""
+        _make_cl(db, "cl-a", "DE-A-001")
+        self._make_internal_service(db)
+        _make_um(db, "S301", year=2026, quarter=1, values=[("cl-a", 100.0)])
+        profile = create_automatic_profile(
+            db, "ce-svc", 2026, "S301", um_year=2026, um_quarter=1,
+        )
+        assert profile.mode == "automatic"
+        assert profile.s_code == "S301"
