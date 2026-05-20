@@ -17,7 +17,14 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { Pencil, Search, Plus, AlertTriangle, CheckCircle2, CalendarRange, X } from 'lucide-react';
+import {
+  Pencil, Search, Plus, AlertTriangle, CheckCircle2, CalendarRange,
+  Download, X,
+} from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import { useRole } from '@/contexts/RoleContext';
 import { chargingApi } from '@/api/endpoints';
 import type {
   BTCProfileItem,
@@ -37,6 +44,9 @@ type ModeFilter = 'all' | BTCMode;
 type StatusFilter = 'all' | BTCStatus;
 
 export function BTCProfileListView() {
+  const { context: roleContext } = useRole();
+  const isController = roleContext?.role === 'controller';
+
   const [profiles, setProfiles] = useState<BTCProfileItem[]>([]);
   const [entities, setEntities] = useState<ChargeableEntityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +59,7 @@ export function BTCProfileListView() {
   const [createOpen, setCreateOpen] = useState(false);
   const [rolloverOpen, setRolloverOpen] = useState(false);
   const [rolloverResult, setRolloverResult] = useState<BTCYearRolloverResult | null>(null);
+  const [sapExportOpen, setSapExportOpen] = useState(false);
 
   const fetchData = () => {
     setLoading(true);
@@ -218,6 +229,13 @@ export function BTCProfileListView() {
             <CalendarRange className="h-3.5 w-3.5 mr-1" />
             Year rollover
           </Button>
+          {/* FD-4 [F-EXP-01]: SAP export — controller-only. */}
+          {isController && (
+            <Button variant="outline" onClick={() => setSapExportOpen(true)}>
+              <Download className="h-3.5 w-3.5 mr-1" />
+              Export to SAP
+            </Button>
+          )}
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="h-3.5 w-3.5 mr-1" />
             New profile
@@ -382,6 +400,149 @@ export function BTCProfileListView() {
           else fetchData();
         }}
       />
+
+      <SapExportDialog
+        open={sapExportOpen}
+        defaultYear={year}
+        onClose={() => setSapExportOpen(false)}
+      />
     </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// FD-4 [F-EXP-01] — SAP export dialog
+// ---------------------------------------------------------------------------
+
+interface SapExportDialogProps {
+  open: boolean;
+  defaultYear: number;
+  onClose: () => void;
+}
+
+function SapExportDialog({ open, defaultYear, onClose }: SapExportDialogProps) {
+  const [year, setYear] = useState(defaultYear);
+  const [entityType, setEntityType] =
+    useState<'all' | ChargeableEntityType>('all');
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setYear(defaultYear);
+      setEntityType('all');
+      setError(null);
+      setDownloading(false);
+    }
+  }, [open, defaultYear]);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ year: String(year), format: 'csv' });
+      if (entityType !== 'all') params.set('entity_type', entityType);
+      const resp = await fetch(
+        `/api/charging/sap-export?${params.toString()}`,
+        {
+          headers: {
+            'X-Current-User':
+              localStorage.getItem('creta-persona') || 'persona-controller',
+          },
+        },
+      );
+      if (!resp.ok) {
+        const detail = await resp.text();
+        throw new Error(detail || `HTTP ${resp.status}`);
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download =
+        entityType === 'all'
+          ? `creta-sap-export-${year}.csv`
+          : `creta-sap-export-${year}-${entityType.toLowerCase()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      onClose();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Export to SAP</DialogTitle>
+          <DialogDescription>
+            Per [F-EXP-01]: per-(entity × charging-location) WBS allocation
+            for the selected year. Rows are read from the frozen active BTC
+            profiles — the export is reproducible across UM updates.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Year
+            </label>
+            <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[2025, 2026, 2027].map((y) => (
+                  <SelectItem key={y} value={String(y)}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Entity type
+            </label>
+            <Select
+              value={entityType}
+              onValueChange={(v) => setEntityType(v as 'all' | ChargeableEntityType)}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="Project">Projects</SelectItem>
+                <SelectItem value="Offering">Offerings</SelectItem>
+                <SelectItem value="InternalService">Internal Services</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {error && (
+          <Card className="border-red-500 bg-red-50 dark:bg-red-900/20 p-3 mt-3">
+            <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+          </Card>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={downloading}>
+            Cancel
+          </Button>
+          <Button onClick={handleDownload} disabled={downloading}>
+            <Download className="h-3.5 w-3.5 mr-1" />
+            {downloading ? 'Downloading…' : 'Download CSV'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
