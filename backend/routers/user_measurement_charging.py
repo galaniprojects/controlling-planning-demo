@@ -117,13 +117,14 @@ def _count_cells(db: Session, version_id: int) -> int:
 def info(_user: CurrentUser = Depends(get_current_user)) -> UMInfoResponse:
     """Module info: CRETA is the system of record; SAP is export-only.
 
-    Read-visible to all roles per [F-DIR-03]. ``sap_export_available`` stays
-    ``False`` here — FD-4 flips it once the SAP export endpoint ships.
+    Read-visible to all roles per [F-DIR-03]. ``sap_export_available`` is
+    ``True`` since FD-4 shipped ``GET /api/charging/sap-export`` per
+    ``[F-EXP-01]``.
     """
     return UMInfoResponse(
         system_of_record="creta",
         authoring_modes=["in_grid", "csv_bulk_entry"],
-        sap_export_available=False,
+        sap_export_available=True,
     )
 
 

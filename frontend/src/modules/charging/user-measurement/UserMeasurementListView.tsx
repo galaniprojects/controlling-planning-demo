@@ -29,6 +29,8 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useRole } from '@/contexts/RoleContext';
 import { userMeasurementApi } from '@/api/userMeasurement';
+import { chargingApi } from '@/api/endpoints';
+import type { ChargingLocationItem } from '@/types/api';
 import type {
   UMVersionDetailResponse,
   UMVersionSummary,
@@ -75,6 +77,10 @@ export function UserMeasurementListView() {
   const [importOpen, setImportOpen] = useState(false);
   const [activateOpen, setActivateOpen] = useState(false);
 
+  // Active ChargingLocations drive the editor's columns when a draft is blank.
+  // Per spec §2 + plan: render all active CLs as columns; cells default empty.
+  const [chargingLocations, setChargingLocations] = useState<ChargingLocationItem[]>([]);
+
   /* ─────────────────────────── fetchers ─────────────────────────── */
 
   const fetchVersions = useCallback(async () => {
@@ -108,6 +114,15 @@ export function UserMeasurementListView() {
   useEffect(() => {
     fetchVersions();
   }, [fetchVersions]);
+
+  // Active CL list — fetched once. Drives editor columns even on blank drafts.
+  useEffect(() => {
+    chargingApi.listChargingLocationsReadOnly()
+      .then((res) => {
+        setChargingLocations(res.items.filter((cl) => cl.is_active));
+      })
+      .catch(() => setChargingLocations([]));
+  }, []);
 
   // Auto-pick the most-recently-activated active version; otherwise the
   // most-recent draft so the user lands on something editable.
@@ -402,6 +417,7 @@ export function UserMeasurementListView() {
           <UserMeasurementMatrixEditor
             version={detail.version}
             cells={detail.cells}
+            chargingLocations={chargingLocations}
             onMutated={() => fetchDetail(detail.version.id)}
           />
         ) : (

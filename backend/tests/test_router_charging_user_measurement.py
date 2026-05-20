@@ -83,8 +83,8 @@ class TestInfo:
         assert body["system_of_record"] == "creta"
         assert "in_grid" in body["authoring_modes"]
         assert "csv_bulk_entry" in body["authoring_modes"]
-        # FD-4 flips this when the SAP export endpoint ships; until then false.
-        assert body["sap_export_available"] is False
+        # FD-4 shipped GET /api/charging/sap-export per [F-EXP-01].
+        assert body["sap_export_available"] is True
 
     def test_pl_can_read_info(self, test_client, seed_personas):
         # Reads are visible to all roles per [F-DIR-03].

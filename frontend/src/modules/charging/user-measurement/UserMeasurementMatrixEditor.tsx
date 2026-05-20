@@ -28,11 +28,18 @@ import { AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { userMeasurementApi } from '@/api/userMeasurement';
+import type { ChargingLocationItem } from '@/types/api';
 import type { UMCell, UMVersionSummary } from '@/types/userMeasurement';
 
 interface Props {
   version: UMVersionSummary;
   cells: UMCell[];
+  /** Active charging locations. Drives the editor's column set so a Blank
+   *  draft renders all CLs with empty cells (sparse-omit until entered),
+   *  matching spec §2 "render all active ChargingLocations as columns".
+   *  Optional for back-compat; when omitted the editor falls back to the
+   *  pre-FD-2.1 behaviour of inferring columns from existing cells. */
+  chargingLocations?: ChargingLocationItem[];
   /** Called after a successful cell mutation so the parent can re-fetch the
    *  version detail (header counts, totals). */
   onMutated?: () => void;
@@ -50,11 +57,20 @@ interface EditingCell {
   draft: string;
 }
 
-export function UserMeasurementMatrixEditor({ version, cells, onMutated }: Props) {
+export function UserMeasurementMatrixEditor({
+  version, cells, chargingLocations, onMutated,
+}: Props) {
   // Local model of cells so we can optimistically update without round-tripping.
   const [localCells, setLocalCells] = useState<UMCell[]>(cells);
   useEffect(() => setLocalCells(cells), [cells]);
 
+  // User-added S-codes that have no cells yet — keeps an empty row visible
+  // so the user can populate cells column-by-column on a blank draft.
+  // Cleared whenever the version changes.
+  const [pendingSCodes, setPendingSCodes] = useState<string[]>([]);
+  useEffect(() => setPendingSCodes([]), [version.id]);
+
+  const [newSCode, setNewSCode] = useState('');
   const [editing, setEditing] = useState<EditingCell | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -69,18 +85,28 @@ export function UserMeasurementMatrixEditor({ version, cells, onMutated }: Props
   }, [editing]);
 
   const pivot = useMemo(() => {
-    const sCodes = Array.from(new Set(localCells.map((c) => c.s_code))).sort();
-    const locCodes = Array.from(
-      new Set(
-        localCells.map((c) => c.charging_location_code ?? c.charging_location_id),
-      ),
+    const sCodes = Array.from(
+      new Set([...localCells.map((c) => c.s_code), ...pendingSCodes]),
     ).sort();
-    // Resolve a location_id for each column-code (the patch payload needs the id).
+
+    // Column set is the union of active charging locations (so blank drafts
+    // render with columns) and any cell-bearing locations (covers legacy
+    // cells whose CL has since been deactivated — keep them visible).
     const locIdByCode = new Map<string, string>();
+    const locCodeById = new Map<string, string>();
+    if (chargingLocations) {
+      for (const cl of chargingLocations) {
+        locIdByCode.set(cl.code, cl.id);
+        locCodeById.set(cl.id, cl.code);
+      }
+    }
     for (const c of localCells) {
       const code = c.charging_location_code ?? c.charging_location_id;
       locIdByCode.set(code, c.charging_location_id);
+      locCodeById.set(c.charging_location_id, code);
     }
+    const locCodes = Array.from(locIdByCode.keys()).sort();
+
     const lookup = new Map<string, UMCell>();
     for (const c of localCells) {
       const code = c.charging_location_code ?? c.charging_location_id;
@@ -95,8 +121,11 @@ export function UserMeasurementMatrixEditor({ version, cells, onMutated }: Props
       colTotals[code] = (colTotals[code] ?? 0) + c.value;
       grand += c.value;
     }
-    return { sCodes, locCodes, locIdByCode, lookup, rowTotals, colTotals, grand };
-  }, [localCells]);
+    return {
+      sCodes, locCodes, locIdByCode, locCodeById, lookup,
+      rowTotals, colTotals, grand,
+    };
+  }, [localCells, pendingSCodes, chargingLocations]);
 
   const beginEdit = useCallback(
     (sCode: string, locId: string, currentValue: number | undefined) => {
@@ -169,9 +198,7 @@ export function UserMeasurementMatrixEditor({ version, cells, onMutated }: Props
               s_code: editing.s_code,
               charging_location_id: editing.charging_location_id,
               charging_location_code:
-                pivot.locIdByCode.has(editing.charging_location_id)
-                  ? null
-                  : null,
+                pivot.locCodeById.get(editing.charging_location_id) ?? null,
               value: newValue,
             },
           ];
@@ -180,6 +207,9 @@ export function UserMeasurementMatrixEditor({ version, cells, onMutated }: Props
         next[idx] = { ...next[idx], value: newValue };
         return next;
       });
+      // If the row was a pending-only S-code, clear it once the cell exists
+      // so we don't carry it across refetches.
+      setPendingSCodes((prev) => prev.filter((s) => s !== editing.s_code));
       setEditing(null);
       onMutated?.();
     } catch (e: unknown) {
@@ -187,21 +217,36 @@ export function UserMeasurementMatrixEditor({ version, cells, onMutated }: Props
     } finally {
       setSubmitting(false);
     }
-  }, [editing, version.id, pivot.locIdByCode, localCells, onMutated]);
+  }, [editing, version.id, pivot.locCodeById, localCells, onMutated]);
 
   const cancel = useCallback(() => {
     setEditing(null);
     setError(null);
   }, []);
 
-  if (localCells.length === 0) {
+  const addSCode = useCallback(() => {
+    const trimmed = newSCode.trim();
+    if (trimmed === '') return;
+    if (pivot.sCodes.includes(trimmed)) {
+      setError(`S-code "${trimmed}" is already in the matrix.`);
+      return;
+    }
+    setPendingSCodes((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+    setNewSCode('');
+    setError(null);
+  }, [newSCode, pivot.sCodes]);
+
+  // Fallback only when there's truly nothing to render — no cells *and*
+  // no active charging locations to anchor columns against.
+  if (pivot.sCodes.length === 0 && pivot.locCodes.length === 0) {
     return (
       <Card className="p-6 space-y-3">
         <div className="text-center text-sm text-muted-foreground">
-          Draft v{version.id} has no cells yet.
+          Draft v{version.id} has no cells yet, and no active charging locations
+          are configured.
           <br />
           Use <span className="font-medium text-foreground">Import CSV</span>{' '}
-          for bulk entry, or seed initial cells from a copy-source via{' '}
+          for bulk entry, or seed initial cells via{' '}
           <span className="font-medium text-foreground">Create draft → Copy from active</span>.
         </div>
         {error && (
@@ -329,6 +374,31 @@ export function UserMeasurementMatrixEditor({ version, cells, onMutated }: Props
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={newSCode}
+          onChange={(e) => setNewSCode(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addSCode();
+            }
+          }}
+          placeholder="Add S-code (e.g. S301) — Enter to insert a row"
+          className="flex-1 max-w-[280px] h-8 px-2 text-xs font-mono bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary/30"
+          disabled={submitting}
+        />
+        <button
+          type="button"
+          onClick={addSCode}
+          disabled={submitting || newSCode.trim() === ''}
+          className="h-8 px-3 text-xs font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Add row
+        </button>
       </div>
     </div>
   );
