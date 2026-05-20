@@ -36,6 +36,7 @@ import { CountriesPanel } from './entities/CountriesPanel';
 import { RegionsPanel } from './entities/RegionsPanel';
 import { ChargingLocationsPanel } from './entities/ChargingLocationsPanel';
 import { LegalEntitiesPanel } from './entities/LegalEntitiesPanel';
+import { ChargeableEntitiesPanel } from './entities/ChargeableEntitiesPanel';
 import { UserMeasurementPanel } from './entities/UserMeasurementPanel';
 import { UsersPanel } from './entities/UsersPanel';
 import { ProjectDependenciesPanel } from './entities/ProjectDependenciesPanel';
@@ -142,6 +143,8 @@ export function Administration() {
         return <RegionsPanel />;
       case 'countries':
         return <CountriesPanel />;
+      case 'chargeable_entities':
+        return <ChargeableEntitiesPanel />;
       case 'user_measurement':
         return <UserMeasurementPanel />;
 
