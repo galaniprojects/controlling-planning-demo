@@ -51,9 +51,10 @@ from schemas.distribution import (
     DistributionUpdate, DistributionEffectiveCost, DistributionInflow,
     DistributionVersionActivate, DistributionVersionCreate,
     DistributionVersionDetailResponse, DistributionVersionDiff,
-    DistributionVersionListResponse, DistributionVersionResponse,
-    DistributionVersionUpdate, EntityDistributionSummary, EntityStage1View,
-    WBSElementResponse,
+    DistributionVersionDiffEdge, DistributionVersionListResponse,
+    DistributionVersionResponse, DistributionVersionUpdate,
+    EntityDistributionSummary, EntityStage1Inflow, EntityStage1VersionEntry,
+    EntityStage1View, WBSElementResponse,
 )
 from services.btc_service import (
     BTCValidationError, assert_btc_required,
@@ -66,14 +67,18 @@ from services.dag_resolver import (
     compute_effective_cost, get_upstream_chain,
 )
 from services.distribution_service import (
-    DistributionValidationError, compute_sum_validation,
-    create_distribution_edge, delete_distribution_edge,
-    is_known_version, update_distribution_edge, update_to_business_pct,
+    DistributionValidationError, activate_version, compute_sum_validation,
+    compute_version_diff, create_distribution_edge, create_version,
+    delete_distribution_edge, delete_version, get_version,
+    list_edges_for_version, list_versions, resolve_active_version,
+    resolve_active_version_or_raise, update_distribution_edge,
+    update_to_business_pct, update_version_rationale,
 )
 from services.rollup_cache import (
     get_cache_status, invalidate_all, invalidate_for_btc_write,
     invalidate_for_distribution_write, invalidate_for_entity_cost_write,
 )
+from models.charging import DistributionVersion
 from services.rollup_query import (
     drill_down_charging_location, get_location_breakdown,
     query_entity_allocation_breakdown, query_rollup,
@@ -830,13 +835,32 @@ def deactivate_chargeable_entity(
 def _serialize_distribution(d: Distribution) -> DistributionResponse:
     return DistributionResponse(
         id=d.id,
-        year=d.year,
-        version=d.version,
+        version_id=d.version_id,
         source_entity_id=d.source_entity_id,
         destination_entity_id=d.destination_entity_id,
         percentage=float(d.percentage),
+        rationale=d.rationale,
         source_entity_name=(d.source_entity.name if d.source_entity else None),
         destination_entity_name=(d.destination_entity.name if d.destination_entity else None),
+    )
+
+
+def _serialize_version(
+    v: DistributionVersion, *, edge_count: int | None = None,
+) -> DistributionVersionResponse:
+    """Serialize a DistributionVersion header. ``edge_count`` is server-computed."""
+    return DistributionVersionResponse(
+        id=v.id,
+        status=v.status,
+        active_from=v.active_from,
+        rationale=v.rationale,
+        origin=v.origin,
+        copied_from_version_id=v.copied_from_version_id,
+        scenario_id=v.scenario_id,
+        created_at=v.created_at,
+        created_by_person_id=v.created_by_person_id,
+        activated_at=v.activated_at,
+        edge_count=edge_count,
     )
 
 
@@ -848,10 +872,14 @@ def _validation_error_to_http(e: DistributionValidationError) -> HTTPException:
     return HTTPException(409, payload)
 
 
+# ---------------------------------------------------------------------------
+# Distribution edges (rescoped to version_id per FD-3 [F-S1-02..04])
+# ---------------------------------------------------------------------------
+
+
 @charging_router.get("/distributions", response_model=DistributionListResponse)
 def list_distributions(
-    year: int | None = None,
-    version: str | None = None,
+    version_id: int | None = None,
     source_entity_id: str | None = None,
     destination_entity_id: str | None = None,
     db: Session = Depends(get_db),
@@ -861,22 +889,20 @@ def list_distributions(
 ) -> DistributionListResponse:
     """List distribution edges with optional filters per [F-S1-01].
 
-    Open to all authenticated roles for read — Cluster F's data is
-    read-visible per [F-UM-04] / [F-AC-01]. Writes require controller (the
-    spec's responsible-owner edit path lands once F4 implements
-    RolePermissionGrant enforcement).
+    Open to all authenticated roles for read per [F-AC-01]. ``version_id``
+    is the canonical filter (replaces the v4 ``year + version`` pair which
+    is cadence-agnostic in FD-3). Writes still require controller.
     """
     q = db.query(Distribution)
-    if year is not None:
-        q = q.filter(Distribution.year == year)
-    if version is not None:
-        q = q.filter(Distribution.version == version)
+    if version_id is not None:
+        q = q.filter(Distribution.version_id == version_id)
     if source_entity_id is not None:
         q = q.filter(Distribution.source_entity_id == source_entity_id)
     if destination_entity_id is not None:
         q = q.filter(Distribution.destination_entity_id == destination_entity_id)
     rows = q.order_by(
-        Distribution.year, Distribution.version, Distribution.source_entity_id,
+        Distribution.version_id, Distribution.source_entity_id,
+        Distribution.destination_entity_id,
     ).all()
     items = [_serialize_distribution(r) for r in rows]
     return DistributionListResponse(items=items, total=len(items))
@@ -908,23 +934,20 @@ def create_distribution(
 ) -> DistributionResponse:
     """Create a Stage 1 distribution edge per [F-S1-01..05].
 
-    Validates the sum-rule per [F-S1-02] (≤100% across to_business_pct +
-    distributions) and detects cycles per [F-S1-05]. On cycle, returns
-    HTTP 409 with a structured body containing ``cycle_chain``.
+    ``body.version_id`` must point at a **draft** ``DistributionVersion``;
+    writes against an active version are rejected with 409 per [F-S1-08].
+    Validates the sum-rule per [F-S1-02] and detects cycles per [F-S1-05].
+    On cycle, returns HTTP 409 with a structured body containing
+    ``cycle_chain``.
     """
-    if not is_known_version(body.version):
-        # Soft warning — accept the version but note that it is non-builtin.
-        # Audit category will reveal the typo trail if relevant.
-        pass
-
     try:
         edge = create_distribution_edge(
             db,
-            year=body.year,
-            version=body.version,
+            version_id=body.version_id,
             source_entity_id=body.source_entity_id,
             destination_entity_id=body.destination_entity_id,
             percentage=body.percentage,
+            rationale=body.rationale,
         )
     except DistributionValidationError as e:
         raise _validation_error_to_http(e)
@@ -933,11 +956,12 @@ def create_distribution(
         db, user, "distribution", str(edge.id),
         f"{edge.source_entity_id} -> {edge.destination_entity_id}",
         "create",
-        new_value=f"{body.year}/{body.version}: {body.percentage}%",
+        new_value=f"version_id={body.version_id}: {body.percentage}%",
         category="master_data",
     )
-    # Invalidate rollup cache for all affected entities in this (year, version).
-    invalidate_for_distribution_write(db, body.source_entity_id, body.year, body.version)
+    invalidate_for_distribution_write(
+        db, body.source_entity_id, year=0, version_id=body.version_id,
+    )
     db.commit()
     db.refresh(edge)
     return _serialize_distribution(edge)
@@ -958,7 +982,11 @@ def update_distribution(
 
     old_pct = float(edge.percentage)
     try:
-        edge = update_distribution_edge(db, edge_id, percentage=body.percentage)
+        edge = update_distribution_edge(
+            db, edge_id, percentage=body.percentage,
+            rationale=body.rationale,
+            update_rationale=body.rationale is not None,
+        )
     except DistributionValidationError as e:
         raise _validation_error_to_http(e)
 
@@ -968,7 +996,9 @@ def update_distribution(
         "update", "percentage", str(old_pct), str(body.percentage),
         category="master_data",
     )
-    invalidate_for_distribution_write(db, edge.source_entity_id, edge.year, edge.version)
+    invalidate_for_distribution_write(
+        db, edge.source_entity_id, year=0, version_id=edge.version_id,
+    )
     db.commit()
     db.refresh(edge)
     return _serialize_distribution(edge)
@@ -984,7 +1014,8 @@ def delete_distribution(
     if edge is None:
         raise HTTPException(404, f"Distribution edge {edge_id} not found")
     edge_label = f"{edge.source_entity_id} -> {edge.destination_entity_id}"
-    edge_year_version = f"{edge.year}/{edge.version}"
+    edge_version_id = edge.version_id
+    edge_source_id = edge.source_entity_id
     edge_pct = float(edge.percentage)
     try:
         delete_distribution_edge(db, edge_id)
@@ -992,16 +1023,41 @@ def delete_distribution(
         raise _validation_error_to_http(e)
     _audit(
         db, user, "distribution", str(edge_id), edge_label, "delete",
-        old_value=f"{edge_year_version}: {edge_pct}%",
+        old_value=f"version_id={edge_version_id}: {edge_pct}%",
         category="master_data",
     )
-    # Invalidate cache: edge_label is "src -> dst", extract source.
-    src_id = edge_label.split(" -> ")[0]
-    year_str = edge_year_version.split("/")[0]
-    ver_str = edge_year_version.split("/")[1]
-    invalidate_for_distribution_write(db, src_id, int(year_str), ver_str)
+    invalidate_for_distribution_write(
+        db, edge_source_id, year=0, version_id=edge_version_id,
+    )
     db.commit()
     return {"id": edge_id, "deleted": True}
+
+
+def _resolve_version_param(
+    db: Session, version_id: int | None, evaluated_date: date | None,
+) -> DistributionVersion:
+    """Resolve the version targeted by a per-entity read endpoint.
+
+    - ``version_id`` (optional): explicit selection — overrides the resolver.
+    - ``evaluated_date`` (optional): if ``version_id`` is omitted, resolves the
+      production version in force on the given date.
+    - Both omitted: resolves the production version in force today.
+
+    Raises HTTP 404 if no production version is in force for the date.
+    """
+    if version_id is not None:
+        v = db.query(DistributionVersion).filter_by(id=version_id).first()
+        if v is None:
+            raise HTTPException(404, f"DistributionVersion {version_id} not found")
+        return v
+    eff_date = evaluated_date or date.today()
+    v = resolve_active_version(db, eff_date)
+    if v is None:
+        raise HTTPException(
+            404,
+            f"No production DistributionVersion in force for {eff_date}",
+        )
+    return v
 
 
 @charging_router.get(
@@ -1010,8 +1066,8 @@ def delete_distribution(
 )
 def get_entity_distribution_summary(
     entity_id: str,
-    year: int,
-    version: str = "forecast",
+    version_id: int | None = None,
+    evaluated_date: date | None = None,
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role(
         "controller", "executive", "project_lead", "cost_center_owner",
@@ -1020,26 +1076,27 @@ def get_entity_distribution_summary(
     """Single-entity Stage 1 profile per [F-S1-03].
 
     Returns the entity's ``to_business_pct``, all outgoing edges for the
-    given (year, version), and the derived self-retained percentage so the
-    F4 editor can render the edges-as-list view in one round trip.
+    given version, and the derived self-retained percentage so the editor
+    can render the edges-as-list view in one round trip. ``version_id``
+    selects an explicit version; ``evaluated_date`` resolves the in-force
+    production version; both omitted = in-force today.
     """
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
         raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
 
-    result = compute_sum_validation(db, entity_id, year, version)
+    version = _resolve_version_param(db, version_id, evaluated_date)
+    result = compute_sum_validation(db, entity_id, version.id)
 
     edges = db.query(Distribution).filter(
         Distribution.source_entity_id == entity_id,
-        Distribution.year == year,
-        Distribution.version == version,
+        Distribution.version_id == version.id,
     ).order_by(Distribution.destination_entity_id).all()
 
     return EntityDistributionSummary(
         entity_id=entity.id,
         entity_name=entity.name,
-        year=year,
-        version=version,
+        version_id=version.id,
         to_business_pct=result.to_business_pct,
         distributions=[_serialize_distribution(e) for e in edges],
         self_retained_pct=result.self_retained_pct,
@@ -1054,19 +1111,23 @@ def get_entity_distribution_summary(
 def update_entity_to_business_pct(
     entity_id: str,
     new_pct: float,
-    year: int,
-    version: str = "forecast",
+    version_id: int,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role("controller")),
 ) -> EntityDistributionSummary:
-    """Update the entity's ``to_business_pct`` after validating the sum cap."""
+    """Update the entity's ``to_business_pct`` after validating the sum cap.
+
+    ``version_id`` is required — `to_business_pct` is a shared property
+    on the entity but its sum-rule context is per-version, and the service
+    rejects writes against an active version per [F-S1-08].
+    """
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
         raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
     old_value = float(entity.to_business_pct or 0)
     try:
         update_to_business_pct(
-            db, entity_id, new_pct=new_pct, year=year, version=version,
+            db, entity_id, new_pct=new_pct, version_id=version_id,
         )
     except DistributionValidationError as e:
         raise _validation_error_to_http(e)
@@ -1077,7 +1138,9 @@ def update_entity_to_business_pct(
         category="master_data",
     )
     db.commit()
-    return get_entity_distribution_summary(entity_id, year, version, db, user)
+    return get_entity_distribution_summary(
+        entity_id, version_id, None, db, user,
+    )
 
 
 @charging_router.get(
@@ -1087,7 +1150,8 @@ def update_entity_to_business_pct(
 def get_entity_effective_cost(
     entity_id: str,
     year: int,
-    version: str = "forecast",
+    version_id: int | None = None,
+    evaluated_date: date | None = None,
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role(
         "controller", "executive", "project_lead", "cost_center_owner",
@@ -1097,18 +1161,23 @@ def get_entity_effective_cost(
 
     Returns own_cost + sum of inflows through the upstream chain. Inflows
     list each immediate upstream contribution (entity, %, amount) so the
-    rollup drill-down can render the chain.
+    rollup drill-down can render the chain. ``year`` is retained on this
+    response (own-cost lookup is year-scoped); ``version_id``/
+    ``evaluated_date`` select the Stage-1 version graph for the inflow
+    rollup.
     """
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
         raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
-    result = compute_effective_cost(db, year, version, entity_id)
+    version = _resolve_version_param(db, version_id, evaluated_date)
+    result = compute_effective_cost(db, year, version.id, entity_id)
     return DistributionEffectiveCost(
         entity_id=result.entity_id,
         entity_name=result.entity_name,
         year=result.year,
-        version=result.version,
+        version_id=result.version_id,
         own_cost=round(result.own_cost, 2),
+        own_cost_source=result.own_cost_source,
         inflows=[
             DistributionInflow(
                 source_entity_id=c.source_entity_id,
@@ -1126,8 +1195,8 @@ def get_entity_effective_cost(
 @charging_router.get("/entities/{entity_id}/upstream-chain")
 def get_entity_upstream_chain(
     entity_id: str,
-    year: int,
-    version: str = "forecast",
+    version_id: int | None = None,
+    evaluated_date: date | None = None,
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role(
         "controller", "executive", "project_lead", "cost_center_owner",
@@ -1137,17 +1206,17 @@ def get_entity_upstream_chain(
 
     Each path is an ordered list of entity ids from a source (no incoming
     edges) down to the target. Used by the rollup drill-down panel to render
-    contributing chains; F2 ships the data layer, F5 will consume it visually.
+    contributing chains.
     """
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
         raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
-    paths = get_upstream_chain(db, year, version, entity_id)
+    version = _resolve_version_param(db, version_id, evaluated_date)
+    paths = get_upstream_chain(db, version.id, entity_id)
     return {
         "entity_id": entity.id,
         "entity_name": entity.name,
-        "year": year,
-        "version": version,
+        "version_id": version.id,
         "paths": paths,
         "total": len(paths),
     }
@@ -1200,10 +1269,18 @@ def get_entity_wbs_element(
 # reads open to all four roles per `[F-AC-01]`.
 # ===========================================================================
 
-_NOT_IMPLEMENTED_DETAIL = (
-    "DistributionVersion endpoint not implemented yet — landing in FD-3 B1/B2. "
-    "B0 ships the schema contract only."
-)
+# DEMO_YEAR is the year axis used for own-cost lookup in the per-entity
+# Stage 1 view (effective-cost rollup). The Stage 1 graph is cadence-
+# agnostic, but own_cost surfaces from year-keyed columns
+# (Project.annual_budget, ChargeableEntity.annual_cost). Per CLAUDE.md the
+# demo date is April 2026.
+_DEMO_YEAR = 2026
+
+
+def _count_edges(db: Session, version_id: int) -> int:
+    return db.query(Distribution).filter(
+        Distribution.version_id == version_id,
+    ).count()
 
 
 @charging_router.get(
@@ -1225,10 +1302,15 @@ def list_distribution_versions(
     - ``include_scenario`` — when False (default), scenario-scoped versions
       are hidden. The simulator surfaces its sandbox version through its
       own endpoints, not the production timeline.
-
-    **Stub (FD-3 B0)** — body lands in FD-3 B2.
     """
-    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+    versions = list_versions(
+        db, status=status, include_scenario=include_scenario,
+    )
+    items = [
+        _serialize_version(v, edge_count=_count_edges(db, v.id))
+        for v in versions
+    ]
+    return DistributionVersionListResponse(items=items, total=len(items))
 
 
 @charging_router.post(
@@ -1254,10 +1336,35 @@ def create_distribution_version(
 
     Returns the new draft header plus its (possibly-copied) edges so the
     UI can render the version-creation modal preview in one round trip.
-
-    **Stub (FD-3 B0)** — body lands in FD-3 B2.
+    Scenario-scoped versions cannot be created via this endpoint — the
+    lever-12 service creates them lazily.
     """
-    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+    try:
+        v = create_version(
+            db,
+            origin=body.origin,
+            rationale=body.rationale,
+            copied_from_version_id=body.copied_from_version_id,
+            created_by_person_id=user.person_id,
+            scenario_id=None,
+        )
+    except DistributionValidationError as e:
+        raise _validation_error_to_http(e)
+
+    _audit(
+        db, user, "distribution_version", str(v.id),
+        f"version {v.id}", "create",
+        new_value=f"origin={body.origin} copied_from={body.copied_from_version_id}",
+        category="master_data",
+    )
+    db.commit()
+    db.refresh(v)
+    edges = list_edges_for_version(db, v.id)
+    return DistributionVersionDetailResponse(
+        version=_serialize_version(v, edge_count=len(edges)),
+        edges=[_serialize_distribution(e) for e in edges],
+        total_edges=len(edges),
+    )
 
 
 @charging_router.get(
@@ -1275,10 +1382,16 @@ def get_distribution_version(
 
     Edge list is sorted by ``(source_entity_id, destination_entity_id)`` so
     the UI's deterministic ordering matches the diff report.
-
-    **Stub (FD-3 B0)** — body lands in FD-3 B2.
     """
-    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+    v = db.query(DistributionVersion).filter_by(id=version_id).first()
+    if v is None:
+        raise HTTPException(404, f"DistributionVersion {version_id} not found")
+    edges = list_edges_for_version(db, v.id)
+    return DistributionVersionDetailResponse(
+        version=_serialize_version(v, edge_count=len(edges)),
+        edges=[_serialize_distribution(e) for e in edges],
+        total_edges=len(edges),
+    )
 
 
 @charging_router.put(
@@ -1296,10 +1409,19 @@ def update_distribution_version(
     Edges are mutated via the existing edge endpoints
     (``/api/charging/distributions``). The service rejects header updates
     on an active version with HTTP 409 (immutable per `[F-S1-08]`).
-
-    **Stub (FD-3 B0)** — body lands in FD-3 B2.
     """
-    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+    try:
+        v = update_version_rationale(db, version_id, rationale=body.rationale)
+    except DistributionValidationError as e:
+        raise _validation_error_to_http(e)
+    _audit(
+        db, user, "distribution_version", str(v.id),
+        f"version {v.id}", "update", "rationale", None, body.rationale,
+        category="master_data",
+    )
+    db.commit()
+    db.refresh(v)
+    return _serialize_version(v, edge_count=_count_edges(db, v.id))
 
 
 @charging_router.post(
@@ -1320,18 +1442,31 @@ def activate_distribution_version(
 
     Service rejects (all HTTP 409):
     - Activating a scenario-scoped version (those stay draft permanently).
-    - Duplicate ``active_from`` across production active versions
-      ``[F-S1-02]`` "identical ``active_from`` for the same scope is
-      forbidden".
-    - Empty rationale ``[F-S1-05]``.
+    - Duplicate ``active_from`` across production active versions per
+      [F-S1-02] "identical ``active_from`` for the same scope is forbidden".
+    - Empty rationale per [F-S1-05].
 
     On success: ``status='active'``, ``activated_at=now()``, ``rationale``
     set, the version becomes the in-force version for the supplied
     ``active_from`` going forward. Header + edges then immutable.
-
-    **Stub (FD-3 B0)** — body lands in FD-3 B2.
     """
-    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+    try:
+        v = activate_version(
+            db, version_id,
+            active_from=body.active_from, rationale=body.rationale,
+        )
+    except DistributionValidationError as e:
+        raise _validation_error_to_http(e)
+    _audit(
+        db, user, "distribution_version", str(v.id),
+        f"version {v.id}", "activate",
+        new_value=f"active_from={body.active_from} rationale={body.rationale!r}",
+        category="master_data",
+    )
+    # Activation does not change the edge graph; no cache invalidation needed.
+    db.commit()
+    db.refresh(v)
+    return _serialize_version(v, edge_count=_count_edges(db, v.id))
 
 
 @charging_router.delete("/distribution-versions/{version_id}")
@@ -1342,16 +1477,25 @@ def delete_distribution_version(
 ) -> dict:
     """Delete a draft ``DistributionVersion``.
 
-    Active production versions are immutable per `[F-S1-08]` — the service
+    Active production versions are immutable per [F-S1-08] — the service
     rejects deletion with HTTP 409. Scenario-scoped versions are deleted
     via scenario cleanup (FK cascade), not via this endpoint.
 
-    Future-dated active revocation is tracked as an open question — see
-    plan §"Open questions" #2. Out of scope for B0/B1/B2.
-
-    **Stub (FD-3 B0)** — body lands in FD-3 B2.
+    Future-dated active revocation is tracked as an open question
+    (plan §"Open questions" #2); not implemented in B2.
     """
-    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+    try:
+        v = delete_version(db, version_id)
+    except DistributionValidationError as e:
+        raise _validation_error_to_http(e)
+    _audit(
+        db, user, "distribution_version", str(version_id),
+        f"version {version_id}", "delete",
+        old_value=f"status={v.status} origin={v.origin}",
+        category="master_data",
+    )
+    db.commit()
+    return {"id": version_id, "deleted": True}
 
 
 @charging_router.get(
@@ -1366,7 +1510,7 @@ def diff_distribution_version(
         "controller", "executive", "project_lead", "cost_center_owner",
     )),
 ) -> DistributionVersionDiff:
-    """Version-diff report per `[F-S1-07]`.
+    """Version-diff report per [F-S1-07].
 
     Default ``compared_to_version_id``:
     - For production versions — the version preceding ``version_id`` by
@@ -1375,15 +1519,62 @@ def diff_distribution_version(
       forked from (``Scenario.anchor_distribution_version_id``, or the
       resolver's active production version at the scenario creation time
       if NULL).
-
-    Returns the two version headers plus the ordered list of edge changes
-    (added / removed / changed) with old → new percentages and rationale
-    deltas. Per-edge *visibility* in the diff is retained even though
-    per-edge *activation* is rejected per `[F-S1-08]`.
-
-    **Stub (FD-3 B0)** — body lands in FD-3 B2.
     """
-    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+    try:
+        result = compute_version_diff(
+            db, version_id, compared_to_version_id=compared_to_version_id,
+        )
+    except DistributionValidationError as e:
+        # 404 if "not found"; 422 if "no default partner" — both raise the
+        # validation error from the service. We map to 404 in the former and
+        # 422 in the latter so the frontend can distinguish.
+        if "not found" in e.message.lower():
+            raise HTTPException(404, e.message)
+        raise HTTPException(422, e.message)
+
+    # Decorate the diff edges with entity names from a single lookup.
+    entity_ids: set[str] = set()
+    for c in result.changes:
+        entity_ids.add(c.source_entity_id)
+        entity_ids.add(c.destination_entity_id)
+    name_lookup: dict[str, str] = {}
+    if entity_ids:
+        for row in (
+            db.query(ChargeableEntity.id, ChargeableEntity.name)
+            .filter(ChargeableEntity.id.in_(entity_ids))
+            .all()
+        ):
+            name_lookup[row[0]] = row[1]
+
+    diff_edges = [
+        DistributionVersionDiffEdge(
+            change_kind=c.change_kind,
+            source_entity_id=c.source_entity_id,
+            destination_entity_id=c.destination_entity_id,
+            source_entity_name=name_lookup.get(c.source_entity_id),
+            destination_entity_name=name_lookup.get(c.destination_entity_id),
+            old_percentage=c.old_percentage,
+            new_percentage=c.new_percentage,
+            old_rationale=c.old_rationale,
+            new_rationale=c.new_rationale,
+        )
+        for c in result.changes
+    ]
+    return DistributionVersionDiff(
+        version=_serialize_version(
+            result.version,
+            edge_count=_count_edges(db, result.version.id),
+        ),
+        compared_to_version=_serialize_version(
+            result.compared_to_version,
+            edge_count=_count_edges(db, result.compared_to_version.id),
+        ),
+        changes=diff_edges,
+        added_count=result.added_count,
+        removed_count=result.removed_count,
+        changed_count=result.changed_count,
+        total=len(diff_edges),
+    )
 
 
 @charging_router.get(
@@ -1399,23 +1590,92 @@ def get_entity_stage1_view(
         "controller", "executive", "project_lead", "cost_center_owner",
     )),
 ) -> EntityStage1View:
-    """Per-entity Stage 1 surface per `[F-S1-06]` (first-class).
+    """Per-entity Stage 1 surface per [F-S1-06] (first-class).
 
     Returns everything the per-entity panel needs in one round trip:
-    outbound edges, ``to_business_pct``, derived self-retained residual,
-    effective cost (own + Σ inflows), per-edge rationale, and the
-    effective-dated version history for the entity's outbound timeline.
+    outbound edges with per-edge rationale, ``to_business_pct``, derived
+    self-retained residual, effective cost (own + Σ inflows), and the
+    effective-dated production version-history sidebar for the entity's
+    outbound timeline.
 
     Resolution:
     - ``version_id`` (optional): explicit version selection — overrides the
       effective-date resolver. Used by the version-history sidebar to switch
       to a past production version.
-    - ``evaluated_date`` (optional): if ``version_id`` is omitted, resolve
+    - ``evaluated_date`` (optional): if ``version_id`` is omitted, resolves
       the production version in force on this date. Defaults to today.
-
-    **Stub (FD-3 B0)** — body lands in FD-3 B2.
     """
-    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+    entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if entity is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+
+    eff_date = evaluated_date or date.today()
+    version = _resolve_version_param(db, version_id, eff_date)
+
+    sum_result = compute_sum_validation(db, entity_id, version.id)
+    outbound = (
+        db.query(Distribution)
+        .filter(
+            Distribution.source_entity_id == entity_id,
+            Distribution.version_id == version.id,
+        )
+        .order_by(Distribution.destination_entity_id)
+        .all()
+    )
+    effective = compute_effective_cost(db, _DEMO_YEAR, version.id, entity_id)
+
+    # Build the version-history sidebar — production versions only, ordered
+    # by active_from desc with NULLs (drafts) at the bottom.
+    in_force = resolve_active_version(db, eff_date)
+    in_force_id = in_force.id if in_force is not None else None
+    production_versions = list_versions(db, include_scenario=False)
+
+    history: list[EntityStage1VersionEntry] = []
+    for pv in production_versions:
+        count = (
+            db.query(Distribution)
+            .filter(
+                Distribution.version_id == pv.id,
+                Distribution.source_entity_id == entity_id,
+            )
+            .count()
+        )
+        history.append(EntityStage1VersionEntry(
+            version_id=pv.id,
+            active_from=pv.active_from,
+            activated_at=pv.activated_at,
+            status=pv.status,
+            rationale=pv.rationale,
+            origin=pv.origin,
+            is_in_force=(pv.id == in_force_id),
+            edge_count_for_entity=count,
+        ))
+
+    return EntityStage1View(
+        entity_id=entity.id,
+        entity_name=entity.name,
+        entity_type=entity.entity_type,
+        evaluated_date=eff_date,
+        version=_serialize_version(version, edge_count=_count_edges(db, version.id)),
+        to_business_pct=sum_result.to_business_pct,
+        self_retained_pct=sum_result.self_retained_pct,
+        sums_within_100=sum_result.is_valid,
+        outbound_edges=[_serialize_distribution(e) for e in outbound],
+        own_cost=round(effective.own_cost, 2),
+        own_cost_source=effective.own_cost_source,
+        inflows=[
+            EntityStage1Inflow(
+                source_entity_id=c.source_entity_id,
+                source_entity_name=c.source_entity_name,
+                percentage=c.percentage,
+                amount=c.amount,
+            )
+            for c in effective.inflows
+        ],
+        inflow_total=round(effective.inflow_total, 2),
+        effective_cost=round(effective.effective_cost, 2),
+        history=history,
+    )
 
 
 # ===========================================================================
