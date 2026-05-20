@@ -622,3 +622,76 @@ class TestDoiBTCGate:
             json={"comments": "draft only"}, headers=HEADERS_CTRL,
         )
         assert resp.status_code == 409, resp.text
+
+    def test_approve_with_active_automatic_internal_service_btc_succeeds(
+        self, test_client, seed_personas, seed_hierarchy, db,
+    ):
+        """FD-4 [F-S2-01]: an active *automatic* BTC profile for an
+        InternalService CE satisfies the DoI 2→3 gate. This is the only
+        supported path now that InternalService manual mode is gated.
+        """
+        from datetime import datetime as _dt
+        from models.charging import (
+            BTCProfile, BTCProfileLine, ChargingLocation, ChargeableEntity,
+        )
+        from models.organization import GroupingEntityType, GroupingEntity
+
+        # Standalone setup (this CE has entity_type='InternalService', not 'Project'
+        # — so we can't reuse _seed_eval_project_with_ce which hard-codes Project).
+        et = GroupingEntityType(id="get-lob-svc", name="LoBSvc")
+        lob = GroupingEntity(id="lob-svc", entity_type_id="get-lob-svc", name="Svc LoB")
+        db.add_all([et, lob])
+        db.flush()
+
+        proj = Project(
+            id="proj-svc-btc",
+            name="Service-BTC Gate Project",
+            description="gate-svc",
+            status="pending_approval",
+            capex_opex="capex",
+            start_month="2026-06",
+            pl_person_id="p-pm-1",
+            project_type=1,
+            pipeline_stage=UNDER_EVALUATION,
+            doi=2,
+            ai_council_approved=True,
+            is_active=True,
+        )
+        db.add(proj)
+        db.flush()
+
+        ce = ChargeableEntity(
+            id="ce-proj-svc-btc", entity_type="InternalService",
+            identifier="ITF20088", name="Linked Internal Service",
+            project_id="proj-svc-btc",
+            to_business_pct=25.0,
+            hierarchy_node_id="lob-svc",
+            is_active=True,
+        )
+        db.add(ce)
+        db.flush()
+
+        cl = ChargingLocation(
+            id="cl-svc", code="DE-S-001", name="Svc CL", is_active=True,
+        )
+        db.add(cl)
+        db.flush()
+
+        profile = BTCProfile(
+            entity_id=ce.id, year=2026, mode="automatic",
+            s_code="S301", status="active",
+            um_snapshot_at=_dt(2026, 1, 15, 10, 0, 0),
+        )
+        db.add(profile)
+        db.flush()
+        db.add(BTCProfileLine(
+            profile_id=profile.id, charging_location_id="cl-svc", percentage=100.0,
+        ))
+        db.commit()
+
+        resp = test_client.post(
+            f"/api/intake/projects/{proj.id}/approve",
+            json={"comments": "auto svc BTC active"}, headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["doi"] == 3
