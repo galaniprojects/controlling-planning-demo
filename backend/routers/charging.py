@@ -31,7 +31,8 @@ from schemas.btc_profile import (
 )
 from schemas.chargeable_entity import (
     ChargeableEntityCreate, ChargeableEntityListResponse,
-    ChargeableEntityResponse, ChargeableEntityUpdate,
+    ChargeableEntityResponse, ChargeableEntityTypeMetadata,
+    ChargeableEntityTypesResponse, ChargeableEntityUpdate,
     validate_identifier_for_type,
 )
 from schemas.rollup import (
@@ -569,6 +570,60 @@ def _serialize_chargeable_entity(ce: ChargeableEntity) -> ChargeableEntityRespon
         is_active=ce.is_active,
         is_change_or_run=ce.is_change_or_run,
     )
+
+
+# FD-6 / [F-ADM-01] — type metadata table driving the admin panel's
+# config-driven form. Kept in-file (not a DB table) so adding a future subtype
+# is a tuple + dict edit; spec §8 "configurable set" satisfied without a
+# migration. Per locked design [F-OQ-11] the polymorphic root carries no
+# type-branch columns — the metadata here describes *which* base fields are
+# meaningful per subtype, not which columns exist.
+_TYPE_METADATA: dict[str, dict[str, object]] = {
+    "Project": {
+        "label": "Project",
+        "requires_project_id": True,
+        "supports_allocation_key": False,
+    },
+    "Offering": {
+        "label": "Offering",
+        "requires_project_id": False,
+        "supports_allocation_key": False,
+    },
+    "InternalService": {
+        "label": "Internal Service",
+        "requires_project_id": False,
+        "supports_allocation_key": True,
+    },
+}
+
+
+@router.get(
+    "/chargeable-entity-types", response_model=ChargeableEntityTypesResponse,
+)
+def list_chargeable_entity_types(
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> ChargeableEntityTypesResponse:
+    """List the configurable ChargeableEntity subtypes per [F-ADM-01].
+
+    Drives the FD-6 admin panel's type-aware form. Read-open to all four roles
+    so the read surfaces of Charging (which non-controllers can see) can also
+    render the type chips without hitting a 403. Mutations remain
+    controller-only on the CRUD endpoints.
+    """
+    items = [
+        ChargeableEntityTypeMetadata(
+            code=code,  # type: ignore[arg-type]
+            label=str(_TYPE_METADATA[code]["label"]),
+            requires_project_id=bool(_TYPE_METADATA[code]["requires_project_id"]),
+            supports_allocation_key=bool(
+                _TYPE_METADATA[code]["supports_allocation_key"],
+            ),
+        )
+        for code in CHARGEABLE_ENTITY_TYPES
+    ]
+    return ChargeableEntityTypesResponse(items=items, total=len(items))
 
 
 @router.get("/chargeable-entities", response_model=ChargeableEntityListResponse)

@@ -134,3 +134,22 @@ class ChargeableEntityResponse(BaseModel):
 class ChargeableEntityListResponse(BaseModel):
     items: list[ChargeableEntityResponse]
     total: int
+
+
+# ---------------------------------------------------------------------------
+# FD-6 / [F-ADM-01] — type metadata for the admin panel's config-driven form.
+# Drives a frontend ``TYPE_FIELDS`` map so adding a future subtype is a tuple +
+# dict edit (plus a frontend field-key entry); no DB-backed type table.
+# ---------------------------------------------------------------------------
+
+
+class ChargeableEntityTypeMetadata(BaseModel):
+    code: EntityType
+    label: str
+    requires_project_id: bool
+    supports_allocation_key: bool
+
+
+class ChargeableEntityTypesResponse(BaseModel):
+    items: list[ChargeableEntityTypeMetadata]
+    total: int
