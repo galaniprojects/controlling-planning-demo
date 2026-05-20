@@ -1,16 +1,23 @@
 """Stage 9 — BTC (Business Transfer Charging) profiles + lines.
 
 Per ``[F-S2-01..08]`` and ``[A-PL-06]``:
-- One ``btc_profiles`` row per (chargeable_entity, year). All entities in the
-  Run portfolio (offerings + internal services + Run-stage projects = 25
-  entities) get a 2026 profile.
-- Two-mode mix per the plan doc § "BTC profile design":
-    * ``automatic`` — entities whose ``entities.py`` row carries an ``s_code``.
-      ``um_snapshot_at`` records which UM batch drove the percentages; lines
-      are emitted with the percentages computed at seed-generation time
-      (mirroring ``services.btc_service.compute_um_snapshot``).
-    * ``manual`` — entities without an ``s_code``. Lines are emitted per the
-      explicit per-entity distribution shape designed in this module.
+- One ``btc_profiles`` row per (chargeable_entity, year) **for entities that
+  qualify**. All Offerings, all Run-stage Projects (DoI=5), and the 5
+  InternalServices that carry an ``s_code`` get a 2026 profile. The 12
+  InternalServices with ``s_code=None`` are intentionally skipped per
+  FD-4 [F-S2-01] — InternalService BTC is derivation-only from the UM
+  matrix (no manual fallback); these 12 entities all have
+  ``to_business_pct=0`` so the BTC gate at DoI 2→3 stays untripped.
+- Two-mode mix:
+    * ``automatic`` — entities whose ``entities.py`` row carries an
+      ``s_code``. ``um_snapshot_at`` records which UM batch drove the
+      percentages; lines are emitted with the percentages computed at
+      seed-generation time (mirroring ``btc_service.compute_um_snapshot``).
+    * ``manual`` — Project / Offering entities without an ``s_code``.
+      Lines are emitted per the explicit per-entity distribution shape
+      designed in this module. **InternalService is never manual** per
+      [F-S2-01] (FD-4); the service-layer gate rejects manual creation,
+      so the seed cannot emit a manual InternalService profile either.
 - Year-rollover demonstrated for the two flagship offerings: ``off-mdh`` and
   ``off-eunify`` get **both** 2025 and 2026 profiles. The 2026 profile points
   to the 2025 profile via ``copied_from_profile_id`` (provenance chain).
@@ -92,73 +99,11 @@ DEMO_TUNING_OVERRIDES: dict[tuple[str, int], list[tuple[str, float]]] = {
 
 
 MANUAL_BTC_LINES: dict[str, list[tuple[str, float]]] = {
-    # --- Internal services (manual mode) ---
-    "svc-ident-auth": [
-        ("cl-de-muc", 50.0),
-        ("cl-hu-bud", 30.0),
-        ("cl-in-pun", 20.0),
-    ],
-    "svc-infra-platform": [
-        ("cl-de-muc", 40.0),
-        ("cl-de-fra", 20.0),
-        ("cl-hu-bud", 20.0),
-        ("cl-in-pun", 12.0),
-        ("cl-us-det", 8.0),
-    ],
-    "svc-data-stewardship": [
-        ("cl-de-muc", 45.0),
-        ("cl-de-stg", 25.0),
-        ("cl-hu-bud", 20.0),
-        ("cl-in-pun", 10.0),
-    ],
-    "svc-net-sec": [
-        ("cl-de-muc", 35.0),
-        ("cl-de-fra", 20.0),
-        ("cl-hu-bud", 18.0),
-        ("cl-in-pun", 12.0),
-        ("cl-us-det", 8.0),
-        ("cl-cn-sha", 7.0),
-    ],
-    "svc-middleware": [
-        ("cl-de-muc", 40.0),
-        ("cl-hu-bud", 30.0),
-        ("cl-in-pun", 20.0),
-        ("cl-us-det", 10.0),
-    ],
-    "svc-dba": [
-        ("cl-de-muc", 50.0),
-        ("cl-hu-bud", 30.0),
-        ("cl-in-pun", 20.0),
-    ],
-    "svc-rail-desk": [
-        ("cl-de-muc", 45.0),
-        ("cl-fr-par", 35.0),
-        ("cl-pl-poz", 20.0),
-    ],
-    "svc-signal-sup": [
-        ("cl-de-fra", 60.0),
-        ("cl-fr-par", 40.0),
-    ],
-    "svc-data-platform": [
-        ("cl-de-muc", 40.0),
-        ("cl-de-stg", 25.0),
-        ("cl-hu-bud", 20.0),
-        ("cl-in-pun", 15.0),
-    ],
-    "svc-iot-infra": [
-        ("cl-de-muc", 45.0),
-        ("cl-de-wol", 30.0),
-        ("cl-in-pun", 25.0),
-    ],
-    "svc-monitoring": [
-        ("cl-de-muc", 60.0),
-        ("cl-hu-bud", 40.0),
-    ],
-    "svc-devsec-tools": [
-        ("cl-de-muc", 50.0),
-        ("cl-hu-bud", 30.0),
-        ("cl-in-pun", 20.0),
-    ],
+    # FD-4 [F-S2-01]: InternalService manual BTC profiles are REMOVED.
+    # Internal services without an s_code (12 of the 17) have no BTC profile
+    # at all; the BTC gate at DoI 2→3 stays untripped because all 12 have
+    # to_business_pct=0. The 5 InternalServices with an s_code get an
+    # automatic profile via the s_code path below.
     # --- Offerings (manual mode — no s_code) ---
     "off-ecollab": [
         ("cl-de-muc", 22.0),
@@ -288,10 +233,13 @@ def _build_planned_profiles() -> list[_PlannedProfile]:
     plans: list[_PlannedProfile] = []
 
     # All "Run-portfolio" entities: 6 offerings + 17 internal services + 2
-    # Run-stage projects (DoI=5).
+    # Run-stage projects (DoI=5). Tag each row's source kind so we can apply
+    # the FD-4 [F-S2-01] InternalService-manual-skip rule cleanly below.
     run_portfolio: list[dict] = []
-    run_portfolio.extend(OFFERINGS)
-    run_portfolio.extend(INTERNAL_SERVICES)
+    for off in OFFERINGS:
+        run_portfolio.append({**off, "_kind": "offering"})
+    for svc in INTERNAL_SERVICES:
+        run_portfolio.append({**svc, "_kind": "internal_service"})
     for p in PROJECTS:
         if p.get("annual_cost") is not None:  # Run-stage marker (annual_cost set).
             run_portfolio.append({
@@ -299,14 +247,24 @@ def _build_planned_profiles() -> list[_PlannedProfile]:
                 "btc_mode": "manual",  # Run projects: manual default.
                 "s_code": None,
                 "annual_cost": p["annual_cost"],
+                "_kind": "project",
             })
 
     # Sort for determinism (id is unique within the roster).
     run_portfolio_sorted = sorted(run_portfolio, key=lambda e: e["id"])
 
-    # Pass 1: 2025 profiles for the rollover entities.
+    def _skip_internal_service(ent: dict) -> bool:
+        """FD-4 [F-S2-01] Path B: InternalService entities without an s_code
+        get no BTC profile. They all have to_business_pct=0 so the DoI 2→3
+        gate stays untripped; the 5 InternalServices with s_codes still get
+        an automatic profile via the s_code path."""
+        return ent.get("_kind") == "internal_service" and not ent.get("s_code")
+
+    # Pass 1: 2025 profiles for the rollover entities (flagship offerings only).
     for ent in run_portfolio_sorted:
         if ent["id"] not in _FLAGSHIP_ROLLOVER_ENTITIES:
+            continue
+        if _skip_internal_service(ent):
             continue
         mode = _entity_btc_mode(ent)
         s_code = _entity_s_code(ent)
@@ -315,6 +273,11 @@ def _build_planned_profiles() -> list[_PlannedProfile]:
             lines = _automatic_lines(s_code, 2025, 1)
             um_snap = _UM_SNAPSHOT_2025
         else:
+            # FD-4 [F-S2-01]: InternalService never reaches the manual branch.
+            assert ent.get("_kind") != "internal_service", (
+                f"InternalService '{ent['id']}' must not seed a manual BTC profile "
+                f"per [F-S2-01]."
+            )
             lines = _manual_lines_for(ent["id"])
             um_snap = None
         _assert_sums_to_100(ent["id"], 2025, lines)
@@ -329,8 +292,10 @@ def _build_planned_profiles() -> list[_PlannedProfile]:
             lines=lines,
         ))
 
-    # Pass 2: 2026 profiles for every Run-portfolio entity.
+    # Pass 2: 2026 profiles for every qualifying Run-portfolio entity.
     for ent in run_portfolio_sorted:
+        if _skip_internal_service(ent):
+            continue
         mode = _entity_btc_mode(ent)
         s_code = _entity_s_code(ent)
         if mode == "automatic":
@@ -338,6 +303,11 @@ def _build_planned_profiles() -> list[_PlannedProfile]:
             lines = _automatic_lines(s_code, 2026, 1)
             um_snap = _UM_SNAPSHOT_2026
         else:
+            # FD-4 [F-S2-01]: InternalService never reaches the manual branch.
+            assert ent.get("_kind") != "internal_service", (
+                f"InternalService '{ent['id']}' must not seed a manual BTC profile "
+                f"per [F-S2-01]."
+            )
             lines = _manual_lines_for(ent["id"])
             um_snap = None
         # Apply demo-tuning overrides (Item 8 — see DEMO_TUNING_OVERRIDES doc).

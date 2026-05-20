@@ -373,16 +373,17 @@
   {
     "id": "faq-v5-05",
     "question": "How is a BTC profile's automatic mode different from manual?",
-    "summary": "Manual: controller authors lines by hand and the editor enforces sum-to-100. Automatic: profile snapshots from the User Measurement (UM) matrix for a chosen S-code. Lines are read-only in automatic; switch to manual to override.",
+    "summary": "Manual: controller authors lines by hand for Projects and Offerings; the editor enforces sum-to-100. Automatic: profile snapshots from the User Measurement (UM) matrix for a chosen S-code. InternalService BTC is always automatic — manual mode is gated per [F-S2-01].",
     "applicable_roles": ["controller"],
     "modules_involved": ["charging"],
     "steps": [
       {"step_number": 1, "instruction": "Navigate to `/charging?section=btc` and click **+ New profile**.", "target_module": "charging"},
-      {"step_number": 2, "instruction": "**Manual tab** → pick year + target entity → Create. The editor opens blank; click **+ Add line**, pick a charging location, enter a percentage. Save is gated until Σ = 100% (tolerance ±0.01)."},
+      {"step_number": 2, "instruction": "**Manual tab** (Projects + Offerings only) → pick year + target entity → Create. The editor opens blank; click **+ Add line**, pick a charging location, enter a percentage. Save is gated until Σ = 100% (tolerance ±0.01)."},
       {"step_number": 3, "instruction": "**Automatic (UM) tab** → enter the S-code (e.g. S042 for Master Data Hub) → Create. The editor opens populated with normalised UM values; lines are read-only."},
-      {"step_number": 4, "instruction": "Automatic profiles get two extra header buttons: **Refresh from UM** (re-snapshots the matrix with a dry-run diff preview) and **Switch to manual** (inherits the snapshot verbatim, unlocking line edits)."},
-      {"step_number": 5, "instruction": "Use manual when the BTC mix doesn't follow UM (e.g., a deal-specific carve-out). Use automatic for the standard production case where measurement data drives allocation."},
-      {"step_number": 6, "instruction": "See also: workflows W07.4 (manual) and W07.5 (automatic) in `docs/workflows/07-charging.md`."}
+      {"step_number": 4, "instruction": "Automatic profiles get two extra header buttons: **Advance UM snapshot** (re-snapshots the matrix with a dry-run diff preview) and **Switch to manual** (inherits the snapshot verbatim, unlocking line edits — hidden for InternalService entities)."},
+      {"step_number": 5, "instruction": "Per [F-S2-01] (FD-4): when the target entity is an InternalService, the Manual and Copy tabs are hidden — InternalService BTC is derivation-only from the UM matrix. The mode-switch button is hidden too. The 12 InternalServices without an S-code carry no BTC profile at all (their to_business_pct=0 so they never trip the DoI gate)."},
+      {"step_number": 6, "instruction": "Use manual when the BTC mix doesn't follow UM (e.g., a deal-specific carve-out for a Project or Offering). Use automatic for the standard production case where measurement data drives allocation."},
+      {"step_number": 7, "instruction": "See also: workflows W07.4 (manual) and W07.5 (automatic) in `docs/workflows/07-charging.md`."}
     ]
   },
   {

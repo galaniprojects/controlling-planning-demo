@@ -267,10 +267,19 @@ def create_manual_profile(
     ``status`` defaults to ``'draft'``.
 
     Does not commit — caller commits within the audit-log transaction.
+
+    Per [F-S2-01] (FD-4): InternalService entities cannot use manual mode —
+    their BTC is derivation-only from the UM matrix. Attempts raise 409.
     """
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
         raise BTCValidationError(f"ChargeableEntity '{entity_id}' not found")
+    if entity.entity_type == "InternalService":
+        raise BTCValidationError(
+            f"InternalService '{entity_id}' cannot have a manual BTC profile "
+            f"per [F-S2-01]. InternalService BTC is derived from the UM "
+            f"matrix — use mode='automatic' with an S-code.",
+        )
     if status not in ("draft", "active"):
         raise BTCValidationError(f"Invalid status '{status}'; must be 'draft' or 'active'")
 
@@ -435,12 +444,88 @@ def update_profile(
 
 
 # ---------------------------------------------------------------------------
-# Refresh from UM (automatic mode only)
+# Activate profile (draft → active) — FD-4 [F-S2-02]
+# ---------------------------------------------------------------------------
+
+def activate_profile(
+    db: Session, profile_id: int,
+    *,
+    um_year: Optional[int] = None,
+    um_quarter: Optional[int] = None,
+) -> BTCProfile:
+    """Activate a draft BTC profile.
+
+    Snapshot-freeze semantics per FD-4 [F-S2-02]:
+
+    - **Automatic profiles** are re-snapshotted against the *currently active*
+      UM version for (um_year, um_quarter) at activate-time. The profile's
+      lines are replaced and ``um_snapshot_at`` is set to that version's
+      ``activated_at``. This lets a draft created under UM v1 freeze against
+      UM v2 when activated later, which is the reproducibility contract
+      (spec §5 — what gets frozen is what was active when this profile became
+      active). Existing ``create_automatic_profile(status='active')`` paths
+      still freeze at create-time and are unaffected.
+    - **Manual profiles** (Project/Offering only — InternalService is gated
+      out per [F-S2-01]) re-validate the sum-to-100 invariant and flip
+      status. No line mutation, no snapshot field touched.
+
+    Raises ``BTCValidationError`` when:
+    - The profile is already active.
+    - An automatic profile's S-code has no UM rows in the resolved version.
+    - A manual profile's lines no longer sum to 100 within tolerance.
+
+    Does not commit — caller commits within the audit-log transaction.
+    """
+    profile = get_profile(db, profile_id)
+    if profile.status == "active":
+        raise BTCValidationError(
+            f"Profile {profile_id} is already active.",
+        )
+
+    if profile.mode == "automatic":
+        if not profile.s_code:
+            raise BTCValidationError(
+                f"Profile {profile_id} is automatic but has no s_code; "
+                f"cannot snapshot from UM.",
+            )
+        snap_year, snap_quarter = _current_quarter(um_year)
+        if um_quarter is not None:
+            snap_quarter = um_quarter
+        # Re-derive against the *currently active* UM version at this moment.
+        snapshot = compute_um_snapshot(
+            db, profile.s_code, snap_year, snap_quarter,
+        )
+        # Replace lines + advance the snapshot watermark.
+        for old_line in list(profile.lines):
+            db.delete(old_line)
+        db.flush()
+        for row in snapshot.rows:
+            db.add(BTCProfileLine(
+                profile_id=profile.id,
+                charging_location_id=row.charging_location_id,
+                percentage=Decimal(str(round(row.percentage, 2))),
+            ))
+        db.flush()
+        # um_snapshot_at = UMVersion.activated_at of the version we just froze
+        # against (mirrors compute_um_snapshot, which sets imported_at to that
+        # value).
+        profile.um_snapshot_at = snapshot.imported_at
+    else:
+        # manual — Project/Offering only ([F-S2-01] gate at create_manual_profile).
+        assert_sums_to_100(list(profile.lines))
+
+    profile.status = "active"
+    profile.modified_at = datetime.utcnow()
+    return profile
+
+
+# ---------------------------------------------------------------------------
+# Advance UM snapshot (automatic mode only) — FD-4 [F-S2-02]
 # ---------------------------------------------------------------------------
 
 @dataclass
 class BTCRefreshDiff:
-    """Dry-run diff showing how an automatic profile's lines would change."""
+    """Dry-run diff showing how an automatic profile's UM snapshot would advance."""
     profile_id: int
     s_code: str
     year: int
@@ -460,33 +545,48 @@ def refresh_from_um(
     um_quarter: Optional[int] = None,
     dry_run: bool = False,
 ) -> BTCRefreshDiff:
-    """Re-derive an automatic profile's lines from the latest UM data.
+    """Deliberately advance an automatic profile's UM snapshot.
+
+    Per FD-4 [F-S2-02], this is the explicit "advance to a newer UM batch"
+    action — not a reconciliation. The profile already holds a frozen
+    snapshot captured at activate-time for SAP-export reproducibility;
+    this call re-derives lines from the *currently active* UM version
+    (or the explicit ``um_year``/``um_quarter`` override) and refreshes
+    the ``um_snapshot_at`` watermark to that version's ``activated_at``.
 
     When ``dry_run=True``, returns the diff without committing any changes.
     When ``dry_run=False``, replaces the lines in-place (does not commit).
 
     Raises BTCValidationError when UM data is absent.
     """
-    profile = get_profile(db, profile_id)
-    if profile.mode != "automatic":
+    advance_target = get_profile(db, profile_id)
+    if advance_target.mode != "automatic":
         raise BTCValidationError(
-            f"Profile {profile_id} is '{profile.mode}' mode; "
-            "refresh_from_um is only valid for automatic profiles.",
+            f"Profile {profile_id} is '{advance_target.mode}' mode; "
+            "UM snapshot advance is only valid for automatic profiles.",
         )
-    if not profile.s_code:
+    if not advance_target.s_code:
         raise BTCValidationError(
-            f"Profile {profile_id} has no s_code; cannot refresh from UM.",
+            f"Profile {profile_id} has no s_code; cannot advance UM snapshot.",
         )
 
     snap_year, snap_quarter = _current_quarter(um_year)
     if um_quarter is not None:
         snap_quarter = um_quarter
 
-    snapshot = compute_um_snapshot(db, profile.s_code, snap_year, snap_quarter)
+    new_snapshot = compute_um_snapshot(
+        db, advance_target.s_code, snap_year, snap_quarter,
+    )
 
-    # Compute diff.
-    current_map = {line.charging_location_id: float(line.percentage) for line in profile.lines}
-    new_map = {row.charging_location_id: round(row.percentage, 2) for row in snapshot.rows}
+    # Compute diff between the currently-frozen snapshot and the new one.
+    current_map = {
+        line.charging_location_id: float(line.percentage)
+        for line in advance_target.lines
+    }
+    new_map = {
+        row.charging_location_id: round(row.percentage, 2)
+        for row in new_snapshot.rows
+    }
 
     added = [cl_id for cl_id in new_map if cl_id not in current_map]
     removed = [cl_id for cl_id in current_map if cl_id not in new_map]
@@ -498,7 +598,7 @@ def refresh_from_um(
 
     diff = BTCRefreshDiff(
         profile_id=profile_id,
-        s_code=profile.s_code,
+        s_code=advance_target.s_code,
         year=snap_year,
         quarter=snap_quarter,
         current_lines=[{"cl_id": k, "old_pct": v} for k, v in current_map.items()],
@@ -506,25 +606,25 @@ def refresh_from_um(
         added=added,
         removed=removed,
         changed=changed,
-        would_sum_to_100=snapshot.sums_to_100,
+        would_sum_to_100=new_snapshot.sums_to_100,
     )
 
     if not dry_run:
-        # Replace lines.
-        for old_line in list(profile.lines):
+        # Replace lines with the newly-advanced snapshot.
+        for old_line in list(advance_target.lines):
             db.delete(old_line)
         db.flush()
 
-        for row in snapshot.rows:
+        for row in new_snapshot.rows:
             line = BTCProfileLine(
-                profile_id=profile.id,
+                profile_id=advance_target.id,
                 charging_location_id=row.charging_location_id,
                 percentage=Decimal(str(round(row.percentage, 2))),
             )
             db.add(line)
         db.flush()
-        profile.um_snapshot_at = snapshot.imported_at
-        profile.modified_at = datetime.utcnow()
+        advance_target.um_snapshot_at = new_snapshot.imported_at
+        advance_target.modified_at = datetime.utcnow()
 
     return diff
 
@@ -560,9 +660,20 @@ def change_mode(
     For transitions that could lose data, ``confirm=False`` returns a warning;
     ``confirm=True`` proceeds.
 
+    Per [F-S2-01] (FD-4): InternalService entities cannot transition modes
+    — their BTC is derivation-only. Attempts raise 409.
+
     Does not commit — caller commits.
     """
     profile = get_profile(db, profile_id)
+
+    entity = db.query(ChargeableEntity).filter_by(id=profile.entity_id).first()
+    if entity is not None and entity.entity_type == "InternalService":
+        raise BTCValidationError(
+            f"InternalService '{profile.entity_id}' cannot change BTC mode "
+            f"per [F-S2-01]. InternalService BTC stays derivation-only from "
+            f"the UM matrix.",
+        )
 
     if (profile.mode, new_mode) not in VALID_MODE_TRANSITIONS:
         raise BTCValidationError(

@@ -123,6 +123,20 @@ class BTCRefreshDiffResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Activate (draft → active) — FD-4 [F-S2-02]
+# ---------------------------------------------------------------------------
+
+class BTCActivateRequest(BaseModel):
+    """Optional UM (year, quarter) override for the automatic snapshot freeze.
+
+    With both omitted, the service resolves the currently active UM version
+    for the demo's default (year, quarter). Manual profiles ignore both.
+    """
+    um_year: Optional[int] = Field(None, ge=2020, le=2040)
+    um_quarter: Optional[int] = Field(None, ge=1, le=4)
+
+
+# ---------------------------------------------------------------------------
 # Mode change
 # ---------------------------------------------------------------------------
 

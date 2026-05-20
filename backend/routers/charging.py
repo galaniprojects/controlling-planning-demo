@@ -9,7 +9,8 @@ from __future__ import annotations
 from datetime import date
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -23,9 +24,9 @@ from models.people import Person
 from models.projects import Project
 from models.system import AuditLog
 from schemas.btc_profile import (
-    BTCCopyFromRequest, BTCModeChangeRequest, BTCProfileCreate,
-    BTCProfileListResponse, BTCProfileResponse, BTCProfileUpdate,
-    BTCRefreshDiffRequest, BTCRefreshDiffResponse,
+    BTCActivateRequest, BTCCopyFromRequest, BTCModeChangeRequest,
+    BTCProfileCreate, BTCProfileListResponse, BTCProfileResponse,
+    BTCProfileUpdate, BTCRefreshDiffRequest, BTCRefreshDiffResponse,
     WBSMatrixResponse as WBSMatrixSchemaResponse,
     YearRolloverRequest, YearRolloverResponse,
 )
@@ -39,6 +40,7 @@ from schemas.rollup import (
     LocationBreakdownResponse,
     RollupCacheStatusResponse, RollupDrillDownResponse, RollupListResponse,
 )
+from schemas.sap_export import SAPExportListResponse, SAPExportRowResponse
 from schemas.charging import (
     ChargingLocationCreate, ChargingLocationResponse, ChargingLocationUpdate,
     CountryCreate, CountryResponse, CountryUpdate,
@@ -57,7 +59,7 @@ from schemas.distribution import (
     EntityStage1View, WBSElementResponse,
 )
 from services.btc_service import (
-    BTCValidationError, assert_btc_required,
+    BTCValidationError, activate_profile, assert_btc_required,
     build_wbs_matrix, change_mode, copy_from_profile, create_automatic_profile,
     create_manual_profile, compute_sums_to_100, get_profile,
     get_profile_for_entity, list_profiles, refresh_from_um,
@@ -78,6 +80,7 @@ from services.rollup_cache import (
     get_cache_status, invalidate_all, invalidate_for_btc_write,
     invalidate_for_entity_cost_write, invalidate_for_version,
 )
+from services.sap_export_service import build_sap_export
 from models.charging import DistributionVersion
 from services.rollup_query import (
     drill_down_charging_location, get_location_breakdown,
@@ -1925,6 +1928,47 @@ def refresh_btc_profile_from_um(
 
 
 @charging_router.post(
+    "/btc-profiles/{profile_id}/activate",
+    response_model=BTCProfileResponse,
+)
+def activate_btc_profile(
+    profile_id: int,
+    body: BTCActivateRequest = Body(default_factory=lambda: BTCActivateRequest()),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> BTCProfileResponse:
+    """Activate a draft BTC profile per FD-4 [F-S2-02].
+
+    Snapshot-freeze semantics:
+    - Automatic profiles re-snapshot against the currently active UM
+      version at activate-time. Optional ``um_year``/``um_quarter``
+      override the (year, quarter) lookup.
+    - Manual profiles re-validate sum-to-100 and flip status.
+
+    InternalService manual mode is blocked at create-time per [F-S2-01],
+    so this endpoint only sees Project/Offering manual profiles.
+    """
+    try:
+        profile = activate_profile(
+            db, profile_id,
+            um_year=body.um_year, um_quarter=body.um_quarter,
+        )
+    except BTCValidationError as e:
+        raise _btc_error_to_http(e)
+
+    _audit(
+        db, user, "btc_profile", str(profile_id),
+        f"entity={profile.entity_id} year={profile.year}",
+        "activate", "status", "draft", "active",
+        category="master_data",
+    )
+    invalidate_for_btc_write(db, profile.entity_id, profile.year)
+    db.commit()
+    db.refresh(profile)
+    return _serialize_btc_profile(profile)
+
+
+@charging_router.post(
     "/btc-profiles/{profile_id}/change-mode",
     response_model=BTCProfileResponse,
 )
@@ -2075,6 +2119,128 @@ def btc_year_rollover(
         rolled_over=result.rolled_over,
         skipped=result.skipped,
         errors=result.errors,
+    )
+
+
+# ===========================================================================
+# FD-4 [F-EXP-01] — SAP export endpoint
+# ===========================================================================
+
+_SAP_EXPORT_CSV_HEADER = (
+    "wbs_element,entity_id,entity_identifier,entity_name,entity_type,"
+    "charging_location_id,charging_location_code,charging_location_name,"
+    "year,percentage,annual_amount_eur\n"
+)
+
+_VALID_ENTITY_TYPES = ("Project", "Offering", "InternalService")
+
+
+def _csv_escape(value: object) -> str:
+    """Minimal CSV escaping — quote when the value contains a comma, quote,
+    or newline; double up embedded quotes."""
+    if value is None:
+        return ""
+    s = str(value)
+    if any(ch in s for ch in (',', '"', '\n', '\r')):
+        return '"' + s.replace('"', '""') + '"'
+    return s
+
+
+def _sap_export_csv_rows(payload) -> "Iterable[str]":  # type: ignore[name-defined]
+    yield _SAP_EXPORT_CSV_HEADER
+    for r in payload.rows:
+        yield (
+            f"{_csv_escape(r.wbs_element)},"
+            f"{_csv_escape(r.entity_id)},"
+            f"{_csv_escape(r.entity_identifier)},"
+            f"{_csv_escape(r.entity_name)},"
+            f"{_csv_escape(r.entity_type)},"
+            f"{_csv_escape(r.charging_location_id)},"
+            f"{_csv_escape(r.charging_location_code)},"
+            f"{_csv_escape(r.charging_location_name)},"
+            f"{r.year},"
+            f"{r.percentage:.2f},"
+            f"{'' if r.annual_amount_eur is None else f'{r.annual_amount_eur:.2f}'}\n"
+        )
+
+
+@charging_router.get("/sap-export")
+def get_sap_export(
+    year: int,
+    entity_type: str | None = Query(default=None),
+    format: str = Query(default="json", pattern="^(json|csv)$"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+):
+    """SAP export for ``year`` per FD-4 [F-EXP-01].
+
+    Each row is one (entity, charging-location) tuple drawn from the frozen
+    active BTC profile for the year. Entities with ``to_business_pct > 0``
+    but no active profile land in ``missing_profiles`` (JSON) / are silently
+    omitted from CSV (the CSV is a SAP handoff artefact, not a punch list).
+
+    Query params:
+    - ``year`` (required) — charging year.
+    - ``entity_type`` — optional ``Project`` / ``Offering`` / ``InternalService``.
+    - ``format`` — ``json`` (default, in-app inspection) or ``csv``
+      (file download via Content-Disposition).
+    """
+    if entity_type is not None and entity_type not in _VALID_ENTITY_TYPES:
+        raise HTTPException(
+            422,
+            f"entity_type must be one of {_VALID_ENTITY_TYPES}; got {entity_type!r}",
+        )
+
+    payload = build_sap_export(db, year, entity_type=entity_type)
+
+    # Audit each call so the controller can prove a SAP handoff happened.
+    # We use category='master_data' (the existing BTC write category) —
+    # 'export' is not a registered audit-filter category in AUDIT_CATEGORIES,
+    # which would render the row invisible to the audit-log filter UI.
+    et_label = entity_type or "all"
+    _audit(
+        db, user, "sap_export", f"{year}",
+        f"sap_export year={year} entity_type={et_label} format={format}",
+        "export",
+        new_value=f"rows={payload.total} missing={len(payload.missing_profiles)} format={format}",
+        category="master_data",
+    )
+    db.commit()
+
+    if format == "csv":
+        filename = (
+            f"creta-sap-export-{year}.csv"
+            if entity_type is None
+            else f"creta-sap-export-{year}-{entity_type.lower()}.csv"
+        )
+        return StreamingResponse(
+            _sap_export_csv_rows(payload),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+    items = [
+        SAPExportRowResponse(
+            wbs_element=r.wbs_element,
+            entity_id=r.entity_id,
+            entity_identifier=r.entity_identifier,
+            entity_name=r.entity_name,
+            entity_type=r.entity_type,
+            charging_location_id=r.charging_location_id,
+            charging_location_code=r.charging_location_code,
+            charging_location_name=r.charging_location_name,
+            year=r.year,
+            percentage=r.percentage,
+            annual_amount_eur=r.annual_amount_eur,
+        )
+        for r in payload.rows
+    ]
+    return SAPExportListResponse(
+        year=payload.year,
+        entity_type=payload.entity_type,
+        items=items,
+        missing_profiles=payload.missing_profiles,
+        total=payload.total,
     )
 
 

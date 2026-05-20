@@ -673,8 +673,8 @@ INSERT INTO distributions (version_id, source_entity_id, destination_entity_id, 
 
 -- =============================================================================
 -- s09_btc / BTC profiles + lines [F-S2-01..08] [A-PL-06]
--- 27 profiles (2 × 2025 rollover, 25 × 2026)
--- 245 lines total (16 manual + 11 automatic profiles).
+-- 15 profiles (2 × 2025 rollover, 13 × 2026)
+-- 203 lines total (4 manual + 11 automatic profiles).
 -- Year-rollover: 2026 profiles for off-mdh, off-eunify reference 2025 via copied_from_profile_id.
 -- =============================================================================
 
@@ -690,22 +690,10 @@ INSERT INTO btc_profiles (entity_id, year, mode, s_code, um_snapshot_at, status,
 ('off-supplyvis', 2026, 'automatic', 'S155', '2026-01-15 10:00:00', 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
 ('proj-cloud3-run', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
 ('proj-iam-run', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
-('svc-data-platform', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
-('svc-data-stewardship', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
-('svc-dba', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
-('svc-devsec-tools', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
 ('svc-euc-support', 2026, 'automatic', 'S312', '2026-01-15 10:00:00', 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
-('svc-ident-auth', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
-('svc-infra-platform', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
-('svc-iot-infra', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
 ('svc-itsm', 2026, 'automatic', 'S720', '2026-01-15 10:00:00', 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
-('svc-middleware', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
-('svc-monitoring', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
-('svc-net-sec', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
-('svc-rail-desk', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
 ('svc-rail-maint', 2026, 'automatic', 'S408', '2026-01-15 10:00:00', 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
 ('svc-sap-basis', 2026, 'automatic', 'S301', '2026-01-15 10:00:00', 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
-('svc-signal-sup', 2026, 'manual', NULL, NULL, 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00'),
 ('svc-tbs-maint', 2026, 'automatic', 'S503', '2026-01-15 10:00:00', 'active', NULL, '2026-01-20 09:00:00', '2026-01-20 09:00:00');
 
 -- BTC profile lines (sums to 100% per profile within tolerance 0.01).
@@ -871,172 +859,94 @@ INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VAL
 (10, 'cl-in-pun', 20.0),
 (10, 'cl-us-det', 10.0);
 
--- Profile 11: svc-data-platform 2026 (manual) — 4 lines
+-- Profile 11: svc-euc-support 2026 (automatic, s_code=S312) — 30 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(11, 'cl-de-muc', 40.0),
-(11, 'cl-de-stg', 25.0),
-(11, 'cl-hu-bud', 20.0),
-(11, 'cl-in-pun', 15.0);
+(11, 'cl-cn-sha', 5.27),
+(11, 'cl-cz-prg', 2.81),
+(11, 'cl-de-ber', 3.45),
+(11, 'cl-de-col', 2.69),
+(11, 'cl-de-dus', 0.76),
+(11, 'cl-de-fra', 1.11),
+(11, 'cl-de-ham', 2.46),
+(11, 'cl-de-lei', 3.22),
+(11, 'cl-de-muc', 8.95),
+(11, 'cl-de-nur', 3.39),
+(11, 'cl-de-stg', 5.68),
+(11, 'cl-de-wol', 3.04),
+(11, 'cl-es-bar', 3.8),
+(11, 'cl-es-mad', 2.28),
+(11, 'cl-fr-lyo', 3.92),
+(11, 'cl-fr-mar', 3.69),
+(11, 'cl-fr-par', 5.73),
+(11, 'cl-fr-tou', 1.17),
+(11, 'cl-hu-bud', 1.93),
+(11, 'cl-in-pun', 3.1),
+(11, 'cl-it-mil', 1.23),
+(11, 'cl-it-rom', 1.11),
+(11, 'cl-nl-ams', 1.76),
+(11, 'cl-pl-poz', 2.69),
+(11, 'cl-pl-war', 4.92),
+(11, 'cl-uk-bir', 4.68),
+(11, 'cl-uk-lon', 6.32),
+(11, 'cl-uk-man', 3.22),
+(11, 'cl-us-det', 2.28),
+(11, 'cl-us-nyc', 3.34);
 
--- Profile 12: svc-data-stewardship 2026 (manual) — 4 lines
+-- Profile 12: svc-itsm 2026 (automatic, s_code=S720) — 18 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(12, 'cl-de-muc', 45.0),
-(12, 'cl-de-stg', 25.0),
-(12, 'cl-hu-bud', 20.0),
-(12, 'cl-in-pun', 10.0);
+(12, 'cl-cn-sha', 3.45),
+(12, 'cl-de-ber', 8.45),
+(12, 'cl-de-fra', 4.0),
+(12, 'cl-de-ham', 4.34),
+(12, 'cl-de-muc', 10.68),
+(12, 'cl-de-stg', 5.56),
+(12, 'cl-de-wol', 5.01),
+(12, 'cl-es-mad', 2.34),
+(12, 'cl-fr-lyo', 8.34),
+(12, 'cl-fr-par', 2.78),
+(12, 'cl-hu-bud', 1.22),
+(12, 'cl-in-pun', 7.68),
+(12, 'cl-it-mil', 1.11),
+(12, 'cl-nl-ams', 6.23),
+(12, 'cl-pl-poz', 1.22),
+(12, 'cl-uk-lon', 11.12),
+(12, 'cl-uk-man', 1.56),
+(12, 'cl-us-det', 14.91);
 
--- Profile 13: svc-dba 2026 (manual) — 3 lines
+-- Profile 13: svc-rail-maint 2026 (automatic, s_code=S408) — 6 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(13, 'cl-de-muc', 50.0),
-(13, 'cl-hu-bud', 30.0),
-(13, 'cl-in-pun', 20.0);
+(13, 'cl-de-fra', 15.6),
+(13, 'cl-de-muc', 10.89),
+(13, 'cl-de-stg', 8.91),
+(13, 'cl-fr-par', 26.73),
+(13, 'cl-pl-poz', 3.96),
+(13, 'cl-uk-lon', 33.91);
 
--- Profile 14: svc-devsec-tools 2026 (manual) — 3 lines
+-- Profile 14: svc-sap-basis 2026 (automatic, s_code=S301) — 9 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(14, 'cl-de-muc', 50.0),
-(14, 'cl-hu-bud', 30.0),
-(14, 'cl-in-pun', 20.0);
+(14, 'cl-de-muc', 18.43),
+(14, 'cl-de-stg', 10.61),
+(14, 'cl-es-mad', 9.72),
+(14, 'cl-fr-lyo', 17.3),
+(14, 'cl-hu-bud', 4.8),
+(14, 'cl-in-pun', 14.39),
+(14, 'cl-it-mil', 10.48),
+(14, 'cl-pl-poz', 6.82),
+(14, 'cl-uk-lon', 7.45);
 
--- Profile 15: svc-euc-support 2026 (automatic, s_code=S312) — 30 lines
+-- Profile 15: svc-tbs-maint 2026 (automatic, s_code=S503) — 8 lines
 INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(15, 'cl-cn-sha', 5.27),
-(15, 'cl-cz-prg', 2.81),
-(15, 'cl-de-ber', 3.45),
-(15, 'cl-de-col', 2.69),
-(15, 'cl-de-dus', 0.76),
-(15, 'cl-de-fra', 1.11),
-(15, 'cl-de-ham', 2.46),
-(15, 'cl-de-lei', 3.22),
-(15, 'cl-de-muc', 8.95),
-(15, 'cl-de-nur', 3.39),
-(15, 'cl-de-stg', 5.68),
-(15, 'cl-de-wol', 3.04),
-(15, 'cl-es-bar', 3.8),
-(15, 'cl-es-mad', 2.28),
-(15, 'cl-fr-lyo', 3.92),
-(15, 'cl-fr-mar', 3.69),
-(15, 'cl-fr-par', 5.73),
-(15, 'cl-fr-tou', 1.17),
-(15, 'cl-hu-bud', 1.93),
-(15, 'cl-in-pun', 3.1),
-(15, 'cl-it-mil', 1.23),
-(15, 'cl-it-rom', 1.11),
-(15, 'cl-nl-ams', 1.76),
-(15, 'cl-pl-poz', 2.69),
-(15, 'cl-pl-war', 4.92),
-(15, 'cl-uk-bir', 4.68),
-(15, 'cl-uk-lon', 6.32),
-(15, 'cl-uk-man', 3.22),
-(15, 'cl-us-det', 2.28),
-(15, 'cl-us-nyc', 3.34);
+(15, 'cl-de-muc', 21.82),
+(15, 'cl-de-stg', 13.71),
+(15, 'cl-de-wol', 5.08),
+(15, 'cl-fr-lyo', 6.35),
+(15, 'cl-hu-bud', 16.75),
+(15, 'cl-it-mil', 9.14),
+(15, 'cl-pl-poz', 7.61),
+(15, 'cl-us-det', 19.54);
 
--- Profile 16: svc-ident-auth 2026 (manual) — 3 lines
-INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(16, 'cl-de-muc', 50.0),
-(16, 'cl-hu-bud', 30.0),
-(16, 'cl-in-pun', 20.0);
-
--- Profile 17: svc-infra-platform 2026 (manual) — 5 lines
-INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(17, 'cl-de-muc', 40.0),
-(17, 'cl-de-fra', 20.0),
-(17, 'cl-hu-bud', 20.0),
-(17, 'cl-in-pun', 12.0),
-(17, 'cl-us-det', 8.0);
-
--- Profile 18: svc-iot-infra 2026 (manual) — 3 lines
-INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(18, 'cl-de-muc', 45.0),
-(18, 'cl-de-wol', 30.0),
-(18, 'cl-in-pun', 25.0);
-
--- Profile 19: svc-itsm 2026 (automatic, s_code=S720) — 18 lines
-INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(19, 'cl-cn-sha', 3.45),
-(19, 'cl-de-ber', 8.45),
-(19, 'cl-de-fra', 4.0),
-(19, 'cl-de-ham', 4.34),
-(19, 'cl-de-muc', 10.68),
-(19, 'cl-de-stg', 5.56),
-(19, 'cl-de-wol', 5.01),
-(19, 'cl-es-mad', 2.34),
-(19, 'cl-fr-lyo', 8.34),
-(19, 'cl-fr-par', 2.78),
-(19, 'cl-hu-bud', 1.22),
-(19, 'cl-in-pun', 7.68),
-(19, 'cl-it-mil', 1.11),
-(19, 'cl-nl-ams', 6.23),
-(19, 'cl-pl-poz', 1.22),
-(19, 'cl-uk-lon', 11.12),
-(19, 'cl-uk-man', 1.56),
-(19, 'cl-us-det', 14.91);
-
--- Profile 20: svc-middleware 2026 (manual) — 4 lines
-INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(20, 'cl-de-muc', 40.0),
-(20, 'cl-hu-bud', 30.0),
-(20, 'cl-in-pun', 20.0),
-(20, 'cl-us-det', 10.0);
-
--- Profile 21: svc-monitoring 2026 (manual) — 2 lines
-INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(21, 'cl-de-muc', 60.0),
-(21, 'cl-hu-bud', 40.0);
-
--- Profile 22: svc-net-sec 2026 (manual) — 6 lines
-INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(22, 'cl-de-muc', 35.0),
-(22, 'cl-de-fra', 20.0),
-(22, 'cl-hu-bud', 18.0),
-(22, 'cl-in-pun', 12.0),
-(22, 'cl-us-det', 8.0),
-(22, 'cl-cn-sha', 7.0);
-
--- Profile 23: svc-rail-desk 2026 (manual) — 3 lines
-INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(23, 'cl-de-muc', 45.0),
-(23, 'cl-fr-par', 35.0),
-(23, 'cl-pl-poz', 20.0);
-
--- Profile 24: svc-rail-maint 2026 (automatic, s_code=S408) — 6 lines
-INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(24, 'cl-de-fra', 15.6),
-(24, 'cl-de-muc', 10.89),
-(24, 'cl-de-stg', 8.91),
-(24, 'cl-fr-par', 26.73),
-(24, 'cl-pl-poz', 3.96),
-(24, 'cl-uk-lon', 33.91);
-
--- Profile 25: svc-sap-basis 2026 (automatic, s_code=S301) — 9 lines
-INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(25, 'cl-de-muc', 18.43),
-(25, 'cl-de-stg', 10.61),
-(25, 'cl-es-mad', 9.72),
-(25, 'cl-fr-lyo', 17.3),
-(25, 'cl-hu-bud', 4.8),
-(25, 'cl-in-pun', 14.39),
-(25, 'cl-it-mil', 10.48),
-(25, 'cl-pl-poz', 6.82),
-(25, 'cl-uk-lon', 7.45);
-
--- Profile 26: svc-signal-sup 2026 (manual) — 2 lines
-INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(26, 'cl-de-fra', 60.0),
-(26, 'cl-fr-par', 40.0);
-
--- Profile 27: svc-tbs-maint 2026 (automatic, s_code=S503) — 8 lines
-INSERT INTO btc_profile_lines (profile_id, charging_location_id, percentage) VALUES
-(27, 'cl-de-muc', 21.82),
-(27, 'cl-de-stg', 13.71),
-(27, 'cl-de-wol', 5.08),
-(27, 'cl-fr-lyo', 6.35),
-(27, 'cl-hu-bud', 16.75),
-(27, 'cl-it-mil', 9.14),
-(27, 'cl-pl-poz', 7.61),
-(27, 'cl-us-det', 19.54);
-
--- Total btc_profiles: 27
--- Total btc_profile_lines: 245
+-- Total btc_profiles: 15
+-- Total btc_profile_lines: 203
 
 
 -- =============================================================================

@@ -2035,6 +2035,16 @@ export const chargingApi = {
     dry_run?: boolean;
   }) =>
     api.post<BTCRefreshDiffResult>(`/api/charging/btc-profiles/${id}/refresh-um`, data),
+  /**
+   * FD-4 [F-S2-02]: explicit activate (draft -> active). Automatic profiles
+   * are re-snapshotted against the currently active UM version at this
+   * moment; manual profiles get a fresh sum-to-100 check.
+   */
+  activateBTCProfile: (id: number, data: {
+    um_year?: number | null;
+    um_quarter?: number | null;
+  }) =>
+    api.post<BTCProfileItem>(`/api/charging/btc-profiles/${id}/activate`, data),
   changeBTCMode: (id: number, data: {
     new_mode: BTCMode;
     s_code?: string | null;
