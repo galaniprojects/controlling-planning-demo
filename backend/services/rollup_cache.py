@@ -1,12 +1,21 @@
-"""Persistent rollup cache for Cluster F Stage 1 and Stage 2 cost aggregations.
+"""Persistent rollup cache for Stage 1 and Stage 2 cost aggregations.
 
-Per [F-RV-01..06]:
+Per `[F-RV-01..06]`:
 
 Two cache layers:
+
 - ``'stage1_effective'``: Effective cost per entity (own + inflows) computed
-  by ``services/dag_resolver.compute_effective_cost``. Key: entity_id.
+  by ``services/dag_resolver.compute_effective_cost``. Key: ``entity_id``.
 - ``'stage2_location'``: Per-charging-location cost for an entity after
   applying BTC profile percentages (Stage 2). Key: ``<entity_id>:<cl_id>``.
+
+**FD-3 rework (Charging/UM round, cluster B1 — service rescope):** the v4
+free-form ``version`` String (``baseline`` / ``forecast`` / ``actuals`` /
+``scenario-<id>``) has been retired. Cache rows now FK to a
+``DistributionVersion`` via ``version_id`` so cache keys align with the
+Stage 1 source of truth. ``year`` is retained — Stage 2 BTC profiles are
+one-per-``(entity, year)``, so cache rows scope by the year of the cost
+being distributed.
 
 Cache invalidation is write-through: each Distribution write, BTC profile
 write, and annual_cost write calls the relevant invalidate helper. The
@@ -18,9 +27,9 @@ Cache hits/misses are handled transparently:
 - On MISS: recompute, insert (or replace-on-unique-conflict), return result.
 - On HIT: deserialize and return cached payload.
 
-Justification for persistent over in-memory: simulator (B1) needs reads
-outside the writing request; survives uvicorn reload during demos; demo
-scale is trivial.
+Justification for persistent over in-memory: the simulator (lever 12) needs
+reads outside the writing request; survives uvicorn reload during demos;
+demo scale is trivial.
 """
 
 from __future__ import annotations
@@ -47,14 +56,14 @@ LAYER_STAGE2 = "stage2_location"
 # ---------------------------------------------------------------------------
 
 def _get_entry(
-    db: Session, cache_layer: str, year: int, version: str, key_id: str,
+    db: Session, cache_layer: str, year: int, version_id: int, key_id: str,
 ) -> Optional[RollupCache]:
     return (
         db.query(RollupCache)
         .filter(
             RollupCache.cache_layer == cache_layer,
             RollupCache.year == year,
-            RollupCache.version == version,
+            RollupCache.version_id == version_id,
             RollupCache.key_id == key_id,
         )
         .first()
@@ -65,17 +74,17 @@ def _upsert_entry(
     db: Session,
     cache_layer: str,
     year: int,
-    version: str,
+    version_id: int,
     key_id: str,
     payload: dict,
 ) -> RollupCache:
     """Upsert a cache entry using get-or-create-then-update."""
-    entry = _get_entry(db, cache_layer, year, version, key_id)
+    entry = _get_entry(db, cache_layer, year, version_id, key_id)
     if entry is None:
         entry = RollupCache(
             cache_layer=cache_layer,
             year=year,
-            version=version,
+            version_id=version_id,
             key_id=key_id,
             payload_json=json.dumps(payload),
             computed_at=datetime.utcnow(),
@@ -90,14 +99,14 @@ def _upsert_entry(
 
 
 def _delete_entries(
-    db: Session, cache_layer: str, year: int, version: str,
+    db: Session, cache_layer: str, year: int, version_id: int,
     key_id: Optional[str] = None,
 ) -> int:
     """Delete cache entries matching the given criteria. Returns deleted count."""
     q = db.query(RollupCache).filter(
         RollupCache.cache_layer == cache_layer,
         RollupCache.year == year,
-        RollupCache.version == version,
+        RollupCache.version_id == version_id,
     )
     if key_id is not None:
         q = q.filter(RollupCache.key_id == key_id)
@@ -111,30 +120,30 @@ def _delete_entries(
 # ---------------------------------------------------------------------------
 
 def get_stage1_effective(
-    db: Session, year: int, version: str, entity_id: str,
+    db: Session, year: int, version_id: int, entity_id: str,
 ) -> dict:
     """Return the effective cost for an entity, using the cache.
 
     On cache miss: calls ``compute_effective_cost``, stores result, returns it.
     On cache hit: deserialises and returns cached dict.
 
-    The returned dict has the shape of ``EffectiveCostResult`` serialised to
-    JSON (see services/dag_resolver.py).
+    The returned dict has the shape of ``EffectiveCostResult`` serialised
+    to JSON (see services/dag_resolver.py).
     """
     from services.dag_resolver import compute_effective_cost
 
-    entry = _get_entry(db, LAYER_STAGE1, year, version, entity_id)
+    entry = _get_entry(db, LAYER_STAGE1, year, version_id, entity_id)
     if entry is not None:
         return json.loads(entry.payload_json)
 
-    # Cache miss — compute.
-    result = compute_effective_cost(db, year, version, entity_id)
+    result = compute_effective_cost(db, year, version_id, entity_id)
     payload = {
         "entity_id": result.entity_id,
         "entity_name": result.entity_name,
         "year": result.year,
-        "version": result.version,
+        "version_id": result.version_id,
         "own_cost": float(result.own_cost),
+        "own_cost_source": result.own_cost_source,
         "inflows": [
             {
                 "source_entity_id": c.source_entity_id,
@@ -147,7 +156,7 @@ def get_stage1_effective(
         "inflow_total": float(result.inflow_total),
         "effective_cost": float(result.effective_cost),
     }
-    _upsert_entry(db, LAYER_STAGE1, year, version, entity_id, payload)
+    _upsert_entry(db, LAYER_STAGE1, year, version_id, entity_id, payload)
     return payload
 
 
@@ -156,7 +165,7 @@ def get_stage1_effective(
 # ---------------------------------------------------------------------------
 
 def get_stage2_location_total(
-    db: Session, year: int, version: str, entity_id: str,
+    db: Session, year: int, version_id: int, entity_id: str,
     charging_location_id: str,
 ) -> dict:
     """Return the Stage 2 cost for one (entity × charging-location) pair.
@@ -164,21 +173,21 @@ def get_stage2_location_total(
     Computes: effective_cost × btc_percentage / 100 for the entity's active
     BTC profile line for the given charging location and year.
 
-    Returns ``{"amount_eur": float, "percentage": float | None}``.
+    Returns ``{"amount_eur": float, "percentage": float | None,
+    "effective_cost": float}``.
+
     On cache miss: computes and caches; on cache hit: returns cached.
     """
     from models.charging import BTCProfile
 
     key_id = f"{entity_id}:{charging_location_id}"
-    entry = _get_entry(db, LAYER_STAGE2, year, version, key_id)
+    entry = _get_entry(db, LAYER_STAGE2, year, version_id, key_id)
     if entry is not None:
         return json.loads(entry.payload_json)
 
-    # Cache miss — compute.
-    effective = get_stage1_effective(db, year, version, entity_id)
+    effective = get_stage1_effective(db, year, version_id, entity_id)
     eff_cost = float(effective.get("effective_cost", 0))
 
-    # Look up BTC profile line.
     profile = (
         db.query(BTCProfile)
         .filter(
@@ -196,8 +205,10 @@ def get_stage2_location_total(
                 break
 
     amount = round(eff_cost * (pct / 100.0), 2) if pct is not None else 0.0
-    payload = {"amount_eur": amount, "percentage": pct, "effective_cost": eff_cost}
-    _upsert_entry(db, LAYER_STAGE2, year, version, key_id, payload)
+    payload = {
+        "amount_eur": amount, "percentage": pct, "effective_cost": eff_cost,
+    }
+    _upsert_entry(db, LAYER_STAGE2, year, version_id, key_id, payload)
     return payload
 
 
@@ -206,25 +217,32 @@ def get_stage2_location_total(
 # ---------------------------------------------------------------------------
 
 def invalidate_for_distribution_write(
-    db: Session, entity_id: str, year: int, version: str,
+    db: Session, entity_id: str, year: int, version_id: int,
 ) -> int:
     """Invalidate Stage 1 cache entries when a Distribution edge is written.
 
     Removes the entity's own entry and any downstream entities that might
     have this entity as an upstream source. For simplicity we delete all
-    stage1 entries for the given (year, version) — they will be recomputed
-    on next access. Also clears Stage 2 entries for the same (year, version).
+    stage1 entries for the given ``(year, version_id)`` — they will be
+    recomputed on next access. Also clears Stage 2 entries for the same
+    ``(year, version_id)``.
+
+    Note: ``entity_id`` is currently unused (we sweep the full year+version
+    layer). Kept in the signature so the call site documents *which* write
+    triggered the invalidation, and because a future selective
+    "invalidate only entity_id + its downstream" optimisation reuses the
+    parameter.
     """
     count = 0
     count += db.query(RollupCache).filter(
         RollupCache.cache_layer == LAYER_STAGE1,
         RollupCache.year == year,
-        RollupCache.version == version,
+        RollupCache.version_id == version_id,
     ).delete(synchronize_session=False)
     count += db.query(RollupCache).filter(
         RollupCache.cache_layer == LAYER_STAGE2,
         RollupCache.year == year,
-        RollupCache.version == version,
+        RollupCache.version_id == version_id,
     ).delete(synchronize_session=False)
     return count
 
@@ -235,7 +253,9 @@ def invalidate_for_btc_write(
     """Invalidate Stage 2 cache entries when a BTC profile is written.
 
     Only Stage 2 entries are affected — the Stage 2 allocation percentages
-    depend on BTC profile data, not on the distribution edges.
+    depend on BTC profile data, not on the distribution edges. Scoped by
+    ``entity_id`` and ``year`` only (the BTC profile is not Stage-1-version
+    specific — a BTC write affects every Stage-1 version's Stage 2 layer).
     """
     count = db.query(RollupCache).filter(
         RollupCache.cache_layer == LAYER_STAGE2,
@@ -252,7 +272,7 @@ def invalidate_for_entity_cost_write(
 
     Both Stage 1 (because own_cost changes) and Stage 2 (because the amount
     changes) are affected. Clear everything for the entity across all years
-    and versions.
+    and Stage-1 versions.
     """
     count = 0
     count += db.query(RollupCache).filter(
@@ -264,6 +284,19 @@ def invalidate_for_entity_cost_write(
         RollupCache.key_id.like(f"{entity_id}:%"),
     ).delete(synchronize_session=False)
     return count
+
+
+def invalidate_for_version(db: Session, version_id: int) -> int:
+    """Invalidate all cache entries scoped to a specific Stage-1 version.
+
+    Used when a ``DistributionVersion`` is mutated (edges added/changed/
+    removed against a draft version, or — exceptionally — a scenario
+    version is deleted via cascade). All Stage 1 + Stage 2 rows tied to
+    the version drop.
+    """
+    return db.query(RollupCache).filter(
+        RollupCache.version_id == version_id,
+    ).delete(synchronize_session=False)
 
 
 def invalidate_all(db: Session) -> int:

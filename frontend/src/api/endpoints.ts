@@ -1762,6 +1762,15 @@ import type {
   DistributionEdgeItem,
   EntityDistributionSummary,
   DistributionEffectiveCost,
+  DistributionVersionResponse,
+  DistributionVersionListResponse,
+  DistributionVersionDetailResponse,
+  DistributionVersionCreatePayload,
+  DistributionVersionUpdatePayload,
+  DistributionVersionActivatePayload,
+  DistributionVersionDiff,
+  DistributionVersionStatus,
+  EntityStage1View,
   BTCProfileItem,
   BTCMode,
   BTCStatus,
@@ -1816,16 +1825,19 @@ export const chargingApi = {
       total: number;
     }>(`/api/charging/charging-locations`),
 
-  // === Stage 1 inter-service Distribution edges [F-S1-01..05] ===
+  // === Stage 1 inter-service Distribution edges [F-S1-01..08] ===
+  //
+  // FD-3 rework: edges are scoped to ``version_id`` (the FK into
+  // ``distribution_versions``); the legacy ``year``+``version`` string
+  // tuple was removed. The version-management methods below sit next to
+  // these and drive the new version selector + diff + per-entity surface.
   listDistributions: (params?: {
-    year?: number;
-    version?: string;
+    version_id?: number;
     source_entity_id?: string;
     destination_entity_id?: string;
   }) => {
     const q = new URLSearchParams();
-    if (params?.year !== undefined) q.set('year', String(params.year));
-    if (params?.version) q.set('version', params.version);
+    if (params?.version_id !== undefined) q.set('version_id', String(params.version_id));
     if (params?.source_entity_id) q.set('source_entity_id', params.source_entity_id);
     if (params?.destination_entity_id) q.set('destination_entity_id', params.destination_entity_id);
     const qs = q.toString();
@@ -1833,33 +1845,151 @@ export const chargingApi = {
       `/api/charging/distributions${qs ? '?' + qs : ''}`,
     );
   },
-  getEntityDistributionSummary: (entityId: string, year: number, version: string = 'forecast') =>
-    api.get<EntityDistributionSummary>(
-      `/api/charging/entities/${entityId}/distribution-summary?year=${year}&version=${encodeURIComponent(version)}`,
-    ),
+  getEntityDistributionSummary: (
+    entityId: string,
+    params?: { version_id?: number; evaluated_date?: string },
+  ) => {
+    const q = new URLSearchParams();
+    if (params?.version_id !== undefined) q.set('version_id', String(params.version_id));
+    if (params?.evaluated_date) q.set('evaluated_date', params.evaluated_date);
+    const qs = q.toString();
+    return api.get<EntityDistributionSummary>(
+      `/api/charging/entities/${entityId}/distribution-summary${qs ? '?' + qs : ''}`,
+    );
+  },
   createDistribution: (data: {
-    year: number;
-    version: string;
+    version_id: number;
     source_entity_id: string;
     destination_entity_id: string;
     percentage: number;
+    rationale?: string | null;
   }) => api.post<DistributionEdgeItem>('/api/charging/distributions', data),
-  updateDistribution: (id: number, data: { percentage: number }) =>
+  updateDistribution: (
+    id: number,
+    data: { percentage: number; rationale?: string | null },
+  ) =>
     api.put<DistributionEdgeItem>(`/api/charging/distributions/${id}`, data),
   deleteDistribution: (id: number) =>
     api.delete<{ id: number; deleted: boolean }>(`/api/charging/distributions/${id}`),
-  updateEntityToBusinessPct: (entityId: string, year: number, newPct: number, version: string = 'forecast') =>
-    api.put<EntityDistributionSummary>(
-      `/api/charging/entities/${entityId}/to-business-pct?new_pct=${newPct}&year=${year}&version=${encodeURIComponent(version)}`,
+  updateEntityToBusinessPct: (
+    entityId: string,
+    newPct: number,
+    params?: { version_id?: number },
+  ) => {
+    const q = new URLSearchParams();
+    q.set('new_pct', String(newPct));
+    if (params?.version_id !== undefined) q.set('version_id', String(params.version_id));
+    return api.put<EntityDistributionSummary>(
+      `/api/charging/entities/${entityId}/to-business-pct?${q.toString()}`,
+    );
+  },
+  // ``versionOrParams`` accepts both the legacy ``version: string`` form
+  // (used by the rollup view through B2) and the new ``{ version_id }``
+  // form. The backend resolves whichever is supplied; once B2 rescopes
+  // the endpoint to ``version_id`` only, the rollup caller will migrate
+  // and the string branch can be removed.
+  getEntityEffectiveCost: (
+    entityId: string,
+    year: number,
+    versionOrParams?: string | { version_id?: number },
+  ) => {
+    const q = new URLSearchParams();
+    q.set('year', String(year));
+    if (typeof versionOrParams === 'string') {
+      q.set('version', versionOrParams);
+    } else if (versionOrParams?.version_id !== undefined) {
+      q.set('version_id', String(versionOrParams.version_id));
+    }
+    return api.get<DistributionEffectiveCost>(
+      `/api/charging/entities/${entityId}/effective-cost?${q.toString()}`,
+    );
+  },
+  getEntityUpstreamChain: (
+    entityId: string,
+    year: number,
+    versionOrParams?: string | { version_id?: number },
+  ) => {
+    const q = new URLSearchParams();
+    q.set('year', String(year));
+    if (typeof versionOrParams === 'string') {
+      q.set('version', versionOrParams);
+    } else if (versionOrParams?.version_id !== undefined) {
+      q.set('version_id', String(versionOrParams.version_id));
+    }
+    return api.get<UpstreamChainResponse>(
+      `/api/charging/entities/${entityId}/upstream-chain?${q.toString()}`,
+    );
+  },
+
+  // === DistributionVersion management (FD-3 [F-S1-02..08]) ===
+  listDistributionVersions: (params?: {
+    status?: DistributionVersionStatus;
+    include_scenario?: boolean;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.include_scenario) q.set('include_scenario', 'true');
+    const qs = q.toString();
+    return api.get<DistributionVersionListResponse>(
+      `/api/charging/distribution-versions${qs ? '?' + qs : ''}`,
+    );
+  },
+  getDistributionVersion: (versionId: number) =>
+    api.get<DistributionVersionDetailResponse>(
+      `/api/charging/distribution-versions/${versionId}`,
     ),
-  getEntityEffectiveCost: (entityId: string, year: number, version: string = 'forecast') =>
-    api.get<DistributionEffectiveCost>(
-      `/api/charging/entities/${entityId}/effective-cost?year=${year}&version=${encodeURIComponent(version)}`,
+  createDistributionVersion: (payload: DistributionVersionCreatePayload) =>
+    api.post<DistributionVersionDetailResponse>(
+      `/api/charging/distribution-versions`,
+      payload,
     ),
-  getEntityUpstreamChain: (entityId: string, year: number, version: string = 'forecast') =>
-    api.get<UpstreamChainResponse>(
-      `/api/charging/entities/${entityId}/upstream-chain?year=${year}&version=${encodeURIComponent(version)}`,
+  updateDistributionVersion: (
+    versionId: number,
+    payload: DistributionVersionUpdatePayload,
+  ) =>
+    api.put<DistributionVersionResponse>(
+      `/api/charging/distribution-versions/${versionId}`,
+      payload,
     ),
+  activateDistributionVersion: (
+    versionId: number,
+    payload: DistributionVersionActivatePayload,
+  ) =>
+    api.post<DistributionVersionResponse>(
+      `/api/charging/distribution-versions/${versionId}/activate`,
+      payload,
+    ),
+  deleteDistributionVersion: (versionId: number) =>
+    api.delete<{ id: number; deleted: boolean }>(
+      `/api/charging/distribution-versions/${versionId}`,
+    ),
+  diffDistributionVersion: (
+    versionId: number,
+    comparedToVersionId?: number,
+  ) => {
+    const q = new URLSearchParams();
+    if (comparedToVersionId !== undefined) {
+      q.set('compared_to_version_id', String(comparedToVersionId));
+    }
+    const qs = q.toString();
+    return api.get<DistributionVersionDiff>(
+      `/api/charging/distribution-versions/${versionId}/diff${qs ? '?' + qs : ''}`,
+    );
+  },
+
+  // === Per-entity Stage 1 surface [F-S1-06] ===
+  getEntityStage1View: (
+    entityId: string,
+    params?: { evaluated_date?: string; version_id?: number },
+  ) => {
+    const q = new URLSearchParams();
+    if (params?.evaluated_date) q.set('evaluated_date', params.evaluated_date);
+    if (params?.version_id !== undefined) q.set('version_id', String(params.version_id));
+    const qs = q.toString();
+    return api.get<EntityStage1View>(
+      `/api/charging/stage1/entities/${entityId}${qs ? '?' + qs : ''}`,
+    );
+  },
 
   // === Stage 2 BTC Profiles [F-S2-01..08] ===
   listBTCProfiles: (params?: {

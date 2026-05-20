@@ -265,12 +265,29 @@ def _simulator_subtitle(db: Session) -> list[str]:
 
 
 def _charging_subtitle(db: Session, user: CurrentUser) -> list[str]:
-    """Spec lines 215–216 — controller/others variants per A-05 read-only rule."""
-    edge_count = (
-        db.query(func.count(Distribution.id))
-        .filter(Distribution.version == "forecast")
-        .scalar()
-    ) or 0
+    """Spec lines 215–216 — controller/others variants per A-05 read-only rule.
+
+    FD-3 rework: the v4 ``Distribution.version == 'forecast'`` filter became
+    a join through ``DistributionVersion``. We count edges on the in-force
+    production version per ``resolve_active_version(db, today)``, which is
+    the FD-3 equivalent of "what the v4 'forecast' string used to point at".
+    Returns 0 if no production version is in force (pre-seed / empty
+    chain) — same defensive behaviour the old filter had against an empty
+    table.
+    """
+    from datetime import date
+
+    from services.distribution_service import resolve_active_version
+
+    in_force = resolve_active_version(db, date.today())
+    if in_force is None:
+        edge_count = 0
+    else:
+        edge_count = (
+            db.query(func.count(Distribution.id))
+            .filter(Distribution.version_id == in_force.id)
+            .scalar()
+        ) or 0
 
     if user.role == "controller":
         review_count = (

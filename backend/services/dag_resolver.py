@@ -1,27 +1,30 @@
-"""DAG resolution for Cluster F Stage 1 distribution edges.
+"""DAG resolution for Stage 1 distribution edges.
 
-Per [F-S1-02] and [F-S1-05]:
+Per `[F-S1-02]` and `[F-S1-05]`:
 
 - An entity's *effective cost* equals its own cost plus the sum of inflows
   from upstream entities. Each inflow is the upstream entity's *effective
   cost* multiplied by the edge's percentage. The recursion bottoms out at
   source entities with no inflows (own_cost only).
 - Adding a distribution edge that would create a cycle is hard-blocked at
-  save time per [F-S1-05]. The error message lists the cycle chain so the
-  user can identify which existing edge to remove.
+  save time per `[F-S1-05]`. The error message lists the cycle chain so
+  the user can identify which existing edge to remove.
 
-This module is purposefully framework-free: it operates on plain dicts of
-edges keyed by (year, version) so it can be exercised in unit tests without
-touching the database. The router/service layer wraps it with a SQLAlchemy
-session.
+**FD-3 rework (Charging/UM round, cluster B1 — service rescope):** the v4
+``(year, version)`` filter on ``Distribution`` rows has been retired.
+Edges now key by ``version_id`` (FK → ``DistributionVersion``). Cycle
+detection and effective-cost computation operate on a single version graph
+identified by ``version_id``. The ``year`` argument is retained only on the
+own-cost lookup side (own_cost surfaces from ``Project.annual_budget`` /
+``ChargeableEntity.annual_cost`` — fields that are inherently year-scoped
+on the cost being distributed). Stage 1 edges themselves are cadence-
+agnostic per `[F-S1-02]`.
 
-Note on own_cost: F2 does not yet introduce a per-entity ``annual_cost``
-field on ChargeableEntity. For Project subtypes the own_cost is sourced from
-``Project.annual_budget`` (services) or ``Project.total_budget``; for
-Offering and InternalService it is reported as 0 in v5 (a future F3 session
-will land the ``ChargeableEntity.annual_cost`` column and seed its values).
-The DAG math is unaffected — the API just reports own_cost = 0 for those
-entities until the column lands.
+Note on own_cost: F2 did not introduce a per-entity ``annual_cost`` field;
+F3 added it on ``ChargeableEntity``. For Project subtypes the own_cost
+falls back to ``Project.annual_budget`` (services) / ``Project.total_budget``
+/ ``ChargeableEntity.annual_cost``; for Offering and InternalService the
+column on ``ChargeableEntity.annual_cost`` is authoritative.
 """
 
 from __future__ import annotations
@@ -65,15 +68,10 @@ def detect_cycle(
     if new_source == new_destination:
         return [new_source, new_source]
 
-    # Build adjacency list of existing edges. Adding (new_source →
-    # new_destination) creates a cycle iff there is already a path from
-    # new_destination back to new_source.
     adjacency: dict[str, list[str]] = defaultdict(list)
     for e in existing_edges:
         adjacency[e.source].append(e.destination)
 
-    # DFS from new_destination, looking for new_source. Track the path so the
-    # cycle chain can be returned verbatim.
     path: list[str] = [new_destination]
     visited: set[str] = set()
 
@@ -91,24 +89,22 @@ def detect_cycle(
         return False
 
     if _dfs(new_destination):
-        # The cycle is new_source → new_destination → ... → new_source.
-        # `path` already contains [new_destination, ..., new_source].
         return [new_source, *path]
     return None
 
 
 def detect_cycle_db(
-    db: Session, year: int, version: str, source_id: str, destination_id: str,
+    db: Session, version_id: int, source_id: str, destination_id: str,
     *, exclude_edge_id: Optional[int] = None,
 ) -> Optional[list[str]]:
     """DB-backed wrapper around :func:`detect_cycle`.
 
+    Scope is the single ``DistributionVersion`` identified by ``version_id``.
     ``exclude_edge_id`` lets the cycle check ignore an existing edge being
-    updated (so updating its percentage does not falsely register as a cycle).
+    updated (so updating its percentage does not falsely register as a
+    cycle).
     """
-    q = db.query(Distribution).filter(
-        Distribution.year == year, Distribution.version == version,
-    )
+    q = db.query(Distribution).filter(Distribution.version_id == version_id)
     if exclude_edge_id is not None:
         q = q.filter(Distribution.id != exclude_edge_id)
     edges = [
@@ -136,8 +132,9 @@ class EffectiveCostResult:
     entity_id: str
     entity_name: str
     year: int
-    version: str
+    version_id: int
     own_cost: float
+    own_cost_source: Optional[str] = None
     inflows: list[InflowContribution] = field(default_factory=list)
 
     @property
@@ -149,48 +146,61 @@ class EffectiveCostResult:
         return float(self.own_cost) + self.inflow_total
 
 
-def get_own_cost(entity: ChargeableEntity) -> float:
-    """Resolve an entity's own (annual) cost.
+@dataclass
+class _OwnCost:
+    """Own-cost lookup result carrying the source for traceability."""
 
-    Resolution order per F3 [F-S2-01]:
+    value: float
+    source: Optional[str]  # 'annual_budget' | 'total_budget' | 'annual_cost' | None
+
+
+def _get_own_cost_detailed(entity: ChargeableEntity) -> _OwnCost:
+    """Resolve an entity's own (annual) cost with provenance.
+
+    Resolution order:
     1. For Project subtypes: ``Project.annual_budget`` → ``Project.total_budget``
        → ``ChargeableEntity.annual_cost`` (F3 column).
     2. For Offerings and InternalServices: ``ChargeableEntity.annual_cost``
        (F3 column). Falls back to 0.0 when null.
 
-    The ``annual_cost`` column on ``ChargeableEntity`` was added in Session F3
-    as the primary cost source for non-Project subtypes and as a fallback for
-    Projects whose budget columns are unpopulated.
+    The detailed return shape feeds ``EffectiveCostResult.own_cost_source``
+    so the rollup drill-down can display "comes from `annual_budget`" /
+    "comes from `annual_cost`" etc.
     """
-    # Check entity-level annual_cost first as override/fallback.
-    entity_annual_cost: float | None = None
+    entity_annual_cost: Optional[float] = None
     if entity.annual_cost is not None:
         entity_annual_cost = float(entity.annual_cost)
 
     if entity.entity_type == "Project" and entity.project is not None:
         proj: Project = entity.project
         if proj.annual_budget is not None:
-            return float(proj.annual_budget)
+            return _OwnCost(float(proj.annual_budget), "annual_budget")
         if proj.total_budget is not None:
-            return float(proj.total_budget)
-        # F3: fall back to ChargeableEntity.annual_cost for projects whose
-        # budget columns are not yet populated.
+            return _OwnCost(float(proj.total_budget), "total_budget")
         if entity_annual_cost is not None:
-            return entity_annual_cost
-        return 0.0
+            return _OwnCost(entity_annual_cost, "annual_cost")
+        return _OwnCost(0.0, None)
 
-    # Offerings and InternalServices use annual_cost exclusively.
-    return entity_annual_cost if entity_annual_cost is not None else 0.0
+    if entity_annual_cost is not None:
+        return _OwnCost(entity_annual_cost, "annual_cost")
+    return _OwnCost(0.0, None)
+
+
+def get_own_cost(entity: ChargeableEntity) -> float:
+    """Backward-compatible scalar wrapper around :func:`_get_own_cost_detailed`."""
+    return _get_own_cost_detailed(entity).value
 
 
 def compute_effective_cost(
-    db: Session, year: int, version: str, entity_id: str,
+    db: Session, year: int, version_id: int, entity_id: str,
     *, _seen: Optional[set[str]] = None,
 ) -> EffectiveCostResult:
     """Recursively compute an entity's effective cost.
 
-    Walks incoming distribution edges, recurses upstream, and sums each
-    contribution = upstream.effective_cost × edge_percentage / 100.
+    Walks incoming distribution edges for the given ``version_id``, recurses
+    upstream, and sums each contribution = upstream.effective_cost ×
+    edge_percentage / 100. ``year`` scopes the own-cost lookup only — Stage
+    1 edges are cadence-agnostic.
 
     The internal ``_seen`` guard protects against cycles in malformed data
     (cycles should never reach this function thanks to save-time detection,
@@ -200,46 +210,46 @@ def compute_effective_cost(
     if _seen is None:
         _seen = set()
     if entity_id in _seen:
-        # Defensive — should be unreachable thanks to detect_cycle_db at write
-        # time. Bottom out the recursion with own_cost only.
         entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
         if entity is None:
             return EffectiveCostResult(
                 entity_id=entity_id, entity_name="<unknown>", year=year,
-                version=version, own_cost=0.0,
+                version_id=version_id, own_cost=0.0, own_cost_source=None,
             )
+        oc = _get_own_cost_detailed(entity)
         return EffectiveCostResult(
             entity_id=entity_id, entity_name=entity.name, year=year,
-            version=version, own_cost=get_own_cost(entity),
+            version_id=version_id, own_cost=oc.value,
+            own_cost_source=oc.source,
         )
 
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
         return EffectiveCostResult(
             entity_id=entity_id, entity_name="<unknown>", year=year,
-            version=version, own_cost=0.0,
+            version_id=version_id, own_cost=0.0, own_cost_source=None,
         )
 
     _seen.add(entity_id)
 
-    own = get_own_cost(entity)
+    own = _get_own_cost_detailed(entity)
     result = EffectiveCostResult(
-        entity_id=entity.id, entity_name=entity.name, year=year, version=version,
-        own_cost=own,
+        entity_id=entity.id, entity_name=entity.name, year=year,
+        version_id=version_id,
+        own_cost=own.value, own_cost_source=own.source,
     )
 
     incoming = (
         db.query(Distribution)
         .filter(
-            Distribution.year == year,
-            Distribution.version == version,
+            Distribution.version_id == version_id,
             Distribution.destination_entity_id == entity_id,
         )
         .all()
     )
     for edge in incoming:
         upstream = compute_effective_cost(
-            db, year, version, edge.source_entity_id, _seen=_seen,
+            db, year, version_id, edge.source_entity_id, _seen=_seen,
         )
         amount = upstream.effective_cost * float(edge.percentage) / 100.0
         result.inflows.append(InflowContribution(
@@ -252,14 +262,14 @@ def compute_effective_cost(
 
 
 def get_upstream_chain(
-    db: Session, year: int, version: str, entity_id: str,
+    db: Session, version_id: int, entity_id: str,
     *, max_depth: int = 8,
 ) -> list[list[str]]:
     """Return all upstream paths terminating at ``entity_id``.
 
     Each path is an ordered list of entity ids from a source (no incoming
-    edges) down to ``entity_id``. Useful for the rollup drill-down in F3 —
-    surfaced here so F2 can ship a working DAG-traversal endpoint.
+    edges) down to ``entity_id``. Useful for the rollup drill-down — surfaced
+    so the upstream-chain panel can render textual paths per `[F-RV-04]`.
 
     ``max_depth`` caps deep DAGs at a sane value to bound API latency. Real
     KB graphs are shallow (≤4 levels per the workshop notes).
@@ -272,8 +282,7 @@ def get_upstream_chain(
         incoming = (
             db.query(Distribution)
             .filter(
-                Distribution.year == year,
-                Distribution.version == version,
+                Distribution.version_id == version_id,
                 Distribution.destination_entity_id == node,
             )
             .all()

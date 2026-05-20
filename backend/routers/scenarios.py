@@ -47,6 +47,7 @@ from schemas.scenarios import (
     ScenarioListResponse, ScenarioMetadataUpdate, ScenarioPublishRequest,
     ScenarioRebaseRequest, ToBusinessChange,
 )
+from services.distribution_service import resolve_active_version
 from services.scenario_apply_forecast import (
     ApplyToForecastError, apply_to_forecast,
 )
@@ -259,6 +260,18 @@ def create_scenario(
 
     tags_json = json.dumps(body.tags) if body.tags else None
 
+    # FD-3 [F-S1-02] / OQ #3: pin the Stage 1 distribution-version anchor at
+    # scenario creation. Prevents subsequent production reactivations from
+    # shifting impact deltas underneath an open scenario. NULL is preserved
+    # as a legacy escape hatch — the lever-12 read paths fall back to
+    # resolve-by-date when this column is NULL.
+    from datetime import date as _date
+    from config import DEMO_DATE
+    _demo_today_year, _demo_today_month = (int(s) for s in DEMO_DATE.split("-"))
+    _demo_today = _date(_demo_today_year, _demo_today_month, 1)
+    _anchor_version = resolve_active_version(db, _demo_today)
+    dist_anchor = _anchor_version.id if _anchor_version is not None else None
+
     scenario = Scenario(
         name=body.name,
         description=body.description,
@@ -266,6 +279,7 @@ def create_scenario(
         status="private",
         visibility="private",
         anchor_forecast_version_id=anchor_id,
+        anchor_distribution_version_id=dist_anchor,
         tags=tags_json,
         cc_owner_scope_cc_id=cc_scope,
     )
@@ -303,6 +317,7 @@ def create_scenario(
     return {
         "id": scenario.id, "name": scenario.name, "status": scenario.status,
         "anchor_forecast_version_id": scenario.anchor_forecast_version_id,
+        "anchor_distribution_version_id": scenario.anchor_distribution_version_id,
         "visibility": scenario.visibility,
         "cc_owner_scope_cc_id": scenario.cc_owner_scope_cc_id,
     }

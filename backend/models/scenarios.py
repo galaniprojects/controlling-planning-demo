@@ -43,6 +43,13 @@ class Scenario(Base):
       scenarios.
     - ``rebased_from_version_id`` per [B-SL-02]: previous anchor before the
       most recent rebase, retained for audit context. Nullable.
+    - ``anchor_distribution_version_id`` per Charging/UM rework FD-3 / spec §4:
+      Stage 1 distribution-version anchor. Pinned at scenario creation to the
+      production ``DistributionVersion`` that was in force at the time, so
+      a subsequent production reactivation does not shift impact deltas
+      underneath an open scenario. NULL = legacy fallback (resolve by
+      ``evaluated_date`` at read time). Wired into the lever-12 union read in
+      ``services/scenario_lever12.py``.
     """
     __tablename__ = "scenarios"
 
@@ -80,6 +87,26 @@ class Scenario(Base):
         ForeignKey("cost_centers.id"), nullable=True,
     )
 
+    # Charging/UM rework FD-3: Stage 1 distribution-version anchor per
+    # spec §4 Open-Question #3. Pinned at scenario creation so production
+    # reactivations don't shift impact deltas mid-flight. NULL = legacy
+    # behaviour (resolve by evaluated_date at read time). Wired up by
+    # services/scenario_lever12.py — the column is added here so the FK
+    # exists ahead of the service refactor.
+    #
+    # ``use_alter=True`` breaks the create_all/drop_all dependency cycle
+    # between this FK (→ distribution_versions) and DistributionVersion.scenario_id
+    # (→ scenarios). Same pattern Project.current_milestone_id uses against
+    # ProjectMilestone.project_id.
+    anchor_distribution_version_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey(
+            "distribution_versions.id",
+            use_alter=True,
+            name="fk_scenario_anchor_distribution_version",
+        ),
+        nullable=True,
+    )
+
     # Relationships
     author: Mapped["Person"] = relationship()
     actions: Mapped[list["ScenarioAction"]] = relationship(back_populates="scenario", order_by="ScenarioAction.action_order")
@@ -96,6 +123,9 @@ class Scenario(Base):
     )
     cc_owner_scope_cc = relationship(
         "CostCenter", foreign_keys=[cc_owner_scope_cc_id],
+    )
+    anchor_distribution_version = relationship(
+        "DistributionVersion", foreign_keys=[anchor_distribution_version_id],
     )
 
 

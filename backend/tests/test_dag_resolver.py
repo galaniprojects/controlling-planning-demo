@@ -1,10 +1,20 @@
-"""Unit tests for the Stage 1 DAG resolver (v5 Session F2 [F-S1-02][F-S1-05])."""
+"""Unit tests for the Stage 1 DAG resolver (FD-3 — version_id rescope).
+
+The DAG resolver was rescoped in FD-3 from ``(year, version: str)`` to
+``version_id`` against the ``DistributionVersion`` header. ``year`` is
+retained only on the own-cost lookup side (project budget / annual_cost
+lookups are inherently year-scoped). These tests exercise the pure-function
+cycle detector, the DB-backed variant, ``compute_effective_cost`` recursion,
+own-cost resolution (`[F-DG-03]`), and the upstream-chain walker.
+"""
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
-from models.charging import ChargeableEntity, Distribution
+from models.charging import ChargeableEntity, Distribution, DistributionVersion
 from models.organization import GroupingEntity, GroupingEntityType
 from models.projects import Project
 from services.dag_resolver import (
@@ -14,13 +24,11 @@ from services.dag_resolver import (
 
 
 # ---------------------------------------------------------------------------
-# Pure-function cycle detection
+# Pure-function cycle detection — no DB
 # ---------------------------------------------------------------------------
 
 
 class TestDetectCyclePure:
-    """Pure-function cycle detection works without a DB."""
-
     def test_no_cycle_in_empty_graph(self):
         assert detect_cycle([], "A", "B") is None
 
@@ -32,7 +40,6 @@ class TestDetectCyclePure:
         edges = [EdgeKey("A", "B")]
         chain = detect_cycle(edges, "B", "A")
         assert chain is not None
-        # Chain renders as A -> B -> A (the proposed source, then the path back to it).
         assert chain[0] == "B"
         assert chain[-1] == "B"
         assert "A" in chain
@@ -41,7 +48,6 @@ class TestDetectCyclePure:
         edges = [EdgeKey("A", "B"), EdgeKey("B", "C")]
         chain = detect_cycle(edges, "C", "A")
         assert chain is not None
-        # Path A -> B -> C closing with C -> A.
         assert chain[0] == "C"
         assert chain[-1] == "C"
         assert "A" in chain and "B" in chain
@@ -51,27 +57,22 @@ class TestDetectCyclePure:
         assert chain == ["A", "A"]
 
     def test_no_cycle_with_branch(self):
-        # A -> B, A -> C; new edge B -> D should be safe even with multiple branches.
         edges = [EdgeKey("A", "B"), EdgeKey("A", "C")]
         assert detect_cycle(edges, "B", "D") is None
 
     def test_diamond_no_false_positive(self):
-        # A -> B, A -> C, B -> D, C -> D — adding A -> D should not register
-        # as a cycle (no path from D back to A exists).
         edges = [EdgeKey("A", "B"), EdgeKey("A", "C"),
                  EdgeKey("B", "D"), EdgeKey("C", "D")]
         assert detect_cycle(edges, "A", "D") is None
 
     def test_cycle_via_long_path(self):
-        # A -> B -> C -> D -> E; new E -> A should close a 5-cycle.
         edges = [
             EdgeKey("A", "B"), EdgeKey("B", "C"),
             EdgeKey("C", "D"), EdgeKey("D", "E"),
         ]
         chain = detect_cycle(edges, "E", "A")
         assert chain is not None
-        assert "A" in chain and "B" in chain and "C" in chain
-        assert "D" in chain and "E" in chain
+        assert all(x in chain for x in ["A", "B", "C", "D", "E"])
 
 
 # ---------------------------------------------------------------------------
@@ -81,12 +82,10 @@ class TestDetectCyclePure:
 
 @pytest.fixture
 def chargeable_graph(db):
-    """Seed a small ChargeableEntity graph used by the DB-backed tests.
+    """Seed: a production-active DistributionVersion + 4 entities + 3 edges.
 
-    Creates four entities: A (InternalService), B (InternalService),
-    C (Offering), D (Offering). Outgoing: A -> B, A -> C, B -> D.
+    Outgoing: A → B (40%), A → C (30%), B → D (50%).
     """
-    # Hierarchy node so FKs resolve.
     et = GroupingEntityType(id="get-lob", name="LoB")
     n = GroupingEntity(id="lob-1", entity_type_id="get-lob", name="LoB One")
     db.add_all([et, n])
@@ -109,49 +108,59 @@ def chargeable_graph(db):
     )
     db.add_all([a, b, c, d])
     db.flush()
+
+    v = DistributionVersion(
+        active_from=date(2025, 1, 1),
+        status="active",
+        rationale="Initial seed",
+        origin="seed",
+    )
+    db.add(v)
+    db.flush()
+
     db.add_all([
-        Distribution(year=2026, version="forecast",
-                     source_entity_id="A", destination_entity_id="B",
-                     percentage=40.0),
-        Distribution(year=2026, version="forecast",
-                     source_entity_id="A", destination_entity_id="C",
-                     percentage=30.0),
-        Distribution(year=2026, version="forecast",
-                     source_entity_id="B", destination_entity_id="D",
-                     percentage=50.0),
+        Distribution(version_id=v.id, source_entity_id="A",
+                     destination_entity_id="B", percentage=40.0),
+        Distribution(version_id=v.id, source_entity_id="A",
+                     destination_entity_id="C", percentage=30.0),
+        Distribution(version_id=v.id, source_entity_id="B",
+                     destination_entity_id="D", percentage=50.0),
     ])
     db.commit()
-    return {"a": a, "b": b, "c": c, "d": d}
+    return {"a": a, "b": b, "c": c, "d": d, "version": v}
 
 
 class TestDetectCycleDB:
     def test_no_cycle_for_safe_edge(self, db, chargeable_graph):
-        # C -> D is safe (D has no outgoing edges).
-        assert detect_cycle_db(db, 2026, "forecast", "C", "D") is None
+        vid = chargeable_graph["version"].id
+        assert detect_cycle_db(db, vid, "C", "D") is None
 
     def test_cycle_detected(self, db, chargeable_graph):
-        # D -> A would close A -> B -> D -> A (3-cycle).
-        chain = detect_cycle_db(db, 2026, "forecast", "D", "A")
+        # D → A would close A → B → D → A.
+        vid = chargeable_graph["version"].id
+        chain = detect_cycle_db(db, vid, "D", "A")
         assert chain is not None
         assert chain[0] == "D"
         assert chain[-1] == "D"
 
     def test_exclude_edge_id_skips_self(self, db, chargeable_graph):
-        # Updating an existing edge should not register itself as a cycle.
+        vid = chargeable_graph["version"].id
         edge = db.query(Distribution).filter_by(
-            source_entity_id="A", destination_entity_id="B",
+            version_id=vid, source_entity_id="A", destination_entity_id="B",
         ).first()
         assert edge is not None
-        # Pretend we are *updating* A -> B with a new percentage. The cycle
-        # check should ignore that edge — it is not a real cycle.
-        chain = detect_cycle_db(
-            db, 2026, "forecast", "A", "B", exclude_edge_id=edge.id,
-        )
+        chain = detect_cycle_db(db, vid, "A", "B", exclude_edge_id=edge.id)
         assert chain is None
 
-    def test_different_year_does_not_trigger(self, db, chargeable_graph):
-        # Existing edges are on year=2026; year=2027 graph is empty so no cycle.
-        assert detect_cycle_db(db, 2027, "forecast", "B", "A") is None
+    def test_different_version_does_not_trigger(self, db, chargeable_graph):
+        # A different DistributionVersion has no edges → no cycle.
+        v2 = DistributionVersion(
+            active_from=None, status="draft", rationale="",
+            origin="blank",
+        )
+        db.add(v2)
+        db.commit()
+        assert detect_cycle_db(db, v2.id, "B", "A") is None
 
 
 # ---------------------------------------------------------------------------
@@ -161,27 +170,29 @@ class TestDetectCycleDB:
 
 class TestComputeEffectiveCost:
     def test_unknown_entity_returns_zero(self, db):
-        result = compute_effective_cost(db, 2026, "forecast", "no-such-entity")
+        result = compute_effective_cost(db, 2026, 999999, "no-such-entity")
         assert result.entity_name == "<unknown>"
         assert result.effective_cost == 0.0
+        assert result.own_cost_source is None
 
     def test_no_inflows_means_only_own_cost(self, db, chargeable_graph):
-        # A has no inflows — own_cost (0 since no Project) + 0 = 0.
-        result = compute_effective_cost(db, 2026, "forecast", "A")
+        vid = chargeable_graph["version"].id
+        result = compute_effective_cost(db, 2026, vid, "A")
         assert result.inflows == []
         assert result.inflow_total == 0.0
         assert result.effective_cost == 0.0
+        assert result.version_id == vid
 
     def test_single_inflow(self, db, chargeable_graph):
-        # B receives 40% of A. A's own_cost is 0, so B's inflow is 0.
-        result = compute_effective_cost(db, 2026, "forecast", "B")
+        vid = chargeable_graph["version"].id
+        result = compute_effective_cost(db, 2026, vid, "B")
         assert len(result.inflows) == 1
         assert result.inflows[0].source_entity_id == "A"
         assert result.inflows[0].percentage == 40.0
 
     def test_multi_step_inflow_chain(self, db, chargeable_graph):
-        # D receives 50% of B which receives 40% of A. Tree walk visits A through B.
-        result = compute_effective_cost(db, 2026, "forecast", "D")
+        vid = chargeable_graph["version"].id
+        result = compute_effective_cost(db, 2026, vid, "D")
         assert len(result.inflows) == 1
         assert result.inflows[0].source_entity_id == "B"
 
@@ -202,19 +213,54 @@ class TestComputeEffectiveCost:
             hierarchy_node_id="lob-1",
         )
         db.add(ce)
+        v = DistributionVersion(
+            active_from=date(2025, 1, 1), status="active",
+            rationale="seed", origin="seed",
+        )
+        db.add(v)
         db.commit()
 
-        result = compute_effective_cost(db, 2026, "forecast", "ce-x")
+        result = compute_effective_cost(db, 2026, v.id, "ce-x")
         assert result.own_cost == 100000.0
+        assert result.own_cost_source == "annual_budget"
         assert result.effective_cost == 100000.0
+
+    def test_propagates_inflow_amounts(self, db):
+        """A 1M offering distributes 40% into B → B's effective = 400k inflow."""
+        et = GroupingEntityType(id="get-l", name="L")
+        n = GroupingEntity(id="lob-x", entity_type_id="get-l", name="X")
+        db.add_all([et, n])
+        a = ChargeableEntity(
+            id="A2", entity_type="Offering", identifier="IT00AAA",
+            name="A2", hierarchy_node_id="lob-x", annual_cost=1_000_000.0,
+        )
+        b = ChargeableEntity(
+            id="B2", entity_type="Offering", identifier="IT00BBB",
+            name="B2", hierarchy_node_id="lob-x",
+        )
+        db.add_all([a, b])
+        v = DistributionVersion(
+            active_from=date(2025, 1, 1), status="active",
+            rationale="seed", origin="seed",
+        )
+        db.add(v)
+        db.flush()
+        db.add(Distribution(
+            version_id=v.id, source_entity_id="A2", destination_entity_id="B2",
+            percentage=40.0,
+        ))
+        db.commit()
+        result = compute_effective_cost(db, 2026, v.id, "B2")
+        assert result.inflow_total == 400_000.0
+        assert result.effective_cost == 400_000.0
 
 
 class TestGetOwnCost:
-    def test_offering_returns_zero(self, db, chargeable_graph):
+    def test_offering_zero_when_no_annual_cost(self, db, chargeable_graph):
         c = chargeable_graph["c"]
         assert get_own_cost(c) == 0.0
 
-    def test_internal_service_returns_zero(self, db, chargeable_graph):
+    def test_internal_service_zero_when_no_annual_cost(self, db, chargeable_graph):
         a = chargeable_graph["a"]
         assert get_own_cost(a) == 0.0
 
@@ -249,8 +295,6 @@ class TestGetOwnCost:
         assert get_own_cost(ce) == 200000.0
 
     def test_offering_uses_annual_cost_when_set(self, db):
-        """F3: Offering with annual_cost should return that value [F-DG-03]."""
-        from models.organization import GroupingEntityType, GroupingEntity
         et = GroupingEntityType(id="get-lob2", name="LoB2")
         n = GroupingEntity(id="lob-2", entity_type_id="get-lob2", name="LoB Two")
         db.add_all([et, n])
@@ -266,8 +310,6 @@ class TestGetOwnCost:
         assert get_own_cost(ce) == 1500000.0
 
     def test_internal_service_uses_annual_cost_when_set(self, db):
-        """F3: InternalService with annual_cost should return that value [F-DG-03]."""
-        from models.organization import GroupingEntityType, GroupingEntity
         et = GroupingEntityType(id="get-lob3", name="LoB3")
         n = GroupingEntity(id="lob-3", entity_type_id="get-lob3", name="LoB Three")
         db.add_all([et, n])
@@ -283,7 +325,6 @@ class TestGetOwnCost:
         assert get_own_cost(ce) == 750000.0
 
     def test_project_falls_back_to_annual_cost_when_no_budget(self, db, seed_org_base):
-        """F3: Project CE with no annual_budget/total_budget falls back to annual_cost [F-DG-03]."""
         p = Project(
             id="proj-ac", name="AC", status="active", capex_opex="opex",
             start_month="2026-01", is_service=True,
@@ -303,21 +344,21 @@ class TestGetOwnCost:
 
 class TestUpstreamChain:
     def test_returns_self_for_isolated_entity(self, db, chargeable_graph):
-        # A has no inflows — only path is [A] alone (the source itself).
-        paths = get_upstream_chain(db, 2026, "forecast", "A")
+        vid = chargeable_graph["version"].id
+        paths = get_upstream_chain(db, vid, "A")
         assert paths == [["A"]]
 
     def test_paths_for_intermediate_node(self, db, chargeable_graph):
-        # B receives only from A — path is [A, B].
-        paths = get_upstream_chain(db, 2026, "forecast", "B")
+        vid = chargeable_graph["version"].id
+        paths = get_upstream_chain(db, vid, "B")
         assert paths == [["A", "B"]]
 
     def test_multi_step_path(self, db, chargeable_graph):
-        # D receives from B which receives from A — path is [A, B, D].
-        paths = get_upstream_chain(db, 2026, "forecast", "D")
+        vid = chargeable_graph["version"].id
+        paths = get_upstream_chain(db, vid, "D")
         assert paths == [["A", "B", "D"]]
 
     def test_multiple_paths_when_branches(self, db, chargeable_graph):
-        # C receives only from A — single path [A, C].
-        paths = get_upstream_chain(db, 2026, "forecast", "C")
+        vid = chargeable_graph["version"].id
+        paths = get_upstream_chain(db, vid, "C")
         assert paths == [["A", "C"]]

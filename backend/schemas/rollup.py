@@ -16,7 +16,7 @@ class RollupRowResponse(BaseModel):
     group_label: str
     dimension: str
     year: int
-    version: str
+    version_id: int
     entity_count: int
     effective_cost: float
     own_cost: float
@@ -27,7 +27,7 @@ class RollupRowResponse(BaseModel):
 class RollupListResponse(BaseModel):
     dimension: str
     year: int
-    version: str
+    version_id: int
     rows: list[RollupRowResponse]
     grand_total_effective: float
     grand_total_own_cost: float
@@ -43,7 +43,7 @@ class RollupDrillDownResponse(BaseModel):
     entity_id: str
     entity_name: str
     year: int
-    version: str
+    version_id: int
     effective_cost: float
     own_cost: float
     inflow_total: float
@@ -83,7 +83,7 @@ class EntityAllocationBreakdownResponse(BaseModel):
     entity_id: str
     entity_name: str
     year: int
-    version: str
+    version_id: int
     to_business_pct: float
     effective_cost: float
     business_amount_total: float
@@ -129,7 +129,7 @@ class LocationBreakdownResponse(BaseModel):
     division: Optional[str] = None
     country_iso_code: Optional[str] = None
     year: int
-    version: str
+    version_id: int
     total_amount_eur: float
     legal_entities: list[LegalEntitySummary]
     chargeable_entities: list[LocationBreakdownEntity]

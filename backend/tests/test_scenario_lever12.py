@@ -1,19 +1,29 @@
 """Unit tests for services/scenario_lever12.py — sandbox cost allocation engine.
 
-Per spec [B-ES-01] (Lever 12 widening) and [F-RV-01..06]:
-- Stage 1 distribution edges fork lazily into version='scenario-{id}'
+Per spec [B-ES-01] (Lever 12 widening) and [F-RV-01..06], plus the FD-3
+Charging/UM rework (spec §4) which replaces the v4 string-keyed
+``Distribution.version`` column with a first-class ``DistributionVersion``
+header keyed by ``Distribution.version_id`` (FK):
+
+- Stage 1 distribution edges fork lazily into a per-scenario
+  ``DistributionVersion`` (``scenario_id=N``, ``status='draft'`` permanently)
 - Stage 2 BTC + to_business overlays stored as ScenarioActions
-- Per-charging-location impact computed against the anchor version
+- Per-charging-location impact computed against the anchor production
+  ``DistributionVersion`` pinned on ``Scenario.anchor_distribution_version_id``
 - Live BTCProfile rows are NEVER mutated by this module
+- The anchor production version is NEVER mutated; only the per-scenario
+  draft version receives edge writes
 """
 
 import json
+from datetime import date
 from decimal import Decimal
 
 import pytest
 
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargeableEntity, ChargingLocation, Distribution,
+    DistributionVersion,
 )
 from models.people import Person
 from models.scenarios import Scenario, ScenarioAction
@@ -36,6 +46,19 @@ from services.scenario_lever12 import (
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _scenario_dist_version(db, scenario_id):
+    """Look up the per-scenario sandbox DistributionVersion row, or None."""
+    return (
+        db.query(DistributionVersion)
+        .filter(DistributionVersion.scenario_id == scenario_id)
+        .first()
+    )
+
+
+# ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
@@ -54,13 +77,17 @@ def author_person(db, seed_org_base):
 
 @pytest.fixture
 def lever12_world(db, author_person):
-    """Two ChargeableEntities + 2 ChargingLocations + a forecast-version edge.
+    """Two ChargeableEntities + 2 ChargingLocations + an active production edge.
 
     Topology:
         ent_src (annual_cost=100k) --50%--> ent_dst (annual_cost=0)
         ent_src.to_business_pct = 30%
         BTCProfile on ent_src (year=2026, manual, active):
           cl_a → 60%, cl_b → 40%
+
+    Stage 1 edges live on an active production ``DistributionVersion``
+    (``active_from=2025-01-01``, ``origin='seed'``). The scenario is
+    explicitly anchored to that version.
     """
     cl_a = ChargingLocation(id="cl-a", code="CL-A", name="Location A")
     cl_b = ChargingLocation(id="cl-b", code="CL-B", name="Location B")
@@ -79,9 +106,20 @@ def lever12_world(db, author_person):
     db.add_all([ent_src, ent_dst])
     db.flush()
 
-    # Existing forecast-version distribution edge
+    # Active production DistributionVersion — anchor for the scenario.
+    active_version = DistributionVersion(
+        active_from=date(2025, 1, 1),
+        status="active",
+        rationale="seed",
+        origin="seed",
+        scenario_id=None,
+    )
+    db.add(active_version)
+    db.flush()
+
+    # Existing production distribution edge.
     edge = Distribution(
-        year=2026, version="forecast",
+        version_id=active_version.id,
         source_entity_id="ent-src", destination_entity_id="ent-dst",
         percentage=Decimal("50"),
     )
@@ -104,6 +142,7 @@ def lever12_world(db, author_person):
 
     scenario = Scenario(
         name="Lever 12 Test Scenario", author_id=author_person.id, status="private",
+        anchor_distribution_version_id=active_version.id,
     )
     db.add(scenario)
     db.commit()
@@ -116,6 +155,7 @@ def lever12_world(db, author_person):
         "cl_a_id": "cl-a",
         "cl_b_id": "cl-b",
         "edge_id": edge.id,
+        "active_version_id": active_version.id,
         "year": 2026,
     }
 
@@ -125,6 +165,12 @@ def lever12_world(db, author_person):
 # ---------------------------------------------------------------------------
 
 class TestScenarioVersionHelper:
+    """``scenario_version`` is kept as a stable human-readable label helper.
+
+    It does NOT query the database — the sandbox version row is looked up
+    by ``scenario_id`` via :func:`_get_or_create_scenario_dist_version`.
+    """
+
     def test_format(self):
         assert scenario_version(42) == "scenario-42"
         assert scenario_version(1) == "scenario-1"
@@ -137,13 +183,14 @@ class TestScenarioVersionHelper:
 class TestForkEntityEdges:
     def test_initial_fork_clones_anchor_edges(self, db, lever12_world):
         n = fork_entity_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"], 2026,
+            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
         )
         assert n == 1
-        sv = scenario_version(lever12_world["scenario_id"])
+        sv = _scenario_dist_version(db, lever12_world["scenario_id"])
+        assert sv is not None
         rows = (
             db.query(Distribution)
-            .filter(Distribution.version == sv)
+            .filter(Distribution.version_id == sv.id)
             .all()
         )
         assert len(rows) == 1
@@ -152,20 +199,20 @@ class TestForkEntityEdges:
 
     def test_fork_is_idempotent(self, db, lever12_world):
         fork_entity_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"], 2026,
+            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
         )
         n2 = fork_entity_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"], 2026,
+            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
         )
         assert n2 == 0
 
     def test_fork_does_not_touch_anchor(self, db, lever12_world):
         fork_entity_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"], 2026,
+            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
         )
         anchor_rows = (
             db.query(Distribution)
-            .filter(Distribution.version == "forecast")
+            .filter(Distribution.version_id == lever12_world["active_version_id"])
             .all()
         )
         assert len(anchor_rows) == 1
@@ -173,19 +220,20 @@ class TestForkEntityEdges:
 
     def test_list_returns_anchor_when_no_fork(self, db, lever12_world):
         rows = list_scenario_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"], 2026,
+            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
         )
         assert len(rows) == 1
-        assert rows[0].version == "forecast"
+        assert rows[0].version_id == lever12_world["active_version_id"]
 
     def test_list_returns_scenario_after_fork(self, db, lever12_world):
         fork_entity_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"], 2026,
+            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
         )
         rows = list_scenario_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"], 2026,
+            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
         )
-        assert all(r.version == scenario_version(lever12_world["scenario_id"]) for r in rows)
+        sv = _scenario_dist_version(db, lever12_world["scenario_id"])
+        assert all(r.version_id == sv.id for r in rows)
 
 
 # ---------------------------------------------------------------------------
@@ -224,9 +272,17 @@ class TestApplyDistributionCreate:
         assert actions[0].lever_category == "cost_allocation"
         assert actions[0].tier == 2
         # Both anchor and scenario edges exist; anchor untouched
-        anchor = db.query(Distribution).filter(Distribution.version == "forecast").all()
-        sv = scenario_version(lever12_world["scenario_id"])
-        sandbox = db.query(Distribution).filter(Distribution.version == sv).all()
+        anchor = (
+            db.query(Distribution)
+            .filter(Distribution.version_id == lever12_world["active_version_id"])
+            .all()
+        )
+        sv = _scenario_dist_version(db, lever12_world["scenario_id"])
+        sandbox = (
+            db.query(Distribution)
+            .filter(Distribution.version_id == sv.id)
+            .all()
+        )
         assert len(anchor) == 1
         # 1 forked edge (ent-src→ent-dst) + 1 new (ent-src→ent-3)
         assert len(sandbox) == 2
@@ -276,8 +332,12 @@ class TestApplyDistributionUpdate:
         )
         assert float(anchor.percentage) == 50.0
         # New scenario row exists with 40
-        sv = scenario_version(lever12_world["scenario_id"])
-        sandbox = db.query(Distribution).filter(Distribution.version == sv).all()
+        sv = _scenario_dist_version(db, lever12_world["scenario_id"])
+        sandbox = (
+            db.query(Distribution)
+            .filter(Distribution.version_id == sv.id)
+            .all()
+        )
         assert len(sandbox) == 1
         assert float(sandbox[0].percentage) == 40.0
 
@@ -304,8 +364,12 @@ class TestApplyDistributionDelete:
         )
         assert anchor is not None
         # Sandbox empty
-        sv = scenario_version(lever12_world["scenario_id"])
-        sandbox = db.query(Distribution).filter(Distribution.version == sv).all()
+        sv = _scenario_dist_version(db, lever12_world["scenario_id"])
+        sandbox = (
+            db.query(Distribution)
+            .filter(Distribution.version_id == sv.id)
+            .all()
+        )
         assert len(sandbox) == 0
         # Action recorded
         actions = (
@@ -450,6 +514,7 @@ class TestComputeCostAllocationImpact:
         assert out["touched_entity_count"] == 0
         assert out["items"] == []
         assert out["totals"]["delta"] == 0.0
+        assert out["anchor_version_id"] == lever12_world["active_version_id"]
 
     def test_to_business_change_shifts_per_location_amounts(self, db, lever12_world):
         # ent-src effective_cost = annual_cost(100k) (no inflows, leaf source)
@@ -539,9 +604,16 @@ def lever12_with_upstream(db, author_person):
     db.add_all([ent_up, ent_src])
     db.flush()
 
-    # Upstream → ent_src 50% (anchor / forecast version).
+    active_version = DistributionVersion(
+        active_from=date(2025, 1, 1), status="active",
+        rationale="seed", origin="seed", scenario_id=None,
+    )
+    db.add(active_version)
+    db.flush()
+
+    # Upstream → ent_src 50% (production version).
     db.add(Distribution(
-        year=2026, version="forecast",
+        version_id=active_version.id,
         source_entity_id="ent-up", destination_entity_id="ent-src-up",
         percentage=Decimal("50"),
     ))
@@ -559,6 +631,7 @@ def lever12_with_upstream(db, author_person):
     scenario = Scenario(
         name="BTC-only Scenario (upstream test)",
         author_id=author_person.id, status="private",
+        anchor_distribution_version_id=active_version.id,
     )
     db.add(scenario)
     db.commit()
@@ -569,6 +642,7 @@ def lever12_with_upstream(db, author_person):
         "ent_up_id": "ent-up",
         "cl_a_id": "cl-up-a",
         "cl_b_id": "cl-up-b",
+        "active_version_id": active_version.id,
         "year": 2026,
     }
 
@@ -630,7 +704,7 @@ class TestUnionAwareEffectiveCost:
         anchor_edge = (
             db.query(Distribution)
             .filter(
-                Distribution.year == 2026, Distribution.version == "forecast",
+                Distribution.version_id == lever12_with_upstream["active_version_id"],
                 Distribution.source_entity_id == "ent-up",
             )
             .one()
@@ -652,6 +726,87 @@ class TestUnionAwareEffectiveCost:
 
 
 # ---------------------------------------------------------------------------
+# Anchor pinning — FD-3 OQ #3
+# ---------------------------------------------------------------------------
+
+class TestAnchorPinning:
+    """``Scenario.anchor_distribution_version_id`` pins the production anchor.
+
+    When NULL, ``_resolve_anchor_version_id`` falls back to the latest
+    production active version (resolve-by-date). When set, that pinned id is
+    used regardless of subsequent activations — production reactivations
+    cannot shift impact deltas underneath an open scenario.
+    """
+
+    def test_pinned_anchor_used_when_set(self, db, lever12_world):
+        # Activate a NEWER production version with a different edge percentage.
+        newer = DistributionVersion(
+            active_from=date(2026, 3, 1), status="active",
+            rationale="newer", origin="copy_active",
+            copied_from_version_id=lever12_world["active_version_id"],
+            scenario_id=None,
+        )
+        db.add(newer)
+        db.flush()
+        db.add(Distribution(
+            version_id=newer.id,
+            source_entity_id="ent-src", destination_entity_id="ent-dst",
+            percentage=Decimal("80"),
+        ))
+        db.commit()
+
+        # Scenario is anchored to the OLDER version (50%); the listing must
+        # reflect 50%, not the newer 80%.
+        rows = list_scenario_edges(
+            db, lever12_world["scenario_id"], "ent-src",
+        )
+        assert len(rows) == 1
+        assert float(rows[0].percentage) == 50.0
+
+    def test_legacy_null_anchor_falls_back_to_resolver(
+        self, db, author_person,
+    ):
+        # Create an active version + an edge, then a scenario WITHOUT
+        # ``anchor_distribution_version_id`` (legacy v4-era contract).
+        ent_a = ChargeableEntity(
+            id="anchor-src", entity_type="Offering", identifier="IT00S300",
+            name="Anchor Src", annual_cost=Decimal("50000"),
+            to_business_pct=Decimal("0"),
+        )
+        ent_b = ChargeableEntity(
+            id="anchor-dst", entity_type="InternalService", identifier="ITF00300",
+            name="Anchor Dst", annual_cost=Decimal("0"),
+            to_business_pct=Decimal("0"),
+        )
+        db.add_all([ent_a, ent_b])
+        db.flush()
+
+        av = DistributionVersion(
+            active_from=date(2025, 1, 1), status="active",
+            rationale="seed", origin="seed", scenario_id=None,
+        )
+        db.add(av)
+        db.flush()
+        db.add(Distribution(
+            version_id=av.id,
+            source_entity_id="anchor-src", destination_entity_id="anchor-dst",
+            percentage=Decimal("25"),
+        ))
+
+        legacy_scenario = Scenario(
+            name="Legacy Scenario (no pinned anchor)",
+            author_id=author_person.id, status="private",
+            anchor_distribution_version_id=None,
+        )
+        db.add(legacy_scenario)
+        db.commit()
+
+        rows = list_scenario_edges(db, legacy_scenario.id, "anchor-src")
+        assert len(rows) == 1
+        assert float(rows[0].percentage) == 25.0
+
+
+# ---------------------------------------------------------------------------
 # Cleanup on scenario delete
 # ---------------------------------------------------------------------------
 
@@ -662,15 +817,20 @@ class TestCleanupLever12State:
             edge_id=lever12_world["edge_id"], percentage=40.0,
         )
         db.commit()
-        sv = scenario_version(lever12_world["scenario_id"])
-        before = db.query(Distribution).filter(Distribution.version == sv).count()
+        sv = _scenario_dist_version(db, lever12_world["scenario_id"])
+        assert sv is not None
+        before = db.query(Distribution).filter(Distribution.version_id == sv.id).count()
         assert before == 1
 
         n = cleanup_lever12_state(db, lever12_world["scenario_id"])
         db.commit()
         assert n == 1
-        after = db.query(Distribution).filter(Distribution.version == sv).count()
-        assert after == 0
+        # Header gone too — cascade removes child edges.
+        assert (
+            db.query(DistributionVersion)
+            .filter(DistributionVersion.scenario_id == lever12_world["scenario_id"])
+            .first()
+        ) is None
 
     def test_cleanup_does_not_touch_anchor(self, db, lever12_world):
         apply_distribution_update(
@@ -682,7 +842,12 @@ class TestCleanupLever12State:
         db.commit()
         anchor_count = (
             db.query(Distribution)
-            .filter(Distribution.version == "forecast")
+            .filter(Distribution.version_id == lever12_world["active_version_id"])
             .count()
         )
         assert anchor_count == 1
+
+    def test_cleanup_with_no_sandbox_is_noop(self, db, lever12_world):
+        """When no mutations occurred, there's no sandbox version to clean."""
+        n = cleanup_lever12_state(db, lever12_world["scenario_id"])
+        assert n == 0

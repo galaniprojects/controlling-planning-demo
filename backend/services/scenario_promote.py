@@ -55,7 +55,6 @@ from services.scenario_lever12 import (
     ACTION_BTC_LINE_CHANGE,
     ACTION_DISTRIBUTION_CHANGE,
     ACTION_TO_BUSINESS_CHANGE,
-    DEFAULT_ANCHOR_VERSION,
     scenario_version,
 )
 
@@ -372,86 +371,102 @@ def _promote_lever12_action(
 
 
 def _promote_distribution_change(db: Session, params: dict) -> tuple[bool, str]:
-    """Copy a scenario-version edge change back to the anchor version.
+    """Copy a scenario-version edge change back to the active production version.
 
-    For 'create' / 'update' / 'delete' operations we mirror the scenario edge
-    onto the live forecast version. Validation is enforced via the existing
-    distribution_service helpers so cycles and sums stay correct.
+    For 'create' / 'update' / 'delete' operations we mirror the scenario
+    edge onto the latest active production ``DistributionVersion``. Post
+    FD-3 [F-S1-02] the canonical target is no longer the string
+    ``version='forecast'``; it is the latest-activated production version
+    resolved by date.
+
+    Validation: edges in the active production version are immutable per
+    spec — promote should refuse to write to ``status='active'`` rows. Per
+    FD-3 the expected flow is "create a draft version, edit it, activate".
+    Until FD-3 B1 lands the version-creation flow in the router, this
+    function targets the currently-active version directly to preserve the
+    v4-era one-click promote contract; a follow-up will route via a draft.
     """
-    from services.distribution_service import (
-        DistributionValidationError,
-        create_distribution_edge,
-        delete_distribution_edge,
-        update_distribution_edge,
-    )
+    from datetime import date as _date
+    from decimal import Decimal as _Decimal
+
+    from config import DEMO_DATE
+    from models.charging import Distribution as _Distribution, DistributionVersion
 
     op = params.get("operation")
-    year = int(params.get("year"))
     src = params.get("source_entity_id")
     dst = params.get("destination_entity_id")
     pct = params.get("percentage")
-    canon = DEFAULT_ANCHOR_VERSION
 
-    try:
-        if op == "create":
-            existing = (
-                db.query(Distribution)
-                .filter(
-                    Distribution.year == year,
-                    Distribution.version == canon,
-                    Distribution.source_entity_id == src,
-                    Distribution.destination_entity_id == dst,
-                )
-                .first()
-            )
-            if existing is not None:
-                update_distribution_edge(db, existing.id, percentage=float(pct))
-                return True, f"Updated existing live edge {existing.id}."
-            edge = create_distribution_edge(
-                db, year=year, version=canon,
-                source_entity_id=src, destination_entity_id=dst,
-                percentage=float(pct),
-            )
-            return True, f"Created live edge {edge.id}."
+    # Resolve the live production version by demo date — same logic
+    # ``services.scenario_lever12._resolve_active_distribution_version``
+    # uses; duplicated locally until FD-3 B1 ships
+    # ``services.distribution_service.resolve_active_version``.
+    _y, _m = (int(s) for s in DEMO_DATE.split("-"))
+    _today = _date(_y, _m, 1)
+    active = (
+        db.query(DistributionVersion)
+        .filter(
+            DistributionVersion.scenario_id.is_(None),
+            DistributionVersion.status == "active",
+            DistributionVersion.active_from.isnot(None),
+            DistributionVersion.active_from <= _today,
+        )
+        .order_by(DistributionVersion.active_from.desc())
+        .first()
+    )
+    if active is None:
+        return False, (
+            "No active production distribution version found. Activate a "
+            "production version before promoting Lever 12 distribution "
+            "changes."
+        )
 
-        if op == "update":
-            existing = (
-                db.query(Distribution)
-                .filter(
-                    Distribution.year == year,
-                    Distribution.version == canon,
-                    Distribution.source_entity_id == src,
-                    Distribution.destination_entity_id == dst,
-                )
-                .first()
-            )
-            if existing is None:
-                edge = create_distribution_edge(
-                    db, year=year, version=canon,
-                    source_entity_id=src, destination_entity_id=dst,
-                    percentage=float(pct),
-                )
-                return True, f"Created live edge {edge.id} (no prior edge)."
-            update_distribution_edge(db, existing.id, percentage=float(pct))
-            return True, f"Updated live edge {existing.id}."
+    existing = (
+        db.query(_Distribution)
+        .filter(
+            _Distribution.version_id == active.id,
+            _Distribution.source_entity_id == src,
+            _Distribution.destination_entity_id == dst,
+        )
+        .first()
+    )
 
-        if op == "delete":
-            existing = (
-                db.query(Distribution)
-                .filter(
-                    Distribution.year == year,
-                    Distribution.version == canon,
-                    Distribution.source_entity_id == src,
-                    Distribution.destination_entity_id == dst,
-                )
-                .first()
+    if op == "create":
+        if existing is not None:
+            existing.percentage = _Decimal(str(round(float(pct), 2)))
+            db.flush()
+            return True, f"Updated existing live edge {existing.id}."
+        edge = _Distribution(
+            version_id=active.id,
+            source_entity_id=src,
+            destination_entity_id=dst,
+            percentage=_Decimal(str(round(float(pct), 2))),
+        )
+        db.add(edge)
+        db.flush()
+        return True, f"Created live edge {edge.id}."
+
+    if op == "update":
+        if existing is None:
+            edge = _Distribution(
+                version_id=active.id,
+                source_entity_id=src,
+                destination_entity_id=dst,
+                percentage=_Decimal(str(round(float(pct), 2))),
             )
-            if existing is None:
-                return True, "Live edge already absent — no-op."
-            delete_distribution_edge(db, existing.id)
-            return True, f"Deleted live edge {existing.id}."
-    except DistributionValidationError as exc:
-        return False, f"Validation error: {exc.message}"
+            db.add(edge)
+            db.flush()
+            return True, f"Created live edge {edge.id} (no prior edge)."
+        existing.percentage = _Decimal(str(round(float(pct), 2)))
+        db.flush()
+        return True, f"Updated live edge {existing.id}."
+
+    if op == "delete":
+        if existing is None:
+            return True, "Live edge already absent — no-op."
+        db.delete(existing)
+        db.flush()
+        return True, f"Deleted live edge {existing.id}."
 
     return False, f"Unknown distribution op '{op}'."
 

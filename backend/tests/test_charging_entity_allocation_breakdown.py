@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import date
+
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargeableEntity, ChargingLocation,
-    Country, LegalEntity, Region,
+    Country, DistributionVersion, LegalEntity, Region,
 )
 from models.organization import GroupingEntityType, GroupingEntity
 
@@ -28,10 +30,22 @@ HEADERS_BAD = {"X-Current-User": "persona-nonexistent"}
 # ---------------------------------------------------------------------------
 
 def _seed_base(db, *, to_business_pct=60.0, annual_cost=1_000_000.0):
-    """Seed entity + 3 charging locations with region/country metadata."""
+    """Seed entity + 3 charging locations with region/country metadata.
+
+    Also seeds a production-active ``DistributionVersion`` so the
+    allocation-breakdown endpoint's version resolver can find an
+    in-force version (FD-3 rework — replaces the v4 implicit
+    ``version='forecast'`` default).
+    """
     get_type = GroupingEntityType(id="get-lob", name="LoB")
     ge = GroupingEntity(id="lob-a", entity_type_id="get-lob", name="LoB A")
     db.add_all([get_type, ge])
+
+    dist_v = DistributionVersion(
+        active_from=date(2025, 1, 1), status="active", origin="seed",
+        rationale="Allocation-breakdown test seed", scenario_id=None,
+    )
+    db.add(dist_v)
 
     ce = ChargeableEntity(
         id="ce-off-1", entity_type="Offering", identifier="IT00S101",
@@ -111,7 +125,10 @@ class TestAllocationBreakdownHappyPath:
         assert data["entity_id"] == "ce-off-1"
         assert data["entity_name"] == "Offering One"
         assert data["year"] == 2026
-        assert data["version"] == "forecast"
+        # FD-3 rework — response carries the resolved DistributionVersion id
+        # (int) instead of the legacy `version` String.
+        assert isinstance(data["version_id"], int)
+        assert data["version_id"] >= 1
         assert data["to_business_pct"] == 60.0
         assert data["has_profile"] is True
         assert data["sums_to_100"] is True
@@ -214,6 +231,13 @@ class TestAllocationBreakdownEmptyCases:
 
 class TestAllocationBreakdownNotFound:
     def test_unknown_entity_returns_404(self, test_client, seed_personas, db):
+        # Seed a production version so the resolver returns 200; the entity
+        # lookup is the one that should 404.
+        db.add(DistributionVersion(
+            active_from=date(2025, 1, 1), status="active", origin="seed",
+            rationale="seed", scenario_id=None,
+        ))
+        db.commit()
         resp = test_client.get(
             URL.format(eid="no-such-entity") + "?year=2026",
             headers=HEADERS_CTRL,

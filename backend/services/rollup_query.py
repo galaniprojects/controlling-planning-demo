@@ -12,6 +12,15 @@ Annual is the primary reporting view; quarterly is an optional drill.
 The rollup query fetches effective-cost payloads from the cache
 (``services/rollup_cache.get_stage1_effective``) so it benefits from the
 cache's miss-then-compute behaviour.
+
+**FD-3 rework (Charging/UM round, cluster B3 — service rescope):** the v4
+``version: str = 'forecast'`` defaults are retired. Every public entry
+point takes ``version_id: int`` against the ``DistributionVersion`` header
+introduced by FD-3. Callers (the four ``charging_router`` endpoints in
+``backend/routers/charging.py``) resolve ``version_id`` from an explicit
+query param or the production-resolver
+(``distribution_service.resolve_active_version``) before invoking here —
+the service itself does not resolve dates, by design.
 """
 
 from __future__ import annotations
@@ -38,7 +47,7 @@ class RollupRow:
     group_label: str         # Human-readable label for the group
     dimension: str           # Which dimension was grouped on
     year: int
-    version: str
+    version_id: int
     entity_count: int
     effective_cost: float
     own_cost: float
@@ -51,7 +60,7 @@ class RollupRow:
 class RollupListResponse:
     dimension: str
     year: int
-    version: str
+    version_id: int
     rows: list[RollupRow]
     grand_total_effective: float
     grand_total_own_cost: float
@@ -69,7 +78,7 @@ class DrillDownResponse:
     entity_id: str
     entity_name: str
     year: int
-    version: str
+    version_id: int
     effective_cost: float
     own_cost: float
     inflow_total: float
@@ -98,7 +107,7 @@ class EntityAllocationBreakdownResponse:
     entity_id: str
     entity_name: str
     year: int
-    version: str
+    version_id: int
     to_business_pct: float
     effective_cost: float
     business_amount_total: float
@@ -136,7 +145,7 @@ SUPPORTED_DIMS = {
 def query_rollup(
     db: Session,
     year: int,
-    version: str,
+    version_id: int,
     *,
     group_by: str = "entity_type",
     entity_type: Optional[str] = None,
@@ -146,8 +155,8 @@ def query_rollup(
     """Aggregate effective costs by the specified dimension.
 
     Fetches all active chargeable entities matching the optional filters,
-    resolves their effective costs (via cache), and aggregates by the
-    chosen dimension.
+    resolves their effective costs (via cache against ``version_id``), and
+    aggregates by the chosen dimension.
 
     Supported ``group_by`` values: see SUPPORTED_DIMS.
     """
@@ -170,16 +179,15 @@ def query_rollup(
     cost_by_entity: dict[str, dict] = {}
     for ent in entities[:limit]:
         try:
-            cost_by_entity[ent.id] = get_stage1_effective(db, year, version, ent.id)
+            cost_by_entity[ent.id] = get_stage1_effective(
+                db, year, version_id, ent.id,
+            )
         except Exception:
             cost_by_entity[ent.id] = {
                 "effective_cost": 0.0,
                 "own_cost": 0.0,
                 "inflow_total": 0.0,
             }
-
-    # Build entity lookup maps for dimension extraction.
-    entity_map: dict[str, ChargeableEntity] = {e.id: e for e in entities}
 
     # Helper: extract dimension key+label for an entity.
     def _dim_key_label(ent: ChargeableEntity, dim: str) -> tuple[str, str]:
@@ -201,21 +209,13 @@ def query_rollup(
             val = ent.is_change_or_run
             return val, val
         if dim == "stage":
-            # Use pipeline_stage for project subtypes; 'Run' for others.
             if ent.entity_type == "Project" and ent.project:
                 stage = ent.project.pipeline_stage or "Unknown"
                 return stage, stage
             return "Run", "Run (Steady State)"
-        # Charging location / legal entity / region / division / country
-        # require looking up via active BTC profile (not available per entity directly).
-        # For these dimensions, we aggregate directly on the entity's hierarchy data.
         if dim == "division":
-            # Use entity's hierarchy node division if possible.
-            # Division is on ChargingLocation, not directly on entity. Fall back to entity_type.
             return ent.entity_type, ent.entity_type
         if dim in ("charging_location", "legal_entity", "region", "country"):
-            # These dimensions require mapping through BTC profiles.
-            # Return entity-level for now (upgraded in Stage 2 drill-down).
             return ent.entity_type, ent.entity_type
         return "__unknown__", "(Unknown)"
 
@@ -244,7 +244,7 @@ def query_rollup(
             group_label=g["group_label"],
             dimension=group_by,
             year=year,
-            version=version,
+            version_id=version_id,
             entity_count=g["entity_count"],
             effective_cost=round(g["effective_cost"], 2),
             own_cost=round(g["own_cost"], 2),
@@ -260,7 +260,7 @@ def query_rollup(
     return RollupListResponse(
         dimension=group_by,
         year=year,
-        version=version,
+        version_id=version_id,
         rows=rows,
         grand_total_effective=grand_total_effective,
         grand_total_own_cost=grand_total_own_cost,
@@ -275,13 +275,14 @@ def drill_down_charging_location(
     db: Session,
     entity_id: str,
     year: int,
-    version: str,
+    version_id: int,
     charging_location_id: str,
 ) -> DrillDownResponse:
     """Drill into a specific (entity × charging_location) to see the upstream chain.
 
-    Uses F2's ``get_upstream_chain`` for the DAG paths and
-    ``get_stage2_location_total`` for the cost at this location.
+    Uses ``get_upstream_chain`` for the DAG paths (rescoped to ``version_id``
+    in FD-3 B1) and ``get_stage2_location_total`` for the cost at this
+    location.
     """
     from services.dag_resolver import get_upstream_chain
     from services.rollup_cache import get_stage1_effective, get_stage2_location_total
@@ -290,14 +291,17 @@ def drill_down_charging_location(
     if entity is None:
         raise ValueError(f"ChargeableEntity '{entity_id}' not found")
 
-    effective_data = get_stage1_effective(db, year, version, entity_id)
+    effective_data = get_stage1_effective(db, year, version_id, entity_id)
 
-    # Stage 2 total for this charging location.
-    stage2_data = get_stage2_location_total(db, year, version, entity_id, charging_location_id)
+    # Stage 2 total for this charging location (informational; not surfaced
+    # on the DrillDownResponse but populates the cache for the location-
+    # breakdown sibling endpoint).
+    get_stage2_location_total(
+        db, year, version_id, entity_id, charging_location_id,
+    )
 
-    raw_paths = get_upstream_chain(db, year, version, entity_id)
+    raw_paths = get_upstream_chain(db, version_id, entity_id)
 
-    # Enrich paths with entity names.
     enriched_paths: list[DrillDownPath] = []
     for path in raw_paths:
         labels: list[str] = []
@@ -310,7 +314,7 @@ def drill_down_charging_location(
         entity_id=entity.id,
         entity_name=entity.name,
         year=year,
-        version=version,
+        version_id=version_id,
         effective_cost=round(float(effective_data.get("effective_cost", 0)), 2),
         own_cost=round(float(effective_data.get("own_cost", 0)), 2),
         inflow_total=round(float(effective_data.get("inflow_total", 0)), 2),
@@ -326,7 +330,7 @@ def query_entity_allocation_breakdown(
     db: Session,
     entity_id: str,
     year: int,
-    version: str = "forecast",
+    version_id: int,
     *,
     sort_by: str = "amount",
     sort_dir: str = "desc",
@@ -343,20 +347,23 @@ def query_entity_allocation_breakdown(
     Used by F6's Workbench BTC tab per [E-09] for the allocation breakdown
     table and drill-down. Sortable by location/region/division/percentage/amount.
 
+    ``version_id`` selects the Stage 1 graph used for the effective-cost
+    rollup (cadence-agnostic per `[F-S1-02]`); ``year`` selects the BTC
+    profile.
+
     Raises ``ValueError`` if the entity is missing.
     """
     from services.rollup_cache import get_stage1_effective
     from models.charging import (
-        BTCProfile, ChargingLocation, LegalEntity, Region,
+        BTCProfile, ChargingLocation, LegalEntity,
     )
 
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
         raise ValueError(f"ChargeableEntity '{entity_id}' not found")
 
-    # Cache-backed effective cost.
     try:
-        effective_data = get_stage1_effective(db, year, version, entity_id)
+        effective_data = get_stage1_effective(db, year, version_id, entity_id)
     except Exception:
         effective_data = {"effective_cost": 0.0}
     effective_cost = float(effective_data.get("effective_cost", 0.0))
@@ -364,7 +371,6 @@ def query_entity_allocation_breakdown(
     to_business_pct = float(entity.to_business_pct or 0.0)
     business_amount_total = round(effective_cost * to_business_pct / 100.0, 2)
 
-    # Look up the active profile for (entity, year). Fall back to draft if active missing.
     profile = (
         db.query(BTCProfile)
         .filter(
@@ -387,15 +393,12 @@ def query_entity_allocation_breakdown(
     rows: list[EntityAllocationBreakdownRow] = []
     sum_pct = 0.0
     if profile is not None:
-        # Pre-fetch related charging-locations + their region/country in bulk.
         cl_ids = [line.charging_location_id for line in profile.lines]
         cls = {
             cl.id: cl for cl in db.query(ChargingLocation)
             .filter(ChargingLocation.id.in_(cl_ids)).all()
         } if cl_ids else {}
 
-        # Optional: pull a single representative LegalEntity name per CL
-        # (informational only; charging amounts roll up at CL level, not LE).
         le_by_cl: dict[str, str] = {}
         if cl_ids:
             les = (
@@ -438,7 +441,6 @@ def query_entity_allocation_breakdown(
                 amount_eur=amount,
             ))
 
-    # Sort.
     sort_key_map = {
         "amount": lambda r: r.amount_eur,
         "percentage": lambda r: r.percentage,
@@ -455,7 +457,7 @@ def query_entity_allocation_breakdown(
         entity_id=entity.id,
         entity_name=entity.name,
         year=year,
-        version=version,
+        version_id=version_id,
         to_business_pct=to_business_pct,
         effective_cost=round(effective_cost, 2),
         business_amount_total=business_amount_total,
@@ -509,7 +511,7 @@ class LocationBreakdownResponse:
     division: Optional[str]
     country_iso_code: Optional[str]
     year: int
-    version: str
+    version_id: int
     total_amount_eur: float
     legal_entities: list[LegalEntitySummary]
     chargeable_entities: list[LocationBreakdownEntity]
@@ -519,7 +521,7 @@ def get_location_breakdown(
     db: Session,
     charging_location_id: str,
     year: int,
-    version: str = "forecast",
+    version_id: int,
 ) -> LocationBreakdownResponse:
     """Aggregate BTC-weighted Stage-2 cost for one charging location.
 
@@ -528,8 +530,8 @@ def get_location_breakdown(
       - Find every ``BTCProfileLine`` targeting this location whose parent
         profile is active for ``year``. Each line contributes one
         (entity, percentage) pair.
-      - For each entity, resolve effective cost via the rollup cache and
-        compute the per-location amount as
+      - For each entity, resolve effective cost via the rollup cache
+        (keyed by ``version_id``) and compute the per-location amount as
         ``effective_cost × to_business_pct/100 × line.percentage/100`` —
         identical to the Stage-2 math used in
         :func:`query_entity_allocation_breakdown`.
@@ -564,7 +566,7 @@ def get_location_breakdown(
         if entity is None or not entity.is_active:
             continue
         try:
-            eff = get_stage1_effective(db, year, version, entity.id)
+            eff = get_stage1_effective(db, year, version_id, entity.id)
         except Exception:
             eff = {"effective_cost": 0.0}
         effective_cost = float(eff.get("effective_cost", 0.0) or 0.0)
@@ -620,7 +622,7 @@ def get_location_breakdown(
         division=cl.division,
         country_iso_code=country_iso,
         year=year,
-        version=version,
+        version_id=version_id,
         total_amount_eur=total,
         legal_entities=legal_entities,
         chargeable_entities=rows,

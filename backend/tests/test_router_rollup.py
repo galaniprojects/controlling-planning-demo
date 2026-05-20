@@ -4,10 +4,31 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import date
+
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargeableEntity, ChargingLocation,
-    Distribution, RollupCache,
+    Distribution, DistributionVersion, RollupCache,
 )
+
+
+def _seed_dist_version(db):
+    """Create an active Stage 1 DistributionVersion (FD-3) for tests that need
+    one. Idempotent — returns the existing row if already created.
+    """
+    v = (
+        db.query(DistributionVersion)
+        .filter_by(scenario_id=None, status="active")
+        .first()
+    )
+    if v is None:
+        v = DistributionVersion(
+            active_from=date(2025, 1, 1), status="active", origin="seed",
+            rationale="Router-rollup test seed", scenario_id=None,
+        )
+        db.add(v)
+        db.flush()
+    return v
 
 
 HEADERS_CTRL = {"X-Current-User": "persona-controller"}
@@ -45,9 +66,11 @@ def _seed_cl(db, cl_id="cl-de1", code="DE-A-001"):
 # ---------------------------------------------------------------------------
 
 class TestGetRollup:
-    def test_empty_returns_empty_rows(self, test_client, seed_personas, seed_hierarchy):
+    def test_empty_returns_empty_rows(self, test_client, seed_personas, seed_hierarchy, db):
+        _seed_dist_version(db)
+        db.commit()
         resp = test_client.get(
-            "/api/charging/rollup?year=2026&version=forecast&group_by=entity_type",
+            "/api/charging/rollup?year=2026&group_by=entity_type",
             headers=HEADERS_CTRL,
         )
         assert resp.status_code == 200, resp.text
@@ -60,13 +83,13 @@ class TestGetRollup:
     def test_group_by_entity_type_returns_rows(
         self, test_client, seed_personas, seed_hierarchy, db,
     ):
-        # seed_hierarchy already created lob-alpha; use it.
+        _seed_dist_version(db)
         _seed_entity(db, "ce-a", "IT00S011", 500000.0, "Offering")
         _seed_entity(db, "ce-b", "ITF00001", 300000.0, "InternalService")
         db.commit()
 
         resp = test_client.get(
-            "/api/charging/rollup?year=2026&version=forecast&group_by=entity_type",
+            "/api/charging/rollup?year=2026&group_by=entity_type",
             headers=HEADERS_CTRL,
         )
         assert resp.status_code == 200, resp.text
@@ -78,12 +101,13 @@ class TestGetRollup:
     def test_grand_total_matches_rows_sum(
         self, test_client, seed_personas, seed_hierarchy, db,
     ):
+        _seed_dist_version(db)
         _seed_entity(db, "ce-c", "IT00S021", 400000.0, "Offering")
         _seed_entity(db, "ce-d", "IT00S022", 600000.0, "Offering")
         db.commit()
 
         resp = test_client.get(
-            "/api/charging/rollup?year=2026&version=forecast&group_by=entity",
+            "/api/charging/rollup?year=2026&group_by=entity",
             headers=HEADERS_CTRL,
         )
         assert resp.status_code == 200, resp.text
@@ -92,19 +116,23 @@ class TestGetRollup:
         assert abs(row_sum - data["grand_total_effective"]) < 0.01
 
     def test_unsupported_group_by_returns_422_or_400(
-        self, test_client, seed_personas, seed_hierarchy,
+        self, test_client, seed_personas, seed_hierarchy, db,
     ):
+        _seed_dist_version(db)
+        db.commit()
         resp = test_client.get(
-            "/api/charging/rollup?year=2026&version=forecast&group_by=banana",
+            "/api/charging/rollup?year=2026&group_by=banana",
             headers=HEADERS_CTRL,
         )
-        # Service raises ValueError → router converts to 400
+        # Service raises ValueError → router converts to 422
         assert resp.status_code in (400, 422), resp.text
 
-    def test_pl_can_read_rollup(self, test_client, seed_personas, seed_hierarchy):
+    def test_pl_can_read_rollup(self, test_client, seed_personas, seed_hierarchy, db):
         """PLs have read access to rollup (controller + exec + pl allowed)."""
+        _seed_dist_version(db)
+        db.commit()
         resp = test_client.get(
-            "/api/charging/rollup?year=2026&version=forecast&group_by=entity_type",
+            "/api/charging/rollup?year=2026&group_by=entity_type",
             headers=HEADERS_PL,
         )
         # PLs may be 403 or 200 depending on role enforcement — accept either
@@ -120,12 +148,13 @@ class TestGetRollupDrillDown:
     def test_entity_not_found_returns_404(
         self, test_client, seed_personas, seed_hierarchy, db,
     ):
+        _seed_dist_version(db)
         _seed_cl(db)
         db.commit()
 
         resp = test_client.get(
             "/api/charging/rollup/charging-location/cl-de1?entity_id=no-such-entity"
-            "&year=2026&version=forecast",
+            "&year=2026",
             headers=HEADERS_CTRL,
         )
         assert resp.status_code == 404, resp.text
@@ -133,13 +162,14 @@ class TestGetRollupDrillDown:
     def test_drill_down_no_upstream(
         self, test_client, seed_personas, seed_hierarchy, db,
     ):
+        _seed_dist_version(db)
         _seed_entity(db)
         _seed_cl(db)
         db.commit()
 
         resp = test_client.get(
             "/api/charging/rollup/charging-location/cl-de1?entity_id=ce-off-1"
-            "&year=2026&version=forecast",
+            "&year=2026",
             headers=HEADERS_CTRL,
         )
         assert resp.status_code == 200, resp.text
@@ -155,8 +185,10 @@ class TestGetRollupDrillDown:
         _seed_entity(db, "ce-dst", "IT00S031", 200000.0, "Offering")
         _seed_cl(db)
 
+        # FD-3: Stage 1 edges FK into a DistributionVersion header.
+        dist_v = _seed_dist_version(db)
         edge = Distribution(
-            year=2026, version="forecast",
+            version_id=dist_v.id,
             source_entity_id="ce-src", destination_entity_id="ce-dst",
             percentage=25.0,
         )
@@ -165,7 +197,7 @@ class TestGetRollupDrillDown:
 
         resp = test_client.get(
             "/api/charging/rollup/charging-location/cl-de1?entity_id=ce-dst"
-            "&year=2026&version=forecast",
+            "&year=2026",
             headers=HEADERS_CTRL,
         )
         assert resp.status_code == 200, resp.text
@@ -184,10 +216,13 @@ class TestInvalidateRollupCache:
     def test_flushes_cache_and_returns_count(
         self, test_client, seed_personas, seed_hierarchy, db,
     ):
-        # Pre-populate some cache entries
+        # Pre-populate some cache entries (FD-3: version_id FK replaces
+        # the legacy `version` String).
+        dist_v = _seed_dist_version(db)
         for i in range(3):
             db.add(RollupCache(
-                cache_layer="stage1_effective", year=2026, version="forecast",
+                cache_layer="stage1_effective", year=2026,
+                version_id=dist_v.id,
                 key_id=f"ce-{i}", payload_json='{"effective_cost": 0}',
             ))
         db.commit()
@@ -240,16 +275,18 @@ class TestRollupCacheStatus:
     def test_counts_per_layer(
         self, test_client, seed_personas, seed_hierarchy, db,
     ):
+        # FD-3: version_id FK replaces the legacy `version` String column.
+        dist_v = _seed_dist_version(db)
         db.add(RollupCache(
-            cache_layer="stage1_effective", year=2026, version="forecast",
+            cache_layer="stage1_effective", year=2026, version_id=dist_v.id,
             key_id="ce-a", payload_json='{"effective_cost": 100}',
         ))
         db.add(RollupCache(
-            cache_layer="stage2_location", year=2026, version="forecast",
+            cache_layer="stage2_location", year=2026, version_id=dist_v.id,
             key_id="ce-a:cl-x", payload_json='{"amount_eur": 60}',
         ))
         db.add(RollupCache(
-            cache_layer="stage2_location", year=2026, version="forecast",
+            cache_layer="stage2_location", year=2026, version_id=dist_v.id,
             key_id="ce-a:cl-y", payload_json='{"amount_eur": 40}',
         ))
         db.commit()

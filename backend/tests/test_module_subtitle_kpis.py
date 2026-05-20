@@ -41,7 +41,7 @@ def seed_launchpad_data(db, seed_org_base, seed_personas):
     from models.capacity import Allocation, ResourceRequest
     from models.change_requests import ChangeRequest
     from models.charging import (
-        BTCProfile, ChargeableEntity, Distribution,
+        BTCProfile, ChargeableEntity, Distribution, DistributionVersion,
     )
     from models.financial import Forecast, Actuals
     from models.projects import Project
@@ -142,8 +142,15 @@ def seed_launchpad_data(db, seed_org_base, seed_personas):
     )
     db.add_all([src, dst])
     db.flush()
+    # FD-3: Stage 1 distribution edges FK into a DistributionVersion header.
+    dist_v = DistributionVersion(
+        active_from=date(2025, 1, 1), status="active", origin="seed",
+        rationale="Module-subtitle test seed", scenario_id=None,
+    )
+    db.add(dist_v)
+    db.flush()
     db.add(Distribution(
-        year=2026, version="forecast",
+        version_id=dist_v.id,
         source_entity_id="ce-src", destination_entity_id="ce-dst",
         percentage=50.0,
     ))

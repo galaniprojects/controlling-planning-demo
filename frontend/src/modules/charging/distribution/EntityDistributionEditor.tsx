@@ -1,27 +1,47 @@
 /**
- * Single-entity Stage 1 distribution editor per [F-S1-03].
+ * Single-entity Stage 1 distribution editor per FD-3 [F-S1-01..08].
  *
  * Shows the entity's `to_business_pct` (editable), the list of outgoing
- * (destination, %) edges (add / edit / delete), and the derived
- * "Self-retained %" indicator. Save-time validation:
+ * (destination, %) edges (add / edit / delete with per-edge rationale
+ * per [F-S1-05]), and the derived self-retained indicator. Save-time
+ * validation:
  *   - Sum rule per [F-S1-02]: to_business + sum(distribute) ≤ 100
- *   - Cycle detection per [F-S1-05]: backend rejects with 409 + chain
+ *   - Cycle detection per [F-S1-01..05]: backend rejects with 409 + chain
  *
- * v5 B2 [B-OQ-02]: when any `onSandbox*` handler is provided, the matching
- * mutation routes through the caller's callback instead of `chargingApi`.
- * The simulator CostAllocationSurface wires those callbacks to
- * `ScenarioContext` Lever 12 mutations, which both populate the
- * change-summary feed and avoid an `@/modules/simulator/*` import inside
- * this Charging-module component.
+ * Version-scoping (FD-3 rework):
+ *
+ * - **New code path** — caller passes `versionId: number` (the FK into
+ *   `distribution_versions`). Edits go straight against that version.
+ *   The backend rejects writes against an `active` version per
+ *   [F-S1-08] with HTTP 409, so the list view only opens this editor
+ *   for drafts.
+ *
+ * - **Legacy code path** — older callers (Workbench BTC tab, Simulator
+ *   CostAllocationSurface) still pass the v4 `year` / `version` string
+ *   pair. When `versionId` is absent, the editor resolves to the
+ *   in-force production version via the per-entity Stage 1 endpoint
+ *   (which does the server-side `resolve_active_version(today)` walk
+ *   per [F-S1-02]). The simulator's sandbox-handler path is unchanged
+ *   — writes still go through the caller's callbacks, not chargingApi.
+ *
+ * v5 B2 [B-OQ-02]: when any `onSandbox*` handler is provided, the
+ * matching mutation routes through the caller's callback instead of
+ * `chargingApi`. The simulator wires those to `ScenarioContext` Lever
+ * 12 mutations so this F4 component never imports anything from
+ * `@/modules/simulator/*`.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Plus, Trash2, AlertTriangle, Save, X } from 'lucide-react';
+import {
+  ArrowLeft, Plus, Trash2, AlertTriangle, Save, X,
+} from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -30,6 +50,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { formatPercent } from '@/lib/formatters';
 import { chargingApi } from '@/api/endpoints';
 import type {
   ChargeableEntityItem,
@@ -39,14 +60,15 @@ import type {
 } from '@/types/api';
 
 /**
- * v5 B2 [B-OQ-02]: callbacks the simulator CostAllocationSurface wires to
- * `ScenarioContext` mutations so that (a) the change-summary feed gets an
- * entry per edit and (b) this F4 component never imports anything from
- * `@/modules/simulator/*` (clean layering).
+ * v5 B2 [B-OQ-02]: callbacks the simulator CostAllocationSurface wires
+ * to `ScenarioContext` mutations. When provided, the editor routes the
+ * matching mutation through the callback instead of `chargingApi`.
  *
- * When `onSandbox*` callbacks are provided, the editor routes all 4
- * mutation paths through them instead of `chargingApi`. When undefined,
- * the editor uses the canonical Charging API (default v4 behaviour).
+ * The callback shapes were locked in v5 against `(year, …)` and have
+ * not been migrated for FD-3 — the simulator continues to record
+ * `year` on each ScenarioAction even though the Distribution row no
+ * longer stores `year` (the year axis lives on the cost, not the edge).
+ * That contract stays for the v5 promote-with-routing path.
  */
 export interface DistributionSandboxHandlers {
   onSandboxCreateEdge?: (input: {
@@ -69,72 +91,118 @@ export interface DistributionSandboxHandlers {
 
 interface Props extends DistributionSandboxHandlers {
   entityId: string;
-  year: number;
-  version: string;
   /**
-   * Optional. Provided by the Charging list view (returns to the list) and
-   * the Simulator surface (collapses the inline editor). Workbench / Run
-   * Portfolio embed the editor as the page's only content with a top-level
-   * Back button on the page itself, so they omit `onBack` to suppress the
-   * inner button per v5.1 user feedback.
+   * New code path — the version_id this editor scopes its edits to.
+   * When omitted, the editor falls back to the per-entity Stage 1
+   * endpoint, which resolves to the in-force production version.
+   */
+  versionId?: number;
+  /**
+   * Legacy code path — preserved so Workbench / Simulator integrations
+   * don't break. The simulator records `year` in ScenarioAction params;
+   * it is no longer used to query Distribution rows.
+   */
+  year?: number;
+  /**
+   * Legacy code path — string discriminator that v4 used to select
+   * `'forecast' | 'baseline' | 'actuals' | 'scenario-<id>'`. Post-FD-3
+   * production strings collapse to the in-force resolver pick; scenario
+   * strings continue to function only because the sandbox handlers
+   * intercept writes (the editor's read may surface production edges
+   * for the scenario case — a small visual gap until the simulator
+   * surface migrates to passing `versionId` directly).
+   */
+  version?: string;
+  /**
+   * Optional. Provided by the Charging list view (returns to the list)
+   * and the Simulator surface (collapses the inline editor). Workbench
+   * / Run Portfolio embeddings omit `onBack` to suppress the inner
+   * button per v5.1 user feedback.
    */
   onBack?: () => void;
 }
 
-const ENTITY_TYPE_OPTIONS: { value: 'all' | ChargeableEntityType; label: string }[] = [
+const ENTITY_TYPE_OPTIONS: {
+  value: 'all' | ChargeableEntityType;
+  label: string;
+}[] = [
   { value: 'all', label: 'All types' },
   { value: 'Project', label: 'Projects' },
   { value: 'Offering', label: 'Offerings' },
   { value: 'InternalService', label: 'Internal Services' },
 ];
 
+const DEFAULT_LEGACY_YEAR = new Date().getFullYear();
+
 export function EntityDistributionEditor({
   entityId,
-  year,
-  version,
+  versionId: versionIdProp,
+  year: yearProp,
+  version: versionProp,
   onBack,
   onSandboxCreateEdge,
   onSandboxUpdateEdge,
   onSandboxDeleteEdge,
   onSandboxSetToBusiness,
 }: Props) {
-  const [summary, setSummary] = useState<EntityDistributionSummary | null>(null);
+  const [summary, setSummary] = useState<EntityDistributionSummary | null>(
+    null,
+  );
   const [entity, setEntity] = useState<ChargeableEntityItem | null>(null);
   const [allEntities, setAllEntities] = useState<ChargeableEntityItem[]>([]);
+  // Resolved version id used for all writes. May differ from `versionIdProp`
+  // for legacy callers — the editor resolves it on first load.
+  const [resolvedVersionId, setResolvedVersionId] = useState<number | null>(
+    versionIdProp ?? null,
+  );
   const [loading, setLoading] = useState(true);
   const [savingTBP, setSavingTBP] = useState(false);
   const [tbpDraft, setTbpDraft] = useState<string>('');
   const [tbpError, setTbpError] = useState<string | null>(null);
   const [editingEdgeId, setEditingEdgeId] = useState<number | null>(null);
   const [edgeDraftPct, setEdgeDraftPct] = useState<string>('');
+  const [edgeDraftRationale, setEdgeDraftRationale] = useState<string>('');
   const [addOpen, setAddOpen] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [cycleChain, setCycleChain] = useState<string[] | null>(null);
 
-  const fetchData = () => {
+  const legacyYear = yearProp ?? DEFAULT_LEGACY_YEAR;
+
+  const fetchData = async () => {
     setLoading(true);
-    Promise.all([
-      chargingApi.getEntityDistributionSummary(entityId, year, version),
-      chargingApi.getEntity(entityId),
-      chargingApi.listEntities({ is_active: true }),
-    ])
-      .then(([sum, ent, ents]) => {
-        setSummary(sum);
-        setEntity(ent);
-        setAllEntities(ents.items);
-        setTbpDraft(String(sum.to_business_pct));
-      })
-      .catch(() => {
-        setSummary(null);
-        setEntity(null);
-      })
-      .finally(() => setLoading(false));
+    try {
+      // Resolve version id if not provided.
+      let effectiveVersionId = versionIdProp ?? resolvedVersionId;
+      if (effectiveVersionId === null || effectiveVersionId === undefined) {
+        // Legacy path: ask the per-entity Stage 1 endpoint to resolve in-force.
+        const view = await chargingApi.getEntityStage1View(entityId, {});
+        effectiveVersionId = view.version.id;
+        setResolvedVersionId(effectiveVersionId);
+      }
+
+      const [sum, ent, ents] = await Promise.all([
+        chargingApi.getEntityDistributionSummary(entityId, {
+          version_id: effectiveVersionId,
+        }),
+        chargingApi.getEntity(entityId),
+        chargingApi.listEntities({ is_active: true }),
+      ]);
+      setSummary(sum);
+      setEntity(ent);
+      setAllEntities(ents.items);
+      setTbpDraft(String(sum.to_business_pct));
+    } catch {
+      setSummary(null);
+      setEntity(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entityId, year, version]);
+  }, [entityId, versionIdProp, versionProp]);
 
   const entityById = useMemo(() => {
     const map = new Map<string, ChargeableEntityItem>();
@@ -152,18 +220,19 @@ export function EntityDistributionEditor({
     setSavingTBP(true);
     setTbpError(null);
     try {
-      // v5 B2 [B-OQ-02]: sandbox path → callback (wired by simulator
-      // CostAllocationSurface to ScenarioContext.setToBusiness).
       if (onSandboxSetToBusiness) {
         await onSandboxSetToBusiness({
           entity_id: entityId,
-          year,
+          year: legacyYear,
           new_pct: next,
         });
-        // Refetch summary so derived fields stay in sync.
         fetchData();
-      } else {
-        const updated = await chargingApi.updateEntityToBusinessPct(entityId, year, next, version);
+      } else if (resolvedVersionId !== null) {
+        const updated = await chargingApi.updateEntityToBusinessPct(
+          entityId,
+          next,
+          { version_id: resolvedVersionId },
+        );
         setSummary(updated);
         setTbpDraft(String(updated.to_business_pct));
       }
@@ -178,6 +247,7 @@ export function EntityDistributionEditor({
   const handleEditEdge = (edge: DistributionEdgeItem) => {
     setEditingEdgeId(edge.id);
     setEdgeDraftPct(String(edge.percentage));
+    setEdgeDraftRationale(edge.rationale ?? '');
   };
 
   const handleSaveEdge = async (edge: DistributionEdgeItem) => {
@@ -187,14 +257,17 @@ export function EntityDistributionEditor({
       return;
     }
     try {
-      // v5 B2 [B-OQ-02]: sandbox path → callback.
       if (onSandboxUpdateEdge) {
         await onSandboxUpdateEdge(edge.id, { percentage: next });
       } else {
-        await chargingApi.updateDistribution(edge.id, { percentage: next });
+        await chargingApi.updateDistribution(edge.id, {
+          percentage: next,
+          rationale: edgeDraftRationale.trim() || null,
+        });
       }
       setEditingEdgeId(null);
       setEdgeDraftPct('');
+      setEdgeDraftRationale('');
       fetchData();
     } catch (e: unknown) {
       setTbpError(e instanceof Error ? e.message : 'Save failed');
@@ -203,7 +276,6 @@ export function EntityDistributionEditor({
 
   const handleDeleteEdge = async (edge: DistributionEdgeItem) => {
     try {
-      // v5 B2 [B-OQ-02]: sandbox path → callback.
       if (onSandboxDeleteEdge) {
         await onSandboxDeleteEdge(edge.id);
       } else {
@@ -228,7 +300,9 @@ export function EntityDistributionEditor({
   if (!summary || !entity) {
     return (
       <Card className="p-6">
-        <p className="text-sm text-muted-foreground">Failed to load distribution profile.</p>
+        <p className="text-sm text-muted-foreground">
+          Failed to load distribution profile.
+        </p>
         {onBack && (
           <Button variant="outline" size="sm" onClick={onBack} className="mt-4">
             <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to list
@@ -238,8 +312,16 @@ export function EntityDistributionEditor({
     );
   }
 
-  const distributedTotal = summary.distributions.reduce((s, e) => s + e.percentage, 0);
+  const distributedTotal = summary.distributions.reduce(
+    (s, e) => s + e.percentage,
+    0,
+  );
   const wouldExceed100 = (Number(tbpDraft) || 0) + distributedTotal > 100;
+  const inSandboxMode =
+    !!onSandboxCreateEdge ||
+    !!onSandboxUpdateEdge ||
+    !!onSandboxDeleteEdge ||
+    !!onSandboxSetToBusiness;
 
   return (
     <div className="space-y-4">
@@ -253,7 +335,9 @@ export function EntityDistributionEditor({
           )}
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-foreground">{entity.name}</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                {entity.name}
+              </h2>
               <Badge variant="secondary" className="text-[10px]">
                 {entity.entity_type}
               </Badge>
@@ -262,7 +346,12 @@ export function EntityDistributionEditor({
               </Badge>
             </div>
             <p className="text-[11px] font-mono text-muted-foreground mt-0.5">
-              {entity.identifier} · {year} / {version}
+              {entity.identifier} ·{' '}
+              {inSandboxMode ? (
+                <>scenario sandbox</>
+              ) : (
+                <>v{summary.version_id}</>
+              )}
             </p>
           </div>
         </div>
@@ -273,15 +362,18 @@ export function EntityDistributionEditor({
         <Card className="border-amber-500 bg-amber-50 dark:bg-amber-900/20 p-3 flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-700 dark:text-amber-400" />
           <p className="text-sm text-amber-800 dark:text-amber-300">
-            Distribution exceeds 100%. Sum-rule per [F-S1-02] requires
-            to-business + sum(edges) ≤ 100%.
+            Distribution exceeds 100%. Sum-rule per{' '}
+            <span className="font-mono">[F-S1-02]</span> requires to-business +
+            sum(edges) ≤ 100%.
           </p>
         </Card>
       )}
 
       {/* To-Business + derived percentages */}
       <Card className="p-4">
-        <h3 className="text-sm font-semibold text-foreground mb-3">Distribution shape</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-3">
+          Distribution shape
+        </h3>
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
@@ -301,18 +393,26 @@ export function EntityDistributionEditor({
                 size="sm"
                 variant="outline"
                 onClick={handleSaveToBusinessPct}
-                disabled={savingTBP || tbpDraft === String(summary.to_business_pct)}
+                disabled={
+                  savingTBP || tbpDraft === String(summary.to_business_pct)
+                }
               >
                 <Save className="h-3.5 w-3.5 mr-1" />
                 Save
               </Button>
             </div>
             {tbpError && (
-              <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{tbpError}</p>
+              <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">
+                {tbpError}
+              </p>
             )}
             {wouldExceed100 && !tbpError && (
               <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
-                Would exceed 100% with current edges ({distributedTotal.toFixed(2)}%).
+                Would exceed 100% with current edges (
+                {formatPercent(distributedTotal, {
+                  signed: false,
+                  decimals: 2,
+                })}).
               </p>
             )}
           </div>
@@ -321,7 +421,10 @@ export function EntityDistributionEditor({
               Distributed (Σ edges)
             </label>
             <p className="text-lg font-mono text-foreground tabular-nums">
-              {distributedTotal.toFixed(2)}%
+              {formatPercent(distributedTotal, {
+                signed: false,
+                decimals: 2,
+              })}
             </p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               Across {summary.distributions.length} edge
@@ -333,7 +436,10 @@ export function EntityDistributionEditor({
               Self-retained (derived)
             </label>
             <p className="text-lg font-mono text-foreground tabular-nums">
-              {summary.self_retained_pct.toFixed(2)}%
+              {formatPercent(summary.self_retained_pct, {
+                signed: false,
+                decimals: 2,
+              })}
             </p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               Per [F-DM-02]: 100 − to-business − Σ edges
@@ -346,19 +452,31 @@ export function EntityDistributionEditor({
       <Card>
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Outgoing edges</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              Outgoing edges
+            </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Stage 1 inter-service distribution per [F-S1-01]. Edges-as-list editor.
+              Stage 1 inter-service distribution per{' '}
+              <span className="font-mono">[F-S1-01]</span>. Per-edge rationale
+              per <span className="font-mono">[F-S1-05]</span>.
             </p>
           </div>
-          <Button size="sm" onClick={() => { setAddOpen(true); setAddError(null); setCycleChain(null); }}>
+          <Button
+            size="sm"
+            onClick={() => {
+              setAddOpen(true);
+              setAddError(null);
+              setCycleChain(null);
+            }}
+          >
             <Plus className="h-3.5 w-3.5 mr-1" />
             Add destination
           </Button>
         </div>
         {summary.distributions.length === 0 ? (
           <div className="p-12 text-center text-sm text-muted-foreground">
-            No outgoing edges. Costs flow either to business or stay self-retained.
+            No outgoing edges. Costs flow either to business or stay
+            self-retained.
           </div>
         ) : (
           <Table>
@@ -366,8 +484,13 @@ export function EntityDistributionEditor({
               <TableRow>
                 <TableHead>Destination entity</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead className="text-right">Percentage</TableHead>
-                <TableHead className="text-right pr-4">Actions</TableHead>
+                <TableHead className="text-right w-[120px]">
+                  Percentage
+                </TableHead>
+                <TableHead>Rationale</TableHead>
+                <TableHead className="text-right pr-4 w-[140px]">
+                  Actions
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -388,7 +511,10 @@ export function EntityDistributionEditor({
                     </TableCell>
                     <TableCell>
                       {dst?.entity_type && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5">
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] px-1.5"
+                        >
                           {dst.entity_type}
                         </Badge>
                       )}
@@ -407,14 +533,46 @@ export function EntityDistributionEditor({
                         />
                       ) : (
                         <span className="font-mono text-sm tabular-nums">
-                          {edge.percentage.toFixed(2)}%
+                          {formatPercent(edge.percentage, {
+                            signed: false,
+                            decimals: 2,
+                          })}
                         </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[280px]">
+                      {isEditing ? (
+                        <Textarea
+                          value={edgeDraftRationale}
+                          onChange={(e) =>
+                            setEdgeDraftRationale(e.target.value)
+                          }
+                          placeholder="Why this destination shares this percentage…"
+                          rows={2}
+                          maxLength={2000}
+                          className="text-[12px]"
+                        />
+                      ) : (edge.rationale ?? '').trim() ? (
+                        <p
+                          className="text-[11px] text-foreground leading-snug line-clamp-2"
+                          title={edge.rationale ?? ''}
+                        >
+                          {edge.rationale}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground italic">
+                          No rationale
+                        </p>
                       )}
                     </TableCell>
                     <TableCell className="text-right pr-4">
                       {isEditing ? (
                         <div className="inline-flex gap-1">
-                          <Button size="sm" variant="outline" onClick={() => handleSaveEdge(edge)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSaveEdge(edge)}
+                          >
                             <Save className="h-3.5 w-3.5" />
                           </Button>
                           <Button
@@ -423,6 +581,7 @@ export function EntityDistributionEditor({
                             onClick={() => {
                               setEditingEdgeId(null);
                               setEdgeDraftPct('');
+                              setEdgeDraftRationale('');
                             }}
                           >
                             <X className="h-3.5 w-3.5" />
@@ -430,7 +589,11 @@ export function EntityDistributionEditor({
                         </div>
                       ) : (
                         <div className="inline-flex gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => handleEditEdge(edge)}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEditEdge(edge)}
+                          >
                             <Save className="h-3.5 w-3.5" />
                           </Button>
                           <Button
@@ -458,10 +621,13 @@ export function EntityDistributionEditor({
         sourceEntity={entity}
         existingEdges={summary.distributions}
         allEntities={allEntities}
-        year={year}
-        version={version}
+        versionId={resolvedVersionId}
+        legacyYear={legacyYear}
         onSandboxCreateEdge={onSandboxCreateEdge}
-        availableHeadroom={Math.max(0, 100 - (summary.to_business_pct + distributedTotal))}
+        availableHeadroom={Math.max(
+          0,
+          100 - (summary.to_business_pct + distributedTotal),
+        )}
         error={addError}
         cycleChain={cycleChain}
         entityById={entityById}
@@ -486,10 +652,14 @@ interface AddDialogProps {
   sourceEntity: ChargeableEntityItem;
   existingEdges: DistributionEdgeItem[];
   allEntities: ChargeableEntityItem[];
-  year: number;
-  version: string;
-  /** v5 B2 [B-OQ-02]: when provided, sandbox-creates the edge through the
-   * caller's callback instead of `chargingApi.createDistribution`. */
+  /** Resolved version_id this edit targets. Null when sandbox handlers
+   *  intercept the write (no version_id needed for the simulator path). */
+  versionId: number | null;
+  /** Year recorded in `ScenarioAction.parameters_json` by the sandbox
+   *  callbacks. Not used outside the sandbox path. */
+  legacyYear: number;
+  /** v5 B2 [B-OQ-02]: when provided, sandbox-creates the edge through
+   *  the caller's callback instead of `chargingApi.createDistribution`. */
   onSandboxCreateEdge?: DistributionSandboxHandlers['onSandboxCreateEdge'];
   availableHeadroom: number;
   error: string | null;
@@ -505,8 +675,8 @@ function AddDistributionDialog({
   sourceEntity,
   existingEdges,
   allEntities,
-  year,
-  version,
+  versionId,
+  legacyYear,
   onSandboxCreateEdge,
   availableHeadroom,
   error,
@@ -515,10 +685,13 @@ function AddDistributionDialog({
   onError,
   onSaved,
 }: AddDialogProps) {
-  const [typeFilter, setTypeFilter] = useState<'all' | ChargeableEntityType>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | ChargeableEntityType>(
+    'all',
+  );
   const [search, setSearch] = useState('');
   const [destinationId, setDestinationId] = useState<string>('');
   const [percentage, setPercentage] = useState('');
+  const [rationale, setRationale] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -527,6 +700,7 @@ function AddDistributionDialog({
       setSearch('');
       setDestinationId('');
       setPercentage('');
+      setRationale('');
     }
   }, [open]);
 
@@ -566,24 +740,26 @@ function AddDistributionDialog({
       );
       return;
     }
+    if (!onSandboxCreateEdge && versionId === null) {
+      onError('Version not resolved yet — wait a moment and retry.');
+      return;
+    }
     setSaving(true);
     try {
-      // v5 B2 [B-OQ-02]: sandbox path → callback (wired by simulator
-      // CostAllocationSurface to ScenarioContext.createDistribution).
       if (onSandboxCreateEdge) {
         await onSandboxCreateEdge({
-          year,
+          year: legacyYear,
           source_entity_id: sourceEntity.id,
           destination_entity_id: destinationId,
           percentage: pct,
         });
       } else {
         await chargingApi.createDistribution({
-          year,
-          version,
+          version_id: versionId as number,
           source_entity_id: sourceEntity.id,
           destination_entity_id: destinationId,
           percentage: pct,
+          rationale: rationale.trim() || null,
         });
       }
       onSaved();
@@ -629,7 +805,9 @@ function AddDistributionDialog({
               </label>
               <Select
                 value={typeFilter}
-                onValueChange={(v) => setTypeFilter(v as 'all' | ChargeableEntityType)}
+                onValueChange={(v) =>
+                  setTypeFilter(v as 'all' | ChargeableEntityType)
+                }
               >
                 <SelectTrigger className="h-9">
                   <SelectValue />
@@ -693,6 +871,27 @@ function AddDistributionDialog({
             />
           </div>
 
+          <div className="space-y-1">
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Rationale{' '}
+              <span className="font-normal normal-case text-muted-foreground/80">
+                (optional)
+              </span>
+            </label>
+            <Textarea
+              value={rationale}
+              onChange={(e) => setRationale(e.target.value)}
+              placeholder="Why this destination shares this percentage…"
+              rows={2}
+              maxLength={2000}
+              className="text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              First-class per <span className="font-mono">[F-S1-05]</span>.
+              Editable later from the row.
+            </p>
+          </div>
+
           {error && (
             <Card className="border-red-500 bg-red-50 dark:bg-red-900/20 p-3">
               <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
@@ -712,7 +911,10 @@ function AddDistributionDialog({
           <Button variant="outline" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving || !destinationId || !percentage}>
+          <Button
+            onClick={handleSave}
+            disabled={saving || !destinationId || !percentage}
+          >
             {saving ? 'Saving…' : 'Add edge'}
           </Button>
         </DialogFooter>
