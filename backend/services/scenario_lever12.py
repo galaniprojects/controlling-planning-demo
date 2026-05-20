@@ -4,8 +4,11 @@ Per spec [B-ES-01] (lever 12) and [F-RV-01..06]:
 
 Lever 12 covers:
 - **Stage 1 distribution edges** (inter-service distribution between
-  ChargeableEntities) — forked into the scenario as Distribution rows under
-  ``version='scenario-{id}'`` per [F-S1-04].
+  ChargeableEntities) — forked into the scenario via a per-scenario
+  ``DistributionVersion`` (``scenario_id=N``, ``status='draft'`` permanently)
+  per FD-3 spec §4 [F-S1-02..04]. The Charging/UM rework replaces the v4
+  string-keyed ``version='scenario-<id>'`` with this first-class FK model so
+  cascade deletes drop the sandbox cleanly when a scenario is removed.
 - **Stage 2 BTC profile percentages** (per-charging-location split of the
   to-business share) — recorded as ScenarioActions because BTCProfile has
   no version dimension. Applied as an overlay at impact-calc time.
@@ -15,17 +18,27 @@ Lever 12 covers:
 Sandbox isolation guarantee per CLAUDE.md:
 - Live ``BTCProfile`` / ``BTCProfileLine`` rows are NEVER mutated by this
   module. Only Distribution rows are written, and only under the
-  scenario-scoped version.
+  per-scenario draft ``DistributionVersion``.
+- The anchor production ``DistributionVersion`` is NEVER mutated — its
+  edges are copied lazily into the scenario version on first touch.
 - The read-only services (rollup_cache, rollup_query, dag_resolver,
   btc_service, distribution_service) are not modified — we call them with
-  scenario-scoped arguments.
+  scenario-version arguments.
+
+FD-3 anchor pinning per spec §4 Open-Question #3:
+- ``Scenario.anchor_distribution_version_id`` pins the production version
+  the scenario was forked against at scenario creation time. Prevents
+  production reactivations from shifting impact deltas mid-flight.
+- ``NULL`` anchor (legacy scenarios) falls back to
+  ``resolve_active_version(db, evaluated_date)`` at read time so existing
+  v4-era scenarios stay computable.
 
 Per-charging-location impact computation:
 - For each affected entity, compute Stage 1 effective cost under the anchor
-  version (typically 'forecast') and under the scenario version
-  ('scenario-{id}'). Then apply Stage 2 percentages — anchor BTC profile
-  for the anchor side, scenario overlay for the scenario side. The delta
-  per (entity, charging_location) is reported.
+  ``DistributionVersion`` and under the scenario ``DistributionVersion``.
+  Then apply Stage 2 percentages — anchor BTC profile for the anchor side,
+  scenario overlay for the scenario side. The delta per
+  (entity, charging_location) is reported.
 
 This module deliberately stays additive — F3's rollup engine is the source
 of truth for live numbers. We layer the simulator's overlays on top.
@@ -34,8 +47,8 @@ of truth for live numbers. We layer the simulator's overlays on top.
 from __future__ import annotations
 
 import json
-from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -43,24 +56,53 @@ from sqlalchemy.orm import Session
 
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargeableEntity, Distribution,
+    DistributionVersion,
 )
 from models.scenarios import Scenario, ScenarioAction
-from services.dag_resolver import compute_effective_cost
-from services.distribution_service import (
-    DistributionValidationError,
-    create_distribution_edge,
-    delete_distribution_edge,
-    update_distribution_edge,
-    update_to_business_pct,
-)
+from services.distribution_service import DistributionValidationError
+
+
+# Sum-rule tolerance — kept in sync with
+# ``services.distribution_service.SUM_TOLERANCE``. Mirrored locally so D1
+# remains independent of teammate-b's FD-3 B1 refactor of the
+# distribution_service helpers.
+_SUM_TOLERANCE = 0.01
+
+
+def _resolve_active_distribution_version(
+    db: Session, evaluated_date: date,
+) -> Optional[DistributionVersion]:
+    """Inline production-version resolver pending FD-3 B1 service landing.
+
+    FD-3 [F-S1-02]: latest production ``DistributionVersion`` whose
+    ``active_from`` is on or before ``evaluated_date``. Scenario versions
+    (``scenario_id IS NOT NULL``) are excluded by spec.
+
+    Will be replaced by ``services.distribution_service.resolve_active_version``
+    once FD-3 B1 lands; the duplication is intentional and short-lived so
+    D1 (lever-12 refactor) can land independently of B1 timing.
+    """
+    return (
+        db.query(DistributionVersion)
+        .filter(
+            DistributionVersion.scenario_id.is_(None),
+            DistributionVersion.status == "active",
+            DistributionVersion.active_from.isnot(None),
+            DistributionVersion.active_from <= evaluated_date,
+        )
+        .order_by(DistributionVersion.active_from.desc())
+        .first()
+    )
 
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-# Default anchor version when not pinned on the scenario.
-DEFAULT_ANCHOR_VERSION = "forecast"
+# Demo date — CLAUDE.md fixes "today" at 2026-04 for time-dependent logic.
+# Used as the fallback ``evaluated_date`` when a scenario has no pinned
+# ``anchor_distribution_version_id`` (legacy v4 scenarios).
+_DEMO_FALLBACK_DATE = date(2026, 4, 1)
 
 # Action types for the Lever 12 sub-surface.
 ACTION_DISTRIBUTION_CHANGE = "distribution_edge_change"
@@ -94,8 +136,83 @@ class Lever12Error(Exception):
 # ---------------------------------------------------------------------------
 
 def scenario_version(scenario_id: int) -> str:
-    """Return the canonical Distribution.version string for a scenario."""
+    """Stable human-readable label for a scenario's sandbox version.
+
+    Returns ``"scenario-<id>"``. This is a pure naming convention used in
+    API response payloads, audit lines, and external-facing identifiers. It
+    does NOT query the database. The actual sandbox lives in a
+    ``DistributionVersion`` row keyed by ``scenario_id``; use
+    :func:`_get_or_create_scenario_dist_version` to obtain it.
+
+    Kept for backwards-compatibility with API callers and the v4-era
+    promote/audit machinery that ships the label through ``parameters_json``
+    payloads. New code should reference ``DistributionVersion.id`` instead.
+    """
     return f"scenario-{scenario_id}"
+
+
+def _ensure_scenario(db: Session, scenario_id: int) -> Scenario:
+    sc = db.query(Scenario).filter(Scenario.id == scenario_id).first()
+    if sc is None:
+        raise Lever12Error(f"Scenario {scenario_id} not found")
+    return sc
+
+
+def _resolve_anchor_version_id(
+    db: Session, scenario: Scenario,
+) -> Optional[int]:
+    """Resolve the production anchor for a scenario per FD-3 OQ #3.
+
+    Order of resolution:
+    1. ``Scenario.anchor_distribution_version_id`` pinned at creation.
+    2. Fallback: ``resolve_active_version(db, demo_today)`` for legacy
+       scenarios that pre-date FD-3 (anchor column NULL).
+
+    Returns the ``DistributionVersion.id`` (int) or None when no production
+    version is active. None propagates through the lever-12 read paths so
+    impact computation degrades gracefully (zero inflow contributions) when
+    no anchor exists — the v4 string-keyed code path had no equivalent
+    safety net but tests now exercise it.
+    """
+    if scenario.anchor_distribution_version_id is not None:
+        return scenario.anchor_distribution_version_id
+    av = _resolve_active_distribution_version(db, _DEMO_FALLBACK_DATE)
+    return av.id if av is not None else None
+
+
+def _get_or_create_scenario_dist_version(
+    db: Session, scenario_id: int,
+) -> DistributionVersion:
+    """Eager-create the per-scenario sandbox ``DistributionVersion``.
+
+    One ``DistributionVersion`` per scenario, identified by ``scenario_id``.
+    Created on first mutation with ``status='draft'`` (permanently),
+    ``origin='blank'``, empty rationale, ``active_from=NULL`` — none of those
+    fields are meaningful for sandbox versions, but the schema requires them.
+
+    The scenario version stays in draft forever — the distribution-service
+    activate invariant rejects activating a row with ``scenario_id IS NOT
+    NULL`` (per FD-3 [F-S1-02]). When the scenario is deleted, the
+    ``ondelete=CASCADE`` on this FK drops the version row and (via the
+    edge-level cascade) all child distribution edges.
+    """
+    existing = (
+        db.query(DistributionVersion)
+        .filter(DistributionVersion.scenario_id == scenario_id)
+        .first()
+    )
+    if existing is not None:
+        return existing
+    sv = DistributionVersion(
+        scenario_id=scenario_id,
+        status="draft",
+        origin="blank",
+        rationale="",
+        active_from=None,
+    )
+    db.add(sv)
+    db.flush()
+    return sv
 
 
 def _next_action_order(db: Session, scenario_id: int) -> int:
@@ -107,20 +224,120 @@ def _next_action_order(db: Session, scenario_id: int) -> int:
     ) + 1
 
 
-def _ensure_scenario(db: Session, scenario_id: int) -> Scenario:
-    sc = db.query(Scenario).filter(Scenario.id == scenario_id).first()
-    if sc is None:
-        raise Lever12Error(f"Scenario {scenario_id} not found")
-    return sc
+def _assert_scenario_sum_within_100(
+    db: Session, scenario_version_id: int, source_entity_id: str,
+    *, candidate_destination_id: Optional[str] = None,
+    candidate_edge_id: Optional[int] = None,
+    candidate_percentage: Optional[float] = None,
+) -> None:
+    """Sum-rule check scoped to a scenario sandbox version.
+
+    Mirrors ``services.distribution_service.assert_sum_within_100`` semantics
+    (``to_business_pct + Σdistribute % ≤ 100``) but reads only edges in the
+    given scenario ``DistributionVersion`` so the lever-12 sandbox does not
+    leak production-edge percentages into validation. Cadence-agnostic per
+    FD-3 [F-S1-02] — no year filter.
+
+    Inlined here to keep D1 independent of FD-3 B1's distribution_service
+    refactor; the math is small and stable.
+    """
+    src = db.query(ChargeableEntity).filter_by(id=source_entity_id).first()
+    if src is None:
+        raise Lever12Error(f"Source entity '{source_entity_id}' not found")
+
+    edges = (
+        db.query(Distribution)
+        .filter(
+            Distribution.version_id == scenario_version_id,
+            Distribution.source_entity_id == source_entity_id,
+        )
+        .all()
+    )
+
+    distribution_total = 0.0
+    candidate_applied = False
+    for e in edges:
+        if candidate_edge_id is not None and e.id == candidate_edge_id:
+            distribution_total += float(candidate_percentage or 0.0)
+            candidate_applied = True
+        else:
+            distribution_total += float(e.percentage)
+    if candidate_destination_id is not None and not candidate_applied:
+        distribution_total += float(candidate_percentage or 0.0)
+
+    to_business = float(src.to_business_pct)
+    grand_total = to_business + distribution_total
+    if grand_total > 100.0 + _SUM_TOLERANCE:
+        raise Lever12Error(
+            f"Sum rule violation per [F-S1-02]: to_business_pct "
+            f"({to_business:.2f}) + distributed "
+            f"({distribution_total:.2f}) = {grand_total:.2f} exceeds 100%",
+        )
+
+
+def _create_scenario_edge(
+    db: Session, *, scenario_version_id: int, source_entity_id: str,
+    destination_entity_id: str, percentage: float,
+) -> Distribution:
+    """Insert a scenario-version edge after duplicate-edge validation.
+
+    Cycle + sum-rule checks live at the lever-12 layer (see
+    :func:`_check_cycle_across_versions` and
+    :func:`_assert_scenario_sum_within_100`) so callers handle them before
+    invoking this helper. Caller commits.
+    """
+    # Reject duplicate edge — uniqueness is also enforced at the DB layer
+    # but a friendly 409 is better UX.
+    existing = (
+        db.query(Distribution)
+        .filter(
+            Distribution.version_id == scenario_version_id,
+            Distribution.source_entity_id == source_entity_id,
+            Distribution.destination_entity_id == destination_entity_id,
+        )
+        .first()
+    )
+    if existing is not None:
+        raise Lever12Error(
+            f"Distribution edge already exists "
+            f"({source_entity_id} → {destination_entity_id} in scenario "
+            f"version {scenario_version_id}). Update the existing edge "
+            f"instead.",
+        )
+
+    edge = Distribution(
+        version_id=scenario_version_id,
+        source_entity_id=source_entity_id,
+        destination_entity_id=destination_entity_id,
+        percentage=Decimal(str(round(percentage, 2))),
+    )
+    db.add(edge)
+    db.flush()
+    return edge
+
+
+def _update_scenario_edge(
+    db: Session, edge: Distribution, *, percentage: float,
+) -> Distribution:
+    """Update a scenario-version edge percentage. Caller commits."""
+    edge.percentage = Decimal(str(round(percentage, 2)))
+    db.flush()
+    return edge
+
+
+def _delete_scenario_edge(db: Session, edge: Distribution) -> None:
+    """Delete a scenario-version edge. Caller commits."""
+    db.delete(edge)
+    db.flush()
 
 
 # ---------------------------------------------------------------------------
-# Stage 1 — Lazy fork of forecast edges into scenario version
+# Stage 1 — Lazy fork of anchor edges into scenario version
 # ---------------------------------------------------------------------------
 
 def fork_entity_edges(
-    db: Session, scenario_id: int, entity_id: str, year: int,
-    *, anchor_version: str = DEFAULT_ANCHOR_VERSION,
+    db: Session, scenario_id: int, entity_id: str,
+    *, anchor_version_id: Optional[int] = None,
 ) -> int:
     """Copy all anchor-version edges sourced at ``entity_id`` to the scenario.
 
@@ -129,16 +346,27 @@ def fork_entity_edges(
 
     The lazy fork pattern means the simulator only stores edges that are
     actually being mutated; untouched entities continue to compute against
-    the anchor version through the read path's fallback.
+    the anchor version through the union-aware read path
+    (:func:`_compute_scenario_effective_cost`).
+
+    Cadence-agnostic per FD-3 [F-S1-02] — there is no ``year`` filter on
+    distribution edges; the year axis lives on the cost being distributed,
+    not on Stage 1.
     """
-    sv = scenario_version(scenario_id)
+    scenario = _ensure_scenario(db, scenario_id)
+    sv = _get_or_create_scenario_dist_version(db, scenario_id)
+
+    if anchor_version_id is None:
+        anchor_version_id = _resolve_anchor_version_id(db, scenario)
+    if anchor_version_id is None:
+        # No production anchor exists — nothing to fork from.
+        return 0
 
     # Any edges already at scenario version for this entity?
     existing_count = (
         db.query(Distribution)
         .filter(
-            Distribution.year == year,
-            Distribution.version == sv,
+            Distribution.version_id == sv.id,
             Distribution.source_entity_id == entity_id,
         )
         .count()
@@ -149,8 +377,7 @@ def fork_entity_edges(
     anchor_edges = (
         db.query(Distribution)
         .filter(
-            Distribution.year == year,
-            Distribution.version == anchor_version,
+            Distribution.version_id == anchor_version_id,
             Distribution.source_entity_id == entity_id,
         )
         .all()
@@ -158,10 +385,11 @@ def fork_entity_edges(
     forked = 0
     for e in anchor_edges:
         clone = Distribution(
-            year=year, version=sv,
+            version_id=sv.id,
             source_entity_id=e.source_entity_id,
             destination_entity_id=e.destination_entity_id,
             percentage=e.percentage,
+            rationale=e.rationale,
         )
         db.add(clone)
         forked += 1
@@ -171,8 +399,8 @@ def fork_entity_edges(
 
 
 def list_scenario_edges(
-    db: Session, scenario_id: int, entity_id: str, year: int,
-    *, anchor_version: str = DEFAULT_ANCHOR_VERSION,
+    db: Session, scenario_id: int, entity_id: str,
+    *, anchor_version_id: Optional[int] = None,
 ) -> list[Distribution]:
     """Return the effective edge list for a scenario.
 
@@ -180,23 +408,32 @@ def list_scenario_edges(
     happened already). Otherwise return the anchor edges so the UI can show
     the inherited state.
     """
-    sv = scenario_version(scenario_id)
-    rows = (
-        db.query(Distribution)
-        .filter(
-            Distribution.year == year,
-            Distribution.version == sv,
-            Distribution.source_entity_id == entity_id,
-        )
-        .all()
+    scenario = _ensure_scenario(db, scenario_id)
+    sv_row = (
+        db.query(DistributionVersion)
+        .filter(DistributionVersion.scenario_id == scenario_id)
+        .first()
     )
-    if rows:
-        return rows
+    if sv_row is not None:
+        rows = (
+            db.query(Distribution)
+            .filter(
+                Distribution.version_id == sv_row.id,
+                Distribution.source_entity_id == entity_id,
+            )
+            .all()
+        )
+        if rows:
+            return rows
+
+    if anchor_version_id is None:
+        anchor_version_id = _resolve_anchor_version_id(db, scenario)
+    if anchor_version_id is None:
+        return []
     return (
         db.query(Distribution)
         .filter(
-            Distribution.year == year,
-            Distribution.version == anchor_version,
+            Distribution.version_id == anchor_version_id,
             Distribution.source_entity_id == entity_id,
         )
         .all()
@@ -208,8 +445,8 @@ def list_scenario_edges(
 # ---------------------------------------------------------------------------
 
 def _check_cycle_across_versions(
-    db: Session, year: int, source_id: str, dest_id: str,
-    *, scenario_version_str: str, anchor_version: str,
+    db: Session, source_id: str, dest_id: str,
+    *, scenario_version_id: int, anchor_version_id: Optional[int],
 ) -> Optional[list[str]]:
     """Union-aware cycle detection.
 
@@ -218,6 +455,8 @@ def _check_cycle_across_versions(
     must consider the union of (anchor edges for entities not forked) +
     (scenario edges for entities forked). Detect cycle iff the candidate
     edge would create a cycle in this union graph.
+
+    Cadence-agnostic per FD-3 [F-S1-02] — no ``year`` filter.
     """
     from services.dag_resolver import EdgeKey, detect_cycle
 
@@ -226,24 +465,21 @@ def _check_cycle_across_versions(
     # for untouched entities.
     scenario_edges = (
         db.query(Distribution)
-        .filter(
-            Distribution.year == year,
-            Distribution.version == scenario_version_str,
-        )
+        .filter(Distribution.version_id == scenario_version_id)
         .all()
     )
     forked_sources = {e.source_entity_id for e in scenario_edges}
 
-    anchor_edges = (
-        db.query(Distribution)
-        .filter(
-            Distribution.year == year,
-            Distribution.version == anchor_version,
-            ~Distribution.source_entity_id.in_(forked_sources)
-            if forked_sources else Distribution.source_entity_id.isnot(None),
+    anchor_edges: list[Distribution] = []
+    if anchor_version_id is not None:
+        anchor_q = db.query(Distribution).filter(
+            Distribution.version_id == anchor_version_id,
         )
-        .all()
-    )
+        if forked_sources:
+            anchor_q = anchor_q.filter(
+                ~Distribution.source_entity_id.in_(forked_sources),
+            )
+        anchor_edges = anchor_q.all()
 
     keys = [
         EdgeKey(source=e.source_entity_id, destination=e.destination_entity_id)
@@ -255,22 +491,32 @@ def _check_cycle_across_versions(
 def apply_distribution_create(
     db: Session, scenario_id: int, *, year: int,
     source_entity_id: str, destination_entity_id: str, percentage: float,
-    anchor_version: str = DEFAULT_ANCHOR_VERSION,
 ) -> dict:
     """Create a new Stage 1 distribution edge in the sandbox.
 
     Forks edges first if needed, then delegates to distribution_service.
     Records a ScenarioAction with the mutation parameters so the diff
     summary surfaces the change.
+
+    ``year`` is retained in the public API and persisted in
+    ``ScenarioAction.parameters_json`` for downstream consumers (promote
+    routing, BTC overlay collection) — the distribution edge itself is
+    cadence-agnostic per FD-3 [F-S1-02] so ``year`` is not stored on the
+    Distribution row.
     """
-    _ensure_scenario(db, scenario_id)
-    sv = scenario_version(scenario_id)
-    fork_entity_edges(db, scenario_id, source_entity_id, year, anchor_version=anchor_version)
+    scenario = _ensure_scenario(db, scenario_id)
+    sv = _get_or_create_scenario_dist_version(db, scenario_id)
+    anchor_version_id = _resolve_anchor_version_id(db, scenario)
+
+    fork_entity_edges(
+        db, scenario_id, source_entity_id,
+        anchor_version_id=anchor_version_id,
+    )
 
     # Union-aware cycle check across anchor + scenario edges.
     chain = _check_cycle_across_versions(
-        db, year, source_entity_id, destination_entity_id,
-        scenario_version_str=sv, anchor_version=anchor_version,
+        db, source_entity_id, destination_entity_id,
+        scenario_version_id=sv.id, anchor_version_id=anchor_version_id,
     )
     if chain is not None:
         raise Lever12Error(
@@ -278,14 +524,21 @@ def apply_distribution_create(
             cycle_chain=chain,
         )
 
+    # Sum rule per [F-S1-02] — scoped to the scenario sandbox.
+    _assert_scenario_sum_within_100(
+        db, scenario_version_id=sv.id, source_entity_id=source_entity_id,
+        candidate_destination_id=destination_entity_id,
+        candidate_percentage=percentage,
+    )
+
     try:
-        edge = create_distribution_edge(
-            db, year=year, version=sv,
+        edge = _create_scenario_edge(
+            db, scenario_version_id=sv.id,
             source_entity_id=source_entity_id,
             destination_entity_id=destination_entity_id,
             percentage=percentage,
         )
-    except DistributionValidationError as exc:
+    except DistributionValidationError as exc:  # pragma: no cover — defensive
         raise Lever12Error(exc.message, cycle_chain=exc.cycle_chain) from exc
 
     _record_action(
@@ -302,7 +555,8 @@ def apply_distribution_create(
     return {
         "edge_id": edge.id,
         "year": year,
-        "version": sv,
+        "version": scenario_version(scenario_id),
+        "version_id": sv.id,
         "source_entity_id": source_entity_id,
         "destination_entity_id": destination_entity_id,
         "percentage": float(edge.percentage),
@@ -311,26 +565,26 @@ def apply_distribution_create(
 
 def apply_distribution_update(
     db: Session, scenario_id: int, *, edge_id: int, percentage: float,
-    anchor_version: str = DEFAULT_ANCHOR_VERSION,
 ) -> dict:
     """Update the percentage on an existing scenario-version edge."""
-    _ensure_scenario(db, scenario_id)
-    sv = scenario_version(scenario_id)
+    scenario = _ensure_scenario(db, scenario_id)
+    sv = _get_or_create_scenario_dist_version(db, scenario_id)
+    anchor_version_id = _resolve_anchor_version_id(db, scenario)
+
     edge = db.query(Distribution).filter_by(id=edge_id).first()
     if edge is None:
         raise Lever12Error(f"Distribution edge {edge_id} not found")
-    if edge.version != sv:
+    if edge.version_id != sv.id:
         # The edge belongs to anchor; fork first then locate the new edge by
         # source/dest matching.
         fork_entity_edges(
-            db, scenario_id, edge.source_entity_id, edge.year,
-            anchor_version=anchor_version,
+            db, scenario_id, edge.source_entity_id,
+            anchor_version_id=anchor_version_id,
         )
         new_edge = (
             db.query(Distribution)
             .filter(
-                Distribution.year == edge.year,
-                Distribution.version == sv,
+                Distribution.version_id == sv.id,
                 Distribution.source_entity_id == edge.source_entity_id,
                 Distribution.destination_entity_id == edge.destination_entity_id,
             )
@@ -341,17 +595,24 @@ def apply_distribution_update(
                 f"Failed to fork edge {edge_id} into scenario {scenario_id}",
             )
         edge = new_edge
-    try:
-        update_distribution_edge(db, edge.id, percentage=percentage)
-    except DistributionValidationError as exc:
-        raise Lever12Error(exc.message, cycle_chain=exc.cycle_chain) from exc
 
+    # Sum rule per [F-S1-02] — scoped to the scenario sandbox; substitute
+    # the candidate percentage into the running total.
+    _assert_scenario_sum_within_100(
+        db, scenario_version_id=sv.id,
+        source_entity_id=edge.source_entity_id,
+        candidate_edge_id=edge.id, candidate_percentage=percentage,
+    )
+    _update_scenario_edge(db, edge, percentage=percentage)
+
+    # Persist the edge's source/dest in the action params so the promote
+    # service can rematch against the canonical production version without
+    # depending on edge_id (which differs across scenario/production rows).
     _record_action(
         db, scenario_id, ACTION_DISTRIBUTION_CHANGE,
         params={
             "operation": "update",
             "edge_id": edge.id,
-            "year": edge.year,
             "source_entity_id": edge.source_entity_id,
             "destination_entity_id": edge.destination_entity_id,
             "percentage": float(percentage),
@@ -359,8 +620,8 @@ def apply_distribution_update(
     )
     return {
         "edge_id": edge.id,
-        "year": edge.year,
-        "version": sv,
+        "version": scenario_version(scenario_id),
+        "version_id": sv.id,
         "source_entity_id": edge.source_entity_id,
         "destination_entity_id": edge.destination_entity_id,
         "percentage": float(edge.percentage),
@@ -369,24 +630,24 @@ def apply_distribution_update(
 
 def apply_distribution_delete(
     db: Session, scenario_id: int, *, edge_id: int,
-    anchor_version: str = DEFAULT_ANCHOR_VERSION,
 ) -> dict:
     """Delete an edge in the sandbox (forks first if needed)."""
-    _ensure_scenario(db, scenario_id)
-    sv = scenario_version(scenario_id)
+    scenario = _ensure_scenario(db, scenario_id)
+    sv = _get_or_create_scenario_dist_version(db, scenario_id)
+    anchor_version_id = _resolve_anchor_version_id(db, scenario)
+
     edge = db.query(Distribution).filter_by(id=edge_id).first()
     if edge is None:
         raise Lever12Error(f"Distribution edge {edge_id} not found")
-    if edge.version != sv:
+    if edge.version_id != sv.id:
         fork_entity_edges(
-            db, scenario_id, edge.source_entity_id, edge.year,
-            anchor_version=anchor_version,
+            db, scenario_id, edge.source_entity_id,
+            anchor_version_id=anchor_version_id,
         )
         new_edge = (
             db.query(Distribution)
             .filter(
-                Distribution.year == edge.year,
-                Distribution.version == sv,
+                Distribution.version_id == sv.id,
                 Distribution.source_entity_id == edge.source_entity_id,
                 Distribution.destination_entity_id == edge.destination_entity_id,
             )
@@ -401,20 +662,20 @@ def apply_distribution_delete(
     record_params = {
         "operation": "delete",
         "edge_id": edge.id,
-        "year": edge.year,
         "source_entity_id": edge.source_entity_id,
         "destination_entity_id": edge.destination_entity_id,
         "percentage": float(edge.percentage),
     }
-    try:
-        delete_distribution_edge(db, edge.id)
-    except DistributionValidationError as exc:
-        raise Lever12Error(exc.message) from exc
+    _delete_scenario_edge(db, edge)
 
     _record_action(
         db, scenario_id, ACTION_DISTRIBUTION_CHANGE, params=record_params,
     )
-    return {"deleted_edge_id": record_params["edge_id"], "version": sv}
+    return {
+        "deleted_edge_id": record_params["edge_id"],
+        "version": scenario_version(scenario_id),
+        "version_id": sv.id,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +684,7 @@ def apply_distribution_delete(
 
 def apply_to_business_change(
     db: Session, scenario_id: int, *, entity_id: str, year: int,
-    new_pct: float, anchor_version: str = DEFAULT_ANCHOR_VERSION,
+    new_pct: float,
 ) -> dict:
     """Record a to_business_pct override for the scenario.
 
@@ -432,7 +693,7 @@ def apply_to_business_change(
     Validates that the resulting sum (over scenario-version edges) stays
     within 100% per [F-S1-02].
     """
-    _ensure_scenario(db, scenario_id)
+    scenario = _ensure_scenario(db, scenario_id)
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
         raise Lever12Error(f"Chargeable entity '{entity_id}' not found")
@@ -443,13 +704,15 @@ def apply_to_business_change(
         )
 
     # Fork edges so we can validate the sum against scenario-version edges.
-    sv = scenario_version(scenario_id)
-    fork_entity_edges(db, scenario_id, entity_id, year, anchor_version=anchor_version)
+    sv = _get_or_create_scenario_dist_version(db, scenario_id)
+    anchor_version_id = _resolve_anchor_version_id(db, scenario)
+    fork_entity_edges(
+        db, scenario_id, entity_id, anchor_version_id=anchor_version_id,
+    )
     edges = (
         db.query(Distribution)
         .filter(
-            Distribution.year == year,
-            Distribution.version == sv,
+            Distribution.version_id == sv.id,
             Distribution.source_entity_id == entity_id,
         )
         .all()
@@ -554,7 +817,6 @@ def _record_action(
     All Lever 12 actions get scope='portfolio', tier=2, lever_category=
     'cost_allocation' per [B-AC-02].
     """
-    from datetime import datetime
     action = ScenarioAction(
         scenario_id=scenario_id,
         action_order=_next_action_order(db, scenario_id),
@@ -691,58 +953,92 @@ def _per_location_amount(
     return out
 
 
-def _compute_scenario_effective_cost(
-    db: Session, year: int, scenario_version_str: str, anchor_version: str,
-    entity_id: str, *, _seen: Optional[set[str]] = None,
-):
-    """Union-aware effective cost for the lever-12 sandbox.
+def _compute_anchor_effective_cost(
+    db: Session, anchor_version_id: int, entity_id: str,
+    *, _seen: Optional[set[str]] = None,
+) -> float:
+    """Pure anchor-version Stage 1 effective cost (no scenario inflow).
 
-    Lever 12's lazy-fork pattern means scenario-version Distribution rows
-    only exist for entities the user actually mutated — every other entity
-    inherits its anchor edges. The vanilla ``compute_effective_cost`` walks
-    only one version at a time, so calling it with ``version='scenario-N'``
-    against an entity that wasn't forked returns own_cost only (no inflows)
-    — that's the bug the cost-allocation tile previously surfaced.
+    Replaces the call to ``services.dag_resolver.compute_effective_cost``
+    while FD-3 B1's refactor of that helper to the new ``version_id``
+    signature is in flight. The math is identical: own_cost + Σ(inflow
+    upstream effective cost × edge %). Cycle-defensive via ``_seen``.
 
-    This walker mirrors ``_check_cycle_across_versions`` semantics: for
-    each visited entity, prefer scenario edges (post-fork state) and fall
-    back to anchor edges if nothing was forked from that source.
+    Inlined here to keep D1 independent of FD-3 B1 timing; will collapse
+    back to ``compute_effective_cost(db, version_id, entity_id)`` once B1
+    lands its refactored helper.
     """
-    from services.dag_resolver import EffectiveCostResult, InflowContribution, get_own_cost
+    from services.dag_resolver import get_own_cost
 
     if _seen is None:
         _seen = set()
 
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
-        return EffectiveCostResult(
-            entity_id=entity_id, entity_name="<unknown>", year=year,
-            version=scenario_version_str, own_cost=0.0,
+        return 0.0
+    if entity_id in _seen:
+        return float(get_own_cost(entity))
+    _seen.add(entity_id)
+
+    total = float(get_own_cost(entity))
+    incoming = (
+        db.query(Distribution)
+        .filter(
+            Distribution.version_id == anchor_version_id,
+            Distribution.destination_entity_id == entity_id,
         )
+        .all()
+    )
+    for edge in incoming:
+        upstream = _compute_anchor_effective_cost(
+            db, anchor_version_id, edge.source_entity_id, _seen=_seen,
+        )
+        total += upstream * float(edge.percentage) / 100.0
+    return total
+
+
+def _compute_scenario_effective_cost(
+    db: Session, scenario_version_id: int, anchor_version_id: Optional[int],
+    entity_id: str, *, _seen: Optional[set[str]] = None,
+) -> float:
+    """Union-aware effective cost for the lever-12 sandbox.
+
+    Lever 12's lazy-fork pattern means scenario-version Distribution rows
+    only exist for entities the user actually mutated — every other entity
+    inherits its anchor edges. A vanilla single-version walk against the
+    scenario version returns own_cost only for entities the user did not
+    touch (no inflows). That regression bug was the cost-allocation tile's
+    pain point pre-Item-8.
+
+    This walker mirrors ``_check_cycle_across_versions`` semantics: for
+    each visited entity, prefer scenario edges (post-fork state) and fall
+    back to anchor edges if nothing was forked from that source.
+
+    Cadence-agnostic per FD-3 [F-S1-02] — no ``year`` filter on Distribution.
+    Returns the effective cost as a float; inflow detail is internal.
+    """
+    from services.dag_resolver import get_own_cost
+
+    if _seen is None:
+        _seen = set()
+
+    entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
+    if entity is None:
+        return 0.0
 
     if entity_id in _seen:
         # Defensive cycle bottom-out — cycle detection happens at write time.
-        return EffectiveCostResult(
-            entity_id=entity.id, entity_name=entity.name, year=year,
-            version=scenario_version_str, own_cost=get_own_cost(entity),
-        )
+        return float(get_own_cost(entity))
     _seen.add(entity_id)
 
-    own = get_own_cost(entity)
-    result = EffectiveCostResult(
-        entity_id=entity.id, entity_name=entity.name, year=year,
-        version=scenario_version_str, own_cost=own,
-    )
+    total = float(get_own_cost(entity))
 
     # Sources for which the scenario forked Stage 1 edges. We use this set
     # to decide which version to query for each incoming edge's source.
     forked_sources = {
         row[0] for row in
         db.query(Distribution.source_entity_id)
-        .filter(
-            Distribution.year == year,
-            Distribution.version == scenario_version_str,
-        )
+        .filter(Distribution.version_id == scenario_version_id)
         .distinct()
         .all()
     }
@@ -752,38 +1048,33 @@ def _compute_scenario_effective_cost(
     incoming_scenario = (
         db.query(Distribution)
         .filter(
-            Distribution.year == year,
-            Distribution.version == scenario_version_str,
+            Distribution.version_id == scenario_version_id,
             Distribution.destination_entity_id == entity_id,
         )
         .all()
     )
-    incoming_anchor_all = (
-        db.query(Distribution)
-        .filter(
-            Distribution.year == year,
-            Distribution.version == anchor_version,
-            Distribution.destination_entity_id == entity_id,
+    incoming_anchor: list[Distribution] = []
+    if anchor_version_id is not None:
+        incoming_anchor_all = (
+            db.query(Distribution)
+            .filter(
+                Distribution.version_id == anchor_version_id,
+                Distribution.destination_entity_id == entity_id,
+            )
+            .all()
         )
-        .all()
-    )
-    incoming_anchor = [
-        e for e in incoming_anchor_all if e.source_entity_id not in forked_sources
-    ]
+        incoming_anchor = [
+            e for e in incoming_anchor_all
+            if e.source_entity_id not in forked_sources
+        ]
 
     for edge in [*incoming_scenario, *incoming_anchor]:
-        upstream = _compute_scenario_effective_cost(
-            db, year, scenario_version_str, anchor_version,
+        upstream_cost = _compute_scenario_effective_cost(
+            db, scenario_version_id, anchor_version_id,
             edge.source_entity_id, _seen=_seen,
         )
-        amount = upstream.effective_cost * float(edge.percentage) / 100.0
-        result.inflows.append(InflowContribution(
-            source_entity_id=upstream.entity_id,
-            source_entity_name=upstream.entity_name,
-            percentage=float(edge.percentage),
-            amount=round(amount, 2),
-        ))
-    return result
+        total += upstream_cost * float(edge.percentage) / 100.0
+    return total
 
 
 def _entities_touched_by_scenario(
@@ -805,8 +1096,17 @@ def _entities_touched_by_scenario(
         except json.JSONDecodeError:
             continue
         if a.action_type == ACTION_DISTRIBUTION_CHANGE:
-            if int(params.get("year", year)) == year and params.get("source_entity_id"):
-                touched.add(params["source_entity_id"])
+            # Distribution actions are cadence-agnostic post-FD-3. Older
+            # actions (pre-FD-3 seed/audit data) may still carry a ``year``
+            # key — match the legacy semantics: include the action when
+            # ``year`` is missing OR matches the requested year. The
+            # touched-entity set is a superset filter, so a permissive
+            # match is safe — non-impactful entities drop out at the
+            # delta-magnitude filter below.
+            action_year = params.get("year")
+            if action_year is None or int(action_year) == year:
+                if params.get("source_entity_id"):
+                    touched.add(params["source_entity_id"])
         else:
             if int(params.get("year", year)) == year and params.get("entity_id"):
                 touched.add(params["entity_id"])
@@ -819,6 +1119,9 @@ def _entities_touched_by_scenario(
             params = json.loads(a.parameters_json) if a.parameters_json else {}
         except json.JSONDecodeError:
             continue
+        action_year = params.get("year")
+        if action_year is not None and int(action_year) != year:
+            continue
         dest = params.get("destination_entity_id")
         if dest:
             touched.add(dest)
@@ -827,7 +1130,6 @@ def _entities_touched_by_scenario(
 
 def compute_cost_allocation_impact(
     db: Session, scenario_id: int, *, year: int,
-    anchor_version: str = DEFAULT_ANCHOR_VERSION,
 ) -> dict:
     """Per-charging-location impact: anchor vs scenario for the given year.
 
@@ -835,8 +1137,10 @@ def compute_cost_allocation_impact(
 
         {
             "year": <int>,
-            "anchor_version": <str>,
+            "anchor_version": <str>,        # human-readable label
+            "anchor_version_id": <int|None>,
             "scenario_version": "scenario-<id>",
+            "scenario_version_id": <int>,
             "touched_entity_count": <int>,
             "items": [LocationImpact, ...],
             "totals": {
@@ -849,16 +1153,31 @@ def compute_cost_allocation_impact(
     Only the entities the scenario actually touches contribute non-zero
     deltas — untouched entities cost out identically on both sides and are
     omitted from ``items``. Per [F-RV-02] cache fork-on-mutation principle.
+
+    ``year`` is still meaningful for Stage 2 (BTC profile + to_business
+    overlays are year-scoped). Stage 1 Distribution edges are
+    cadence-agnostic per FD-3 [F-S1-02] so the anchor/scenario version_ids
+    do not depend on year.
     """
-    sv = scenario_version(scenario_id)
+    scenario = _ensure_scenario(db, scenario_id)
+    sv = _get_or_create_scenario_dist_version(db, scenario_id)
+    anchor_version_id = _resolve_anchor_version_id(db, scenario)
+
+    anchor_label = (
+        f"v{anchor_version_id}" if anchor_version_id is not None else "none"
+    )
+    scenario_label = scenario_version(scenario_id)
+
     touched = _entities_touched_by_scenario(db, scenario_id, year)
 
     # If no Lever 12 mutations, the impact is zero.
     if not touched:
         return {
             "year": year,
-            "anchor_version": anchor_version,
-            "scenario_version": sv,
+            "anchor_version": anchor_label,
+            "anchor_version_id": anchor_version_id,
+            "scenario_version": scenario_label,
+            "scenario_version_id": sv.id,
             "touched_entity_count": 0,
             "items": [],
             "totals": {"anchor_total": 0.0, "scenario_total": 0.0, "delta": 0.0},
@@ -883,12 +1202,23 @@ def compute_cost_allocation_impact(
         if entity is None:
             continue
 
-        anchor_eff = compute_effective_cost(db, year, anchor_version, entity_id)
-        # Union-aware walk: any unforked source falls back to its anchor edges.
-        # Without this, BTC-only scenarios (no Stage 1 fork) lose every
-        # upstream inflow on the scenario side, producing misleading deltas.
-        scenario_eff = _compute_scenario_effective_cost(
-            db, year, sv, anchor_version, entity_id,
+        # Compute Stage 1 effective cost on each side. If no anchor version
+        # is resolvable (legacy scenario, no production version yet) we
+        # treat the anchor side as own-cost-only via a defensive call.
+        if anchor_version_id is not None:
+            anchor_eff_cost = _compute_anchor_effective_cost(
+                db, anchor_version_id, entity_id,
+            )
+        else:
+            from services.dag_resolver import get_own_cost
+            anchor_eff_cost = get_own_cost(entity)
+
+        # Union-aware walk: any unforked source falls back to its anchor
+        # edges. Without this, BTC-only scenarios (no Stage 1 fork) lose
+        # every upstream inflow on the scenario side, producing misleading
+        # deltas.
+        scenario_eff_cost = _compute_scenario_effective_cost(
+            db, sv.id, anchor_version_id, entity_id,
         )
 
         # to_business overlay: scenario value if set, else anchor.
@@ -903,10 +1233,10 @@ def compute_cost_allocation_impact(
         anchor_lines = _live_btc_lines(db, entity_id, year)
 
         anchor_per_loc = _per_location_amount(
-            anchor_eff.effective_cost, anchor_tb, anchor_lines,
+            anchor_eff_cost, anchor_tb, anchor_lines,
         )
         scenario_per_loc = _per_location_amount(
-            scenario_eff.effective_cost, scenario_tb, scenario_lines,
+            scenario_eff_cost, scenario_tb, scenario_lines,
         )
 
         all_cls = set(anchor_per_loc) | set(scenario_per_loc)
@@ -931,8 +1261,10 @@ def compute_cost_allocation_impact(
 
     return {
         "year": year,
-        "anchor_version": anchor_version,
-        "scenario_version": sv,
+        "anchor_version": anchor_label,
+        "anchor_version_id": anchor_version_id,
+        "scenario_version": scenario_label,
+        "scenario_version_id": sv.id,
         "touched_entity_count": len(touched),
         "items": [
             {
@@ -959,15 +1291,32 @@ def compute_cost_allocation_impact(
 # ---------------------------------------------------------------------------
 
 def cleanup_lever12_state(db: Session, scenario_id: int) -> int:
-    """Delete all scenario-version Distribution rows for a scenario.
+    """Delete the per-scenario sandbox ``DistributionVersion`` and its edges.
 
-    Caller commits. Returns the count of rows removed. Lever 12 BTC and
-    to_business_pct overlays live in ScenarioActions which the scenario
-    delete cascade already removes.
+    Caller commits. Returns the count of distribution edges removed. Lever
+    12 BTC and to_business_pct overlays live in ScenarioActions which the
+    scenario delete cascade already removes.
+
+    Post-FD-3 semantics: the cascade chain is
+    ``Scenario → DistributionVersion(scenario_id=N) → Distribution(version_id=…)``.
+    We could rely on the DB cascade alone when Scenario is deleted, but
+    callers (notably ``DELETE /api/scenarios/{id}``) invoke this helper
+    explicitly to mirror the v4-era "manual cleanup" contract and to return
+    the count of removed edges for audit/UX.
     """
-    sv = scenario_version(scenario_id)
-    rows = db.query(Distribution).filter(Distribution.version == sv).all()
-    n = len(rows)
-    for r in rows:
-        db.delete(r)
+    sv = (
+        db.query(DistributionVersion)
+        .filter(DistributionVersion.scenario_id == scenario_id)
+        .first()
+    )
+    if sv is None:
+        return 0
+    n = (
+        db.query(Distribution)
+        .filter(Distribution.version_id == sv.id)
+        .count()
+    )
+    # Delete the header — cascade on Distribution.version_id removes edges.
+    db.delete(sv)
+    db.flush()
     return n
