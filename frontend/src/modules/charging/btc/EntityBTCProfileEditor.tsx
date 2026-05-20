@@ -23,6 +23,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, Plus, Trash2, AlertTriangle, RefreshCw, Save, Search,
+  CheckCircle2,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -194,6 +195,11 @@ export function EntityBTCProfileEditor(props: Props) {
 
   const isAutomatic = profile?.mode === 'automatic';
   const isManual = profile?.mode === 'manual';
+  // FD-4 [F-S2-01]: InternalService BTC is derivation-only. Hide manual
+  // editor blocks, the mode-switch button, and the ModeChangeDialog for
+  // these entities. Backend rejects manual creation + mode-changes regardless;
+  // this is the front-of-house enforcement.
+  const isInternalService = entity?.entity_type === 'InternalService';
 
   // === Manual line edits ===
   const setLineDraftPct = (idx: number, value: string) => {
@@ -257,6 +263,24 @@ export function EntityBTCProfileEditor(props: Props) {
       fetchData();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Commit failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // FD-4 [F-S2-02]: explicit activate hits POST /btc-profiles/{id}/activate.
+  // Automatic profiles get re-snapshotted against the *currently active*
+  // UM version at this moment; manual profiles get a fresh sum-to-100 check.
+  // Disabled in sandbox mode (Lever 12 keeps canonical-only ops out of scope).
+  const handleActivate = async () => {
+    if (!profile) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await chargingApi.activateBTCProfile(profile.id, {});
+      fetchData();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Activate failed');
     } finally {
       setSaving(false);
     }
@@ -363,16 +387,27 @@ export function EntityBTCProfileEditor(props: Props) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* FD-4 [F-S2-02]: explicit Activate CTA for draft profiles
+              (all entity types). Triggers re-snapshot against current UM
+              for automatic profiles + sum-to-100 revalidation for manual. */}
+          {profile.status === 'draft' && !sandboxMode && (
+            <Button variant="default" size="sm" onClick={handleActivate} disabled={saving}>
+              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+              {saving ? 'Activating…' : 'Activate'}
+            </Button>
+          )}
           {isAutomatic && !sandboxMode ? (
             <Button variant="outline" size="sm" onClick={handleDryRunRefresh}>
               <RefreshCw className="h-3.5 w-3.5 mr-1" />
-              Refresh from UM
+              Advance UM snapshot
             </Button>
           ) : null}
           {/* v5 B2: hide canonical-only operations in sandbox mode.
               UM refresh and mode-switch always write canonical rows;
-              Lever 12 sandbox keeps them disabled by design ([B-ES-01]). */}
-          {!sandboxMode && (
+              Lever 12 sandbox keeps them disabled by design ([B-ES-01]).
+              FD-4 [F-S2-01]: hide mode-switch entirely for InternalService —
+              the backend rejects mode-changes for them. */}
+          {!sandboxMode && !isInternalService && (
             <Button variant="outline" size="sm" onClick={() => setModeChangeOpen(true)}>
               Switch to {profile.mode === 'manual' ? 'automatic' : 'manual'}
             </Button>
@@ -448,11 +483,13 @@ export function EntityBTCProfileEditor(props: Props) {
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               {isAutomatic
-                ? 'Automatic mode — values snapshotted from UM. To override, switch to manual.'
+                ? (isInternalService
+                  ? 'Automatic mode — InternalService BTC is derivation-only from UM. Advance the snapshot to pick up newer UM data.'
+                  : 'Automatic mode — values snapshotted from UM. To override, switch to manual.')
                 : 'Manual mode — add lines, sum must equal 100% before save.'}
             </p>
           </div>
-          {isManual && (
+          {isManual && !isInternalService && (
             <div className="flex items-center gap-2">
               <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
@@ -561,33 +598,37 @@ export function EntityBTCProfileEditor(props: Props) {
         locationById={locationById}
       />
 
-      <ModeChangeDialog
-        open={modeChangeOpen}
-        currentMode={profile.mode}
-        currentLines={profile.lines}
-        currentSum={profile.lines.reduce((s, l) => s + l.percentage, 0)}
-        onClose={() => setModeChangeOpen(false)}
-        onConfirm={async (newMode, sCode) => {
-          if (!profile) return;
-          setSaving(true);
-          setError(null);
-          try {
-            await chargingApi.changeBTCMode(profile.id, {
-              new_mode: newMode,
-              s_code: sCode,
-              confirm: true,
-            });
-            setModeChangeOpen(false);
-            fetchData();
-          } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : 'Mode change failed');
-          } finally {
-            setSaving(false);
-          }
-        }}
-        committing={saving}
-        locationById={locationById}
-      />
+      {/* FD-4 [F-S2-01]: ModeChangeDialog is hidden for InternalService —
+          the backend rejects mode-changes for them. */}
+      {!isInternalService && (
+        <ModeChangeDialog
+          open={modeChangeOpen}
+          currentMode={profile.mode}
+          currentLines={profile.lines}
+          currentSum={profile.lines.reduce((s, l) => s + l.percentage, 0)}
+          onClose={() => setModeChangeOpen(false)}
+          onConfirm={async (newMode, sCode) => {
+            if (!profile) return;
+            setSaving(true);
+            setError(null);
+            try {
+              await chargingApi.changeBTCMode(profile.id, {
+                new_mode: newMode,
+                s_code: sCode,
+                confirm: true,
+              });
+              setModeChangeOpen(false);
+              fetchData();
+            } catch (e: unknown) {
+              setError(e instanceof Error ? e.message : 'Mode change failed');
+            } finally {
+              setSaving(false);
+            }
+          }}
+          committing={saving}
+          locationById={locationById}
+        />
+      )}
     </div>
   );
 }
@@ -814,7 +855,7 @@ function RefreshDiffDialog({
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Refresh from UM — diff preview</DialogTitle>
+          <DialogTitle>Advance UM snapshot — diff preview</DialogTitle>
           <DialogDescription>
             S-code <span className="font-mono">{diff.s_code}</span> · year {diff.year} Q{diff.quarter}
             {' · '}
@@ -868,7 +909,7 @@ function RefreshDiffDialog({
           )}
           {diff.added.length + diff.removed.length + diff.changed.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              No differences — current snapshot already matches the UM matrix.
+              No differences — current snapshot is already aligned with the UM matrix.
             </p>
           )}
         </div>
@@ -878,7 +919,7 @@ function RefreshDiffDialog({
             Cancel
           </Button>
           <Button onClick={onCommit} disabled={committing}>
-            {committing ? 'Committing…' : 'Apply changes'}
+            {committing ? 'Advancing…' : 'Advance snapshot'}
           </Button>
         </DialogFooter>
       </DialogContent>
