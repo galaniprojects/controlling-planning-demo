@@ -103,6 +103,34 @@ def _check_scenario_owner(scenario: Scenario, user: CurrentUser) -> None:
         raise HTTPException(403, "Only the author can perform this action.")
 
 
+def _resolve_active_distribution_version_id(db: Session, evaluated_date) -> Optional[int]:
+    """Return the production ``DistributionVersion.id`` active on ``evaluated_date``.
+
+    Used at scenario creation to pin ``Scenario.anchor_distribution_version_id``
+    per FD-3 [F-S1-02] / spec §4 OQ #3 — see the lever-12 module docstring.
+    Returns ``None`` when no production version has been activated yet
+    (e.g. greenfield seed); the lever-12 read paths handle ``NULL`` anchors
+    gracefully by resolving at read time.
+
+    Pending FD-3 B1 (teammate-b) landing
+    ``services.distribution_service.resolve_active_version``, this duplicates
+    the resolution logic locally to keep D1 independent of B1 timing.
+    """
+    from models.charging import DistributionVersion
+    av = (
+        db.query(DistributionVersion)
+        .filter(
+            DistributionVersion.scenario_id.is_(None),
+            DistributionVersion.status == "active",
+            DistributionVersion.active_from.isnot(None),
+            DistributionVersion.active_from <= evaluated_date,
+        )
+        .order_by(DistributionVersion.active_from.desc())
+        .first()
+    )
+    return av.id if av is not None else None
+
+
 def _get_scenario_or_404(db: Session, scenario_id: int) -> Scenario:
     sc = db.query(Scenario).filter(Scenario.id == scenario_id).first()
     if sc is None:
@@ -259,6 +287,17 @@ def create_scenario(
 
     tags_json = json.dumps(body.tags) if body.tags else None
 
+    # FD-3 [F-S1-02] / OQ #3: pin the Stage 1 distribution-version anchor at
+    # scenario creation. Prevents subsequent production reactivations from
+    # shifting impact deltas underneath an open scenario. NULL is preserved
+    # as a legacy escape hatch — the lever-12 read paths fall back to
+    # resolve-by-date when this column is NULL.
+    from datetime import date as _date
+    from config import DEMO_DATE
+    _demo_today_year, _demo_today_month = (int(s) for s in DEMO_DATE.split("-"))
+    _demo_today = _date(_demo_today_year, _demo_today_month, 1)
+    dist_anchor = _resolve_active_distribution_version_id(db, _demo_today)
+
     scenario = Scenario(
         name=body.name,
         description=body.description,
@@ -266,6 +305,7 @@ def create_scenario(
         status="private",
         visibility="private",
         anchor_forecast_version_id=anchor_id,
+        anchor_distribution_version_id=dist_anchor,
         tags=tags_json,
         cc_owner_scope_cc_id=cc_scope,
     )
@@ -303,6 +343,7 @@ def create_scenario(
     return {
         "id": scenario.id, "name": scenario.name, "status": scenario.status,
         "anchor_forecast_version_id": scenario.anchor_forecast_version_id,
+        "anchor_distribution_version_id": scenario.anchor_distribution_version_id,
         "visibility": scenario.visibility,
         "cc_owner_scope_cc_id": scenario.cc_owner_scope_cc_id,
     }
