@@ -4,10 +4,31 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import date
+
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargeableEntity, ChargingLocation,
-    Distribution, RollupCache,
+    Distribution, DistributionVersion, RollupCache,
 )
+
+
+def _seed_dist_version(db):
+    """Create an active Stage 1 DistributionVersion (FD-3) for tests that need
+    one. Idempotent — returns the existing row if already created.
+    """
+    v = (
+        db.query(DistributionVersion)
+        .filter_by(scenario_id=None, status="active")
+        .first()
+    )
+    if v is None:
+        v = DistributionVersion(
+            active_from=date(2025, 1, 1), status="active", origin="seed",
+            rationale="Router-rollup test seed", scenario_id=None,
+        )
+        db.add(v)
+        db.flush()
+    return v
 
 
 HEADERS_CTRL = {"X-Current-User": "persona-controller"}
@@ -155,8 +176,10 @@ class TestGetRollupDrillDown:
         _seed_entity(db, "ce-dst", "IT00S031", 200000.0, "Offering")
         _seed_cl(db)
 
+        # FD-3: Stage 1 edges FK into a DistributionVersion header.
+        dist_v = _seed_dist_version(db)
         edge = Distribution(
-            year=2026, version="forecast",
+            version_id=dist_v.id,
             source_entity_id="ce-src", destination_entity_id="ce-dst",
             percentage=25.0,
         )
@@ -184,10 +207,13 @@ class TestInvalidateRollupCache:
     def test_flushes_cache_and_returns_count(
         self, test_client, seed_personas, seed_hierarchy, db,
     ):
-        # Pre-populate some cache entries
+        # Pre-populate some cache entries (FD-3: version_id FK replaces
+        # the legacy `version` String).
+        dist_v = _seed_dist_version(db)
         for i in range(3):
             db.add(RollupCache(
-                cache_layer="stage1_effective", year=2026, version="forecast",
+                cache_layer="stage1_effective", year=2026,
+                version_id=dist_v.id,
                 key_id=f"ce-{i}", payload_json='{"effective_cost": 0}',
             ))
         db.commit()
@@ -240,16 +266,18 @@ class TestRollupCacheStatus:
     def test_counts_per_layer(
         self, test_client, seed_personas, seed_hierarchy, db,
     ):
+        # FD-3: version_id FK replaces the legacy `version` String column.
+        dist_v = _seed_dist_version(db)
         db.add(RollupCache(
-            cache_layer="stage1_effective", year=2026, version="forecast",
+            cache_layer="stage1_effective", year=2026, version_id=dist_v.id,
             key_id="ce-a", payload_json='{"effective_cost": 100}',
         ))
         db.add(RollupCache(
-            cache_layer="stage2_location", year=2026, version="forecast",
+            cache_layer="stage2_location", year=2026, version_id=dist_v.id,
             key_id="ce-a:cl-x", payload_json='{"amount_eur": 60}',
         ))
         db.add(RollupCache(
-            cache_layer="stage2_location", year=2026, version="forecast",
+            cache_layer="stage2_location", year=2026, version_id=dist_v.id,
             key_id="ce-a:cl-y", payload_json='{"amount_eur": 40}',
         ))
         db.commit()

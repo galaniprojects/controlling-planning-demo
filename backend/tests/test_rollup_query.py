@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import date
+
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargeableEntity, ChargingLocation,
-    Country, Distribution, LegalEntity, Region,
+    Country, Distribution, DistributionVersion, LegalEntity, Region,
 )
 from models.organization import GroupingEntityType, GroupingEntity
 from services.rollup_query import (
@@ -144,9 +146,15 @@ class TestDrillDownChargingLocation:
     def test_upstream_chain_with_distribution(self, db):
         _make_cl(db)
         _setup_entities(db, count=2)
-        # Add distribution: ce-1 → ce-0
+        # FD-3: Stage 1 edges now FK into a DistributionVersion header.
+        dist_v = DistributionVersion(
+            active_from=date(2025, 1, 1), status="active", origin="seed",
+            rationale="Rollup-query test seed", scenario_id=None,
+        )
+        db.add(dist_v)
+        db.flush()
         edge = Distribution(
-            year=2026, version="forecast",
+            version_id=dist_v.id,
             source_entity_id="ce-1", destination_entity_id="ce-0",
             percentage=40.0,
         )

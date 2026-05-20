@@ -25,9 +25,11 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import date
+
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargeableEntity, ChargingLocation,
-    Country, Distribution, LegalEntity, Region,
+    Country, Distribution, DistributionVersion, LegalEntity, Region,
 )
 from models.organization import GroupingEntity, GroupingEntityType
 
@@ -98,9 +100,29 @@ def seed_charging_data(db, seed_org_base, seed_personas):
     ])
     db.flush()
 
-    # One distribution edge
+    # Stage 1 distribution versions + edge (FD-3 effective-dated model).
+    # Active production version pinned to 2025-01-01 so the resolver picks
+    # it at the demo date; a separate empty draft version exists for tests
+    # that need to exercise edge-create mutations (active versions are
+    # immutable per [F-S1-08]).
+    dist_version = DistributionVersion(
+        active_from=date(2025, 1, 1),
+        status="active",
+        origin="seed",
+        rationale="Test seed distribution",
+        scenario_id=None,
+    )
+    dist_draft_version = DistributionVersion(
+        active_from=None,
+        status="draft",
+        origin="blank",
+        rationale="",
+        scenario_id=None,
+    )
+    db.add_all([dist_version, dist_draft_version])
+    db.flush()
     edge = Distribution(
-        year=2026, version="forecast",
+        version_id=dist_version.id,
         source_entity_id="ce-a", destination_entity_id="ce-b", percentage=20.0,
     )
     db.add(edge)
@@ -125,6 +147,8 @@ def seed_charging_data(db, seed_org_base, seed_personas):
         "ce_b_id": "ce-b",
         "edge_id": edge.id,
         "profile_id": profile.id,
+        "dist_version_id": dist_version.id,
+        "dist_draft_version_id": dist_draft_version.id,
     }
 
 
@@ -195,25 +219,28 @@ class TestReadEndpointsOpenToAllRoles:
         assert r.status_code == 200
 
     def test_entity_distribution_summary(self, test_client, seed_charging_data, persona):
+        # FD-3: rescoped from (year, version-string) to version_id FK.
         r = test_client.get(
             f"/api/charging/entities/{seed_charging_data['ce_b_id']}"
-            "/distribution-summary?year=2026&version=forecast",
+            f"/distribution-summary?version_id={seed_charging_data['dist_version_id']}",
             headers=_h(persona),
         )
         assert r.status_code == 200
 
     def test_entity_effective_cost(self, test_client, seed_charging_data, persona):
+        # FD-3: year retained (own-cost is year-scoped); version string → version_id.
         r = test_client.get(
             f"/api/charging/entities/{seed_charging_data['ce_b_id']}"
-            "/effective-cost?year=2026&version=forecast",
+            f"/effective-cost?year=2026&version_id={seed_charging_data['dist_version_id']}",
             headers=_h(persona),
         )
         assert r.status_code == 200
 
     def test_entity_upstream_chain(self, test_client, seed_charging_data, persona):
+        # FD-3: rescoped from (year, version-string) to version_id FK.
         r = test_client.get(
             f"/api/charging/entities/{seed_charging_data['ce_b_id']}"
-            "/upstream-chain?year=2026&version=forecast",
+            f"/upstream-chain?version_id={seed_charging_data['dist_version_id']}",
             headers=_h(persona),
         )
         assert r.status_code == 200
@@ -453,9 +480,10 @@ class TestMutationsForbiddenForNonControllers:
         assert r.status_code == 403
 
     def test_update_to_business_pct(self, test_client, seed_charging_data, persona):
+        # FD-3: rescoped from (year, version-string) to version_id FK (required).
         r = test_client.put(
             f"/api/charging/entities/{seed_charging_data['ce_b_id']}"
-            "/to-business-pct?new_pct=40&year=2026&version=forecast",
+            f"/to-business-pct?new_pct=40&version_id={seed_charging_data['dist_version_id']}",
             headers=_h(persona),
         )
         assert r.status_code == 403
@@ -561,18 +589,22 @@ class TestControllerMutationsSucceed:
         assert r.status_code == 200
 
     def test_controller_creates_distribution(self, test_client, seed_charging_data):
+        # FD-3: edges are written against a *draft* version_id. The active
+        # version (with the ce-a → ce-b edge already) is immutable per
+        # [F-S1-08]; we create the new edge on the draft version so the
+        # business-logic path executes (the role gate is what's under test).
         r = test_client.post(
             "/api/charging/distributions", headers=_h(PERSONA_CONTROLLER),
             json={
-                "year": 2026, "version": "forecast",
+                "version_id": seed_charging_data["dist_draft_version_id"],
                 "source_entity_id": "ce-b", "destination_entity_id": "ce-a",
                 "percentage": 5.0,
             },
         )
-        # The graph already has ce-a -> ce-b at 20%; adding ce-b -> ce-a
-        # would close a cycle → 409 (not 403). That's fine — the role gate
-        # passed, business logic ran.
-        assert r.status_code in (201, 409)
+        # 201 if the draft accepts the edge; 409 if business logic blocks
+        # (cycle / sum-rule). 200 if the router returns the created object
+        # at base path. Any non-403 signal proves the role gate passed.
+        assert r.status_code in (200, 201, 409)
 
     def test_controller_invalidates_rollup_cache(self, test_client, seed_charging_data):
         r = test_client.post(
