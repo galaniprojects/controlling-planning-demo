@@ -33,6 +33,7 @@ import type {
   UMVersionDetailResponse,
   UMVersionSummary,
 } from '@/types/userMeasurement';
+import { UserMeasurementMatrixEditor } from './UserMeasurementMatrixEditor';
 import { UserMeasurementMatrixViewer } from './UserMeasurementMatrixViewer';
 import { ActivateDraftDialog } from './versions/ActivateDraftDialog';
 import { CreateDraftDialog } from './versions/CreateDraftDialog';
@@ -397,10 +398,18 @@ export function UserMeasurementListView() {
           <p className="text-sm text-red-800 dark:text-red-300">{detailError}</p>
         </Card>
       ) : detail ? (
-        <UserMeasurementMatrixViewer
-          version={detail.version}
-          cells={detail.cells}
-        />
+        isController && isCurrentDraft ? (
+          <UserMeasurementMatrixEditor
+            version={detail.version}
+            cells={detail.cells}
+            onMutated={() => fetchDetail(detail.version.id)}
+          />
+        ) : (
+          <UserMeasurementMatrixViewer
+            version={detail.version}
+            cells={detail.cells}
+          />
+        )
       ) : (
         <EmptyState
           icon={ChevronDown}
