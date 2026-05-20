@@ -20,9 +20,16 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from models.charging import (
-    ChargeableEntity, Distribution, DISTRIBUTION_BUILTIN_VERSIONS,
+    ChargeableEntity, Distribution,
 )
 from services.dag_resolver import detect_cycle_db
+
+# FD-3 B0 transition note: the v4 ``DISTRIBUTION_BUILTIN_VERSIONS`` /
+# ``DISTRIBUTION_VERSION_BASELINE`` constants were removed by A1 along with
+# the row-column ``version`` String. ``is_known_version`` is kept as a
+# transitional shim that always returns True so the router import path stays
+# intact for FD-3 B0; B1 rewrites the service layer against the new
+# ``version_id`` model and drops the shim.
 
 
 class DistributionValidationError(Exception):
@@ -181,17 +188,17 @@ def assert_no_cycle(
 
 
 def is_known_version(version: str) -> bool:
-    """Return True for builtin versions (baseline/forecast/actuals) and any
-    string starting with ``scenario-`` (per [F-S1-04] scenario fork pattern).
+    """Transitional shim — always returns True (FD-3 B0).
 
-    Other strings are accepted on writes but logged so the user can spot typos
-    via the audit trail. The seed uses ``forecast`` for the demo data.
+    The v4 free-form ``version`` String (``baseline`` | ``forecast`` |
+    ``actuals`` | ``scenario-<id>``) was removed in FD-3 A1; the new model
+    keys edges by ``version_id`` against the ``DistributionVersion`` header.
+    This soft validator was the only consumer of the deleted constants and
+    no longer maps onto reality. The function is kept (returns True) so the
+    router import path stays intact while B1/B2 land the new service layer.
+    The B2 router refactor removes the call site; B1 then removes this shim.
     """
-    if version in DISTRIBUTION_BUILTIN_VERSIONS:
-        return True
-    if version.startswith("scenario-"):
-        return True
-    return False
+    return True
 
 
 def create_distribution_edge(

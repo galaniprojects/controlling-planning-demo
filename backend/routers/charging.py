@@ -6,6 +6,7 @@ All endpoints require the controller role per the existing admin pattern.
 
 from __future__ import annotations
 
+from datetime import date
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -48,7 +49,11 @@ from schemas.common import CurrentUser
 from schemas.distribution import (
     DistributionCreate, DistributionListResponse, DistributionResponse,
     DistributionUpdate, DistributionEffectiveCost, DistributionInflow,
-    EntityDistributionSummary, WBSElementResponse,
+    DistributionVersionActivate, DistributionVersionCreate,
+    DistributionVersionDetailResponse, DistributionVersionDiff,
+    DistributionVersionListResponse, DistributionVersionResponse,
+    DistributionVersionUpdate, EntityDistributionSummary, EntityStage1View,
+    WBSElementResponse,
 )
 from services.btc_service import (
     BTCValidationError, assert_btc_required,
@@ -1180,6 +1185,237 @@ def get_entity_wbs_element(
         charging_location_id=cl.id,
         wbs_element=wbs,
     )
+
+
+# ===========================================================================
+# Charging/UM rework cluster FD-3 — DistributionVersion endpoints [F-S1-02..08]
+# Effective-dated Stage 1 version management.
+#
+# This block ships in two waves:
+# - **B0** (this commit): Pydantic-schema contract + 501-stub handlers so the
+#   frontend (teammate-c) can wire types against the real shapes immediately.
+# - **B1 / B2**: service layer + handler bodies + tests.
+#
+# All write endpoints are Controller-only per the existing admin pattern;
+# reads open to all four roles per `[F-AC-01]`.
+# ===========================================================================
+
+_NOT_IMPLEMENTED_DETAIL = (
+    "DistributionVersion endpoint not implemented yet — landing in FD-3 B1/B2. "
+    "B0 ships the schema contract only."
+)
+
+
+@charging_router.get(
+    "/distribution-versions",
+    response_model=DistributionVersionListResponse,
+)
+def list_distribution_versions(
+    status: str | None = None,
+    include_scenario: bool = False,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> DistributionVersionListResponse:
+    """List ``DistributionVersion`` headers per `[F-S1-02..04]`.
+
+    Filters:
+    - ``status`` — ``draft`` / ``active`` (default both).
+    - ``include_scenario`` — when False (default), scenario-scoped versions
+      are hidden. The simulator surfaces its sandbox version through its
+      own endpoints, not the production timeline.
+
+    **Stub (FD-3 B0)** — body lands in FD-3 B2.
+    """
+    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+
+
+@charging_router.post(
+    "/distribution-versions",
+    response_model=DistributionVersionDetailResponse,
+    status_code=201,
+)
+def create_distribution_version(
+    body: DistributionVersionCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> DistributionVersionDetailResponse:
+    """Create a new draft ``DistributionVersion`` per `[F-S1-04]`.
+
+    Three origins:
+
+    - ``blank`` — empty draft, no edges. ``copied_from_version_id`` ignored.
+    - ``copy_active`` — copy edges from the currently in-force production
+      version (latest ``active_from`` ≤ today). ``copied_from_version_id``
+      ignored.
+    - ``copy_prior`` — copy edges from the version identified by
+      ``copied_from_version_id`` (required for this origin).
+
+    Returns the new draft header plus its (possibly-copied) edges so the
+    UI can render the version-creation modal preview in one round trip.
+
+    **Stub (FD-3 B0)** — body lands in FD-3 B2.
+    """
+    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+
+
+@charging_router.get(
+    "/distribution-versions/{version_id}",
+    response_model=DistributionVersionDetailResponse,
+)
+def get_distribution_version(
+    version_id: int,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> DistributionVersionDetailResponse:
+    """Detail (header + edges) for a ``DistributionVersion``.
+
+    Edge list is sorted by ``(source_entity_id, destination_entity_id)`` so
+    the UI's deterministic ordering matches the diff report.
+
+    **Stub (FD-3 B0)** — body lands in FD-3 B2.
+    """
+    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+
+
+@charging_router.put(
+    "/distribution-versions/{version_id}",
+    response_model=DistributionVersionResponse,
+)
+def update_distribution_version(
+    version_id: int,
+    body: DistributionVersionUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> DistributionVersionResponse:
+    """Update a draft version's rationale per `[F-S1-05]`.
+
+    Edges are mutated via the existing edge endpoints
+    (``/api/charging/distributions``). The service rejects header updates
+    on an active version with HTTP 409 (immutable per `[F-S1-08]`).
+
+    **Stub (FD-3 B0)** — body lands in FD-3 B2.
+    """
+    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+
+
+@charging_router.post(
+    "/distribution-versions/{version_id}/activate",
+    response_model=DistributionVersionResponse,
+)
+def activate_distribution_version(
+    version_id: int,
+    body: DistributionVersionActivate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> DistributionVersionResponse:
+    """Activate a draft ``DistributionVersion`` per `[F-S1-02..03][F-S1-08]`.
+
+    Production-only flip (draft → active):
+    - ``active_from`` required.
+    - ``rationale`` required (non-empty).
+
+    Service rejects (all HTTP 409):
+    - Activating a scenario-scoped version (those stay draft permanently).
+    - Duplicate ``active_from`` across production active versions
+      ``[F-S1-02]`` "identical ``active_from`` for the same scope is
+      forbidden".
+    - Empty rationale ``[F-S1-05]``.
+
+    On success: ``status='active'``, ``activated_at=now()``, ``rationale``
+    set, the version becomes the in-force version for the supplied
+    ``active_from`` going forward. Header + edges then immutable.
+
+    **Stub (FD-3 B0)** — body lands in FD-3 B2.
+    """
+    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+
+
+@charging_router.delete("/distribution-versions/{version_id}")
+def delete_distribution_version(
+    version_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> dict:
+    """Delete a draft ``DistributionVersion``.
+
+    Active production versions are immutable per `[F-S1-08]` — the service
+    rejects deletion with HTTP 409. Scenario-scoped versions are deleted
+    via scenario cleanup (FK cascade), not via this endpoint.
+
+    Future-dated active revocation is tracked as an open question — see
+    plan §"Open questions" #2. Out of scope for B0/B1/B2.
+
+    **Stub (FD-3 B0)** — body lands in FD-3 B2.
+    """
+    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+
+
+@charging_router.get(
+    "/distribution-versions/{version_id}/diff",
+    response_model=DistributionVersionDiff,
+)
+def diff_distribution_version(
+    version_id: int,
+    compared_to_version_id: int | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> DistributionVersionDiff:
+    """Version-diff report per `[F-S1-07]`.
+
+    Default ``compared_to_version_id``:
+    - For production versions — the version preceding ``version_id`` by
+      effective date (i.e. the version this one supersedes).
+    - For scenario-scoped versions — the production anchor the scenario
+      forked from (``Scenario.anchor_distribution_version_id``, or the
+      resolver's active production version at the scenario creation time
+      if NULL).
+
+    Returns the two version headers plus the ordered list of edge changes
+    (added / removed / changed) with old → new percentages and rationale
+    deltas. Per-edge *visibility* in the diff is retained even though
+    per-edge *activation* is rejected per `[F-S1-08]`.
+
+    **Stub (FD-3 B0)** — body lands in FD-3 B2.
+    """
+    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
+
+
+@charging_router.get(
+    "/stage1/entities/{entity_id}",
+    response_model=EntityStage1View,
+)
+def get_entity_stage1_view(
+    entity_id: str,
+    evaluated_date: date | None = None,
+    version_id: int | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> EntityStage1View:
+    """Per-entity Stage 1 surface per `[F-S1-06]` (first-class).
+
+    Returns everything the per-entity panel needs in one round trip:
+    outbound edges, ``to_business_pct``, derived self-retained residual,
+    effective cost (own + Σ inflows), per-edge rationale, and the
+    effective-dated version history for the entity's outbound timeline.
+
+    Resolution:
+    - ``version_id`` (optional): explicit version selection — overrides the
+      effective-date resolver. Used by the version-history sidebar to switch
+      to a past production version.
+    - ``evaluated_date`` (optional): if ``version_id`` is omitted, resolve
+      the production version in force on this date. Defaults to today.
+
+    **Stub (FD-3 B0)** — body lands in FD-3 B2.
+    """
+    raise HTTPException(501, _NOT_IMPLEMENTED_DETAIL)
 
 
 # ===========================================================================
