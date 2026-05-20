@@ -2064,15 +2064,23 @@ export interface ChargeableEntityItem {
   is_change_or_run: 'Change' | 'Run';
 }
 
-// === Distribution edges (Stage 1) [F-S1-01..05] ===
+// === Distribution edges (Stage 1) [F-S1-01..08] ===
+//
+// FD-3 rework: edges are now scoped to a ``version_id`` (FK into
+// ``distribution_versions``) and carry an optional per-edge ``rationale``.
+// The legacy ``year``/``version`` string columns were removed from the model;
+// cadence-agnostic resolution lives on the version header (``active_from``).
+//
+// The frontend types below mirror ``backend/schemas/distribution.py`` 1:1
+// (B0 contract). Names match the Pydantic class names for greppability.
 
 export interface DistributionEdgeItem {
   id: number;
-  year: number;
-  version: string;
+  version_id: number;
   source_entity_id: string;
   destination_entity_id: string;
   percentage: number;
+  rationale?: string | null;
   source_entity_name?: string | null;
   destination_entity_name?: string | null;
 }
@@ -2080,8 +2088,7 @@ export interface DistributionEdgeItem {
 export interface EntityDistributionSummary {
   entity_id: string;
   entity_name: string;
-  year: number;
-  version: string;
+  version_id: number;
   to_business_pct: number;
   distributions: DistributionEdgeItem[];
   self_retained_pct: number;
@@ -2099,7 +2106,7 @@ export interface DistributionEffectiveCost {
   entity_id: string;
   entity_name: string;
   year: number;
-  version: string;
+  version_id: number;
   own_cost: number;
   own_cost_source?: string | null;
   inflows: DistributionInflow[];
@@ -2112,6 +2119,144 @@ export interface DistributionCycleError {
   detail: string;
   cycle_chain?: string[];
   cycle_chain_labels?: string[];
+}
+
+// ---------------------------------------------------------------------------
+// DistributionVersion (FD-3 [F-S1-02..08])
+// ---------------------------------------------------------------------------
+
+export type DistributionVersionStatus = 'draft' | 'active';
+
+// All origin values the backend may return on read.
+export type DistributionVersionOrigin =
+  | 'blank'
+  | 'copy_active'
+  | 'copy_prior'
+  | 'seed';
+
+// Subset of origins accepted on create (`seed` is reserved for the seeder).
+export type DistributionVersionCreateOrigin =
+  | 'blank'
+  | 'copy_active'
+  | 'copy_prior';
+
+export interface DistributionVersionResponse {
+  id: number;
+  status: DistributionVersionStatus;
+  /** ISO date `YYYY-MM-DD`. NULL for drafts and scenario-scoped versions. */
+  active_from: string | null;
+  rationale: string;
+  origin: DistributionVersionOrigin;
+  copied_from_version_id: number | null;
+  /** NULL for production; non-NULL = scenario-scoped (lever 12). */
+  scenario_id: number | null;
+  /** ISO datetime. */
+  created_at: string;
+  created_by_person_id: string | null;
+  /** ISO datetime — set on activate; immutable after. */
+  activated_at: string | null;
+  /** Server-computed convenience — number of edges in this version. */
+  edge_count: number | null;
+}
+
+export interface DistributionVersionListResponse {
+  items: DistributionVersionResponse[];
+  total: number;
+}
+
+export interface DistributionVersionDetailResponse {
+  version: DistributionVersionResponse;
+  edges: DistributionEdgeItem[];
+  total_edges: number;
+}
+
+export interface DistributionVersionCreatePayload {
+  origin: DistributionVersionCreateOrigin;
+  copied_from_version_id?: number | null;
+  rationale?: string | null;
+}
+
+export interface DistributionVersionUpdatePayload {
+  rationale: string;
+}
+
+export interface DistributionVersionActivatePayload {
+  /** ISO date `YYYY-MM-DD`. */
+  active_from: string;
+  rationale: string;
+}
+
+// === Version diff [F-S1-07] ===
+
+export type DistributionVersionDiffKind = 'added' | 'removed' | 'changed';
+
+export interface DistributionVersionDiffEdge {
+  change_kind: DistributionVersionDiffKind;
+  source_entity_id: string;
+  destination_entity_id: string;
+  source_entity_name: string | null;
+  destination_entity_name: string | null;
+  /** Old % present on `removed` and `changed`; NULL on `added`. */
+  old_percentage: number | null;
+  /** New % present on `added` and `changed`; NULL on `removed`. */
+  new_percentage: number | null;
+  old_rationale: string | null;
+  new_rationale: string | null;
+}
+
+export interface DistributionVersionDiff {
+  version: DistributionVersionResponse;
+  compared_to_version: DistributionVersionResponse;
+  changes: DistributionVersionDiffEdge[];
+  added_count: number;
+  removed_count: number;
+  changed_count: number;
+  /** added_count + removed_count + changed_count. */
+  total: number;
+}
+
+// === Per-entity Stage 1 surface [F-S1-06] ===
+
+export interface EntityStage1Inflow {
+  source_entity_id: string;
+  source_entity_name: string;
+  percentage: number;
+  amount: number;
+}
+
+export interface EntityStage1VersionEntry {
+  version_id: number;
+  /** ISO date — NULL on drafts. */
+  active_from: string | null;
+  /** ISO datetime — set on activate. */
+  activated_at: string | null;
+  status: DistributionVersionStatus;
+  rationale: string;
+  origin: DistributionVersionOrigin;
+  /** True for the production version resolved at the evaluated date. */
+  is_in_force: boolean;
+  /** Edges sourced at this entity in this version. */
+  edge_count_for_entity: number;
+}
+
+export interface EntityStage1View {
+  entity_id: string;
+  entity_name: string;
+  entity_type: string;
+  /** ISO date `YYYY-MM-DD`. */
+  evaluated_date: string;
+  version: DistributionVersionResponse;
+  to_business_pct: number;
+  self_retained_pct: number;
+  sums_within_100: boolean;
+  outbound_edges: DistributionEdgeItem[];
+  own_cost: number;
+  own_cost_source: string | null;
+  inflows: EntityStage1Inflow[];
+  inflow_total: number;
+  effective_cost: number;
+  /** Pre-filtered to production versions; ordered by `active_from desc`. */
+  history: EntityStage1VersionEntry[];
 }
 
 // === BTC Profiles (Stage 2) [F-S2-01..08] ===
