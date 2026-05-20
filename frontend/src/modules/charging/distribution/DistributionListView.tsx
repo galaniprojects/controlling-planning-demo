@@ -1,18 +1,37 @@
 /**
- * Cross-entity Distribution edges list view per [F-S1-01..03] [F-RV-01].
- * Provides the F4 entry point for the inter-service distribution editor.
+ * Stage 1 distribution module entry point per FD-3 [F-S1-01..08].
  *
- * - Lists every Stage 1 edge for the selected (year, version).
- * - Filters: source entity type, hierarchy node, search.
- * - Each row links to the single-entity editor scoped to the source entity.
+ * The list view drives a single, effective-dated version through three
+ * inner surfaces:
+ *
+ * - **Edges list** — every Stage 1 edge for the selected production
+ *   version, with source-type / search filters. The legacy `year` /
+ *   `version` selectors are gone — Stage 1 is cadence-agnostic per
+ *   [F-S1-02] and resolution is by `active_from` only.
+ * - **Per-entity Stage 1 view** [F-S1-06] — opened by clicking a
+ *   source entity. Surfaces outbound edges + to-business +
+ *   self-retained + effective cost + per-edge rationale + history.
+ * - **Version diff** [F-S1-07] — opened from the version selector
+ *   row.
+ *
+ * The version selector resolves to one of:
+ * - The server-resolved in-force production version (latest active
+ *   with `active_from ≤ today` — surfaced via the `In force` chip).
+ * - Any other production version (active or draft).
+ *
+ * Drafts open the per-edge editor (`EntityDistributionEditor`).
+ * Active versions are read-only; the editor's edit affordances are
+ * hidden by the parent.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { FilterX } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ArrowRight, ChevronDown, FilterX, GitCompareArrows, Pencil,
+  Plus, Search, Sparkles, Trash2,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { EmptyState } from '@/components/shared/EmptyState';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -20,71 +39,163 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { ArrowRight, Search, Pencil } from 'lucide-react';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { chargingApi } from '@/api/endpoints';
 import type {
   ChargeableEntityItem,
   ChargeableEntityType,
   DistributionEdgeItem,
+  DistributionVersionDetailResponse,
+  DistributionVersionResponse,
 } from '@/types/api';
 import { EntityDistributionEditor } from './EntityDistributionEditor';
+import { EntityStage1View } from './EntityStage1View';
+import { ActivateVersionDialog } from './versions/ActivateVersionDialog';
+import { CreateVersionDialog } from './versions/CreateVersionDialog';
+import { VersionDiffView } from './versions/VersionDiffView';
+import { VersionSelector } from './versions/VersionSelector';
+import { VersionStatusBadge } from './versions/VersionStatusBadge';
+import {
+  formatVersionDate,
+  formatVersionDateTime,
+  originLabel,
+} from './versions/versionLabels';
 
-// Stable defaults — the spec ties edits to CRETA's standard
-// baseline/forecast/actuals lifecycle per [F-S1-04].
-const DEFAULT_YEAR = 2026;
-const DEFAULT_VERSION = 'forecast';
-
-const ENTITY_TYPE_OPTIONS: { value: 'all' | ChargeableEntityType; label: string }[] = [
+const ENTITY_TYPE_OPTIONS: {
+  value: 'all' | ChargeableEntityType;
+  label: string;
+}[] = [
   { value: 'all', label: 'All entity types' },
   { value: 'Project', label: 'Projects' },
   { value: 'Offering', label: 'Offerings' },
   { value: 'InternalService', label: 'Internal Services' },
 ];
 
+type ListMode =
+  | { kind: 'list' }
+  | { kind: 'per_entity'; entityId: string }
+  | { kind: 'editor'; entityId: string; versionId: number }
+  | { kind: 'diff'; versionId: number };
+
 export function DistributionListView() {
+  const [versions, setVersions] = useState<DistributionVersionResponse[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(true);
+  const [versionsError, setVersionsError] = useState<string | null>(null);
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(
+    null,
+  );
+
   const [edges, setEdges] = useState<DistributionEdgeItem[]>([]);
   const [entities, setEntities] = useState<ChargeableEntityItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [year, setYear] = useState(DEFAULT_YEAR);
-  const [version, setVersion] = useState(DEFAULT_VERSION);
-  const [entityTypeFilter, setEntityTypeFilter] = useState<'all' | ChargeableEntityType>('all');
-  const [search, setSearch] = useState('');
-  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const [edgesLoading, setEdgesLoading] = useState(false);
+  const [edgesError, setEdgesError] = useState<string | null>(null);
 
-  const fetchData = () => {
-    setLoading(true);
-    Promise.all([
-      chargingApi.listDistributions({ year, version }),
-      chargingApi.listEntities({ is_active: true }),
-    ])
-      .then(([distRes, entRes]) => {
-        setEdges(distRes.items);
-        setEntities(entRes.items);
-      })
-      .catch(() => {
-        setEdges([]);
-        setEntities([]);
-      })
-      .finally(() => setLoading(false));
-  };
+  const [entityTypeFilter, setEntityTypeFilter] = useState<
+    'all' | ChargeableEntityType
+  >('all');
+  const [search, setSearch] = useState('');
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [activateOpen, setActivateOpen] = useState(false);
+  const [activatingDraft, setActivatingDraft] =
+    useState<DistributionVersionDetailResponse | null>(null);
+
+  const [mode, setMode] = useState<ListMode>({ kind: 'list' });
+
+  /* ─────────────────────────── data fetchers ────────────────────────── */
+
+  const fetchVersions = useCallback(async () => {
+    setVersionsLoading(true);
+    setVersionsError(null);
+    try {
+      const res = await chargingApi.listDistributionVersions({
+        include_scenario: false,
+      });
+      setVersions(res.items);
+    } catch (e: unknown) {
+      setVersionsError(
+        e instanceof Error ? e.message : 'Failed to load versions',
+      );
+      setVersions([]);
+    } finally {
+      setVersionsLoading(false);
+    }
+  }, []);
+
+  const fetchEdges = useCallback(async (versionId: number) => {
+    setEdgesLoading(true);
+    setEdgesError(null);
+    try {
+      const [distRes, entRes] = await Promise.all([
+        chargingApi.listDistributions({ version_id: versionId }),
+        chargingApi.listEntities({ is_active: true }),
+      ]);
+      setEdges(distRes.items);
+      setEntities(entRes.items);
+    } catch (e: unknown) {
+      setEdgesError(e instanceof Error ? e.message : 'Failed to load edges');
+      setEdges([]);
+      setEntities([]);
+    } finally {
+      setEdgesLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year, version]);
+    fetchVersions();
+  }, [fetchVersions]);
+
+  // Default-select the in-force version (latest active by active_from)
+  // once versions load. If none active yet, fall back to the most recent
+  // draft so the user lands on something editable.
+  useEffect(() => {
+    if (versions.length === 0 || selectedVersionId !== null) return;
+    const inForce = pickInForceVersionId(versions);
+    if (inForce !== null) {
+      setSelectedVersionId(inForce);
+    } else {
+      const drafts = versions
+        .filter((v) => v.status === 'draft' && v.scenario_id === null)
+        .sort((a, b) => b.id - a.id);
+      if (drafts.length > 0) setSelectedVersionId(drafts[0].id);
+    }
+  }, [versions, selectedVersionId]);
+
+  useEffect(() => {
+    if (selectedVersionId !== null) fetchEdges(selectedVersionId);
+  }, [selectedVersionId, fetchEdges]);
+
+  /* ─────────────────────────── memos ────────────────────────────────── */
 
   const entityById = useMemo(() => {
-    const map = new Map<string, ChargeableEntityItem>();
-    entities.forEach((e) => map.set(e.id, e));
-    return map;
+    const m = new Map<string, ChargeableEntityItem>();
+    entities.forEach((e) => m.set(e.id, e));
+    return m;
   }, [entities]);
+
+  const inForceVersionId = useMemo(
+    () => pickInForceVersionId(versions),
+    [versions],
+  );
+
+  const selectedVersion = useMemo(
+    () => versions.find((v) => v.id === selectedVersionId) ?? null,
+    [versions, selectedVersionId],
+  );
+
+  const activeVersions = useMemo(
+    () =>
+      versions.filter((v) => v.status === 'active' && v.scenario_id === null),
+    [versions],
+  );
 
   const filteredEdges = useMemo(() => {
     const lower = search.trim().toLowerCase();
     return edges.filter((e) => {
       const src = entityById.get(e.source_entity_id);
       const dst = entityById.get(e.destination_entity_id);
-      if (entityTypeFilter !== 'all' && src?.entity_type !== entityTypeFilter) return false;
+      if (entityTypeFilter !== 'all' && src?.entity_type !== entityTypeFilter)
+        return false;
       if (lower) {
         const blob = [
           src?.name ?? '',
@@ -100,42 +211,263 @@ export function DistributionListView() {
     });
   }, [edges, entityTypeFilter, search, entityById]);
 
-  const sourceCount = useMemo(() => {
-    return new Set(filteredEdges.map((e) => e.source_entity_id)).size;
-  }, [filteredEdges]);
+  const sourceCount = useMemo(
+    () => new Set(filteredEdges.map((e) => e.source_entity_id)).size,
+    [filteredEdges],
+  );
 
-  const handleClose = () => {
-    setSelectedEntityId(null);
-    fetchData();
-  };
+  /* ─────────────────────────── handlers ─────────────────────────────── */
 
-  if (selectedEntityId) {
+  const refreshAll = useCallback(async () => {
+    await fetchVersions();
+    if (selectedVersionId !== null) await fetchEdges(selectedVersionId);
+  }, [fetchVersions, fetchEdges, selectedVersionId]);
+
+  const handleCreated = useCallback(
+    async (detail: DistributionVersionDetailResponse) => {
+      setCreateOpen(false);
+      await fetchVersions();
+      setSelectedVersionId(detail.version.id);
+    },
+    [fetchVersions],
+  );
+
+  const handleActivate = useCallback(async () => {
+    if (selectedVersion?.status !== 'draft') return;
+    try {
+      const detail = await chargingApi.getDistributionVersion(
+        selectedVersion.id,
+      );
+      setActivatingDraft(detail);
+      setActivateOpen(true);
+    } catch (e: unknown) {
+      // surface inline via versionsError so the user sees it
+      setVersionsError(
+        e instanceof Error ? e.message : 'Failed to load draft for activation',
+      );
+    }
+  }, [selectedVersion]);
+
+  const handleActivated = useCallback(async () => {
+    setActivateOpen(false);
+    setActivatingDraft(null);
+    await refreshAll();
+  }, [refreshAll]);
+
+  const handleDeleteDraft = useCallback(async () => {
+    if (
+      !selectedVersion ||
+      selectedVersion.status !== 'draft' ||
+      !window.confirm(
+        `Delete draft v${selectedVersion.id}? This removes the version and all its edges.`,
+      )
+    )
+      return;
+    try {
+      await chargingApi.deleteDistributionVersion(selectedVersion.id);
+      setSelectedVersionId(null);
+      await fetchVersions();
+    } catch (e: unknown) {
+      setVersionsError(
+        e instanceof Error ? e.message : 'Failed to delete draft',
+      );
+    }
+  }, [selectedVersion, fetchVersions]);
+
+  /* ─────────────────────────── sub-screens ──────────────────────────── */
+
+  if (mode.kind === 'editor') {
     return (
       <EntityDistributionEditor
-        entityId={selectedEntityId}
-        year={year}
-        version={version}
-        onBack={handleClose}
+        entityId={mode.entityId}
+        versionId={mode.versionId}
+        onBack={() => {
+          setMode({ kind: 'list' });
+          refreshAll();
+        }}
+      />
+    );
+  }
+  if (mode.kind === 'per_entity') {
+    return (
+      <EntityStage1View
+        entityId={mode.entityId}
+        initialVersionId={selectedVersionId ?? undefined}
+        onBack={() => setMode({ kind: 'list' })}
+        onEditDraft={(versionId) =>
+          setMode({ kind: 'editor', entityId: mode.entityId, versionId })
+        }
+        onCompareToPrior={(versionId) => setMode({ kind: 'diff', versionId })}
+      />
+    );
+  }
+  if (mode.kind === 'diff') {
+    return (
+      <VersionDiffView
+        versionId={mode.versionId}
+        versions={versions}
+        onBack={() => setMode({ kind: 'list' })}
       />
     );
   }
 
+  /* ─────────────────────────── render ───────────────────────────────── */
+
   return (
     <div className="space-y-4">
-      {/* Header KPI strip */}
+      {/* Version control card */}
+      <Card className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <h3 className="text-sm font-semibold text-foreground">
+                Stage 1 distribution version
+              </h3>
+              {inForceVersionId !== null && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 text-primary dark:bg-primary/20 px-2 py-0.5 text-[11px] font-medium">
+                  <Sparkles className="h-3 w-3" />
+                  In force: v{inForceVersionId}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Effective-dated per <span className="font-mono">[F-S1-02]</span>.
+              The resolver picks the latest active version with{' '}
+              <span className="font-mono">active_from ≤ today</span>. Drafts are
+              editable; active versions are immutable per{' '}
+              <span className="font-mono">[F-S1-08]</span>.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Create version
+            </Button>
+          </div>
+        </div>
+
+        {versionsLoading ? (
+          <Skeleton className="h-9 w-[320px]" />
+        ) : versionsError ? (
+          <Card className="border-red-500 bg-red-50 dark:bg-red-900/20 p-3">
+            <p className="text-sm text-red-800 dark:text-red-300">
+              {versionsError}
+            </p>
+          </Card>
+        ) : versions.length === 0 ? (
+          <EmptyState
+            icon={ChevronDown}
+            size="sm"
+            title="No versions yet"
+            description="Stage 1 distribution starts with a seed version. Create a draft to begin."
+            action={{
+              label: 'Create first version',
+              onClick: () => setCreateOpen(true),
+            }}
+          />
+        ) : (
+          <div className="flex items-center gap-3 flex-wrap">
+            <VersionSelector
+              versions={versions}
+              selectedVersionId={selectedVersionId}
+              inForceVersionId={inForceVersionId}
+              onChange={setSelectedVersionId}
+            />
+            {selectedVersion && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedVersion.status === 'draft' && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleActivate}
+                    >
+                      Activate…
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleDeleteDraft}
+                      title="Delete draft (and its edges)"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                    </Button>
+                  </>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setMode({ kind: 'diff', versionId: selectedVersion.id })
+                  }
+                >
+                  <GitCompareArrows className="h-3.5 w-3.5 mr-1" />
+                  Compare
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {selectedVersion && (
+          <div className="border-t border-border pt-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <VersionStatusBadge
+                status={selectedVersion.status}
+                isInForce={selectedVersion.id === inForceVersionId}
+                origin={selectedVersion.origin}
+              />
+              <span className="text-xs text-muted-foreground">
+                {selectedVersion.active_from
+                  ? `from ${formatVersionDate(selectedVersion.active_from)}`
+                  : 'unscheduled'}
+                {selectedVersion.activated_at && (
+                  <>
+                    {' · '}activated{' '}
+                    {formatVersionDateTime(selectedVersion.activated_at)}
+                  </>
+                )}
+                {selectedVersion.copied_from_version_id !== null && (
+                  <> · copied from v{selectedVersion.copied_from_version_id}</>
+                )}
+              </span>
+            </div>
+            {(selectedVersion.rationale || '').trim() && (
+              <p className="text-[12px] text-muted-foreground leading-snug">
+                {selectedVersion.rationale}
+              </p>
+            )}
+            <p className="text-[10px] text-muted-foreground/80">
+              Origin: {originLabel(selectedVersion.origin)}
+            </p>
+          </div>
+        )}
+      </Card>
+
+      {/* Header KPI strip (now per-version) */}
       <div className="grid grid-cols-3 gap-3">
         <Card className="px-4 py-3">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Edges</p>
-          <p className="text-lg font-semibold text-foreground">{filteredEdges.length}</p>
-        </Card>
-        <Card className="px-4 py-3">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Source entities</p>
-          <p className="text-lg font-semibold text-foreground">{sourceCount}</p>
-        </Card>
-        <Card className="px-4 py-3">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Year × version</p>
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            Edges
+          </p>
           <p className="text-lg font-semibold text-foreground">
-            {year} / {version}
+            {filteredEdges.length}
+          </p>
+        </Card>
+        <Card className="px-4 py-3">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            Source entities
+          </p>
+          <p className="text-lg font-semibold text-foreground">
+            {sourceCount}
+          </p>
+        </Card>
+        <Card className="px-4 py-3">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            Version
+          </p>
+          <p className="text-lg font-semibold text-foreground">
+            {selectedVersion ? `v${selectedVersion.id}` : '—'}
           </p>
         </Card>
       </div>
@@ -145,43 +477,13 @@ export function DistributionListView() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
             <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Year
-            </label>
-            <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-              <SelectTrigger className="w-[100px] h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[2025, 2026, 2027].map((y) => (
-                  <SelectItem key={y} value={String(y)}>
-                    {y}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Version
-            </label>
-            <Select value={version} onValueChange={setVersion}>
-              <SelectTrigger className="w-[140px] h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="forecast">forecast</SelectItem>
-                <SelectItem value="baseline">baseline</SelectItem>
-                <SelectItem value="actuals">actuals</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Source type
             </label>
             <Select
               value={entityTypeFilter}
-              onValueChange={(v) => setEntityTypeFilter(v as 'all' | ChargeableEntityType)}
+              onValueChange={(v) =>
+                setEntityTypeFilter(v as 'all' | ChargeableEntityType)
+              }
             >
               <SelectTrigger className="w-[200px] h-9">
                 <SelectValue />
@@ -214,17 +516,33 @@ export function DistributionListView() {
 
       {/* Edges table */}
       <Card>
-        {loading ? (
+        {edgesLoading ? (
           <div className="p-4 space-y-2">
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
           </div>
+        ) : edgesError ? (
+          <Card className="border-red-500 bg-red-50 dark:bg-red-900/20 p-3">
+            <p className="text-sm text-red-800 dark:text-red-300">
+              {edgesError}
+            </p>
+          </Card>
+        ) : selectedVersionId === null ? (
+          <EmptyState
+            icon={ChevronDown}
+            title="Pick a version"
+            description="Select a production version above to inspect its Stage 1 edges."
+          />
         ) : filteredEdges.length === 0 ? (
           <EmptyState
             icon={FilterX}
             title="No distribution edges"
-            description="No edges match the current filters. Adjust the filters above or clear them to see all edges."
+            description={
+              edges.length === 0
+                ? 'This version has no edges yet. Create some via the per-entity editor.'
+                : 'No edges match the current filters. Adjust or clear them to see all edges.'
+            }
           />
         ) : (
           <Table>
@@ -235,7 +553,8 @@ export function DistributionListView() {
                 <TableHead></TableHead>
                 <TableHead>Destination entity</TableHead>
                 <TableHead className="text-right">Percentage</TableHead>
-                <TableHead className="text-right pr-4">Edit</TableHead>
+                <TableHead>Rationale</TableHead>
+                <TableHead className="text-right pr-4">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -245,14 +564,25 @@ export function DistributionListView() {
                 return (
                   <TableRow key={edge.id}>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-foreground">
-                          {src?.name ?? edge.source_entity_id}
-                        </span>
-                        <span className="text-[11px] font-mono text-muted-foreground">
-                          {src?.identifier ?? edge.source_entity_id}
-                        </span>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMode({
+                            kind: 'per_entity',
+                            entityId: edge.source_entity_id,
+                          })
+                        }
+                        className="text-left hover:text-primary"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">
+                            {src?.name ?? edge.source_entity_id}
+                          </span>
+                          <span className="text-[11px] font-mono text-muted-foreground">
+                            {src?.identifier ?? edge.source_entity_id}
+                          </span>
+                        </div>
+                      </button>
                     </TableCell>
                     <TableCell>
                       {src?.entity_type && (
@@ -275,17 +605,39 @@ export function DistributionListView() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm tabular-nums">
-                      {edge.percentage.toFixed(2)}%
+                      {edge.percentage.toFixed(2).replace('.', ',')}%
+                    </TableCell>
+                    <TableCell className="max-w-[280px]">
+                      {(edge.rationale ?? '').trim() ? (
+                        <p
+                          className="text-[11px] text-foreground leading-snug line-clamp-2"
+                          title={edge.rationale ?? ''}
+                        >
+                          {edge.rationale}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground italic">
+                          —
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell className="text-right pr-4">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setSelectedEntityId(edge.source_entity_id)}
-                        title="Open source entity's distribution profile"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                      {selectedVersion?.status === 'draft' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setMode({
+                              kind: 'editor',
+                              entityId: edge.source_entity_id,
+                              versionId: selectedVersion.id,
+                            })
+                          }
+                          title="Edit source entity's distribution profile"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
@@ -294,6 +646,54 @@ export function DistributionListView() {
           </Table>
         )}
       </Card>
+
+      {/* Modals */}
+      <CreateVersionDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        versions={versions}
+        inForceVersionId={inForceVersionId}
+        onCreated={handleCreated}
+      />
+      <ActivateVersionDialog
+        open={activateOpen}
+        onClose={() => {
+          setActivateOpen(false);
+          setActivatingDraft(null);
+        }}
+        draft={activatingDraft}
+        activeVersions={activeVersions}
+        onActivated={handleActivated}
+      />
     </div>
   );
+}
+
+/**
+ * Resolve the in-force production version client-side from the version
+ * list. Mirrors the backend `resolve_active_version(db, today)` semantics
+ * per FD-3 [F-S1-02]: production-only (`scenario_id IS NULL`), active,
+ * latest `active_from ≤ today`.
+ *
+ * The backend remains the authority — this helper exists only to
+ * highlight the "In force" chip without an extra round trip. Demo date
+ * is April 2026 per CLAUDE.md; in the demo runtime, `new Date()`
+ * resolves to the same anchor the seed established.
+ */
+function pickInForceVersionId(
+  versions: DistributionVersionResponse[],
+): number | null {
+  const today = new Date().toISOString().slice(0, 10);
+  const candidates = versions.filter(
+    (v) =>
+      v.status === 'active' &&
+      v.scenario_id === null &&
+      v.active_from !== null &&
+      v.active_from <= today,
+  );
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) =>
+    (b.active_from ?? '').localeCompare(a.active_from ?? ''),
+  );
+  return candidates[0]?.id ?? null;
 }
