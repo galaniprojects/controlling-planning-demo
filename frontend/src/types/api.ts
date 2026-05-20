@@ -1595,36 +1595,9 @@ export interface LegalEntityItem {
   is_active: boolean;
 }
 
-// User measurement matrix (F1 / [F-UM-01..04])
-export interface UMVersionItem {
-  imported_at: string;
-  source: string;
-  row_count: number;
-}
-export interface UMCellItem {
-  id: number;
-  year: number;
-  quarter: number;
-  s_code: string;
-  charging_location_id: string;
-  charging_location_code: string;
-  charging_location_name: string | null;
-  value: number;
-  source: string;
-  imported_at: string;
-}
-export interface UMRefreshStatus {
-  status: 'not_connected' | 'connected' | string;
-  message: string;
-  last_refresh: string | null;
-}
-export interface UMImportResult {
-  imported_at: string;
-  inserted: number;
-  skipped_zero: number;
-  parse_errors: { row: number; message: string }[];
-  source: string;
-}
+// User measurement matrix — relocated to `@/types/userMeasurement` per FD-2
+// [F-DIR-02]. The new shapes (UMVersionSummary, UMCell, ...) reflect the
+// authored draft/active state machine; the old admin-shim shapes are gone.
 
 // Workflow templates (D2 / [D-CAT-07..10])
 export interface WorkflowTemplateSummary {
