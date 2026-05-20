@@ -9,10 +9,6 @@ import type {
   RegionItem,
   ChargingLocationItem,
   LegalEntityItem,
-  UMVersionItem,
-  UMCellItem,
-  UMRefreshStatus,
-  UMImportResult,
   WorkflowTemplateSummary,
   WorkflowTemplateDetail,
   WorkflowStepItem,
@@ -1231,41 +1227,8 @@ export const adminD3Api = {
   deactivateLegalEntity: (id: string) =>
     api.put<LegalEntityItem>(`/api/admin/legal-entities/${id}/deactivate`),
 
-  // --- User Measurement (F1 / [F-UM-01..04]) ---
-  getUMRefreshStatus: () =>
-    api.get<UMRefreshStatus>('/api/admin/user-measurement/refresh-status'),
-  getUMVersions: () =>
-    api.get<ListResponse<UMVersionItem>>('/api/admin/user-measurement/versions'),
-  getUMCells: (params: { year: number; quarter: number; imported_at?: string }) => {
-    const q = new URLSearchParams();
-    q.set('year', String(params.year));
-    q.set('quarter', String(params.quarter));
-    if (params.imported_at) q.set('imported_at', params.imported_at);
-    return api.get<{
-      items: UMCellItem[];
-      total: number;
-      year: number;
-      quarter: number;
-      imported_at: string | null;
-      source: string | null;
-    }>(`/api/admin/user-measurement?${q.toString()}`);
-  },
-  importUMCsv: async (file: File): Promise<UMImportResult> => {
-    const form = new FormData();
-    form.append('file', file);
-    // Use fetch directly for multipart upload with X-Current-User header
-    const personaId = localStorage.getItem('currentRoleId') || 'persona-controller';
-    const resp = await fetch('/api/admin/user-measurement/import', {
-      method: 'POST',
-      body: form,
-      headers: { 'X-Current-User': personaId },
-    });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => 'Upload failed');
-      throw new Error(text || `HTTP ${resp.status}`);
-    }
-    return resp.json();
-  },
+  // User Measurement: relocated to Charging per FD-2 / [F-DIR-02].
+  // See `userMeasurementApi` in `frontend/src/api/userMeasurement.ts`.
 
   // --- Workflow Templates (D2 / [D-CAT-07..10]) ---
   getWorkflowTemplates: () =>
@@ -1632,6 +1595,81 @@ export const chargeableEntitiesApi = {
 
 // Re-export run-portfolio types for downstream consumers.
 export type { ChargeableEntityItem, ChargeableEntityListResponse };
+
+// ---------------------------------------------------------------------------
+// === FD-6 / [F-ADM-01] — ChargeableEntity admin panel API
+// CRUD + types-metadata wrapper used by the Admin → Chargeable Entities panel.
+// Kept distinct from ``chargeableEntitiesApi`` (which is the read-only Run
+// Portfolio wrapper over the same /api/admin/chargeable-entities endpoint)
+// so the surfaces don't grow coupled to each other.
+// ---------------------------------------------------------------------------
+
+import type {
+  ChargeableEntityItem as AdminChargeableEntityItem,
+  ChargeableEntityCreateRequest,
+  ChargeableEntityUpdateRequest,
+  ChargeableEntityTypeMetadata,
+  ChargeableEntityType as AdminChargeableEntityType,
+} from '@/types/api';
+
+export const chargeableEntitiesAdminApi = {
+  /** GET /api/admin/chargeable-entity-types — drives the type-aware form. */
+  listTypes: () =>
+    api.get<ListResponse<ChargeableEntityTypeMetadata>>(
+      '/api/admin/chargeable-entity-types',
+    ),
+
+  /**
+   * GET /api/admin/chargeable-entities — filtered list. Pass
+   * ``is_active: null`` to include deactivated rows (the admin panel default
+   * so the Inactive badge is visible).
+   */
+  list: (params?: {
+    entity_type?: AdminChargeableEntityType;
+    hierarchy_node_id?: string;
+    is_active?: boolean | null;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.entity_type) q.set('entity_type', params.entity_type);
+    if (params?.hierarchy_node_id) {
+      q.set('hierarchy_node_id', params.hierarchy_node_id);
+    }
+    if (params?.is_active === null) q.set('is_active', 'null');
+    else if (params?.is_active !== undefined) {
+      q.set('is_active', String(params.is_active));
+    }
+    const qs = q.toString();
+    return api.get<ListResponse<AdminChargeableEntityItem>>(
+      `/api/admin/chargeable-entities${qs ? '?' + qs : ''}`,
+    );
+  },
+
+  /** GET /api/admin/chargeable-entities/{id}. */
+  get: (id: string) =>
+    api.get<AdminChargeableEntityItem>(
+      `/api/admin/chargeable-entities/${encodeURIComponent(id)}`,
+    ),
+
+  /** POST /api/admin/chargeable-entities — controller-only. */
+  create: (data: ChargeableEntityCreateRequest) =>
+    api.post<AdminChargeableEntityItem>(
+      '/api/admin/chargeable-entities',
+      data,
+    ),
+
+  /** PUT /api/admin/chargeable-entities/{id} — partial update, controller-only. */
+  update: (id: string, data: ChargeableEntityUpdateRequest) =>
+    api.put<AdminChargeableEntityItem>(
+      `/api/admin/chargeable-entities/${encodeURIComponent(id)}`,
+      data,
+    ),
+
+  /** PUT /api/admin/chargeable-entities/{id}/deactivate — one-way, controller-only. */
+  deactivate: (id: string) =>
+    api.put<AdminChargeableEntityItem>(
+      `/api/admin/chargeable-entities/${encodeURIComponent(id)}/deactivate`,
+    ),
+};
 
 // ---------------------------------------------------------------------------
 // === v5 Cluster E Session E5 — External cost views [E-08a..d] ===
@@ -2035,6 +2073,16 @@ export const chargingApi = {
     dry_run?: boolean;
   }) =>
     api.post<BTCRefreshDiffResult>(`/api/charging/btc-profiles/${id}/refresh-um`, data),
+  /**
+   * FD-4 [F-S2-02]: explicit activate (draft -> active). Automatic profiles
+   * are re-snapshotted against the currently active UM version at this
+   * moment; manual profiles get a fresh sum-to-100 check.
+   */
+  activateBTCProfile: (id: number, data: {
+    um_year?: number | null;
+    um_quarter?: number | null;
+  }) =>
+    api.post<BTCProfileItem>(`/api/charging/btc-profiles/${id}/activate`, data),
   changeBTCMode: (id: number, data: {
     new_mode: BTCMode;
     s_code?: string | null;

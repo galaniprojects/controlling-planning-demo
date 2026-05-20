@@ -32,6 +32,12 @@ interface Props {
   existingProfiles: BTCProfileItem[];
   entities: ChargeableEntityItem[];
   onCreated: (newProfileId: number) => void;
+  /**
+   * FD-4 [F-S2-01]: when the picked entity is an InternalService the
+   * dialog hides Manual + Copy tabs (InternalService BTC is derivation-only
+   * from the UM matrix) and forces the Automatic tab. Computed from the
+   * selected `entityId` against `entities`.
+   */
 }
 
 type Tab = 'manual' | 'automatic' | 'copy';
@@ -92,6 +98,22 @@ export function CreateBTCProfileDialog({
       return true;
     });
   }, [entities, profilesByEntity, year, entitySearch]);
+
+  // FD-4 [F-S2-01]: InternalService is derivation-only — hide Manual + Copy
+  // tabs and lock the dialog to Automatic when an InternalService entity is
+  // selected. Computed from the picked entityId so the surface reacts as the
+  // user changes their selection.
+  const isInternalService = useMemo(() => {
+    if (!entityId) return false;
+    const ent = entities.find((e) => e.id === entityId);
+    return ent?.entity_type === 'InternalService';
+  }, [entityId, entities]);
+
+  useEffect(() => {
+    if (isInternalService && tab !== 'automatic') {
+      setTab('automatic');
+    }
+  }, [isInternalService, tab]);
 
   const sourceProfileOptions = useMemo(() => {
     const lower = profileSearch.trim().toLowerCase();
@@ -171,9 +193,15 @@ export function CreateBTCProfileDialog({
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
           <TabsList>
-            <TabsTrigger value="manual">Manual</TabsTrigger>
+            {/* FD-4 [F-S2-01]: Manual + Copy are hidden for InternalService —
+                their BTC is derivation-only from the UM matrix. */}
+            {!isInternalService && (
+              <TabsTrigger value="manual">Manual</TabsTrigger>
+            )}
             <TabsTrigger value="automatic">Automatic (UM)</TabsTrigger>
-            <TabsTrigger value="copy">Copy from…</TabsTrigger>
+            {!isInternalService && (
+              <TabsTrigger value="copy">Copy from…</TabsTrigger>
+            )}
           </TabsList>
 
           {/* Common entity / year picker */}
@@ -236,6 +264,13 @@ export function CreateBTCProfileDialog({
           </TabsContent>
 
           <TabsContent value="automatic" className="mt-3 space-y-2">
+            {isInternalService && (
+              <p className="text-xs text-muted-foreground border border-border bg-muted/30 rounded-md px-2.5 py-1.5">
+                InternalService BTC is derived from UM — pick an S-code to
+                snapshot. Manual and copy modes are not available for
+                InternalService entities per [F-S2-01].
+              </p>
+            )}
             <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               S-code (UM lookup key)
             </label>
@@ -247,8 +282,8 @@ export function CreateBTCProfileDialog({
             />
             <p className="text-xs text-muted-foreground">
               Per [F-S2-03]: the current UM matrix is snapshotted into the
-              profile's lines. Refresh manually via the editor's "Refresh from
-              UM" action.
+              profile's lines. Advance the snapshot later via the editor's
+              "Advance UM snapshot" action.
             </p>
           </TabsContent>
 

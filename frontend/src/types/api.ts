@@ -1595,36 +1595,9 @@ export interface LegalEntityItem {
   is_active: boolean;
 }
 
-// User measurement matrix (F1 / [F-UM-01..04])
-export interface UMVersionItem {
-  imported_at: string;
-  source: string;
-  row_count: number;
-}
-export interface UMCellItem {
-  id: number;
-  year: number;
-  quarter: number;
-  s_code: string;
-  charging_location_id: string;
-  charging_location_code: string;
-  charging_location_name: string | null;
-  value: number;
-  source: string;
-  imported_at: string;
-}
-export interface UMRefreshStatus {
-  status: 'not_connected' | 'connected' | string;
-  message: string;
-  last_refresh: string | null;
-}
-export interface UMImportResult {
-  imported_at: string;
-  inserted: number;
-  skipped_zero: number;
-  parse_errors: { row: number; message: string }[];
-  source: string;
-}
+// User measurement matrix — relocated to `@/types/userMeasurement` per FD-2
+// [F-DIR-02]. The new shapes (UMVersionSummary, UMCell, ...) reflect the
+// authored draft/active state machine; the old admin-shim shapes are gone.
 
 // Workflow templates (D2 / [D-CAT-07..10])
 export interface WorkflowTemplateSummary {
@@ -2060,8 +2033,59 @@ export interface ChargeableEntityItem {
   annual_cost: number | null;
   project_id: string | null;
   termination_month: string | null;
+  /**
+   * FD-6 / [F-AK-01] — free-text-with-presets legend describing what an
+   * InternalService's raw UM integer means. Surfaced on the InternalService
+   * subtype in the FD-6 admin panel and the FD-5 dashboard triple-display.
+   */
+  allocation_key: string | null;
   is_active: boolean;
   is_change_or_run: 'Change' | 'Run';
+}
+
+/**
+ * FD-6 / [F-ADM-01] — POST /api/admin/chargeable-entities body.
+ * Subtype-aware: ``project_id`` is required when ``entity_type === 'Project'``
+ * and rejected for the other two subtypes. ``allocation_key`` is permitted on
+ * all subtypes (admin UI only surfaces editing on InternalService).
+ */
+export interface ChargeableEntityCreateRequest {
+  entity_type: ChargeableEntityType;
+  identifier: string;
+  name: string;
+  description?: string | null;
+  hierarchy_node_id?: string | null;
+  responsible_person_id?: string | null;
+  to_business_pct?: number;
+  termination_month?: string | null;
+  annual_cost?: number | null;
+  project_id?: string | null;
+  allocation_key?: string | null;
+}
+
+/** FD-6 / [F-ADM-01] — PUT /api/admin/chargeable-entities/{id} partial body. */
+export interface ChargeableEntityUpdateRequest {
+  name?: string;
+  description?: string | null;
+  hierarchy_node_id?: string | null;
+  responsible_person_id?: string | null;
+  to_business_pct?: number;
+  termination_month?: string | null;
+  annual_cost?: number | null;
+  allocation_key?: string | null;
+}
+
+/**
+ * FD-6 / [F-ADM-01] — entry from GET /api/admin/chargeable-entity-types.
+ * Drives the admin panel's type-aware form. The frontend pairs each
+ * ``code`` with a ``TYPE_FIELDS`` array of field keys to render so adding a
+ * future subtype is one entry plus one map line.
+ */
+export interface ChargeableEntityTypeMetadata {
+  code: ChargeableEntityType;
+  label: string;
+  requires_project_id: boolean;
+  supports_allocation_key: boolean;
 }
 
 // === Distribution edges (Stage 1) [F-S1-01..08] ===

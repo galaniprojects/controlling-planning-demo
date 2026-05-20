@@ -565,3 +565,116 @@ class TestYearRollover:
             headers={"X-Current-User": "persona-controller"},
         )
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# FD-4: InternalService manual create returns 409 [F-S2-01]
+# ---------------------------------------------------------------------------
+
+class TestInternalServiceManualGate:
+    def test_post_manual_for_internal_service_returns_409(
+        self, test_client, seed_personas, db,
+    ):
+        _seed_base(db)
+        # Add an InternalService entity alongside the seed Offerings.
+        svc = ChargeableEntity(
+            id="ce-svc", entity_type="InternalService", identifier="ITF20099",
+            name="Internal Service Demo", to_business_pct=0.0,
+            hierarchy_node_id="lob-a", is_active=True,
+        )
+        db.add(svc)
+        db.commit()
+        resp = test_client.post(
+            "/api/charging/btc-profiles",
+            json={
+                "entity_id": "ce-svc",
+                "year": 2026,
+                "mode": "manual",
+                "lines": [
+                    {"charging_location_id": "cl-a", "percentage": 100.0},
+                ],
+            },
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert resp.status_code == 409
+        body = resp.json()
+        # _btc_error_to_http wraps the BTCValidationError into
+        # {"detail": {"detail": "..."}} (with optional 'warnings').
+        nested = body["detail"]
+        msg = nested.get("detail") if isinstance(nested, dict) else nested
+        assert "InternalService" in msg
+
+
+# ---------------------------------------------------------------------------
+# FD-4: POST /api/charging/btc-profiles/{id}/activate [F-S2-02]
+# ---------------------------------------------------------------------------
+
+class TestActivateBTCProfile:
+    def _make_manual_draft(self, db, entity_id="ce-off1"):
+        profile = BTCProfile(
+            entity_id=entity_id, year=2026, mode="manual", status="draft",
+        )
+        db.add(profile)
+        db.flush()
+        db.add_all([
+            BTCProfileLine(
+                profile_id=profile.id, charging_location_id="cl-a", percentage=60.0,
+            ),
+            BTCProfileLine(
+                profile_id=profile.id, charging_location_id="cl-b", percentage=40.0,
+            ),
+        ])
+        db.commit()
+        return profile
+
+    def test_activate_manual_draft_returns_200(self, test_client, seed_personas, db):
+        _seed_base(db)
+        profile = self._make_manual_draft(db)
+        resp = test_client.post(
+            f"/api/charging/btc-profiles/{profile.id}/activate",
+            json={},
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["status"] == "active"
+        assert data["id"] == profile.id
+
+    def test_activate_writes_audit_row(self, test_client, seed_personas, db):
+        from models.system import AuditLog
+        _seed_base(db)
+        profile = self._make_manual_draft(db)
+        test_client.post(
+            f"/api/charging/btc-profiles/{profile.id}/activate",
+            json={},
+            headers={"X-Current-User": "persona-controller"},
+        )
+        log = (
+            db.query(AuditLog)
+            .filter_by(entity_type="btc_profile", action="activate")
+            .first()
+        )
+        assert log is not None
+        assert log.entity_id == str(profile.id)
+        assert log.old_value == "draft"
+        assert log.new_value == "active"
+
+    def test_activate_already_active_returns_409(self, test_client, seed_personas, db):
+        _seed_base(db)
+        profile = _make_active_profile(db)
+        resp = test_client.post(
+            f"/api/charging/btc-profiles/{profile.id}/activate",
+            json={},
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert resp.status_code == 409
+
+    def test_activate_non_controller_returns_403(self, test_client, seed_personas, db):
+        _seed_base(db)
+        profile = self._make_manual_draft(db)
+        resp = test_client.post(
+            f"/api/charging/btc-profiles/{profile.id}/activate",
+            json={},
+            headers={"X-Current-User": "persona-pl"},
+        )
+        assert resp.status_code == 403

@@ -6,10 +6,21 @@
  * delegated to `components/shared/LeftRailNav` so all left-rail navs in
  * the app render identically (Cluster D Admin pattern).
  */
-import { Network, Map as MapIcon, BarChart3, FileBarChart2 } from 'lucide-react';
+import {
+  BarChart3,
+  FileBarChart2,
+  Map as MapIcon,
+  Network,
+  TableProperties,
+} from 'lucide-react';
 import { LeftRailNav, type LeftRailNavItem } from '@/components/shared/LeftRailNav';
 
-export type ChargingSection = 'distribution' | 'btc' | 'rollup' | 'reports';
+export type ChargingSection =
+  | 'distribution'
+  | 'btc'
+  | 'user_measurement'
+  | 'rollup'
+  | 'reports';
 
 const SECTIONS: LeftRailNavItem[] = [
   {
@@ -23,6 +34,12 @@ const SECTIONS: LeftRailNavItem[] = [
     label: 'BTC Profiles',
     description: 'Stage 2 business-transfer charging by location',
     icon: BarChart3,
+  },
+  {
+    id: 'user_measurement',
+    label: 'User Measurement',
+    description: 'Authored matrix driving internal-service Stage 2 + SAP export',
+    icon: TableProperties,
   },
   {
     id: 'rollup',

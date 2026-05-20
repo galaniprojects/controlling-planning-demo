@@ -36,8 +36,15 @@ import { DistributionListView } from './distribution/DistributionListView';
 import { BTCProfileListView } from './btc/BTCProfileListView';
 import { RollupView } from './rollup/RollupView';
 import { ReportingPanel } from './reports/ReportingPanel';
+import { UserMeasurementListView } from './user-measurement/UserMeasurementListView';
 
-const VALID_SECTIONS: ChargingSection[] = ['distribution', 'btc', 'rollup', 'reports'];
+const VALID_SECTIONS: ChargingSection[] = [
+  'distribution',
+  'btc',
+  'user_measurement',
+  'rollup',
+  'reports',
+];
 
 function parseSection(value: string | null): ChargingSection {
   if (value && (VALID_SECTIONS as string[]).includes(value)) {
@@ -72,6 +79,8 @@ export function Charging() {
         return <DistributionListView />;
       case 'btc':
         return <BTCProfileListView />;
+      case 'user_measurement':
+        return <UserMeasurementListView />;
       case 'rollup':
         return <RollupView />;
       case 'reports':
