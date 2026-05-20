@@ -43,7 +43,7 @@ Four personas, each with different access and capabilities. Role is resolved fro
 - **DB sessions:** `get_db` dependency with try/finally cleanup — session-per-request pattern.
 
 ## Data Model Overview
-**65 models across 14 files in `backend/models/`.** This is just the orientation index; the canonical reference with columns, FKs, constraints, relationships, and decision-tag history lives in **`docs/data-model.md`** — read that before making any schema change.
+**66 models across 14 files in `backend/models/`.** This is just the orientation index; the canonical reference with columns, FKs, constraints, relationships, and decision-tag history lives in **`docs/data-model.md`** — read that before making any schema change.
 
 | Family | Models |
 |---|---|
@@ -54,7 +54,7 @@ Four personas, each with different access and capabilities. Role is resolved fro
 | Financials | `ExternalCostType`, `Baseline`, `Forecast`, `Actuals`, `ForecastVersion`, `ExternalCostDelivery`, `ExternalCostInvoice` |
 | Change Mgmt | `ChangeRequest`, `CRChangeDetail`, `CRSubmissionSnapshot` |
 | Capacity | `Allocation`, `ResourceRequest`, `ResourceRequestAssignment`, `CapacityActionLog` |
-| Charging | `Country`, `Region`, `ChargingLocation`, `LegalEntity`, `UMVersion`, `UserMeasurement`, `ChargeableEntity`, `Distribution`, `BTCProfile`, `BTCProfileLine`, `RollupCache` |
+| Charging | `Country`, `Region`, `ChargingLocation`, `LegalEntity`, `UMVersion`, `UserMeasurement`, `ChargeableEntity`, `DistributionVersion`, `Distribution`, `BTCProfile`, `BTCProfileLine`, `RollupCache` |
 | Scenarios | `Scenario`, `ScenarioAction`, `ScenarioState`, `ScenarioCapacityImpact`, `ScenarioPromotion`, `ScenarioApplyToForecastEvent` |
 | Submissions | `ProjectSubmissionSnapshot` |
 | System | `PlanningParameter`, `KPIDefinition`, `Notification`, `AuditLog`, `SystemSuggestion`, `RolePermissionGrant` |

@@ -21,12 +21,13 @@ Per spec decisions [F-MD-01] [F-MD-02] [F-MD-03] [F-UM-01] through [F-UM-04]:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -206,18 +207,16 @@ class UserMeasurement(Base):
 # the schemas, services, and seed.sql.
 CHARGEABLE_ENTITY_TYPES = ("Project", "Offering", "InternalService")
 
-# Distribution version model per [F-S1-04]. Distribution rules participate
-# in CRETA's standard baseline/forecast/actuals lifecycle. Scenario versions
-# use the scenario id (e.g. "scenario-42") so the engine can fork without
-# touching live data.
-DISTRIBUTION_VERSION_BASELINE = "baseline"
-DISTRIBUTION_VERSION_FORECAST = "forecast"
-DISTRIBUTION_VERSION_ACTUALS = "actuals"
-DISTRIBUTION_BUILTIN_VERSIONS = (
-    DISTRIBUTION_VERSION_BASELINE,
-    DISTRIBUTION_VERSION_FORECAST,
-    DISTRIBUTION_VERSION_ACTUALS,
-)
+# DistributionVersion state machine per [F-S1-02..04] (Charging/UM rework
+# cluster FD-3). Mirrors the UMVersion / BTCProfile draft→active pattern.
+# Scenario versions stay 'draft' permanently (service invariant: status='active'
+# requires scenario_id IS NULL).
+DISTRIBUTION_VERSION_STATUSES = ("draft", "active")
+
+# DistributionVersion provenance per [F-S1-04]. ``blank`` = empty draft with no
+# edges; ``copy_active`` / ``copy_prior`` carry the source via
+# ``copied_from_version_id``; ``seed`` is the greenfield seed source.
+DISTRIBUTION_VERSION_SOURCES = ("blank", "copy_active", "copy_prior", "seed")
 
 
 class ChargeableEntity(Base):
@@ -363,27 +362,154 @@ class ChargeableEntity(Base):
         return "Run"
 
 
+class DistributionVersion(Base):
+    """Effective-dated Stage 1 distribution version header per [F-S1-02..04].
+
+    The Charging/UM rework (spec §4) replaces the v4 row-column ``version``
+    string (``baseline`` | ``forecast`` | ``actuals`` | ``scenario-<id>``)
+    with a first-class version model. The header carries:
+
+    - **Effective dating** (`active_from`) — production versions resolve by
+      latest ``active_from`` ≤ evaluated date per `[F-S1-02]`. NULL for
+      drafts and scenario-scoped versions (they sit outside production
+      resolution).
+    - **Lifecycle** mirroring ``UMVersion`` / ``BTCProfile``: a **draft** is
+      editable (created blank, by copy from active, or by copy from a
+      prior version per `[F-S1-04]`); **active** is frozen and immutable.
+      ``activated_at`` is the freeze timestamp.
+    - **Provenance** via ``origin`` + ``copied_from_version_id`` so the diff
+      view (`[F-S1-07]`) can render lineage; mirrors
+      ``UMVersion.copied_from_version_id`` and ``BTCProfile.copied_from_profile_id``.
+    - **Scenario fork** via ``scenario_id`` — non-NULL means lever-12 sandbox,
+      ``ondelete=CASCADE`` ensures cleanup-on-scenario-delete. Service invariant
+      (enforced in ``services/distribution_service.py``):
+      ``status='active'`` requires ``scenario_id IS NULL`` — scenario versions
+      stay ``'draft'`` permanently.
+    - **Rationale** (Text NOT NULL) at the version level per `[F-S1-05]` — the
+      controller-authored "why" string surfaced in the version history sidebar
+      and the diff report. Empty in draft; activate requires a non-empty
+      value.
+
+    Cadence-agnostic per `[F-S1-02]`: there is ONE global production chain.
+    The year axis lives on the cost being distributed
+    (``ChargeableEntity.annual_cost``, BTC profile year), not on Stage 1
+    edges, so a single chain of effective-dated versions captures every
+    schema-shift in the distribution graph regardless of fiscal year.
+
+    Service-enforced invariants (same pattern UMVersion uses — SQLite partial
+    unique indexes are not portable):
+
+    - Two **production** active rows must not share ``active_from``.
+    - Active production version is immutable (header + edges).
+    - Activating requires non-NULL ``active_from`` and non-empty ``rationale``.
+
+    Resolution rule (production only, ignores scenario versions):
+
+        SELECT * FROM distribution_versions
+         WHERE scenario_id IS NULL AND status='active' AND active_from <= :d
+         ORDER BY active_from DESC LIMIT 1
+    """
+
+    __tablename__ = "distribution_versions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('draft', 'active')",
+            name="ck_distribution_version_status",
+        ),
+        CheckConstraint(
+            "origin IN ('blank', 'copy_active', 'copy_prior', 'seed')",
+            name="ck_distribution_version_origin",
+        ),
+        Index(
+            "ix_distribution_versions_status_active_from",
+            "status", "active_from",
+        ),
+        Index("ix_distribution_versions_scenario", "scenario_id"),
+        Index(
+            "ix_distribution_versions_copied_from", "copied_from_version_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    # NULL for drafts and scenario versions; required at activate for
+    # production. Drives the production resolver in
+    # ``services/distribution_service.py::resolve_active_version``.
+    active_from: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="draft", server_default="draft",
+    )
+    # Version-level rationale per [F-S1-05]. Required at activate for
+    # production; service layer enforces non-empty on activate.
+    rationale: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default="",
+    )
+    origin: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Provenance for origin='copy_active' / 'copy_prior'. Mirrors
+    # UMVersion.copied_from_version_id semantics.
+    copied_from_version_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("distribution_versions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # NULL = production; non-NULL = scenario-scoped (lever 12). Cascade
+    # delete drops the scenario version and (via edge cascade) its rows
+    # when the scenario is deleted.
+    scenario_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("scenarios.id", ondelete="CASCADE"), nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow,
+    )
+    created_by_person_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("people.id"), nullable=True,
+    )
+    # Set on activate(); immutable thereafter. NULL = draft.
+    activated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True,
+    )
+
+    # Relationships
+    edges: Mapped[list["Distribution"]] = relationship(
+        "Distribution",
+        back_populates="version",
+        cascade="all, delete-orphan",
+    )
+    copied_from: Mapped[Optional["DistributionVersion"]] = relationship(
+        "DistributionVersion",
+        remote_side="DistributionVersion.id",
+        foreign_keys=[copied_from_version_id],
+    )
+
+
 class Distribution(Base):
     """Stage 1 inter-service distribution edge per [F-S1-01..05].
 
     One row per actually-flowing edge between two ChargeableEntities for a
-    given (year, version) pair. Sparse storage per [F-S1-01] — entities with
-    no outgoing distributions have no rows. The "To Business" share is
+    given ``DistributionVersion``. Sparse storage per [F-S1-01] — entities
+    with no outgoing distributions have no rows. The "To Business" share is
     *not* an edge: it lives on ``ChargeableEntity.to_business_pct`` per
     [F-DM-02]. Self-retained percentage is derived per [F-S1-02]:
     ``100 − to_business_pct − sum(distribution %)``.
 
-    Versioning per [F-S1-04]: ``version`` participates in CRETA's standard
-    baseline/forecast/actuals lifecycle. Scenario versions use the scenario
-    id so the simulator (Cluster B lever 12) can fork without touching live
-    data. The unique constraint covers the version dimension so the same
-    edge can carry different percentages across versions.
+    Versioning per [F-S1-02..04] (Charging/UM rework cluster FD-3): each
+    edge points at a ``DistributionVersion`` header row via
+    ``version_id``. The header carries effective dating, lifecycle status,
+    provenance, and rationale; this table carries only the per-edge
+    percentage and (optional) per-edge rationale. Cadence-agnostic — there
+    is no ``year`` on edges; the year axis lives on the cost being
+    distributed (``ChargeableEntity.annual_cost``, BTC profile year), not
+    on the edge.
+
+    Scenario-scoped (lever 12) edges have a ``version_id`` pointing at a
+    ``DistributionVersion`` with ``scenario_id IS NOT NULL`` and remain
+    permanently in draft. Production reads union over the anchor production
+    version's edges + the scenario version's edges per
+    ``services/scenario_lever12.py``.
     """
 
     __tablename__ = "distributions"
     __table_args__ = (
         UniqueConstraint(
-            "year", "version", "source_entity_id", "destination_entity_id",
+            "version_id", "source_entity_id", "destination_entity_id",
             name="uq_distribution_edge",
         ),
         CheckConstraint(
@@ -394,14 +520,15 @@ class Distribution(Base):
             "percentage >= 0 AND percentage <= 100",
             name="ck_distribution_pct_range",
         ),
-        Index("ix_distributions_source", "source_entity_id", "year", "version"),
-        Index("ix_distributions_dest", "destination_entity_id", "year", "version"),
+        Index("ix_distributions_version_source", "version_id", "source_entity_id"),
+        Index("ix_distributions_version_dest", "version_id", "destination_entity_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    year: Mapped[int] = mapped_column(Integer, nullable=False)
-    version: Mapped[str] = mapped_column(String(40), nullable=False)
-    # baseline / forecast / actuals / scenario-<id>
+    version_id: Mapped[int] = mapped_column(
+        ForeignKey("distribution_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     source_entity_id: Mapped[str] = mapped_column(
         ForeignKey("chargeable_entities.id"), nullable=False,
     )
@@ -409,6 +536,12 @@ class Distribution(Base):
         ForeignKey("chargeable_entities.id"), nullable=False,
     )
     percentage: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+    # Per-edge rationale per [F-S1-05]. The UI nudges for a value when the
+    # percentage changes vs the copied baseline; surfaces in the diff report.
+    # Optional — empty is allowed (per-edge rationale is per-change context,
+    # not a contractual requirement). The version-level rationale on
+    # ``DistributionVersion`` is the required field.
+    rationale: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     modified_at: Mapped[datetime] = mapped_column(
@@ -416,6 +549,9 @@ class Distribution(Base):
     )
 
     # Relationships
+    version: Mapped["DistributionVersion"] = relationship(
+        "DistributionVersion", back_populates="edges",
+    )
     source_entity: Mapped["ChargeableEntity"] = relationship(
         "ChargeableEntity",
         foreign_keys=[source_entity_id],
@@ -541,15 +677,23 @@ class RollupCache(Base):
 
     Two cache layers per [F-RV-01..06]:
     - ``'stage1_effective'`` — stores the result of ``compute_effective_cost``
-      for a given (entity, year, version). Key: entity_id. Payload: JSON of
-      EffectiveCostResult.
+      for a given (entity, year, version_id). Key: entity_id. Payload:
+      JSON of EffectiveCostResult.
     - ``'stage2_location'`` — stores the per-charging-location total for a
-      given (entity, year, version) after applying BTC profile percentages.
-      Key: ``<entity_id>:<charging_location_id>``. Payload: JSON ``{"amount": float}``.
+      given (entity, year, version_id) after applying BTC profile percentages.
+      Key: ``<entity_id>:<charging_location_id>``. Payload: JSON
+      ``{"amount": float}``.
 
     Justification for persistent over in-memory: simulator (B1) needs reads
     outside the writing request; survives uvicorn reload during demos; demo
     scale is trivial.
+
+    Versioning per Charging/UM rework cluster FD-3 (`[F-S1-02..04]`):
+    ``version`` (free-form String) is replaced by ``version_id`` (FK →
+    ``distribution_versions.id``) so cache keys align with the source of
+    truth. ``year`` is retained because the Stage 2 BTC layer is still
+    year-scoped (BTC profiles are one-per-(entity, year)); Stage 1 cache
+    rows use ``year`` to scope by the year of the cost being distributed.
 
     Cache invalidation: each Distribution write, BTC write, and annual_cost
     write calls into ``services/rollup_cache.py::invalidate_for_*``. The
@@ -560,17 +704,26 @@ class RollupCache(Base):
     __tablename__ = "rollup_cache"
     __table_args__ = (
         UniqueConstraint(
-            "cache_layer", "year", "version", "key_id",
+            "cache_layer", "year", "version_id", "key_id",
             name="uq_rollup_cache_entry",
         ),
-        Index("ix_rollup_cache_layer_year_version", "cache_layer", "year", "version"),
+        Index(
+            "ix_rollup_cache_layer_year_version",
+            "cache_layer", "year", "version_id",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     cache_layer: Mapped[str] = mapped_column(String(30), nullable=False)
     # 'stage1_effective' | 'stage2_location'
     year: Mapped[int] = mapped_column(Integer, nullable=False)
-    version: Mapped[str] = mapped_column(String(40), nullable=False)
+    # Effective-dated Distribution version this cache row was computed
+    # against. Stage 2 rows pin to the same Stage 1 version that drove the
+    # effective-cost computation feeding the BTC application.
+    version_id: Mapped[int] = mapped_column(
+        ForeignKey("distribution_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     key_id: Mapped[str] = mapped_column(String(100), nullable=False)
     # entity_id for stage1; "<entity_id>:<cl_id>" for stage2
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)
