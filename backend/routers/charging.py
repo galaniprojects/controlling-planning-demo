@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -23,9 +23,9 @@ from models.people import Person
 from models.projects import Project
 from models.system import AuditLog
 from schemas.btc_profile import (
-    BTCCopyFromRequest, BTCModeChangeRequest, BTCProfileCreate,
-    BTCProfileListResponse, BTCProfileResponse, BTCProfileUpdate,
-    BTCRefreshDiffRequest, BTCRefreshDiffResponse,
+    BTCActivateRequest, BTCCopyFromRequest, BTCModeChangeRequest,
+    BTCProfileCreate, BTCProfileListResponse, BTCProfileResponse,
+    BTCProfileUpdate, BTCRefreshDiffRequest, BTCRefreshDiffResponse,
     WBSMatrixResponse as WBSMatrixSchemaResponse,
     YearRolloverRequest, YearRolloverResponse,
 )
@@ -57,7 +57,7 @@ from schemas.distribution import (
     EntityStage1View, WBSElementResponse,
 )
 from services.btc_service import (
-    BTCValidationError, assert_btc_required,
+    BTCValidationError, activate_profile, assert_btc_required,
     build_wbs_matrix, change_mode, copy_from_profile, create_automatic_profile,
     create_manual_profile, compute_sums_to_100, get_profile,
     get_profile_for_entity, list_profiles, refresh_from_um,
@@ -1922,6 +1922,47 @@ def refresh_btc_profile_from_um(
         would_sum_to_100=diff.would_sum_to_100,
         committed=not body.dry_run,
     )
+
+
+@charging_router.post(
+    "/btc-profiles/{profile_id}/activate",
+    response_model=BTCProfileResponse,
+)
+def activate_btc_profile(
+    profile_id: int,
+    body: BTCActivateRequest = Body(default_factory=lambda: BTCActivateRequest()),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role("controller")),
+) -> BTCProfileResponse:
+    """Activate a draft BTC profile per FD-4 [F-S2-02].
+
+    Snapshot-freeze semantics:
+    - Automatic profiles re-snapshot against the currently active UM
+      version at activate-time. Optional ``um_year``/``um_quarter``
+      override the (year, quarter) lookup.
+    - Manual profiles re-validate sum-to-100 and flip status.
+
+    InternalService manual mode is blocked at create-time per [F-S2-01],
+    so this endpoint only sees Project/Offering manual profiles.
+    """
+    try:
+        profile = activate_profile(
+            db, profile_id,
+            um_year=body.um_year, um_quarter=body.um_quarter,
+        )
+    except BTCValidationError as e:
+        raise _btc_error_to_http(e)
+
+    _audit(
+        db, user, "btc_profile", str(profile_id),
+        f"entity={profile.entity_id} year={profile.year}",
+        "activate", "status", "draft", "active",
+        category="master_data",
+    )
+    invalidate_for_btc_write(db, profile.entity_id, profile.year)
+    db.commit()
+    db.refresh(profile)
+    return _serialize_btc_profile(profile)
 
 
 @charging_router.post(
