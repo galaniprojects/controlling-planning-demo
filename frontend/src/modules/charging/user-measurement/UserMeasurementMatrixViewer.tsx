@@ -17,6 +17,12 @@ import type { UMCell, UMVersionSummary } from '@/types/userMeasurement';
 interface Props {
   version: UMVersionSummary;
   cells: UMCell[];
+  /**
+   * FD-5 (spec §3): allocation key per S-code — rendered as a sub-label under
+   * each S-code row header so the raw UM integers are legible. Keyed by
+   * `s_code`; rows with no entry (Offering columns, unmapped) show no label.
+   */
+  allocationKeys?: Record<string, string | null>;
 }
 
 function fmtInt(v: number): string {
@@ -24,7 +30,7 @@ function fmtInt(v: number): string {
   return new Intl.NumberFormat('de-DE').format(v);
 }
 
-export function UserMeasurementMatrixViewer({ version, cells }: Props) {
+export function UserMeasurementMatrixViewer({ version, cells, allocationKeys }: Props) {
   const pivot = useMemo(() => {
     const sCodes = Array.from(new Set(cells.map((c) => c.s_code))).sort();
     const locCodes = Array.from(
@@ -84,8 +90,13 @@ export function UserMeasurementMatrixViewer({ version, cells }: Props) {
               key={sc}
               className="border-b border-border hover:bg-accent/40"
             >
-              <td className="px-2 py-1.5 font-mono font-medium text-foreground sticky left-0 bg-card border-r border-border">
-                {sc}
+              <td className="px-2 py-1.5 sticky left-0 bg-card border-r border-border">
+                <div className="font-mono font-medium text-foreground">{sc}</div>
+                {allocationKeys?.[sc] ? (
+                  <div className="text-[10px] font-normal text-muted-foreground leading-tight">
+                    {allocationKeys[sc]}
+                  </div>
+                ) : null}
               </td>
               {pivot.locCodes.map((lc) => {
                 const cell = pivot.lookup.get(`${sc}|${lc}`);

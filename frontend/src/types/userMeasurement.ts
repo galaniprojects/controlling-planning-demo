@@ -39,6 +39,12 @@ export interface UMCell {
 export interface UMVersionDetailResponse {
   version: UMVersionSummary;
   cells: UMCell[];
+  /**
+   * FD-5 (spec §3): allocation key per S-code present in the matrix — the
+   * legend for the raw UM integers. Keyed by `s_code`; an S-code with no
+   * InternalService entity behind it is simply absent from the map.
+   */
+  allocation_keys: Record<string, string | null>;
 }
 
 export interface UMVersionCreateRequest {

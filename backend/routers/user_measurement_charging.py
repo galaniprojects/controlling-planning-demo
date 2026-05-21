@@ -41,7 +41,9 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from dependencies import get_current_user, require_role
-from models.charging import ChargingLocation, UMVersion, UserMeasurement
+from models.charging import (
+    ChargeableEntity, ChargingLocation, UMVersion, UserMeasurement,
+)
 from schemas.common import CurrentUser
 from schemas.user_measurement import (
     UMAllocationKeysResponse,
@@ -107,6 +109,28 @@ def _count_cells(db: Session, version_id: int) -> int:
         .scalar()
         or 0
     )
+
+
+def _allocation_keys_for_cells(db: Session, cells) -> dict[str, "str | None"]:
+    """Map each S-code present in ``cells`` to its InternalService entity's
+    allocation key (spec §3 — the legend that makes a raw UM integer legible).
+
+    Keyed by ``s_code`` via the ``ChargeableEntity.s_code`` column. Absent when
+    no InternalService entity carries that S-code (e.g. an Offering's column).
+    The matrix viewer renders it as a per-S-code-row sub-label.
+    """
+    s_codes = {c.s_code for c in cells}
+    if not s_codes:
+        return {}
+    rows = (
+        db.query(ChargeableEntity.s_code, ChargeableEntity.allocation_key)
+        .filter(
+            ChargeableEntity.entity_type == "InternalService",
+            ChargeableEntity.s_code.in_(s_codes),
+        )
+        .all()
+    )
+    return {s_code: key for s_code, key in rows}
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +211,7 @@ def get_version_endpoint(
     return UMVersionDetailResponse(
         version=_summary(v, len(cell_items)),
         cells=cell_items,
+        allocation_keys=_allocation_keys_for_cells(db, cells),
     )
 
 
@@ -264,6 +289,7 @@ def create_version(
     return UMVersionDetailResponse(
         version=_summary(v, len(cell_items)),
         cells=cell_items,
+        allocation_keys=_allocation_keys_for_cells(db, cells),
     )
 
 
@@ -398,6 +424,7 @@ def activate_endpoint(
     return UMVersionDetailResponse(
         version=_summary(v, len(cell_items)),
         cells=cell_items,
+        allocation_keys=_allocation_keys_for_cells(db, cells),
     )
 
 

@@ -61,6 +61,12 @@ class UMVersionDetailResponse(BaseModel):
 
     version: UMVersionSummary
     cells: list[UMCellResponse]
+    # FD-5 (spec §3): allocation key per S-code present in the matrix — the
+    # legend that makes a raw UM integer legible. Keyed by ``s_code``; value is
+    # the InternalService entity's ``allocation_key`` (``None`` when unset, and
+    # absent entirely when no InternalService carries that s_code, e.g. an
+    # Offering's column). The matrix viewer renders it as a per-row sub-label.
+    allocation_keys: dict[str, Optional[str]] = Field(default_factory=dict)
 
 
 UMVersionCreateOrigin = Literal["blank", "copy_active", "copy_prior"]

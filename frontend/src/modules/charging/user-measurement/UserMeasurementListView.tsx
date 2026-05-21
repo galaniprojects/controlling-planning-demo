@@ -424,6 +424,7 @@ export function UserMeasurementListView() {
           <UserMeasurementMatrixViewer
             version={detail.version}
             cells={detail.cells}
+            allocationKeys={detail.allocation_keys}
           />
         )
       ) : (
