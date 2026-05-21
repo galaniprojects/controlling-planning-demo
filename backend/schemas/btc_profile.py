@@ -31,6 +31,10 @@ class BTCProfileLineResponse(BTCProfileLineBase):
     profile_id: int
     charging_location_code: Optional[str] = None
     charging_location_name: Optional[str] = None
+    # FD-5 [F-DSH-01]: the raw UM integer behind the derived ``percentage``,
+    # read from the frozen UM version. Populated for automatic profiles only;
+    # ``None`` for manual profiles or when the frozen version is unresolvable.
+    raw_um_value: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +84,10 @@ class BTCProfileResponse(BaseModel):
     year: int
     mode: str
     s_code: Optional[str] = None
+    # FD-5 [F-DSH-01]: service-level allocation key — the legend explaining
+    # what the raw UM integers mean. Sourced from the InternalService entity;
+    # ``None`` for non-InternalService entities or when unset.
+    allocation_key: Optional[str] = None
     um_snapshot_at: Optional[datetime] = None
     status: str
     copied_from_profile_id: Optional[int] = None

@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargeableEntity, ChargingLocation,
-    UserMeasurement,
+    UMVersion, UserMeasurement,
 )
 
 # ---------------------------------------------------------------------------
@@ -247,6 +247,55 @@ def compute_um_snapshot(
         rows=snapshot_rows, imported_at=activated_at, sums_to_100=True,
     )
     return snapshot
+
+
+def get_frozen_um_values(
+    db: Session,
+    s_code: Optional[str],
+    um_snapshot_at: Optional[datetime],
+) -> dict[str, int]:
+    """Raw UM integer values for ``s_code``, keyed by ``charging_location_id``.
+
+    FD-5 [F-DSH-01]: the dashboard triple-display renders the raw UM integer
+    beside the derived ``percentage``. The raw values are read from the
+    *frozen* UM version — the one whose ``activated_at`` equals the profile's
+    ``um_snapshot_at`` — never the currently-active version. This guarantees
+    the integers agree with the percentages snapshotted into the profile;
+    re-deriving against a newer active version would let the two drift.
+
+    Returns an empty dict for manual profiles (no ``s_code`` / no snapshot)
+    and when the frozen version cannot be resolved — both are graceful: the
+    triple-display then shows the ``percentage`` alone.
+    """
+    if not s_code or um_snapshot_at is None:
+        return {}
+    # Resolve the frozen version by matching ``activated_at``. The comparison
+    # runs Python-side, not in SQL: seeded UM versions store ``activated_at``
+    # as a microsecond-free TEXT timestamp, while a bound datetime parameter
+    # renders with microseconds — an SQL ``==`` would miss the seeded rows.
+    # Both columns deserialize to ``datetime`` identically, so a Python ``==``
+    # is exact. UM-version count is tiny (demo scale), so the full scan is fine.
+    version = next(
+        (
+            v
+            for v in db.query(UMVersion)
+            .filter(UMVersion.activated_at.isnot(None))
+            .all()
+            if v.activated_at == um_snapshot_at
+        ),
+        None,
+    )
+    if version is None:
+        return {}
+    rows = (
+        db.query(UserMeasurement)
+        .filter(
+            UserMeasurement.version_id == version.id,
+            UserMeasurement.s_code == s_code,
+        )
+        .all()
+    )
+    return {r.charging_location_id: int(r.value) for r in rows}
 
 
 # ---------------------------------------------------------------------------
