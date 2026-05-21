@@ -678,3 +678,106 @@ class TestActivateBTCProfile:
             headers={"X-Current-User": "persona-pl"},
         )
         assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# FD-5 [F-DSH-01] — dashboard triple-display
+# ---------------------------------------------------------------------------
+
+class TestTripleDisplay:
+    """Automatic profiles surface the triple — raw UM integer + allocation
+    key + derived % — so a dashboard cell can render all three (% primary)."""
+
+    def _seed_automatic(self, db):
+        """An InternalService with an allocation key, plus an automatic
+        profile whose lines are frozen against a UM version."""
+        from models.charging import UMVersion
+
+        get_type = GroupingEntityType(id="get-lob", name="LoB")
+        ge = GroupingEntity(id="lob-a", entity_type_id="get-lob", name="LoB A")
+        db.add_all([get_type, ge])
+
+        svc = ChargeableEntity(
+            id="ce-svc1", entity_type="InternalService", identifier="ITF20099",
+            name="Identity Service", to_business_pct=0.0,
+            hierarchy_node_id="lob-a", is_active=True,
+            allocation_key="Number of users",
+        )
+        db.add(svc)
+
+        cl1 = ChargingLocation(id="cl-a", code="DE-A-001", name="Germany A", is_active=True)
+        cl2 = ChargingLocation(id="cl-b", code="DE-B-001", name="Germany B", is_active=True)
+        db.add_all([cl1, cl2])
+
+        ts = datetime(2026, 1, 15, 10, 0, 0)
+        v = UMVersion(
+            year=2026, quarter=1, status="active", source="seed", activated_at=ts,
+        )
+        db.add(v)
+        db.flush()
+        db.add_all([
+            UserMeasurement(
+                version_id=v.id, s_code="S0001",
+                charging_location_id="cl-a", value=60,
+            ),
+            UserMeasurement(
+                version_id=v.id, s_code="S0001",
+                charging_location_id="cl-b", value=40,
+            ),
+        ])
+
+        profile = BTCProfile(
+            entity_id="ce-svc1", year=2026, mode="automatic", status="active",
+            s_code="S0001", um_snapshot_at=ts,
+        )
+        db.add(profile)
+        db.flush()
+        db.add_all([
+            BTCProfileLine(profile_id=profile.id, charging_location_id="cl-a", percentage=60.0),
+            BTCProfileLine(profile_id=profile.id, charging_location_id="cl-b", percentage=40.0),
+        ])
+        db.commit()
+        return profile.id
+
+    def test_automatic_profile_carries_raw_um_and_allocation_key(
+        self, test_client, seed_personas, db,
+    ):
+        pid = self._seed_automatic(db)
+        resp = test_client.get(
+            f"/api/charging/btc-profiles/{pid}",
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["allocation_key"] == "Number of users"
+        by_cl = {ln["charging_location_id"]: ln for ln in data["lines"]}
+        assert by_cl["cl-a"]["raw_um_value"] == 60
+        assert by_cl["cl-b"]["raw_um_value"] == 40
+
+    def test_manual_profile_has_no_triple_context(
+        self, test_client, seed_personas, db,
+    ):
+        _seed_base(db)
+        profile = _make_active_profile(db)  # manual, Offering entity
+        resp = test_client.get(
+            f"/api/charging/btc-profiles/{profile.id}",
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["allocation_key"] is None
+        assert all(ln["raw_um_value"] is None for ln in data["lines"])
+
+    def test_triple_present_in_list_response(
+        self, test_client, seed_personas, db,
+    ):
+        self._seed_automatic(db)
+        resp = test_client.get(
+            "/api/charging/btc-profiles?mode=automatic",
+            headers={"X-Current-User": "persona-controller"},
+        )
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert len(items) == 1
+        assert items[0]["allocation_key"] == "Number of users"
+        assert {ln["raw_um_value"] for ln in items[0]["lines"]} == {60, 40}
