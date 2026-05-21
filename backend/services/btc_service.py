@@ -266,6 +266,14 @@ def get_frozen_um_values(
     Returns an empty dict for manual profiles (no ``s_code`` / no snapshot)
     and when the frozen version cannot be resolved — both are graceful: the
     triple-display then shows the ``percentage`` alone.
+
+    A ``UMVersion``'s full identity is ``(year, quarter, activated_at)``; this
+    resolves on ``activated_at`` alone. ``activated_at`` is set from
+    ``datetime.utcnow()`` at activation, so a collision between two versions is
+    not reachable in practice — but were one to occur, the first match wins
+    (pinned by ``test_first_match_on_shared_activated_at``). This is a read of
+    the *frozen* snapshot's raw integers, not a re-derivation: ``compute_um_snapshot``
+    resolves the *currently active* version instead and is the wrong source here.
     """
     if not s_code or um_snapshot_at is None:
         return {}

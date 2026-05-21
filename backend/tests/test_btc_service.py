@@ -239,6 +239,22 @@ class TestGetFrozenUMValues:
         assert get_frozen_um_values(db, "S0001", ts) == {"cl-a": 50}
         assert get_frozen_um_values(db, "S0002", ts) == {"cl-a": 70}
 
+    def test_first_match_on_shared_activated_at(self, db):
+        # A UMVersion's identity is (year, quarter, activated_at); resolution
+        # here keys on activated_at alone. Two versions sharing an activated_at
+        # is unreachable in practice (utcnow precision) — pin first-match-wins
+        # so the behaviour is intentional, not incidental: the result is one
+        # version's cells, never a merge of both, and never a crash.
+        _make_cl(db, "cl-a", "DE-A-001")
+        shared = datetime(2026, 2, 2, 8, 0)
+        _make_um(db, "S0001", year=2026, quarter=1,
+                 values=[("cl-a", 10.0)], activated_at=shared)
+        _make_um(db, "S0001", year=2026, quarter=2,
+                 values=[("cl-a", 20.0)], activated_at=shared)
+        result = get_frozen_um_values(db, "S0001", shared)
+        # First-inserted version (q1) wins; cells are not merged.
+        assert result == {"cl-a": 10}
+
 
 # ---------------------------------------------------------------------------
 # create_manual_profile
