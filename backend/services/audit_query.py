@@ -163,5 +163,6 @@ def list_categories() -> list[dict]:
         "simulator": "Simulator",
         "access_control": "Access Control",
         "scheduled_change_lifecycle": "Scheduled Change Lifecycle",
+        "export": "Export",
     }
     return [{"key": k, "label": labels[k]} for k in AUDIT_CATEGORIES]

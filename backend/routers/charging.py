@@ -62,9 +62,9 @@ from schemas.distribution import (
 from services.btc_service import (
     BTCValidationError, activate_profile, assert_btc_required,
     build_wbs_matrix, change_mode, copy_from_profile, create_automatic_profile,
-    create_manual_profile, compute_sums_to_100, get_profile,
-    get_profile_for_entity, list_profiles, refresh_from_um,
-    update_profile, year_rollover,
+    create_manual_profile, compute_sums_to_100, get_frozen_um_values,
+    get_profile, get_profile_for_entity, list_profiles,
+    load_active_um_versions, refresh_from_um, update_profile, year_rollover,
 )
 from services.dag_resolver import (
     compute_effective_cost, get_upstream_chain,
@@ -1768,8 +1768,24 @@ def _btc_error_to_http(e: BTCValidationError) -> HTTPException:
     return HTTPException(409, payload)
 
 
-def _serialize_btc_profile(profile) -> BTCProfileResponse:
-    """Serialize a BTCProfile ORM row to its response shape."""
+def _serialize_btc_profile(
+    db: Session, profile, *, um_versions=None,
+) -> BTCProfileResponse:
+    """Serialize a BTCProfile ORM row to its response shape.
+
+    FD-5 [F-DSH-01]: automatic profiles additionally carry the triple-display
+    context — each line's raw UM integer (from the frozen UM version) and the
+    service-level ``allocation_key`` (from the InternalService entity).
+
+    ``um_versions`` lets the list endpoint pass a pre-loaded activated-version
+    list so the frozen-version lookup is resolved once per request rather than
+    re-scanning ``UMVersion`` per profile.
+    """
+    raw_um_by_cl: dict[str, int] = {}
+    if profile.mode == "automatic":
+        raw_um_by_cl = get_frozen_um_values(
+            db, profile.s_code, profile.um_snapshot_at, versions=um_versions,
+        )
     lines = [
         {
             "id": line.id,
@@ -1778,6 +1794,7 @@ def _serialize_btc_profile(profile) -> BTCProfileResponse:
             "percentage": float(line.percentage),
             "charging_location_code": line.charging_location.code if line.charging_location else None,
             "charging_location_name": line.charging_location.name if line.charging_location else None,
+            "raw_um_value": raw_um_by_cl.get(line.charging_location_id),
         }
         for line in (profile.lines or [])
     ]
@@ -1788,6 +1805,7 @@ def _serialize_btc_profile(profile) -> BTCProfileResponse:
         year=profile.year,
         mode=profile.mode,
         s_code=profile.s_code,
+        allocation_key=profile.entity.allocation_key if profile.entity else None,
         um_snapshot_at=profile.um_snapshot_at,
         status=profile.status,
         copied_from_profile_id=profile.copied_from_profile_id,
@@ -1813,7 +1831,16 @@ def list_btc_profiles(
     profiles = list_profiles(
         db, entity_id=entity_id, year=year, status=status, mode=mode,
     )
-    items = [_serialize_btc_profile(p) for p in profiles]
+    # Resolve the activated UM-version set once for the whole page — the
+    # per-profile frozen-value lookup reuses it instead of re-scanning.
+    um_versions = (
+        load_active_um_versions(db)
+        if any(p.mode == "automatic" for p in profiles)
+        else []
+    )
+    items = [
+        _serialize_btc_profile(db, p, um_versions=um_versions) for p in profiles
+    ]
     return BTCProfileListResponse(items=items, total=len(items))
 
 
@@ -1830,7 +1857,7 @@ def get_btc_profile(
         profile = get_profile(db, profile_id)
     except BTCValidationError as e:
         raise HTTPException(404, e.message)
-    return _serialize_btc_profile(profile)
+    return _serialize_btc_profile(db, profile)
 
 
 @charging_router.get("/entities/{entity_id}/btc-profile", response_model=BTCProfileResponse)
@@ -1852,7 +1879,7 @@ def get_entity_btc_profile(
             404,
             f"No BTC profile for entity '{entity_id}' year {year}",
         )
-    return _serialize_btc_profile(profile)
+    return _serialize_btc_profile(db, profile)
 
 
 @charging_router.post("/btc-profiles", response_model=BTCProfileResponse, status_code=201)
@@ -1896,7 +1923,7 @@ def create_btc_profile(
     invalidate_for_btc_write(db, body.entity_id, body.year)
     db.commit()
     db.refresh(profile)
-    return _serialize_btc_profile(profile)
+    return _serialize_btc_profile(db, profile)
 
 
 @charging_router.put("/btc-profiles/{profile_id}", response_model=BTCProfileResponse)
@@ -1925,7 +1952,7 @@ def update_btc_profile(
     invalidate_for_btc_write(db, profile.entity_id, profile.year)
     db.commit()
     db.refresh(profile)
-    return _serialize_btc_profile(profile)
+    return _serialize_btc_profile(db, profile)
 
 
 @charging_router.delete("/btc-profiles/{profile_id}")
@@ -2045,7 +2072,7 @@ def activate_btc_profile(
     invalidate_for_btc_write(db, profile.entity_id, profile.year)
     db.commit()
     db.refresh(profile)
-    return _serialize_btc_profile(profile)
+    return _serialize_btc_profile(db, profile)
 
 
 @charging_router.post(
@@ -2080,7 +2107,7 @@ def change_btc_profile_mode(
     invalidate_for_btc_write(db, profile_obj.entity_id, profile_obj.year)
     db.commit()
     db.refresh(profile_obj)
-    return _serialize_btc_profile(profile_obj)
+    return _serialize_btc_profile(db, profile_obj)
 
 
 @charging_router.post(
@@ -2115,7 +2142,7 @@ def copy_btc_profile(
     invalidate_for_btc_write(db, body.target_entity_id, body.target_year)
     db.commit()
     db.refresh(new_profile)
-    return _serialize_btc_profile(new_profile)
+    return _serialize_btc_profile(db, new_profile)
 
 
 @charging_router.get(
@@ -2274,16 +2301,13 @@ def get_sap_export(
     payload = build_sap_export(db, year, entity_type=entity_type)
 
     # Audit each call so the controller can prove a SAP handoff happened.
-    # We use category='master_data' (the existing BTC write category) —
-    # 'export' is not a registered audit-filter category in AUDIT_CATEGORIES,
-    # which would render the row invisible to the audit-log filter UI.
     et_label = entity_type or "all"
     _audit(
         db, user, "sap_export", f"{year}",
         f"sap_export year={year} entity_type={et_label} format={format}",
         "export",
         new_value=f"rows={payload.total} missing={len(payload.missing_profiles)} format={format}",
-        category="master_data",
+        category="export",
     )
     db.commit()
 

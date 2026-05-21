@@ -263,6 +263,12 @@ class ChargeableEntity(Base):
     entity_type: Mapped[str] = mapped_column(String(20), nullable=False)
     identifier: Mapped[str] = mapped_column(String(40), nullable=False)
     # PPM (e.g. IT012345), S-code (IT00S321), or ITF (ITF12345) per [F-DM-01].
+    # UM-matrix lookup key (e.g. "S312") — distinct from ``identifier``. Ties an
+    # entity to its rows in the User Measurement matrix and to its automatic BTC
+    # profile (``BTCProfile.s_code``). Populated for InternalServices/Offerings
+    # that participate in UM; NULL for Projects and non-UM services. FD-5:
+    # lets the UM matrix surface a service's allocation_key per [F-DSH-01]/§3.
+    s_code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

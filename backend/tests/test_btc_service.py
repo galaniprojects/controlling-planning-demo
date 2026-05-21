@@ -14,8 +14,9 @@ from services.btc_service import (
     BTCValidationError, activate_profile, assert_btc_required,
     assert_sums_to_100, build_wbs_matrix, change_mode, compute_sums_to_100,
     compute_um_snapshot, copy_from_profile, create_automatic_profile,
-    create_manual_profile, get_profile, get_profile_for_entity,
-    list_profiles, refresh_from_um, update_profile, year_rollover,
+    create_manual_profile, get_frozen_um_values, get_profile,
+    get_profile_for_entity, list_profiles, load_active_um_versions,
+    refresh_from_um, update_profile, year_rollover,
 )
 
 
@@ -191,6 +192,80 @@ class TestComputeUMSnapshot:
         _make_um(db, "S0001", values=[("cl-a", 0.0)])
         with pytest.raises(BTCValidationError, match="No UM rows"):
             compute_um_snapshot(db, "S0001", 2026, 1)
+
+
+# ---------------------------------------------------------------------------
+# get_frozen_um_values — FD-5 [F-DSH-01] dashboard triple-display
+# ---------------------------------------------------------------------------
+
+class TestGetFrozenUMValues:
+    """Raw UM integers behind the derived %, read from the frozen version."""
+
+    def test_returns_raw_values_keyed_by_cl(self, db):
+        _make_cl(db, "cl-a", "DE-A-001")
+        _make_cl(db, "cl-b", "DE-B-001")
+        ts = _make_um(db, "S0001", values=[("cl-a", 60.0), ("cl-b", 40.0)])
+        assert get_frozen_um_values(db, "S0001", ts) == {"cl-a": 60, "cl-b": 40}
+
+    def test_manual_profile_inputs_return_empty(self, db):
+        # Manual profiles carry neither an s_code nor a snapshot timestamp.
+        assert get_frozen_um_values(db, None, None) == {}
+        assert get_frozen_um_values(db, "S0001", None) == {}
+        assert get_frozen_um_values(db, None, datetime(2026, 1, 15, 10, 0)) == {}
+
+    def test_unresolvable_snapshot_returns_empty(self, db):
+        # A timestamp matching no version's activated_at degrades gracefully.
+        _make_cl(db, "cl-a", "DE-A-001")
+        _make_um(db, "S0001", values=[("cl-a", 100.0)])
+        assert get_frozen_um_values(db, "S0001", datetime(2020, 1, 1)) == {}
+
+    def test_reads_frozen_version_not_latest(self, db):
+        # Two active versions; the snapshot timestamp pins the frozen one so
+        # the raw integers always agree with the snapshotted percentages.
+        _make_cl(db, "cl-a", "DE-A-001")
+        old_ts = datetime(2025, 6, 1, 9, 0)
+        new_ts = datetime(2026, 3, 1, 9, 0)
+        _make_um(db, "S0001", year=2026, quarter=1,
+                 values=[("cl-a", 11.0)], activated_at=old_ts)
+        _make_um(db, "S0001", year=2026, quarter=2,
+                 values=[("cl-a", 99.0)], activated_at=new_ts)
+        assert get_frozen_um_values(db, "S0001", old_ts) == {"cl-a": 11}
+        assert get_frozen_um_values(db, "S0001", new_ts) == {"cl-a": 99}
+
+    def test_filters_to_requested_s_code(self, db):
+        _make_cl(db, "cl-a", "DE-A-001")
+        ts = _make_um(db, "S0001", values=[("cl-a", 50.0)])
+        _make_um(db, "S0002", values=[("cl-a", 70.0)])  # same version, other s_code
+        assert get_frozen_um_values(db, "S0001", ts) == {"cl-a": 50}
+        assert get_frozen_um_values(db, "S0002", ts) == {"cl-a": 70}
+
+    def test_first_match_on_shared_activated_at(self, db):
+        # A UMVersion's identity is (year, quarter, activated_at); resolution
+        # here keys on activated_at alone. Two versions sharing an activated_at
+        # is unreachable in practice (utcnow precision) — pin first-match-wins
+        # so the behaviour is intentional, not incidental: the result is one
+        # version's cells, never a merge of both, and never a crash.
+        _make_cl(db, "cl-a", "DE-A-001")
+        shared = datetime(2026, 2, 2, 8, 0)
+        _make_um(db, "S0001", year=2026, quarter=1,
+                 values=[("cl-a", 10.0)], activated_at=shared)
+        _make_um(db, "S0001", year=2026, quarter=2,
+                 values=[("cl-a", 20.0)], activated_at=shared)
+        result = get_frozen_um_values(db, "S0001", shared)
+        # First-inserted version (q1) wins; cells are not merged.
+        assert result == {"cl-a": 10}
+
+    def test_accepts_prefetched_versions(self, db):
+        # A batch caller (list_btc_profiles) passes a pre-loaded version list
+        # so the frozen-version lookup is not re-queried per profile. The
+        # result must match the self-query path; an empty list resolves nothing.
+        _make_cl(db, "cl-a", "DE-A-001")
+        ts = _make_um(db, "S0001", values=[("cl-a", 80.0)])
+        prefetched = load_active_um_versions(db)
+        assert get_frozen_um_values(
+            db, "S0001", ts, versions=prefetched,
+        ) == {"cl-a": 80}
+        assert get_frozen_um_values(db, "S0001", ts, versions=[]) == {}
 
 
 # ---------------------------------------------------------------------------

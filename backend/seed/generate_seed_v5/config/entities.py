@@ -426,6 +426,7 @@ def all_chargeable_entities() -> list[dict]:
                 "project_id": p["id"],  # FK back into projects
                 "termination_month": None,
                 "allocation_key": None,  # [F-AK-01] — InternalService only
+                "s_code": None,  # Projects do not participate in the UM matrix
             }
         )
     for o in OFFERINGS:
@@ -442,6 +443,7 @@ def all_chargeable_entities() -> list[dict]:
                 "project_id": None,
                 "termination_month": None,
                 "allocation_key": None,  # [F-AK-01] — InternalService only
+                "s_code": o.get("s_code"),  # UM-matrix lookup key
             }
         )
     for s in INTERNAL_SERVICES:
@@ -458,6 +460,7 @@ def all_chargeable_entities() -> list[dict]:
                 "project_id": None,
                 "termination_month": None,
                 "allocation_key": ALLOCATION_KEYS.get(s["id"]),  # [F-AK-01]
+                "s_code": s.get("s_code"),  # UM-matrix lookup key
             }
         )
     return out

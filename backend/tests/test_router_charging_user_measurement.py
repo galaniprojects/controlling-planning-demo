@@ -177,6 +177,27 @@ class TestVersionsDetail:
         for cell in body["cells"]:
             assert isinstance(cell["value"], int)
 
+    def test_version_detail_includes_allocation_keys(
+        self, test_client, db, seed_personas, seed_um_active,
+    ):
+        # FD-5 (spec §3): an InternalService entity carrying a matrix S-code
+        # surfaces its allocation key in the detail response; an S-code with no
+        # such entity (S0002) is simply absent from the map.
+        from models.charging import ChargeableEntity
+        db.add(ChargeableEntity(
+            id="ce-svc-um", entity_type="InternalService",
+            identifier="ITF29999", name="UM Test Service",
+            s_code="S0001", allocation_key="Number of users",
+            to_business_pct=0, is_active=True,
+        ))
+        db.commit()
+        resp = test_client.get(
+            f"/api/charging/user-measurement/versions/{seed_um_active}",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["allocation_keys"] == {"S0001": "Number of users"}
+
     def test_version_detail_unknown_returns_404(
         self, test_client, seed_personas,
     ):

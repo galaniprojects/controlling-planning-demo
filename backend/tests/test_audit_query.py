@@ -132,12 +132,13 @@ class TestQueryEntityTrail:
 
 
 class TestListCategories:
-    def test_returns_all_eight(self):
+    def test_returns_all_nine(self):
         cats = list_categories()
-        assert len(cats) == 8
+        assert len(cats) == 9
         keys = {c["key"] for c in cats}
         assert "master_data" in keys
         assert "scheduled_change_lifecycle" in keys
+        assert "export" in keys
         assert all("label" in c for c in cats)
 
 
@@ -184,7 +185,7 @@ class TestAuditRouter:
         resp = test_client.get("/api/audit/categories", headers=HEADERS_CTRL)
         assert resp.status_code == 200
         data = resp.json()
-        assert data["total"] == 8
+        assert data["total"] == 9
 
     def test_invalid_pagination(self, test_client, seeded_audit):
         resp = test_client.get("/api/audit/log?limit=0", headers=HEADERS_CTRL)
