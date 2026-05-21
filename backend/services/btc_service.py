@@ -28,7 +28,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargeableEntity, ChargingLocation,
@@ -113,7 +113,9 @@ def list_profiles(
     mode: Optional[str] = None,
 ) -> list[BTCProfile]:
     """List BTC profiles with optional filters."""
-    q = db.query(BTCProfile)
+    # joinedload the entity — list serialization reads ``profile.entity``
+    # (allocation key) per row; without this each row is a separate lazy query.
+    q = db.query(BTCProfile).options(joinedload(BTCProfile.entity))
     if entity_id is not None:
         q = q.filter(BTCProfile.entity_id == entity_id)
     if year is not None:
@@ -249,10 +251,26 @@ def compute_um_snapshot(
     return snapshot
 
 
+def load_active_um_versions(db: Session) -> list[UMVersion]:
+    """All UM versions that have been activated (``activated_at`` is set).
+
+    Hoisted out of ``get_frozen_um_values`` so a caller serializing many
+    profiles (``list_btc_profiles``) can fetch the set once and pass it in,
+    rather than re-scanning ``UMVersion`` per profile.
+    """
+    return (
+        db.query(UMVersion)
+        .filter(UMVersion.activated_at.isnot(None))
+        .all()
+    )
+
+
 def get_frozen_um_values(
     db: Session,
     s_code: Optional[str],
     um_snapshot_at: Optional[datetime],
+    *,
+    versions: Optional[list[UMVersion]] = None,
 ) -> dict[str, int]:
     """Raw UM integer values for ``s_code``, keyed by ``charging_location_id``.
 
@@ -274,6 +292,11 @@ def get_frozen_um_values(
     (pinned by ``test_first_match_on_shared_activated_at``). This is a read of
     the *frozen* snapshot's raw integers, not a re-derivation: ``compute_um_snapshot``
     resolves the *currently active* version instead and is the wrong source here.
+
+    ``versions`` lets a batch caller pass a pre-loaded activated-version list
+    (see ``load_active_um_versions``) so a list endpoint resolves them once
+    rather than re-scanning ``UMVersion`` per profile. When omitted the
+    function loads them itself — single-profile callers are unaffected.
     """
     if not s_code or um_snapshot_at is None:
         return {}
@@ -283,14 +306,9 @@ def get_frozen_um_values(
     # renders with microseconds — an SQL ``==`` would miss the seeded rows.
     # Both columns deserialize to ``datetime`` identically, so a Python ``==``
     # is exact. UM-version count is tiny (demo scale), so the full scan is fine.
+    candidates = versions if versions is not None else load_active_um_versions(db)
     version = next(
-        (
-            v
-            for v in db.query(UMVersion)
-            .filter(UMVersion.activated_at.isnot(None))
-            .all()
-            if v.activated_at == um_snapshot_at
-        ),
+        (v for v in candidates if v.activated_at == um_snapshot_at),
         None,
     )
     if version is None:

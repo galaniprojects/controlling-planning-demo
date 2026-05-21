@@ -15,8 +15,8 @@ from services.btc_service import (
     assert_sums_to_100, build_wbs_matrix, change_mode, compute_sums_to_100,
     compute_um_snapshot, copy_from_profile, create_automatic_profile,
     create_manual_profile, get_frozen_um_values, get_profile,
-    get_profile_for_entity, list_profiles, refresh_from_um, update_profile,
-    year_rollover,
+    get_profile_for_entity, list_profiles, load_active_um_versions,
+    refresh_from_um, update_profile, year_rollover,
 )
 
 
@@ -254,6 +254,18 @@ class TestGetFrozenUMValues:
         result = get_frozen_um_values(db, "S0001", shared)
         # First-inserted version (q1) wins; cells are not merged.
         assert result == {"cl-a": 10}
+
+    def test_accepts_prefetched_versions(self, db):
+        # A batch caller (list_btc_profiles) passes a pre-loaded version list
+        # so the frozen-version lookup is not re-queried per profile. The
+        # result must match the self-query path; an empty list resolves nothing.
+        _make_cl(db, "cl-a", "DE-A-001")
+        ts = _make_um(db, "S0001", values=[("cl-a", 80.0)])
+        prefetched = load_active_um_versions(db)
+        assert get_frozen_um_values(
+            db, "S0001", ts, versions=prefetched,
+        ) == {"cl-a": 80}
+        assert get_frozen_um_values(db, "S0001", ts, versions=[]) == {}
 
 
 # ---------------------------------------------------------------------------

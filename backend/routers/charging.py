@@ -63,8 +63,8 @@ from services.btc_service import (
     BTCValidationError, activate_profile, assert_btc_required,
     build_wbs_matrix, change_mode, copy_from_profile, create_automatic_profile,
     create_manual_profile, compute_sums_to_100, get_frozen_um_values,
-    get_profile, get_profile_for_entity, list_profiles, refresh_from_um,
-    update_profile, year_rollover,
+    get_profile, get_profile_for_entity, list_profiles,
+    load_active_um_versions, refresh_from_um, update_profile, year_rollover,
 )
 from services.dag_resolver import (
     compute_effective_cost, get_upstream_chain,
@@ -1768,17 +1768,23 @@ def _btc_error_to_http(e: BTCValidationError) -> HTTPException:
     return HTTPException(409, payload)
 
 
-def _serialize_btc_profile(db: Session, profile) -> BTCProfileResponse:
+def _serialize_btc_profile(
+    db: Session, profile, *, um_versions=None,
+) -> BTCProfileResponse:
     """Serialize a BTCProfile ORM row to its response shape.
 
     FD-5 [F-DSH-01]: automatic profiles additionally carry the triple-display
     context — each line's raw UM integer (from the frozen UM version) and the
     service-level ``allocation_key`` (from the InternalService entity).
+
+    ``um_versions`` lets the list endpoint pass a pre-loaded activated-version
+    list so the frozen-version lookup is resolved once per request rather than
+    re-scanning ``UMVersion`` per profile.
     """
     raw_um_by_cl: dict[str, int] = {}
     if profile.mode == "automatic":
         raw_um_by_cl = get_frozen_um_values(
-            db, profile.s_code, profile.um_snapshot_at,
+            db, profile.s_code, profile.um_snapshot_at, versions=um_versions,
         )
     lines = [
         {
@@ -1825,7 +1831,16 @@ def list_btc_profiles(
     profiles = list_profiles(
         db, entity_id=entity_id, year=year, status=status, mode=mode,
     )
-    items = [_serialize_btc_profile(db, p) for p in profiles]
+    # Resolve the activated UM-version set once for the whole page — the
+    # per-profile frozen-value lookup reuses it instead of re-scanning.
+    um_versions = (
+        load_active_um_versions(db)
+        if any(p.mode == "automatic" for p in profiles)
+        else []
+    )
+    items = [
+        _serialize_btc_profile(db, p, um_versions=um_versions) for p in profiles
+    ]
     return BTCProfileListResponse(items=items, total=len(items))
 
 
