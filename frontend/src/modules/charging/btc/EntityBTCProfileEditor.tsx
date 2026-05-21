@@ -98,6 +98,11 @@ interface DraftLine {
   percentage: number;
 }
 
+/** European integer formatting (`.` thousands, no decimals) — UM is integer-only. */
+function fmtUmInt(v: number): string {
+  return new Intl.NumberFormat('de-DE').format(v);
+}
+
 export function EntityBTCProfileEditor(props: Props) {
   const { onBack, scenarioVersion, onSandboxSave } = props;
   const sandboxMode = Boolean(scenarioVersion);
@@ -516,6 +521,10 @@ export function EntityBTCProfileEditor(props: Props) {
                 <TableHead>Code</TableHead>
                 <TableHead>Region / Country</TableHead>
                 <TableHead>Division</TableHead>
+                {/* FD-5 [F-DSH-01]: automatic profiles render the triple —
+                    raw UM integer + allocation key + derived %, % primary. */}
+                {isAutomatic && <TableHead className="text-right">Raw UM</TableHead>}
+                {isAutomatic && <TableHead>Allocation key</TableHead>}
                 <TableHead className="text-right">Percentage</TableHead>
                 {isManual && <TableHead className="text-right pr-4">Remove</TableHead>}
               </TableRow>
@@ -524,6 +533,7 @@ export function EntityBTCProfileEditor(props: Props) {
               {(isManual ? draft : profile.lines).map((l, idx) => {
                 const cl = locationById.get(l.charging_location_id);
                 const pct = 'percentage' in l ? l.percentage : 0;
+                const rawUm = 'raw_um_value' in l ? l.raw_um_value ?? null : null;
                 return (
                   <TableRow key={`${l.charging_location_id}-${idx}`}>
                     <TableCell className="text-sm font-medium">
@@ -538,6 +548,16 @@ export function EntityBTCProfileEditor(props: Props) {
                     <TableCell className="text-xs text-muted-foreground">
                       {cl?.division ?? '—'}
                     </TableCell>
+                    {isAutomatic && (
+                      <TableCell className="text-right font-mono text-sm tabular-nums text-muted-foreground">
+                        {rawUm != null ? fmtUmInt(rawUm) : '—'}
+                      </TableCell>
+                    )}
+                    {isAutomatic && (
+                      <TableCell className="text-xs text-muted-foreground">
+                        {profile.allocation_key ?? '—'}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right">
                       {isManual ? (
                         <Input

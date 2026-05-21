@@ -2295,6 +2295,12 @@ export interface BTCProfileLineItem {
   percentage: number;
   charging_location_code?: string | null;
   charging_location_name?: string | null;
+  /**
+   * FD-5 [F-DSH-01]: raw UM integer behind the derived `percentage`, from the
+   * frozen UM version. Populated for automatic profiles; `null` for manual
+   * profiles or when the frozen version is unresolvable.
+   */
+  raw_um_value?: number | null;
 }
 
 export interface BTCProfileItem {
@@ -2303,6 +2309,11 @@ export interface BTCProfileItem {
   year: number;
   mode: BTCMode;
   s_code: string | null;
+  /**
+   * FD-5 [F-DSH-01]: service-level allocation key — the legend for the raw UM
+   * integers. `null` for non-InternalService entities or when unset.
+   */
+  allocation_key?: string | null;
   um_snapshot_at: string | null;
   status: BTCStatus;
   copied_from_profile_id: number | null;
