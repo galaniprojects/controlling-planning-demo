@@ -396,7 +396,7 @@ Sparse UM matrix **cell**, FK'd to a `UMVersion` header per `[F-UM-01]`. Version
 ### `ChargeableEntity` — `chargeable_entities`
 Polymorphic cost-allocation root per `[F-DM-01..04]`. Three subtypes share a single table; cost allocation logic identical across types. Only WBS prefix differs and is generated algorithmically.
 
-**Key columns.** `id` String(50) PK, `entity_type` String(20) (`Project` | `Offering` | `InternalService`), `identifier` String(40) NOT NULL (PPM `IT0<PPM>`, S-code `IT00<S-code>`, or ITF `ITF<NNNNN>` per `[F-DM-01]`; globally unique across subtypes), `name` String(300), `description`, `hierarchy_node_id` FK → grouping_entities (per `[F-DM-04]` — Cluster F entities use Cluster D's hierarchy), `responsible_person_id` FK → people, `allocation_key` String(200) NULL (Charging/UM rework `[F-AK-01]` — free-text-with-presets legend for what an InternalService's raw UM integer means; per service, not per cell/version; semantically InternalService-only but stored on the polymorphic root with no type-branch constraint; editing surface = FD-6, display = FD-5/§7; distinct values via `user_measurement_service.list_allocation_keys`), `to_business_pct` Numeric(5,2) NOT NULL default 0 (Stage 2 input per `[F-DM-02]` — the percentage of rolled-up cost that releases to KB business via BTC; stored on entity not edge so sum rule is single-row read), `project_id` FK → projects (populated only for `entity_type='Project'`, NULL for Offering/InternalService), `termination_month` String(7) (NULL = runs indefinitely until explicit retirement), `annual_cost` Numeric(14,2) (v5 F3 — own running cost in EUR per `[F-S2-01]`; primary cost source for Offerings/InternalServices; for Projects, DAG resolver falls back to this when `project.annual_budget`/`total_budget` are NULL), `is_active`.
+**Key columns.** `id` String(50) PK, `entity_type` String(20) (`Project` | `Offering` | `InternalService`), `identifier` String(40) NOT NULL (PPM `IT0<PPM>`, S-code `IT00<S-code>`, or ITF `ITF<NNNNN>` per `[F-DM-01]`; globally unique across subtypes), `s_code` String(20) NULL (FD-5 — UM-matrix lookup key, e.g. `S312`; distinct from `identifier`, it ties an InternalService/Offering to its rows in the User Measurement matrix and its automatic `BTCProfile`; NULL for Projects and non-UM services; lets the UM matrix surface the service's `allocation_key` per `[F-DSH-01]`/§3), `name` String(300), `description`, `hierarchy_node_id` FK → grouping_entities (per `[F-DM-04]` — Cluster F entities use Cluster D's hierarchy), `responsible_person_id` FK → people, `allocation_key` String(200) NULL (Charging/UM rework `[F-AK-01]` — free-text-with-presets legend for what an InternalService's raw UM integer means; per service, not per cell/version; semantically InternalService-only but stored on the polymorphic root with no type-branch constraint; editing surface = FD-6, display = FD-5/§7; distinct values via `user_measurement_service.list_allocation_keys`), `to_business_pct` Numeric(5,2) NOT NULL default 0 (Stage 2 input per `[F-DM-02]` — the percentage of rolled-up cost that releases to KB business via BTC; stored on entity not edge so sum rule is single-row read), `project_id` FK → projects (populated only for `entity_type='Project'`, NULL for Offering/InternalService), `termination_month` String(7) (NULL = runs indefinitely until explicit retirement), `annual_cost` Numeric(14,2) (v5 F3 — own running cost in EUR per `[F-S2-01]`; primary cost source for Offerings/InternalServices; for Projects, DAG resolver falls back to this when `project.annual_budget`/`total_budget` are NULL), `is_active`.
 
 **Constraints.**
 - `UniqueConstraint(project_id, name="uq_chargeable_entity_project")` — one ChargeableEntity per project.
@@ -567,7 +567,7 @@ System-wide entity audit trail per `[D-CAT-07]`.
 
 **Key columns.** `id` Integer PK, `timestamp` DateTime NOT NULL default utcnow, `user_person_id` FK → people NOT NULL, `entity_type` String(50), `entity_id` String(50), `entity_name` String(200), `action` String(20) (`create` | `update` | `deactivate` | `override` | `activate`), `field_changed` String(100), `old_value`/`new_value` String(500), `category` String(40) NOT NULL default `master_data` / `server_default='master_data'`.
 
-**Notes.** `category` required at write time per `[D-CAT-07]`; `_log_audit()` requires keyword-only `category=` at every call site. `server_default='master_data'` makes raw-SQL inserts in seed.sql work without ORM defaults; legacy rows pre-Session-D2 land in `master_data` as the safest neutral category. The 8 categories are surfaced in the audit log filter UI — see `AUDIT_CATEGORIES` constant in the appendix.
+**Notes.** `category` required at write time per `[D-CAT-07]`; `_log_audit()` requires keyword-only `category=` at every call site. `server_default='master_data'` makes raw-SQL inserts in seed.sql work without ORM defaults; legacy rows pre-Session-D2 land in `master_data` as the safest neutral category. The 9 categories are surfaced in the audit log filter UI — see `AUDIT_CATEGORIES` constant in the appendix.
 
 ### `SystemSuggestion` — `system_suggestions`
 Pre-computed suggestions for the forecast wizard.
@@ -653,7 +653,7 @@ Module-level Python tuples that define authoritative value sets. When the value 
 
 | Constant | File | Values |
 |---|---|---|
-| `AUDIT_CATEGORIES` | `system.py` | `master_data`, `configuration`, `hierarchy`, `forecast_actions`, `pipeline_transitions`, `simulator`, `access_control`, `scheduled_change_lifecycle` |
+| `AUDIT_CATEGORIES` | `system.py` | `master_data`, `configuration`, `hierarchy`, `forecast_actions`, `pipeline_transitions`, `simulator`, `access_control`, `scheduled_change_lifecycle`, `export` |
 | `SCENARIO_VISIBILITIES` | `scenarios.py` | `private`, `tier3_only`, `all_users` |
 | `SCENARIO_ROUTING_TYPES` | `scenarios.py` | `direct_forecast_update`, `change_request`, `doi_gate_check`, `tech_navigator_direct`, `tech_navigator_send_back`, `rate_table_update`, `people_action_item`, `budget_envelope_update`, `hypothetical_to_proposed`, `hierarchy_update`, `cost_allocation_update`, `capacity_param_update`, `no_route` |
 | `SCHEDULED_CHANGE_STATES` | `scheduled_changes.py` | `pending_review`, `approved`, `activated`, `rejected`, `cancelled` |
@@ -693,7 +693,7 @@ Module-level Python tuples that define authoritative value sets. When the value 
 | `CapacityActionLog.action_type` | `confirm`, `partial_confirm`, `decline`, `decline_request`, `assign_draft`, `cr_reconfirm` |
 | `Scenario.status` | `private`, `published` |
 | `AuditLog.action` | `create`, `update`, `deactivate`, `override`, `activate` |
-| `AuditLog.category` | one of `AUDIT_CATEGORIES` (8 values — see Constants table above). Required at write time per `[D-CAT-07]`. |
+| `AuditLog.category` | one of `AUDIT_CATEGORIES` (9 values — see Constants table above). Required at write time per `[D-CAT-07]`. |
 | `Notification.severity` | `info`, `warning`, `action` |
 | `User.role` / `DemoPersona.role` | `controller`, `cost_center_owner`, `project_lead`, `executive` |
 | `UMVersion.source` | `manual`, `csv_upload`, `copy`, `seed` (was `UserMeasurement.source` incl. `sap_api`; retired in the Charging/UM rework) |
@@ -752,7 +752,7 @@ Module-level Python tuples that define authoritative value sets. When the value 
 WBS Element is **never stored** per `[F-DM-03]`. Generated by `services/wbs_generator.build_wbs_element` as `<identifier>-64-99-<charging_location_code>`. Subtype prefix is derived from `ChargeableEntity.entity_type` + `identifier`.
 
 ### Audit categories
-8-category taxonomy (`AUDIT_CATEGORIES`). `_log_audit()` requires keyword-only `category=` parameter at every call site per `[D-CAT-07]`. New audit-emitting code must pick the right category — see column-comment hints on `AuditLog.category` in source.
+9-category taxonomy (`AUDIT_CATEGORIES`). `_log_audit()` requires keyword-only `category=` parameter at every call site per `[D-CAT-07]`. New audit-emitting code must pick the right category — see column-comment hints on `AuditLog.category` in source.
 
 ### Relationship disambiguation via `foreign_keys=`
 Several models have multiple FKs targeting the same table — disambiguated via `foreign_keys=[...]` on the relationship:
