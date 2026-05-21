@@ -68,6 +68,7 @@ AUDIT_CATEGORIES = (
     "simulator",                  # Scenario actions, promotions, applies-to-forecast
     "access_control",             # User permissions, role grants, change-reviewer flag
     "scheduled_change_lifecycle", # ScheduledChange create / approve / reject / cancel / activate
+    "export",                     # SAP export / downstream data extracts
 )
 
 

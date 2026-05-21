@@ -2301,16 +2301,13 @@ def get_sap_export(
     payload = build_sap_export(db, year, entity_type=entity_type)
 
     # Audit each call so the controller can prove a SAP handoff happened.
-    # We use category='master_data' (the existing BTC write category) —
-    # 'export' is not a registered audit-filter category in AUDIT_CATEGORIES,
-    # which would render the row invisible to the audit-log filter UI.
     et_label = entity_type or "all"
     _audit(
         db, user, "sap_export", f"{year}",
         f"sap_export year={year} entity_type={et_label} format={format}",
         "export",
         new_value=f"rows={payload.total} missing={len(payload.missing_profiles)} format={format}",
-        category="master_data",
+        category="export",
     )
     db.commit()
 

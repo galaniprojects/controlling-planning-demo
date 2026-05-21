@@ -269,10 +269,9 @@ class TestSAPExportAudit:
         assert log.entity_id == "2026"
         assert "rows=6" in log.new_value
         assert "missing=0" in log.new_value
-        # Master_data category mirrors the BTC write category — 'export' is
-        # not in AUDIT_CATEGORIES so it would be invisible to the audit
-        # filter UI; documented deviation from the literal plan text.
-        assert log.category == "master_data"
+        # SAP exports log under the dedicated 'export' audit category so the
+        # row is visible to the audit-log filter UI (FD-5 follow-up).
+        assert log.category == "export"
 
     def test_audit_row_written_for_csv(self, test_client, seed_personas, db):
         _seed_base(db)
