@@ -556,7 +556,7 @@ INSERT INTO chargeable_entities (id, entity_type, identifier, s_code, name, desc
 ('proj-iam-run', 'Project', 'IT011408', NULL, 'Identity & Access Management Run', NULL, 'he-cit', 'p-brenner', NULL, 0, 'proj-iam-run', NULL, 310000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('off-mdh', 'Offering', 'IT00S042', 'S042', 'Master Data Hub', NULL, 'he-dnd', 'p-sharma', NULL, 95, NULL, NULL, 2400000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('off-eunify', 'Offering', 'IT00S118', 'S118', 'Enterprise Unified Workspace', NULL, 'he-cit', 'p-brenner', NULL, 90, NULL, NULL, 980000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('off-bizinsights', 'Offering', 'IT00S067', 'S067', 'Business Insights Platform', NULL, 'he-dnd', 'p-weber', NULL, 92, NULL, NULL, 1600000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('off-bizinsights', 'Offering', 'IT00S067', 'S067', 'Business Insights Platform', NULL, 'he-dnd', 'p-weber', NULL, 85, NULL, NULL, 1600000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('off-ecollab', 'Offering', 'IT00S210', NULL, 'Enterprise Collaboration Suite', NULL, 'he-cit', 'p-brenner', NULL, 88, NULL, NULL, 1200000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('off-fielddx', 'Offering', 'IT00S088', NULL, 'Field Diagnostics Service', NULL, 'he-tbs', 'p-weber', NULL, 85, NULL, NULL, 540000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('off-supplyvis', 'Offering', 'IT00S155', 'S155', 'Supply Chain Visibility', NULL, 'he-tbs', 'p-weber', NULL, 80, NULL, NULL, 720000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
@@ -572,7 +572,7 @@ INSERT INTO chargeable_entities (id, entity_type, identifier, s_code, name, desc
 ('svc-rail-maint', 'InternalService', 'ITF20020', 'S408', 'Rail Application Maintenance', NULL, 'he-rvs', 'p-weber', 'Sales volume, EUR thousands', 0, NULL, NULL, 310000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('svc-signal-sup', 'InternalService', 'ITF20021', NULL, 'Signaling Systems Support', NULL, 'he-rvs-prog-rail', 'p-weber', NULL, 0, NULL, NULL, 185000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('svc-tbs-maint', 'InternalService', 'ITF20022', 'S503', 'TBS Application Maintenance', NULL, 'he-tbs', 'p-weber', 'Sales volume, EUR thousands', 0, NULL, NULL, 295000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('svc-data-platform', 'InternalService', 'ITF20023', NULL, 'Data Platform Operations', NULL, 'he-dnd-prog-data', 'p-weber', 'Number of transactions ×1000', 0, NULL, NULL, 230000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('svc-data-platform', 'InternalService', 'ITF20023', NULL, 'Data Platform Operations', NULL, 'he-dnd-prog-data', 'p-weber', 'Number of transactions ×1000', 0, NULL, NULL, 100000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('svc-iot-infra', 'InternalService', 'ITF20024', NULL, 'IoT Infrastructure Support', NULL, 'he-dnd', 'p-weber', 'Number of connected devices', 0, NULL, NULL, 160000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('svc-monitoring', 'InternalService', 'ITF20025', NULL, 'Application Monitoring Service', NULL, 'he-cit', 'p-brenner', 'Number of monitored endpoints', 0, NULL, NULL, 210000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('svc-itsm', 'InternalService', 'ITF20026', 'S720', 'ITSM Platform Service', NULL, 'he-cit', 'p-brenner', 'Number of users', 0, NULL, NULL, 175000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
@@ -600,7 +600,7 @@ INSERT INTO project_grouping_assignments (project_id, grouping_entity_id) VALUES
 
 -- =============================================================================
 -- s08_distribution / Stage 1 versions + edges [F-S1-01..05]  (FD-3 effective-dated rework)
--- 2 version headers, 39 edges (all FK'd into v1 / id=1).
+-- 2 version headers, 40 edges (all FK'd into v1 / id=1).
 --   v1 active_from=2025-01-01 status=active origin=seed copied_from=None scenario_id=None
 --   v2 active_from=None status=draft origin=blank copied_from=None scenario_id=None
 -- Sparse storage: only flowing edges; self-retained = 100 - to_business - Σ(out%).
@@ -612,6 +612,7 @@ INSERT INTO distribution_versions (id, active_from, status, rationale, origin, c
 (2, NULL, 'draft', '', 'blank', NULL, NULL, '2026-01-15 10:00:00', NULL, NULL);
 
 INSERT INTO distributions (version_id, source_entity_id, destination_entity_id, percentage, rationale, created_at, modified_at) VALUES
+(1, 'off-bizinsights', 'off-supplyvis', 10.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 (1, 'off-mdh', 'svc-data-stewardship', 5.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 (1, 'proj-cloud3-run', 'svc-data-platform', 30.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 (1, 'proj-cloud3-run', 'svc-infra-platform', 50.0, NULL, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
@@ -654,6 +655,7 @@ INSERT INTO distributions (version_id, source_entity_id, destination_entity_id, 
 
 -- Sum-rule check (informational): for every source entity,
 --   Σ(distribution.percentage WHERE source=...) + chargeable_entities.to_business_pct ≤ 100.
+--   off-bizinsights: Σ(out)=10.00%
 --   off-mdh: Σ(out)=5.00%
 --   proj-cloud3-run: Σ(out)=100.00%
 --   proj-iam-run: Σ(out)=100.00%

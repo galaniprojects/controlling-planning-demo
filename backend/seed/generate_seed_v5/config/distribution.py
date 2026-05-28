@@ -18,6 +18,27 @@ Owned by Phase 2 T1 (charging). Per ``[F-S1-01..05]``:
 - Self-retained residual demonstrators per the plan doc:
       ``svc-ident-auth``  10% self-retained (90% distributed)
       ``svc-monitoring``  10% self-retained (90% distributed)
+- Diamond pattern (Service Workbench §6.1, Wave C):
+      ``svc-data-platform`` feeds both ``off-bizinsights`` (72%) and
+      ``off-supplyvis`` (20%); ``off-bizinsights`` then also feeds
+      ``off-supplyvis`` (10%). This makes ``off-supplyvis`` reachable
+      from ``svc-data-platform`` via two independent paths, exercising
+      the memoization fix in ``dag_resolver.compute_effective_cost``
+      (Session 1.5). A naive skip-set silently truncates the direct
+      edge's contribution; the memoized resolver preserves both.
+- Chain approaching ``max_allocation_depth=6`` (Service Workbench §6.1, Wave C):
+      The diamond closure also extends the existing depth-5 chain
+      ``proj-cloud3-run → svc-infra-platform → svc-data-platform →
+      off-mdh → svc-data-stewardship → off-bizinsights`` (5 edges in
+      original seed) by one more hop to ``→ off-supplyvis`` — for a
+      total of 6 edges, sitting exactly at ``max_allocation_depth=6``.
+      ``near_max_depth_warning`` (resulting_depth ≥ max_depth-1=5)
+      fires on a broad set of entity-picker candidates as a result,
+      surfacing the amber badge in the demo. A further downstream hop
+      off off-supplyvis was scoped in the plan doc; not added in seed
+      because the chain it would create (7 edges) violates max_depth=6
+      and would break save-time validation on subsequent edits. If we
+      need a deeper demo, lift ``max_allocation_depth`` first.
 
 Flagship narrative (Master Data Hub, off-mdh / S042):
   Upstream feeders: svc-ident-auth (30%), svc-infra-platform (18%),
@@ -43,9 +64,9 @@ Scenario forks are created lazily by Cluster B's lever-12 engine and never
 seeded directly — they live as ``DistributionVersion`` rows with
 ``scenario_id IS NOT NULL`` and stay in draft.
 
-The seed totals 39 edges across 16 source entities (12 internal services,
-1 offering, 2 Run-stage projects, 1 service that retains 100% — counted
-implicitly by absence of edges).
+The seed totals 40 edges across 16 source entities (12 internal services,
+2 offerings — off-mdh, off-bizinsights — 2 Run-stage projects, 1 service
+that retains 100% — counted implicitly by absence of edges).
 """
 from __future__ import annotations
 
@@ -103,6 +124,12 @@ ACTIVE_VERSION_ID: int = 1
 # destination id within each group.
 # ---------------------------------------------------------------------------
 STAGE1_EDGES: list[dict] = [
+    # --- off-bizinsights: diamond closure to off-supplyvis (§6.1, Wave C).
+    # Pairs with svc-data-platform → off-supplyvis (20%) below so off-supplyvis
+    # is reachable from svc-data-platform via two independent paths. Requires
+    # off-bizinsights.to_business_pct ≤ 90 — entities.py sets it to 85%.
+    {"source": "off-bizinsights",    "destination": "off-supplyvis",        "percentage": 10.0, "version_id": 1},
+
     # --- off-mdh: 5% downstream (95% to-Business via to_business_pct on entity)
     {"source": "off-mdh",            "destination": "svc-data-stewardship", "percentage": 5.0,  "version_id": 1},
 
