@@ -327,15 +327,24 @@ export function EntityDistributionEditor({
       const parsed = parseAllocationError(
         e instanceof Error ? e.message : String(e),
       );
-      // Only surface partial-progress context when at least one mutation
-      // committed server-side. Pre-flight failures (first mutation
-      // throws, parse errors, missing version) leave the field
-      // undefined so the banner falls back to the typed generic copy.
+      // Only surface partial-progress context when the failure
+      // interrupted the fan-out mid-stream — i.e. at least one mutation
+      // committed AND some steps didn't run. Two failure modes to gate
+      // out:
+      //   * Pre-flight (`completed === 0`) — first mutation threw or
+      //     parse/version setup failed; no writes hit the server.
+      //   * Post-success refetch (`completed === total`) — every write
+      //     committed; only the `fetchData` call at the bottom of the
+      //     try-block threw. "Saved N of N before failure" would
+      //     misrepresent a read failure as a write failure.
+      // Both cases fall back to the typed generic copy.
       dispatch({
         type: 'SAVE_ERROR',
         error: parsed,
         partialProgress:
-          completed > 0 ? { completed, total } : undefined,
+          completed > 0 && completed < total
+            ? { completed, total }
+            : undefined,
       });
     }
   }, [
