@@ -1703,11 +1703,20 @@ def get_cascade_chain(
     Returns the focal node, transitively-collected upstream + downstream
     node lists, every edge in the displayed sub-graph (with resolved EUR
     amounts and the chain_depth cache value), and the focal's BTC
-    business terminals projected for the demo year.
+    business terminals projected for the derived year.
 
-    ``version_id`` selects an explicit DistributionVersion (production or
-    draft); ``evaluated_date`` resolves the production version in force
-    on that date; both omitted = production version in force today.
+    Version selection: default resolves the active production version
+    (``status='active'``, ``scenario_id IS NULL``). An explicit
+    ``version_id`` query parameter accepts any version, including
+    scenario-scoped drafts (``status='draft'``, ``scenario_id IS NOT NULL``)
+    — surfaces the lever-12 sandbox state for analysis. The response's
+    ``version`` block reports the resolved version's status and scenario_id.
+
+    Year resolution: own-cost (``Project.annual_budget``) and BTC-profile
+    lookup use the year derived from ``evaluated_date`` (if supplied),
+    then ``version.active_from.year`` (if explicit version_id with an
+    active_from date), then ``DEMO_DATE.year`` (fallback). This keeps
+    historical version_ids consistent with historical year-of-cost data.
 
     Powers the Service Workbench Allocation Flow view (Session 4).
     """

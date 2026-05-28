@@ -123,8 +123,11 @@ def seed_chain_pos(db, seed_personas):
     ])
     db.flush()
 
+    # active_from set to demo-year (2026) start so _derive_year matches the
+    # BTC profile year. Service Workbench S1 review follow-up: cascade year
+    # derivation prefers version.active_from.year for explicit version_id.
     v = DistributionVersion(
-        active_from=date(2025, 1, 1), status="active",
+        active_from=date(2026, 1, 1), status="active",
         rationale="cascade seed", origin="seed",
     )
     db.add(v)
@@ -353,6 +356,108 @@ class TestVersionResolution:
         assert data["upstream"] == []
         assert data["downstream"] == []
         assert data["edges"] == []
+
+
+class TestCascadeYearDerivation:
+    """Year for own-cost + BTC lookup is derived from evaluated_date / version.active_from.
+
+    Default = DEMO_DATE.year (2026). Explicit evaluated_date overrides.
+    Historical version_id with an active_from date drives the year too.
+    """
+
+    def test_cascade_year_from_evaluated_date(
+        self, test_client, db, seed_chain_pos,
+    ):
+        # Add a separate BTC profile for 2027 on the same focal entity (ce-s)
+        # at the same CL (cl-muc, already seeded). The 2027 profile uses 80%
+        # at cl-muc so the amount differs from the 2026 100% profile.
+        # With evaluated_date=2027-04-01 → year derives as 2027 → 2027 BTC used.
+        # ce-s effective = 1000 (per fixture). to_business = 50.
+        # Expected amount = 1000 * 0.50 * 0.80 = 400 (vs 500 with 2026 profile).
+        from models.charging import BTCProfile, BTCProfileLine
+        p2027 = BTCProfile(
+            entity_id="ce-s", year=2027, mode="manual", status="active",
+        )
+        db.add(p2027)
+        db.flush()
+        db.add(BTCProfileLine(
+            profile_id=p2027.id, charging_location_id="cl-muc",
+            percentage=80.0,
+        ))
+        db.commit()
+
+        r = test_client.get(
+            "/api/charging/cascade/ce-s?evaluated_date=2027-04-01",
+            headers=_h("persona-controller"),
+        )
+        assert r.status_code == 200, r.text
+        terminals = r.json()["business_terminals"]
+        assert len(terminals) == 1, terminals
+        # Decisive: 2027 percentage (80) drives amount, not 2026 (100).
+        assert terminals[0]["percentage"] == 80.0
+        assert terminals[0]["amount"] == 400.0
+
+    def test_cascade_year_from_active_from_when_version_explicit(
+        self, test_client, db, seed_chain_pos,
+    ):
+        # Create a historical version with active_from=2024-01-01 and one
+        # edge in it. Pin a 2024-year BTC profile so the cascade has
+        # something to find when year derives as 2024. Decisive: with the
+        # 2024-year version explicit, the BTC line uses the 2024 profile
+        # (percentage=25.0), not the seeded 2026 one (percentage=100.0).
+        from models.charging import (
+            BTCProfile, BTCProfileLine, Distribution as Dist,
+        )
+        v_2024 = DistributionVersion(
+            active_from=date(2024, 1, 1), status="active",
+            rationale="2024 baseline", origin="seed",
+        )
+        db.add(v_2024)
+        db.flush()
+        db.add(Dist(
+            version_id=v_2024.id, source_entity_id="ce-p",
+            destination_entity_id="ce-s", percentage=50.0,
+        ))
+        p2024 = BTCProfile(
+            entity_id="ce-s", year=2024, mode="manual", status="active",
+        )
+        db.add(p2024)
+        db.flush()
+        db.add(BTCProfileLine(
+            profile_id=p2024.id, charging_location_id="cl-muc",
+            percentage=25.0,
+        ))
+        db.commit()
+        r = test_client.get(
+            f"/api/charging/cascade/ce-s?version_id={v_2024.id}",
+            headers=_h("persona-controller"),
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        # Version block reflects the chosen historical version.
+        assert data["version"]["id"] == v_2024.id
+        # Year derived from version.active_from → 2024 → 2024 profile used.
+        terminals = data["business_terminals"]
+        assert len(terminals) == 1
+        assert terminals[0]["percentage"] == 25.0
+
+    def test_cascade_year_falls_back_to_demo_year(
+        self, test_client, db, seed_chain_pos,
+    ):
+        # Draft version with active_from=None — derive_year should fall
+        # back to DEMO_DATE.year (2026). Verify the resolved version
+        # behaves as expected (no crash; year-fallback path exercised).
+        v_draft = DistributionVersion(
+            active_from=None, status="draft",
+            rationale="fallback", origin="blank",
+        )
+        db.add(v_draft)
+        db.commit()
+        r = test_client.get(
+            f"/api/charging/cascade/ce-s?version_id={v_draft.id}",
+            headers=_h("persona-controller"),
+        )
+        assert r.status_code == 200, r.text
 
 
 class TestCascadeErrors:

@@ -143,8 +143,27 @@ def _resolve_version(
     return v
 
 
+def _derive_year(
+    version: DistributionVersion, evaluated_date: Optional[date],
+) -> int:
+    """Year used for own-cost (Project.annual_budget) and BTC-profile lookup.
+
+    Priority: ``evaluated_date.year`` (if supplied) >
+    ``version.active_from.year`` (if explicit/historical version_id) >
+    ``DEMO_DATE.year`` (fallback for legacy versions with no active_from).
+    Aligns the cascade output with the same year axis the rest of the app
+    uses — a historical version_id pulls historical year-of-cost data
+    instead of silently mapping to the demo year.
+    """
+    if evaluated_date is not None:
+        return evaluated_date.year
+    if version.active_from is not None:
+        return version.active_from.year
+    return _DEMO_YEAR
+
+
 def _build_node(
-    db: Session, entity: ChargeableEntity, version_id: int,
+    db: Session, entity: ChargeableEntity, version_id: int, year: int,
 ) -> CascadeNodeResult:
     """Compute the cascade-node payload for one entity.
 
@@ -152,11 +171,14 @@ def _build_node(
     across siblings still benefit from the per-call ``_memo`` dict, but
     cross-call we pay for each focal node only once per
     :func:`query_cascade_chain` invocation since the cascade walk passes
-    a shared ``_memo`` through.
+    a shared ``_memo`` through. ``year`` is derived once per request by
+    :func:`_derive_year` and threaded through so own-cost lookups (which
+    are year-scoped on ``Project.annual_budget``) stay consistent with
+    the resolved version.
     """
     from services.dag_resolver import compute_effective_cost
 
-    result = compute_effective_cost(db, _DEMO_YEAR, version_id, entity.id)
+    result = compute_effective_cost(db, year, version_id, entity.id)
     to_business = float(entity.to_business_pct or 0)
 
     # Self-retained = 100 - to_business - sum(outgoing distribution %).
@@ -235,20 +257,21 @@ def _walk_directed(
 
 
 def _business_terminals_for_entity(
-    db: Session, entity: ChargeableEntity, effective_cost: float,
+    db: Session, entity: ChargeableEntity, effective_cost: float, year: int,
 ) -> list[CascadeBusinessTerminalResult]:
-    """Return the focal entity's business-terminal contributions for the demo year.
+    """Return the focal entity's business-terminal contributions for ``year``.
 
-    Each row is one line on the active BTC profile (for ``_DEMO_YEAR``).
-    EUR amount = ``effective × to_business% × line%``. Returns an empty list
-    when the entity has no active profile (the to_business share may still
-    be non-zero but unrouted — that's a UI surface concern).
+    Each row is one line on the active BTC profile for the derived year
+    (see :func:`_derive_year`). EUR amount = ``effective × to_business% × line%``.
+    Returns an empty list when the entity has no active profile for the year
+    (the to_business share may still be non-zero but unrouted — that's a UI
+    surface concern).
     """
     profile = (
         db.query(BTCProfile)
         .filter(
             BTCProfile.entity_id == entity.id,
-            BTCProfile.year == _DEMO_YEAR,
+            BTCProfile.year == year,
             BTCProfile.status == "active",
         )
         .first()
@@ -301,6 +324,7 @@ def query_cascade_chain(
 
     version = _resolve_version(db, version_id, evaluated_date)
     eff_date = evaluated_date or date.today()
+    year = _derive_year(version, evaluated_date)
 
     # Resolve B's max-depth value via a deferred import.
     from services.depth_validation import get_max_allocation_depth
@@ -317,7 +341,7 @@ def query_cascade_chain(
 
     # Build node payloads — focal first so its effective cost feeds the
     # business-terminal calc, then each upstream and downstream entity.
-    focal_node = _build_node(db, focal, version.id)
+    focal_node = _build_node(db, focal, version.id, year)
 
     upstream_nodes: list[CascadeNodeResult] = []
     if upstream_ids:
@@ -328,7 +352,7 @@ def query_cascade_chain(
         )
         # Stable-ish ordering by entity_id for deterministic responses.
         rows.sort(key=lambda r: r.id)
-        upstream_nodes = [_build_node(db, r, version.id) for r in rows]
+        upstream_nodes = [_build_node(db, r, version.id, year) for r in rows]
 
     downstream_nodes: list[CascadeNodeResult] = []
     if downstream_ids:
@@ -338,7 +362,7 @@ def query_cascade_chain(
             .all()
         )
         rows.sort(key=lambda r: r.id)
-        downstream_nodes = [_build_node(db, r, version.id) for r in rows]
+        downstream_nodes = [_build_node(db, r, version.id, year) for r in rows]
 
     # Effective-cost lookup keyed by entity id, for edge amount resolution.
     # Includes the focal so edges anchored at the focal also resolve.
@@ -372,7 +396,7 @@ def query_cascade_chain(
         ))
 
     terminals = _business_terminals_for_entity(
-        db, focal, focal_node.effective_cost,
+        db, focal, focal_node.effective_cost, year,
     )
 
     return CascadeChainResult(
