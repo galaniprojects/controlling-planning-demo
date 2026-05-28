@@ -80,3 +80,33 @@ export function versionSubtitle(v: DistributionVersionResponse): string {
     : 'No rationale recorded';
   return `${originLabel(v.origin)} · ${preview}`;
 }
+
+/**
+ * Resolve the "in-force" production version for the current date — the
+ * latest active production version whose `active_from` is ≤ today.
+ * Mirrors the backend resolver (`distribution_service.resolve_active_version`
+ * per [F-S1-03]) so the toolbar selector pre-selects the same version
+ * the cascade resolver would have picked server-side.
+ *
+ * Returns `null` when no active production version has yet taken effect
+ * (e.g., a fresh repo with only a scheduled-future active row).
+ *
+ * Shared by `AllocationFlowView` (Session 4 toolbar) and
+ * `EntityDistributionEditor` (Session 5 header) so the two surfaces
+ * cannot drift on what "in force" means.
+ */
+export function pickInForceVersionId(
+  versions: DistributionVersionResponse[],
+): number | null {
+  const today = new Date().toISOString().slice(0, 10);
+  let best: DistributionVersionResponse | null = null;
+  for (const v of versions) {
+    if (v.scenario_id !== null) continue;
+    if (v.status !== 'active') continue;
+    if (!v.active_from || v.active_from > today) continue;
+    if (!best || (v.active_from ?? '') > (best.active_from ?? '')) {
+      best = v;
+    }
+  }
+  return best?.id ?? null;
+}
