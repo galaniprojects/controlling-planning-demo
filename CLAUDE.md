@@ -93,8 +93,9 @@ Current focus: enhancements, bug fixes, and demo preparation — see `PROGRESS.m
 3. **Verify:** Run the app to confirm current state matches PROGRESS.md.
 4. **Work:** Continue from where the last session left off. **Always create a new branch off `main`** before starting (`feature/<name>` | `fix/<name>` | `session/<name>`) — never work directly on `main`.
 5. **Test:** Write unit tests for every new function; suggest manual testing of new features before creating a PR. Do NOT create a PR without asking first.
-6. **Document:** Update `PROGRESS.md`, `README.md`, and in-app documentation (`backend/seed/fixtures/` manuals) — see Documentation Updates below.
-7. **End:** Commit all changes with descriptive messages. `PROGRESS.md` is the final commit of each session.
+6. **Review:** Once implementation is verified, ask the user whether to launch an independent code reviewer — see Code Review below. Do NOT run it unprompted, and do NOT change code in response to its findings without explicit confirmation.
+7. **Document:** Update `PROGRESS.md`, `README.md`, and in-app documentation (`backend/seed/fixtures/` manuals) — see Documentation Updates below.
+8. **End:** Commit all changes with descriptive messages. `PROGRESS.md` is the final commit of each session.
 
 ## Documentation Updates (Non-Negotiable)
 - **API endpoints added/changed/removed** → update `README.md` (API tables) and `PROGRESS.md`.
@@ -114,6 +115,14 @@ Current focus: enhancements, bug fixes, and demo preparation — see `PROGRESS.m
 - **QA test plan:** `qa/test-plan.md` — living E2E regression test plan. Update scenario counts when adding new test suites or scenarios.
 - **Bug tracking:** `qa/bug-report.md` — created during testing sessions to track issues found.
 - **Testing sessions are read-only:** do not fix code during testing, only document issues. A separate fix session addresses issues from the bug report.
+
+## Code Review
+- **Trigger:** When implementation for a task/wave is complete and verified — before opening a PR, and before the final `PROGRESS.md` commit.
+- **Ask first, don't run unprompted:** Surface the option to the user (e.g. "Implementation is done — should I launch an independent code reviewer on the diff?"). Wait for explicit confirmation before invoking it.
+- **Which agent:** Default to the `code-reviewer-fresh` sub-agent (read-only, fresh context — avoids self-review bias). Use `code-reviewer` only if the user asks for one that can also propose edits. The `/code-review ultra` skill is user-triggered only — never launch it yourself.
+- **What to pass it:** The current diff vs. `main` (or the relevant base), plus a one-paragraph brief of what the change is meant to do and what's intentionally out of scope.
+- **What to do with the report:** Relay findings to the user — grouped by severity (blocker / should-fix / nit) with file:line references. **Do not touch code based on the report without explicit confirmation.** Ask the user which findings to act on; treat their answer as the scope. If they say "fix all blockers," that does not authorize nits.
+- **Memory:** This rule overrides any general guidance about auto-applying review fixes.
 
 ## Git Discipline
 - Always create a new branch off `main` (`feature/<name>` | `fix/<name>` | `session/<name>`) — never work directly on `main`.
