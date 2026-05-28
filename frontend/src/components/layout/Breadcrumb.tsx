@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { ROUTE_LABELS } from '@/lib/routes';
 
 export interface BreadcrumbItem {
@@ -22,7 +22,6 @@ interface Props {
 
 export function Breadcrumb({ items }: Props = {}) {
   const location = useLocation();
-  const navigate = useNavigate();
 
   if (items && items.length > 0) {
     return (
@@ -68,16 +67,18 @@ export function Breadcrumb({ items }: Props = {}) {
 
         return (
           <span key={path} className="flex items-center gap-1.5">
-            <span className="text-muted-foreground/40">/</span>
+            {i > 0 && (
+              <span className="text-muted-foreground/40">/</span>
+            )}
             {isLast ? (
               <span className="text-sm font-medium text-foreground">{label}</span>
             ) : (
-              <button
-                onClick={() => navigate(path)}
+              <Link
+                to={path}
                 className="text-sm text-muted-foreground hover:text-primary"
               >
                 {label}
-              </button>
+              </Link>
             )}
           </span>
         );
