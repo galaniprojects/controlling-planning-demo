@@ -2,10 +2,10 @@
  * EntityTypeBadge — colour-coded badge for the three ChargeableEntity
  * subtypes (Project / Offering / InternalService).
  *
- * Codifies the colour vocabulary the FD-6 admin panel established
- * (blue / purple / amber) so the Workbench sidebar, service tile grid,
- * Allocation Flow nodes (Session 4), and Distribution Editor candidate
- * picker (Session 5) share one source of truth.
+ * Codifies the colour vocabulary (blue / purple / violet) so the
+ * Workbench sidebar, service tile grid, Allocation Flow nodes
+ * (Session 4), and Distribution Editor candidate picker (Session 5)
+ * share one source of truth.
  *
  * Variants:
  *  - "solid" (default) — pill-shaped Badge with subtype-coloured fill,
@@ -28,9 +28,11 @@ const SUBTYPE_LABEL: Record<ChargeableEntityType, string> = {
 };
 
 /**
- * Solid badge classes. Matches the FD-6 admin panel exactly so the
- * Chargeable Entities admin row, the Workbench sidebar item, and the
- * service tile grid header all use the same colour for a given subtype.
+ * Solid badge classes. Single source of truth for the subtype palette —
+ * the Chargeable Entities admin row, the Workbench sidebar item, the
+ * service tile grid header, the Allocation Flow nodes, and the
+ * Distribution Editor candidate picker all use the same colour for a
+ * given subtype.
  */
 const SUBTYPE_BADGE_CLASS: Record<ChargeableEntityType, string> = {
   Project:
@@ -38,7 +40,7 @@ const SUBTYPE_BADGE_CLASS: Record<ChargeableEntityType, string> = {
   Offering:
     'bg-purple-100 text-purple-700 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400',
   InternalService:
-    'bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400',
+    'bg-violet-100 text-violet-700 hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400',
 };
 
 interface Props {
