@@ -283,6 +283,13 @@ export function EntityDistributionEditor({
     if (!state.cascade || !state.entity || !mutationPlan) return;
     if (projection.isOverAllocated) return;
     dispatch({ type: 'SAVE_START' });
+    // N-1: track fan-out progress so the banner can render
+    // "Saved N of M mutations before failure." when one step throws
+    // mid-stream. `total` includes the optional to-business step;
+    // `completed` is incremented after each successful await.
+    const hasToBusinessStep = mutationPlan.toBusinessPct !== null;
+    const total = mutationPlan.mutations.length + (hasToBusinessStep ? 1 : 0);
+    let completed = 0;
     try {
       const versionId = state.resolvedVersionId;
       for (const m of mutationPlan.mutations) {
@@ -296,6 +303,7 @@ export function EntityDistributionEditor({
             onSandboxDeleteEdge,
           },
         });
+        completed += 1;
       }
       if (mutationPlan.toBusinessPct !== null) {
         if (onSandboxSetToBusiness) {
@@ -311,6 +319,7 @@ export function EntityDistributionEditor({
             { version_id: versionId },
           );
         }
+        completed += 1;
       }
       // Refetch to reseat pending from the server's authoritative state.
       await fetchData(versionId);
@@ -318,7 +327,16 @@ export function EntityDistributionEditor({
       const parsed = parseAllocationError(
         e instanceof Error ? e.message : String(e),
       );
-      dispatch({ type: 'SAVE_ERROR', error: parsed });
+      // Only surface partial-progress context when at least one mutation
+      // committed server-side. Pre-flight failures (first mutation
+      // throws, parse errors, missing version) leave the field
+      // undefined so the banner falls back to the typed generic copy.
+      dispatch({
+        type: 'SAVE_ERROR',
+        error: parsed,
+        partialProgress:
+          completed > 0 ? { completed, total } : undefined,
+      });
     }
   }, [
     state.cascade,
@@ -431,6 +449,7 @@ export function EntityDistributionEditor({
       {state.ui.saveError && (
         <SaveErrorBanner
           error={state.ui.saveError}
+          partialProgress={state.ui.savePartialProgress}
           entitiesById={buildIdentifierLookup(state.cascade)}
           onDismiss={() => dispatch({ type: 'CLEAR_SAVE_ERROR' })}
         />
@@ -658,10 +677,13 @@ async function runMutation(
 
 function SaveErrorBanner({
   error,
+  partialProgress,
   entitiesById,
   onDismiss,
 }: {
   error: ReturnType<typeof parseAllocationError>;
+  /** N-1: present when the save fan-out failed mid-stream. */
+  partialProgress: { completed: number; total: number } | null;
   entitiesById: Map<string, string>;
   onDismiss: () => void;
 }) {
@@ -696,6 +718,21 @@ function SaveErrorBanner({
         </p>
       </>
     );
+  } else if (partialProgress) {
+    // N-1: mid-fan-out failure with no typed error code — show how
+    // many mutations the server committed before the throw. Replaces
+    // the generic "Could not save" copy because the partial commit
+    // leaves the server in a state the pending rows don't reflect.
+    body = (
+      <>
+        <p className="text-sm text-red-800 dark:text-red-300 font-medium">
+          Saved {partialProgress.completed} of {partialProgress.total} mutations before failure.
+        </p>
+        <p className="text-[11px] text-red-700/80 dark:text-red-400/80 mt-1">
+          {error.message}
+        </p>
+      </>
+    );
   } else {
     body = (
       <p className="text-sm text-red-800 dark:text-red-300">{error.message}</p>
@@ -703,7 +740,21 @@ function SaveErrorBanner({
   }
   return (
     <Card className="border-red-500 bg-red-50 dark:bg-red-900/20 p-3 relative">
-      <div className="pr-6">{body}</div>
+      <div className="pr-6">
+        {body}
+        {/* Cycle/depth errors that ALSO came after a partial commit
+            surface the progress as additive context — the typed message
+            owns the headline, this footer adds the "server state is
+            partial" caveat so the user knows a refetch will show
+            mid-progress data, not a clean rollback. */}
+        {(error.type === 'cycle' || error.type === 'depth') &&
+          partialProgress && (
+            <p className="text-[11px] text-red-700/80 dark:text-red-400/80 mt-2 italic">
+              Server committed {partialProgress.completed} of{' '}
+              {partialProgress.total} mutations before this error.
+            </p>
+          )}
+      </div>
       <button
         type="button"
         onClick={onDismiss}
