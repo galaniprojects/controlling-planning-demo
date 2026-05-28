@@ -1822,6 +1822,8 @@ import type {
   AllocationBreakdownSortBy,
   EntityAllocationBreakdownResponse,
   LocationBreakdownResponse,
+  CascadeChainResponse,
+  DistributionCandidatesResponse,
 } from '@/types/api';
 
 export const chargingApi = {
@@ -2026,6 +2028,32 @@ export const chargingApi = {
     const qs = q.toString();
     return api.get<EntityStage1View>(
       `/api/charging/stage1/entities/${entityId}${qs ? '?' + qs : ''}`,
+    );
+  },
+
+  // === Cascade chain + distribution candidates (Service Workbench S1+S2) ===
+  // Open to all four roles per the `/api/charging/` read pattern.
+  getCascadeChain: (
+    entityId: string,
+    params?: { version_id?: number; evaluated_date?: string },
+  ) => {
+    const q = new URLSearchParams();
+    if (params?.version_id !== undefined) q.set('version_id', String(params.version_id));
+    if (params?.evaluated_date) q.set('evaluated_date', params.evaluated_date);
+    const qs = q.toString();
+    return api.get<CascadeChainResponse>(
+      `/api/charging/cascade/${entityId}${qs ? '?' + qs : ''}`,
+    );
+  },
+  getDistributionCandidates: (
+    sourceEntityId: string,
+    params?: { version_id?: number },
+  ) => {
+    const q = new URLSearchParams();
+    if (params?.version_id !== undefined) q.set('version_id', String(params.version_id));
+    const qs = q.toString();
+    return api.get<DistributionCandidatesResponse>(
+      `/api/charging/distribution-candidates/${sourceEntityId}${qs ? '?' + qs : ''}`,
     );
   },
 

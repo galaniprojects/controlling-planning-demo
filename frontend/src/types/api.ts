@@ -2283,6 +2283,77 @@ export interface EntityStage1View {
   history: EntityStage1VersionEntry[];
 }
 
+// === Cascade chain + distribution candidates (Service Workbench S1+S2) ===
+//
+// Backend schemas in `backend/schemas/distribution.py` (CascadeChainResponse,
+// DistributionCandidatesResponse). Wired by the Workbench service tile grid
+// (Session 3 — counts only) and consumed in full by the Allocation Flow view
+// (Session 4) and the Distribution Editor entity picker (Session 5).
+
+export type CascadeEntityType = 'Project' | 'Offering' | 'InternalService';
+
+export interface CascadeNode {
+  entity_id: string;
+  entity_name: string;
+  entity_type: CascadeEntityType;
+  identifier: string;
+  own_cost: number;
+  effective_cost: number;
+  to_business_pct: number;
+  self_retained_pct: number;
+}
+
+export interface CascadeEdge {
+  source_entity_id: string;
+  destination_entity_id: string;
+  percentage: number;
+  amount: number;
+  /** Cache miss → null on seeded edges until the first write to the version. */
+  chain_depth: number | null;
+  rationale: string | null;
+}
+
+export interface CascadeBusinessTerminal {
+  charging_location_id: string;
+  code: string;
+  name: string;
+  percentage: number;
+  amount: number;
+}
+
+export interface CascadeChainResponse {
+  focal: CascadeNode;
+  upstream: CascadeNode[];
+  downstream: CascadeNode[];
+  edges: CascadeEdge[];
+  business_terminals: CascadeBusinessTerminal[];
+  version: DistributionVersionResponse;
+  /** ISO date `YYYY-MM-DD`. */
+  evaluated_date: string;
+  max_allocation_depth: number;
+}
+
+export interface DistributionCandidate {
+  entity_id: string;
+  entity_name: string;
+  entity_type: CascadeEntityType;
+  identifier: string;
+  /** Edge-count of the longest path through the hypothetical new edge. */
+  resulting_chain_depth: number;
+  /** Within 1 of the cap and still saveable. */
+  near_max_depth_warning: boolean;
+  /** Strictly over the cap — the save endpoint would 409. */
+  would_violate_max_depth: boolean;
+}
+
+export interface DistributionCandidatesResponse {
+  source_entity_id: string;
+  version_id: number;
+  max_allocation_depth: number;
+  candidates: DistributionCandidate[];
+  total: number;
+}
+
 // === BTC Profiles (Stage 2) [F-S2-01..08] ===
 
 export type BTCMode = 'manual' | 'automatic';
