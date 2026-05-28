@@ -3,6 +3,21 @@ import { BRANDING } from '@/config/branding';
 const STORAGE_KEY = `${BRANDING.localStoragePrefix}-persona`;
 let currentUserId = localStorage.getItem(STORAGE_KEY) || 'persona-controller';
 
+/**
+ * Thrown for any non-2xx response. Subclasses Error so existing
+ * `catch (e) { setError(e.message) }` consumers keep working; callers
+ * that need to discriminate by status (e.g. `navigateToWorkbenchByProject`
+ * distinguishing 404 from transient failures) can `instanceof` check.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 export function setCurrentUser(userId: string) {
   currentUserId = userId;
   localStorage.setItem(STORAGE_KEY, userId);
@@ -36,7 +51,7 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
         : detail && typeof detail === 'object'
           ? JSON.stringify(detail)
           : `HTTP ${response.status}`;
-    throw new Error(msg);
+    throw new ApiError(msg, response.status);
   }
 
   return response.json();

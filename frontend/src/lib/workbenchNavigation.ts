@@ -23,6 +23,7 @@
  */
 import type { NavigateFunction } from 'react-router-dom';
 import { chargingApi } from '@/api/endpoints';
+import { ApiError } from '@/api/client';
 
 export async function navigateToWorkbenchByProject(
   projectId: string,
@@ -31,10 +32,22 @@ export async function navigateToWorkbenchByProject(
   try {
     const entity = await chargingApi.getEntityByProjectId(projectId);
     navigate(`/workbench?entity=${encodeURIComponent(entity.id)}`);
-  } catch {
-    // Fall back to the legacy alias — ProjectWorkbench resolves it on
-    // mount via its alias-resolver effect, so the user still lands on
-    // the correct entity (just with one redirect tick).
-    navigate(`/workbench?project=${encodeURIComponent(projectId)}`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      // Genuine "no entity for this project_id" — fall through to the
+      // legacy alias so the Wave A alias resolver in ProjectWorkbench
+      // can surface its own not-found state.
+      navigate(`/workbench?project=${encodeURIComponent(projectId)}`);
+      return;
+    }
+    // Transient failure (network, 5xx, CORS, JSON parse). Don't degrade
+    // through the alias resolver — that would double-fail and confuse
+    // the user. Land them on /workbench so they can retry manually.
+    console.warn(
+      '[navigateToWorkbenchByProject] failed to resolve project_id',
+      projectId,
+      err,
+    );
+    navigate('/workbench');
   }
 }
