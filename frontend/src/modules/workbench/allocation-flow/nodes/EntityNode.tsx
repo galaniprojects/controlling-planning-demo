@@ -58,7 +58,6 @@ export function EntityNode({
     >
       <foreignObject width={w} height={h} overflow="visible">
         <div
-          xmlns="http://www.w3.org/1999/xhtml"
           onClick={onClick}
           onMouseEnter={() => onHoverChange?.(true)}
           onMouseLeave={() => onHoverChange?.(false)}
@@ -137,7 +136,6 @@ function ExpandPill({
     >
       <foreignObject width={w + 16} height={28} overflow="visible">
         <div
-          xmlns="http://www.w3.org/1999/xhtml"
           className="inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground border-2 border-card shadow-sm px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap hover:bg-primary/90 transition-colors"
           title={`${count} more upstream/downstream — click to expand one level`}
         >

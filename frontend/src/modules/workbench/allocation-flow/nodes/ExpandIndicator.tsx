@@ -40,7 +40,6 @@ export function ExpandIndicator({
     >
       <foreignObject width={56} height={24} overflow="visible">
         <div
-          xmlns="http://www.w3.org/1999/xhtml"
           className={cn(
             'inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground',
             'border-2 border-card shadow-sm px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap',

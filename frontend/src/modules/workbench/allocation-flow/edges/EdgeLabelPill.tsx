@@ -39,7 +39,6 @@ export function EdgeLabelPill({
     >
       <foreignObject width={PILL_W} height={PILL_H} overflow="visible">
         <div
-          xmlns="http://www.w3.org/1999/xhtml"
           className={cn(
             'flex flex-col items-center justify-center rounded-md backdrop-blur-sm border px-1.5 py-0.5 leading-tight',
             'bg-card/80 border-border text-foreground',

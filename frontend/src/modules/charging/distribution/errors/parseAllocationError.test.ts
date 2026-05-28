@@ -1,19 +1,4 @@
-/**
- * Unit tests for `parseAllocationError` — runnable under Vitest once
- * the integration step adds the `vitest` devDependency. The
- * declarations below are local shims so `tsc --noEmit` stays clean in
- * the meantime; remove them when `vitest/globals` is wired.
- */
-
-// Local Vitest shims — replace with `import { describe, it, expect } from 'vitest';`
-declare function describe(name: string, fn: () => void): void;
-declare function it(name: string, fn: () => void): void;
-interface Expectation<T> {
-  toBe(expected: T): void;
-  toEqual(expected: unknown): void;
-}
-declare function expect<T>(actual: T): Expectation<T>;
-
+import { describe, it, expect } from 'vitest';
 import { parseAllocationError } from './parseAllocationError';
 
 describe('parseAllocationError', () => {

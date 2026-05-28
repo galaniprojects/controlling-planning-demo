@@ -2,7 +2,7 @@
  * Distribution table shell — column headers + row slots + empty-state.
  * Composes DistributionRow + ToBusinessRow + SelfRetainedRow.
  */
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 interface Props {
   /** DistributionRow elements. */

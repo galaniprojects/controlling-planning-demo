@@ -27,7 +27,6 @@ export function SelfRetainedBadge({
     <g transform={`translate(${x} ${y})`}>
       <foreignObject width={w} height={28} overflow="visible">
         <div
-          xmlns="http://www.w3.org/1999/xhtml"
           className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-muted-foreground/50 bg-background px-2 py-0.5 text-[10px] text-muted-foreground"
           title="Share retained by the focal entity for its own cost centre"
         >

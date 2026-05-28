@@ -41,7 +41,6 @@ export function BusinessNode({
     >
       <foreignObject width={w} height={h} overflow="visible">
         <div
-          xmlns="http://www.w3.org/1999/xhtml"
           onClick={onClick}
           onMouseEnter={() => onHoverChange?.(true)}
           onMouseLeave={() => onHoverChange?.(false)}

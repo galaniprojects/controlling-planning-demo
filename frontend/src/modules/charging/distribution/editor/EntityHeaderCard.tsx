@@ -7,7 +7,7 @@
  * the editor owns the selector instance (so version switching can
  * trigger refetch + discard) and passes it via children.
  */
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Card } from '@/components/ui/card';
 import { EntityTypeBadge } from '@/components/shared/EntityTypeBadge';
 import { formatCurrencyDetailed } from '@/lib/formatters';

@@ -1,20 +1,4 @@
-/**
- * Unit tests for `projectAllocation` + `previewLineWidth` — runnable
- * under Vitest once the integration step adds the `vitest`
- * devDependency. The declarations below are local shims so
- * `tsc --noEmit` stays clean in the meantime.
- */
-
-// Local Vitest shims — replace with `import { describe, it, expect } from 'vitest';`
-declare function describe(name: string, fn: () => void): void;
-declare function it(name: string, fn: () => void): void;
-interface Expectation<T> {
-  toBe(expected: T): void;
-  toEqual(expected: unknown): void;
-  toBeCloseTo(expected: number, precision?: number): void;
-}
-declare function expect<T>(actual: T): Expectation<T>;
-
+import { describe, it, expect } from 'vitest';
 import { projectAllocation, previewLineWidth } from './projectAllocation';
 
 describe('previewLineWidth', () => {

@@ -39,7 +39,6 @@ export function FocalEntityNode({
     <g transform={`translate(${x} ${y})`} data-focal-id={node.entity_id}>
       <foreignObject width={w} height={h} overflow="visible">
         <div
-          xmlns="http://www.w3.org/1999/xhtml"
           onMouseEnter={() => onHoverChange?.(true)}
           onMouseLeave={() => onHoverChange?.(false)}
           className={cn(
