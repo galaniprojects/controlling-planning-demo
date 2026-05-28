@@ -2,8 +2,8 @@
  * EntityTypeBadge — colour-coded badge for the three ChargeableEntity
  * subtypes (Project / Offering / InternalService).
  *
- * Codifies the colour vocabulary (blue / purple / violet) so the
- * Workbench sidebar, service tile grid, Allocation Flow nodes
+ * Codifies the colour vocabulary (blue / teal / violet) per spec §3.2
+ * so the Workbench sidebar, service tile grid, Allocation Flow nodes
  * (Session 4), and Distribution Editor candidate picker (Session 5)
  * share one source of truth.
  *
@@ -38,7 +38,7 @@ const SUBTYPE_BADGE_CLASS: Record<ChargeableEntityType, string> = {
   Project:
     'bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400',
   Offering:
-    'bg-purple-100 text-purple-700 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400',
+    'bg-teal-100 text-teal-700 hover:bg-teal-100 dark:bg-teal-900/30 dark:text-teal-400',
   InternalService:
     'bg-violet-100 text-violet-700 hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400',
 };
