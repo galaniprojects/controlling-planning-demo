@@ -142,32 +142,9 @@ export function useAllocationFlowState(entityId: string | null) {
     dispatch({ type: 'reset_depth' });
   }, [entityId]);
 
-  // S-8 — mount-only persist of the initial `legendOpen` default.
-  //
-  // The toggle-effect below already writes on every change, including
-  // the React-mandated first run. This effect is functionally a duplicate
-  // of that initial write, but it pins the contract independently: a
-  // first-session user (sessionStorage empty → default true) gets their
-  // preference recorded immediately rather than waiting for the first
-  // toggle. If a future refactor adds a `useRef` guard to the toggle-
-  // effect to skip its initial run, this explicit mount-write is what
-  // keeps the default-persistence semantics intact.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      window.sessionStorage.setItem(
-        LEGEND_STORAGE_KEY,
-        state.legendOpen ? '1' : '0',
-      );
-    } catch {
-      /* sessionStorage may be unavailable (Safari private mode etc.) — swallow. */
-    }
-    // Intentionally empty deps — this effect captures the initial state
-    // for first-session persistence only. Subsequent writes are owned
-    // by the toggle-effect below, which fires on every legendOpen change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+  // Mirror legendOpen → sessionStorage on every change. The deps array
+  // includes the initial mount run, so first-session users (storage
+  // empty → default true) get their preference recorded immediately.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
