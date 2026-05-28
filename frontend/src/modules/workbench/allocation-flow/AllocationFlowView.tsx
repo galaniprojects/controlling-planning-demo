@@ -9,14 +9,16 @@
  * stub's EmptyState placeholder is replaced by the SVG canvas.
  *
  * Layout / depth / hover state lives in `useAllocationFlowState`.
- * Pure layout maths in `layout.ts` + `edgeGeometry.ts`. Tooltips,
- * legend, version selector, and ShowFullChainToggle land in the
- * follow-up commit.
+ * Pure layout maths in `layout.ts` + `edgeGeometry.ts`. Toolbar above
+ * the canvas hosts the VersionSelector + ShowFullChainToggle + legend
+ * trigger; the FlowLegend overlays the canvas top-right per [AF-08].
  *
  * Decision references:
  *  - `[AF-01]` left→right DAG, focal centred
- *  - `[AF-06]` ±1 default, +N indicator drives one-step expand
+ *  - `[AF-06]` ±1 default, +N indicator drives one-step expand,
+ *    Show-full-chain warns past 20 nodes
  *  - `[AF-07]` node click → workbench, business click → BTC profile
+ *  - `[AF-08]` collapsible legend top-right, sessionStorage-persisted
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -29,9 +31,21 @@ import { EntityTypeBadge } from '@/components/shared/EntityTypeBadge';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { chargingApi } from '@/api/endpoints';
 import { formatCurrency } from '@/lib/formatters';
-import type { CascadeChainResponse } from '@/types/api';
+import type {
+  CascadeChainResponse,
+  CascadeEdge,
+  CascadeNode,
+  DistributionVersionResponse,
+} from '@/types/api';
+import { VersionSelector } from '@/modules/charging/distribution/versions/VersionSelector';
 
-import { buildLayout, FOCAL_NODE_W } from './layout';
+import {
+  BUSINESS_TERMINAL_THRESHOLD,
+  buildLayout,
+  countVisibleNodes,
+  FOCAL_NODE_W,
+  maxDepths,
+} from './layout';
 import { edgeKey } from './edgeGeometry';
 import { useAllocationFlowState } from './useAllocationFlowState';
 import { ColumnHeaders } from './ColumnHeaders';
@@ -40,7 +54,30 @@ import { FocalEntityNode } from './nodes/FocalEntityNode';
 import { SelfRetainedBadge } from './nodes/SelfRetainedBadge';
 import { BusinessNode } from './nodes/BusinessNode';
 import { CollapsedBusinessNode } from './nodes/CollapsedBusinessNode';
-import { CascadeEdge } from './edges/CascadeEdge';
+import { CascadeEdge as CascadeEdgeComp } from './edges/CascadeEdge';
+import { FlowLegend } from './FlowLegend';
+import { FlowTooltip } from './FlowTooltip';
+import { ShowFullChainToggle } from './ShowFullChainToggle';
+
+const MAX_REASONABLE_DEPTH = 12;
+
+function pickInForceVersionId(
+  versions: DistributionVersionResponse[],
+): number | null {
+  const today = new Date().toISOString().slice(0, 10);
+  const candidates = versions.filter(
+    (v) =>
+      v.status === 'active' &&
+      v.scenario_id === null &&
+      v.active_from !== null &&
+      v.active_from <= today,
+  );
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) =>
+    (b.active_from ?? '').localeCompare(a.active_from ?? ''),
+  );
+  return candidates[0]?.id ?? null;
+}
 
 export function AllocationFlowView() {
   const navigate = useNavigate();
@@ -51,8 +88,39 @@ export function AllocationFlowView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Versions list for the top-right selector.
+  const [versions, setVersions] = useState<DistributionVersionResponse[]>([]);
+  const [versionsLoaded, setVersionsLoaded] = useState(false);
+
   const { state, dispatch } = useAllocationFlowState(entityId);
 
+  // Load production versions once — independent of entity selection.
+  useEffect(() => {
+    let cancelled = false;
+    chargingApi
+      .listDistributionVersions({ include_scenario: false })
+      .then((res) => {
+        if (cancelled) return;
+        setVersions(res.items);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setVersions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setVersionsLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const inForceVersionId = useMemo(
+    () => pickInForceVersionId(versions),
+    [versions],
+  );
+
+  // Cascade fetch — refetches when entity or selected version changes.
   useEffect(() => {
     if (!entityId) {
       setLoading(false);
@@ -63,9 +131,21 @@ export function AllocationFlowView() {
     setLoading(true);
     setError(null);
     chargingApi
-      .getCascadeChain(entityId)
+      .getCascadeChain(
+        entityId,
+        state.selectedVersionId !== null
+          ? { version_id: state.selectedVersionId }
+          : undefined,
+      )
       .then((res) => {
-        if (!cancelled) setData(res);
+        if (!cancelled) {
+          setData(res);
+          // Sync selector to the server-resolved version if we didn't
+          // already have an explicit pick.
+          if (state.selectedVersionId === null) {
+            dispatch({ type: 'set_version', id: res.version.id });
+          }
+        }
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -77,7 +157,10 @@ export function AllocationFlowView() {
     return () => {
       cancelled = true;
     };
-  }, [entityId]);
+    // We intentionally don't depend on `dispatch` (stable) or the whole
+    // state object — only entityId + selectedVersionId drive refetches.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityId, state.selectedVersionId]);
 
   const back = () => {
     if (window.history.length > 1) {
@@ -94,6 +177,21 @@ export function AllocationFlowView() {
     return buildLayout(data, state.expandedDepthUp, state.expandedDepthDown);
   }, [data, state.expandedDepthUp, state.expandedDepthDown]);
 
+  // For ShowFullChainToggle warning + disabled state.
+  const fullChainStats = useMemo(() => {
+    if (!data)
+      return { fullyExpandedNodeCount: 0, hasDeeperChain: false };
+    const md = maxDepths(data);
+    const count = countVisibleNodes(
+      data,
+      MAX_REASONABLE_DEPTH,
+      MAX_REASONABLE_DEPTH,
+    );
+    const hasDeeper =
+      md.up > state.expandedDepthUp || md.down > state.expandedDepthDown;
+    return { fullyExpandedNodeCount: count, hasDeeperChain: hasDeeper };
+  }, [data, state.expandedDepthUp, state.expandedDepthDown]);
+
   // Quick lookup: entity_id → its rendered position (for edge endpoints).
   const positionById = useMemo(() => {
     const m = new Map<
@@ -106,6 +204,52 @@ export function AllocationFlowView() {
     for (const p of layout.downstream) m.set(p.node.entity_id, p);
     return m;
   }, [layout]);
+
+  // Tooltip: derive from hover state.
+  const tooltip = useMemo(() => {
+    if (!layout || !data) return null;
+    if (state.hoverEdgeKey) {
+      const [src, dst] = state.hoverEdgeKey.split('→');
+      const e = layout.edges.find(
+        (ed) =>
+          ed.source_entity_id === src && ed.destination_entity_id === dst,
+      );
+      if (!e) return null;
+      const sp = positionById.get(src);
+      const dp = positionById.get(dst);
+      if (!sp || !dp) return null;
+      const cx = (sp.x + sp.w + dp.x) / 2;
+      const cy = (sp.y + sp.h / 2 + dp.y + dp.h / 2) / 2;
+      return {
+        kind: 'edge' as const,
+        edge: e,
+        left: cx + 20,
+        top: cy - 30,
+        version: data.version,
+      };
+    }
+    if (state.hoverNodeId) {
+      const pos = positionById.get(state.hoverNodeId);
+      if (!pos) return null;
+      const node =
+        state.hoverNodeId === data.focal.entity_id
+          ? data.focal
+          : (data.upstream.find(
+              (n) => n.entity_id === state.hoverNodeId,
+            ) ??
+            data.downstream.find(
+              (n) => n.entity_id === state.hoverNodeId,
+            ));
+      if (!node) return null;
+      return {
+        kind: 'node' as const,
+        node,
+        left: pos.x + pos.w + 12,
+        top: pos.y,
+      };
+    }
+    return null;
+  }, [state.hoverEdgeKey, state.hoverNodeId, layout, data, positionById]);
 
   return (
     <div className="px-6 py-6 space-y-4">
@@ -151,6 +295,37 @@ export function AllocationFlowView() {
         <>
           <FocalStrip data={data} />
 
+          {/* Toolbar: version selector + show-full-chain. */}
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="flex flex-col gap-1 min-w-0">
+              <label className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                Distribution version
+              </label>
+              {versionsLoaded ? (
+                <VersionSelector
+                  versions={versions}
+                  selectedVersionId={state.selectedVersionId ?? data.version.id}
+                  inForceVersionId={inForceVersionId}
+                  onChange={(id) =>
+                    dispatch({ type: 'set_version', id })
+                  }
+                />
+              ) : (
+                <Skeleton className="h-9 w-[320px]" />
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <ShowFullChainToggle
+                showFullChain={state.showFullChain}
+                fullyExpandedNodeCount={fullChainStats.fullyExpandedNodeCount}
+                hasDeeperChain={fullChainStats.hasDeeperChain}
+                onApply={(value) =>
+                  dispatch({ type: 'set_show_full_chain', value })
+                }
+              />
+            </div>
+          </div>
+
           {/* Soft empty when the focal is fully isolated. */}
           {layout.upstream.length === 0 &&
             layout.downstream.length === 0 &&
@@ -166,196 +341,255 @@ export function AllocationFlowView() {
               </Card>
             )}
 
-          <Card className="p-0 overflow-x-auto overflow-y-hidden">
-            <svg
-              role="img"
-              aria-label="Allocation flow diagram"
-              width={layout.width}
-              height={layout.height}
-              viewBox={`0 0 ${layout.width} ${layout.height}`}
-              className="block"
-              style={{ minWidth: '100%' }}
-            >
-              <ColumnHeaders
-                focalCx={layout.focal.x + FOCAL_NODE_W / 2}
-                upstreamRightX={layout.focal.x - 20}
-                downstreamLeftX={layout.focal.x + FOCAL_NODE_W + 20}
-                hasUpstream={layout.upstream.length > 0}
-                hasDownstream={layout.downstream.length > 0}
-                hasBusiness={layout.business.length > 0}
-                businessLeftX={
-                  layout.business[0] ? layout.business[0].x : undefined
-                }
+          <Card className="p-0 relative">
+            {/* Legend overlay — stays pinned regardless of horizontal scroll. */}
+            <div className="absolute top-3 right-3 z-20">
+              <FlowLegend
+                open={state.legendOpen}
+                onToggle={() => dispatch({ type: 'toggle_legend' })}
               />
+            </div>
 
-              {/* Soft-empty labels for missing side columns. */}
-              {layout.upstream.length === 0 && (
-                <text
-                  x={layout.focal.x - 32}
-                  y={layout.focal.y + layout.focal.h / 2}
-                  textAnchor="end"
-                  className="text-[10px] italic"
-                  style={{ fill: 'var(--muted-foreground)' }}
+            <div className="overflow-x-auto overflow-y-hidden">
+              <div
+                className="relative"
+                style={{ width: layout.width, height: layout.height }}
+              >
+                <svg
+                  role="img"
+                  aria-label="Allocation flow diagram"
+                  width={layout.width}
+                  height={layout.height}
+                  viewBox={`0 0 ${layout.width} ${layout.height}`}
+                  className="block"
                 >
-                  No upstream entities — focal is a root.
-                </text>
-              )}
-              {layout.downstream.length === 0 && layout.business.length === 0 && (
-                <text
-                  x={layout.focal.x + FOCAL_NODE_W + 32}
-                  y={layout.focal.y + layout.focal.h / 2}
-                  textAnchor="start"
-                  className="text-[10px] italic"
-                  style={{ fill: 'var(--muted-foreground)' }}
-                >
-                  No downstream allocations yet.
-                </text>
-              )}
-
-              {/* Edges (rendered first so node bodies sit on top). */}
-              {layout.edges.map((e) => {
-                const src = positionById.get(e.source_entity_id);
-                const dst = positionById.get(e.destination_entity_id);
-                if (!src || !dst) return null;
-                const key = edgeKey(e.source_entity_id, e.destination_entity_id);
-                return (
-                  <CascadeEdge
-                    key={key}
-                    src={src}
-                    dst={dst}
-                    percentage={e.percentage}
-                    amount={e.amount}
-                    maxAmount={layout.maxEdgeAmount}
-                    emphasised={state.hoverEdgeKey === key}
-                    onMouseEnter={() =>
-                      dispatch({ type: 'set_hover_edge', key })
-                    }
-                    onMouseLeave={() =>
-                      dispatch({ type: 'set_hover_edge', key: null })
+                  <ColumnHeaders
+                    focalCx={layout.focal.x + FOCAL_NODE_W / 2}
+                    upstreamRightX={layout.focal.x - 20}
+                    downstreamLeftX={layout.focal.x + FOCAL_NODE_W + 20}
+                    hasUpstream={layout.upstream.length > 0}
+                    hasDownstream={layout.downstream.length > 0}
+                    hasBusiness={layout.business.length > 0}
+                    businessLeftX={
+                      layout.business[0] ? layout.business[0].x : undefined
                     }
                   />
-                );
-              })}
 
-              {/* Upstream column(s). */}
-              {layout.upstream.map((p) => (
-                <EntityNode
-                  key={p.node.entity_id}
-                  node={p.node}
-                  x={p.x}
-                  y={p.y}
-                  w={p.w}
-                  h={p.h}
-                  hiddenCount={layout.hiddenUpstreamCount.get(p.node.entity_id)}
-                  hiddenDirection="upstream"
-                  isHovered={state.hoverNodeId === p.node.entity_id}
-                  onHoverChange={(h) =>
-                    dispatch({
-                      type: 'set_hover_node',
-                      id: h ? p.node.entity_id : null,
-                    })
-                  }
-                  onClick={() => navigate(`/workbench?entity=${p.node.entity_id}`)}
-                  onExpand={() => dispatch({ type: 'expand_up' })}
-                />
-              ))}
+                  {/* Soft-empty labels for missing side columns. */}
+                  {layout.upstream.length === 0 && (
+                    <text
+                      x={layout.focal.x - 32}
+                      y={layout.focal.y + layout.focal.h / 2}
+                      textAnchor="end"
+                      className="text-[10px] italic"
+                      style={{ fill: 'var(--muted-foreground)' }}
+                    >
+                      No upstream entities — focal is a root.
+                    </text>
+                  )}
+                  {layout.downstream.length === 0 &&
+                    layout.business.length === 0 && (
+                      <text
+                        x={layout.focal.x + FOCAL_NODE_W + 32}
+                        y={layout.focal.y + layout.focal.h / 2}
+                        textAnchor="start"
+                        className="text-[10px] italic"
+                        style={{ fill: 'var(--muted-foreground)' }}
+                      >
+                        No downstream allocations yet.
+                      </text>
+                    )}
 
-              {/* Downstream column(s). */}
-              {layout.downstream.map((p) => (
-                <EntityNode
-                  key={p.node.entity_id}
-                  node={p.node}
-                  x={p.x}
-                  y={p.y}
-                  w={p.w}
-                  h={p.h}
-                  hiddenCount={layout.hiddenDownstreamCount.get(p.node.entity_id)}
-                  hiddenDirection="downstream"
-                  isHovered={state.hoverNodeId === p.node.entity_id}
-                  onHoverChange={(h) =>
-                    dispatch({
-                      type: 'set_hover_node',
-                      id: h ? p.node.entity_id : null,
-                    })
-                  }
-                  onClick={() => navigate(`/workbench?entity=${p.node.entity_id}`)}
-                  onExpand={() => dispatch({ type: 'expand_down' })}
-                />
-              ))}
+                  {/* Edges (rendered first so node bodies sit on top). */}
+                  {layout.edges.map((e) => {
+                    const src = positionById.get(e.source_entity_id);
+                    const dst = positionById.get(e.destination_entity_id);
+                    if (!src || !dst) return null;
+                    const key = edgeKey(
+                      e.source_entity_id,
+                      e.destination_entity_id,
+                    );
+                    return (
+                      <CascadeEdgeComp
+                        key={key}
+                        src={src}
+                        dst={dst}
+                        percentage={e.percentage}
+                        amount={e.amount}
+                        maxAmount={layout.maxEdgeAmount}
+                        emphasised={state.hoverEdgeKey === key}
+                        onMouseEnter={() =>
+                          dispatch({ type: 'set_hover_edge', key })
+                        }
+                        onMouseLeave={() =>
+                          dispatch({ type: 'set_hover_edge', key: null })
+                        }
+                      />
+                    );
+                  })}
 
-              {/* Focal + self-retained badge. */}
-              <FocalEntityNode
-                node={layout.focal.node}
-                x={layout.focal.x}
-                y={layout.focal.y}
-                w={layout.focal.w}
-                h={layout.focal.h}
-                isHovered={state.hoverNodeId === layout.focal.node.entity_id}
-                onHoverChange={(h) =>
-                  dispatch({
-                    type: 'set_hover_node',
-                    id: h ? layout.focal.node.entity_id : null,
-                  })
-                }
-              />
-              {layout.focal.node.self_retained_pct > 0 && (
-                <SelfRetainedBadge
-                  x={layout.selfRetained.x}
-                  y={layout.selfRetained.y}
-                  w={layout.selfRetained.w}
-                  selfRetainedPct={layout.focal.node.self_retained_pct}
-                  selfRetainedAmount={
-                    (layout.focal.node.effective_cost *
-                      layout.focal.node.self_retained_pct) /
-                    100
-                  }
-                />
-              )}
+                  {/* Upstream column(s). */}
+                  {layout.upstream.map((p) => (
+                    <EntityNode
+                      key={p.node.entity_id}
+                      node={p.node}
+                      x={p.x}
+                      y={p.y}
+                      w={p.w}
+                      h={p.h}
+                      hiddenCount={layout.hiddenUpstreamCount.get(
+                        p.node.entity_id,
+                      )}
+                      hiddenDirection="upstream"
+                      isHovered={state.hoverNodeId === p.node.entity_id}
+                      onHoverChange={(h) =>
+                        dispatch({
+                          type: 'set_hover_node',
+                          id: h ? p.node.entity_id : null,
+                        })
+                      }
+                      onClick={() =>
+                        navigate(`/workbench?entity=${p.node.entity_id}`)
+                      }
+                      onExpand={() => dispatch({ type: 'expand_up' })}
+                    />
+                  ))}
 
-              {/* Business terminal column. */}
-              {layout.business.map((b) =>
-                b.kind === 'terminal' ? (
-                  <BusinessNode
-                    key={b.terminal.charging_location_id}
-                    terminal={b.terminal}
-                    x={b.x}
-                    y={b.y}
-                    w={b.w}
-                    h={b.h}
+                  {/* Downstream column(s). */}
+                  {layout.downstream.map((p) => (
+                    <EntityNode
+                      key={p.node.entity_id}
+                      node={p.node}
+                      x={p.x}
+                      y={p.y}
+                      w={p.w}
+                      h={p.h}
+                      hiddenCount={layout.hiddenDownstreamCount.get(
+                        p.node.entity_id,
+                      )}
+                      hiddenDirection="downstream"
+                      isHovered={state.hoverNodeId === p.node.entity_id}
+                      onHoverChange={(h) =>
+                        dispatch({
+                          type: 'set_hover_node',
+                          id: h ? p.node.entity_id : null,
+                        })
+                      }
+                      onClick={() =>
+                        navigate(`/workbench?entity=${p.node.entity_id}`)
+                      }
+                      onExpand={() => dispatch({ type: 'expand_down' })}
+                    />
+                  ))}
+
+                  {/* Focal + self-retained badge. */}
+                  <FocalEntityNode
+                    node={layout.focal.node}
+                    x={layout.focal.x}
+                    y={layout.focal.y}
+                    w={layout.focal.w}
+                    h={layout.focal.h}
                     isHovered={
-                      state.hoverNodeId === b.terminal.charging_location_id
+                      state.hoverNodeId === layout.focal.node.entity_id
                     }
                     onHoverChange={(h) =>
                       dispatch({
                         type: 'set_hover_node',
-                        id: h ? b.terminal.charging_location_id : null,
+                        id: h ? layout.focal.node.entity_id : null,
                       })
                     }
-                    onClick={() => navigate('/charging?section=btc')}
                   />
-                ) : (
-                  <CollapsedBusinessNode
-                    key="collapsed-business"
-                    x={b.x}
-                    y={b.y}
-                    w={b.w}
-                    h={b.h}
-                    hiddenCount={b.hiddenCount}
-                    hiddenAmount={b.hiddenAmount}
-                    hiddenPct={b.hiddenPct}
-                    isHovered={state.hoverNodeId === '__collapsed_business__'}
-                    onHoverChange={(h) =>
-                      dispatch({
-                        type: 'set_hover_node',
-                        id: h ? '__collapsed_business__' : null,
-                      })
-                    }
-                    onClick={() => navigate('/charging?section=btc')}
+                  {layout.focal.node.self_retained_pct > 0 && (
+                    <SelfRetainedBadge
+                      x={layout.selfRetained.x}
+                      y={layout.selfRetained.y}
+                      w={layout.selfRetained.w}
+                      selfRetainedPct={layout.focal.node.self_retained_pct}
+                      selfRetainedAmount={
+                        (layout.focal.node.effective_cost *
+                          layout.focal.node.self_retained_pct) /
+                        100
+                      }
+                    />
+                  )}
+
+                  {/* Business terminal column. */}
+                  {layout.business.map((b) =>
+                    b.kind === 'terminal' ? (
+                      <BusinessNode
+                        key={b.terminal.charging_location_id}
+                        terminal={b.terminal}
+                        x={b.x}
+                        y={b.y}
+                        w={b.w}
+                        h={b.h}
+                        isHovered={
+                          state.hoverNodeId === b.terminal.charging_location_id
+                        }
+                        onHoverChange={(h) =>
+                          dispatch({
+                            type: 'set_hover_node',
+                            id: h ? b.terminal.charging_location_id : null,
+                          })
+                        }
+                        onClick={() => navigate('/charging?section=btc')}
+                      />
+                    ) : (
+                      <CollapsedBusinessNode
+                        key="collapsed-business"
+                        x={b.x}
+                        y={b.y}
+                        w={b.w}
+                        h={b.h}
+                        hiddenCount={b.hiddenCount}
+                        hiddenAmount={b.hiddenAmount}
+                        hiddenPct={b.hiddenPct}
+                        isHovered={
+                          state.hoverNodeId === '__collapsed_business__'
+                        }
+                        onHoverChange={(h) =>
+                          dispatch({
+                            type: 'set_hover_node',
+                            id: h ? '__collapsed_business__' : null,
+                          })
+                        }
+                        onClick={() => navigate('/charging?section=btc')}
+                      />
+                    ),
+                  )}
+                </svg>
+
+                {/* Tooltip lives inside the scroll container so it
+                    pans together with the SVG content. */}
+                {tooltip && tooltip.kind === 'node' && (
+                  <FlowTooltip
+                    kind="node"
+                    node={tooltip.node}
+                    left={tooltip.left}
+                    top={tooltip.top}
                   />
-                ),
-              )}
-            </svg>
+                )}
+                {tooltip && tooltip.kind === 'edge' && (
+                  <FlowTooltip
+                    kind="edge"
+                    edge={tooltip.edge}
+                    version={tooltip.version}
+                    left={tooltip.left}
+                    top={tooltip.top}
+                  />
+                )}
+              </div>
+            </div>
           </Card>
+
+          {/* Footer hint when business count exceeds the visible
+              threshold — surfaces the collapsed-pill summary inline. */}
+          {data.business_terminals.length > BUSINESS_TERMINAL_THRESHOLD && (
+            <p className="text-[11px] text-muted-foreground italic">
+              Showing top {BUSINESS_TERMINAL_THRESHOLD} business terminals.
+              Click the dashed pill to see the full BTC profile.
+            </p>
+          )}
         </>
       )}
     </div>
@@ -409,3 +643,7 @@ function FocalStrip({ data }: { data: CascadeChainResponse }) {
     </Card>
   );
 }
+
+// Re-export the typed CascadeEdge shape to make it explicit at module
+// boundary that we consume it without modifying it.
+export type { CascadeEdge, CascadeNode };
