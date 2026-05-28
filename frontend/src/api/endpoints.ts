@@ -316,7 +316,7 @@ export const docsApi = {
   getChangelog: () => api.get<ListResponse<ChangelogEntry>>('/api/docs/changelog'),
 };
 
-// --- Project Workbench ---
+// --- Workbench ---
 
 export const workbenchApi = {
   // Project list (left panel)

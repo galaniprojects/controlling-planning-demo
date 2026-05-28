@@ -343,7 +343,7 @@ export interface LoBRef {
   total_budget: number;
 }
 
-// --- Project Workbench ---
+// --- Workbench ---
 
 export interface WorkbenchProjectListItem {
   id: string;

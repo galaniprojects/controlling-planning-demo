@@ -74,7 +74,7 @@ export function ProjectWorkbench() {
   return (
     <div className="px-6 py-6 space-y-4">
       <ModuleHeader
-        title="Project Workbench"
+        title="Workbench"
         actions={<ModuleGuideButton moduleId="project_workbench" />}
       />
 
