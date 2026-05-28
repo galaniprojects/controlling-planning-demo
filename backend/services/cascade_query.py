@@ -515,7 +515,6 @@ def query_distribution_candidates(
 
     version = _resolve_version(db, version_id, None)
 
-    from services.dag_resolver import detect_cycle_db
     from services.depth_validation import get_max_allocation_depth
 
     max_depth = get_max_allocation_depth(db)
@@ -532,8 +531,13 @@ def query_distribution_candidates(
         )
     }
 
-    # Pre-compute longest path ending at / starting at every node in the
-    # current version graph. Used for resulting_chain_depth derivation.
+    # Load all edges in this version once. Used for:
+    # (a) longest-path-per-node cache (existing depth calc),
+    # (b) reverse-adjacency walk to pre-compute the set of entities that
+    #     have the source in their downstream reachability — any such
+    #     candidate would form a cycle if a new edge source → candidate
+    #     were added. Single pass replaces N per-candidate detect_cycle_db
+    #     calls (O(N + E) total instead of O(N × (N + E))).
     current_edges = [
         (row.source_entity_id, row.destination_entity_id)
         for row in (
@@ -545,6 +549,24 @@ def query_distribution_candidates(
     longest_ending_at, longest_starting_at = _compute_depth_per_node(
         current_edges,
     )
+
+    # Reverse adjacency: dst → list of srcs that feed into it.
+    reverse_adj: dict[str, list[str]] = defaultdict(list)
+    for src, dst in current_edges:
+        reverse_adj[dst].append(src)
+
+    # BFS upstream from source: ancestors_of_source = {every entity X such
+    # that some path X → ... → source exists in the current graph}. Adding
+    # edge source → candidate would close a cycle iff candidate is in this
+    # set (since then candidate → ... → source → candidate forms a loop).
+    ancestors_of_source: set[str] = set()
+    queue: deque[str] = deque([source_entity_id])
+    while queue:
+        n = queue.popleft()
+        for parent in reverse_adj.get(n, []):
+            if parent not in ancestors_of_source:
+                ancestors_of_source.add(parent)
+                queue.append(parent)
 
     # All other active entities are candidates pre-filter.
     rows = (
@@ -561,11 +583,8 @@ def query_distribution_candidates(
     for candidate in rows:
         if candidate.id in existing_targets:
             continue
-        # Cycle check — per-candidate; cheap on small graphs.
-        chain = detect_cycle_db(
-            db, version.id, source_entity_id, candidate.id,
-        )
-        if chain is not None:
+        # Cycle pre-exclusion: O(1) set lookup.
+        if candidate.id in ancestors_of_source:
             continue
 
         # Resulting chain depth = longest edge-path ending at source +
