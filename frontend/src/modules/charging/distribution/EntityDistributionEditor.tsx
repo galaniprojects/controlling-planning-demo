@@ -1,75 +1,107 @@
 /**
- * Single-entity Stage 1 distribution editor per FD-3 [F-S1-01..08].
+ * Single-entity Stage 1 distribution editor — rebuilt for the Service
+ * Workbench Wave B / Session 5 spec (`§5 Distribution Editor redesign`).
  *
- * Shows the entity's `to_business_pct` (editable), the list of outgoing
- * (destination, %) edges (add / edit / delete with per-edge rationale
- * per [F-S1-05]), and the derived self-retained indicator. Save-time
- * validation:
- *   - Sum rule per [F-S1-02]: to_business + sum(distribute) ≤ 100
- *   - Cycle detection per [F-S1-01..05]: backend rejects with 409 + chain
+ * The editor is now a **whole-form batched save** surface:
  *
- * Version-scoping (FD-3 rework):
+ *  - The destination table lets the user freely edit percentages and
+ *    rationale strings on existing edges, soft-delete rows, and add new
+ *    targets via the entity picker. Nothing hits the server until the
+ *    user clicks **Save distribution** — at which point the editor
+ *    builds a sequenced mutation plan (deletes → updates → creates →
+ *    to-business %) and fires it via `chargingApi`.
  *
- * - **New code path** — caller passes `versionId: number` (the FK into
- *   `distribution_versions`). Edits go straight against that version.
- *   The backend rejects writes against an `active` version per
- *   [F-S1-08] with HTTP 409, so the list view only opens this editor
- *   for drafts.
+ *  - A live **Sum Validation Bar** and an optional **Allocation
+ *    Preview Panel** read from a single pure projection
+ *    (`projectAllocation`) so they stay in sync without re-fetching.
  *
- * - **Legacy code path** — older callers (Workbench BTC tab, Simulator
- *   CostAllocationSurface) still pass the v4 `year` / `version` string
- *   pair. When `versionId` is absent, the editor resolves to the
- *   in-force production version via the per-entity Stage 1 endpoint
- *   (which does the server-side `resolve_active_version(today)` walk
- *   per [F-S1-02]). The simulator's sandbox-handler path is unchanged
- *   — writes still go through the caller's callbacks, not chargingApi.
+ *  - All FD-3 mechanics are preserved:
+ *      • `VersionSelector` slot in the entity header — switches version
+ *        in place; pending edits are discarded on switch.
+ *      • Per-edge `rationale` field is editable on draft rows; surfaces
+ *        as italic muted text on active versions.
+ *      • Active versions render fully read-only — no inputs, no "+ Add",
+ *        no Save/Discard. (`[F-S1-08]` enforced server-side; the UI
+ *        just doesn't offer the affordance.)
+ *      • Cycle 409 detail is parsed via `parseAllocationError` (lifted
+ *        from the legacy editor's `JSON.parse(err.message)` pattern at
+ *        lines 766–781).
+ *      • Depth 409 (`violating_path`) is parsed and surfaced — Wave B
+ *        addition; depth validation lives behind the same 409 envelope.
  *
- * v5 B2 [B-OQ-02]: when any `onSandbox*` handler is provided, the
- * matching mutation routes through the caller's callback instead of
- * `chargingApi`. The simulator wires those to `ScenarioContext` Lever
- * 12 mutations so this F4 component never imports anything from
- * `@/modules/simulator/*`.
+ * The Simulator path (`DistributionSandboxHandlers`) is preserved:
+ * when any `onSandbox*` handler is provided, the corresponding mutation
+ * routes through it instead of `chargingApi`. The handler shapes match
+ * the v5 contract (`(year, source, destination, percentage)`); the
+ * Wave-B rewrite does not migrate the simulator path — that stays for
+ * a future session.
+ *
+ * Commit cadence:
+ *  1. Helpers + error parser + tests (foundation, no UI).
+ *  2. This file — shell + table + sum bar + batched save + temporary
+ *     in-place add picker.
+ *  3. Swap the temp picker for the candidates-driven EntityPickerDialog.
+ *  4. Allocation preview side panel.
+ *  5. Depth-violation banner copy + dark-mode pass + screenshots.
  */
-import { useEffect, useMemo, useState } from 'react';
-import {
-  ArrowLeft, Plus, Trash2, AlertTriangle, Save, X,
-} from 'lucide-react';
-import { Card } from '@/components/ui/card';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { AlertTriangle, ArrowLeft, Search, X, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { formatPercent } from '@/lib/formatters';
 import { chargingApi } from '@/api/endpoints';
+import { EntityTypeBadge } from '@/components/shared/EntityTypeBadge';
 import type {
+  CascadeChainResponse,
   ChargeableEntityItem,
   ChargeableEntityType,
-  DistributionEdgeItem,
-  EntityDistributionSummary,
+  DistributionVersionResponse,
 } from '@/types/api';
+import { parseAllocationError } from './errors/parseAllocationError';
+import {
+  buildMutationPlan,
+  planIsDirty,
+  type DistributionMutation,
+  type ServerEdgeSnapshot,
+} from './helpers/pendingDiff';
+import { projectAllocation } from './helpers/projectAllocation';
+import { VersionSelector } from './versions/VersionSelector';
+import { DistributionTable } from './editor/DistributionTable';
+import { DistributionRow, subtypeStripClass } from './editor/DistributionRow';
+import { ToBusinessRow } from './editor/ToBusinessRow';
+import { SelfRetainedRow } from './editor/SelfRetainedRow';
+import { SumValidationBar } from './editor/SumValidationBar';
+import { AddDistributionTargetButton } from './editor/AddDistributionTargetButton';
+import { EntityHeaderCard } from './editor/EntityHeaderCard';
+import { EditorActionBar } from './editor/EditorActionBar';
+import {
+  editorReducer,
+  initialEditorState,
+  rowIsEdited,
+} from './editor/state';
 
-/**
- * v5 B2 [B-OQ-02]: callbacks the simulator CostAllocationSurface wires
- * to `ScenarioContext` mutations. When provided, the editor routes the
- * matching mutation through the callback instead of `chargingApi`.
- *
- * The callback shapes were locked in v5 against `(year, …)` and have
- * not been migrated for FD-3 — the simulator continues to record
- * `year` on each ScenarioAction even though the Distribution row no
- * longer stores `year` (the year axis lives on the cost, not the edge).
- * That contract stays for the v5 promote-with-routing path.
- */
+/* -------------------------------------------------------------------------- */
+/* Public component contract — unchanged from FD-3 so existing callers        */
+/* (DistributionListView, WorkbenchBTCTab, simulator CostAllocationSurface)   */
+/* keep working without touching their call sites.                            */
+/* -------------------------------------------------------------------------- */
+
 export interface DistributionSandboxHandlers {
   onSandboxCreateEdge?: (input: {
     year: number;
@@ -91,46 +123,13 @@ export interface DistributionSandboxHandlers {
 
 interface Props extends DistributionSandboxHandlers {
   entityId: string;
-  /**
-   * New code path — the version_id this editor scopes its edits to.
-   * When omitted, the editor falls back to the per-entity Stage 1
-   * endpoint, which resolves to the in-force production version.
-   */
   versionId?: number;
-  /**
-   * Legacy code path — preserved so Workbench / Simulator integrations
-   * don't break. The simulator records `year` in ScenarioAction params;
-   * it is no longer used to query Distribution rows.
-   */
+  /** Legacy — preserved for the simulator path. Defaults to current calendar year. */
   year?: number;
-  /**
-   * Legacy code path — string discriminator that v4 used to select
-   * `'forecast' | 'baseline' | 'actuals' | 'scenario-<id>'`. Post-FD-3
-   * production strings collapse to the in-force resolver pick; scenario
-   * strings continue to function only because the sandbox handlers
-   * intercept writes (the editor's read may surface production edges
-   * for the scenario case — a small visual gap until the simulator
-   * surface migrates to passing `versionId` directly).
-   */
+  /** Legacy — kept as a marker so existing callers don't break (`'forecast'` etc.). */
   version?: string;
-  /**
-   * Optional. Provided by the Charging list view (returns to the list)
-   * and the Simulator surface (collapses the inline editor). Workbench
-   * / Run Portfolio embeddings omit `onBack` to suppress the inner
-   * button per v5.1 user feedback.
-   */
   onBack?: () => void;
 }
-
-const ENTITY_TYPE_OPTIONS: {
-  value: 'all' | ChargeableEntityType;
-  label: string;
-}[] = [
-  { value: 'all', label: 'All types' },
-  { value: 'Project', label: 'Projects' },
-  { value: 'Offering', label: 'Offerings' },
-  { value: 'InternalService', label: 'Internal Services' },
-];
 
 const DEFAULT_LEGACY_YEAR = new Date().getFullYear();
 
@@ -138,156 +137,240 @@ export function EntityDistributionEditor({
   entityId,
   versionId: versionIdProp,
   year: yearProp,
-  version: versionProp,
   onBack,
   onSandboxCreateEdge,
   onSandboxUpdateEdge,
   onSandboxDeleteEdge,
   onSandboxSetToBusiness,
 }: Props) {
-  const [summary, setSummary] = useState<EntityDistributionSummary | null>(
-    null,
+  const [state, dispatch] = useReducer(editorReducer, initialEditorState);
+  /** Map of destination entity id → distribution edge id, resolved from the
+   *  summary endpoint (cascade doesn't carry the pk). */
+  const [edgeIdByDestId, setEdgeIdByDestId] = useState<Map<string, number>>(
+    new Map(),
   );
-  const [entity, setEntity] = useState<ChargeableEntityItem | null>(null);
-  const [allEntities, setAllEntities] = useState<ChargeableEntityItem[]>([]);
-  // Resolved version id used for all writes. May differ from `versionIdProp`
-  // for legacy callers — the editor resolves it on first load.
-  const [resolvedVersionId, setResolvedVersionId] = useState<number | null>(
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(
     versionIdProp ?? null,
   );
-  const [loading, setLoading] = useState(true);
-  const [savingTBP, setSavingTBP] = useState(false);
-  const [tbpDraft, setTbpDraft] = useState<string>('');
-  const [tbpError, setTbpError] = useState<string | null>(null);
-  const [editingEdgeId, setEditingEdgeId] = useState<number | null>(null);
-  const [edgeDraftPct, setEdgeDraftPct] = useState<string>('');
-  const [edgeDraftRationale, setEdgeDraftRationale] = useState<string>('');
-  const [addOpen, setAddOpen] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
-  const [cycleChain, setCycleChain] = useState<string[] | null>(null);
 
   const legacyYear = yearProp ?? DEFAULT_LEGACY_YEAR;
+  const sandboxMode =
+    !!onSandboxCreateEdge ||
+    !!onSandboxUpdateEdge ||
+    !!onSandboxDeleteEdge ||
+    !!onSandboxSetToBusiness;
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // Resolve version id if not provided.
-      let effectiveVersionId = versionIdProp ?? resolvedVersionId;
-      if (effectiveVersionId === null || effectiveVersionId === undefined) {
-        // Legacy path: ask the per-entity Stage 1 endpoint to resolve in-force.
-        const view = await chargingApi.getEntityStage1View(entityId, {});
-        effectiveVersionId = view.version.id;
-        setResolvedVersionId(effectiveVersionId);
+  /* ───────────────────────────── data loading ──────────────────────────── */
+
+  const fetchData = useCallback(
+    async (versionIdOverride?: number | null) => {
+      dispatch({ type: 'LOAD_START' });
+      try {
+        const versionParam =
+          versionIdOverride !== undefined
+            ? versionIdOverride
+            : selectedVersionId;
+        const cascadeParams =
+          versionParam !== null && versionParam !== undefined
+            ? { version_id: versionParam }
+            : undefined;
+        const summaryParams =
+          versionParam !== null && versionParam !== undefined
+            ? { version_id: versionParam }
+            : undefined;
+
+        const [cascade, summary, entity, versionsRes] = await Promise.all([
+          chargingApi.getCascadeChain(entityId, cascadeParams),
+          chargingApi.getEntityDistributionSummary(entityId, summaryParams),
+          chargingApi.getEntity(entityId),
+          chargingApi.listDistributionVersions({}),
+        ]);
+
+        // Cascade doesn't carry edge pk → build the lookup from summary.
+        const edgeIds = new Map<string, number>();
+        for (const e of summary.distributions) {
+          edgeIds.set(e.destination_entity_id, e.id);
+        }
+        setEdgeIdByDestId(edgeIds);
+
+        // Resolve "in force" version client-side from the listing — the
+        // selector wants the latest active with active_from ≤ today. The
+        // backend already filters scenarios out (include_scenario:false
+        // default).
+        const inForce = pickInForceVersionId(versionsRes.items);
+
+        dispatch({
+          type: 'LOAD_OK',
+          cascade,
+          entity,
+          versions: versionsRes.items,
+          inForceVersionId: inForce,
+        });
+        setSelectedVersionId(cascade.version.id);
+      } catch (e) {
+        dispatch({
+          type: 'LOAD_ERROR',
+          message: e instanceof Error ? e.message : 'Failed to load editor',
+        });
       }
+    },
+    [entityId, selectedVersionId],
+  );
 
-      const [sum, ent, ents] = await Promise.all([
-        chargingApi.getEntityDistributionSummary(entityId, {
-          version_id: effectiveVersionId,
-        }),
-        chargingApi.getEntity(entityId),
-        chargingApi.listEntities({ is_active: true }),
-      ]);
-      setSummary(sum);
-      setEntity(ent);
-      setAllEntities(ents.items);
-      setTbpDraft(String(sum.to_business_pct));
-    } catch {
-      setSummary(null);
-      setEntity(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // (Re-)load on entity change or version-prop change.
   useEffect(() => {
-    fetchData();
+    dispatch({ type: 'RESET_FOR_ENTITY' });
+    setEdgeIdByDestId(new Map());
+    setSelectedVersionId(versionIdProp ?? null);
+    fetchData(versionIdProp ?? null);
+    // We intentionally trigger only on entityId / versionIdProp.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entityId, versionIdProp, versionProp]);
+  }, [entityId, versionIdProp]);
 
-  const entityById = useMemo(() => {
-    const map = new Map<string, ChargeableEntityItem>();
-    allEntities.forEach((e) => map.set(e.id, e));
-    return map;
-  }, [allEntities]);
+  /* ──────────────────────── derived projection ────────────────────────── */
 
-  const handleSaveToBusinessPct = async () => {
-    if (!summary) return;
-    const next = Number(tbpDraft);
-    if (Number.isNaN(next) || next < 0 || next > 100) {
-      setTbpError('Enter a percentage between 0 and 100.');
-      return;
+  const visibleRows = useMemo(
+    () => state.pending.rows.filter((r) => !r.isDeleted),
+    [state.pending.rows],
+  );
+
+  const projection = useMemo(() => {
+    if (!state.cascade) {
+      return {
+        downstream: [],
+        toBusinessAmount: 0,
+        distributedPct: 0,
+        selfRetainedPct: 100,
+        selfRetainedAmount: 0,
+        isOverAllocated: false,
+        isComplete: false,
+      };
     }
-    setSavingTBP(true);
-    setTbpError(null);
+    return projectAllocation({
+      focalEffectiveCost: state.cascade.focal.effective_cost,
+      rows: visibleRows.map((r) => ({
+        key: r.key,
+        destinationId: r.destinationId,
+        percentage: r.percentage,
+      })),
+      toBusinessPct: state.pending.toBusinessPct,
+    });
+  }, [state.cascade, visibleRows, state.pending.toBusinessPct]);
+
+  const amountByRowKey = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const d of projection.downstream) m.set(d.key, d.amount);
+    return m;
+  }, [projection.downstream]);
+
+  /* ──────────────────────── save orchestration ────────────────────────── */
+
+  const mutationPlan = useMemo(() => {
+    if (!state.cascade) return null;
+    const focalId = state.cascade.focal.entity_id;
+    const serverEdges: ServerEdgeSnapshot[] = state.cascade.edges
+      .filter((e) => e.source_entity_id === focalId)
+      .map((e) => ({
+        id: edgeIdByDestId.get(e.destination_entity_id) ?? -1,
+        destinationId: e.destination_entity_id,
+        percentage: e.percentage,
+        rationale: e.rationale ?? '',
+      }))
+      .filter((e) => e.id > 0);
+    // Patch pending rows: rows whose edgeId is still null but whose
+    // destination matches a server edge get the resolved id stitched in
+    // for the diff.
+    const patchedRows = state.pending.rows.map((r) => {
+      if (r.edgeId !== null || r.isNew) return r;
+      const id = edgeIdByDestId.get(r.destinationId);
+      return id !== undefined ? { ...r, edgeId: id } : r;
+    });
+    return buildMutationPlan({
+      serverEdges,
+      pendingRows: patchedRows.map((r) => ({
+        key: r.key,
+        edgeId: r.edgeId,
+        destinationId: r.destinationId,
+        percentage: r.percentage,
+        rationale: r.rationale,
+        isNew: r.isNew,
+        isDeleted: r.isDeleted,
+      })),
+      serverToBusinessPct: state.cascade.focal.to_business_pct,
+      pendingToBusinessPct: state.pending.toBusinessPct,
+    });
+  }, [state.cascade, state.pending, edgeIdByDestId]);
+
+  const dirty = !!mutationPlan && planIsDirty(mutationPlan);
+
+  const handleSave = useCallback(async () => {
+    if (!state.cascade || !state.entity || !mutationPlan) return;
+    if (projection.isOverAllocated) return;
+    dispatch({ type: 'SAVE_START' });
     try {
-      if (onSandboxSetToBusiness) {
-        await onSandboxSetToBusiness({
-          entity_id: entityId,
-          year: legacyYear,
-          new_pct: next,
+      const versionId = state.resolvedVersionId;
+      for (const m of mutationPlan.mutations) {
+        await runMutation(m, {
+          versionId,
+          sourceEntityId: state.entity.id,
+          sandbox: {
+            year: legacyYear,
+            onSandboxCreateEdge,
+            onSandboxUpdateEdge,
+            onSandboxDeleteEdge,
+          },
         });
-        fetchData();
-      } else if (resolvedVersionId !== null) {
-        const updated = await chargingApi.updateEntityToBusinessPct(
-          entityId,
-          next,
-          { version_id: resolvedVersionId },
-        );
-        setSummary(updated);
-        setTbpDraft(String(updated.to_business_pct));
       }
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Save failed';
-      setTbpError(message);
-    } finally {
-      setSavingTBP(false);
-    }
-  };
-
-  const handleEditEdge = (edge: DistributionEdgeItem) => {
-    setEditingEdgeId(edge.id);
-    setEdgeDraftPct(String(edge.percentage));
-    setEdgeDraftRationale(edge.rationale ?? '');
-  };
-
-  const handleSaveEdge = async (edge: DistributionEdgeItem) => {
-    const next = Number(edgeDraftPct);
-    if (Number.isNaN(next) || next <= 0 || next > 100) {
-      setTbpError(`Edge ${edge.id}: percentage must be between 0 and 100.`);
-      return;
-    }
-    try {
-      if (onSandboxUpdateEdge) {
-        await onSandboxUpdateEdge(edge.id, { percentage: next });
-      } else {
-        await chargingApi.updateDistribution(edge.id, {
-          percentage: next,
-          rationale: edgeDraftRationale.trim() || null,
-        });
+      if (mutationPlan.toBusinessPct !== null) {
+        if (onSandboxSetToBusiness) {
+          await onSandboxSetToBusiness({
+            entity_id: state.entity.id,
+            year: legacyYear,
+            new_pct: mutationPlan.toBusinessPct,
+          });
+        } else if (versionId !== null) {
+          await chargingApi.updateEntityToBusinessPct(
+            state.entity.id,
+            mutationPlan.toBusinessPct,
+            { version_id: versionId },
+          );
+        }
       }
-      setEditingEdgeId(null);
-      setEdgeDraftPct('');
-      setEdgeDraftRationale('');
-      fetchData();
-    } catch (e: unknown) {
-      setTbpError(e instanceof Error ? e.message : 'Save failed');
+      // Refetch to reseat pending from the server's authoritative state.
+      await fetchData(versionId);
+    } catch (e) {
+      const parsed = parseAllocationError(
+        e instanceof Error ? e.message : String(e),
+      );
+      dispatch({ type: 'SAVE_ERROR', error: parsed });
     }
-  };
+  }, [
+    state.cascade,
+    state.entity,
+    state.resolvedVersionId,
+    mutationPlan,
+    projection.isOverAllocated,
+    legacyYear,
+    onSandboxCreateEdge,
+    onSandboxUpdateEdge,
+    onSandboxDeleteEdge,
+    onSandboxSetToBusiness,
+    fetchData,
+  ]);
 
-  const handleDeleteEdge = async (edge: DistributionEdgeItem) => {
-    try {
-      if (onSandboxDeleteEdge) {
-        await onSandboxDeleteEdge(edge.id);
-      } else {
-        await chargingApi.deleteDistribution(edge.id);
-      }
-      fetchData();
-    } catch (e: unknown) {
-      setTbpError(e instanceof Error ? e.message : 'Delete failed');
-    }
-  };
+  /* ───────────────────── version selector wiring ──────────────────────── */
 
-  if (loading) {
+  const handleVersionChange = useCallback(
+    (vid: number) => {
+      setSelectedVersionId(vid);
+      fetchData(vid);
+    },
+    [fetchData],
+  );
+
+  /* ───────────────────────────── render ───────────────────────────────── */
+
+  if (state.loading && !state.cascade) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-10 w-32" />
@@ -297,14 +380,14 @@ export function EntityDistributionEditor({
     );
   }
 
-  if (!summary || !entity) {
+  if (state.loadError || !state.cascade || !state.entity) {
     return (
-      <Card className="p-6">
-        <p className="text-sm text-muted-foreground">
-          Failed to load distribution profile.
+      <Card className="p-6 space-y-3">
+        <p className="text-sm text-foreground">
+          {state.loadError ?? 'Failed to load distribution profile.'}
         </p>
         {onBack && (
-          <Button variant="outline" size="sm" onClick={onBack} className="mt-4">
+          <Button variant="outline" size="sm" onClick={onBack}>
             <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to list
           </Button>
         )}
@@ -312,613 +395,487 @@ export function EntityDistributionEditor({
     );
   }
 
-  const distributedTotal = summary.distributions.reduce(
-    (s, e) => s + e.percentage,
-    0,
-  );
-  const wouldExceed100 = (Number(tbpDraft) || 0) + distributedTotal > 100;
-  const inSandboxMode =
-    !!onSandboxCreateEdge ||
-    !!onSandboxUpdateEdge ||
-    !!onSandboxDeleteEdge ||
-    !!onSandboxSetToBusiness;
+  const readOnly = !sandboxMode && state.cascade.version.status === 'active';
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {onBack && (
-            <Button variant="ghost" size="sm" onClick={onBack}>
-              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
-            </Button>
-          )}
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-foreground">
-                {entity.name}
-              </h2>
-              <Badge variant="secondary" className="text-[10px]">
-                {entity.entity_type}
-              </Badge>
-              <Badge variant="outline" className="text-[10px]">
-                {entity.is_change_or_run}
-              </Badge>
-            </div>
-            <p className="text-[11px] font-mono text-muted-foreground mt-0.5">
-              {entity.identifier} ·{' '}
-              {inSandboxMode ? (
-                <>scenario sandbox</>
-              ) : (
-                <>v{summary.version_id}</>
-              )}
-            </p>
-          </div>
+      {/* Back nav */}
+      {onBack && (
+        <div>
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+          </Button>
         </div>
-      </div>
+      )}
 
-      {/* Sum rule status banner */}
-      {!summary.sums_within_100 && (
-        <Card className="border-amber-500 bg-amber-50 dark:bg-amber-900/20 p-3 flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-amber-700 dark:text-amber-400" />
-          <p className="text-sm text-amber-800 dark:text-amber-300">
-            Distribution exceeds 100%. Sum-rule per{' '}
-            <span className="font-mono">[F-S1-02]</span> requires to-business +
-            sum(edges) ≤ 100%.
+      {/* Entity header card with cost breakdown + version slot */}
+      <EntityHeaderCard
+        cascade={state.cascade}
+        sandboxMode={sandboxMode}
+        versionSlot={
+          !sandboxMode && state.versions.length > 0 ? (
+            <VersionSelector
+              versions={state.versions}
+              selectedVersionId={selectedVersionId}
+              inForceVersionId={state.inForceVersionId}
+              onChange={handleVersionChange}
+              className="w-full h-auto py-1.5"
+              disabled={state.loading || state.ui.saving}
+            />
+          ) : undefined
+        }
+      />
+
+      {/* Read-only banner on active versions */}
+      {readOnly && (
+        <Card className="border-blue-300 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3 flex items-start gap-2">
+          <Lock className="h-4 w-4 text-blue-700 dark:text-blue-400 mt-0.5" />
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            Read-only: this version is active and frozen per{' '}
+            <span className="font-mono">[F-S1-08]</span>. Create a new draft to
+            make changes.
           </p>
         </Card>
       )}
 
-      {/* To-Business + derived percentages */}
-      <Card className="p-4">
-        <h3 className="text-sm font-semibold text-foreground mb-3">
-          Distribution shape
-        </h3>
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
-              To-Business %
-            </label>
-            <div className="flex items-center gap-2">
-              <Input
-                value={tbpDraft}
-                onChange={(e) => setTbpDraft(e.target.value)}
-                type="number"
-                min={0}
-                max={100}
-                step={0.01}
-                className="w-[120px] h-9 font-mono"
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleSaveToBusinessPct}
-                disabled={
-                  savingTBP || tbpDraft === String(summary.to_business_pct)
-                }
-              >
-                <Save className="h-3.5 w-3.5 mr-1" />
-                Save
-              </Button>
-            </div>
-            {tbpError && (
-              <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">
-                {tbpError}
-              </p>
-            )}
-            {wouldExceed100 && !tbpError && (
-              <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
-                Would exceed 100% with current edges (
-                {formatPercent(distributedTotal, {
-                  signed: false,
-                  decimals: 2,
-                })}).
-              </p>
-            )}
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
-              Distributed (Σ edges)
-            </label>
-            <p className="text-lg font-mono text-foreground tabular-nums">
-              {formatPercent(distributedTotal, {
-                signed: false,
-                decimals: 2,
-              })}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Across {summary.distributions.length} edge
-              {summary.distributions.length !== 1 ? 's' : ''}
-            </p>
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
-              Self-retained (derived)
-            </label>
-            <p className="text-lg font-mono text-foreground tabular-nums">
-              {formatPercent(summary.self_retained_pct, {
-                signed: false,
-                decimals: 2,
-              })}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Per [F-DM-02]: 100 − to-business − Σ edges
-            </p>
-          </div>
-        </div>
-      </Card>
+      {/* Save-time error banner */}
+      {state.ui.saveError && (
+        <SaveErrorBanner
+          error={state.ui.saveError}
+          entitiesById={buildIdentifierLookup(state.cascade)}
+          onDismiss={() => dispatch({ type: 'CLEAR_SAVE_ERROR' })}
+        />
+      )}
 
-      {/* Edges */}
-      <Card>
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">
-              Outgoing edges
-            </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Stage 1 inter-service distribution per{' '}
-              <span className="font-mono">[F-S1-01]</span>. Per-edge rationale
-              per <span className="font-mono">[F-S1-05]</span>.
-            </p>
-          </div>
-          <Button
-            size="sm"
-            onClick={() => {
-              setAddOpen(true);
-              setAddError(null);
-              setCycleChain(null);
-            }}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Add destination
-          </Button>
-        </div>
-        {summary.distributions.length === 0 ? (
-          <div className="p-12 text-center text-sm text-muted-foreground">
-            No outgoing edges. Costs flow either to business or stay
+      {/* Sum-rule banner (server flag — independent of pending overflow) */}
+      {!readOnly && state.cascade.focal.self_retained_pct < 0 && (
+        <Card className="border-amber-500 bg-amber-50 dark:bg-amber-900/20 p-3 flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+          <p className="text-sm text-amber-800 dark:text-amber-300">
+            Server snapshot is already over-allocated. Adjust the rows below
+            and save to bring the total back to ≤100%.
+          </p>
+        </Card>
+      )}
+
+      {/* Main table */}
+      <DistributionTable
+        hasDistributionRows={visibleRows.length > 0}
+        emptyState={
+          <span>
+            No outgoing distributions yet. Add a target below or leave costs
             self-retained.
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Destination entity</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right w-[120px]">
-                  Percentage
-                </TableHead>
-                <TableHead>Rationale</TableHead>
-                <TableHead className="text-right pr-4 w-[140px]">
-                  Actions
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {summary.distributions.map((edge) => {
-                const dst = entityById.get(edge.destination_entity_id);
-                const isEditing = editingEdgeId === edge.id;
-                return (
-                  <TableRow key={edge.id}>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-foreground">
-                          {dst?.name ?? edge.destination_entity_id}
-                        </span>
-                        <span className="text-[11px] font-mono text-muted-foreground">
-                          {dst?.identifier ?? edge.destination_entity_id}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {dst?.entity_type && (
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] px-1.5"
-                        >
-                          {dst.entity_type}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {isEditing ? (
-                        <Input
-                          autoFocus
-                          value={edgeDraftPct}
-                          onChange={(e) => setEdgeDraftPct(e.target.value)}
-                          type="number"
-                          min={0.01}
-                          max={100}
-                          step={0.01}
-                          className="w-[100px] h-8 ml-auto font-mono text-right"
-                        />
-                      ) : (
-                        <span className="font-mono text-sm tabular-nums">
-                          {formatPercent(edge.percentage, {
-                            signed: false,
-                            decimals: 2,
-                          })}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-[280px]">
-                      {isEditing ? (
-                        <Textarea
-                          value={edgeDraftRationale}
-                          onChange={(e) =>
-                            setEdgeDraftRationale(e.target.value)
-                          }
-                          placeholder="Why this destination shares this percentage…"
-                          rows={2}
-                          maxLength={2000}
-                          className="text-[12px]"
-                        />
-                      ) : (edge.rationale ?? '').trim() ? (
-                        <p
-                          className="text-[11px] text-foreground leading-snug line-clamp-2"
-                          title={edge.rationale ?? ''}
-                        >
-                          {edge.rationale}
-                        </p>
-                      ) : (
-                        <p className="text-[11px] text-muted-foreground italic">
-                          No rationale
-                        </p>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right pr-4">
-                      {isEditing ? (
-                        <div className="inline-flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleSaveEdge(edge)}
-                          >
-                            <Save className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setEditingEdgeId(null);
-                              setEdgeDraftPct('');
-                              setEdgeDraftRationale('');
-                            }}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="inline-flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEditEdge(edge)}
-                          >
-                            <Save className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteEdge(edge)}
-                            title="Delete edge"
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
-                          </Button>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+          </span>
+        }
+        rows={visibleRows.map((row) => (
+          <DistributionRow
+            key={row.key}
+            row={row}
+            amount={amountByRowKey.get(row.key) ?? 0}
+            maxAllocationDepth={state.cascade!.max_allocation_depth}
+            readOnly={readOnly}
+            isEdited={rowIsEdited(row, state.cascade)}
+            isFocused={state.ui.activeRowFocusKey === row.key}
+            onChangePct={(value) =>
+              dispatch({ type: 'SET_ROW_PCT', key: row.key, value })
+            }
+            onChangeRationale={(value) =>
+              dispatch({ type: 'SET_ROW_RATIONALE', key: row.key, value })
+            }
+            onDelete={() => dispatch({ type: 'DELETE_ROW', key: row.key })}
+            onFocus={() => dispatch({ type: 'FOCUS_ROW', key: row.key })}
+            onBlur={() => dispatch({ type: 'FOCUS_ROW', key: null })}
+          />
+        ))}
+        toBusinessRow={
+          <ToBusinessRow
+            toBusinessPct={state.pending.toBusinessPct}
+            toBusinessAmount={projection.toBusinessAmount}
+            locationCount={state.cascade.business_terminals.length}
+            readOnly={readOnly}
+            isEdited={
+              Math.abs(
+                state.pending.toBusinessPct -
+                  state.cascade.focal.to_business_pct,
+              ) > 0.0001
+            }
+            isFocused={state.ui.activeRowFocusKey === '__tbp__'}
+            onChangePct={(value) => dispatch({ type: 'SET_TBP', value })}
+            onFocus={() => dispatch({ type: 'FOCUS_ROW', key: '__tbp__' })}
+            onBlur={() => dispatch({ type: 'FOCUS_ROW', key: null })}
+          />
+        }
+        selfRetainedRow={
+          <SelfRetainedRow
+            selfRetainedPct={projection.selfRetainedPct}
+            selfRetainedAmount={projection.selfRetainedAmount}
+            isOverAllocated={projection.isOverAllocated}
+          />
+        }
+      />
 
-      <AddDistributionDialog
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
-        sourceEntity={entity}
-        existingEdges={summary.distributions}
-        allEntities={allEntities}
-        versionId={resolvedVersionId}
-        legacyYear={legacyYear}
-        onSandboxCreateEdge={onSandboxCreateEdge}
-        availableHeadroom={Math.max(
-          0,
-          100 - (summary.to_business_pct + distributedTotal),
-        )}
-        error={addError}
-        cycleChain={cycleChain}
-        entityById={entityById}
-        onError={(msg, chain) => {
-          setAddError(msg);
-          setCycleChain(chain ?? null);
-        }}
-        onSaved={() => {
-          setAddOpen(false);
-          setAddError(null);
-          setCycleChain(null);
-          fetchData();
-        }}
+      {/* Sum validation bar */}
+      <SumValidationBar
+        rows={projection.downstream}
+        toBusinessPct={state.pending.toBusinessPct}
+        distributedPct={projection.distributedPct}
+        selfRetainedPct={projection.selfRetainedPct}
+        isOverAllocated={projection.isOverAllocated}
+        isComplete={projection.isComplete}
+      />
+
+      {/* Add-target trigger (draft + non-sandbox; sandbox path doesn't have
+          a version-scoped candidates endpoint yet). */}
+      {!readOnly && !sandboxMode && (
+        <AddDistributionTargetButton
+          onClick={() => dispatch({ type: 'OPEN_PICKER' })}
+        />
+      )}
+
+      {/* Action bar */}
+      <EditorActionBar
+        dirty={dirty}
+        saving={state.ui.saving}
+        isOverAllocated={projection.isOverAllocated}
+        sidePanelOpen={state.ui.sidePanelOpen}
+        readOnly={readOnly}
+        onSave={handleSave}
+        onDiscard={() => dispatch({ type: 'DISCARD' })}
+        onToggleSidePanel={() => dispatch({ type: 'TOGGLE_SIDE_PANEL' })}
+      />
+
+      {/* Temporary inline picker — replaced in commit 3 by
+          EntityPickerDialog backed by the candidates endpoint. */}
+      <TempEntityPickerDialog
+        open={state.ui.pickerOpen}
+        onClose={() => dispatch({ type: 'CLOSE_PICKER' })}
+        sourceEntityId={state.entity.id}
+        existingDestinationIds={new Set(state.pending.rows.map((r) => r.destinationId))}
+        onPick={(picked) =>
+          dispatch({
+            type: 'ADD_ROW',
+            row: {
+              edgeId: null,
+              destinationId: picked.id,
+              destinationName: picked.name,
+              destinationIdentifier: picked.identifier,
+              destinationType: picked.entity_type,
+              percentage: 0,
+              rationale: '',
+              chainDepth: null,
+              nearMaxDepthWarning: false,
+            },
+          })
+        }
       />
     </div>
   );
 }
 
-interface AddDialogProps {
-  open: boolean;
-  onClose: () => void;
-  sourceEntity: ChargeableEntityItem;
-  existingEdges: DistributionEdgeItem[];
-  allEntities: ChargeableEntityItem[];
-  /** Resolved version_id this edit targets. Null when sandbox handlers
-   *  intercept the write (no version_id needed for the simulator path). */
-  versionId: number | null;
-  /** Year recorded in `ScenarioAction.parameters_json` by the sandbox
-   *  callbacks. Not used outside the sandbox path. */
-  legacyYear: number;
-  /** v5 B2 [B-OQ-02]: when provided, sandbox-creates the edge through
-   *  the caller's callback instead of `chargingApi.createDistribution`. */
-  onSandboxCreateEdge?: DistributionSandboxHandlers['onSandboxCreateEdge'];
-  availableHeadroom: number;
-  error: string | null;
-  cycleChain: string[] | null;
-  entityById: Map<string, ChargeableEntityItem>;
-  onError: (message: string, cycleChain?: string[]) => void;
-  onSaved: () => void;
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function pickInForceVersionId(
+  versions: DistributionVersionResponse[],
+): number | null {
+  const today = new Date().toISOString().slice(0, 10);
+  let best: DistributionVersionResponse | null = null;
+  for (const v of versions) {
+    if (v.scenario_id !== null) continue;
+    if (v.status !== 'active') continue;
+    if (!v.active_from || v.active_from > today) continue;
+    if (!best || (v.active_from ?? '') > (best.active_from ?? '')) {
+      best = v;
+    }
+  }
+  return best?.id ?? null;
 }
 
-function AddDistributionDialog({
+/** Lookup table: entity id → identifier string, used by the cycle/depth
+ *  banner so it can render `ITF00001 → ITF00002 → ITF00001` instead of
+ *  opaque UUIDs. Pulls from both upstream + downstream + focal + the
+ *  current pending rows (covers brand-new edges). */
+function buildIdentifierLookup(
+  cascade: CascadeChainResponse,
+): Map<string, string> {
+  const m = new Map<string, string>();
+  m.set(cascade.focal.entity_id, cascade.focal.identifier);
+  for (const n of cascade.upstream) m.set(n.entity_id, n.identifier);
+  for (const n of cascade.downstream) m.set(n.entity_id, n.identifier);
+  return m;
+}
+
+/** Sequentially run one mutation against either chargingApi or the
+ *  sandbox callbacks. The throw bubbles to the orchestrator. */
+async function runMutation(
+  m: DistributionMutation,
+  ctx: {
+    versionId: number | null;
+    sourceEntityId: string;
+    sandbox: {
+      year: number;
+      onSandboxCreateEdge?: DistributionSandboxHandlers['onSandboxCreateEdge'];
+      onSandboxUpdateEdge?: DistributionSandboxHandlers['onSandboxUpdateEdge'];
+      onSandboxDeleteEdge?: DistributionSandboxHandlers['onSandboxDeleteEdge'];
+    };
+  },
+): Promise<void> {
+  switch (m.kind) {
+    case 'delete':
+      if (ctx.sandbox.onSandboxDeleteEdge) {
+        await ctx.sandbox.onSandboxDeleteEdge(m.edgeId);
+      } else {
+        await chargingApi.deleteDistribution(m.edgeId);
+      }
+      return;
+    case 'update':
+      if (ctx.sandbox.onSandboxUpdateEdge) {
+        await ctx.sandbox.onSandboxUpdateEdge(m.edgeId, {
+          percentage: m.percentage,
+        });
+      } else {
+        await chargingApi.updateDistribution(m.edgeId, {
+          percentage: m.percentage,
+          rationale: m.rationale,
+        });
+      }
+      return;
+    case 'create':
+      if (ctx.sandbox.onSandboxCreateEdge) {
+        await ctx.sandbox.onSandboxCreateEdge({
+          year: ctx.sandbox.year,
+          source_entity_id: ctx.sourceEntityId,
+          destination_entity_id: m.destinationId,
+          percentage: m.percentage,
+        });
+      } else {
+        if (ctx.versionId === null) {
+          throw new Error('Version not resolved — cannot create distribution.');
+        }
+        await chargingApi.createDistribution({
+          version_id: ctx.versionId,
+          source_entity_id: ctx.sourceEntityId,
+          destination_entity_id: m.destinationId,
+          percentage: m.percentage,
+          rationale: m.rationale,
+        });
+      }
+      return;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* SaveErrorBanner — typed messaging for cycle / depth / generic 409s         */
+/* -------------------------------------------------------------------------- */
+
+function SaveErrorBanner({
+  error,
+  entitiesById,
+  onDismiss,
+}: {
+  error: ReturnType<typeof parseAllocationError>;
+  entitiesById: Map<string, string>;
+  onDismiss: () => void;
+}) {
+  const label = (id: string) => entitiesById.get(id) ?? id;
+  let body: React.ReactNode;
+  if (error.type === 'cycle') {
+    body = (
+      <>
+        <p className="text-sm text-red-800 dark:text-red-300 font-medium">
+          Save rejected — cycle detected
+        </p>
+        <p className="text-[11px] mt-1.5 font-mono text-red-700 dark:text-red-400">
+          {error.cycleChain.map(label).join(' → ')}
+        </p>
+        <p className="text-[11px] text-red-700/80 dark:text-red-400/80 mt-1">
+          {error.message}
+        </p>
+      </>
+    );
+  } else if (error.type === 'depth') {
+    body = (
+      <>
+        <p className="text-sm text-red-800 dark:text-red-300 font-medium">
+          Save rejected — max allocation depth exceeded
+        </p>
+        <p className="text-[11px] mt-1.5 font-mono text-red-700 dark:text-red-400">
+          {error.violatingPath.map(label).join(' → ')}{' '}
+          <span className="ml-1 opacity-70">(depth {error.violatingPath.length - 1})</span>
+        </p>
+        <p className="text-[11px] text-red-700/80 dark:text-red-400/80 mt-1">
+          {error.message}
+        </p>
+      </>
+    );
+  } else {
+    body = (
+      <p className="text-sm text-red-800 dark:text-red-300">{error.message}</p>
+    );
+  }
+  return (
+    <Card className="border-red-500 bg-red-50 dark:bg-red-900/20 p-3 relative">
+      <div className="pr-6">{body}</div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="absolute top-2 right-2 text-red-700 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+        aria-label="Dismiss"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </Card>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* TempEntityPickerDialog — minimal commit-2 picker. Commit 3 replaces this   */
+/* with the candidates-endpoint-driven EntityPickerDialog that shows depth    */
+/* warnings + disables `would_violate_max_depth` rows.                        */
+/* -------------------------------------------------------------------------- */
+
+const TYPE_OPTIONS: { value: 'all' | ChargeableEntityType; label: string }[] = [
+  { value: 'all', label: 'All types' },
+  { value: 'Project', label: 'Projects' },
+  { value: 'Offering', label: 'Offerings' },
+  { value: 'InternalService', label: 'Internal Services' },
+];
+
+function TempEntityPickerDialog({
   open,
   onClose,
-  sourceEntity,
-  existingEdges,
-  allEntities,
-  versionId,
-  legacyYear,
-  onSandboxCreateEdge,
-  availableHeadroom,
-  error,
-  cycleChain,
-  entityById,
-  onError,
-  onSaved,
-}: AddDialogProps) {
+  sourceEntityId,
+  existingDestinationIds,
+  onPick,
+}: {
+  open: boolean;
+  onClose: () => void;
+  sourceEntityId: string;
+  existingDestinationIds: Set<string>;
+  onPick: (e: ChargeableEntityItem) => void;
+}) {
+  const [entities, setEntities] = useState<ChargeableEntityItem[]>([]);
+  const [loading, setLoading] = useState(false);
   const [typeFilter, setTypeFilter] = useState<'all' | ChargeableEntityType>(
     'all',
   );
   const [search, setSearch] = useState('');
-  const [destinationId, setDestinationId] = useState<string>('');
-  const [percentage, setPercentage] = useState('');
-  const [rationale, setRationale] = useState('');
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!open) {
-      setTypeFilter('all');
-      setSearch('');
-      setDestinationId('');
-      setPercentage('');
-      setRationale('');
-    }
+    if (!open) return;
+    setLoading(true);
+    setSearch('');
+    setTypeFilter('all');
+    chargingApi
+      .listEntities({ is_active: true })
+      .then((res) => setEntities(res.items))
+      .finally(() => setLoading(false));
   }, [open]);
 
-  const usedDestinations = useMemo(() => {
-    const set = new Set<string>();
-    existingEdges.forEach((e) => set.add(e.destination_entity_id));
-    return set;
-  }, [existingEdges]);
-
-  const candidateEntities = useMemo(() => {
+  const filtered = useMemo(() => {
     const lower = search.trim().toLowerCase();
-    return allEntities.filter((e) => {
-      if (e.id === sourceEntity.id) return false;
-      if (usedDestinations.has(e.id)) return false;
-      if (typeFilter !== 'all' && e.entity_type !== typeFilter) return false;
-      if (lower) {
-        const blob = `${e.name} ${e.identifier}`.toLowerCase();
-        if (!blob.includes(lower)) return false;
-      }
-      return true;
-    });
-  }, [allEntities, search, typeFilter, usedDestinations, sourceEntity.id]);
-
-  const handleSave = async () => {
-    const pct = Number(percentage);
-    if (!destinationId) {
-      onError('Pick a destination entity.');
-      return;
-    }
-    if (Number.isNaN(pct) || pct <= 0 || pct > 100) {
-      onError('Enter a percentage between 0 (exclusive) and 100.');
-      return;
-    }
-    if (pct > availableHeadroom + 0.001) {
-      onError(
-        `Only ${availableHeadroom.toFixed(2)}% available before the sum cap of 100% is exceeded.`,
-      );
-      return;
-    }
-    if (!onSandboxCreateEdge && versionId === null) {
-      onError('Version not resolved yet — wait a moment and retry.');
-      return;
-    }
-    setSaving(true);
-    try {
-      if (onSandboxCreateEdge) {
-        await onSandboxCreateEdge({
-          year: legacyYear,
-          source_entity_id: sourceEntity.id,
-          destination_entity_id: destinationId,
-          percentage: pct,
-        });
-      } else {
-        await chargingApi.createDistribution({
-          version_id: versionId as number,
-          source_entity_id: sourceEntity.id,
-          destination_entity_id: destinationId,
-          percentage: pct,
-          rationale: rationale.trim() || null,
-        });
-      }
-      onSaved();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Save failed';
-      // The backend embeds cycle_chain inside a JSON detail. Detail is the
-      // raw `e.message` (client.ts pulls `error.detail`). When it's a
-      // structured cycle response we get a string like "[ITF00001, ...]" or
-      // a JSON-stringified payload. We try to parse if it looks structured.
-      let chain: string[] | undefined;
-      try {
-        const parsed = JSON.parse(msg);
-        if (parsed && Array.isArray(parsed.cycle_chain)) {
-          chain = parsed.cycle_chain as string[];
-        }
-      } catch {
-        /* not a JSON detail — fall through */
-      }
-      onError(msg, chain);
-    } finally {
-      setSaving(false);
-    }
-  };
+    return entities
+      .filter((e) => e.id !== sourceEntityId)
+      .filter((e) => !existingDestinationIds.has(e.id))
+      .filter((e) => typeFilter === 'all' || e.entity_type === typeFilter)
+      .filter((e) => {
+        if (!lower) return true;
+        return `${e.name} ${e.identifier}`.toLowerCase().includes(lower);
+      });
+  }, [entities, search, typeFilter, sourceEntityId, existingDestinationIds]);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add distribution edge</DialogTitle>
+          <DialogTitle>Add distribution target</DialogTitle>
           <DialogDescription>
-            Source: {sourceEntity.name} ({sourceEntity.identifier})
-            <span className="ml-2 text-[11px] text-muted-foreground">
-              Available headroom: {availableHeadroom.toFixed(2)}%
-            </span>
+            Pick an entity to distribute a share of this service's cost to.
+            New rows default to 0% — set the percentage in the table.
           </DialogDescription>
         </DialogHeader>
-
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Destination type
-              </label>
-              <Select
-                value={typeFilter}
-                onValueChange={(v) =>
-                  setTypeFilter(v as 'all' | ChargeableEntityType)
-                }
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ENTITY_TYPE_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Search
-              </label>
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Identifier or name…"
-                className="h-9"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Destination entity ({candidateEntities.length} available)
-            </label>
-            <Select value={destinationId} onValueChange={setDestinationId}>
+            <Select
+              value={typeFilter}
+              onValueChange={(v) =>
+                setTypeFilter(v as 'all' | ChargeableEntityType)
+              }
+            >
               <SelectTrigger className="h-9">
-                <SelectValue placeholder="Pick a destination…" />
+                <SelectValue />
               </SelectTrigger>
-              <SelectContent className="max-h-[260px]">
-                {candidateEntities.slice(0, 200).map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    <span className="text-sm">{e.name}</span>
-                    <span className="text-[11px] font-mono text-muted-foreground ml-2">
-                      {e.identifier}
-                    </span>
+              <SelectContent>
+                {TYPE_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Name or identifier…"
+                className="h-9 pl-8"
+              />
+            </div>
           </div>
-
-          <div className="space-y-1">
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Percentage
-            </label>
-            <Input
-              value={percentage}
-              onChange={(e) => setPercentage(e.target.value)}
-              type="number"
-              min={0.01}
-              max={100}
-              step={0.01}
-              className="h-9 font-mono"
-              placeholder="e.g. 25.00"
-            />
+          <div className="rounded-md border border-border max-h-[320px] overflow-y-auto">
+            {loading ? (
+              <div className="p-6">
+                <Skeleton className="h-6 w-full mb-2" />
+                <Skeleton className="h-6 w-full mb-2" />
+                <Skeleton className="h-6 w-full" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <p className="p-6 text-center text-sm text-muted-foreground">
+                No candidates match — try a broader filter.
+              </p>
+            ) : (
+              <ul>
+                {filtered.slice(0, 200).map((e) => (
+                  <li
+                    key={e.id}
+                    className="border-b border-border last:border-b-0"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onPick(e)}
+                      className="w-full text-left px-3 py-2 hover:bg-accent flex items-stretch gap-2"
+                    >
+                      <span
+                        className={`w-1 rounded-sm self-stretch flex-shrink-0 ${subtypeStripClass(e.entity_type)}`}
+                        aria-hidden
+                      />
+                      <span className="flex-1 min-w-0">
+                        <span className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-foreground truncate">
+                            {e.name}
+                          </span>
+                          <EntityTypeBadge type={e.entity_type} />
+                        </span>
+                        <span className="text-[11px] font-mono text-muted-foreground">
+                          {e.identifier}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-
-          <div className="space-y-1">
-            <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Rationale{' '}
-              <span className="font-normal normal-case text-muted-foreground/80">
-                (optional)
-              </span>
-            </label>
-            <Textarea
-              value={rationale}
-              onChange={(e) => setRationale(e.target.value)}
-              placeholder="Why this destination shares this percentage…"
-              rows={2}
-              maxLength={2000}
-              className="text-sm"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              First-class per <span className="font-mono">[F-S1-05]</span>.
-              Editable later from the row.
-            </p>
-          </div>
-
-          {error && (
-            <Card className="border-red-500 bg-red-50 dark:bg-red-900/20 p-3">
-              <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
-              {cycleChain && cycleChain.length > 0 && (
-                <p className="text-[11px] mt-1.5 font-mono text-red-700 dark:text-red-400">
-                  Cycle chain:{' '}
-                  {cycleChain
-                    .map((id) => entityById.get(id)?.identifier ?? id)
-                    .join(' → ')}
-                </p>
-              )}
-            </Card>
-          )}
         </div>
-
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
+          <Button variant="outline" size="sm" onClick={onClose}>
             Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving || !destinationId || !percentage}
-          >
-            {saving ? 'Saving…' : 'Add edge'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+
