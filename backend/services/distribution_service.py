@@ -45,6 +45,11 @@ from models.charging import (
     DistributionVersion,
 )
 from services.dag_resolver import detect_cycle_db
+from services.depth_validation import (
+    assert_within_max_depth,
+    compute_chain_depths_for_version,
+    get_max_allocation_depth,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -56,13 +61,26 @@ class DistributionValidationError(Exception):
     """Raised by the service when a write would violate a business rule.
 
     The router catches this and returns 409 Conflict with a structured body
-    containing the message and (for cycles) the cycle chain.
+    containing the message and (for cycles) the cycle chain or (for depth
+    violations) the violating path.
+
+    Only one of ``cycle_chain`` / ``violating_path`` is populated per
+    exception instance — cycle violations set ``cycle_chain``; depth
+    violations (Service Workbench S1, max_allocation_depth) set
+    ``violating_path``.
     """
 
-    def __init__(self, message: str, *, cycle_chain: Optional[list[str]] = None):
+    def __init__(
+        self,
+        message: str,
+        *,
+        cycle_chain: Optional[list[str]] = None,
+        violating_path: Optional[list[str]] = None,
+    ):
         super().__init__(message)
         self.message = message
         self.cycle_chain = cycle_chain
+        self.violating_path = violating_path
 
 
 # ---------------------------------------------------------------------------
@@ -499,6 +517,21 @@ def assert_no_cycle(
 # ---------------------------------------------------------------------------
 
 
+def _refresh_chain_depth_cache(db: Session, version_id: int) -> None:
+    """Recompute and bulk-update the ``Distribution.chain_depth`` cache for a version.
+
+    Service Workbench S1 — invoked after every successful edge mutation
+    (create / update / delete) in a draft version, after flush, before
+    commit. ``to_business_pct`` writes do not change graph structure and
+    skip this refresh.
+    """
+    depths = compute_chain_depths_for_version(db, version_id)
+    for edge_id, depth in depths.items():
+        db.query(Distribution).filter(Distribution.id == edge_id).update(
+            {"chain_depth": depth}
+        )
+
+
 def create_distribution_edge(
     db: Session, *, version_id: int, source_entity_id: str,
     destination_entity_id: str, percentage: float,
@@ -538,13 +571,16 @@ def create_distribution_edge(
             f"version_id={version_id}). Update the existing edge instead.",
         )
 
-    assert_no_cycle(
-        db, source_entity_id, destination_entity_id, version_id,
-    )
+    # Validation order per Service Workbench S1 plan:
+    # 1) sum-rule, 2) cycle, 3) depth — all must pass before flush so a
+    # rejection leaves the version state untouched.
     assert_sum_within_100(
         db, source_entity_id, version_id,
         candidate_destination_id=destination_entity_id,
         candidate_percentage=percentage,
+    )
+    assert_no_cycle(
+        db, source_entity_id, destination_entity_id, version_id,
     )
 
     edge = Distribution(
@@ -556,6 +592,12 @@ def create_distribution_edge(
     )
     db.add(edge)
     db.flush()
+    # Depth check runs against the post-insert graph; if it raises, the
+    # caller's transaction is rolled back by the router so the flush has
+    # no observable effect.
+    assert_within_max_depth(db, version_id, get_max_allocation_depth(db))
+    # Refresh the chain_depth cache for every edge in the version.
+    _refresh_chain_depth_cache(db, version_id)
     return edge
 
 
@@ -585,9 +627,17 @@ def update_distribution_edge(
         db, edge.source_entity_id, edge.version_id,
         candidate_edge_id=edge.id, candidate_percentage=percentage,
     )
+    # No cycle re-check needed — update only changes percentage/rationale,
+    # not source/destination, so the graph structure is unchanged.
     edge.percentage = Decimal(str(round(percentage, 2)))
     if update_rationale:
         edge.rationale = rationale
+    db.flush()
+    # Service Workbench S1 — depth check (graph topology is unchanged here
+    # so depth cannot increase, but the check is cheap and guards against
+    # any latent drift) + refresh chain_depth cache.
+    assert_within_max_depth(db, edge.version_id, get_max_allocation_depth(db))
+    _refresh_chain_depth_cache(db, edge.version_id)
     return edge
 
 
@@ -600,7 +650,15 @@ def delete_distribution_edge(db: Session, edge_id: int) -> Distribution:
         )
     version = get_version(db, edge.version_id)
     _require_draft_version(version)
+    version_id = edge.version_id
     db.delete(edge)
+    db.flush()
+    # Service Workbench S1 — depth can only decrease on delete, so no
+    # depth assertion is needed (skipping it also ensures a lowered
+    # max_allocation_depth never blocks a delete that would bring the
+    # graph back into compliance). Cache refresh still required so the
+    # remaining edges reflect the new shape.
+    _refresh_chain_depth_cache(db, version_id)
     return edge
 
 
