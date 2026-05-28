@@ -63,7 +63,13 @@ export function AllocationFlowStub() {
   }, [entityId]);
 
   const back = () => {
-    if (entityId) {
+    // Prefer browser history so any future params on the source URL
+    // (filter chips etc.) round-trip cleanly. If we got here via a
+    // direct deep-link with no history, fall back to the workbench
+    // route for the focal entity.
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else if (entityId) {
       navigate(`/workbench?entity=${entityId}`);
     } else {
       navigate('/workbench');

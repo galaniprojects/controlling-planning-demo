@@ -76,10 +76,13 @@ export function ServiceStage2BTCTile({
     };
   }, [entityId, skipFetch]);
 
-  const modeLabelOptions =
+  // Copy for the no-profile empty state — phrased as a constraint
+  // sentence ("Offerings may be Manual or Automatic") rather than a
+  // pseudo-badge so it reads as guidance, not as state.
+  const noProfileHint =
     entityType === 'InternalService'
-      ? 'Automatic'
-      : 'Manual / Automatic';
+      ? 'Internal Services use Automatic mode (UM-derived).'
+      : 'Offerings may use Manual or Automatic mode.';
 
   if (skipFetch) {
     return (
@@ -100,11 +103,10 @@ export function ServiceStage2BTCTile({
         .slice(0, 3)
     : [];
 
-  const modeBadgeText = profile
-    ? profile.mode === 'automatic'
-      ? 'Automatic'
-      : 'Manual'
-    : modeLabelOptions;
+  // Always-true at the badge call site — the JSX below renders the badge
+  // only when `profile` is truthy. Kept as a narrow expression to avoid
+  // an inline ternary in the JSX.
+  const modeBadgeText = profile?.mode === 'automatic' ? 'Automatic' : 'Manual';
 
   return (
     <ActionCard
@@ -117,7 +119,7 @@ export function ServiceStage2BTCTile({
         <EmptyState
           icon={CircuitBoard}
           title="No BTC profile yet"
-          description={`Mode for ${entityType === 'InternalService' ? 'Internal Services' : 'Offerings'}: ${modeLabelOptions}.`}
+          description={noProfileHint}
           size="sm"
         />
       )}

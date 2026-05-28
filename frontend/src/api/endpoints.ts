@@ -1836,6 +1836,11 @@ export const chargingApi = {
     const q = new URLSearchParams();
     if (params?.entity_type) q.set('entity_type', params.entity_type);
     if (params?.hierarchy_node_id) q.set('hierarchy_node_id', params.hierarchy_node_id);
+    // Emit `is_active` for every defined value so the wrapper doesn't
+    // silently rely on the backend's "active-only" default. If anyone
+    // later flips that default the call sites here keep their stated
+    // intent.
+    if (params?.is_active === true) q.set('is_active', 'true');
     if (params?.is_active === false) q.set('is_active', 'false');
     if (params?.is_active === null) q.set('is_active', 'null');
     const qs = q.toString();
