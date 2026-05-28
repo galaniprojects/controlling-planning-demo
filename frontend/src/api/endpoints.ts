@@ -316,7 +316,7 @@ export const docsApi = {
   getChangelog: () => api.get<ListResponse<ChangelogEntry>>('/api/docs/changelog'),
 };
 
-// --- Project Workbench ---
+// --- Workbench ---
 
 export const workbenchApi = {
   // Project list (left panel)
@@ -1822,6 +1822,8 @@ import type {
   AllocationBreakdownSortBy,
   EntityAllocationBreakdownResponse,
   LocationBreakdownResponse,
+  CascadeChainResponse,
+  DistributionCandidatesResponse,
 } from '@/types/api';
 
 export const chargingApi = {
@@ -1834,6 +1836,11 @@ export const chargingApi = {
     const q = new URLSearchParams();
     if (params?.entity_type) q.set('entity_type', params.entity_type);
     if (params?.hierarchy_node_id) q.set('hierarchy_node_id', params.hierarchy_node_id);
+    // Emit `is_active` for every defined value so the wrapper doesn't
+    // silently rely on the backend's "active-only" default. If anyone
+    // later flips that default the call sites here keep their stated
+    // intent.
+    if (params?.is_active === true) q.set('is_active', 'true');
     if (params?.is_active === false) q.set('is_active', 'false');
     if (params?.is_active === null) q.set('is_active', 'null');
     const qs = q.toString();
@@ -2026,6 +2033,32 @@ export const chargingApi = {
     const qs = q.toString();
     return api.get<EntityStage1View>(
       `/api/charging/stage1/entities/${entityId}${qs ? '?' + qs : ''}`,
+    );
+  },
+
+  // === Cascade chain + distribution candidates (Service Workbench S1+S2) ===
+  // Open to all four roles per the `/api/charging/` read pattern.
+  getCascadeChain: (
+    entityId: string,
+    params?: { version_id?: number; evaluated_date?: string },
+  ) => {
+    const q = new URLSearchParams();
+    if (params?.version_id !== undefined) q.set('version_id', String(params.version_id));
+    if (params?.evaluated_date) q.set('evaluated_date', params.evaluated_date);
+    const qs = q.toString();
+    return api.get<CascadeChainResponse>(
+      `/api/charging/cascade/${entityId}${qs ? '?' + qs : ''}`,
+    );
+  },
+  getDistributionCandidates: (
+    sourceEntityId: string,
+    params?: { version_id?: number },
+  ) => {
+    const q = new URLSearchParams();
+    if (params?.version_id !== undefined) q.set('version_id', String(params.version_id));
+    const qs = q.toString();
+    return api.get<DistributionCandidatesResponse>(
+      `/api/charging/distribution-candidates/${sourceEntityId}${qs ? '?' + qs : ''}`,
     );
   },
 

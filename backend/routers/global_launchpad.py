@@ -59,7 +59,7 @@ def _get_project_entity_id(db: Session, project_id: str) -> str:
 
 MODULES = [
     {"id": "portfolio", "name": "Portfolio Overview", "description": "IT portfolio dashboard with budget tracking, intake queue, and change request approvals."},
-    {"id": "workbench", "name": "Project Workbench", "description": "Project detail view with forecast planning, change requests, and trend analysis."},
+    {"id": "workbench", "name": "Workbench", "description": "Canonical home for Projects, Offerings, and Internal Services. Type-aware tile grid, forecast planning, distribution editing, change requests."},
     # === v5 Cluster F — Charging & Allocations [E-10] ===
     {"id": "charging", "name": "Charging & Allocations", "description": "Inter-service distribution edges, BTC profiles, and location cost rollup across the IT portfolio."},
     {"id": "capacity", "name": "Capacity Management", "description": "Team utilization heatmaps, resource allocation, and request management."},

@@ -16,7 +16,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   '/portfolio': 'Portfolio Overview',
   '/portfolio/run': 'Run Portfolio',
   '/portfolio/approvals': 'Approvals',
-  '/workbench': 'Project Workbench',
+  '/workbench': 'Workbench',
   '/capacity': 'Capacity Management',
   '/capacity/requests': 'Resource Requests',
   '/simulator': 'What-If Simulator',

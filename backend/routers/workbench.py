@@ -1,4 +1,10 @@
-"""Project Workbench endpoints (Section 10.4) — 11 endpoints + C1 forecast grid/versioning."""
+"""Workbench endpoints (Section 10.4) — 11 endpoints + C1 forecast grid/versioning.
+
+Module label changed from "Project Workbench" to "Workbench" in Service Workbench
+Session 3 (the module is now the canonical home for Projects, Offerings, and
+Internal Services). The router prefix `/api/projects` is kept as-is — this surface
+remains project-scoped; Offering/InternalService data flows through `/api/charging/*`.
+"""
 from __future__ import annotations
 import json
 from datetime import datetime
@@ -28,7 +34,7 @@ from services.forecast_cycle import (
 )
 from services.portfolio_service import compute_project_financials, get_project_entity_info, get_project_hierarchy_path, get_top_level_entity_type_id
 
-router = APIRouter(prefix="/api/projects", tags=["Project Workbench"])
+router = APIRouter(prefix="/api/projects", tags=["Workbench"])
 
 # C1: separate router for cross-project diff endpoint [C-RH-05]
 forecast_router = APIRouter(prefix="/api/forecast", tags=["Forecast Versions"])
@@ -38,7 +44,7 @@ progress_router = APIRouter(prefix="/api/portfolio", tags=["Progress Tracker"])
 
 # E2: separate router for external cost aggregation [E-08a]–[E-08b]
 external_costs_workbench_router = APIRouter(
-    prefix="/api/workbench", tags=["Project Workbench External Costs"],
+    prefix="/api/workbench", tags=["Workbench External Costs"],
 )
 
 

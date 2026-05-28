@@ -2,11 +2,11 @@
   {
     "id": "faq-01",
     "question": "How do I submit a change request for my project?",
-    "summary": "CRs are created automatically by the 5-phase Monthly Forecast Wizard — there is no separate 'Create CR' form. Open Project Workbench, navigate to Forecast & Planning, and click Rolling Forecast Review.",
+    "summary": "CRs are created automatically by the 5-phase Monthly Forecast Wizard — there is no separate 'Create CR' form. Open Workbench, navigate to Forecast & Planning, and click Rolling Forecast Review.",
     "applicable_roles": ["project_lead"],
     "modules_involved": ["workbench"],
     "steps": [
-      {"step_number": 1, "instruction": "Open the **Project Workbench** from the Launchpad or sidebar navigation.", "target_module": "workbench"},
+      {"step_number": 1, "instruction": "Open the **Workbench** from the Launchpad or sidebar navigation.", "target_module": "workbench"},
       {"step_number": 2, "instruction": "Select the project you want to modify from the project list on the left panel."},
       {"step_number": 3, "instruction": "Click the **Forecast & Planning** tab, then click **Rolling Forecast Review** to open the 5-phase wizard."},
       {"step_number": 4, "instruction": "Walk the 5 phases: Retrospective (acknowledge prior-month variances) → Suggestions (apply or dismiss AI insights) → Edit Forecast (modify the monthly + quarterly grid) → Review (verify the diff in EUR with justification) → Confirmation (Submit)."},
@@ -119,11 +119,11 @@
   {
     "id": "faq-09",
     "question": "How do I update my project's monthly forecast?",
-    "summary": "Open your project in Project Workbench, click the Forecast & Planning tab, and start the 5-phase Rolling Forecast Review wizard.",
+    "summary": "Open your project in Workbench, click the Forecast & Planning tab, and start the 5-phase Rolling Forecast Review wizard.",
     "applicable_roles": ["project_lead"],
     "modules_involved": ["workbench"],
     "steps": [
-      {"step_number": 1, "instruction": "Open the **Project Workbench** and select your project.", "target_module": "workbench"},
+      {"step_number": 1, "instruction": "Open the **Workbench** and select your project.", "target_module": "workbench"},
       {"step_number": 2, "instruction": "Click the **Forecast & Planning** tab to see the monthly + quarterly forecast grid (monthly for the next 12 months, quarterly thereafter; cells beyond the granularity boundary appear with a 'Provisional' flag)."},
       {"step_number": 3, "instruction": "Click **Rolling Forecast Review** to start the wizard. Note: if a CR is already pending for this project, the button is disabled with a status indicator showing the blocking CR number."},
       {"step_number": 4, "instruction": "Walk the 5 phases: **Retrospective** (acknowledge prior-month variances — flagged rows > 10% require text explanation before Acknowledge & Continue enables), **Suggestions** (apply or dismiss AI insights, may be silently skipped if none surface), **Edit Forecast** (modify the grid; click 'Keep as is' to proceed without changes), **Review** (verify changes in full EUR format with old / new / delta), and **Confirmation** (final Submit)."},
@@ -290,7 +290,7 @@
       {"step_number": 3, "instruction": "Use the **Hierarchies** tab to define the level ordering of entity types into a tree structure. Mark one hierarchy as **Active** — this determines the grouping used across all modules."},
       {"step_number": 4, "instruction": "Use the **Grouping Entities** tab to create actual entities within each type (e.g., 'Truck & Bus Systems' under Line of Business) and set parent-child relationships."},
       {"step_number": 5, "instruction": "Use the **Hierarchy Assignment** tab to view the tree and assign projects to entities."},
-      {"step_number": 6, "instruction": "The active hierarchy's labels propagate across **Portfolio Overview** (tree grouping), **Capacity Management** (pivot dimensions), and **Project Workbench** (entity fields)."}
+      {"step_number": 6, "instruction": "The active hierarchy's labels propagate across **Portfolio Overview** (tree grouping), **Capacity Management** (pivot dimensions), and **Workbench** (entity fields)."}
     ]
   },
   {
@@ -346,7 +346,7 @@
     "applicable_roles": ["controller", "executive", "project_lead", "cost_center_owner"],
     "modules_involved": ["portfolio", "charging", "reporting"],
     "steps": [
-      {"step_number": 1, "instruction": "**Change** = projects at DoI 0–4: Proposed, Under Evaluation, Approved, Active, Hyper-maintenance. Tracked in the Backlog and Project Workbench.", "target_module": "backlog"},
+      {"step_number": 1, "instruction": "**Change** = projects at DoI 0–4: Proposed, Under Evaluation, Approved, Active, Hyper-maintenance. Tracked in the Backlog and Workbench.", "target_module": "backlog"},
       {"step_number": 2, "instruction": "**Run** = DoI 5 (Operate) projects + all Offerings + all Internal Services. Managed in Charging & Allocations for cost flows and BTC rather than in the Backlog ranker.", "target_module": "charging"},
       {"step_number": 3, "instruction": "The flag is **computed**, not stored: ChargeableEntity.is_change_or_run is a Python property derived from `entity_type` + `doi`. Project DoI 0–4 = Change; DoI 5 / Offering / InternalService = Run."},
       {"step_number": 4, "instruction": "Switch between the two portfolios in Portfolio Overview using the view selector (Run Portfolio shows DoI 5 chargeable entities)."},
