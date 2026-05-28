@@ -953,11 +953,18 @@ def _serialize_version(
 def _validation_error_to_http(e: DistributionValidationError) -> HTTPException:
     """Translate a service-level validation error to HTTP 409.
 
-    Threads cycle_chain (cycle violation) or violating_path (depth violation,
-    Service Workbench S1) through to the response body so the UI can render
-    the offending chain.
+    Response body shape (FastAPI wraps ``detail`` under top-level ``detail``)::
+
+        {"detail": {"message": <str>, "cycle_chain"?: [...], "violating_path"?: [...]}}
+
+    Mirrors ``backend/routers/admin.py``'s ``max_allocation_depth`` 409 shape
+    (Service Workbench S1 review follow-up — single normalized shape across
+    admin + charging endpoints). The frontend ``client.ts`` handles
+    dict-shaped ``detail`` by ``JSON.stringify``-ing it so callers like
+    ``EntityDistributionEditor`` continue to do ``JSON.parse(err.message)``
+    and recover ``cycle_chain``/``violating_path``.
     """
-    payload: dict[str, object] = {"detail": e.message}
+    payload: dict[str, object] = {"message": e.message}
     if e.cycle_chain is not None:
         payload["cycle_chain"] = e.cycle_chain
     if getattr(e, "violating_path", None) is not None:

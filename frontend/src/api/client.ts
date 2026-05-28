@@ -23,7 +23,20 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
+    const detail = error.detail;
+    // Structured errors (charging 409 cycle/depth, admin 409 max-depth)
+    // ship `detail` as a dict {message, cycle_chain?, violating_path?,
+    // violations?}. Stringify so downstream consumers like
+    // EntityDistributionEditor that do `JSON.parse(err.message)` continue
+    // to recover the structured fields. Simple errors (detail is a
+    // string) round-trip unchanged.
+    const msg =
+      typeof detail === 'string'
+        ? detail
+        : detail && typeof detail === 'object'
+          ? JSON.stringify(detail)
+          : `HTTP ${response.status}`;
+    throw new Error(msg);
   }
 
   return response.json();
