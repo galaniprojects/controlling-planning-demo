@@ -427,7 +427,7 @@ Effective-dated Stage 1 distribution version header per `[F-S1-02..04]` (Chargin
 ### `Distribution` — `distributions`
 Stage 1 inter-service distribution edge per `[F-S1-01..05]`. Sparse storage — one row per actually-flowing edge per `DistributionVersion`. **The "To Business" share is *not* an edge** — lives on `ChargeableEntity.to_business_pct` per `[F-DM-02]`. Self-retained percentage is derived: `100 − to_business_pct − Σ(distribution %)`. Cadence-agnostic per the FD-3 rework — no `year` column on edges; the year axis lives on the cost being distributed.
 
-**Key columns.** `id` Integer PK, `version_id` FK → distribution_versions NOT NULL (`ondelete=CASCADE`), `source_entity_id` FK NOT NULL, `destination_entity_id` FK NOT NULL, `percentage` Numeric(5,2) NOT NULL, `rationale` Text NULL (per-edge rationale per `[F-S1-05]` — UI nudges on % change vs the copied baseline; surfaces in diff report; optional because per-edge rationale is per-change context, not contractual — the required field is the version-level `DistributionVersion.rationale`).
+**Key columns.** `id` Integer PK, `version_id` FK → distribution_versions NOT NULL (`ondelete=CASCADE`), `source_entity_id` FK NOT NULL, `destination_entity_id` FK NOT NULL, `percentage` Numeric(5,2) NOT NULL, `rationale` Text NULL (per-edge rationale per `[F-S1-05]` — UI nudges on % change vs the copied baseline; surfaces in diff report; optional because per-edge rationale is per-change context, not contractual — the required field is the version-level `DistributionVersion.rationale`), `chain_depth` Integer NULL (cache of the longest root-to-leaf path length passing through this edge, in its version; Service Workbench Session 1; bulk-recomputed after every edge mutation in the same version; NULL = unwritten cache (seeded edges, never-mutated versions); first edge write in any version populates the column for all edges in that version; powers the depth badge in the entity picker without per-request graph walks).
 
 **Constraints.**
 - `UniqueConstraint(version_id, source_entity_id, destination_entity_id, name="uq_distribution_edge")` — same edge can carry different percentages across versions.
@@ -438,7 +438,7 @@ Stage 1 inter-service distribution edge per `[F-S1-01..05]`. Sparse storage — 
 
 **Relationships.** `version` → `DistributionVersion` (`back_populates="edges"`); `source_entity` (foreign_keys=[source_entity_id], back_populates="outgoing_edges"); `destination_entity` (foreign_keys=[destination_entity_id], back_populates="incoming_edges").
 
-**Notes.** Sum-rule per `[F-S1-02]`: `to_business_pct + Σ(distribute %) ≤ 100`; residual is derived as self-retained. Cycle detection per `[F-S1-05]` is hard-block on save with the cycle chain returned in the 409 body for UI rendering. DAG resolution lives in `services/dag_resolver.py::compute_effective_cost` (defensive `_seen` cycle guard, depth cap=8); `get_upstream_chain` returns all upstream paths for the rollup drill-down per `[F-RV-04]`. Edits are scoped to a **draft** version — active production versions are immutable per `[F-S1-08]` (service-enforced).
+**Notes.** Sum-rule per `[F-S1-02]`: `to_business_pct + Σ(distribute %) ≤ 100`; residual is derived as self-retained. Cycle detection per `[F-S1-05]` is hard-block on save with the cycle chain returned in the 409 body for UI rendering. DAG resolution lives in `services/dag_resolver.py::compute_effective_cost`; cycles are caught at edge-save by `detect_cycle_db`, so the resolver uses memoization (full `EffectiveCostResult` cache keyed by entity_id, Service Workbench Session 1) — no cycle-breaking skip-set inside the recursion. `get_upstream_chain` returns all upstream paths for the rollup drill-down per `[F-RV-04]` with `max_depth` resolved from `PlanningParameter.max_allocation_depth` (default 6) when unspecified. Depth is a third save-time validation alongside cycle + sum-rule; violating-path returned in the 409 body. Edits are scoped to a **draft** version — active production versions are immutable per `[F-S1-08]` (service-enforced).
 
 ### `BTCProfile` — `btc_profiles`
 Business-Transfer Charging profile per entity per year per `[F-S2-01..04]`.
@@ -548,9 +548,11 @@ PL's original plan + controller-proposed edits for the 5-phase submission wizard
 ## System (`system.py`)
 
 ### `PlanningParameter` — `planning_parameters`
-Configurable system parameters (fiscal month, granularity boundary, planning horizon, Tech Navigator weights, t-shirt thresholds).
+Configurable system parameters (fiscal month, granularity boundary, planning horizon, Tech Navigator weights, t-shirt thresholds, allocation depth cap).
 
-**Key columns.** `id` Integer PK, `key` String(50) UNIQUE NOT NULL, `name`, `description`, `current_value` String(100), `default_value` String(100), `data_type` String(20) (`month` | `integer` | `percentage`), `param_group` String(30) (`fiscal` | `planning` | `thresholds` | `limits`).
+**Key columns.** `id` Integer PK, `key` String(50) UNIQUE NOT NULL, `name`, `description`, `current_value` String(100), `default_value` String(100), `data_type` String(20) (`month` | `integer` | `percentage`), `param_group` String(30) (`fiscal` | `planning` | `thresholds` | `limits` | `tech_navigator`).
+
+**Notes.** `max_allocation_depth` (group `limits`, default `6`) caps the longest root-to-leaf path in a Stage 1 distribution graph. Lowering the value via the admin API validates every active `DistributionVersion` first — request is rejected with 409 + violating paths if any version exceeds the new cap. Save-time validation in `services/distribution_service.py` rejects edge writes that would push the version past the cap, with the violating path returned in the 409 body. See `services/depth_validation.py` (Service Workbench Session 1).
 
 ### `KPIDefinition` — `kpi_definitions`
 KPI catalogue for reporting surfaces.

@@ -548,6 +548,14 @@ class Distribution(Base):
     # not a contractual requirement). The version-level rationale on
     # ``DistributionVersion`` is the required field.
     rationale: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Cache of the longest root-to-leaf path length passing through this edge,
+    # for the version this edge belongs to (Service Workbench Session 1).
+    # Recomputed in bulk after every edge mutation in the same version. NULL
+    # = unwritten cache (seeded edges, never-mutated versions); first edge
+    # write in any version populates the column for all edges in that
+    # version. Powers the depth badge in the entity picker without
+    # per-request graph walks.
+    chain_depth: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     modified_at: Mapped[datetime] = mapped_column(
