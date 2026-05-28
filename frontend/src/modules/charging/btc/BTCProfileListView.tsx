@@ -36,7 +36,6 @@ import type {
   ChargeableEntityType,
 } from '@/types/api';
 import { EntityBTCProfileEditor } from './EntityBTCProfileEditor';
-import { EntityBTCProfileEditorByEntity } from './EntityBTCProfileEditorByEntity';
 import { CreateBTCProfileDialog } from './CreateBTCProfileDialog';
 import { YearRolloverDialog } from './YearRolloverDialog';
 
@@ -131,7 +130,7 @@ export function BTCProfileListView() {
     // selected year. Back clears `?entity=` so the list view is
     // visible again with no sticky URL state.
     return (
-      <EntityBTCProfileEditorByEntity
+      <EntityBTCProfileEditor
         entityId={entityParam}
         year={year}
         onBack={() => {
