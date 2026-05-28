@@ -50,6 +50,8 @@ from schemas.charging import (
 )
 from schemas.common import CurrentUser
 from schemas.distribution import (
+    CascadeBusinessTerminal, CascadeChainResponse, CascadeEdge, CascadeNode,
+    DistributionCandidate, DistributionCandidatesResponse,
     DistributionCreate, DistributionListResponse, DistributionResponse,
     DistributionUpdate, DistributionEffectiveCost, DistributionInflow,
     DistributionVersionActivate, DistributionVersionCreate,
@@ -66,6 +68,7 @@ from services.btc_service import (
     get_profile, get_profile_for_entity, list_profiles,
     load_active_um_versions, refresh_from_um, update_profile, year_rollover,
 )
+from services import cascade_query
 from services.dag_resolver import (
     compute_effective_cost, get_upstream_chain,
 )
@@ -1652,6 +1655,162 @@ def diff_distribution_version(
         removed_count=result.removed_count,
         changed_count=result.changed_count,
         total=len(diff_edges),
+    )
+
+
+# ===========================================================================
+# Service Workbench Session 2 — bidirectional cascade + candidate picker
+# Composes A's resolver + B's depth helpers via services/cascade_query.py.
+# Reads open to all four roles (mutations live elsewhere).
+# ===========================================================================
+
+
+def _serialize_cascade_node(n: cascade_query.CascadeNodeResult) -> CascadeNode:
+    return CascadeNode(
+        entity_id=n.entity_id,
+        entity_name=n.entity_name,
+        entity_type=n.entity_type,  # type: ignore[arg-type]
+        identifier=n.identifier,
+        own_cost=n.own_cost,
+        effective_cost=n.effective_cost,
+        to_business_pct=n.to_business_pct,
+        self_retained_pct=n.self_retained_pct,
+    )
+
+
+@charging_router.get(
+    "/cascade/{entity_id}",
+    response_model=CascadeChainResponse,
+)
+def get_cascade_chain(
+    entity_id: str,
+    version_id: int | None = None,
+    evaluated_date: date | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> CascadeChainResponse:
+    """Full bidirectional cascade for a focal ChargeableEntity.
+
+    Returns the focal node, transitively-collected upstream + downstream
+    node lists, every edge in the displayed sub-graph (with resolved EUR
+    amounts and the chain_depth cache value), and the focal's BTC
+    business terminals projected for the demo year.
+
+    ``version_id`` selects an explicit DistributionVersion (production or
+    draft); ``evaluated_date`` resolves the production version in force
+    on that date; both omitted = production version in force today.
+
+    Powers the Service Workbench Allocation Flow view (Session 4).
+    """
+    # Pre-flight existence check so 404 fires before we resolve the version
+    # (parity with the existing /stage1/entities/{entity_id} endpoint).
+    ce = (
+        db.query(ChargeableEntity).filter(ChargeableEntity.id == entity_id).first()
+    )
+    if ce is None:
+        raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+
+    try:
+        result = cascade_query.query_cascade_chain(
+            db, entity_id, version_id=version_id, evaluated_date=evaluated_date,
+        )
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+    return CascadeChainResponse(
+        focal=_serialize_cascade_node(result.focal),
+        upstream=[_serialize_cascade_node(n) for n in result.upstream],
+        downstream=[_serialize_cascade_node(n) for n in result.downstream],
+        edges=[
+            CascadeEdge(
+                source_entity_id=e.source_entity_id,
+                destination_entity_id=e.destination_entity_id,
+                percentage=e.percentage,
+                amount=e.amount,
+                chain_depth=e.chain_depth,
+                rationale=e.rationale,
+            )
+            for e in result.edges
+        ],
+        business_terminals=[
+            CascadeBusinessTerminal(
+                charging_location_id=t.charging_location_id,
+                code=t.code,
+                name=t.name,
+                percentage=t.percentage,
+                amount=t.amount,
+            )
+            for t in result.business_terminals
+        ],
+        version=_serialize_version(
+            result.version,
+            edge_count=_count_edges(db, result.version.id),
+        ),
+        evaluated_date=result.evaluated_date,
+        max_allocation_depth=result.max_allocation_depth,
+    )
+
+
+@charging_router.get(
+    "/distribution-candidates/{source_entity_id}",
+    response_model=DistributionCandidatesResponse,
+)
+def get_distribution_candidates(
+    source_entity_id: str,
+    version_id: int | None = None,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(require_role(
+        "controller", "executive", "project_lead", "cost_center_owner",
+    )),
+) -> DistributionCandidatesResponse:
+    """Eligible distribution targets from a source entity.
+
+    Returns every active ChargeableEntity except: the source itself,
+    entities already wired as an outgoing target from the source in this
+    version, and entities that would form a cycle if added. Each candidate
+    carries the ``resulting_chain_depth`` (longest path that would pass
+    through the simulated edge) and ``near_max_depth_warning`` (set when
+    the resulting depth is at or beyond ``max_allocation_depth - 1``).
+
+    ``version_id`` defaults to the production version in force today.
+    Powers the entity picker in the Service Workbench cascade editor
+    (Session 5).
+    """
+    ce = (
+        db.query(ChargeableEntity)
+        .filter(ChargeableEntity.id == source_entity_id)
+        .first()
+    )
+    if ce is None:
+        raise HTTPException(
+            404, f"ChargeableEntity '{source_entity_id}' not found",
+        )
+
+    try:
+        result = cascade_query.query_distribution_candidates(
+            db, source_entity_id, version_id=version_id,
+        )
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+    return DistributionCandidatesResponse(
+        source_entity_id=result.source_entity_id,
+        version_id=result.version_id,
+        max_allocation_depth=result.max_allocation_depth,
+        candidates=[
+            DistributionCandidate(
+                entity_id=c.entity_id,
+                entity_name=c.entity_name,
+                entity_type=c.entity_type,  # type: ignore[arg-type]
+                identifier=c.identifier,
+                resulting_chain_depth=c.resulting_chain_depth,
+                near_max_depth_warning=c.near_max_depth_warning,
+            )
+            for c in result.candidates
+        ],
+        total=len(result.candidates),
     )
 
 
