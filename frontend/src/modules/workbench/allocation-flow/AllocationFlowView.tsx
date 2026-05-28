@@ -20,11 +20,12 @@
  *  - `[AF-07]` node click → workbench, business click → BTC profile
  *  - `[AF-08]` collapsible legend top-right, sessionStorage-persisted
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
+import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EntityTypeBadge } from '@/components/shared/EntityTypeBadge';
@@ -103,11 +104,18 @@ export function AllocationFlowView() {
   );
 
   // Cascade fetch — refetches when entity or selected version changes.
-  useEffect(() => {
+  // Extracted into a `useCallback` so the effect can have a clean
+  // dependency array (just `fetchCascade`) without the
+  // `exhaustive-deps` escape hatch. The `cancelled` flag stays INSIDE
+  // the callback and is captured by the inner promise chain, then
+  // tripped via the returned cleanup function — preserving the React
+  // strict-mode double-mount + rapid-rerender semantics from the
+  // previous inline-effect form.
+  const fetchCascade = useCallback(() => {
     if (!entityId) {
       setLoading(false);
       setError('Missing entity parameter.');
-      return;
+      return undefined;
     }
     let cancelled = false;
     setLoading(true);
@@ -139,10 +147,12 @@ export function AllocationFlowView() {
     return () => {
       cancelled = true;
     };
-    // We intentionally don't depend on `dispatch` (stable) or the whole
-    // state object — only entityId + selectedVersionId drive refetches.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entityId, state.selectedVersionId]);
+  }, [entityId, state.selectedVersionId, dispatch]);
+
+  useEffect(() => {
+    const cleanup = fetchCascade();
+    return cleanup;
+  }, [fetchCascade]);
 
   const back = () => {
     if (window.history.length > 1) {
@@ -233,20 +243,31 @@ export function AllocationFlowView() {
     return null;
   }, [state.hoverEdgeKey, state.hoverNodeId, layout, data, positionById]);
 
+  // Wave C breadcrumb chain. While the focal entity is still loading we
+  // omit the middle crumb (would be a flash of the entity-id) and show
+  // just the parent + leaf crumbs.
+  const breadcrumbItems = useMemo(() => {
+    if (data) {
+      return [
+        { label: 'Workbench', to: '/workbench' },
+        {
+          label: data.focal.entity_name,
+          to: `/workbench?entity=${entityId}`,
+        },
+        { label: 'Allocation Flow' },
+      ];
+    }
+    return [
+      { label: 'Workbench', to: '/workbench' },
+      { label: 'Allocation Flow' },
+    ];
+  }, [data, entityId]);
+
   return (
     <div className="px-6 py-6 space-y-4">
+      <Breadcrumb items={breadcrumbItems} />
       <ModuleHeader
         title="Workbench"
-        breadcrumb={
-          data ? (
-            <>
-              Workbench &rsaquo; {data.focal.entity_name} &rsaquo; Allocation
-              Flow
-            </>
-          ) : (
-            <>Workbench &rsaquo; Allocation Flow</>
-          )
-        }
         actions={<ModuleGuideButton moduleId="project_workbench" />}
       />
 
@@ -323,6 +344,35 @@ export function AllocationFlowView() {
               </Card>
             )}
 
+          {/* Soft-empty labels (Wave C option 2). Rendered as HTML
+              above the SVG container so they're not clipped by the
+              focal-centred layout's left edge (SIDE_PAD=24) when the
+              focal is a root with no upstream column to push it right.
+              The full-isolation EmptyState card above still wins when
+              ALL three columns are empty; these labels surface the
+              single-direction empty case in the toolbar gap. */}
+          {(layout.upstream.length === 0 ||
+            (layout.downstream.length === 0 && layout.business.length === 0)) &&
+            !(
+              layout.upstream.length === 0 &&
+              layout.downstream.length === 0 &&
+              layout.business.length === 0
+            ) && (
+              <div className="flex flex-wrap gap-x-6 gap-y-1">
+                {layout.upstream.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">
+                    No upstream allocations.
+                  </p>
+                )}
+                {layout.downstream.length === 0 &&
+                  layout.business.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">
+                      No downstream allocations.
+                    </p>
+                  )}
+              </div>
+            )}
+
           <Card className="p-0 relative">
             {/* Legend overlay — stays pinned regardless of horizontal scroll. */}
             <div className="absolute top-3 right-3 z-20">
@@ -356,31 +406,6 @@ export function AllocationFlowView() {
                       layout.business[0] ? layout.business[0].x : undefined
                     }
                   />
-
-                  {/* Soft-empty labels for missing side columns. */}
-                  {layout.upstream.length === 0 && (
-                    <text
-                      x={layout.focal.x - 32}
-                      y={layout.focal.y + layout.focal.h / 2}
-                      textAnchor="end"
-                      className="text-[10px] italic"
-                      style={{ fill: 'var(--muted-foreground)' }}
-                    >
-                      No upstream entities — focal is a root.
-                    </text>
-                  )}
-                  {layout.downstream.length === 0 &&
-                    layout.business.length === 0 && (
-                      <text
-                        x={layout.focal.x + FOCAL_NODE_W + 32}
-                        y={layout.focal.y + layout.focal.h / 2}
-                        textAnchor="start"
-                        className="text-[10px] italic"
-                        style={{ fill: 'var(--muted-foreground)' }}
-                      >
-                        No downstream allocations yet.
-                      </text>
-                    )}
 
                   {/* Edges (rendered first so node bodies sit on top). */}
                   {layout.edges.map((e) => {
