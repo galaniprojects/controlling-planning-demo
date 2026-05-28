@@ -86,8 +86,12 @@ export function ProjectWorkbench() {
       })
       .catch(() => {
         // No matching ChargeableEntity (rare — every demo project has
-        // one). Drop the alias so the user sees the empty landing.
-        aliasResolvedRef.current = false;
+        // one). Strip the stale alias from the URL so the landing state
+        // matches what the user sees; otherwise the URL stays stuck on
+        // `?project=<unknown_id>` with no diagnostic.
+        const params = new URLSearchParams(searchParams);
+        params.delete('project');
+        setSearchParams(params, { replace: true });
       });
     // We only need this on the first render with the legacy alias.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -147,8 +151,8 @@ export function ProjectWorkbench() {
   const isProjectLead = role === 'project_lead';
 
   const rows = useMemo(
-    () => buildEntityRows(projects, entities, isProjectLead),
-    [projects, entities, isProjectLead],
+    () => buildEntityRows(projects, entities),
+    [projects, entities],
   );
 
   function handleSelect(row: WorkbenchEntityRow) {
@@ -158,14 +162,6 @@ export function ProjectWorkbench() {
     params.set('entity', row.entity_id);
     setSearchParams(params);
   }
-
-  function refreshProjects() {
-    workbenchApi
-      .getProjects()
-      .then((res) => setProjects(res.items))
-      .catch(() => setProjects([]));
-  }
-  void refreshProjects; // exported indirectly via the entity list refresh on role change
 
   return (
     <div className="px-6 py-6 space-y-4">

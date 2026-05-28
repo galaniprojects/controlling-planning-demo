@@ -264,14 +264,14 @@ export function EntityListPanel({
                   </div>
                   <div className="flex items-center gap-1.5 mt-1">
                     <EntityTypeBadge type={row.type} />
-                    {row.kind === 'project' && row.status && STATUS_LABELS[row.status] && (
+                    {row.kind === 'project' && row.status && (
                       <Badge
                         className={cn(
                           'text-[10px] px-1.5 py-0 h-4',
-                          STATUS_COLORS[row.status],
+                          STATUS_COLORS[row.status] ?? STATUS_COLORS.active,
                         )}
                       >
-                        {STATUS_LABELS[row.status]}
+                        {STATUS_LABELS[row.status] ?? row.status}
                       </Badge>
                     )}
                     {row.identifier && (
@@ -292,13 +292,17 @@ export function EntityListPanel({
 
 /**
  * Build the merged Workbench entity list from a project list (already
- * role-filtered by `workbenchApi.getProjects()`) and the full
+ * role-filtered by `workbenchApi.getProjects()`) and the full active
  * ChargeableEntity catalogue. Used by `ProjectWorkbench`.
+ *
+ * Service rows (Offerings + InternalServices) are not role-scoped here —
+ * Charging is already a read-only surface for PLs and the Workbench
+ * mirrors that. The workspace dispatcher gates writes by role at the
+ * destination surface.
  */
 export function buildEntityRows(
   projects: WorkbenchProjectListItem[],
   entities: ChargeableEntityItem[],
-  isProjectLead: boolean,
 ): WorkbenchEntityRow[] {
   // Project rows — driven by the workbench projects list (carries RAG +
   // status + role-aware visibility). Each maps back to its
@@ -310,10 +314,14 @@ export function buildEntityRows(
     }
   }
 
+  const droppedProjectIds: string[] = [];
   const projectRows: WorkbenchEntityRow[] = projects
     .map((p) => {
       const ent = entityByProjectId.get(p.id);
-      if (!ent) return null; // Project without a ChargeableEntity counterpart — skip
+      if (!ent) {
+        droppedProjectIds.push(p.id);
+        return null;
+      }
       return {
         kind: 'project' as const,
         entity_id: ent.id,
@@ -326,6 +334,18 @@ export function buildEntityRows(
       };
     })
     .filter((r): r is WorkbenchEntityRow => r !== null);
+
+  // Surface a dev-only warn when a role-visible project has no active
+  // ChargeableEntity row — typically signals an in-flight seed or an
+  // entity that was deactivated. Silent dropping was the prior
+  // behaviour; the warn helps debug a "my project disappeared" report.
+  if (import.meta.env.DEV && droppedProjectIds.length > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[Workbench] ${droppedProjectIds.length} project(s) hidden from sidebar — no active ChargeableEntity for project_id(s):`,
+      droppedProjectIds,
+    );
+  }
 
   // Service rows — Offerings and Internal Services. PLs see them read-only
   // alongside their own projects (the workspace gates writes by role).
@@ -340,12 +360,6 @@ export function buildEntityRows(
       name: e.name,
       type: e.entity_type,
     }));
-
-  // PL filtering note: the projects list is already role-scoped (only the
-  // PL's projects are returned by the API). Service rows are intentionally
-  // visible to PLs read-only — Charging is already a read-only surface for
-  // them and the Workbench mirrors that.
-  void isProjectLead;
 
   return [...projectRows, ...serviceRows].sort((a, b) => a.name.localeCompare(b.name));
 }
