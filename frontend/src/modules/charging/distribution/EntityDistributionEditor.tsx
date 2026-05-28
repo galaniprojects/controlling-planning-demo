@@ -45,32 +45,13 @@
  *  5. Depth-violation banner copy + dark-mode pass + screenshots.
  */
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Search, X, Lock } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, X, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { chargingApi } from '@/api/endpoints';
-import { EntityTypeBadge } from '@/components/shared/EntityTypeBadge';
 import type {
   CascadeChainResponse,
-  ChargeableEntityItem,
-  ChargeableEntityType,
   DistributionVersionResponse,
 } from '@/types/api';
 import { parseAllocationError } from './errors/parseAllocationError';
@@ -83,13 +64,14 @@ import {
 import { projectAllocation } from './helpers/projectAllocation';
 import { VersionSelector } from './versions/VersionSelector';
 import { DistributionTable } from './editor/DistributionTable';
-import { DistributionRow, subtypeStripClass } from './editor/DistributionRow';
+import { DistributionRow } from './editor/DistributionRow';
 import { ToBusinessRow } from './editor/ToBusinessRow';
 import { SelfRetainedRow } from './editor/SelfRetainedRow';
 import { SumValidationBar } from './editor/SumValidationBar';
 import { AddDistributionTargetButton } from './editor/AddDistributionTargetButton';
 import { EntityHeaderCard } from './editor/EntityHeaderCard';
 import { EditorActionBar } from './editor/EditorActionBar';
+import { EntityPickerDialog } from './editor/EntityPickerDialog';
 import {
   editorReducer,
   initialEditorState,
@@ -544,26 +526,32 @@ export function EntityDistributionEditor({
         onToggleSidePanel={() => dispatch({ type: 'TOGGLE_SIDE_PANEL' })}
       />
 
-      {/* Temporary inline picker — replaced in commit 3 by
-          EntityPickerDialog backed by the candidates endpoint. */}
-      <TempEntityPickerDialog
+      {/* Candidates-driven entity picker (commit 3 replacement of the
+          temp inline picker). Shows depth warnings, disables blocked
+          rows, fetches via chargingApi.getDistributionCandidates. */}
+      <EntityPickerDialog
         open={state.ui.pickerOpen}
         onClose={() => dispatch({ type: 'CLOSE_PICKER' })}
         sourceEntityId={state.entity.id}
-        existingDestinationIds={new Set(state.pending.rows.map((r) => r.destinationId))}
+        versionId={state.resolvedVersionId}
+        existingDestinationIds={new Set(
+          state.pending.rows
+            .filter((r) => !r.isDeleted)
+            .map((r) => r.destinationId),
+        )}
         onPick={(picked) =>
           dispatch({
             type: 'ADD_ROW',
             row: {
               edgeId: null,
-              destinationId: picked.id,
-              destinationName: picked.name,
+              destinationId: picked.entity_id,
+              destinationName: picked.entity_name,
               destinationIdentifier: picked.identifier,
               destinationType: picked.entity_type,
               percentage: 0,
               rationale: '',
-              chainDepth: null,
-              nearMaxDepthWarning: false,
+              chainDepth: picked.resulting_chain_depth,
+              nearMaxDepthWarning: picked.near_max_depth_warning,
             },
           })
         }
@@ -726,156 +714,6 @@ function SaveErrorBanner({
         <X className="h-3.5 w-3.5" />
       </button>
     </Card>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* TempEntityPickerDialog — minimal commit-2 picker. Commit 3 replaces this   */
-/* with the candidates-endpoint-driven EntityPickerDialog that shows depth    */
-/* warnings + disables `would_violate_max_depth` rows.                        */
-/* -------------------------------------------------------------------------- */
-
-const TYPE_OPTIONS: { value: 'all' | ChargeableEntityType; label: string }[] = [
-  { value: 'all', label: 'All types' },
-  { value: 'Project', label: 'Projects' },
-  { value: 'Offering', label: 'Offerings' },
-  { value: 'InternalService', label: 'Internal Services' },
-];
-
-function TempEntityPickerDialog({
-  open,
-  onClose,
-  sourceEntityId,
-  existingDestinationIds,
-  onPick,
-}: {
-  open: boolean;
-  onClose: () => void;
-  sourceEntityId: string;
-  existingDestinationIds: Set<string>;
-  onPick: (e: ChargeableEntityItem) => void;
-}) {
-  const [entities, setEntities] = useState<ChargeableEntityItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [typeFilter, setTypeFilter] = useState<'all' | ChargeableEntityType>(
-    'all',
-  );
-  const [search, setSearch] = useState('');
-
-  useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    setSearch('');
-    setTypeFilter('all');
-    chargingApi
-      .listEntities({ is_active: true })
-      .then((res) => setEntities(res.items))
-      .finally(() => setLoading(false));
-  }, [open]);
-
-  const filtered = useMemo(() => {
-    const lower = search.trim().toLowerCase();
-    return entities
-      .filter((e) => e.id !== sourceEntityId)
-      .filter((e) => !existingDestinationIds.has(e.id))
-      .filter((e) => typeFilter === 'all' || e.entity_type === typeFilter)
-      .filter((e) => {
-        if (!lower) return true;
-        return `${e.name} ${e.identifier}`.toLowerCase().includes(lower);
-      });
-  }, [entities, search, typeFilter, sourceEntityId, existingDestinationIds]);
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Add distribution target</DialogTitle>
-          <DialogDescription>
-            Pick an entity to distribute a share of this service's cost to.
-            New rows default to 0% — set the percentage in the table.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <Select
-              value={typeFilter}
-              onValueChange={(v) =>
-                setTypeFilter(v as 'all' | ChargeableEntityType)
-              }
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TYPE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Name or identifier…"
-                className="h-9 pl-8"
-              />
-            </div>
-          </div>
-          <div className="rounded-md border border-border max-h-[320px] overflow-y-auto">
-            {loading ? (
-              <div className="p-6">
-                <Skeleton className="h-6 w-full mb-2" />
-                <Skeleton className="h-6 w-full mb-2" />
-                <Skeleton className="h-6 w-full" />
-              </div>
-            ) : filtered.length === 0 ? (
-              <p className="p-6 text-center text-sm text-muted-foreground">
-                No candidates match — try a broader filter.
-              </p>
-            ) : (
-              <ul>
-                {filtered.slice(0, 200).map((e) => (
-                  <li
-                    key={e.id}
-                    className="border-b border-border last:border-b-0"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onPick(e)}
-                      className="w-full text-left px-3 py-2 hover:bg-accent flex items-stretch gap-2"
-                    >
-                      <span
-                        className={`w-1 rounded-sm self-stretch flex-shrink-0 ${subtypeStripClass(e.entity_type)}`}
-                        aria-hidden
-                      />
-                      <span className="flex-1 min-w-0">
-                        <span className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-foreground truncate">
-                            {e.name}
-                          </span>
-                          <EntityTypeBadge type={e.entity_type} />
-                        </span>
-                        <span className="text-[11px] font-mono text-muted-foreground">
-                          {e.identifier}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
