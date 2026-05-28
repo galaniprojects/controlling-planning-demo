@@ -130,11 +130,15 @@ export function AllocationFlowView() {
       .then((res) => {
         if (!cancelled) {
           setData(res);
-          // Sync selector to the server-resolved version if we didn't
-          // already have an explicit pick.
-          if (state.selectedVersionId === null) {
-            dispatch({ type: 'set_version', id: res.version.id });
-          }
+          // No `set_version` dispatch here. When `selectedVersionId` is
+          // null (initial mount or after reset), the VersionSelector
+          // falls back to `data.version.id` via the `??` at its `value`
+          // prop, so the UI still shows the resolved version. Dispatching
+          // here would change state.selectedVersionId → invalidate this
+          // useCallback's identity → re-run the effect → fire a redundant
+          // second fetch for the same data. Wave C carry-forward bug
+          // (existed since Wave B's AllocationFlowView; pre-existing on
+          // main at cb882a5).
         }
       })
       .catch((e: unknown) => {
@@ -147,7 +151,7 @@ export function AllocationFlowView() {
     return () => {
       cancelled = true;
     };
-  }, [entityId, state.selectedVersionId, dispatch]);
+  }, [entityId, state.selectedVersionId]);
 
   useEffect(() => {
     const cleanup = fetchCascade();
