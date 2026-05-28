@@ -20,6 +20,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, ExternalLink } from 'lucide-react';
+import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -198,7 +199,7 @@ export function RecentlyCompletedSection({
                     key={entry.id}
                     className="cursor-pointer"
                     onClick={() =>
-                      navigate(`/workbench?project=${entry.project_id}`)
+                      navigateToWorkbenchByProject(entry.project_id, navigate)
                     }
                   >
                     <TableCell className="text-xs text-muted-foreground">

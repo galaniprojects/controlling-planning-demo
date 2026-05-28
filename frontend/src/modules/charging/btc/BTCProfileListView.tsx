@@ -6,6 +6,7 @@
  * the UM-snapshot rounding artefacts are visible at a glance.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ import type {
   ChargeableEntityType,
 } from '@/types/api';
 import { EntityBTCProfileEditor } from './EntityBTCProfileEditor';
+import { EntityBTCProfileEditorByEntity } from './EntityBTCProfileEditorByEntity';
 import { CreateBTCProfileDialog } from './CreateBTCProfileDialog';
 import { YearRolloverDialog } from './YearRolloverDialog';
 
@@ -46,6 +48,15 @@ type StatusFilter = 'all' | BTCStatus;
 export function BTCProfileListView() {
   const { context: roleContext } = useRole();
   const isController = roleContext?.role === 'controller';
+
+  // Service Workbench Wave C: when the user arrives via
+  // `/charging?section=btc&entity=<id>` (Workbench tile 2,2 deep
+  // link), mount the EntityBTCProfileEditorByEntity wrapper so the
+  // page lands directly in the per-entity BTC editor for the
+  // current demo year — bypassing the cross-entity list. On Back
+  // the URL param is cleared so the user lands back on the list.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const entityParam = searchParams.get('entity');
 
   const [profiles, setProfiles] = useState<BTCProfileItem[]>([]);
   const [entities, setEntities] = useState<ChargeableEntityItem[]>([]);
@@ -114,6 +125,24 @@ export function BTCProfileListView() {
     profiles.forEach((p) => base.add(p.year));
     return Array.from(base).sort((a, b) => a - b);
   }, [profiles, year]);
+
+  if (entityParam) {
+    // Wave C deep-link entry: render the entity-keyed editor for the
+    // selected year. Back clears `?entity=` so the list view is
+    // visible again with no sticky URL state.
+    return (
+      <EntityBTCProfileEditorByEntity
+        entityId={entityParam}
+        year={year}
+        onBack={() => {
+          const next = new URLSearchParams(searchParams);
+          next.delete('entity');
+          setSearchParams(next, { replace: true });
+          fetchData();
+        }}
+      />
+    );
+  }
 
   if (selectedProfileId !== null) {
     return (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { capacityApi } from '@/api/endpoints';
+import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -84,7 +85,7 @@ export function OrgDetailDrawer({ dimensionId, pivot, month }: OrgDetailDrawerPr
             item={item}
             isExpanded={expandedProjects.has(item.project_id)}
             onToggle={() => toggleProject(item.project_id)}
-            onNavigate={() => navigate(`/workbench?project=${item.project_id}`)}
+            onNavigate={() => navigateToWorkbenchByProject(item.project_id, navigate)}
           />
         ))}
       </div>

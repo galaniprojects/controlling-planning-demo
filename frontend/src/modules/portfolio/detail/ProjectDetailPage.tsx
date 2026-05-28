@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/tabs';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
 import { portfolioApi, workbenchApi } from '@/api/endpoints';
+import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import { ragBgColor } from '@/lib/rag';
 import { cn } from '@/lib/utils';
 import type {
@@ -181,7 +182,9 @@ export function ProjectDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate(`/workbench?project=${projectId}`)}
+              onClick={() => {
+                if (projectId) navigateToWorkbenchByProject(projectId, navigate);
+              }}
             >
               Open in Workbench
             </Button>

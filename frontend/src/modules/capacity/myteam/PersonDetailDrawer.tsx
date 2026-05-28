@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { capacityApi } from '@/api/endpoints';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { cn } from '@/lib/utils';
+import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import type { PersonDetail } from '@/types/api';
 
 const COLOR_MAP: Record<string, string> = {
@@ -81,7 +82,7 @@ export function PersonDetailDrawer({ ccId, personId }: PersonDetailDrawerProps) 
                           <div key={p.project_id} className="flex items-center justify-between gap-2">
                             <button
                               type="button"
-                              onClick={() => navigate(`/workbench?project=${p.project_id}`)}
+                              onClick={() => navigateToWorkbenchByProject(p.project_id, navigate)}
                               className="text-primary hover:underline truncate text-left"
                             >
                               {p.project_name}

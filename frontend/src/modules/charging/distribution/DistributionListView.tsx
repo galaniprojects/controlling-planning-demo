@@ -24,6 +24,7 @@
  * hidden by the parent.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   ArrowRight, ChevronDown, FilterX, GitCompareArrows, Pencil,
   Plus, Search, Sparkles, Trash2,
@@ -78,6 +79,15 @@ type ListMode =
   | { kind: 'diff'; versionId: number };
 
 export function DistributionListView() {
+  // Service Workbench Wave C: when the user arrives via
+  // `/charging?section=distribution&entity=<id>` (e.g. clicking tile 2,1
+  // on the entity Workbench), land directly on the per-entity Stage 1
+  // surface for that entity instead of the global edges list. The FD-3
+  // modal-within-list `'per_entity'` mode already exists; we just need
+  // to seed it from the URL on mount.
+  const [searchParams] = useSearchParams();
+  const initialEntityParam = searchParams.get('entity');
+
   const [versions, setVersions] = useState<DistributionVersionResponse[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(true);
   const [versionsError, setVersionsError] = useState<string | null>(null);
@@ -100,7 +110,11 @@ export function DistributionListView() {
   const [activatingDraft, setActivatingDraft] =
     useState<DistributionVersionDetailResponse | null>(null);
 
-  const [mode, setMode] = useState<ListMode>({ kind: 'list' });
+  const [mode, setMode] = useState<ListMode>(
+    initialEntityParam
+      ? { kind: 'per_entity', entityId: initialEntityParam }
+      : { kind: 'list' },
+  );
 
   /* ─────────────────────────── data fetchers ────────────────────────── */
 

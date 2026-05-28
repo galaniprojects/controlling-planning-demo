@@ -111,15 +111,27 @@ export function ServiceOverviewTab({ entity }: Props) {
         />
 
         {/* Row 2 */}
+        {/* Wave C: tiles 2,1 and 2,2 deep-link to the per-entity
+            charging surface for THIS entity (not the global list).
+            DistributionListView + BTCProfileListView parse `?entity=<id>`
+            on mount and switch into their per-entity sub-view. */}
         <ServiceStage1DistributionTile
           entityId={entity.id}
-          onClick={() => navigate('/charging?section=distribution')}
+          onClick={() =>
+            navigate(
+              `/charging?section=distribution&entity=${encodeURIComponent(entity.id)}`,
+            )
+          }
         />
         <ServiceStage2BTCTile
           entityId={entity.id}
           entityType={entity.entity_type}
           toBusinessPct={entity.to_business_pct}
-          onClick={() => navigate('/charging?section=btc')}
+          onClick={() =>
+            navigate(
+              `/charging?section=btc&entity=${encodeURIComponent(entity.id)}`,
+            )
+          }
         />
         <ServiceResourcePlanTile />
 
