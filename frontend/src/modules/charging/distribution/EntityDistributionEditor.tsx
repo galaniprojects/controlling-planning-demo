@@ -129,11 +129,9 @@ export function EntityDistributionEditor({
   onSandboxSetToBusiness,
 }: Props) {
   const [state, dispatch] = useReducer(editorReducer, initialEditorState);
-  /** Map of destination entity id → distribution edge id, resolved from the
-   *  summary endpoint (cascade doesn't carry the pk). */
-  const [edgeIdByDestId, setEdgeIdByDestId] = useState<Map<string, number>>(
-    new Map(),
-  );
+  // edgeIdByDestId lives inside reducer state — see EditorState. It's
+  // resolved from the summary endpoint and threaded into LOAD_OK so
+  // pending rows get stamped with the correct edge pk on first hydration.
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(
     versionIdProp ?? null,
   );
@@ -176,7 +174,6 @@ export function EntityDistributionEditor({
         for (const e of summary.distributions) {
           edgeIds.set(e.destination_entity_id, e.id);
         }
-        setEdgeIdByDestId(edgeIds);
 
         // Resolve "in force" version client-side from the listing — the
         // selector wants the latest active with active_from ≤ today. The
@@ -190,6 +187,7 @@ export function EntityDistributionEditor({
           entity,
           versions: versionsRes.items,
           inForceVersionId: inForce,
+          edgeIdByDestId: edgeIds,
         });
         setSelectedVersionId(cascade.version.id);
       } catch (e) {
@@ -205,7 +203,6 @@ export function EntityDistributionEditor({
   // (Re-)load on entity change or version-prop change.
   useEffect(() => {
     dispatch({ type: 'RESET_FOR_ENTITY' });
-    setEdgeIdByDestId(new Map());
     setSelectedVersionId(versionIdProp ?? null);
     fetchData(versionIdProp ?? null);
     // We intentionally trigger only on entityId / versionIdProp.
@@ -256,23 +253,15 @@ export function EntityDistributionEditor({
     const serverEdges: ServerEdgeSnapshot[] = state.cascade.edges
       .filter((e) => e.source_entity_id === focalId)
       .map((e) => ({
-        id: edgeIdByDestId.get(e.destination_entity_id) ?? -1,
+        id: state.edgeIdByDestId.get(e.destination_entity_id) ?? -1,
         destinationId: e.destination_entity_id,
         percentage: e.percentage,
         rationale: e.rationale ?? '',
       }))
       .filter((e) => e.id > 0);
-    // Patch pending rows: rows whose edgeId is still null but whose
-    // destination matches a server edge get the resolved id stitched in
-    // for the diff.
-    const patchedRows = state.pending.rows.map((r) => {
-      if (r.edgeId !== null || r.isNew) return r;
-      const id = edgeIdByDestId.get(r.destinationId);
-      return id !== undefined ? { ...r, edgeId: id } : r;
-    });
     return buildMutationPlan({
       serverEdges,
-      pendingRows: patchedRows.map((r) => ({
+      pendingRows: state.pending.rows.map((r) => ({
         key: r.key,
         edgeId: r.edgeId,
         destinationId: r.destinationId,
@@ -284,7 +273,7 @@ export function EntityDistributionEditor({
       serverToBusinessPct: state.cascade.focal.to_business_pct,
       pendingToBusinessPct: state.pending.toBusinessPct,
     });
-  }, [state.cascade, state.pending, edgeIdByDestId]);
+  }, [state.cascade, state.pending, state.edgeIdByDestId]);
 
   const dirty = !!mutationPlan && planIsDirty(mutationPlan);
 

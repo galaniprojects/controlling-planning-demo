@@ -56,6 +56,15 @@ export interface EditorState {
   versions: DistributionVersionResponse[];
   inForceVersionId: number | null;
   resolvedVersionId: number | null;
+  /**
+   * destinationId → distribution edge primary key, resolved from the
+   * per-entity Stage 1 summary that loads in parallel with cascade.
+   * Cascade itself doesn't carry the edge pk; without this map, save
+   * orchestration cannot route updates/deletes to the right row.
+   * Kept inside the reducer so DISCARD can reseed `pending` with the
+   * same lookup without the component having to re-pass it.
+   */
+  edgeIdByDestId: ReadonlyMap<string, number>;
   pending: {
     rows: PendingRow[];
     toBusinessPct: number;
@@ -80,6 +89,7 @@ export type EditorAction =
       entity: ChargeableEntityItem;
       versions: DistributionVersionResponse[];
       inForceVersionId: number | null;
+      edgeIdByDestId: ReadonlyMap<string, number>;
     }
   | { type: 'LOAD_ERROR'; message: string }
   | { type: 'SET_ROW_PCT'; key: string; value: number }
@@ -104,6 +114,7 @@ export const initialEditorState: EditorState = {
   versions: [],
   inForceVersionId: null,
   resolvedVersionId: null,
+  edgeIdByDestId: new Map(),
   pending: {
     rows: [],
     toBusinessPct: 0,
@@ -120,10 +131,19 @@ export const initialEditorState: EditorState = {
 
 /**
  * Seed the pending state from a fresh cascade response. Used on initial
- * load, on version switch, and on successful save.
+ * load, on version switch, and on successful save (DISCARD too).
+ *
+ * Cascade does not carry the distribution edge primary key — the editor
+ * fetches it separately via `getEntityDistributionSummary` and threads
+ * the resolved `destinationId → edgeId` lookup through here. Rows whose
+ * destination is not in the map (defensive: should not happen on a
+ * well-formed snapshot) get `edgeId: null`, which makes the mutation
+ * planner correctly treat them as new — preferable to silently dropping
+ * the edit, which is what the previous `-1` sentinel did.
  */
 export function pendingFromCascade(
   cascade: CascadeChainResponse,
+  edgeIdByDestId: ReadonlyMap<string, number>,
 ): EditorState['pending'] {
   const downstreamById = new Map(cascade.downstream.map((n) => [n.entity_id, n]));
   const outgoingEdges = cascade.edges.filter(
@@ -132,9 +152,14 @@ export function pendingFromCascade(
   const rows: PendingRow[] = outgoingEdges.map((e) => {
     const dest = downstreamById.get(e.destination_entity_id);
     const depth = e.chain_depth ?? null;
+    const edgeId = edgeIdByDestId.get(e.destination_entity_id) ?? null;
     return {
-      key: `edge-${edgeIdFromCascade(cascade, e)}`,
-      edgeId: edgeIdFromCascade(cascade, e),
+      // Stable per-row key. Prefer the edge pk; fall back to
+      // destinationId so multi-row cases never collide on a single
+      // reducer slot when the summary lookup is empty (e.g., a
+      // mid-flight load).
+      key: edgeId !== null ? `edge-${edgeId}` : `edge-dest-${e.destination_entity_id}`,
+      edgeId,
       destinationId: e.destination_entity_id,
       destinationName: dest?.entity_name ?? e.destination_entity_id,
       destinationIdentifier: dest?.identifier ?? e.destination_entity_id,
@@ -155,52 +180,6 @@ export function pendingFromCascade(
   };
 }
 
-/**
- * The cascade schema doesn't carry the distribution edge primary-key
- * directly — it's the row that matches (version_id, source, destination)
- * in the targeted version. The editor needs the edge id for updates and
- * deletes; we fetch it separately via the summary endpoint. To avoid a
- * second round trip during the cascade response, this helper assumes the
- * caller will resolve `edgeId` from the parallel-loaded summary. For
- * now it returns -1 as a sentinel; the editor patches the resolved id
- * in via `attachEdgeIds` below.
- *
- * NOTE: keeping this layer thin so a single source change (e.g. cascade
- * starts including the edge id) is trivial to swap.
- */
-function edgeIdFromCascade(
-  _cascade: CascadeChainResponse,
-  _edge: CascadeChainResponse['edges'][number],
-): number {
-  return -1;
-}
-
-/**
- * After cascade hydration, the editor calls the summary endpoint to
- * recover the edge primary keys (cascade carries source/dest/pct but
- * not the pk). This walks the pending rows and patches them. Pure.
- */
-export function attachEdgeIds(
-  pending: EditorState['pending'],
-  edgeIdByDestId: Map<string, number>,
-): EditorState['pending'] {
-  return {
-    ...pending,
-    rows: pending.rows.map((r, idx) => {
-      if (r.isNew || r.edgeId !== null) return r;
-      const id = edgeIdByDestId.get(r.destinationId);
-      if (id === undefined) return r;
-      return {
-        ...r,
-        edgeId: id,
-        // re-key with the resolved id so the row's key stays stable
-        // through edits and post-save refetches.
-        key: `edge-${id}-${idx}`,
-      };
-    }),
-  };
-}
-
 export function editorReducer(
   state: EditorState,
   action: EditorAction,
@@ -213,7 +192,7 @@ export function editorReducer(
       return { ...state, loading: true, loadError: null };
 
     case 'LOAD_OK': {
-      const pending = pendingFromCascade(action.cascade);
+      const pending = pendingFromCascade(action.cascade, action.edgeIdByDestId);
       return {
         ...state,
         loading: false,
@@ -223,6 +202,7 @@ export function editorReducer(
         versions: action.versions,
         inForceVersionId: action.inForceVersionId,
         resolvedVersionId: action.cascade.version.id,
+        edgeIdByDestId: action.edgeIdByDestId,
         pending,
         ui: {
           ...state.ui,
@@ -313,7 +293,7 @@ export function editorReducer(
       if (!state.cascade) return state;
       return {
         ...state,
-        pending: pendingFromCascade(state.cascade),
+        pending: pendingFromCascade(state.cascade, state.edgeIdByDestId),
         ui: {
           ...state.ui,
           saveError: null,
