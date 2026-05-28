@@ -1814,6 +1814,7 @@ def get_distribution_candidates(
                 identifier=c.identifier,
                 resulting_chain_depth=c.resulting_chain_depth,
                 near_max_depth_warning=c.near_max_depth_warning,
+                would_violate_max_depth=c.would_violate_max_depth,
             )
             for c in result.candidates
         ],

@@ -101,6 +101,7 @@ class DistributionCandidateResult:
     identifier: str
     resulting_chain_depth: int
     near_max_depth_warning: bool
+    would_violate_max_depth: bool
 
 
 @dataclass
@@ -396,15 +397,21 @@ def _compute_depth_per_node(
 ) -> tuple[dict[str, int], dict[str, int]]:
     """Return (longest_path_ending_at, longest_path_starting_at) for every node.
 
-    Both values are node counts (a single isolated node = 1). Used to
-    derive the resulting chain depth for a hypothetical new edge:
-    ``ends_at[source] + starts_at[candidate]`` covers the longest path
-    through the simulated edge.
+    Both values are **edge counts** (a single isolated node = 0). Compatible
+    with :func:`services.depth_validation._longest_distance_from_roots` and
+    directly comparable to ``max_allocation_depth`` (also edge-count).
+
+    Used to derive the resulting chain depth for a hypothetical new edge
+    ``source → candidate``:
+    ``resulting_depth = ends_at[source] + 1 + starts_at[candidate]`` — the
+    ``+1`` accounts for the new edge itself; ``ends_at[source]`` is the
+    longest path of existing edges that terminates at the source; and
+    ``starts_at[candidate]`` is the longest path of existing edges that
+    starts at the candidate.
 
     ``edges`` is a list of ``(source_id, destination_id)`` pairs in the
-    current version graph (the existing graph, *without* the simulated edge).
-    Handles disconnected nodes implicitly (any node not in the graph is
-    treated as path-length 1 by the caller).
+    current version graph (without the simulated new edge). Disconnected /
+    unknown nodes default to 0 in the caller.
     """
     # Build adjacency (forward) and reverse adjacency.
     forward: dict[str, list[str]] = defaultdict(list)
@@ -416,14 +423,14 @@ def _compute_depth_per_node(
         nodes.add(src)
         nodes.add(dst)
 
-    # Memoized DFS for longest path lengths (in node counts).
+    # Memoized DFS for longest path lengths (in edge counts).
     longest_starting_at: dict[str, int] = {}
     longest_ending_at: dict[str, int] = {}
 
     def starting(n: str) -> int:
         if n in longest_starting_at:
             return longest_starting_at[n]
-        best = 1
+        best = 0
         for nxt in forward.get(n, []):
             best = max(best, 1 + starting(nxt))
         longest_starting_at[n] = best
@@ -432,7 +439,7 @@ def _compute_depth_per_node(
     def ending(n: str) -> int:
         if n in longest_ending_at:
             return longest_ending_at[n]
-        best = 1
+        best = 0
         for prv in reverse.get(n, []):
             best = max(best, 1 + ending(prv))
         longest_ending_at[n] = best
@@ -460,11 +467,20 @@ def query_distribution_candidates(
     2. Would not form a cycle if a new edge ``source → candidate`` were
        added (per ``detect_cycle_db``).
 
-    Each survivor carries its ``resulting_chain_depth`` (the longest path
-    that would pass through the simulated edge — combining the longest
-    path ending at source with the longest path starting at the
-    candidate) and a ``near_max_depth_warning`` flag set when the
-    result is at or beyond ``max_allocation_depth - 1``.
+    Each survivor carries its ``resulting_chain_depth`` (the longest
+    **edge-count** path that would pass through the simulated edge — the
+    longest path of existing edges ending at source, plus ``+1`` for the
+    new edge, plus the longest path of existing edges starting at the
+    candidate). Directly comparable to ``max_allocation_depth``.
+
+    Two boolean flags surface relative to the cap:
+    - ``near_max_depth_warning``: ``resulting_chain_depth >=
+      max_allocation_depth - 1`` AND the candidate is still saveable
+      (would NOT 409).
+    - ``would_violate_max_depth``: ``resulting_chain_depth >
+      max_allocation_depth`` — server-side save would 409 with the
+      violating path. Frontend should disable rather than show as warning.
+    The two flags are mutually exclusive.
 
     ``version_id`` defaults to the production version in force today.
     Raises ``ValueError`` for not-found source / version.
@@ -528,14 +544,16 @@ def query_distribution_candidates(
         if chain is not None:
             continue
 
-        # Resulting chain depth = longest path ending at source +
-        # longest path starting at candidate. Each defaults to 1 when
-        # the node isn't in the existing graph (isolated entity counts
-        # as a single-node path).
-        end_len = longest_ending_at.get(source_entity_id, 1)
-        start_len = longest_starting_at.get(candidate.id, 1)
-        resulting_depth = end_len + start_len
-        near_max = resulting_depth >= (max_depth - 1)
+        # Resulting chain depth = longest edge-path ending at source +
+        # 1 (new edge) + longest edge-path starting at candidate. Each
+        # defaults to 0 when the node isn't in the existing graph
+        # (isolated entity has no incident edges). Edge-count units,
+        # directly comparable to max_allocation_depth.
+        end_len = longest_ending_at.get(source_entity_id, 0)
+        start_len = longest_starting_at.get(candidate.id, 0)
+        resulting_depth = end_len + 1 + start_len
+        would_violate = resulting_depth > max_depth
+        near_max = (not would_violate) and resulting_depth >= (max_depth - 1)
 
         candidates.append(DistributionCandidateResult(
             entity_id=candidate.id,
@@ -544,6 +562,7 @@ def query_distribution_candidates(
             identifier=candidate.identifier,
             resulting_chain_depth=resulting_depth,
             near_max_depth_warning=near_max,
+            would_violate_max_depth=would_violate,
         ))
 
     return CascadeCandidatesResult(

@@ -473,12 +473,19 @@ class CascadeChainResponse(BaseModel):
 class DistributionCandidate(BaseModel):
     """One candidate distribution target for a source entity.
 
-    ``resulting_chain_depth`` is the longest root-to-leaf path that would
-    pass through the hypothetical new edge, simulated by combining the
-    current version's longest path ending at the source with the longest
-    path starting at the candidate (+1 for the new edge itself).
-    ``near_max_depth_warning`` is true when the result is at or beyond
-    ``max_allocation_depth - 1`` per the spec's near-max threshold.
+    ``resulting_chain_depth`` is the **edge-count** of the longest path
+    that would pass through the hypothetical new edge: longest edge-path
+    ending at source + 1 (the new edge) + longest edge-path starting at
+    the candidate. Directly comparable to ``max_allocation_depth``.
+
+    Two boolean flags surface relative to the cap (mutually exclusive):
+    - ``near_max_depth_warning``: ``resulting_chain_depth >=
+      max_allocation_depth - 1`` AND still saveable. Frontend renders a
+      warning indicator.
+    - ``would_violate_max_depth``: ``resulting_chain_depth >
+      max_allocation_depth`` — server-side save would 409 with the
+      violating path. Frontend should disable this candidate rather than
+      render it as a warning.
     """
 
     entity_id: str
@@ -487,6 +494,7 @@ class DistributionCandidate(BaseModel):
     identifier: str
     resulting_chain_depth: int
     near_max_depth_warning: bool
+    would_violate_max_depth: bool
 
 
 class DistributionCandidatesResponse(BaseModel):

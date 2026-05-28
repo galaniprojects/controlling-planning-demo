@@ -158,17 +158,27 @@ def seed_cycle_graph(db, seed_personas):
 def seed_deep_chain(db, seed_personas):
     """Build a chain so we can exercise the near_max_depth warning flag.
 
-    Layout: P1 -> P2 -> P3 (length 3 nodes). Plus an isolated P4 and an
-    isolated P5 which itself has a downstream P5 -> P6 -> P7 (3-node chain
-    starting at P5). Max = 4.
+    Layout: P1 -> P2 -> P3 (3 nodes, 2 edges). Plus an isolated P4 and an
+    isolated P5 which itself has a downstream P5 -> P6 -> P7 (3 nodes, 2
+    edges). Max allocation depth = 4 (edge-count).
 
-    Candidates from P3:
-      - P4: longest_ending_at(P3)=3, longest_starting_at(P4)=1
-        resulting depth = 4. With max=4 → near_max trigger threshold is
-        max-1 = 3, so 4 >= 3 → warning True.
-      - P5: longest_ending_at(P3)=3 + longest_starting_at(P5)=3 = 6 → warning True.
-    Candidates from P1 (depth 1 root) to P4 (isolated): depth = 1 + 1 = 2.
-    2 >= 3 (max-1)? No → warning False.
+    Edge-count distances (existing graph):
+      longest_ending_at:   p1=0, p2=1, p3=2, p4=0 (isolated),
+                           p5=0, p6=1, p7=2
+      longest_starting_at: p1=2, p2=1, p3=0, p4=0,
+                           p5=2, p6=1, p7=0
+
+    ``resulting_chain_depth = ending[source] + 1 + starting[candidate]``.
+
+    Candidates from P3 (ending=2):
+      - P4 (starting=0): 2 + 1 + 0 = 3 — at max-1, warning True, no violate.
+      - P5 (starting=2): 2 + 1 + 2 = 5 — exceeds max=4, would_violate True.
+      - P6 (starting=1): 2 + 1 + 1 = 4 — equal to max, near_max True, no violate.
+      - P7 (starting=0): 2 + 1 + 0 = 3 — at max-1, near_max True.
+
+    Candidates from P1 (ending=0):
+      - P4 (starting=0): 0 + 1 + 0 = 1 — far below threshold, both False.
+      - P5 (starting=2): 0 + 1 + 2 = 3 — at max-1, near_max True.
     """
     _seed_max_depth_param(db, 4)
     _seed_lob(db, "lob-deep")
@@ -278,12 +288,12 @@ class TestCandidatesExclusion:
 
 
 class TestResultingChainDepth:
-    def test_resulting_chain_depth_correct(
+    def test_resulting_chain_depth_uses_edge_count(
         self, test_client, seed_simple_graph,
     ):
-        # A -> B exists. Candidate C from source A: longest_ending_at(A)=1
-        # (A is a root with no incoming), longest_starting_at(C)=1 (C is
-        # an isolated node) → resulting depth = 2.
+        # A -> B exists (1 edge). Candidate C from source A:
+        # longest_ending_at(A)=0 (root), longest_starting_at(C)=0 (isolated)
+        # → resulting = 0 + 1 + 0 = 1 (the new A→C edge).
         r = test_client.get(
             "/api/charging/distribution-candidates/a",
             headers=_h("persona-controller"),
@@ -293,14 +303,14 @@ class TestResultingChainDepth:
         c_candidate = next(
             c for c in data["candidates"] if c["entity_id"] == "c"
         )
-        assert c_candidate["resulting_chain_depth"] == 2
+        assert c_candidate["resulting_chain_depth"] == 1
 
     def test_resulting_chain_depth_in_deep_chain(
         self, test_client, seed_deep_chain,
     ):
-        # Source = P3 (depth 3 from P1 root).
-        # Candidate P4 (isolated): 3 + 1 = 4.
-        # Candidate P5 (root of P5 -> P6 -> P7, 3-node chain): 3 + 3 = 6.
+        # Source = P3 (longest_ending_at=2 — 2 edges from P1).
+        # Candidate P4 (isolated, starting=0): 2 + 1 + 0 = 3.
+        # Candidate P5 (root of P5→P6→P7, starting=2): 2 + 1 + 2 = 5.
         r = test_client.get(
             "/api/charging/distribution-candidates/p3",
             headers=_h("persona-controller"),
@@ -308,40 +318,122 @@ class TestResultingChainDepth:
         assert r.status_code == 200, r.text
         data = r.json()
         by_id = {c["entity_id"]: c for c in data["candidates"]}
-        assert by_id["p4"]["resulting_chain_depth"] == 4
-        assert by_id["p5"]["resulting_chain_depth"] == 6
+        assert by_id["p4"]["resulting_chain_depth"] == 3
+        assert by_id["p5"]["resulting_chain_depth"] == 5
 
 
 class TestNearMaxDepthFlag:
-    def test_near_max_depth_warning_flag(self, test_client, seed_deep_chain):
-        # max=4. Threshold for warning = max - 1 = 3 (depth >= 3 triggers).
-        # Source = P1 (root, longest_ending_at = 1).
-        #   - P4 (isolated): 1 + 1 = 2 → warning False.
-        #   - P5 (root of P5 chain depth 3): 1 + 3 = 4 → warning True.
-        # Source = P3 (end of P1->P2->P3, longest_ending_at = 3).
-        #   - P4: 3 + 1 = 4 → warning True.
-        r1 = test_client.get(
+    """Boundary tests for ``near_max_depth_warning`` and ``would_violate_max_depth``.
+
+    With max=4 (edge-count), threshold for warning is max-1 = 3.
+    The two flags are mutually exclusive: would_violate fires when
+    resulting > max; near_max_depth_warning fires when resulting >= max-1
+    AND resulting <= max.
+    """
+
+    def test_off_when_well_below_threshold(self, test_client, seed_deep_chain):
+        # Source = P1 (ending=0). Candidate P4 (starting=0): resulting=1.
+        # max=4, threshold=3. 1 < 3 → both flags False.
+        r = test_client.get(
             "/api/charging/distribution-candidates/p1",
             headers=_h("persona-controller"),
         )
-        assert r1.status_code == 200, r1.text
-        cands_p1 = {c["entity_id"]: c for c in r1.json()["candidates"]}
-        # p4: resulting depth=2; threshold=3 → not near-max.
-        assert cands_p1["p4"]["resulting_chain_depth"] == 2
-        assert cands_p1["p4"]["near_max_depth_warning"] is False
-        # p5: resulting depth=4; threshold=3 → near-max.
-        assert cands_p1["p5"]["resulting_chain_depth"] == 4
-        assert cands_p1["p5"]["near_max_depth_warning"] is True
+        cands = {c["entity_id"]: c for c in r.json()["candidates"]}
+        assert cands["p4"]["resulting_chain_depth"] == 1
+        assert cands["p4"]["near_max_depth_warning"] is False
+        assert cands["p4"]["would_violate_max_depth"] is False
 
-        r3 = test_client.get(
+    def test_warning_at_max_minus_one(self, test_client, seed_deep_chain):
+        # Source = P1. Candidate P5 (starting=2): resulting=3 == max-1.
+        # 3 >= 3 (threshold) and 3 <= 4 (max) → near_max True, no violate.
+        r = test_client.get(
+            "/api/charging/distribution-candidates/p1",
+            headers=_h("persona-controller"),
+        )
+        cands = {c["entity_id"]: c for c in r.json()["candidates"]}
+        assert cands["p5"]["resulting_chain_depth"] == 3
+        assert cands["p5"]["near_max_depth_warning"] is True
+        assert cands["p5"]["would_violate_max_depth"] is False
+
+    def test_warning_at_max(self, test_client, seed_deep_chain):
+        # Source = P3 (ending=2). Candidate P6 (starting=1): resulting=4 == max.
+        # 4 >= 3 and 4 <= 4 → near_max True, no violate.
+        r = test_client.get(
             "/api/charging/distribution-candidates/p3",
             headers=_h("persona-controller"),
         )
-        assert r3.status_code == 200, r3.text
-        cands_p3 = {c["entity_id"]: c for c in r3.json()["candidates"]}
-        # p4 candidate from p3: resulting depth 4 → near-max.
-        assert cands_p3["p4"]["resulting_chain_depth"] == 4
-        assert cands_p3["p4"]["near_max_depth_warning"] is True
+        cands = {c["entity_id"]: c for c in r.json()["candidates"]}
+        assert cands["p6"]["resulting_chain_depth"] == 4
+        assert cands["p6"]["near_max_depth_warning"] is True
+        assert cands["p6"]["would_violate_max_depth"] is False
+
+    def test_would_violate_above_max(self, test_client, seed_deep_chain):
+        # Source = P3 (ending=2). Candidate P5 (starting=2): resulting=5 > max=4.
+        # would_violate True, near_max False (mutually exclusive).
+        r = test_client.get(
+            "/api/charging/distribution-candidates/p3",
+            headers=_h("persona-controller"),
+        )
+        cands = {c["entity_id"]: c for c in r.json()["candidates"]}
+        assert cands["p5"]["resulting_chain_depth"] == 5
+        assert cands["p5"]["would_violate_max_depth"] is True
+        assert cands["p5"]["near_max_depth_warning"] is False
+
+    def test_would_violate_aligns_with_save_time_409(
+        self, test_client, seed_deep_chain,
+    ):
+        # Decisive cross-check: a candidate flagged would_violate=True
+        # should, when POSTed as an edge, get a 409 with violating_path.
+        r = test_client.get(
+            "/api/charging/distribution-candidates/p3",
+            headers=_h("persona-controller"),
+        )
+        violator = next(
+            c for c in r.json()["candidates"]
+            if c["would_violate_max_depth"] is True
+        )
+        # Need a draft version to write into — seed_deep_chain ships an
+        # active version only, so create a draft sibling via the API.
+        from models.charging import DistributionVersion
+        from tests.conftest import TestSessionLocal
+        session = TestSessionLocal()
+        try:
+            draft = DistributionVersion(
+                active_from=None, status="draft", rationale="", origin="blank",
+            )
+            session.add(draft)
+            # Mirror seed_deep_chain edges into the draft so the depth
+            # math at save time matches the candidate endpoint.
+            from models.charging import Distribution
+            for src, dst in [
+                ("p1", "p2"), ("p2", "p3"),
+                ("p5", "p6"), ("p6", "p7"),
+            ]:
+                session.flush()
+                session.add(Distribution(
+                    version_id=draft.id, source_entity_id=src,
+                    destination_entity_id=dst, percentage=50.0,
+                ))
+            session.commit()
+            draft_id = draft.id
+        finally:
+            session.close()
+
+        post = test_client.post(
+            "/api/charging/distributions",
+            headers=_h("persona-controller"),
+            json={
+                "version_id": draft_id,
+                "source_entity_id": "p3",
+                "destination_entity_id": violator["entity_id"],
+                "percentage": 10.0,
+            },
+        )
+        assert post.status_code == 409, post.text
+        body = post.json()["detail"]
+        assert "violating_path" in body or (
+            isinstance(body, dict) and "violating_path" in body
+        )
 
 
 class TestCandidatesErrors:
