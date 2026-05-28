@@ -169,7 +169,7 @@ describe('buildLayout', () => {
       ],
     });
     // expand downstream to 2 so `c` is in the visible set
-    const layout = buildLayout(c, { expandedDepthUp: 1, expandedDepthDown: 2 });
+    const layout = buildLayout(c, 1, 2);
     const incomingToC = layout.edges.filter((e) => e.destination_entity_id === 'c');
     expect(incomingToC.length).toBe(2);
     const sources = incomingToC.map((e) => e.source_entity_id).sort();
