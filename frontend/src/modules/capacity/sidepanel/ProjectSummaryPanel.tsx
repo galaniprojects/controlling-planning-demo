@@ -11,7 +11,9 @@
  *      "QA Engineer: 0/5 months — unassigned").
  *   3. Total allocated hours for the project across the visible window.
  *   4. "Review & assign" button → enters assignment mode for this project.
- *   5. "View in workbench" link → /workbench?project={id}.
+ *   5. "View in workbench" link → /workbench?entity={id} via
+ *      navigateToWorkbenchByProject (Wave C — falls back to ?project=
+ *      on resolver failure, picked up by the alias resolver).
  *
  * Data feed: `CapacityProjectItem` from `getProjects` — the parent
  * (`CapacityWorkspace`) caches the response in a shared map and the
@@ -28,11 +30,13 @@
  */
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, AlertTriangle } from 'lucide-react';
+import type { NavigateFunction } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { capacityApi } from '@/api/endpoints';
 import { useProjectColor } from '@/contexts/ProjectColorMapContext';
 import { cn } from '@/lib/utils';
+import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import type { CapacityProjectItem } from '@/types/api';
 
 export interface ProjectSummaryPanelProps {
@@ -64,9 +68,12 @@ export interface ProjectSummaryPanelProps {
   onClosePanel: () => void;
   /**
    * Navigate function injected from the workspace tree (where
-   * react-router context is available).
+   * react-router context is available). Typed as the full
+   * `NavigateFunction` so the panel can pass it through to the
+   * Wave-C workbenchNavigation helper (which expects the rich
+   * react-router type, not the legacy `(path: string) => void` form).
    */
-  navigate: (path: string) => void;
+  navigate: NavigateFunction;
 }
 
 /**
@@ -272,7 +279,7 @@ function ProjectSummaryPanelContent({
   item: CapacityProjectItem;
   onReviewAssign: (item: CapacityProjectItem) => void;
   onClosePanel: () => void;
-  navigate: (path: string) => void;
+  navigate: NavigateFunction;
 }) {
   const projectColor = useProjectColor(item.project_id);
   const { unfulfilled, fullyAssignedCount } = buildProgressLines(item);
@@ -281,7 +288,10 @@ function ProjectSummaryPanelContent({
   const handleReviewAssign = () => onReviewAssign(item);
 
   const handleViewInWorkbench = () => {
-    navigate(`/workbench?project=${encodeURIComponent(item.project_id)}`);
+    // Service Workbench Wave C: resolve project → entity and navigate
+    // via the canonical `?entity=` form. Falls back to `?project=`
+    // (which the alias resolver picks up) if resolution fails.
+    navigateToWorkbenchByProject(item.project_id, navigate);
     onClosePanel();
   };
 

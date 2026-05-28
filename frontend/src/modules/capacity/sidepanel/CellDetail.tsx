@@ -18,7 +18,8 @@
  *      positive, red when negative).
  *   3. Project allocations list — one row per project with hours in
  *      this slice. Each row is expandable to show per-person hours.
- *      Project name links to `/workbench?project={id}`.
+ *      Project name links to `/workbench?entity={chargeable_entity_id}` via
+ *      navigateToWorkbenchByProject (Wave C).
  *
  * v5.2 W5 Track A (S6b §9.1 entry-point #2): when `pivot === 'demand'`,
  * the body switches to a pending-demand list — one row per project
@@ -34,6 +35,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { capacityApi } from '@/api/endpoints';
+import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import { useRole } from '@/contexts/RoleContext';
 import { LocationLabel } from '@/components/shared/LocationLabel';
 import { Skeleton } from '@/components/shared/Skeleton';
@@ -281,7 +283,7 @@ function CellDetailBody({
               isExpanded={expanded.has(item.project_id)}
               onToggle={() => onToggle(item.project_id)}
               onNavigate={() =>
-                navigate(`/workbench?project=${item.project_id}`)
+                navigateToWorkbenchByProject(item.project_id, navigate)
               }
             />
           ))}
