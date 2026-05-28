@@ -38,6 +38,15 @@ def setup_db():
     code paths that read it via :func:`services.depth_validation.get_max_allocation_depth`
     — including :func:`get_upstream_chain` and the save-time depth check on
     edge writes — work without each test having to seed it.
+
+    Tests that need to verify the **missing-row** branch in
+    ``get_max_allocation_depth`` (the ``ValueError`` path) must explicitly
+    delete this row first — see
+    ``test_depth_validation.py::TestGetMaxAllocationDepth::test_raises_if_param_missing``
+    for the pattern. The autouse seeding is here (rather than per-test)
+    because 14+ tests across the charging surface hit code paths that
+    resolve ``max_allocation_depth`` implicitly; making it autouse keeps
+    those tests from each having to seed manually.
     """
     Base.metadata.create_all(bind=TEST_ENGINE)
     from models.system import PlanningParameter

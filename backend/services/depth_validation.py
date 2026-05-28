@@ -79,6 +79,12 @@ def get_max_allocation_depth(db: Session) -> int:
     Raises :class:`ValueError` if the row is missing or its
     ``current_value`` cannot be parsed — should never happen post-seed,
     but surfaces loud if the seed drifts.
+
+    Test environments: ``conftest.setup_db`` autouse-seeds the row at value
+    ``6`` for every test, so reads from the test DB always succeed by
+    default. Tests that exercise the missing-row branch (this function's
+    ``ValueError`` path) must delete the seeded row first — see
+    ``test_depth_validation.py::test_raises_if_param_missing``.
     """
     param = (
         db.query(PlanningParameter)
