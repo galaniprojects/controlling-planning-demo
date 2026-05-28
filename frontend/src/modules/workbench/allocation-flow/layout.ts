@@ -106,7 +106,8 @@ export interface FlowLayout {
   maxEdgeAmount: number;
   /**
    * For each visible upstream node, how many further-upstream nodes
-   * lie beyond the current cap. Drives the +N ExpandIndicator pill.
+   * lie beyond the current cap. Drives the inline +N expand pill
+   * rendered by `EntityNode`.
    */
   hiddenUpstreamCount: Map<string, number>;
   hiddenDownstreamCount: Map<string, number>;

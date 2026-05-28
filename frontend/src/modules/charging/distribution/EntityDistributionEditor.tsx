@@ -64,6 +64,7 @@ import {
 } from './helpers/pendingDiff';
 import { projectAllocation } from './helpers/projectAllocation';
 import { VersionSelector } from './versions/VersionSelector';
+import { pickInForceVersionId } from './versions/versionLabels';
 import { DistributionTable } from './editor/DistributionTable';
 import { DistributionRow } from './editor/DistributionRow';
 import { ToBusinessRow } from './editor/ToBusinessRow';
@@ -220,6 +221,7 @@ export function EntityDistributionEditor({
     if (!state.cascade) {
       return {
         downstream: [],
+        toBusinessPct: 0,
         toBusinessAmount: 0,
         distributedPct: 0,
         selfRetainedPct: 100,
@@ -576,25 +578,6 @@ export function EntityDistributionEditor({
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/* Helpers                                                                    */
-/* -------------------------------------------------------------------------- */
-
-function pickInForceVersionId(
-  versions: DistributionVersionResponse[],
-): number | null {
-  const today = new Date().toISOString().slice(0, 10);
-  let best: DistributionVersionResponse | null = null;
-  for (const v of versions) {
-    if (v.scenario_id !== null) continue;
-    if (v.status !== 'active') continue;
-    if (!v.active_from || v.active_from > today) continue;
-    if (!best || (v.active_from ?? '') > (best.active_from ?? '')) {
-      best = v;
-    }
-  }
-  return best?.id ?? null;
-}
 
 /** Lookup table: entity id → identifier string, used by the cycle/depth
  *  banner so it can render `ITF00001 → ITF00002 → ITF00001` instead of

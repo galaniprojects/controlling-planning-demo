@@ -147,6 +147,34 @@ test('computeDepths: diamond shape uses shortest distance', () => {
   assert.equal(d.downstream.get('c'), 2);
 });
 
+test('buildLayout: diamond at expandedDepth=2 preserves BOTH incoming edges into the shared node', () => {
+  // Regression for S-7 from the Wave B review: the previous
+  // `computeDepths: diamond` test only asserted shortest distance —
+  // it didn't confirm that when the shared node `c` is visible, BOTH
+  // edges (a→c, b→c) get included in `layout.edges`. A naive
+  // "first-path wins" filter could drop one without the test noticing.
+  const c = chain({
+    focal: node('r', 'R', 1000),
+    downstream: [
+      node('a', 'A', 400),
+      node('b', 'B', 600),
+      node('c', 'C', 100),
+    ],
+    edges: [
+      edge('r', 'a', 40, 400),
+      edge('r', 'b', 60, 600),
+      edge('a', 'c', 25, 100),
+      edge('b', 'c', 16, 96),
+    ],
+  });
+  // expand downstream to 2 so `c` is in the visible set
+  const layout = buildLayout(c, { expandedDepthUp: 1, expandedDepthDown: 2 });
+  const incomingToC = layout.edges.filter((e) => e.destination_entity_id === 'c');
+  assert.equal(incomingToC.length, 2);
+  const sources = incomingToC.map((e) => e.source_entity_id).sort();
+  assert.deepEqual(sources, ['a', 'b']);
+});
+
 test('buildLayout: ±1 default places focal and direct neighbours only', () => {
   const c = chain({
     focal: node('f', 'F', 1000),

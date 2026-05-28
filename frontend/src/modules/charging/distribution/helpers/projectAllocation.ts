@@ -55,6 +55,11 @@ export interface ProjectedDownstreamRow {
 
 export interface AllocationProjection {
   downstream: ProjectedDownstreamRow[];
+  /** Same number the editor passed in, surfaced so consumers (notably
+   *  the side panel) display the *pending* value rather than re-reading
+   *  the server snapshot on `focal.to_business_pct`. Spec §5.7 — the
+   *  preview must reflect live edits. */
+  toBusinessPct: number;
   toBusinessAmount: number;
   distributedPct: number;
   selfRetainedPct: number;
@@ -113,6 +118,7 @@ export function projectAllocation(input: {
 
   return {
     downstream,
+    toBusinessPct: round2(tbp),
     toBusinessAmount,
     distributedPct: round2(distributedPct),
     selfRetainedPct,

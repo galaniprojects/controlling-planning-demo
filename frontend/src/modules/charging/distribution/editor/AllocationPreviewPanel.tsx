@@ -294,7 +294,7 @@ export function AllocationPreviewPanel({
                   : 'text-muted-foreground',
               )}
             >
-              {formatPercent(focal.to_business_pct, { signed: false, decimals: 1 })}
+              {formatPercent(projection.toBusinessPct, { signed: false, decimals: 1 })}
             </span>
             <span
               className={cn(

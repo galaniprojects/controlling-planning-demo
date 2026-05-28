@@ -8,7 +8,6 @@
  * to sessionStorage by `useAllocationFlowState`.
  */
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 export interface FlowLegendProps {
@@ -78,26 +77,6 @@ export function FlowLegend({ open, onToggle, className }: FlowLegendProps) {
         </div>
       )}
     </div>
-  );
-}
-
-/** Floating "Show legend" trigger when the legend is collapsed. */
-export function FlowLegendCollapsedTrigger({
-  onOpen,
-  className,
-}: {
-  onOpen: () => void;
-  className?: string;
-}) {
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={onOpen}
-      className={cn('h-7 text-[11px]', className)}
-    >
-      Show legend
-    </Button>
   );
 }
 

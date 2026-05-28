@@ -46,11 +46,25 @@ describe('projectAllocation', () => {
     });
     expect(r.downstream[0].amount).toBe(25_000);
     expect(r.downstream[1].amount).toBe(40_000);
+    expect(r.toBusinessPct).toBe(10);
     expect(r.toBusinessAmount).toBe(10_000);
     expect(r.distributedPct).toBe(65);
     expect(r.selfRetainedPct).toBe(25);
     expect(r.isOverAllocated).toBe(false);
     expect(r.isComplete).toBe(false);
+  });
+
+  it('surfaces pending toBusinessPct (S-2 regression: previewing live edits)', () => {
+    // The side panel reads toBusinessPct from the projection, not from
+    // cascade.focal.to_business_pct — so an unsaved edit to the
+    // To-Business field shows the *pending* value, not the server one.
+    const r = projectAllocation({
+      focalEffectiveCost: focal,
+      rows: [],
+      toBusinessPct: 42.5,
+    });
+    expect(r.toBusinessPct).toBe(42.5);
+    expect(r.toBusinessAmount).toBe(42_500);
   });
 
   it('flags isComplete at exactly 100%', () => {

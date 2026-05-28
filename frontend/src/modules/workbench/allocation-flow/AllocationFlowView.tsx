@@ -44,8 +44,10 @@ import {
   buildLayout,
   countVisibleNodes,
   FOCAL_NODE_W,
+  MAX_LAYOUT_DEPTH,
   maxDepths,
 } from './layout';
+import { pickInForceVersionId } from '@/modules/charging/distribution/versions/versionLabels';
 import { edgeKey } from './edgeGeometry';
 import { useAllocationFlowState } from './useAllocationFlowState';
 import { ColumnHeaders } from './ColumnHeaders';
@@ -58,26 +60,6 @@ import { CascadeEdge as CascadeEdgeComp } from './edges/CascadeEdge';
 import { FlowLegend } from './FlowLegend';
 import { FlowTooltip } from './FlowTooltip';
 import { ShowFullChainToggle } from './ShowFullChainToggle';
-
-const MAX_REASONABLE_DEPTH = 12;
-
-function pickInForceVersionId(
-  versions: DistributionVersionResponse[],
-): number | null {
-  const today = new Date().toISOString().slice(0, 10);
-  const candidates = versions.filter(
-    (v) =>
-      v.status === 'active' &&
-      v.scenario_id === null &&
-      v.active_from !== null &&
-      v.active_from <= today,
-  );
-  if (candidates.length === 0) return null;
-  candidates.sort((a, b) =>
-    (b.active_from ?? '').localeCompare(a.active_from ?? ''),
-  );
-  return candidates[0]?.id ?? null;
-}
 
 export function AllocationFlowView() {
   const navigate = useNavigate();
@@ -184,8 +166,8 @@ export function AllocationFlowView() {
     const md = maxDepths(data);
     const count = countVisibleNodes(
       data,
-      MAX_REASONABLE_DEPTH,
-      MAX_REASONABLE_DEPTH,
+      MAX_LAYOUT_DEPTH,
+      MAX_LAYOUT_DEPTH,
     );
     const hasDeeper =
       md.up > state.expandedDepthUp || md.down > state.expandedDepthDown;
