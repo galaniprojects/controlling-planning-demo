@@ -951,10 +951,17 @@ def _serialize_version(
 
 
 def _validation_error_to_http(e: DistributionValidationError) -> HTTPException:
-    """Translate a service-level validation error to HTTP 409 with cycle chain."""
+    """Translate a service-level validation error to HTTP 409.
+
+    Threads cycle_chain (cycle violation) or violating_path (depth violation,
+    Service Workbench S1) through to the response body so the UI can render
+    the offending chain.
+    """
     payload: dict[str, object] = {"detail": e.message}
     if e.cycle_chain is not None:
         payload["cycle_chain"] = e.cycle_chain
+    if getattr(e, "violating_path", None) is not None:
+        payload["violating_path"] = e.violating_path
     return HTTPException(409, payload)
 
 

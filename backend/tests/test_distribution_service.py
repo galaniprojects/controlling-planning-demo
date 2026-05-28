@@ -52,26 +52,30 @@ from services.distribution_service import (
 
 @pytest.fixture(autouse=True)
 def _seed_planning_parameter(db):
-    """Seed ``max_allocation_depth=6`` for every test in this module.
+    """Ensure ``max_allocation_depth=6`` is present for every test in this module.
 
     The Service Workbench S1 depth-validation path (create / update edge)
-    reads this PlanningParameter row; the in-memory test DB has no seed
-    data, so without this autouse fixture every edge-CRUD test would
-    raise ``ValueError`` from :func:`get_max_allocation_depth`.
-
-    Individual depth tests in :class:`TestDepthValidation` override the
-    value via :func:`_seed_max_depth_param`.
+    reads this PlanningParameter row. ``conftest.setup_db`` autouse already
+    seeds it for the whole suite, but we re-check here so individual depth
+    tests can rely on a known starting state. Individual depth tests in
+    :class:`TestDepthValidation` override the value via :func:`_seed_max_depth_param`.
     """
-    db.add(PlanningParameter(
-        key="max_allocation_depth",
-        name="Max allocation depth",
-        description="Maximum chain depth for Stage 1 distributions.",
-        current_value="6",
-        default_value="6",
-        data_type="integer",
-        param_group="limits",
-    ))
-    db.commit()
+    existing = (
+        db.query(PlanningParameter)
+        .filter(PlanningParameter.key == "max_allocation_depth")
+        .first()
+    )
+    if existing is None:
+        db.add(PlanningParameter(
+            key="max_allocation_depth",
+            name="Max allocation depth",
+            description="Maximum chain depth for Stage 1 distributions.",
+            current_value="6",
+            default_value="6",
+            data_type="integer",
+            param_group="limits",
+        ))
+        db.commit()
     yield
 
 

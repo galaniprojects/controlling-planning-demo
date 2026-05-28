@@ -143,7 +143,12 @@ class TestGetMaxAllocationDepth:
         assert get_max_allocation_depth(db) == 4
 
     def test_raises_if_param_missing(self, db):
-        # No PlanningParameter seeded — should error loudly.
+        # conftest autouse seeds max_allocation_depth; delete it explicitly
+        # to exercise the missing-row branch.
+        db.query(PlanningParameter).filter(
+            PlanningParameter.key == "max_allocation_depth"
+        ).delete()
+        db.commit()
         with pytest.raises(ValueError, match="max_allocation_depth"):
             get_max_allocation_depth(db)
 
