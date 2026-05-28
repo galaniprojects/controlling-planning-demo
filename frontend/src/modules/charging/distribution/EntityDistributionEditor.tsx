@@ -50,6 +50,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { chargingApi } from '@/api/endpoints';
+import { cn } from '@/lib/utils';
 import type {
   CascadeChainResponse,
   DistributionVersionResponse,
@@ -72,10 +73,12 @@ import { AddDistributionTargetButton } from './editor/AddDistributionTargetButto
 import { EntityHeaderCard } from './editor/EntityHeaderCard';
 import { EditorActionBar } from './editor/EditorActionBar';
 import { EntityPickerDialog } from './editor/EntityPickerDialog';
+import { AllocationPreviewPanel } from './editor/AllocationPreviewPanel';
 import {
   editorReducer,
   initialEditorState,
   rowIsEdited,
+  type PendingRow,
 } from './editor/state';
 
 /* -------------------------------------------------------------------------- */
@@ -379,6 +382,11 @@ export function EntityDistributionEditor({
 
   const readOnly = !sandboxMode && state.cascade.version.status === 'active';
 
+  const toBusinessIsEdited =
+    Math.abs(
+      state.pending.toBusinessPct - state.cascade.focal.to_business_pct,
+    ) > 0.0001;
+
   return (
     <div className="space-y-4">
       {/* Back nav */}
@@ -389,6 +397,14 @@ export function EntityDistributionEditor({
           </Button>
         </div>
       )}
+
+      <div
+        className={cn(
+          'flex flex-col gap-4',
+          state.ui.sidePanelOpen && 'lg:flex-row lg:items-start',
+        )}
+      >
+        <div className="flex-1 min-w-0 space-y-4">
 
       {/* Entity header card with cost breakdown + version slot */}
       <EntityHeaderCard
@@ -475,12 +491,7 @@ export function EntityDistributionEditor({
             toBusinessAmount={projection.toBusinessAmount}
             locationCount={state.cascade.business_terminals.length}
             readOnly={readOnly}
-            isEdited={
-              Math.abs(
-                state.pending.toBusinessPct -
-                  state.cascade.focal.to_business_pct,
-              ) > 0.0001
-            }
+            isEdited={toBusinessIsEdited}
             isFocused={state.ui.activeRowFocusKey === '__tbp__'}
             onChangePct={(value) => dispatch({ type: 'SET_TBP', value })}
             onFocus={() => dispatch({ type: 'FOCUS_ROW', key: '__tbp__' })}
@@ -525,6 +536,22 @@ export function EntityDistributionEditor({
         onDiscard={() => dispatch({ type: 'DISCARD' })}
         onToggleSidePanel={() => dispatch({ type: 'TOGGLE_SIDE_PANEL' })}
       />
+
+        </div>
+
+        {/* Side panel — live allocation preview */}
+        {state.ui.sidePanelOpen && (
+          <AllocationPreviewPanel
+            cascade={state.cascade}
+            projection={projection}
+            visibleRows={visibleRows}
+            isRowEdited={(row: PendingRow) => rowIsEdited(row, state.cascade)}
+            toBusinessIsEdited={toBusinessIsEdited}
+            activeRowFocusKey={state.ui.activeRowFocusKey}
+            onClose={() => dispatch({ type: 'TOGGLE_SIDE_PANEL' })}
+          />
+        )}
+      </div>
 
       {/* Candidates-driven entity picker (commit 3 replacement of the
           temp inline picker). Shows depth warnings, disables blocked
