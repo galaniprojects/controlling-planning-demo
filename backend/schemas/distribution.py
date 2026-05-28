@@ -26,7 +26,7 @@ contract break — coordinate before editing.
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -392,3 +392,120 @@ class WBSElementResponse(BaseModel):
     entity_id: str
     charging_location_id: str
     wbs_element: str
+
+
+# ---------------------------------------------------------------------------
+# Cascade surfaces (Service Workbench Session 2 — bidirectional chain view)
+# ---------------------------------------------------------------------------
+
+
+class CascadeNode(BaseModel):
+    """One entity in the cascade response — focal, upstream, or downstream.
+
+    ``own_cost`` is the entity's own annual cost (per the DAG resolver's
+    own-cost lookup); ``effective_cost`` is own_cost + Σ inflows resolved
+    against the targeted ``DistributionVersion``.
+    """
+
+    entity_id: str
+    entity_name: str
+    entity_type: Literal["Project", "Offering", "InternalService"]
+    identifier: str
+    own_cost: float
+    effective_cost: float
+    to_business_pct: float
+    self_retained_pct: float
+
+
+class CascadeEdge(BaseModel):
+    """One distribution edge in the displayed cascade sub-graph.
+
+    ``amount`` is the resolved EUR flow through the edge (source's
+    effective_cost × percentage / 100). ``chain_depth`` is sourced from
+    ``Distribution.chain_depth`` cache — may be NULL when the cache hasn't
+    been populated yet (foundation-commit seeded edges, untouched draft
+    versions).
+    """
+
+    source_entity_id: str
+    destination_entity_id: str
+    percentage: float
+    amount: float
+    chain_depth: Optional[int] = None
+    rationale: Optional[str] = None
+
+
+class CascadeBusinessTerminal(BaseModel):
+    """One business-terminal contribution for the focal entity.
+
+    Each row maps to one ``ChargingLocation`` via the focal entity's active
+    BTC profile lines for the demo year. ``amount`` is
+    ``focal.effective_cost × focal.to_business_pct/100 × line.percentage/100``
+    — the EUR that releases to KB business through that charging location.
+    """
+
+    charging_location_id: str
+    code: str
+    name: str
+    percentage: float
+    amount: float
+
+
+class CascadeChainResponse(BaseModel):
+    """Full bidirectional cascade response for a focal entity.
+
+    Flat shape (nodes + edges) per the frontend column-based layout
+    (Service Workbench Session 4). ``upstream`` / ``downstream`` are
+    transitively-collected, deduped entity lists; edges reference into the
+    node lists via source/destination ids.
+    """
+
+    focal: CascadeNode
+    upstream: list[CascadeNode]
+    downstream: list[CascadeNode]
+    edges: list[CascadeEdge]
+    business_terminals: list[CascadeBusinessTerminal]
+    version: DistributionVersionResponse
+    evaluated_date: date
+    max_allocation_depth: int
+
+
+class DistributionCandidate(BaseModel):
+    """One candidate distribution target for a source entity.
+
+    ``resulting_chain_depth`` is the **edge-count** of the longest path
+    that would pass through the hypothetical new edge: longest edge-path
+    ending at source + 1 (the new edge) + longest edge-path starting at
+    the candidate. Directly comparable to ``max_allocation_depth``.
+
+    Two boolean flags surface relative to the cap (mutually exclusive):
+    - ``near_max_depth_warning``: ``resulting_chain_depth >=
+      max_allocation_depth - 1`` AND still saveable. Frontend renders a
+      warning indicator.
+    - ``would_violate_max_depth``: ``resulting_chain_depth >
+      max_allocation_depth`` — server-side save would 409 with the
+      violating path. Frontend should disable this candidate rather than
+      render it as a warning.
+    """
+
+    entity_id: str
+    entity_name: str
+    entity_type: Literal["Project", "Offering", "InternalService"]
+    identifier: str
+    resulting_chain_depth: int
+    near_max_depth_warning: bool
+    would_violate_max_depth: bool
+
+
+class DistributionCandidatesResponse(BaseModel):
+    """List of eligible distribution targets from a source entity.
+
+    Excludes the source itself, entities already on outgoing edges, and
+    entities that would form a cycle if added.
+    """
+
+    source_entity_id: str
+    version_id: int
+    max_allocation_depth: int
+    candidates: list[DistributionCandidate]
+    total: int

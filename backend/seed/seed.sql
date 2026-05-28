@@ -75,7 +75,8 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('forecast_deadline', 'Forecast Deadline', 'Day of month when forecast is due', '15', '15', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_amber_threshold', 'RAG Amber Threshold', 'Budget variance % for amber status', '5', '5', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_red_threshold', 'RAG Red Threshold', 'Budget variance % for red status', '10', '10', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('max_allocation_depth', 'Max Allocation Depth', 'Maximum Stage 1 distribution chain length', '6', '6', 'integer', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- s01_taxonomy / 7. KPI Definitions (built-in catalogue)

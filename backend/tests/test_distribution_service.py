@@ -20,6 +20,7 @@ import pytest
 from models.charging import ChargeableEntity, Distribution, DistributionVersion
 from models.organization import GroupingEntity, GroupingEntityType
 from models.scenarios import Scenario
+from models.system import PlanningParameter
 from services.distribution_service import (
     DiffEdge,
     DistributionValidationError,
@@ -47,6 +48,35 @@ from services.distribution_service import (
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _seed_planning_parameter(db):
+    """Ensure ``max_allocation_depth=6`` is present for every test in this module.
+
+    The Service Workbench S1 depth-validation path (create / update edge)
+    reads this PlanningParameter row. ``conftest.setup_db`` autouse already
+    seeds it for the whole suite, but we re-check here so individual depth
+    tests can rely on a known starting state. Individual depth tests in
+    :class:`TestDepthValidation` override the value via :func:`_seed_max_depth_param`.
+    """
+    existing = (
+        db.query(PlanningParameter)
+        .filter(PlanningParameter.key == "max_allocation_depth")
+        .first()
+    )
+    if existing is None:
+        db.add(PlanningParameter(
+            key="max_allocation_depth",
+            name="Max allocation depth",
+            description="Maximum chain depth for Stage 1 distributions.",
+            current_value="6",
+            default_value="6",
+            data_type="integer",
+            param_group="limits",
+        ))
+        db.commit()
+    yield
 
 
 @pytest.fixture
@@ -780,3 +810,280 @@ class TestResolveDefaultComparedTo:
         db.commit()
         partner = resolve_default_compared_to(db, v_sc)
         assert partner.id == graph["active"].id
+
+
+# ---------------------------------------------------------------------------
+# Service Workbench S1 — depth validation + chain_depth cache
+# ---------------------------------------------------------------------------
+
+
+def _seed_max_depth_param(db, value: int) -> PlanningParameter:
+    """Insert (or update) the ``max_allocation_depth`` PlanningParameter row.
+
+    The in-memory test DB does not run the seed, so any test that touches
+    the depth validation path must seed this row explicitly.
+    """
+    existing = (
+        db.query(PlanningParameter)
+        .filter(PlanningParameter.key == "max_allocation_depth")
+        .first()
+    )
+    if existing is not None:
+        existing.current_value = str(value)
+        db.commit()
+        return existing
+    p = PlanningParameter(
+        key="max_allocation_depth",
+        name="Max allocation depth",
+        description="Maximum chain depth for Stage 1 distributions.",
+        current_value=str(value),
+        default_value="6",
+        data_type="integer",
+        param_group="limits",
+    )
+    db.add(p)
+    db.commit()
+    return p
+
+
+@pytest.fixture
+def deep_graph(db, graph):
+    """Five additional entities (D, E, F, G, H) so depth tests can build
+    chains of varying length without re-seeding ``graph``.
+
+    All InternalServices with to_business=0 — they exist purely to act as
+    pass-through nodes in the chain depth tests below.
+    """
+    extras = []
+    for code in ("D", "E", "F", "G", "H"):
+        extras.append(ChargeableEntity(
+            id=code, entity_type="InternalService", identifier=f"ITDEEP{code}",
+            name=code, to_business_pct=0.0, hierarchy_node_id="lob-1",
+        ))
+    db.add_all(extras)
+    db.commit()
+    return graph
+
+
+class TestDepthValidation:
+    """Service Workbench S1 — third save-time validation alongside cycle + sum.
+
+    All tests seed ``max_allocation_depth`` explicitly via the helper since
+    the in-memory test DB has no seed data.
+    """
+
+    def test_create_edge_rejects_when_exceeds_max_depth(
+        self, db, deep_graph, draft_version,
+    ):
+        # max=3 means a chain of 3 edges (4 nodes) is allowed; a 4th edge
+        # (5-node chain) must be rejected.
+        _seed_max_depth_param(db, 3)
+
+        # Build A → B → C → D (3 edges, 4 nodes — at the cap, OK).
+        create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="A", destination_entity_id="B", percentage=10.0,
+        )
+        # B has to_business=50; cap a small percentage so the sum stays under.
+        create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="B", destination_entity_id="C", percentage=10.0,
+        )
+        create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="C", destination_entity_id="D", percentage=10.0,
+        )
+        db.commit()
+
+        # Adding D → E would make the chain 4 edges deep — over the cap.
+        with pytest.raises(DistributionValidationError) as ei:
+            create_distribution_edge(
+                db, version_id=draft_version.id,
+                source_entity_id="D", destination_entity_id="E", percentage=10.0,
+            )
+        assert "depth" in ei.value.message.lower()
+        assert ei.value.violating_path is not None
+        # Sample path is a concrete root-to-leaf walk of the offending graph.
+        assert len(ei.value.violating_path) >= 5
+
+    def test_create_edge_within_max_depth_succeeds(
+        self, db, deep_graph, draft_version,
+    ):
+        _seed_max_depth_param(db, 6)
+        # A 2-edge chain — well under the default cap.
+        create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="A", destination_entity_id="B", percentage=10.0,
+        )
+        edge = create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="B", destination_entity_id="C", percentage=10.0,
+        )
+        db.commit()
+        assert edge.id is not None
+
+    def test_create_edge_recomputes_chain_depth(
+        self, db, deep_graph, draft_version,
+    ):
+        _seed_max_depth_param(db, 6)
+        # Single edge → chain_depth=1 (longest path through the edge is the
+        # edge itself).
+        edge = create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="A", destination_entity_id="B", percentage=10.0,
+        )
+        db.commit()
+        refreshed = db.query(Distribution).filter_by(id=edge.id).first()
+        assert refreshed.chain_depth == 1
+
+        # Add A → C — second edge in a 2-leaf fan-out, each carries depth 1.
+        edge2 = create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="A", destination_entity_id="C", percentage=10.0,
+        )
+        db.commit()
+        assert db.query(Distribution).filter_by(id=edge2.id).first().chain_depth == 1
+
+    def test_update_edge_recomputes_chain_depth(
+        self, db, deep_graph, draft_version,
+    ):
+        _seed_max_depth_param(db, 6)
+        e1 = create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="A", destination_entity_id="B", percentage=10.0,
+        )
+        e2 = create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="B", destination_entity_id="C", percentage=10.0,
+        )
+        db.commit()
+        # Two-edge chain → both edges carry chain_depth=2.
+        assert db.query(Distribution).filter_by(id=e1.id).first().chain_depth == 2
+        assert db.query(Distribution).filter_by(id=e2.id).first().chain_depth == 2
+
+        # Updating percentage doesn't change graph topology — depths stay 2
+        # and the recompute hook simply re-stamps the same values.
+        update_distribution_edge(db, e1.id, percentage=15.0)
+        db.commit()
+        assert db.query(Distribution).filter_by(id=e1.id).first().chain_depth == 2
+        assert db.query(Distribution).filter_by(id=e2.id).first().chain_depth == 2
+
+    def test_delete_edge_recomputes_chain_depth(
+        self, db, deep_graph, draft_version,
+    ):
+        _seed_max_depth_param(db, 6)
+        e1 = create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="A", destination_entity_id="B", percentage=10.0,
+        )
+        e2 = create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="B", destination_entity_id="C", percentage=10.0,
+        )
+        e3 = create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="C", destination_entity_id="D", percentage=10.0,
+        )
+        db.commit()
+        # 3-edge chain → every edge carries chain_depth=3.
+        assert db.query(Distribution).filter_by(id=e1.id).first().chain_depth == 3
+        assert db.query(Distribution).filter_by(id=e2.id).first().chain_depth == 3
+
+        # Delete the leaf edge C → D; remaining edges should drop to depth 2.
+        delete_distribution_edge(db, e3.id)
+        db.commit()
+        assert db.query(Distribution).filter_by(id=e1.id).first().chain_depth == 2
+        assert db.query(Distribution).filter_by(id=e2.id).first().chain_depth == 2
+
+    def test_delete_edge_does_not_run_depth_assertion(
+        self, db, deep_graph, draft_version,
+    ):
+        # Build a 3-deep chain at max=3.
+        _seed_max_depth_param(db, 3)
+        e1 = create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="A", destination_entity_id="B", percentage=10.0,
+        )
+        create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="B", destination_entity_id="C", percentage=10.0,
+        )
+        create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="C", destination_entity_id="D", percentage=10.0,
+        )
+        db.commit()
+
+        # Lower the cap artificially so the existing graph is now "too deep".
+        # A naive depth assertion on delete would falsely block this — but
+        # delete can only shrink the graph, so we skip the assertion.
+        _seed_max_depth_param(db, 1)
+        # Deleting the root edge must succeed regardless of the lowered cap.
+        delete_distribution_edge(db, e1.id)
+        db.commit()
+        assert db.query(Distribution).filter_by(id=e1.id).first() is None
+
+    def test_to_business_pct_update_does_not_recompute_chain_depth(
+        self, db, deep_graph, draft_version,
+    ):
+        _seed_max_depth_param(db, 6)
+        e1 = create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="A", destination_entity_id="B", percentage=10.0,
+        )
+        e2 = create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="B", destination_entity_id="C", percentage=10.0,
+        )
+        db.commit()
+        before_e1 = db.query(Distribution).filter_by(id=e1.id).first().chain_depth
+        before_e2 = db.query(Distribution).filter_by(id=e2.id).first().chain_depth
+        assert before_e1 == 2 and before_e2 == 2
+
+        # to_business_pct doesn't affect graph topology and the spec says
+        # the cache refresh is skipped for this entry point — values stay
+        # untouched (i.e., the bulk updater was not called).
+        update_to_business_pct(
+            db, "A", new_pct=20.0, version_id=draft_version.id,
+        )
+        db.commit()
+        assert (
+            db.query(Distribution).filter_by(id=e1.id).first().chain_depth
+            == before_e1
+        )
+        assert (
+            db.query(Distribution).filter_by(id=e2.id).first().chain_depth
+            == before_e2
+        )
+
+    def test_chain_depth_null_until_first_write(
+        self, db, deep_graph, draft_version,
+    ):
+        _seed_max_depth_param(db, 6)
+        # Insert an edge bypassing the service so chain_depth stays NULL
+        # — mirrors the foundation-commit state where seeded edges have no
+        # cached depth until the first service-mediated mutation in the
+        # version repopulates the cache.
+        raw_edge = Distribution(
+            version_id=draft_version.id,
+            source_entity_id="A", destination_entity_id="B",
+            percentage=10.0,
+        )
+        db.add(raw_edge)
+        db.commit()
+        assert (
+            db.query(Distribution).filter_by(id=raw_edge.id).first().chain_depth
+            is None
+        )
+
+        # First service-mediated write triggers the bulk refresh; all edges
+        # in the version (including the raw one) end up with chain_depth set.
+        create_distribution_edge(
+            db, version_id=draft_version.id,
+            source_entity_id="B", destination_entity_id="C", percentage=10.0,
+        )
+        db.commit()
+        assert (
+            db.query(Distribution).filter_by(id=raw_edge.id).first().chain_depth
+            == 2
+        )

@@ -193,7 +193,7 @@ def get_own_cost(entity: ChargeableEntity) -> float:
 
 def compute_effective_cost(
     db: Session, year: int, version_id: int, entity_id: str,
-    *, _seen: Optional[set[str]] = None,
+    *, _memo: Optional[dict[str, EffectiveCostResult]] = None,
 ) -> EffectiveCostResult:
     """Recursively compute an entity's effective cost.
 
@@ -202,35 +202,29 @@ def compute_effective_cost(
     edge_percentage / 100. ``year`` scopes the own-cost lookup only — Stage
     1 edges are cadence-agnostic.
 
-    The internal ``_seen`` guard protects against cycles in malformed data
-    (cycles should never reach this function thanks to save-time detection,
-    but defensive code is cheap). On a cycle it bottoms out the recursion at
-    the already-visited entity by treating it as zero-inflow.
+    **Memoization (Service Workbench S1):** the recursion threads a private
+    ``_memo`` dict keyed by ``entity_id``. On repeat encounter we return the
+    **fully computed** cached result (own cost + all inflows), which is the
+    correct behaviour on diamond-DAG patterns where a shared node is reached
+    via multiple downstream paths and itself has upstream inflows.
+
+    Cycles are rejected at edge-save time by :func:`detect_cycle_db`, so the
+    resolver does not carry a cycle-breaking guard — memoization alone
+    suffices for a well-formed DAG.
     """
-    if _seen is None:
-        _seen = set()
-    if entity_id in _seen:
-        entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
-        if entity is None:
-            return EffectiveCostResult(
-                entity_id=entity_id, entity_name="<unknown>", year=year,
-                version_id=version_id, own_cost=0.0, own_cost_source=None,
-            )
-        oc = _get_own_cost_detailed(entity)
-        return EffectiveCostResult(
-            entity_id=entity_id, entity_name=entity.name, year=year,
-            version_id=version_id, own_cost=oc.value,
-            own_cost_source=oc.source,
-        )
+    if _memo is None:
+        _memo = {}
+    if entity_id in _memo:
+        return _memo[entity_id]
 
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
-        return EffectiveCostResult(
+        result = EffectiveCostResult(
             entity_id=entity_id, entity_name="<unknown>", year=year,
             version_id=version_id, own_cost=0.0, own_cost_source=None,
         )
-
-    _seen.add(entity_id)
+        _memo[entity_id] = result
+        return result
 
     own = _get_own_cost_detailed(entity)
     result = EffectiveCostResult(
@@ -249,7 +243,7 @@ def compute_effective_cost(
     )
     for edge in incoming:
         upstream = compute_effective_cost(
-            db, year, version_id, edge.source_entity_id, _seen=_seen,
+            db, year, version_id, edge.source_entity_id, _memo=_memo,
         )
         amount = upstream.effective_cost * float(edge.percentage) / 100.0
         result.inflows.append(InflowContribution(
@@ -258,12 +252,14 @@ def compute_effective_cost(
             percentage=float(edge.percentage),
             amount=round(amount, 2),
         ))
+
+    _memo[entity_id] = result
     return result
 
 
 def get_upstream_chain(
     db: Session, version_id: int, entity_id: str,
-    *, max_depth: int = 8,
+    *, max_depth: int | None = None,
 ) -> list[list[str]]:
     """Return all upstream paths terminating at ``entity_id``.
 
@@ -273,7 +269,20 @@ def get_upstream_chain(
 
     ``max_depth`` caps deep DAGs at a sane value to bound API latency. Real
     KB graphs are shallow (≤4 levels per the workshop notes).
+
+    **Service Workbench S1:** when ``max_depth`` is ``None`` (the default),
+    the cap is resolved from the ``max_allocation_depth`` PlanningParameter
+    via :func:`services.depth_validation.get_max_allocation_depth`. Explicit
+    integers still win, so callers retain the old override behaviour.
     """
+    if max_depth is None:
+        # Deferred import: depth_validation is owned by Teammate B and may
+        # not yet exist in every worktree during parallel development. We
+        # avoid a top-level import so other consumers of this module remain
+        # unaffected if B has not yet merged.
+        from services.depth_validation import get_max_allocation_depth
+        max_depth = get_max_allocation_depth(db)
+
     paths: list[list[str]] = []
 
     def _walk(node: str, current: list[str], depth: int) -> None:

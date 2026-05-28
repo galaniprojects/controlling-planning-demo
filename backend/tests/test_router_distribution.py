@@ -208,7 +208,7 @@ class TestCreateDistribution:
             },
         )
         assert r.status_code == 409
-        assert "immutable" in r.json()["detail"]["detail"]
+        assert "immutable" in r.json()["detail"]["message"]
 
     def test_rejects_cycle_with_chain(self, test_client, seed_with_draft, db):
         # Seed A → B on the draft, then try C → A which doesn't close a cycle.
@@ -245,7 +245,7 @@ class TestCreateDistribution:
             },
         )
         assert r.status_code == 409
-        assert "Sum rule" in r.json()["detail"]["detail"]
+        assert "Sum rule" in r.json()["detail"]["message"]
 
     def test_rejects_unknown_source(self, test_client, seed_with_draft):
         r = test_client.post(
@@ -657,7 +657,7 @@ class TestUpdateDistributionVersion:
             json={"rationale": "should fail"},
         )
         assert r.status_code == 409
-        assert "immutable" in r.json()["detail"]["detail"]
+        assert "immutable" in r.json()["detail"]["message"]
 
     def test_pl_forbidden(self, test_client, seed_with_draft):
         vid = seed_with_draft["v_draft_id"]
@@ -698,7 +698,7 @@ class TestActivateDistributionVersion:
             json={"active_from": "2025-01-01", "rationale": "x"},
         )
         assert r.status_code == 409
-        assert "active_from" in r.json()["detail"]["detail"]
+        assert "active_from" in r.json()["detail"]["message"]
 
     def test_rejects_empty_rationale_via_schema(
         self, test_client, seed_with_draft,

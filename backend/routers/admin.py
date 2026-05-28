@@ -578,12 +578,57 @@ def update_parameters(
     [A-BK-14] If any changed key is in the ranking group (ranking_*) OR
     a tn_* key (which feeds composite_score), also recompute the
     within_cutoff flag across the backlog.
+
+    **Service Workbench S1:** when the change set includes
+    ``max_allocation_depth``, the new value is pre-validated against every
+    active production DistributionVersion via
+    :func:`services.depth_validation.validate_param_change`. If any graph
+    would exceed the proposed cap, a 409 is returned with the violating
+    versions + sample paths and no mutation is committed. The depth-cap
+    audit row uses the ``master_data`` category since it changes the
+    allowable shape of the allocation graph (the rest of the loop keeps
+    the existing ``configuration`` category).
     """
+    from services.depth_validation import validate_param_change
     from services.tech_navigator import recompute_all_scores
     from services.ranking import (
         parameter_key_triggers_recompute,
         recompute_within_cutoff_for_backlog,
     )
+
+    # Pre-validate max_allocation_depth BEFORE applying any mutations so a
+    # failure leaves the session clean and no audit rows are written.
+    for change in body.changes:
+        if change.key != "max_allocation_depth":
+            continue
+        try:
+            new_max = int(change.new_value)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                422,
+                f"max_allocation_depth must be an integer, "
+                f"got: {change.new_value!r}",
+            )
+        if new_max < 1:
+            raise HTTPException(
+                422,
+                f"max_allocation_depth must be at least 1, got: {new_max}",
+            )
+        violations = validate_param_change(db, new_max)
+        if violations:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "Cannot lower max_allocation_depth — existing "
+                        "distribution graphs exceed the new limit."
+                    ),
+                    "violations": [
+                        {"version_id": vid, "violating_path": path}
+                        for vid, path in violations
+                    ],
+                },
+            )
 
     updated = []
     tn_changed = False
@@ -594,7 +639,14 @@ def update_parameters(
             raise HTTPException(404, f"Parameter not found: {change.key}")
         old_value = param.current_value
         param.current_value = change.new_value
-        _log_audit(db, user, "planning_parameter", param.key, param.name, "update", "current_value", old_value, change.new_value, category="configuration")
+        # max_allocation_depth changes are master-data scope (they constrain
+        # the shape of the allocation graph); all other planning-parameter
+        # edits stay in the configuration category.
+        audit_category = (
+            "master_data" if param.key == "max_allocation_depth"
+            else "configuration"
+        )
+        _log_audit(db, user, "planning_parameter", param.key, param.name, "update", "current_value", old_value, change.new_value, category=audit_category)
         updated.append({"key": param.key, "name": param.name, "current_value": param.current_value})
         if param.key.startswith("tn_"):
             tn_changed = True

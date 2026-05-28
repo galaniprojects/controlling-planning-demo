@@ -66,9 +66,15 @@ class TestPlanningParametersShape:
         body = resp.json()
         assert set(body.keys()) == {"items", "total"}
         assert body["total"] == len(body["items"])
-        assert body["total"] == 3, (
-            "seed_params adds exactly 3 rows; tighten this if you change the fixture"
-        )
+        # seed_params adds 3 rows; conftest's autouse fixture adds
+        # max_allocation_depth (Service Workbench S1). Assert the three
+        # fixture keys are present rather than pinning the total.
+        keys = {it["key"] for it in body["items"]}
+        assert {
+            "capacity.unassigned_summary.warn_threshold_hours",
+            "capacity.unassigned_summary.danger_threshold_hours",
+            "planning_horizon",
+        }.issubset(keys)
         sample = body["items"][0]
         assert set(sample.keys()) == {"key", "current_value", "data_type"}
 

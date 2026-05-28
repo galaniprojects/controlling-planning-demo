@@ -128,7 +128,8 @@ PLANNING_PARAMETERS: list[dict] = [
     {"key": "forecast_deadline",   "name": "Forecast Deadline",       "description": "Day of month when forecast is due",      "current": "15",  "default": "15",  "type": "integer",    "group": "planning"},
     {"key": "rag_amber_threshold", "name": "RAG Amber Threshold",     "description": "Budget variance % for amber status",     "current": "5",   "default": "5",   "type": "percentage", "group": "thresholds"},
     {"key": "rag_red_threshold",   "name": "RAG Red Threshold",       "description": "Budget variance % for red status",       "current": "10",  "default": "10",  "type": "percentage", "group": "thresholds"},
-    {"key": "max_utilization",     "name": "Max Utilization",         "description": "Maximum person utilization percentage",  "current": "100", "default": "100", "type": "percentage", "group": "limits"},
+    {"key": "max_utilization",        "name": "Max Utilization",         "description": "Maximum person utilization percentage",     "current": "100", "default": "100", "type": "percentage", "group": "limits"},
+    {"key": "max_allocation_depth",   "name": "Max Allocation Depth",    "description": "Maximum Stage 1 distribution chain length", "current": "6",   "default": "6",   "type": "integer",    "group": "limits"},
 ]
 
 # ---------------------------------------------------------------------------

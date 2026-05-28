@@ -32,8 +32,44 @@ TestSessionLocal = sessionmaker(bind=TEST_ENGINE)
 
 @pytest.fixture(autouse=True)
 def setup_db():
-    """Create all tables before each test and drop after."""
+    """Create all tables before each test and drop after.
+
+    Inserts the ``max_allocation_depth`` planning parameter (default 6) so
+    code paths that read it via :func:`services.depth_validation.get_max_allocation_depth`
+    — including :func:`get_upstream_chain` and the save-time depth check on
+    edge writes — work without each test having to seed it.
+
+    Tests that need to verify the **missing-row** branch in
+    ``get_max_allocation_depth`` (the ``ValueError`` path) must explicitly
+    delete this row first — see
+    ``test_depth_validation.py::TestGetMaxAllocationDepth::test_raises_if_param_missing``
+    for the pattern. The autouse seeding is here (rather than per-test)
+    because 14+ tests across the charging surface hit code paths that
+    resolve ``max_allocation_depth`` implicitly; making it autouse keeps
+    those tests from each having to seed manually.
+    """
     Base.metadata.create_all(bind=TEST_ENGINE)
+    from models.system import PlanningParameter
+    session = TestSessionLocal()
+    try:
+        existing = (
+            session.query(PlanningParameter)
+            .filter(PlanningParameter.key == "max_allocation_depth")
+            .first()
+        )
+        if existing is None:
+            session.add(PlanningParameter(
+                key="max_allocation_depth",
+                name="Max Allocation Depth",
+                description="Maximum Stage 1 distribution chain length",
+                current_value="6",
+                default_value="6",
+                data_type="integer",
+                param_group="limits",
+            ))
+            session.commit()
+    finally:
+        session.close()
     yield
     Base.metadata.drop_all(bind=TEST_ENGINE)
 
