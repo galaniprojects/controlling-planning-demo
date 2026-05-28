@@ -21,6 +21,9 @@ import { PortfolioOverview } from '@/modules/portfolio/PortfolioOverview';
 // === v5 Wave 5 E6 — full-page Portfolio project detail [E-03a..g] ===
 import { ProjectDetailPage } from '@/modules/portfolio/detail/ProjectDetailPage';
 import { ProjectWorkbench } from '@/modules/workbench/ProjectWorkbench';
+// Service Workbench Session 3 — stub landing page for tile 1,3
+// (Allocation Flow). Session 4 replaces the body with the SVG DAG view.
+import { AllocationFlowStub } from '@/modules/workbench/allocation-flow/AllocationFlowStub';
 // === v5.2 W2 — Capacity redesign shell + sub-routes ===
 import { CapacityManagement } from '@/modules/capacity/CapacityManagement';
 import { CapacityWorkspace } from '@/modules/capacity/CapacityWorkspace';
@@ -100,6 +103,10 @@ export default function App() {
                 <Route path="/portfolio/project/:projectId" element={<ProjectDetailPage />} />
                 <Route path="/portfolio/*" element={<PortfolioOverview />} />
                 <Route path="/workbench/new-project/:projectId" element={<ResourcePlanPage />} />
+                {/* Service Workbench S3 — allocation-flow stub. Declared
+                    before the workbench catch-all so this specific path
+                    wins. Session 4 swaps the stub for the real SVG view. */}
+                <Route path="/workbench/allocation-flow" element={<AllocationFlowStub />} />
                 <Route path="/workbench/*" element={<ProjectWorkbench />} />
                 {/* === v5.2 W2 — Capacity nested layout === */}
                 {/* Deprecation redirect — legacy direct link to the
