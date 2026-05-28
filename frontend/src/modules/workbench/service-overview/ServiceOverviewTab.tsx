@@ -10,8 +10,8 @@
  * Data flow: ProjectWorkbench fetches the focal entity once for routing
  * dispatch and passes it down; each tile that needs additional data
  * fetches it itself with its own loading/error state. People + active
- * hierarchy are fetched at the tab level so the header tile (1,1) gets
- * resolved owner + hierarchy labels in a single network round-trip.
+ * hierarchy are fetched at the tab level so the header tile (1,1) and
+ * the offering hierarchy tile (3,3) share one network round-trip.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -26,36 +26,25 @@ import {
   ServiceFinancialHealthTile,
   ServiceOfferingHierarchyTile,
 } from './tiles';
-import { referenceApi, adminApi } from '@/api/endpoints';
+import {
+  fetchActiveHierarchy,
+  resolveNodePosition,
+  type ActiveHierarchy,
+  type NodePosition,
+} from './hierarchyHelpers';
+import { referenceApi } from '@/api/endpoints';
 import type { ChargeableEntityItem, RefPerson } from '@/types/api';
 
 interface Props {
   entity: ChargeableEntityItem;
 }
 
-interface HierarchyEntity {
-  id: string;
-  name: string;
-  children: unknown[];
-}
-
-function findHierarchyName(
-  entities: HierarchyEntity[],
-  targetId: string,
-): string | null {
-  for (const e of entities) {
-    if (e.id === targetId) return e.name;
-    const children = (e.children as HierarchyEntity[]) ?? [];
-    const hit = findHierarchyName(children, targetId);
-    if (hit) return hit;
-  }
-  return null;
-}
-
 export function ServiceOverviewTab({ entity }: Props) {
   const navigate = useNavigate();
   const [people, setPeople] = useState<RefPerson[]>([]);
-  const [hierarchyName, setHierarchyName] = useState<string | null>(null);
+  const [hierarchy, setHierarchy] = useState<ActiveHierarchy | null>(null);
+  const [hierarchyLoading, setHierarchyLoading] = useState(false);
+  const [hierarchyError, setHierarchyError] = useState<string | null>(null);
 
   useEffect(() => {
     referenceApi
@@ -64,26 +53,38 @@ export function ServiceOverviewTab({ entity }: Props) {
       .catch(() => setPeople([]));
   }, []);
 
+  // Single getActiveHierarchy() call per service-entity visit; used both
+  // by the header tile (to resolve the hierarchy node's name) and the
+  // offering hierarchy tile (for parent + sibling-count context). Pre-
+  // review this fetch was duplicated.
   useEffect(() => {
-    if (!entity.hierarchy_node_id) {
-      setHierarchyName(null);
-      return;
-    }
     let cancelled = false;
-    adminApi
-      .getActiveHierarchy()
-      .then((res) => {
-        if (cancelled) return;
-        const entities = res.entities as unknown as HierarchyEntity[];
-        setHierarchyName(findHierarchyName(entities, entity.hierarchy_node_id!));
+    setHierarchyLoading(true);
+    setHierarchyError(null);
+    fetchActiveHierarchy()
+      .then((h) => {
+        if (!cancelled) setHierarchy(h);
       })
-      .catch(() => {
-        if (!cancelled) setHierarchyName(null);
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setHierarchy(null);
+          setHierarchyError(
+            e instanceof Error ? e.message : 'Could not load hierarchy',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setHierarchyLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [entity.hierarchy_node_id]);
+  }, []);
+
+  const position: NodePosition | null = useMemo(() => {
+    if (!hierarchy || !entity.hierarchy_node_id) return null;
+    return resolveNodePosition(hierarchy, entity.hierarchy_node_id);
+  }, [hierarchy, entity.hierarchy_node_id]);
 
   const ownerName = useMemo(() => {
     if (!entity.responsible_person_id) return null;
@@ -99,7 +100,7 @@ export function ServiceOverviewTab({ entity }: Props) {
         <ServiceHeaderTile
           entity={entity}
           ownerName={ownerName}
-          hierarchyName={hierarchyName}
+          hierarchyName={position?.current_name ?? null}
         />
         <ServiceCostSummaryTile entityId={entity.id} />
         <ServiceAllocationFlowTile
@@ -132,6 +133,9 @@ export function ServiceOverviewTab({ entity }: Props) {
         {isOffering ? (
           <ServiceOfferingHierarchyTile
             hierarchyNodeId={entity.hierarchy_node_id}
+            position={position}
+            loading={hierarchyLoading}
+            error={hierarchyError}
             onClick={() => navigate('/admin?section=portfolio_hierarchy')}
           />
         ) : (

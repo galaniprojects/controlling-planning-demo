@@ -1,103 +1,36 @@
 /**
  * Offering hierarchy tile (position 3,3) — Offerings only.
  *
- * Shows the offering's parent / current / sibling-count position within
- * the active grouping hierarchy. Internal Services do not render this
- * tile — the parent grid leaves the 3,3 slot empty.
+ * Presentation-only. The parent (`ServiceOverviewTab`) owns the single
+ * `adminApi.getActiveHierarchy()` fetch (also feeds the header tile's
+ * hierarchy name) and passes the resolved `position` down to this tile
+ * — pre-review this tile did its own duplicate fetch.
  *
- * Click navigates to the Admin → Portfolio Hierarchy panel where the
- * offering tree lives.
+ * Internal Services do not render this tile — the parent grid leaves
+ * the 3,3 slot empty.
+ *
+ * Click navigates to the Admin → Portfolio Hierarchy panel.
  */
-import { useEffect, useState } from 'react';
 import { Network } from 'lucide-react';
 import { ActionCard } from '@/components/shared/ActionCard';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { adminApi } from '@/api/endpoints';
+import type { NodePosition } from '../hierarchyHelpers';
 
 interface Props {
   hierarchyNodeId: string | null;
+  position: NodePosition | null;
+  loading: boolean;
+  error: string | null;
   onClick: () => void;
-}
-
-interface NodePosition {
-  current_name: string;
-  type_name: string;
-  parent_name: string | null;
-  sibling_count: number;
-}
-
-interface HierarchyEntity {
-  id: string;
-  name: string;
-  entity_type_id: string;
-  children: unknown[];
-}
-
-function findNode(
-  entities: HierarchyEntity[],
-  targetId: string,
-  parentName: string | null = null,
-  siblings: HierarchyEntity[] = entities,
-): { entity: HierarchyEntity; parentName: string | null; siblings: HierarchyEntity[] } | null {
-  for (const e of entities) {
-    if (e.id === targetId) {
-      return { entity: e, parentName, siblings };
-    }
-    const children = (e.children as HierarchyEntity[]) ?? [];
-    const hit = findNode(children, targetId, e.name, children);
-    if (hit) return hit;
-  }
-  return null;
 }
 
 export function ServiceOfferingHierarchyTile({
   hierarchyNodeId,
+  position,
+  loading,
+  error,
   onClick,
 }: Props) {
-  const [position, setPosition] = useState<NodePosition | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!hierarchyNodeId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    adminApi
-      .getActiveHierarchy()
-      .then((res) => {
-        if (cancelled) return;
-        const levelLabels = new Map<string, string>();
-        for (const l of res.levels) {
-          levelLabels.set(l.entity_type_id, l.entity_type_name);
-        }
-        const entities = res.entities as unknown as HierarchyEntity[];
-        const hit = findNode(entities, hierarchyNodeId);
-        if (!hit) {
-          setPosition(null);
-          return;
-        }
-        setPosition({
-          current_name: hit.entity.name,
-          type_name: levelLabels.get(hit.entity.entity_type_id) ?? '—',
-          parent_name: hit.parentName,
-          sibling_count: hit.siblings.length - 1,
-        });
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load hierarchy');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [hierarchyNodeId]);
-
   return (
     <ActionCard
       title="Offering hierarchy"
