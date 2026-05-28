@@ -142,6 +142,9 @@ export function useAllocationFlowState(entityId: string | null) {
     dispatch({ type: 'reset_depth' });
   }, [entityId]);
 
+  // Mirror legendOpen → sessionStorage on every change. The deps array
+  // includes the initial mount run, so first-session users (storage
+  // empty → default true) get their preference recorded immediately.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {

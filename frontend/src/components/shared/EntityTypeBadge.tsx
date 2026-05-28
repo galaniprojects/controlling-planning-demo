@@ -43,6 +43,21 @@ const SUBTYPE_BADGE_CLASS: Record<ChargeableEntityType, string> = {
     'bg-violet-100 text-violet-700 hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400',
 };
 
+/**
+ * Strip-fill classes. Used by surfaces that need a SOLID accent strip
+ * (e.g. Allocation Flow EntityNode left edge) rather than the soft-tint
+ * badge fill. Saturated `-500` shade reads as a vivid accent against the
+ * `bg-card` body in both light and dark modes — no `dark:` variant
+ * needed because the mid-tone token holds across themes. Keeps the
+ * subtype palette intent (Project=blue, Offering=teal, IS=violet) per
+ * spec §3.2 / wave foundation commit.
+ */
+const SUBTYPE_STRIP_CLASS: Record<ChargeableEntityType, string> = {
+  Project: 'bg-blue-500',
+  Offering: 'bg-teal-500',
+  InternalService: 'bg-violet-500',
+};
+
 interface Props {
   type: ChargeableEntityType;
   /** Override the label text — defaults to the human-readable subtype. */
@@ -71,3 +86,16 @@ export function entityTypeLabel(type: ChargeableEntityType): string {
 /** Subtype → solid-fill className. Re-exported for callers that need it. */
 export const entityTypeBadgeClass = (type: ChargeableEntityType): string =>
   SUBTYPE_BADGE_CLASS[type];
+
+/**
+ * Subtype → solid accent-strip className. Use this for surfaces that
+ * need a saturated colour bar (Allocation Flow EntityNode left strip,
+ * service tile header rule, etc.) rather than the soft-tint badge.
+ *
+ * Tokens (per spec §3.2 / S-1 follow-up):
+ *  - Project          → `bg-blue-500`
+ *  - Offering         → `bg-teal-500`
+ *  - InternalService  → `bg-violet-500`
+ */
+export const entityTypeStripClass = (type: ChargeableEntityType): string =>
+  SUBTYPE_STRIP_CLASS[type];

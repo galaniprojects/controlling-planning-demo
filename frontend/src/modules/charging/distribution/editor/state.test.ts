@@ -27,10 +27,11 @@ const FAKE_VERSION: DistributionVersionResponse = {
   activated_at: null,
   origin: 'copy_active',
   copied_from_version_id: 1,
-  rationale: null,
+  rationale: '',
   scenario_id: null,
   created_at: '2026-05-28T00:00:00Z',
-  created_by: 'anna',
+  created_by_person_id: 'anna',
+  edge_count: 0,
 };
 
 function makeCascade(
@@ -125,14 +126,16 @@ describe('pendingFromCascade + reducer + buildMutationPlan (B-1/B-2/B-3 regressi
         identifier: 'ITF99001',
         name: 'Focal',
         entity_type: 'InternalService',
-        run_change: 'run',
-        own_cost: 100,
+        description: null,
+        hierarchy_node_id: null,
+        responsible_person_id: null,
         to_business_pct: 0,
-        is_active: true,
-        responsible_user_id: null,
         annual_cost: 100,
+        project_id: null,
+        termination_month: null,
         allocation_key: null,
-        grouping_entity_id: null,
+        is_active: true,
+        is_change_or_run: 'Run',
       },
       versions: [FAKE_VERSION],
       inForceVersionId: null,
@@ -193,14 +196,16 @@ describe('pendingFromCascade + reducer + buildMutationPlan (B-1/B-2/B-3 regressi
         identifier: 'ITF99001',
         name: 'Focal',
         entity_type: 'InternalService',
-        run_change: 'run',
-        own_cost: 100,
+        description: null,
+        hierarchy_node_id: null,
+        responsible_person_id: null,
         to_business_pct: 0,
-        is_active: true,
-        responsible_user_id: null,
         annual_cost: 100,
+        project_id: null,
+        termination_month: null,
         allocation_key: null,
-        grouping_entity_id: null,
+        is_active: true,
+        is_change_or_run: 'Run',
       },
       versions: [FAKE_VERSION],
       inForceVersionId: null,
@@ -240,6 +245,134 @@ describe('pendingFromCascade + reducer + buildMutationPlan (B-1/B-2/B-3 regressi
     expect(plan.mutations).toEqual([{ kind: 'delete', edgeId: 101 }]);
   });
 
+  // ─────────────────── S-4: ADD_ROW preserves depth context ───────────────────
+
+  it('ADD_ROW: candidate-supplied chainDepth + nearMaxDepthWarning survive into PendingRow (S-4)', () => {
+    // The state machine threads depth context end-to-end so the row
+    // can render the "Approaching max depth" warning chip before the
+    // post-save refetch reseats it from cascade.chain_depth. This test
+    // pins the invariant — the picker passes resulting_chain_depth=5
+    // and near_max_depth_warning=true; both must round-trip into the
+    // PendingRow unchanged.
+    const cascade = makeCascade([{ destId: 'off-a', pct: 50 }]);
+    const lookup = new Map([['off-a', 101]]);
+    const loaded = editorReducer(initialEditorState, {
+      type: 'LOAD_OK',
+      cascade,
+      entity: {
+        id: 'svc-focal',
+        identifier: 'ITF99001',
+        name: 'Focal',
+        entity_type: 'InternalService',
+        description: null,
+        hierarchy_node_id: null,
+        responsible_person_id: null,
+        to_business_pct: 0,
+        annual_cost: 100,
+        project_id: null,
+        termination_month: null,
+        allocation_key: null,
+        is_active: true,
+        is_change_or_run: 'Run',
+      },
+      versions: [FAKE_VERSION],
+      inForceVersionId: null,
+      edgeIdByDestId: lookup,
+    });
+
+    const afterAdd = editorReducer(loaded, {
+      type: 'ADD_ROW',
+      row: {
+        edgeId: null,
+        destinationId: 'off-new',
+        destinationName: 'Brand New Offering',
+        destinationIdentifier: 'OFF-NEW',
+        destinationType: 'Offering',
+        percentage: 0,
+        rationale: '',
+        chainDepth: 5,
+        nearMaxDepthWarning: true,
+      },
+    });
+
+    const newRow = afterAdd.pending.rows.find((r) => r.destinationId === 'off-new');
+    expect(newRow).toBeDefined();
+    expect(newRow?.chainDepth).toBe(5);
+    expect(newRow?.nearMaxDepthWarning).toBe(true);
+    expect(newRow?.isNew).toBe(true);
+    expect(newRow?.isDeleted).toBe(false);
+    expect(newRow?.edgeId).toBe(null);
+    // Confirm the key follows the new-row convention so the post-save
+    // refetch can replace it cleanly.
+    expect(newRow?.key.startsWith('new-')).toBe(true);
+  });
+
+  // ────────────── N-5: ui.sidePanelOpen lifecycle across LOAD_OK / RESET ──────────────
+
+  it('TOGGLE_SIDE_PANEL persists across LOAD_OK for the same entity, resets on RESET_FOR_ENTITY (N-5)', () => {
+    // Loading a NEW version of the same entity (e.g. user switches the
+    // version selector) keeps the user's side-panel preference. Only
+    // switching entities entirely resets the UI.
+    const cascadeV1 = makeCascade([{ destId: 'off-a', pct: 50 }]);
+    const cascadeV2 = makeCascade([{ destId: 'off-a', pct: 60 }]);
+    const lookup = new Map([['off-a', 101]]);
+    const entityA = {
+      id: 'svc-focal',
+      identifier: 'ITF99001',
+      name: 'Focal',
+      entity_type: 'InternalService' as const,
+      description: null,
+      hierarchy_node_id: null,
+      responsible_person_id: null,
+      to_business_pct: 0,
+      annual_cost: 100,
+      project_id: null,
+      termination_month: null,
+      allocation_key: null,
+      is_active: true,
+      is_change_or_run: 'Run' as const,
+    };
+
+    // 1. Load entity A, version v1.
+    let s = editorReducer(initialEditorState, {
+      type: 'LOAD_OK',
+      cascade: cascadeV1,
+      entity: entityA,
+      versions: [FAKE_VERSION],
+      inForceVersionId: null,
+      edgeIdByDestId: lookup,
+    });
+    expect(s.ui.sidePanelOpen).toBe(false);
+
+    // 2. User toggles the side panel open.
+    s = editorReducer(s, { type: 'TOGGLE_SIDE_PANEL' });
+    expect(s.ui.sidePanelOpen).toBe(true);
+
+    // 3. Load same entity A, version v2 (e.g. user switched version).
+    s = editorReducer(s, {
+      type: 'LOAD_OK',
+      cascade: cascadeV2,
+      entity: entityA,
+      versions: [FAKE_VERSION],
+      inForceVersionId: null,
+      edgeIdByDestId: lookup,
+    });
+
+    // 4. sidePanelOpen persists — LOAD_OK spreads existing ui state
+    // and only resets `saveError` + `activeRowFocusKey`.
+    expect(s.ui.sidePanelOpen).toBe(true);
+    // Cascade data is refreshed though:
+    expect(s.pending.rows[0]?.percentage).toBe(60);
+
+    // 5. RESET_FOR_ENTITY (e.g. user navigates to a different entity).
+    s = editorReducer(s, { type: 'RESET_FOR_ENTITY' });
+
+    // 6. UI returns to initial state — side panel closed.
+    expect(s.ui.sidePanelOpen).toBe(false);
+    expect(s.ui.saveError).toBe(null);
+    expect(s.pending.rows).toEqual([]);
+  });
+
   it('end-to-end: DISCARD re-seeds pending from cascade + stored edgeIdByDestId', () => {
     const cascade = makeCascade([{ destId: 'off-a', pct: 50 }]);
     const lookup = new Map([['off-a', 101]]);
@@ -251,14 +384,16 @@ describe('pendingFromCascade + reducer + buildMutationPlan (B-1/B-2/B-3 regressi
         identifier: 'ITF99001',
         name: 'Focal',
         entity_type: 'InternalService',
-        run_change: 'run',
-        own_cost: 100,
+        description: null,
+        hierarchy_node_id: null,
+        responsible_person_id: null,
         to_business_pct: 0,
-        is_active: true,
-        responsible_user_id: null,
         annual_cost: 100,
+        project_id: null,
+        termination_month: null,
         allocation_key: null,
-        grouping_entity_id: null,
+        is_active: true,
+        is_change_or_run: 'Run',
       },
       versions: [FAKE_VERSION],
       inForceVersionId: null,

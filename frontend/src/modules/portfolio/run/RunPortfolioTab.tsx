@@ -146,14 +146,15 @@ function entityTypeShort(type: ChargeableEntityType): string {
 }
 
 /**
- * Build the drill-down URL for an entity row. Projects route to the
- * existing Workbench project view; Offerings + InternalServices use the new
- * `entity` query param so the Workbench can render an entity-only view
- * (see ProjectWorkbench.tsx + ProjectWorkspace.tsx for the consumer side).
+ * Build the drill-down URL for an entity row. All three entity kinds now
+ * deep-link via the canonical `?entity=<chargeable_entity_id>` form per
+ * Service Workbench Wave C — the legacy `?project=` redirect tick is
+ * gone for in-app callers (the alias resolver on Workbench stays as a
+ * safety net for stale bookmarks).
  */
 function entityDrillDownPath(entity: ChargeableEntityItem): string | null {
   if (entity.entity_type === 'Project' && entity.project_id) {
-    return `/workbench?project=${encodeURIComponent(entity.project_id)}`;
+    return `/workbench?entity=${encodeURIComponent(entity.id)}`;
   }
   if (entity.entity_type === 'Offering') {
     return `/workbench?entity=${encodeURIComponent(entity.id)}&type=offering`;

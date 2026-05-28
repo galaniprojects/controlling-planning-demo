@@ -294,8 +294,12 @@ OFFERINGS: list[dict] = [
         "btc_mode": "automatic",
         "s_code": "S067",
         "annual_cost": 1600000,
-        "to_business_pct": 92,
-        "narrative": "Analytics product — fed by svc-data-platform.",
+        # Reduced 92 → 85 to make room for the 10% downstream edge
+        # off-bizinsights → off-supplyvis that closes the diamond pattern
+        # (§6.1, Wave C). Sum-rule: 85 to_business + 10 distribute = 95,
+        # leaving 5% self-retained.
+        "to_business_pct": 85,
+        "narrative": "Analytics product — fed by svc-data-platform; closes the diamond pattern by also feeding off-supplyvis at 10%.",
     },
     {
         "id": "off-ecollab",
@@ -354,7 +358,7 @@ INTERNAL_SERVICES: list[dict] = [
     {"id": "svc-rail-maint",       "identifier": "ITF20020", "name": "Rail Application Maintenance",        "hierarchy_id": "he-rvs",            "responsible_id": "p-weber",   "btc_mode": "automatic", "s_code": "S408",  "annual_cost": 310000, "to_business_pct": 0, "narrative": "Auto BTC."},
     {"id": "svc-signal-sup",       "identifier": "ITF20021", "name": "Signaling Systems Support",           "hierarchy_id": "he-rvs-prog-rail",  "responsible_id": "p-weber",   "btc_mode": "manual",    "s_code": None,    "annual_cost": 185000, "to_business_pct": 0, "narrative": "Manual 2 lines."},
     {"id": "svc-tbs-maint",        "identifier": "ITF20022", "name": "TBS Application Maintenance",         "hierarchy_id": "he-tbs",            "responsible_id": "p-weber",   "btc_mode": "automatic", "s_code": "S503",  "annual_cost": 295000, "to_business_pct": 0, "narrative": "Auto BTC."},
-    {"id": "svc-data-platform",    "identifier": "ITF20023", "name": "Data Platform Operations",            "hierarchy_id": "he-dnd-prog-data",  "responsible_id": "p-weber",   "btc_mode": "manual",    "s_code": None,    "annual_cost": 230000, "to_business_pct": 0, "narrative": "Manual 4 lines — upstream of bizinsights."},
+    {"id": "svc-data-platform",    "identifier": "ITF20023", "name": "Data Platform Operations",            "hierarchy_id": "he-dnd-prog-data",  "responsible_id": "p-weber",   "btc_mode": "manual",    "s_code": None,    "annual_cost": 100000, "to_business_pct": 0, "narrative": "Manual 4 lines — diamond apex: feeds off-bizinsights (72%) AND off-supplyvis (20%); the bizinsights→supplyvis edge creates a second path. Own-cost €100k chosen as a round number so memoization-fix deltas read cleanly in tile rollups + Allocation Flow amount labels."},
     {"id": "svc-iot-infra",        "identifier": "ITF20024", "name": "IoT Infrastructure Support",          "hierarchy_id": "he-dnd",            "responsible_id": "p-weber",   "btc_mode": "manual",    "s_code": None,    "annual_cost": 160000, "to_business_pct": 0, "narrative": "Manual 3 lines."},
     {"id": "svc-monitoring",       "identifier": "ITF20025", "name": "Application Monitoring Service",      "hierarchy_id": "he-cit",            "responsible_id": "p-brenner", "btc_mode": "manual",    "s_code": None,    "annual_cost": 210000, "to_business_pct": 0, "narrative": "Manual 2 lines — 10% self-retained."},
     {"id": "svc-itsm",             "identifier": "ITF20026", "name": "ITSM Platform Service",               "hierarchy_id": "he-cit",            "responsible_id": "p-brenner", "btc_mode": "automatic", "s_code": "S720",  "annual_cost": 175000, "to_business_pct": 0, "narrative": "Auto BTC."},

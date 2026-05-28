@@ -31,6 +31,7 @@ import { useRole } from '@/contexts/RoleContext';
 import { useCapacityScope } from '@/contexts/CapacityScopeContext';
 import { useSidePanel } from '@/contexts/SidePanelContext';
 import { ScopeBar } from './ScopeBar';
+import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import { useScopeQueryParams } from './hooks/useScopeQueryParams';
 import { useScopedTimelineData } from './hooks/useScopedTimelineData';
 import { useCapacityProjectsData } from './hooks/useCapacityProjectsData';
@@ -231,8 +232,12 @@ function ProjectSummaryEntryPoint({
           projectItem.assigned_people[0]?.cost_center_id ??
           null;
         if (!ccId) {
-          navigateRef.current(
-            `/workbench?project=${encodeURIComponent(projectItem.project_id)}`,
+          // Service Workbench Wave C: navigate via the canonical
+          // `?entity=` form by resolving the project → ChargeableEntity
+          // first; falls back to the legacy alias on failure.
+          navigateToWorkbenchByProject(
+            projectItem.project_id,
+            navigateRef.current,
           );
           return;
         }
@@ -253,7 +258,7 @@ function ProjectSummaryEntryPoint({
           projectId={projectId}
           onReviewAssign={handleReviewAssign}
           onClosePanel={() => closePanelRef.current()}
-          navigate={(path) => navigateRef.current(path)}
+          navigate={navigateRef.current}
         />,
         { width: CAPACITY_PANEL_WIDTH.project_summary },
       );

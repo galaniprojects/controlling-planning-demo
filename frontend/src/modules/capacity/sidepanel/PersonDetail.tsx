@@ -11,7 +11,8 @@
  *   2. Allocations — one row per project the person is allocated to in
  *      the visible window: project color dot (`useProjectColor`) +
  *      project name + total hours over the window. Project name links
- *      to `/workbench?project={id}`.
+ *      to `/workbench?entity={chargeable_entity_id}` via
+ *      navigateToWorkbenchByProject (Wave C).
  *   3. Monthly summary — utilization by quarter, colored by the
  *      standard buckets (blue/green/amber/red).
  *   4. Pending requests (conditional) — dashed amber card listing the
@@ -35,6 +36,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { capacityApi } from '@/api/endpoints';
+import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useProjectColor } from '@/contexts/ProjectColorMapContext';
 import { cn } from '@/lib/utils';
@@ -331,7 +333,7 @@ function AllocationRow({ project }: { project: ProjectRollup }) {
       />
       <button
         type="button"
-        onClick={() => navigate(`/workbench?project=${project.project_id}`)}
+        onClick={() => navigateToWorkbenchByProject(project.project_id, navigate)}
         className="flex-1 truncate text-left text-foreground hover:text-primary hover:underline"
         title={project.project_name}
       >

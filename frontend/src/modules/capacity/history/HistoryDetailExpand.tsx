@@ -25,6 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatNumber } from '@/lib/formatters';
+import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import type { CapacityHistoryEntry } from '@/types/api';
 
 interface RequestAffected {
@@ -189,7 +190,7 @@ export function HistoryDetailExpand({ entry }: HistoryDetailExpandProps) {
           variant="ghost"
           size="sm"
           className="h-7 px-2 text-xs"
-          onClick={() => navigate(`/workbench?project=${entry.project_id}`)}
+          onClick={() => navigateToWorkbenchByProject(entry.project_id, navigate)}
         >
           View project in workbench
           <ArrowUpRight className="h-3 w-3 ml-1" />
