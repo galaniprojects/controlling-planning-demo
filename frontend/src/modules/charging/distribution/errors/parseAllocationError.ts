@@ -40,9 +40,21 @@ export type ParsedAllocationError =
  *
  * Heuristics:
  * - Try `JSON.parse(raw)`.
+ * - If the parsed object's `message` is itself a JSON-looking string
+ *   (double-encoded — happens when the FastAPI middleware wraps an
+ *   already-stringified detail) re-parse and use the inner object.
  * - If `cycle_chain` is a non-empty array of strings → `cycle`.
  * - Else if `violating_path` is a non-empty array of strings → `depth`.
  * - Else use `message` / the raw string as `generic`.
+ *
+ * S-5 hardening (Wave B follow-up):
+ *  - Reject arrays explicitly (`typeof [] === 'object'` so the original
+ *    guard let arrays through and the discriminator would treat
+ *    array-shaped bodies as records with `undefined` fields → silent
+ *    generic, but vulnerable to future field-access bugs).
+ *  - Detect double-encoded JSON (`obj.message` starts with `{`) and
+ *    recurse on the inner parse — preserves cycle/depth discrimination
+ *    when an upstream layer JSON-stringifies the detail twice.
  */
 export function parseAllocationError(raw: string): ParsedAllocationError {
   if (!raw || typeof raw !== 'string') {
@@ -57,11 +69,39 @@ export function parseAllocationError(raw: string): ParsedAllocationError {
     return { type: 'generic', message: raw };
   }
 
-  if (!parsed || typeof parsed !== 'object') {
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    // Reject arrays explicitly — `typeof [] === 'object'` would let
+    // them through the original guard and the discriminator would read
+    // `cycle_chain` off an Array (always undefined), silently returning
+    // generic. Tighter typing here also helps the obj cast below.
     return { type: 'generic', message: raw };
   }
 
-  const obj = parsed as Record<string, unknown>;
+  let obj = parsed as Record<string, unknown>;
+
+  // Double-encoded JSON: some middleware paths stringify the detail
+  // twice. If `obj.message` looks like a JSON object literal, attempt
+  // a second parse and reuse the discriminator logic on the inner
+  // record. Falls back to the outer object on any failure.
+  if (typeof obj.message === 'string') {
+    const inner = obj.message.trim();
+    if (inner.startsWith('{')) {
+      try {
+        const innerParsed: unknown = JSON.parse(inner);
+        if (
+          innerParsed !== null &&
+          typeof innerParsed === 'object' &&
+          !Array.isArray(innerParsed)
+        ) {
+          obj = innerParsed as Record<string, unknown>;
+        }
+      } catch {
+        // Inner blob wasn't valid JSON after all — fall through and
+        // discriminate on the outer object below.
+      }
+    }
+  }
+
   const message = typeof obj.message === 'string' ? obj.message : raw;
 
   const cycleChain = obj.cycle_chain;

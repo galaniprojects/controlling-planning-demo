@@ -77,6 +77,17 @@ export interface EditorState {
     activeRowFocusKey: string | null;
     saving: boolean;
     saveError: ParsedAllocationError | null;
+    /**
+     * When a save fan-out fails mid-stream (N-1), the orchestrator
+     * records how many mutations had committed server-side before the
+     * throw. The banner uses this to surface "Saved N of M mutations
+     * before failure." instead of the generic copy — important context
+     * because the partial commit leaves the server in a state the user
+     * hasn't seen yet. `null` when either no save has been attempted,
+     * the failure happened before the first mutation, or the save
+     * succeeded.
+     */
+    savePartialProgress: { completed: number; total: number } | null;
   };
 }
 
@@ -103,7 +114,13 @@ export type EditorAction =
   | { type: 'CLOSE_PICKER' }
   | { type: 'FOCUS_ROW'; key: string | null }
   | { type: 'SAVE_START' }
-  | { type: 'SAVE_ERROR'; error: ParsedAllocationError }
+  | {
+      type: 'SAVE_ERROR';
+      error: ParsedAllocationError;
+      /** When the fan-out failed mid-stream (N-1). Undefined for
+       *  pre-flight or full-rollback failures where no mutation committed. */
+      partialProgress?: { completed: number; total: number };
+    }
   | { type: 'CLEAR_SAVE_ERROR' };
 
 export const initialEditorState: EditorState = {
@@ -126,6 +143,7 @@ export const initialEditorState: EditorState = {
     activeRowFocusKey: null,
     saving: false,
     saveError: null,
+    savePartialProgress: null,
   },
 };
 
@@ -207,6 +225,7 @@ export function editorReducer(
         ui: {
           ...state.ui,
           saveError: null,
+          savePartialProgress: null,
           // keep sidePanelOpen if it was already open and entity didn't change
           activeRowFocusKey: null,
         },
@@ -255,6 +274,7 @@ export function editorReducer(
           pickerOpen: false,
           activeRowFocusKey: key,
           saveError: null,
+          savePartialProgress: null,
         },
       };
     }
@@ -297,6 +317,7 @@ export function editorReducer(
         ui: {
           ...state.ui,
           saveError: null,
+          savePartialProgress: null,
           activeRowFocusKey: null,
         },
       };
@@ -319,17 +340,33 @@ export function editorReducer(
     case 'SAVE_START':
       return {
         ...state,
-        ui: { ...state.ui, saving: true, saveError: null },
+        ui: {
+          ...state.ui,
+          saving: true,
+          saveError: null,
+          savePartialProgress: null,
+        },
       };
 
     case 'SAVE_ERROR':
       return {
         ...state,
-        ui: { ...state.ui, saving: false, saveError: action.error },
+        ui: {
+          ...state.ui,
+          saving: false,
+          saveError: action.error,
+          // Only present when the fan-out failed mid-stream — pre-flight
+          // failures (parse, missing version) leave this null so the
+          // banner falls back to the type-specific generic copy.
+          savePartialProgress: action.partialProgress ?? null,
+        },
       };
 
     case 'CLEAR_SAVE_ERROR':
-      return { ...state, ui: { ...state.ui, saveError: null } };
+      return {
+        ...state,
+        ui: { ...state.ui, saveError: null, savePartialProgress: null },
+      };
 
     default:
       return state;

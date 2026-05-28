@@ -8,15 +8,19 @@
  * `border-border`, etc.) so dark mode and theme switches Just Work —
  * no SVG hex literals required per CLAUDE.md.
  *
- * The coloured left-edge strip uses `entityTypeBadgeClass(type)` so it
- * tracks the InternalService = violet swap done in the wave foundation
- * commit. Subtype palette source of truth is `EntityTypeBadge.tsx`.
+ * The coloured left-edge strip uses `entityTypeStripClass(type)` — a
+ * SOLID `-500` token (Project=blue, Offering=teal, IS=violet per spec
+ * §3.2 / S-1 follow-up) so the strip reads as a vivid accent against
+ * `bg-card`. The soft-tint `entityTypeBadgeClass` would render too
+ * washed-out at 6px wide; this sibling export was added in N-2 to give
+ * accent-strip consumers their own token without changing the badge.
+ * Subtype palette source of truth is `EntityTypeBadge.tsx`.
  */
 import { Layers } from 'lucide-react';
 import type { CascadeNode } from '@/types/api';
 import {
   EntityTypeBadge,
-  entityTypeBadgeClass,
+  entityTypeStripClass,
 } from '@/components/shared/EntityTypeBadge';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
@@ -73,7 +77,7 @@ export function EntityNode({
             aria-hidden
             className={cn(
               'absolute inset-y-0 left-0 w-1.5',
-              entityTypeBadgeClass(node.entity_type),
+              entityTypeStripClass(node.entity_type),
             )}
           />
 
