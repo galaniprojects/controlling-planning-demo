@@ -449,6 +449,8 @@ Create at the start of Session A with this header:
 
 **Session:** A | **Est. time:** 45 min | **Default persona:** Anna Meier (Controller)
 
+> **VIPER Wave 2 (backend, 2026-05-29) — pending UI scenarios.** The Change Portfolio now scopes server-side to execution + terminal stages, plus current-FY Approved (dual-visible with the Backlog) and mid-execution Paused (`frozen_doi >= 3`); the backlog cutoff envelope now deducts in-execution committed spend (Active + Hyper-maintenance) off the top and the ranked-backlog endpoint accepts an optional `start_year` filter. These are backend-only this wave and unit-tested (`test_ranking_service.py`, `test_portfolio_service.py`). **Add browser scenarios when Wave 4 ships the UI:** (a) Change tree shows only the Change population with the correct status badges; (b) Launchpad / module-card KPIs are unchanged by the Change filter; (c) Backlog "Start year" filter re-scopes the ranked list and cutoff bands.
+
 ---
 
 ### PO-01: Dashboard Tab Loads
