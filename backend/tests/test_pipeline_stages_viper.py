@@ -6,7 +6,9 @@ edges introduced in Wave 1 (services/pipeline.py).  Focused on:
 - New terminal stages present in STAGES; removed Operate/Retired absent.
 - BACKLOG_STAGES / EXECUTION_STAGES / TERMINAL_STAGES / OFF_PATH_STAGES
   membership correct.
-- OPERATE_STAGES is the transitional alias == frozenset({"Hyper-maintenance"}).
+- OPERATE_STAGES keeps its pre-VIPER membership == frozenset({"Hyper-maintenance",
+  "Operate", "Retired"}) this wave; the shrink is deferred to Wave 2 so ranking
+  behaviour is unchanged (session decision 2026-05-29).
 - doi_for_stage returns 5 for Completed and Run entity spawned; None for the
   removed Operate / Retired stages (no longer in _DOI_DEFAULTS).
 - is_transition_allowed: Active/Hyper-maintenance → terminal stages allowed;
