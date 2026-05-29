@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from config import DEMO_DATE
@@ -22,6 +22,70 @@ from services.calculations import (
     compute_timeline_rag,
     compute_utilization_pct,
 )
+from services.calendar import current_fiscal_year
+from services.pipeline import EXECUTION_STAGES, TERMINAL_STAGES
+
+
+# ---------------------------------------------------------------------------
+# Change Portfolio population (VIPER §3.2)
+# ---------------------------------------------------------------------------
+
+def change_population_clause():
+    """SQLAlchemy clause selecting the Change Portfolio population (VIPER §3.2).
+
+    The Change Portfolio holds projects in execution or finished, plus two
+    boundary cases:
+
+    - ``EXECUTION_STAGES`` (Active, Hyper-maintenance) and ``TERMINAL_STAGES``
+      (Completed, Run entity spawned) — the core execution + done population.
+    - ``Approved`` with a current-fiscal-year ``start_month`` — dual-visible in
+      both Change ("Staged/Approved") and the Backlog (§3.2, CONFIRMED).
+    - ``Paused`` with ``frozen_doi >= 3`` — a project paused *after* it entered
+      execution stays in Change. A pre-execution pause (``frozen_doi < 3`` or
+      NULL) is excluded; it belongs to the Backlog surface.
+
+    Returned as an OR clause so it composes with the existing entity/status/rag
+    filters. Applied *only* when a caller opts in (``filters["population"] ==
+    "change"``); the Launchpad and module-card KPIs deliberately stay unscoped.
+
+    A project with ``pipeline_stage IS NULL`` matches none of the three
+    predicates and is therefore **intentionally excluded** from the Change
+    Portfolio — a stage-less project belongs to no §3.2 population. (The
+    unscoped callers still count it; the seed never produces one.)
+    """
+    cy_prefix = f"{current_fiscal_year()}-"
+    return or_(
+        Project.pipeline_stage.in_(list(EXECUTION_STAGES | TERMINAL_STAGES)),
+        and_(
+            Project.pipeline_stage == "Approved",
+            Project.start_month.like(f"{cy_prefix}%"),
+        ),
+        and_(
+            Project.pipeline_stage == "Paused",
+            Project.frozen_doi >= 3,
+        ),
+    )
+
+
+def _change_status(p: Project) -> str | None:
+    """Derive the Change Portfolio status badge hint for a project (VIPER §3.2).
+
+    Consumed by the frontend (Wave 4) to render "Staged/Approved" / "Active" /
+    "Completed" / "Handed over" badges. Emitted on every project node by
+    :func:`_make_project_node`. Harmless today because ``build_portfolio_tree``
+    is only reached via the always-Change-scoped ``/portfolio`` endpoints; if an
+    unscoped caller of the tree is ever added, nodes outside the Change
+    population would still carry a ``change_status`` (e.g. a "staged" hint on an
+    Approved future-year project the Change view would have filtered out).
+    """
+    return {
+        "Active": "active",
+        "Hyper-maintenance": "hyper_maintenance",
+        "Completed": "completed",
+        "Run entity spawned": "handed_over",
+        "Approved": "staged",
+        "Paused": "paused",
+    }.get(p.pipeline_stage)
 
 
 # ---------------------------------------------------------------------------
@@ -169,6 +233,8 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
             proj_q = proj_q.filter(Project.is_service.is_(True))
         elif filters["type"] == "project":
             proj_q = proj_q.filter(Project.is_service.is_(False))
+    if filters.get("population") == "change":
+        proj_q = proj_q.filter(change_population_clause())
     project_ids = [r[0] for r in proj_q.all()]
 
     if not project_ids:
@@ -368,6 +434,8 @@ def build_portfolio_tree(db: Session, filters: dict | None = None) -> list[dict]
             query = query.filter(Project.is_service.is_(True))
         elif filters["type"] == "project":
             query = query.filter(Project.is_service.is_(False))
+    if filters.get("population") == "change":
+        query = query.filter(change_population_clause())
 
     projects = query.all()
     if not projects:
@@ -493,6 +561,7 @@ def _make_project_node(p: Project, fins: dict) -> dict:
         "name": p.name,
         "type": "service" if p.is_service else "project",
         "status": p.status,
+        "change_status": _change_status(p),
         "rag": p.rag_status,
         "baseline_budget": fins["baseline_total"],
         "current_forecast": fins["forecast_total"],
