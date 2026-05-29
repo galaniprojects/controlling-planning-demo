@@ -70,8 +70,8 @@ const ROLLUP_YEAR = 2026;
 // Session-storage keys for preserving the Run Portfolio filter + scroll
 // position across an entity drill-down (browser back returns the user to
 // the same view they left, per A-01).
-const RUN_FILTER_KEY = 'creta:portfolio:run:typeFilter';
-const RUN_SCROLL_KEY = 'creta:portfolio:run:scrollY';
+const RUN_FILTER_KEY = 'viper:portfolio:run:typeFilter';
+const RUN_SCROLL_KEY = 'viper:portfolio:run:scrollY';
 
 function readPersistedFilter(): '' | ChargeableEntityType {
   if (typeof window === 'undefined') return '';

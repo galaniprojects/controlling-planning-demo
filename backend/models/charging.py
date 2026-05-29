@@ -352,20 +352,14 @@ class ChargeableEntity(Base):
 
     @property
     def is_change_or_run(self) -> str:
-        """Derive Change/Run classification per [F-DM-01].
+        """Derive Change/Run classification per [VIPER §5.1].
 
-        Projects in DoI 0–4 are Change; DoI 5 is Run. Offerings and
-        InternalServices are always Run. Returns ``'Change'`` or ``'Run'``.
-        Falls back to ``'Run'`` for projects with NULL DoI (operating
-        steady-state legacy projects whose v5 lifecycle was not seeded).
+        KB rule: all Projects are Change; Offerings and Internal Services
+        are always Run. DoI no longer drives this classification — the
+        entity_type is the sole discriminator. Returns ``'Change'`` or
+        ``'Run'``.
         """
-        if self.entity_type == "Project":
-            if self.project is not None:
-                doi = self.project.doi
-                if doi is not None and doi < 5:
-                    return "Change"
-            return "Run"
-        return "Run"
+        return "Change" if self.entity_type == "Project" else "Run"
 
 
 class DistributionVersion(Base):

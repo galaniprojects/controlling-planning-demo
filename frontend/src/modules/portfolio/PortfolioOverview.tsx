@@ -31,7 +31,7 @@ import { ExternalSpendTab } from './external-spend/ExternalSpendTab';
 
 type SubModule = 'change' | 'run';
 
-const SUBMODULE_STORAGE_KEY = 'creta:portfolio:subModule';
+const SUBMODULE_STORAGE_KEY = 'viper:portfolio:subModule';
 
 function readPersistedSubModule(): SubModule {
   if (typeof window === 'undefined') return 'change';

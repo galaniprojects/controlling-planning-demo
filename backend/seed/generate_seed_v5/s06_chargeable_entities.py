@@ -60,6 +60,8 @@ def generate() -> str:
     lines.append("-- Polymorphic ChargeableEntity row inserted in pass 2 [F-DM-01].")
     lines.append("-- v5 columns (pipeline_stage, doi, tech_navigator, progress) populated by")
     lines.append("-- Phase 2 T2 in s11 / s12 / s17 / s18.")
+    lines.append("-- run_entity_id: inserted as NULL here; s12 UPDATE sets non-NULL for")
+    lines.append("-- 'Run entity spawned' projects (VIPER §7.1 / §11.4).")
     lines.append("-- =============================================================================")
     lines.append("")
     # Note: ai_council_approved is NOT NULL with no server_default — must be
@@ -71,7 +73,7 @@ def generate() -> str:
         "start_month, end_month, projected_end_month, pl_person_id, is_service, "
         "annual_budget, total_budget, last_forecast_submitted_month, "
         "ai_council_approved, progress_pct_manual_override, "
-        "is_active, created_at, modified_at) VALUES"
+        "is_active, created_at, modified_at, run_entity_id) VALUES"
     )
     rows: list[str] = []
     for p in PROJECTS:
@@ -94,7 +96,7 @@ def generate() -> str:
             f"{sql_str(p['pl_id'])}, {1 if is_service else 0}, "
             f"{sql_str(annual_budget)}, {sql_str(total_budget)}, "
             f"{sql_str(last_fc)}, 0, 0, "
-            f"1, '{CREATED_AT}', '{modified}')"
+            f"1, '{CREATED_AT}', '{modified}', NULL)"
         )
     lines.append(",\n".join(rows) + ";")
     lines.append("")

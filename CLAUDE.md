@@ -69,7 +69,7 @@ The app ships with 10 modules — see Frontend Routes table below for paths.
 |---|---|
 | Launchpad | Role-aware home — module cards (3 columns), pending actions, persona greeting, forecast cycle status |
 | Portfolio Overview | Change vs Run sub-modules, KPI dashboard, configurable hierarchy tree, project detail |
-| Backlog | Ranked intake list (DoI 0–2 demand pipeline), Tech Navigator scoring, cube + list views, send-back/resubmit cycle |
+| Backlog | Ranked pre-execution pipeline (Proposed / Under Evaluation / Approved), Tech Navigator scoring, cube + list views, send-back/resubmit cycle |
 | Project Workbench | Overview tile grid, mixed-granularity forecast grid, 5-phase cycle wizard, External Costs, Cost Allocation, version history |
 | Capacity Management | Team utilization heatmaps, cell drill-down, org-wide pivots, resource request management |
 | What-If Simulator | Anchor-against-version scenarios, Tier 1/2/3 levers across 17+ surfaces incl. Lever 12 BTC sandbox, Promote-with-routing, Apply-to-Forecast |
@@ -120,7 +120,7 @@ Current focus: enhancements, bug fixes, and demo preparation — see `PROGRESS.m
 - **Trigger:** When implementation for a task/wave is complete and verified — before opening a PR, and before the final `PROGRESS.md` commit.
 - **Ask first, don't run unprompted:** Surface the option to the user (e.g. "Implementation is done — should I launch an independent code reviewer on the diff?"). Wait for explicit confirmation before invoking it.
 - **Which agent:** Default to the `code-reviewer-fresh` sub-agent (read-only, fresh context — avoids self-review bias). Use `code-reviewer` only if the user asks for one that can also propose edits. The `/code-review ultra` skill is user-triggered only — never launch it yourself.
-- **What to pass it:** The current diff vs. `main` (or the relevant base), plus a one-paragraph brief of what the change is meant to do and what's intentionally out of scope.
+- **What to pass it:** Launch the reviewer with a CLEAN context — it must NOT inherit any conversation history, reasoning, or assumptions made during this session. Pass ONLY: the current diff vs. `main` (or the relevant base) and a one-paragraph factual brief of what the change is meant to do and what's intentionally out of scope. Do not feed it your own conclusions, justifications for design decisions, or "this is fine because…" framing — the point is an independent judgement, so anything that would bias it toward agreeing with the session's choices must be left out.
 - **What to do with the report:** Relay findings to the user — grouped by severity (blocker / should-fix / nit) with file:line references. **Do not touch code based on the report without explicit confirmation.** Ask the user which findings to act on; treat their answer as the scope. If they say "fix all blockers," that does not authorize nits.
 - **Memory:** This rule overrides any general guidance about auto-applying review fixes.
 

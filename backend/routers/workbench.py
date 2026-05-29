@@ -147,8 +147,8 @@ def get_project_overview(
     }
 
     # Resource plan summary — title and filtering depend on project lifecycle
-    from config import DEMO_DATE
-    demo_year = DEMO_DATE[:4]  # "2026"
+    from services.calendar import current_fiscal_year
+    demo_year = current_fiscal_year()
 
     if project.status == "active":
         resource_title = f"Resource Plan {demo_year}"

@@ -89,7 +89,9 @@ class TestDoiForStage:
         ("Approved", 3),
         ("Active", 3),
         ("Hyper-maintenance", 4),
-        ("Operate", 5),
+        # Operate / Retired removed in VIPER §2.3 — use Completed / Run entity spawned.
+        ("Completed", 5),
+        ("Run entity spawned", 5),
         ("Paused", None),
         ("Cancelled", None),
     ])

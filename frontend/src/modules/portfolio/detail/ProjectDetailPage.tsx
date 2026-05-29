@@ -48,7 +48,7 @@ import { FinancialDetailSection } from './sections/FinancialDetailSection';
 import { ResourcesAndCostsSection } from './sections/ResourcesAndCostsSection';
 import { HistorySection } from './sections/HistorySection';
 
-const SCROLL_RESTORE_KEY = 'creta:portfolio:dashboard:scroll';
+const SCROLL_RESTORE_KEY = 'viper:portfolio:dashboard:scroll';
 
 interface BreadcrumbCrumb {
   label: string;
