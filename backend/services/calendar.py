@@ -26,23 +26,27 @@ def current_fiscal_year() -> int:
 def fiscal_year_of(month: str) -> int:
     """Return the fiscal year that contains *month*.
 
-    *month* must be a non-empty string whose first four characters are a
-    valid four-digit year (e.g. ``"2027-01"``). KB fiscal year is
+    *month* must be a ``YYYY-MM`` string (a longer ``YYYY-MM-DD`` is also
+    accepted — only the ``YYYY-MM`` prefix is read). KB fiscal year is
     calendar-aligned (Jan–Dec), so the year prefix is the fiscal year.
 
     Args:
-        month: A month string in ``YYYY-MM`` format (or any string whose
-            first four characters encode the year).
+        month: A month string in ``YYYY-MM`` format.
 
     Returns:
         int: The four-digit fiscal year (e.g. 2027).
 
     Raises:
-        ValueError: If *month* is ``None``, empty, or its first four
-            characters cannot be parsed as an integer.
+        ValueError: If *month* is ``None``, empty, not in ``YYYY-MM`` shape
+            (4-digit year + ``-`` separator), or its year prefix cannot be
+            parsed as an integer. A bare year like ``"2026"`` is rejected.
     """
     if not month:
         raise ValueError(f"fiscal_year_of: month must be a non-empty string, got {month!r}")
+    if len(month) < 7 or month[4] != "-":
+        raise ValueError(
+            f"fiscal_year_of: expected YYYY-MM shape, got {month!r}"
+        )
     try:
         return int(month[:4])
     except (ValueError, TypeError) as exc:

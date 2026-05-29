@@ -49,3 +49,16 @@ class TestFiscalYearOf:
     def test_non_numeric_prefix_raises_value_error(self):
         with pytest.raises(ValueError):
             fiscal_year_of("ABCD-01")
+
+    def test_bare_year_raises_value_error(self):
+        # A bare year (no month) is not a valid YYYY-MM month string.
+        with pytest.raises(ValueError):
+            fiscal_year_of("2026")
+
+    def test_short_numeric_raises_value_error(self):
+        with pytest.raises(ValueError):
+            fiscal_year_of("12")
+
+    def test_full_date_prefix_accepted(self):
+        # A longer YYYY-MM-DD is fine — only the YYYY-MM prefix is read.
+        assert fiscal_year_of("2026-04-15") == 2026
