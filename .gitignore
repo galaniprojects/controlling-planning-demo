@@ -31,6 +31,7 @@ Thumbs.db
 
 # Local guide/spec documents (not synced to GitHub)
 guides/
+docs_archive/
 
 # QA / screenshots — local-only artefacts from manual + MCP visual verification.
 # Keep the directory itself (via .gitkeep) but never commit screenshots.
