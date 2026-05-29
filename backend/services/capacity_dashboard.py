@@ -612,16 +612,25 @@ def compute_hotspots(
     # Single CC→location lookup so the chronic-under-util loop below
     # doesn't issue one query per person.
     person_to_location: dict[str, Optional[str]] = {}
+    # CC display name per person — threaded onto person hotspots so the
+    # dashboard's HotspotListCard can open person detail with a real
+    # cost_center_id even in all-CCs scope (where the workspace ccId is
+    # null). Mirrors the cost_center_id/name already carried by
+    # unfulfilled_demand items.
+    person_to_cc_name: dict[str, Optional[str]] = {}
     if people:
         cc_ids = {p.cost_center_id for p in people.values() if p.cost_center_id}
         if cc_ids:
-            cc_loc = dict(
-                db.query(CostCenter.id, CostCenter.location_id)
+            cc_rows = (
+                db.query(CostCenter.id, CostCenter.location_id, CostCenter.name)
                 .filter(CostCenter.id.in_(cc_ids))
                 .all()
             )
+            cc_loc = {cid: loc for cid, loc, _ in cc_rows}
+            cc_name = {cid: name for cid, _, name in cc_rows}
             for pid, p in people.items():
                 person_to_location[pid] = cc_loc.get(p.cost_center_id) if p.cost_center_id else None
+                person_to_cc_name[pid] = cc_name.get(p.cost_center_id) if p.cost_center_id else None
 
     def _short(person_name: str) -> str:
         # "Felix Keller" -> "F. Keller" per §11.6 example summary text.
@@ -658,6 +667,8 @@ def compute_hotspots(
             "summary": summary,
             "target_id": pid,
             "target_type": "person",
+            "cost_center_id": person.cost_center_id,
+            "cost_center_name": person_to_cc_name.get(pid),
         })
 
     # ---------- Category 2: Unfulfilled demand ----------
@@ -791,6 +802,8 @@ def compute_hotspots(
             "summary": summary,
             "target_id": pid,
             "target_type": "person",
+            "cost_center_id": person.cost_center_id,
+            "cost_center_name": person_to_cc_name.get(pid),
         })
 
     issues.sort(key=lambda x: x["severity"], reverse=True)

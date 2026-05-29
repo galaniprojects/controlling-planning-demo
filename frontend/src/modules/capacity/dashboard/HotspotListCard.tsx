@@ -88,13 +88,16 @@ function HotspotRow({ item, ccId, apiScope, onPerson, onCell }: HotspotRowProps)
       item.category === 'under_utilization'
     ) {
       // target_type = 'person', target_id = person_id.
-      // We need a cc_id to call openPerson. Use the workspace ccId when
-      // available (my_cc scope) or fall back to the apiScope string as a
-      // best-effort cc identifier (the endpoint will resolve it).
-      // In all_ccs scope ccId is null; we pass the apiScope token and let
-      // the side panel degrade gracefully.
+      // We need a cc_id to call openPerson. Prefer the workspace ccId
+      // (my_cc / single-CC scope); otherwise use the person's own CC,
+      // which the backend now threads onto person hotspots — without it,
+      // all-CCs scope produced an empty cc_id and a malformed
+      // /my-team//people/{id}/detail request (404). Last-resort fallback
+      // is the apiScope cost_center token.
       const resolvedCcId =
-        ccId ?? (apiScope.startsWith('cost_center:') ? apiScope.slice(12) : '');
+        ccId ??
+        item.cost_center_id ??
+        (apiScope.startsWith('cost_center:') ? apiScope.slice(12) : '');
       onPerson(resolvedCcId, item.target_id);
     } else if (item.category === 'unfulfilled_demand') {
       // target_type = 'role', target_id = role_type_id.
