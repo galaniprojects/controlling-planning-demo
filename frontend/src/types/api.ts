@@ -203,6 +203,14 @@ export interface SparklinePoint {
   amount: number;
 }
 
+// VIPER §7 — the Run entity (Offering/InternalService) a handed-over project feeds.
+export interface RunEntityBlock {
+  id: string;
+  name: string;
+  identifier: string;
+  annual_cost: number | null;
+}
+
 export interface ProjectSummary {
   id: string;
   name: string;
@@ -211,6 +219,10 @@ export interface ProjectSummary {
   timeline: TimelineInfo | null;
   last_cr_summary: string | null;
   forecast_sparkline: SparklinePoint[];
+  // VIPER §7 (Wave 3) — present only for projects handed over to a Run entity.
+  run_entity?: RunEntityBlock | null;
+  cumulative_since_handover?: number | null;
+  handover_year?: number | null;
 }
 
 export interface BudgetByLob {

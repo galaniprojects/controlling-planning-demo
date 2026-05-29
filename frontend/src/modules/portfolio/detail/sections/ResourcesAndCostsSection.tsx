@@ -15,7 +15,10 @@
  * in this branch the import target stays the same).
  */
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowUpRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -27,24 +30,29 @@ import {
 import { Skeleton } from '@/components/shared/Skeleton';
 import { ResourceSummaryTable } from '@/modules/workbench/overview/ResourceSummaryTable';
 import { externalCostsApi } from '@/api/endpoints';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatCurrencyDetailed } from '@/lib/formatters';
+import { stageDisplayLabel } from '@/lib/pipelineStages';
 import type {
   ProjectOverview,
+  ProjectSummary,
   ProjectVendorSummaryRow,
   ProjectCategoryRollupRow,
 } from '@/types/api';
 
 interface Props {
   projectId: string;
+  summary: ProjectSummary | null;
   overview: ProjectOverview | null;
   loading: boolean;
 }
 
 export function ResourcesAndCostsSection({
   projectId,
+  summary,
   overview,
   loading,
 }: Props) {
+  const navigate = useNavigate();
   const [vendors, setVendors] = useState<ProjectVendorSummaryRow[]>([]);
   const [categories, setCategories] = useState<ProjectCategoryRollupRow[]>([]);
   const [extLoading, setExtLoading] = useState(true);
@@ -82,8 +90,73 @@ export function ResourcesAndCostsSection({
     );
   }
 
+  const runEntity = summary?.run_entity ?? null;
+
   return (
     <div className="space-y-4">
+      {/* Continuing cost — present only for projects handed over to a Run
+          entity (Offering / InternalService) per VIPER §7.2. */}
+      {runEntity && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium text-foreground">
+            Continuing cost
+          </h3>
+          <Card className="p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="space-y-1 min-w-0">
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  {stageDisplayLabel('Run entity spawned')}
+                </span>
+                <p className="text-sm font-medium text-foreground truncate">
+                  {runEntity.name}
+                  <span className="ml-1.5 font-mono text-xs text-muted-foreground">
+                    {runEntity.identifier}
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Ongoing run cost is tracked against the linked Run entity.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  navigate(
+                    `/workbench?entity=${encodeURIComponent(runEntity.id)}`,
+                  )
+                }
+              >
+                Open Run entity
+                <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border bg-card px-4 py-3">
+                <p className="text-xs text-muted-foreground">Annual cost</p>
+                <p className="text-lg font-semibold text-foreground tabular-nums">
+                  {runEntity.annual_cost !== null
+                    ? formatCurrency(runEntity.annual_cost)
+                    : '—'}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-card px-4 py-3">
+                <p className="text-xs text-muted-foreground">
+                  {summary?.handover_year != null
+                    ? `Cumulative since ${summary.handover_year}`
+                    : 'Cumulative since handover'}
+                </p>
+                <p className="text-lg font-semibold text-foreground tabular-nums">
+                  {summary?.cumulative_since_handover != null
+                    ? formatCurrencyDetailed(summary.cumulative_since_handover)
+                    : '—'}
+                </p>
+              </div>
+            </div>
+          </Card>
+        </section>
+      )}
+
       {/* Resource plan */}
       <section className="space-y-2">
         <h3 className="text-sm font-medium text-foreground">Resource plan</h3>
