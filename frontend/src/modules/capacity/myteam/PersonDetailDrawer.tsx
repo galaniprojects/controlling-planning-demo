@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { capacityApi } from '@/api/endpoints';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { cn } from '@/lib/utils';
+import { personDetailErrorMessage } from '../personDetailError';
 import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import type { PersonDetail } from '@/types/api';
 
@@ -28,14 +29,19 @@ interface PersonDetailDrawerProps {
 export function PersonDetailDrawer({ ccId, personId }: PersonDetailDrawerProps) {
   const navigate = useNavigate();
   const [data, setData] = useState<PersonDetail | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
+    setErrorMsg(null);
     capacityApi
       .getPersonDetail(ccId, personId)
       .then(setData)
-      .catch(() => setData(null))
+      .catch((err) => {
+        setData(null);
+        setErrorMsg(personDetailErrorMessage(err));
+      })
       .finally(() => setLoading(false));
   }, [ccId, personId]);
 
@@ -49,7 +55,11 @@ export function PersonDetailDrawer({ ccId, personId }: PersonDetailDrawerProps) 
   }
 
   if (!data) {
-    return <p className="text-sm text-muted-foreground">Failed to load person details.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        {errorMsg ?? 'Failed to load person details. Please try again.'}
+      </p>
+    );
   }
 
   return (

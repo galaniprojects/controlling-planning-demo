@@ -36,6 +36,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { capacityApi } from '@/api/endpoints';
+import { personDetailErrorMessage } from '../personDetailError';
 import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { useProjectColor } from '@/contexts/ProjectColorMapContext';
@@ -160,18 +161,23 @@ export function PersonDetail({
   onAssignmentRequest,
 }: PersonDetailProps) {
   const [data, setData] = useState<PersonDetailDto | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setErrorMsg(null);
     capacityApi
       .getPersonDetail(ccId, personId)
       .then((res) => {
         if (!cancelled) setData(res);
       })
-      .catch(() => {
-        if (!cancelled) setData(null);
+      .catch((err) => {
+        if (!cancelled) {
+          setData(null);
+          setErrorMsg(personDetailErrorMessage(err));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -194,7 +200,7 @@ export function PersonDetail({
         <PersonDetailSkeleton />
       ) : !data ? (
         <p className="text-sm text-muted-foreground">
-          Failed to load person details.
+          {errorMsg ?? 'Failed to load person details. Please try again.'}
         </p>
       ) : (
         <PersonDetailBody

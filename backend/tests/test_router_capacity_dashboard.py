@@ -435,6 +435,36 @@ class TestHotspotsShape:
                 assert severity is not None
                 assert isinstance(severity, (int, float))
 
+    def test_person_hotspots_carry_cost_center_id(
+        self, test_client, seed_dashboard, db
+    ):
+        """Regression: person hotspots (over/under-utilization) must carry a
+        non-null ``cost_center_id`` matching the person's own CC.
+
+        Without it the dashboard's HotspotListCard fell back to an empty
+        cc_id in all-CCs scope and issued a malformed
+        ``/api/capacity/my-team//people/{id}/detail`` request → 404 →
+        "Failed to load person details." (only ``unfulfilled_demand`` rows
+        previously carried the CC.)
+        """
+        from models.people import Person
+
+        resp = test_client.get(
+            "/api/capacity/dashboard/hotspots?scope=all&limit=50",
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 200
+        rows = resp.json()["items"]
+        person_rows = [r for r in rows if r.get("target_type") == "person"]
+        assert person_rows, "expected at least one person hotspot in the seed"
+        for r in person_rows:
+            assert r.get("cost_center_id"), (
+                f"person hotspot missing cost_center_id: {r}"
+            )
+            person = db.query(Person).filter(Person.id == r["target_id"]).first()
+            assert person is not None
+            assert r["cost_center_id"] == person.cost_center_id
+
 
 @patch("routers.capacity.DEMO_DATE", "2026-04")
 class TestHotspotsRanking:

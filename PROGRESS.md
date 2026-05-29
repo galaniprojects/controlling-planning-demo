@@ -1,5 +1,20 @@
 # CRETA Demo — Build Progress
 
+## Standalone fixes — post-epic (branch `fix/standalone-followups`, 2026-05-29)
+
+Small follow-ups after the Service Workbench round closed (main `415b90b`). One branch off `main`.
+
+- [x] **Capacity dashboard — "Failed to load person details." on person hotspots.** Clicking a person hotspot (over/under-utilization, e.g. "S. Braun — 0% utilized for 7 months") in the Capacity dashboard's Hotspots card showed "Failed to load person details." in **all-CCs scope** (the default) — persona-independent.
+  - **Root cause:** `HotspotListCard.tsx` needs a cost-centre to open person detail. In all-CCs scope the workspace `ccId` is null and `apiScope` is `all_ccs` (not `cost_center:…`), so `resolvedCcId` fell through to an **empty string** → `getPersonDetail('', personId)` → `GET /api/capacity/my-team//people/{id}/detail` → the empty path segment doesn't match the route → **404** → the component's `.catch()` collapsed it into the generic error. `compute_hotspots` only populated `cost_center_id` on `unfulfilled_demand` rows, never on person rows, so the frontend had no CC to fall back to.
+  - **Fix (backend + frontend, no schema change — `cost_center_id` already existed on `HotspotItem`):**
+    - `backend/services/capacity_dashboard.py` — built a `person_to_cc_name` map alongside the existing `person_to_location` (one extra `CostCenter.name` column on the same query) and added `cost_center_id` + `cost_center_name` to both the `over_allocation` and `under_utilization` `issues.append({...})` blocks, mirroring the `unfulfilled_demand` pattern.
+    - `frontend/src/modules/capacity/dashboard/HotspotListCard.tsx` — person branch now resolves `ccId ?? item.cost_center_id ?? (apiScope cost_center token)`.
+  - **Error-message polish:** new `frontend/src/modules/capacity/personDetailError.ts` maps a `getPersonDetail` failure (via the Wave C `ApiError.status`) to specific copy — 403 → "You do not have access to this cost centre.", 404 → "Person details could not be found.", else the generic transient message. Wired into both `sidepanel/PersonDetail.tsx` and `myteam/PersonDetailDrawer.tsx` (each now tracks an `errorMsg` alongside `data`). This surfaces the **by-design** CC-Owner cross-CC 403 as an access boundary rather than a glitch.
+  - **Test:** `test_router_capacity_dashboard.py::TestHotspotsShape::test_person_hotspots_carry_cost_center_id` — asserts every person hotspot row carries a non-null `cost_center_id` matching the person's own CC. Full backend suite green; frontend `tsc --noEmit` clean.
+  - **Verification:** live endpoint now returns `cc-muc-inf` / "MUC / Infrastructure & Cloud" for `p-braun`; browser click on the S. Braun hotspot fetches `…/my-team/cc-muc-inf/people/p-braun/detail` → 200 and renders the full detail panel (screenshot `qa/screenshots/capacity-person-detail-fix-sbraun.png`).
+
+- [x] **`.gitignore` — added `docs_archive/`** (mirrors the existing `guides/` entry). Stops local working-spec drafts (e.g. `Portfolio_Backlog_Context_For_Chat.md`) from cluttering `git status`. The 11 already-tracked archive files (v4/v5/Report-Builder specs + screenshots) stay tracked — gitignore only affects new untracked files.
+
 ## Service Workbench & Cascading Allocation — wave status
 
 Active spec: `guides/CRETA_Service_Workbench_and_Cascade_Spec.md` + 6-session implementation guide `guides/CRETA_Service_Workbench_and_Cascade_Implementation_Guide.md`. One wave per session, PR gate between. Service financial parity (external costs / forecasts / actuals on Offerings + Internal Services) deferred to Phase 2 per `guides/CRETA_Service_Financial_Parity_Phase2.md`.
