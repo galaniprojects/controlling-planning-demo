@@ -6,8 +6,8 @@ import pytest
 
 from services.pipeline import (
     BACKLOG_STAGES,
+    EXECUTION_STAGES,
     OFF_PATH_STAGES,
-    OPERATE_STAGES,
     STAGES,
     VALID_TRANSITIONS,
     doi_for_stage,
@@ -27,8 +27,10 @@ class TestStageGroupings:
         assert "Proposed" in BACKLOG_STAGES
         assert "Hyper-maintenance" not in BACKLOG_STAGES
 
-    def test_operate_stages_disjoint_from_backlog(self):
-        assert BACKLOG_STAGES.isdisjoint(OPERATE_STAGES)
+    def test_execution_stages_disjoint_from_backlog(self):
+        # VIPER §3.3: Active left the backlog, so execution and backlog stages
+        # no longer overlap.
+        assert BACKLOG_STAGES.isdisjoint(EXECUTION_STAGES)
 
     def test_off_path_stages(self):
         assert OFF_PATH_STAGES == frozenset({"Paused", "Cancelled"})

@@ -5,10 +5,8 @@ edges introduced in Wave 1 (services/pipeline.py).  Focused on:
 
 - New terminal stages present in STAGES; removed Operate/Retired absent.
 - BACKLOG_STAGES / EXECUTION_STAGES / TERMINAL_STAGES / OFF_PATH_STAGES
-  membership correct.
-- OPERATE_STAGES keeps its pre-VIPER membership == frozenset({"Hyper-maintenance",
-  "Operate", "Retired"}) this wave; the shrink is deferred to Wave 2 so ranking
-  behaviour is unchanged (session decision 2026-05-29).
+  membership correct. Wave 2 shrank BACKLOG_STAGES to {Proposed, Under
+  Evaluation, Approved} (Active + Paused dropped) and deleted OPERATE_STAGES.
 - doi_for_stage returns 5 for Completed and Run entity spawned; None for the
   removed Operate / Retired stages (no longer in _DOI_DEFAULTS).
 - is_transition_allowed: Active/Hyper-maintenance → terminal stages allowed;
@@ -24,7 +22,6 @@ from services.pipeline import (
     BACKLOG_STAGES,
     EXECUTION_STAGES,
     OFF_PATH_STAGES,
-    OPERATE_STAGES,
     STAGES,
     TERMINAL_STAGES,
     VALID_TRANSITIONS,
@@ -72,16 +69,14 @@ class TestViperStageSet:
 # ---------------------------------------------------------------------------
 
 class TestGroupingConstants:
-    """BACKLOG / EXECUTION / TERMINAL / OFF_PATH / OPERATE (alias) membership."""
+    """BACKLOG / EXECUTION / TERMINAL / OFF_PATH membership (post-Wave-2)."""
 
-    # VIPER Wave 1 is foundation-only: the BACKLOG_STAGES shrink (drop Active +
-    # Paused) and the OPERATE_STAGES narrowing are DEFERRED to Wave 2 alongside
-    # the cutoff-math revision, so ranking behaviour is unchanged this wave
-    # (session decision 2026-05-29). These assertions pin the pre-VIPER values;
-    # Wave 2 will flip them to the shrunk sets.
-    def test_backlog_stages_pre_viper_value_until_wave2(self):
+    # VIPER Wave 2 shrank BACKLOG_STAGES (dropped Active + Paused) and deleted
+    # OPERATE_STAGES alongside the cutoff-math revision (session decision
+    # 2026-05-29). These assertions pin the target shrunk sets.
+    def test_backlog_stages_shrunk_to_pre_execution(self):
         assert BACKLOG_STAGES == frozenset(
-            {"Proposed", "Under Evaluation", "Approved", "Active", "Paused"}
+            {"Proposed", "Under Evaluation", "Approved"}
         )
 
     def test_execution_stages_exact(self):
@@ -93,11 +88,10 @@ class TestGroupingConstants:
     def test_off_path_stages_exact(self):
         assert OFF_PATH_STAGES == frozenset({"Paused", "Cancelled"})
 
-    # OPERATE_STAGES keeps its pre-VIPER membership (incl. the now-retired
-    # "Operate"/"Retired" strings) so ranking.py / admin.py behave identically
-    # this wave. Wave 2 narrows it to EXECUTION_STAGES and re-points the callers.
-    def test_operate_stages_pre_viper_value_until_wave2(self):
-        assert OPERATE_STAGES == frozenset({"Hyper-maintenance", "Operate", "Retired"})
+    def test_operate_stages_deleted(self):
+        # OPERATE_STAGES was removed in Wave 2 — importing it must fail.
+        import services.pipeline as pipeline_mod
+        assert not hasattr(pipeline_mod, "OPERATE_STAGES")
 
     def test_real_groups_are_subsets_of_stages(self):
         stage_set = set(STAGES)
@@ -106,16 +100,13 @@ class TestGroupingConstants:
         assert TERMINAL_STAGES.issubset(stage_set)
         assert OFF_PATH_STAGES.issubset(stage_set)
 
-    def test_operate_stages_retains_retired_strings_not_in_stages(self):
-        # Documents the intentional transitional state: "Operate"/"Retired" are
-        # removed from STAGES (VIPER §2.3) but retained in the OPERATE_STAGES
-        # grouping until Wave 2 narrows it. No live project carries them.
-        assert OPERATE_STAGES - set(STAGES) == frozenset({"Operate", "Retired"})
-
-    def test_execution_and_terminal_are_disjoint(self):
-        # The stable invariant. BACKLOG intentionally overlaps EXECUTION on
-        # "Active" until the Wave 2 shrink, so it is excluded from this check.
+    def test_groupings_are_mutually_disjoint(self):
+        # Post-shrink, the four groupings partition the on-path/off-path stages
+        # with no overlap (BACKLOG no longer shares "Active" with EXECUTION).
+        assert BACKLOG_STAGES.isdisjoint(EXECUTION_STAGES)
         assert EXECUTION_STAGES.isdisjoint(TERMINAL_STAGES)
+        assert BACKLOG_STAGES.isdisjoint(TERMINAL_STAGES)
+        assert OFF_PATH_STAGES.isdisjoint(BACKLOG_STAGES | EXECUTION_STAGES | TERMINAL_STAGES)
 
 
 # ---------------------------------------------------------------------------

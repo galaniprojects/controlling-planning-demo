@@ -20,19 +20,23 @@ called from the trigger sites enumerated in Session A3 [A-BK-14]:
 Algorithm (cutoff walk per [A-BK-09..A-BK-12]):
 
 1. ``contestable_envelope = total_available_budget − Type 3 pre-funded total
-   − Hyper-maintenance committed total`` per [A-BK-09]. Type 3 projects are
-   excluded from the ranked competition; their budgets are deducted off the
-   top per [A-TN-08].
+   − execution committed total`` per [A-BK-09] (VIPER §6.2). Type 3 projects
+   are excluded from the ranked competition; their budgets are deducted off
+   the top per [A-TN-08]. The execution-committed deduction captures every
+   project still burning budget (Active + Hyper-maintenance) now that
+   ``Active`` has left the ranked pool.
 2. Filter projects: ``is_active=True, pipeline_stage IN BACKLOG_STAGES,
    project_type != 3``. Order by composite_score DESC, then by tie-breakers
    (DoI ASC per [A-BK-06], then total_budget DESC).
 3. **Should-be cutoff** [A-BK-10]: walk the ranked list top-to-bottom,
    accumulating each project's budget. The line falls at the first rank
    where cumulative budget exceeds the contestable envelope.
-4. **Reality cutoff** [A-BK-11]: walk the same ranked list, but only count
-   the budgets of projects that are currently committed (``Active`` or
-   ``Approved`` with ``within_cutoff == True``). The line falls at the rank
-   where cumulative *committed* budget exceeds the envelope.
+4. **Reality cutoff** [A-BK-11] (VIPER §6.3): walk the same ranked list, but
+   only count the budgets of projects that are currently committed —
+   ``Approved`` with ``within_cutoff == True``. With ``Active`` no longer in
+   the pool, the reality line is purely about approved-but-not-started
+   commitments. The line falls at the rank where cumulative *committed*
+   budget exceeds the envelope.
 5. **`within_cutoff` flag** [A-PS-06]: for each Approved project at rank N,
    set ``within_cutoff = (cumulative_should_be[N] <= envelope)``. Cleared
    (None) on non-Approved backlog projects.
@@ -42,10 +46,11 @@ Working assumptions (flagged in PROGRESS.md):
 - 12-month horizon is hard-coded per [A-BK-12]; not yet configurable.
 - Pre-approval (DoI 0–2) projects use ``total_budget`` as walk input until
   the ``estimated_budget`` field per [A-BK-15] lands.
-- Hyper-maintenance committed spend = ``SUM(total_budget)`` for projects in
-  ``OPERATE_STAGES`` (Hyper-maintenance + Operate + Retired). Whole-project
-  totals rather than 12-month-slice forecast aggregation, pending a future
-  refinement.
+- Execution-committed spend = ``SUM(total_budget)`` for projects in
+  ``EXECUTION_STAGES`` (Active + Hyper-maintenance). Whole-project totals
+  rather than 12-month-slice forecast aggregation, pending a future
+  refinement. ``Completed`` / ``Run entity spawned`` contribute nothing —
+  their ongoing cost, if any, lives on the spawned Run entity (VIPER §6.2).
 - Default tie-breaker order is ``composite_score:desc, doi:asc,
   total_budget:desc``. DESC/ASC encoded per-field in the
   ``ranking_tiebreakers`` PlanningParameter.
@@ -58,7 +63,8 @@ from typing import Any, Iterable, Optional
 
 from sqlalchemy.orm import Session
 
-from services.pipeline import BACKLOG_STAGES, OPERATE_STAGES
+from services.calendar import fiscal_year_of
+from services.pipeline import BACKLOG_STAGES, EXECUTION_STAGES, TERMINAL_STAGES
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +177,24 @@ def load_config(db: Session) -> RankingConfig:
 # Project budget helpers
 # ---------------------------------------------------------------------------
 
+def _matches_start_year(project: Any, start_year: Optional[int]) -> bool:
+    """True when *project* starts in fiscal year *start_year* (or no filter).
+
+    Year scoping is calendar-aligned per KB (VIPER §4.1 / §8): a project's
+    fiscal year is ``int(start_month[:4])``. ``start_month`` is non-nullable
+    (``projects.py``), so every project buckets cleanly. Returns True for all
+    projects when ``start_year`` is None (the unscoped, whole-portfolio path).
+    """
+    if start_year is None:
+        return True
+    # A project with no start month can't bucket into a year view; exclude it
+    # (graceful degrade, mirroring _project_walk_budget's NULL coalescing).
+    # DB-loaded rows are non-null; this guards transient/unsaved projects.
+    if not project.start_month:
+        return False
+    return fiscal_year_of(project.start_month) == start_year
+
+
 def _project_walk_budget(project: Any) -> float:
     """Return the budget value used in the cutoff walk for one project.
 
@@ -184,16 +208,21 @@ def _project_walk_budget(project: Any) -> float:
     return float(project.total_budget)
 
 
-def compute_pre_funded_total(db: Session) -> float:
+def compute_pre_funded_total(db: Session, start_year: Optional[int] = None) -> float:
     """Sum of ``total_budget`` for Type 3 projects that are still funded.
 
     Type 3 projects (legal/compliance/security/lifecycle) are funded off the
     top of the envelope per [A-TN-08]; only those still consuming budget
-    count. Cancelled and Retired Type 3s are excluded.
+    count. The funded window now spans the whole on-path life (VIPER §6.2):
+    backlog, execution, and terminal stages — a Type 3 keeps drawing funding
+    while it executes and after it completes. Cancelled Type 3s are excluded.
+
+    When *start_year* is set the deduction is scoped to projects starting in
+    that fiscal year (read-time year view, VIPER §6.4).
     """
     from models.projects import Project
 
-    valid_stages = list(BACKLOG_STAGES | OPERATE_STAGES)
+    valid_stages = list(BACKLOG_STAGES | EXECUTION_STAGES | TERMINAL_STAGES)
     rows = (
         db.query(Project)
         .filter(
@@ -203,17 +232,24 @@ def compute_pre_funded_total(db: Session) -> float:
         )
         .all()
     )
-    return sum(_project_walk_budget(p) for p in rows)
+    return sum(
+        _project_walk_budget(p) for p in rows if _matches_start_year(p, start_year)
+    )
 
 
-def compute_hyper_maintenance_total(db: Session) -> float:
-    """Sum of ``total_budget`` for projects in ``OPERATE_STAGES`` per [A-BK-09].
+def compute_execution_committed_total(db: Session, start_year: Optional[int] = None) -> float:
+    """Sum of ``total_budget`` for projects in ``EXECUTION_STAGES`` per [A-BK-09].
 
-    Hyper-maintenance is a committed overhead deducted before the ranked
-    competition begins. Working assumption: we count all OPERATE_STAGES
-    (Hyper-maintenance, Operate, Retired) — the spec is silent on whether
-    Retired contributes; treating it as zero-cost would require an
-    additional filter and the demo data uses Operate as the bucket anyway.
+    In-execution committed spend (Active + Hyper-maintenance) is a committed
+    overhead deducted off the top before the ranked competition begins
+    (VIPER §6.2). It replaces the old hyper-maintenance-only deduction: now
+    that ``Active`` has left the ranked backlog pool, the deduction must
+    capture every project still burning project budget. ``Completed`` /
+    ``Run entity spawned`` contribute nothing — their ongoing cost, if any,
+    lives on the spawned Run entity.
+
+    When *start_year* is set the deduction is scoped to projects starting in
+    that fiscal year (read-time year view, VIPER §6.4).
     """
     from models.projects import Project
 
@@ -221,25 +257,30 @@ def compute_hyper_maintenance_total(db: Session) -> float:
         db.query(Project)
         .filter(
             Project.is_active.is_(True),
-            Project.pipeline_stage.in_(list(OPERATE_STAGES)),
+            Project.pipeline_stage.in_(list(EXECUTION_STAGES)),
         )
         .all()
     )
-    return sum(_project_walk_budget(p) for p in rows)
+    return sum(
+        _project_walk_budget(p) for p in rows if _matches_start_year(p, start_year)
+    )
 
 
 def compute_contestable_envelope(
     config: RankingConfig,
     type3_total: float,
-    hyper_maint_total: float,
+    execution_committed_total: float,
 ) -> float:
-    """Contestable envelope per [A-BK-09].
+    """Contestable envelope per [A-BK-09] (VIPER §6.2).
 
-    ``contestable = total_available − type 3 pre-funded − hyper-maintenance committed``.
+    ``contestable = total_available − type 3 pre-funded − execution committed``.
     Clamped to a non-negative floor so a misconfigured admin value can't
     produce a negative envelope.
     """
-    return max(0.0, float(config.total_available_budget) - type3_total - hyper_maint_total)
+    return max(
+        0.0,
+        float(config.total_available_budget) - type3_total - execution_committed_total,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -274,9 +315,9 @@ def _project_sort_key(project: Any, config: RankingConfig) -> tuple:
             continue
         raw = getattr(project, field_name, None)
         if raw is None:
-            tail.append(_MISSING_ASC if direction == "asc" else _MISSING_ASC)
-            # Note: missing always pushes to the end. For ASC and DESC alike,
-            # we use +inf so missing-valued rows lose ties to filled rows.
+            # Missing always pushes to the end. For ASC and DESC alike we use
+            # +inf so missing-valued rows lose ties to filled rows.
+            tail.append(_MISSING_ASC)
             continue
         value = float(raw)
         tail.append(value if direction == "asc" else -value)
@@ -293,6 +334,7 @@ def _project_sort_key(project: Any, config: RankingConfig) -> tuple:
 def compute_ranked_backlog(
     db: Session,
     config: Optional[RankingConfig] = None,
+    start_year: Optional[int] = None,
 ) -> dict:
     """Build the ranked backlog response per [A-BK-01] [A-PRI-04].
 
@@ -307,6 +349,12 @@ def compute_ranked_backlog(
     - ``pre_funded`` — Type 3 projects in the same stages, shown in the
       separate "Pre-funded" section above the ranked list per [A-TN-08].
 
+    When *start_year* is set (VIPER §4.2 / §6.4), the competing pool AND both
+    off-the-top deductions are scoped to projects whose ``start_month`` falls
+    in that fiscal year — a read-time year view that answers "which projects
+    begin consuming budget in year X?". The scoping never writes back the
+    persisted ``within_cutoff`` flag (§6.4); that recompute stays unscoped.
+
     Cutoff lines are computed alongside; see :func:`compute_cutoff_lines`
     for the standalone helper.
     """
@@ -316,21 +364,30 @@ def compute_ranked_backlog(
         config = load_config(db)
 
     # Pre-funded type 3 first — used both for the response section and for
-    # the contestable-envelope calculation.
-    type3_rows = (
-        db.query(Project)
-        .filter(
-            Project.is_active.is_(True),
-            Project.project_type == 3,
-            Project.pipeline_stage.in_(list(BACKLOG_STAGES | OPERATE_STAGES)),
+    # the contestable-envelope calculation. Funded across backlog + execution
+    # + terminal stages (VIPER §6.2).
+    type3_rows = [
+        p
+        for p in (
+            db.query(Project)
+            .filter(
+                Project.is_active.is_(True),
+                Project.project_type == 3,
+                Project.pipeline_stage.in_(
+                    list(BACKLOG_STAGES | EXECUTION_STAGES | TERMINAL_STAGES)
+                ),
+            )
+            .all()
         )
-        .all()
-    )
+        if _matches_start_year(p, start_year)
+    ]
     type3_pre_funded_total = sum(_project_walk_budget(p) for p in type3_rows)
 
-    hyper_maintenance_total = compute_hyper_maintenance_total(db)
+    execution_committed_total = compute_execution_committed_total(
+        db, start_year=start_year,
+    )
     envelope = compute_contestable_envelope(
-        config, type3_pre_funded_total, hyper_maintenance_total,
+        config, type3_pre_funded_total, execution_committed_total,
     )
 
     # Ranked competition pool.
@@ -342,7 +399,11 @@ def compute_ranked_backlog(
         )
         .all()
     )
-    competing = [p for p in backlog_rows if (p.project_type or 0) != 3]
+    competing = [
+        p
+        for p in backlog_rows
+        if (p.project_type or 0) != 3 and _matches_start_year(p, start_year)
+    ]
     competing.sort(key=lambda p: _project_sort_key(p, config))
 
     items: list[dict] = []
@@ -356,15 +417,15 @@ def compute_ranked_backlog(
         cum_should_be += b
 
         # Reality walk uses only currently-committed projects' budgets:
-        # ``Active`` (all) plus ``Approved`` with ``within_cutoff == True``.
-        # ``within_cutoff is None`` (e.g. Approved during transition) is
-        # treated as not-yet-committed and contributes 0 to the walk.
+        # ``Approved`` with ``within_cutoff == True`` (VIPER §6.3). ``Active``
+        # has left the ranked pool — its spend is deducted off the top via the
+        # execution-committed envelope instead — so the reality line is purely
+        # about approved-but-not-started commitments. ``within_cutoff is None``
+        # (e.g. Approved mid-transition) is treated as not-yet-committed and
+        # contributes 0 to the walk.
         is_committed = (
-            project.pipeline_stage == "Active"
-            or (
-                project.pipeline_stage == "Approved"
-                and project.within_cutoff is True
-            )
+            project.pipeline_stage == "Approved"
+            and project.within_cutoff is True
         )
         if is_committed:
             cum_reality += b
@@ -452,7 +513,7 @@ def compute_ranked_backlog(
     cutoff = {
         "total_available_budget": float(config.total_available_budget),
         "type3_pre_funded_total": round(type3_pre_funded_total, 2),
-        "hyper_maintenance_committed_total": round(hyper_maintenance_total, 2),
+        "execution_committed_total": round(execution_committed_total, 2),
         "contestable_envelope": round(envelope, 2),
         "should_be_cutoff_rank": should_be_cutoff_rank,
         "reality_cutoff_rank": reality_cutoff_rank,
@@ -477,13 +538,15 @@ def compute_ranked_backlog(
 def compute_cutoff_lines(
     db: Session,
     config: Optional[RankingConfig] = None,
+    start_year: Optional[int] = None,
 ) -> dict:
     """Standalone cutoff-lines helper that re-uses :func:`compute_ranked_backlog`.
 
     Returns just the ``cutoff`` payload — useful for KPI strips that don't
-    need the full ranked list.
+    need the full ranked list. ``start_year`` scopes the walk to one fiscal
+    year (read-time view, VIPER §6.4) exactly as in the full computation.
     """
-    return compute_ranked_backlog(db, config=config)["cutoff"]
+    return compute_ranked_backlog(db, config=config, start_year=start_year)["cutoff"]
 
 
 # ---------------------------------------------------------------------------
@@ -500,10 +563,14 @@ def recompute_within_cutoff_for_backlog(
     Logic:
 
     - For each Approved project at rank N: ``within_cutoff = (cumulative_should_be[N] <= envelope)``.
-    - For each non-Approved backlog project (Proposed, Under Evaluation,
-      Active, Paused): clear ``within_cutoff`` to ``None``. The flag is only
-      meaningful on Approved projects per [A-PS-06]; persisting it elsewhere
-      causes confusion in the UI.
+    - For each non-Approved backlog project (Proposed, Under Evaluation):
+      clear ``within_cutoff`` to ``None``. The flag is only meaningful on
+      Approved projects per [A-PS-06]; persisting it elsewhere causes
+      confusion in the UI.
+
+    Always computed unscoped (whole-portfolio) — the per-request year view
+    (VIPER §4.2 / §6.4) never writes this flag, so ``start_year`` is
+    intentionally not threaded here.
 
     Commits the session before returning. Audit log entries are NOT written
     here because the trigger context is system-driven (no

@@ -59,8 +59,8 @@ def get_portfolio_kpis(
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(get_current_user),
 ):
-    """Get portfolio-level KPI summary (optionally filtered)."""
-    filters = {}
+    """Get portfolio-level KPI summary for the Change Portfolio (VIPER §3.2)."""
+    filters = {"population": "change"}
     if grouping_entity:
         filters["grouping_entity"] = grouping_entity
     elif lob:
@@ -74,8 +74,10 @@ def get_portfolio_kpis(
 
     kpis = compute_portfolio_kpis(db, filters)
 
-    # Build project filter for CapEx/OpEx split
-    proj_filter = [Project.is_active.is_(True)]
+    # Build project filter for CapEx/OpEx split — scoped to the same Change
+    # population so the split matches the headline KPI figures.
+    from services.portfolio_service import change_population_clause
+    proj_filter = [Project.is_active.is_(True), change_population_clause()]
     entity_filter = grouping_entity or lob
     if entity_filter:
         from services.portfolio_service import _get_projects_for_entity_recursive
@@ -147,8 +149,12 @@ def get_portfolio_tree(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Get hierarchical portfolio tree (LoB -> Program -> Project)."""
-    filters = {}
+    """Get the Change Portfolio hierarchical tree (LoB -> Program -> Project).
+
+    Scoped to the Change population (VIPER §3.2): execution + terminal stages,
+    current-year Approved (dual-visible), and mid-execution Paused.
+    """
+    filters = {"population": "change"}
     if grouping_entity:
         filters["grouping_entity"] = grouping_entity
     elif lob:
@@ -233,10 +239,17 @@ def get_dashboard_charts(
     from models.organization import GroupingEntity, GroupingHierarchy, ProjectGroupingAssignment
     from models.people import Person
     from models.capacity import Allocation
-    from services.portfolio_service import _get_projects_for_entity_recursive, get_top_level_entity_type_id
+    from services.portfolio_service import (
+        _get_projects_for_entity_recursive,
+        change_population_clause,
+        get_top_level_entity_type_id,
+    )
 
-    # Build set of project IDs matching all filters
-    pq = db.query(Project.id).filter(Project.is_active.is_(True))
+    # Build set of project IDs matching all filters. Scoped to the Change
+    # population (VIPER §3.2) so the dashboard charts match the KPI tiles.
+    pq = db.query(Project.id).filter(
+        Project.is_active.is_(True), change_population_clause(),
+    )
     entity_filter = grouping_entity or lob
     if entity_filter:
         ge_pids = _get_projects_for_entity_recursive(db, entity_filter)

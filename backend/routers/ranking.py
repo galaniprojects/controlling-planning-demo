@@ -102,6 +102,7 @@ def get_backlog(
     pipeline_stage: list[str] | None = Query(default=None),
     project_type: int | None = Query(default=None),
     tshirt_size: list[str] | None = Query(default=None),
+    start_year: int | None = Query(default=None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -115,11 +116,17 @@ def get_backlog(
     - ``pipeline_stage`` (multi) — narrow the visible stages.
     - ``project_type`` — narrow to one of 1/2/3.
     - ``tshirt_size`` (multi) — narrow to one or more size buckets.
+    - ``start_year`` — scope the ranked pool AND the cutoff walk to projects
+      starting in that fiscal year (VIPER §4.2). Unlike the visibility
+      filters above, this re-scopes the envelope/lines: only projects that
+      begin consuming budget in the selected year compete for it. Read-time
+      only — never writes the persisted ``within_cutoff`` flag (§6.4).
 
-    Filters affect visibility only; cutoff line positions reflect the full
-    portfolio reality per the spec.
+    The ``pipeline_stage`` / ``project_type`` / ``tshirt_size`` filters affect
+    visibility only; cutoff line positions reflect the (optionally
+    year-scoped) portfolio reality per the spec.
     """
-    payload = compute_ranked_backlog(db)
+    payload = compute_ranked_backlog(db, start_year=start_year)
     return _build_response(
         payload,
         pipeline_stage_filter=pipeline_stage,
@@ -134,15 +141,17 @@ def get_backlog(
 
 @router.get("/backlog/cutoff", response_model=CutoffLinesResponse)
 def get_cutoff(
+    start_year: int | None = Query(default=None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
     """Return just the cutoff summary plus active config snapshot.
 
     Cheaper than ``/backlog`` for the launchpad / KPI strip use-case where
-    the full ranked list isn't needed.
+    the full ranked list isn't needed. ``start_year`` scopes the walk to one
+    fiscal year (read-time view, VIPER §6.4), matching ``/backlog``.
     """
-    payload = compute_ranked_backlog(db)
+    payload = compute_ranked_backlog(db, start_year=start_year)
     return CutoffLinesResponse(
         cutoff=CutoffLines(**payload["cutoff"]),
         config=RankingConfigSnapshot(**payload["config"]),

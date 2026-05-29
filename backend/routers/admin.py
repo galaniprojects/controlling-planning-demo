@@ -742,8 +742,9 @@ def get_tech_navigator_scoring_data(
     """Bulk payload for the Tech Navigator Scoring admin page.
 
     Returns the current weights snapshot, the full budget-envelope breakdown,
-    the configured tiebreaker order, and every backlog/operate project
-    that has all six sub-criteria scored. The page recomputes
+    the configured tiebreaker order, and every backlog / execution /
+    terminal-stage project that has all six sub-criteria scored. The page
+    recomputes
     complexity_score, value_creation_score, composite_score, and
     tshirt_size client-side against the live (unsaved) weights so the
     scatter animates as sliders move, without an API round-trip per drag.
@@ -752,7 +753,7 @@ def get_tech_navigator_scoring_data(
     let the client's cutoff walk mirror the backend's
     :func:`compute_ranked_backlog` exactly:
       contestable_envelope =
-          total_available − type3_pre_funded − hyper_maintenance_committed
+          total_available − type3_pre_funded − execution_committed
       walk pool = BACKLOG_STAGES ∩ project_type != 3
       sort = composite_score DESC + configured tiebreakers + project_id
     """
@@ -760,20 +761,23 @@ def get_tech_navigator_scoring_data(
     from services.ranking import (
         load_config,
         compute_pre_funded_total,
-        compute_hyper_maintenance_total,
+        compute_execution_committed_total,
         compute_contestable_envelope,
     )
-    from services.pipeline import BACKLOG_STAGES, OPERATE_STAGES
+    from services.pipeline import BACKLOG_STAGES, EXECUTION_STAGES, TERMINAL_STAGES
 
     weights = load_weights(db)
     ranking_config = load_config(db)
     type3_total = compute_pre_funded_total(db)
-    hyper_maint_total = compute_hyper_maintenance_total(db)
+    execution_committed_total = compute_execution_committed_total(db)
     contestable = compute_contestable_envelope(
-        ranking_config, type3_total, hyper_maint_total,
+        ranking_config, type3_total, execution_committed_total,
     )
 
-    valid_stages = list(BACKLOG_STAGES | OPERATE_STAGES)
+    # Scatter pool mirrors the pre-funded window (VIPER §6.2): backlog +
+    # execution + terminal stages, so every scored project that contributes
+    # to the envelope appears on the admin scoring scatter.
+    valid_stages = list(BACKLOG_STAGES | EXECUTION_STAGES | TERMINAL_STAGES)
     rows = (
         db.query(Project)
         .filter(
@@ -800,7 +804,7 @@ def get_tech_navigator_scoring_data(
         "envelope": {
             "total_available_budget": ranking_config.total_available_budget,
             "type3_pre_funded_total": type3_total,
-            "hyper_maintenance_committed_total": hyper_maint_total,
+            "execution_committed_total": execution_committed_total,
             "contestable_envelope": contestable,
         },
         "tiebreakers": [[f, d] for f, d in ranking_config.tiebreakers],

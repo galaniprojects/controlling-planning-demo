@@ -220,6 +220,97 @@ class TestComputePortfolioKpis:
         assert result["active_project_count"] == 1
 
 
+class TestChangeStatusBadge:
+    """VIPER §3.2 — derived change_status hint per pipeline stage."""
+
+    @pytest.mark.parametrize("stage,expected", [
+        ("Active", "active"),
+        ("Hyper-maintenance", "hyper_maintenance"),
+        ("Completed", "completed"),
+        ("Run entity spawned", "handed_over"),
+        ("Approved", "staged"),
+        ("Paused", "paused"),
+        ("Proposed", None),
+        ("Under Evaluation", None),
+        (None, None),
+    ])
+    def test_change_status_mapping(self, stage, expected):
+        from services.portfolio_service import _change_status
+        p = Project(
+            id="p", name="P", status="active", capex_opex="capex",
+            start_month="2026-01", is_service=False, pipeline_stage=stage,
+        )
+        assert _change_status(p) == expected
+
+    def test_node_carries_change_status(self):
+        p = Project(
+            id="p", name="P", status="active", capex_opex="capex",
+            start_month="2026-01", end_month="2026-12", is_service=False,
+            pipeline_stage="Active",
+        )
+        fins = {k: 0 for k in (
+            "baseline_total", "forecast_total", "actuals_ytd", "plan_drift_pct",
+            "baseline_cy", "forecast_cy", "actuals_cy",
+            "baseline_py", "forecast_py", "actuals_py",
+        )}
+        assert _make_project_node(p, fins)["change_status"] == "active"
+
+
+@patch("services.calendar.DEMO_DATE", "2026-04")
+class TestChangePopulationFilter:
+    """VIPER §3.2 — opt-in Change Portfolio population filter.
+
+    The filter is applied ONLY when ``population == "change"``; the unscoped
+    path (Launchpad / module cards) must keep counting every active project.
+    ``DEMO_DATE`` is patched on ``services.calendar`` (the symbol read by
+    ``current_fiscal_year``) so the current-FY assertion is self-contained.
+    """
+
+    def test_unscoped_counts_all_active(self, db, create_test_project):
+        # Regression guard: no population flag → every stage counts.
+        create_test_project("p-prop", pipeline_stage="Proposed")
+        create_test_project("p-active", pipeline_stage="Active")
+        assert compute_portfolio_kpis(db)["active_project_count"] == 2
+
+    def test_change_excludes_null_stage(self, db, create_test_project):
+        # A stage-less project belongs to no §3.2 population → excluded from
+        # Change, but still counted on the unscoped path.
+        create_test_project("p-null", pipeline_stage=None)
+        create_test_project("p-active", pipeline_stage="Active")
+        assert compute_portfolio_kpis(db)["active_project_count"] == 2
+        change = compute_portfolio_kpis(db, {"population": "change"})
+        assert change["active_project_count"] == 1
+
+    def test_change_excludes_backlog_includes_execution_terminal(self, db, create_test_project):
+        create_test_project("p-prop", pipeline_stage="Proposed")     # backlog → out
+        create_test_project("p-active", pipeline_stage="Active")     # execution → in
+        create_test_project("p-hm", pipeline_stage="Hyper-maintenance")  # execution → in
+        create_test_project("p-done", pipeline_stage="Completed")    # terminal → in
+        create_test_project("p-spawn", pipeline_stage="Run entity spawned")  # terminal → in
+        result = compute_portfolio_kpis(db, {"population": "change"})
+        assert result["active_project_count"] == 4
+
+    def test_change_approved_current_year_dual_visible(self, db, create_test_project):
+        # Approved + current-FY start (2026) is dual-visible → in Change.
+        create_test_project("p-app-cy", pipeline_stage="Approved", start_month="2026-05")
+        # Approved + future-year start → backlog only, excluded from Change.
+        create_test_project("p-app-fy", pipeline_stage="Approved", start_month="2027-05")
+        result = compute_portfolio_kpis(db, {"population": "change"})
+        assert result["active_project_count"] == 1
+
+    def test_change_paused_routed_by_frozen_doi(self, db, create_test_project):
+        # Paused mid-execution (frozen_doi >= 3) stays in Change; a pre-execution
+        # pause (frozen_doi < 3 / NULL) is excluded.
+        mid = create_test_project("p-paused-mid", pipeline_stage="Paused")
+        pre = create_test_project("p-paused-pre", pipeline_stage="Paused")
+        none = create_test_project("p-paused-none", pipeline_stage="Paused")
+        mid.frozen_doi = 4
+        pre.frozen_doi = 1
+        db.commit()
+        result = compute_portfolio_kpis(db, {"population": "change"})
+        assert result["active_project_count"] == 1
+
+
 @patch("services.portfolio_service.DEMO_DATE", "2026-04")
 class TestBuildPortfolioTree:
     def test_flat_without_hierarchy(self, db, create_test_project):
