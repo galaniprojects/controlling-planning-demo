@@ -72,14 +72,15 @@ class TestViperStageSet:
 class TestGroupingConstants:
     """BACKLOG / EXECUTION / TERMINAL / OFF_PATH / OPERATE (alias) membership."""
 
-    def test_backlog_stages_exact(self):
-        assert BACKLOG_STAGES == frozenset({"Proposed", "Under Evaluation", "Approved"})
-
-    def test_backlog_excludes_active(self):
-        assert "Active" not in BACKLOG_STAGES
-
-    def test_backlog_excludes_paused(self):
-        assert "Paused" not in BACKLOG_STAGES
+    # VIPER Wave 1 is foundation-only: the BACKLOG_STAGES shrink (drop Active +
+    # Paused) and the OPERATE_STAGES narrowing are DEFERRED to Wave 2 alongside
+    # the cutoff-math revision, so ranking behaviour is unchanged this wave
+    # (session decision 2026-05-29). These assertions pin the pre-VIPER values;
+    # Wave 2 will flip them to the shrunk sets.
+    def test_backlog_stages_pre_viper_value_until_wave2(self):
+        assert BACKLOG_STAGES == frozenset(
+            {"Proposed", "Under Evaluation", "Approved", "Active", "Paused"}
+        )
 
     def test_execution_stages_exact(self):
         assert EXECUTION_STAGES == frozenset({"Active", "Hyper-maintenance"})
@@ -90,27 +91,29 @@ class TestGroupingConstants:
     def test_off_path_stages_exact(self):
         assert OFF_PATH_STAGES == frozenset({"Paused", "Cancelled"})
 
-    # OPERATE_STAGES transitional alias — must equal frozenset({"Hyper-maintenance"})
-    # until Wave 2 re-points ranking.py / admin.py callers.
-    def test_operate_stages_transitional_alias(self):
-        assert OPERATE_STAGES == frozenset({"Hyper-maintenance"})
+    # OPERATE_STAGES keeps its pre-VIPER membership (incl. the now-retired
+    # "Operate"/"Retired" strings) so ranking.py / admin.py behave identically
+    # this wave. Wave 2 narrows it to EXECUTION_STAGES and re-points the callers.
+    def test_operate_stages_pre_viper_value_until_wave2(self):
+        assert OPERATE_STAGES == frozenset({"Hyper-maintenance", "Operate", "Retired"})
 
-    def test_four_groups_are_subsets_of_stages(self):
+    def test_real_groups_are_subsets_of_stages(self):
         stage_set = set(STAGES)
         assert BACKLOG_STAGES.issubset(stage_set)
         assert EXECUTION_STAGES.issubset(stage_set)
         assert TERMINAL_STAGES.issubset(stage_set)
         assert OFF_PATH_STAGES.issubset(stage_set)
-        assert OPERATE_STAGES.issubset(stage_set)
 
-    def test_groups_are_pairwise_disjoint(self):
-        """Named on-path groups must not overlap each other."""
-        groups = [BACKLOG_STAGES, EXECUTION_STAGES, TERMINAL_STAGES]
-        for i, a in enumerate(groups):
-            for b in groups[i + 1:]:
-                assert a.isdisjoint(b), (
-                    f"Groups overlap: {a & b}"
-                )
+    def test_operate_stages_retains_retired_strings_not_in_stages(self):
+        # Documents the intentional transitional state: "Operate"/"Retired" are
+        # removed from STAGES (VIPER §2.3) but retained in the OPERATE_STAGES
+        # grouping until Wave 2 narrows it. No live project carries them.
+        assert OPERATE_STAGES - set(STAGES) == frozenset({"Operate", "Retired"})
+
+    def test_execution_and_terminal_are_disjoint(self):
+        # The stable invariant. BACKLOG intentionally overlaps EXECUTION on
+        # "Active" until the Wave 2 shrink, so it is excluded from this check.
+        assert EXECUTION_STAGES.isdisjoint(TERMINAL_STAGES)
 
 
 # ---------------------------------------------------------------------------

@@ -487,7 +487,11 @@ class TestIsChangeOrRunDerivation:
         db.commit()
         assert ce.is_change_or_run == "Change"
 
-    def test_project_in_doi_5_is_run(self, db, seed_org_base):
+    def test_project_at_doi_5_is_change(self, db, seed_org_base):
+        # VIPER §5: classification is purely entity_type-based. A Project is
+        # always "Change" regardless of DoI — DoI 5 no longer reclassifies to Run
+        # (a finished project hands off to a separate Run entity; the project
+        # record itself never becomes Run).
         p = Project(
             id="proj-r", name="R", status="active", capex_opex="opex",
             start_month="2025-01", doi=5,
@@ -500,9 +504,10 @@ class TestIsChangeOrRunDerivation:
         )
         db.add(ce)
         db.commit()
-        assert ce.is_change_or_run == "Run"
+        assert ce.is_change_or_run == "Change"
 
-    def test_project_with_null_doi_is_run_fallback(self, db, seed_org_base):
+    def test_project_with_null_doi_is_change(self, db, seed_org_base):
+        # VIPER §5: a Project with no DoI is still "Change" (entity_type rule).
         p = Project(
             id="proj-n", name="N", status="active", capex_opex="opex",
             start_month="2025-01",
@@ -515,4 +520,4 @@ class TestIsChangeOrRunDerivation:
         )
         db.add(ce)
         db.commit()
-        assert ce.is_change_or_run == "Run"
+        assert ce.is_change_or_run == "Change"

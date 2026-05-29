@@ -54,10 +54,14 @@ STAGES: tuple[str, ...] = (
     "Cancelled",
 )
 
-# Stages whose projects appear in the ranked backlog — pre-execution only
-# (VIPER §2.5 / §3.3). Shrunk from 5 → 3: Active and Paused removed.
+# Stages whose projects appear in the ranked backlog.
+# VIPER NOTE (Wave 1 = foundation only): the spec (§2.5 / §3.3) shrinks this to
+# {Proposed, Under Evaluation, Approved} by removing Active and Paused. That
+# shrink is DEFERRED to Wave 2, which revises the cutoff math and updates the
+# ranking tests atomically (per session decision 2026-05-29). Wave 1 leaves the
+# membership at its pre-VIPER value so ranking behaviour is unchanged this wave.
 BACKLOG_STAGES: frozenset[str] = frozenset({
-    "Proposed", "Under Evaluation", "Approved",
+    "Proposed", "Under Evaluation", "Approved", "Active", "Paused",
 })
 
 # Stages where projects are actively executing and consuming project budget
@@ -78,10 +82,19 @@ TERMINAL_STAGES: frozenset[str] = frozenset({
 # to the DoI held when the project left the main path [A-PS-03] [A-PS-10].
 OFF_PATH_STAGES: frozenset[str] = frozenset({"Paused", "Cancelled"})
 
-# DEPRECATED transitional alias — ranking.py/admin.py still import this;
-# removed in Wave 2 when those are re-pointed to EXECUTION_STAGES.
-# Do not add new references.
-OPERATE_STAGES: frozenset[str] = frozenset({"Hyper-maintenance"})
+# TRANSITIONAL grouping consumed by ranking.py / admin.py for the in-execution
+# committed-budget deduction. VIPER retires "Operate"/"Retired" as project
+# stages (removed from STAGES above), but the membership shrink of this grouping
+# — and the re-point of its consumers to EXECUTION_STAGES — is DEFERRED to Wave 2
+# along with the cutoff-math revision (per session decision 2026-05-29). Wave 1
+# keeps the pre-VIPER membership so ranking behaviour is byte-for-byte unchanged.
+# The retired stage strings are retained here intentionally (they no longer
+# appear in STAGES and no live project carries them post-seed-migration); Wave 2
+# narrows this to EXECUTION_STAGES and updates the ranking tests. Do not add new
+# references.
+OPERATE_STAGES: frozenset[str] = frozenset({
+    "Hyper-maintenance", "Operate", "Retired",
+})
 
 
 # ---------------------------------------------------------------------------
