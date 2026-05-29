@@ -279,12 +279,13 @@ class TechNavigatorScoringEnvelope(BaseModel):
     contestable_envelope is what the should-be / reality walks compare
     cumulative budget against, NOT total_available_budget directly. The
     backend computes it as total_available − type3_pre_funded
-    − hyper_maintenance_committed, clamped to a non-negative floor.
+    − execution_committed (Active + Hyper-maintenance), clamped to a
+    non-negative floor (VIPER §6.2).
     """
 
     total_available_budget: float
     type3_pre_funded_total: float
-    hyper_maintenance_committed_total: float
+    execution_committed_total: float
     contestable_envelope: float
 
 
