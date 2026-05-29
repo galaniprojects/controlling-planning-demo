@@ -3,5 +3,5 @@ export const BRANDING = {
   // VIPER is not an acronym and has no expansion.
   appFullName: "IT Financial Planning Platform",
   csvExportPrefix: "VIPER",
-  localStoragePrefix: "creta",
+  localStoragePrefix: "viper",
 } as const;

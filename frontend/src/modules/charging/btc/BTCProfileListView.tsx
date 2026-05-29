@@ -7,6 +7,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { BRANDING } from '@/config/branding';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -490,8 +491,8 @@ function SapExportDialog({ open, defaultYear, onClose }: SapExportDialogProps) {
       a.href = url;
       a.download =
         entityType === 'all'
-          ? `creta-sap-export-${year}.csv`
-          : `creta-sap-export-${year}-${entityType.toLowerCase()}.csv`;
+          ? `${BRANDING.csvExportPrefix}-sap-export-${year}.csv`
+          : `${BRANDING.csvExportPrefix}-sap-export-${year}-${entityType.toLowerCase()}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

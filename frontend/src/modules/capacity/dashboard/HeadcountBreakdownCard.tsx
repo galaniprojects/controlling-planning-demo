@@ -47,7 +47,7 @@ import type { HeadcountBreakdownSegment } from '@/types/api';
 // Constants
 // ---------------------------------------------------------------------------
 
-const LS_KEY = 'creta_capacity_headcount_dimension';
+const LS_KEY = 'viper_capacity_headcount_dimension';
 
 type Dimension = 'location' | 'hierarchy' | 'role' | 'cost_center';
 

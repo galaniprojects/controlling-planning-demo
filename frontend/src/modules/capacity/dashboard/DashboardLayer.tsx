@@ -31,7 +31,7 @@ import { HotspotListCard } from './HotspotListCard';
 // Constants
 // ---------------------------------------------------------------------------
 
-const LS_COLLAPSE_KEY = 'creta_capacity_dashboard_collapsed';
+const LS_COLLAPSE_KEY = 'viper_capacity_dashboard_collapsed';
 
 /**
  * Roles that are permitted to see the dashboard layer.

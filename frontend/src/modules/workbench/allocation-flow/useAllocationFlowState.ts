@@ -12,7 +12,7 @@
  */
 import { useEffect, useReducer } from 'react';
 
-export const LEGEND_STORAGE_KEY = 'creta:allocFlow:legendOpen';
+export const LEGEND_STORAGE_KEY = 'viper:allocFlow:legendOpen';
 
 /** Reasonable upper bound — `buildLayout` further caps at MAX_LAYOUT_DEPTH. */
 const SHOW_FULL_CHAIN_DEPTH = 99;
