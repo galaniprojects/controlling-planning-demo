@@ -22,8 +22,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from config import DEMO_DATE
 from database import get_db
 from dependencies import get_current_user
+from models.charging import ChargeableEntity
 from models.projects import Project
 from routers.admin import _log_audit
 from schemas.common import CurrentUser
@@ -202,6 +204,52 @@ def transition_pipeline(
     if not ok:
         raise HTTPException(status_code=409, detail=edge_err)
 
+    # 1b. Run-entity-link invariant (VIPER §2.4 / Wave 3). A move to the
+    #     terminal "Run entity spawned" stage must name the ChargeableEntity
+    #     the project hands off to. The entity must exist and be an Offering or
+    #     InternalService — handing a project off to another Project is not a
+    #     spawn. Enforced here, after the structural edge check, so the 409s
+    #     mirror the style of the DoI-gate detail dict below.
+    #     Note: a spawn with no explicit target_doi resolves to DoI 5 (step 2),
+    #     so it is also subject to the existing DoI-5 gate (requires end_month).
+    #     There is no UI wiring run_entity_id today — this path is API/seed-only
+    #     until a spawn UI lands in a later wave.
+    run_entity: ChargeableEntity | None = None
+    if body.target_stage == "Run entity spawned":
+        if not body.run_entity_id:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "run_entity_required",
+                    "detail": (
+                        "Transitioning to 'Run entity spawned' requires "
+                        "run_entity_id naming the Offering or InternalService "
+                        "the project hands off to."
+                    ),
+                },
+            )
+        run_entity = (
+            db.query(ChargeableEntity)
+            .filter(ChargeableEntity.id == body.run_entity_id)
+            .first()
+        )
+        if run_entity is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Run entity not found: {body.run_entity_id}",
+            )
+        if run_entity.entity_type == "Project":
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "invalid_run_entity",
+                    "detail": (
+                        "run_entity_id must reference an Offering or "
+                        "InternalService, not a Project."
+                    ),
+                },
+            )
+
     # 2. Resolve target DoI: explicit value, restored from frozen_doi when
     #    leaving an off-path stage, or default for the target stage.
     leaving_off_path = (
@@ -243,8 +291,15 @@ def transition_pipeline(
     old_stage = project.pipeline_stage
     old_doi = project.doi
     old_frozen = project.frozen_doi
+    old_run_entity_id = project.run_entity_id
 
     project.pipeline_stage = body.target_stage
+
+    # Run-entity-link: only the spawn transition stamps the link + handover
+    # month. No other target stage touches these fields (per requirement 5).
+    if body.target_stage == "Run entity spawned":
+        project.run_entity_id = body.run_entity_id
+        project.handover_month = DEMO_DATE[:7]
 
     if body.target_stage in OFF_PATH_STAGES:
         # Freeze the live DoI before clearing it.
@@ -290,6 +345,25 @@ def transition_pipeline(
             field_changed="frozen_doi",
             old_value=str(old_frozen) if old_frozen is not None else None,
             new_value=str(project.frozen_doi) if project.frozen_doi is not None else None,
+            category="pipeline_transitions",
+        )
+    if old_run_entity_id != project.run_entity_id:
+        _log_audit(
+            db, user,
+            entity_type="pipeline",
+            entity_id=project.id,
+            entity_name=project.name,
+            action="update",
+            field_changed="run_entity_id",
+            old_value=str(old_run_entity_id) if old_run_entity_id is not None else None,
+            # Enrich with the resolved entity name (in scope from the validation
+            # block) so the audit trail is readable without a join. Old value
+            # stays the bare prior id — no cheap name lookup for it.
+            new_value=(
+                f"{project.run_entity_id} ({run_entity.name})"
+                if project.run_entity_id is not None and run_entity is not None
+                else (str(project.run_entity_id) if project.run_entity_id is not None else None)
+            ),
             category="pipeline_transitions",
         )
 
