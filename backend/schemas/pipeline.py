@@ -46,11 +46,17 @@ class StageTransitionRequest(BaseModel):
     ``target_doi`` is optional — when omitted the service applies the default
     DoI for the target stage. ``override_reason`` is required when crossing a
     failed DoI gate or leaving Cancelled per [A-PS-10] / [A-BK-30].
+
+    ``run_entity_id`` is the id of the ChargeableEntity (an Offering or
+    InternalService) the project is handed off to. It is required only when
+    ``target_stage == "Run entity spawned"`` and ignored for every other
+    transition per VIPER §2.4 (Wave 3 Run-entity-link invariant).
     """
 
     target_stage: str
     target_doi: Optional[int] = Field(default=None, ge=0, le=5)
     override_reason: Optional[str] = None
+    run_entity_id: Optional[str] = None
 
 
 class AICouncilUpdate(BaseModel):

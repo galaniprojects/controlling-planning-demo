@@ -80,6 +80,11 @@ class Project(Base):
         ),
         nullable=True,
     )
+    # VIPER §7 (Wave 3) — month (YYYY-MM) the project was handed over to its Run
+    # entity, set when the transition to 'Run entity spawned' is applied
+    # (router-side). Drives handover_year and cumulative-since-handover in the
+    # project-summary payload. Null until handover.
+    handover_month: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
 
     # v5 Session E1 progress tracker [E-04c]. Milestone-anchored qualitative
     # progress with optional deliverable checklist enrichment. All fields

@@ -42,6 +42,14 @@ class BudgetSnapshot(BaseModel):
     plan_drift_pct: float
 
 
+class RunEntityBlock(BaseModel):
+    # VIPER §7 — the Offering/InternalService a handed-over project now feeds.
+    id: str
+    name: str
+    identifier: str
+    annual_cost: float | None
+
+
 class ProjectSummary(BaseModel):
     id: str
     name: str
@@ -50,6 +58,11 @@ class ProjectSummary(BaseModel):
     timeline: TimelineInfo | None
     last_cr_summary: str | None
     forecast_sparkline: list[dict]
+    # VIPER §7 (Wave 3) — populated only when the project has been handed over to
+    # a Run entity (pipeline_stage 'Run entity spawned' with run_entity_id set).
+    run_entity: RunEntityBlock | None = None
+    cumulative_since_handover: float | None = None
+    handover_year: int | None = None
 
 
 # --- Intake Queue ---
