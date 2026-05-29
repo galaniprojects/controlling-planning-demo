@@ -260,11 +260,13 @@ def create_test_project(db, seed_org_base):
         forecast_amt: float = 1100.0,
         actuals_amt: float | None = None,
         pl_person_id: str | None = None,
+        pipeline_stage: str | None = None,
     ):
         proj = Project(
             id=project_id, name=name, status=status,
             capex_opex=capex_opex, start_month=start_month,
             end_month=end_month, pl_person_id=pl_person_id,
+            pipeline_stage=pipeline_stage,
         )
         db.add(proj)
         db.flush()

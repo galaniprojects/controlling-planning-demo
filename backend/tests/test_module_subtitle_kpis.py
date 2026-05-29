@@ -246,6 +246,16 @@ class TestPortfolioCanary:
         )
         assert re.match(pattern, kpis[0]), f"Portfolio format mismatch: {kpis[0]}"
 
+    def test_launchpad_portfolio_summary_stays_unscoped(self, test_client, seed_launchpad_data):
+        # VIPER §3.2 regression guard at the call site: the launchpad summary
+        # calls compute_portfolio_kpis with NO population filter, so it must
+        # still count every active project — including the two backlog-stage
+        # ones (Proposed + Under Evaluation) that the Change filter would drop.
+        # The fixture seeds 4 active projects (2 Active, 1 Proposed, 1 Under Eval).
+        resp = test_client.get("/api/kpis/portfolio-summary", headers=HEADERS_CTRL)
+        assert resp.status_code == 200
+        assert resp.json()["active_project_count"] == 4
+
 
 # ---------------------------------------------------------------------------
 # Controller

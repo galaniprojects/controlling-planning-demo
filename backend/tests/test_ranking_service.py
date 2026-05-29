@@ -5,10 +5,11 @@ Covers:
 - Tie-breaker string parser
 - RankingConfig load/defaults
 - Pre-funded (Type 3) deduction
-- Hyper-maintenance committed deduction
+- Execution-committed deduction (Active + Hyper-maintenance, VIPER §6.2)
 - Contestable envelope math
 - Ranked backlog ordering (composite, tie-breakers, missing values)
 - Cutoff line positions (should-be / reality / misalignment)
+- start_year scoping (VIPER §4.2 / §6.4)
 - recompute_within_cutoff_for_backlog flag updates
 - parameter_key_triggers_recompute mapping
 """
@@ -30,7 +31,7 @@ from services.ranking import (
     _project_walk_budget,
     compute_contestable_envelope,
     compute_cutoff_lines,
-    compute_hyper_maintenance_total,
+    compute_execution_committed_total,
     compute_pre_funded_total,
     compute_ranked_backlog,
     load_config,
@@ -59,6 +60,8 @@ def _make_project(
     tshirt_size: str | None = None,
     complexity_score: float | None = None,
     value_creation_score: float | None = None,
+    start_month: str = "2026-01",
+    frozen_doi: int | None = None,
 ) -> Project:
     """Insert a Project row with v5 columns populated for ranking tests."""
     proj = Project(
@@ -66,7 +69,7 @@ def _make_project(
         name=name,
         status="active",
         capex_opex="capex",
-        start_month="2026-01",
+        start_month=start_month,
         end_month="2026-12",
         is_service=False,
         is_active=is_active,
@@ -75,6 +78,7 @@ def _make_project(
         project_type=project_type,
         total_budget=total_budget,
         within_cutoff=within_cutoff,
+        frozen_doi=frozen_doi,
         composite_score=composite_score,
         complexity_score=complexity_score,
         value_creation_score=value_creation_score,
@@ -181,14 +185,16 @@ class TestLoadConfig:
 # ---------------------------------------------------------------------------
 
 class TestPreFundedTotal:
-    def test_only_type_3_in_backlog_or_operate_counted(self, db):
+    def test_type_3_in_funded_stages_counted(self, db):
+        # VIPER §6.2: Type 3 stays funded across backlog + execution + terminal
+        # stages (Operate/Retired are gone). Proposed + Active + Completed count.
         _make_project(db, project_id="t3-prop", project_type=3,
                       pipeline_stage="Proposed", total_budget=100_000)
         _make_project(db, project_id="t3-act", project_type=3,
                       pipeline_stage="Active", total_budget=200_000)
-        _make_project(db, project_id="t3-op", project_type=3,
-                      pipeline_stage="Operate", total_budget=300_000)
-        # Excluded: not in BACKLOG/OPERATE
+        _make_project(db, project_id="t3-done", project_type=3,
+                      pipeline_stage="Completed", total_budget=300_000)
+        # Excluded: off-path
         _make_project(db, project_id="t3-cancel", project_type=3,
                       pipeline_stage="Cancelled", total_budget=999_000)
         # Excluded: not Type 3
@@ -210,35 +216,45 @@ class TestPreFundedTotal:
         assert compute_pre_funded_total(db) == 0.0
 
 
-class TestHyperMaintenanceTotal:
-    def test_operate_stages_summed(self, db):
-        _make_project(db, project_id="hm-1", pipeline_stage="Hyper-maintenance",
+class TestExecutionCommittedTotal:
+    def test_execution_stages_summed(self, db):
+        # VIPER §6.2: deduction now spans EXECUTION_STAGES (Active +
+        # Hyper-maintenance). Operate/Retired no longer exist; terminal and
+        # backlog stages contribute nothing.
+        _make_project(db, project_id="ex-act", pipeline_stage="Active",
                       total_budget=50_000)
-        _make_project(db, project_id="hm-2", pipeline_stage="Operate",
+        _make_project(db, project_id="ex-hm", pipeline_stage="Hyper-maintenance",
                       total_budget=70_000)
-        _make_project(db, project_id="hm-3", pipeline_stage="Retired",
+        # Excluded: terminal — cost lives on the spawned Run entity.
+        _make_project(db, project_id="ex-done", pipeline_stage="Completed",
                       total_budget=30_000)
-        # Excluded: in BACKLOG_STAGES
-        _make_project(db, project_id="bl-1", pipeline_stage="Active",
+        _make_project(db, project_id="ex-spawned", pipeline_stage="Run entity spawned",
+                      total_budget=30_000)
+        # Excluded: in BACKLOG_STAGES.
+        _make_project(db, project_id="bl-1", pipeline_stage="Approved",
                       total_budget=999_000)
 
-        assert compute_hyper_maintenance_total(db) == 150_000.0
+        assert compute_execution_committed_total(db) == 120_000.0
 
     def test_inactive_excluded(self, db):
-        _make_project(db, project_id="hm-x", pipeline_stage="Hyper-maintenance",
+        _make_project(db, project_id="ex-x", pipeline_stage="Hyper-maintenance",
                       total_budget=100_000, is_active=False)
-        assert compute_hyper_maintenance_total(db) == 0.0
+        assert compute_execution_committed_total(db) == 0.0
 
 
 class TestContestableEnvelope:
     def test_subtracts_both_deductions(self):
         cfg = RankingConfig(total_available_budget=1_000_000.0)
-        result = compute_contestable_envelope(cfg, type3_total=200_000, hyper_maint_total=100_000)
+        result = compute_contestable_envelope(
+            cfg, type3_total=200_000, execution_committed_total=100_000,
+        )
         assert result == 700_000.0
 
     def test_clamped_at_zero(self):
         cfg = RankingConfig(total_available_budget=100.0)
-        result = compute_contestable_envelope(cfg, type3_total=500.0, hyper_maint_total=500.0)
+        result = compute_contestable_envelope(
+            cfg, type3_total=500.0, execution_committed_total=500.0,
+        )
         assert result == 0.0
 
 
@@ -287,11 +303,15 @@ class TestComputeRankedBacklog:
         assert "p-t3" in pre_ids
 
     def test_non_backlog_stages_excluded(self, db):
+        # VIPER §3.3: only Proposed / Under Evaluation / Approved compete.
+        # Execution + terminal + off-path stages all drop out.
         _make_project(db, project_id="p-prop", pipeline_stage="Proposed",
                       composite_score=4.0, doi=0, total_budget=100)
-        _make_project(db, project_id="p-op", pipeline_stage="Operate",
+        _make_project(db, project_id="p-act", pipeline_stage="Active",
+                      composite_score=5.0, doi=3, total_budget=100)
+        _make_project(db, project_id="p-done", pipeline_stage="Completed",
                       composite_score=5.0, doi=5, total_budget=100)
-        _make_project(db, project_id="p-ret", pipeline_stage="Retired",
+        _make_project(db, project_id="p-spawned", pipeline_stage="Run entity spawned",
                       composite_score=5.0, doi=5, total_budget=100)
         _make_project(db, project_id="p-cancel", pipeline_stage="Cancelled",
                       composite_score=5.0, doi=None, total_budget=100)
@@ -315,16 +335,20 @@ class TestComputeRankedBacklog:
         ids = [item["project_id"] for item in result["items"]]
         assert ids == ["p-scored", "p-unscored"]
 
-    def test_paused_project_keeps_ranked_position(self, db):
-        # Per [A-BK-04] paused projects retain their score-based ranking
-        # rather than dropping to the bottom.
-        _make_project(db, project_id="p-low", composite_score=2.0,
-                      doi=2, total_budget=100, pipeline_stage="Active")
-        _make_project(db, project_id="p-paused-high", composite_score=4.5,
-                      doi=None, total_budget=100, pipeline_stage="Paused")
+    def test_active_and_paused_excluded_from_backlog(self, db):
+        # VIPER §3.3: once a project goes Active it leaves the Backlog, and
+        # Paused is excluded regardless (a mid-execution pause belongs in the
+        # Change Portfolio). Only the Approved project competes.
+        _make_project(db, project_id="p-approved", composite_score=3.0,
+                      doi=3, total_budget=100, pipeline_stage="Approved")
+        _make_project(db, project_id="p-active", composite_score=5.0,
+                      doi=3, total_budget=100, pipeline_stage="Active")
+        _make_project(db, project_id="p-paused", composite_score=4.5,
+                      doi=None, total_budget=100, pipeline_stage="Paused",
+                      frozen_doi=4)
         result = compute_ranked_backlog(db)
         ids = [item["project_id"] for item in result["items"]]
-        assert ids == ["p-paused-high", "p-low"]
+        assert ids == ["p-approved"]
 
 
 # ---------------------------------------------------------------------------
@@ -372,13 +396,14 @@ class TestCutoffLines:
         assert cutoff["contestable_envelope"] == 1_000_000.0
 
     def test_reality_walk_only_counts_committed(self, db):
-        # Envelope = 500. Three projects of 300, 300, 300.
-        # Should-be: rank 1 (300), rank 2 (600 > 500) → cutoff at rank 2.
-        # Reality: only Active (rank 1) is committed; the two Approved
-        # without within_cutoff don't add. Reality never exceeds 500.
+        # VIPER §6.3: Active has left the pool; reality counts only Approved
+        # with within_cutoff == True. Envelope = 500, three Approved of 300.
+        # Should-be: 300 (r1), 600 (r2 > 500) → cutoff rank 2.
+        # Reality: only the committed one (r1) adds; the other two contribute
+        # 0 → cum 300 ≤ 500 → never exceeds.
         self._seed_envelope(db, 500.0)
-        _make_project(db, project_id="p-act", composite_score=5.0, doi=3,
-                      total_budget=300, pipeline_stage="Active")
+        _make_project(db, project_id="p-app-comm", composite_score=5.0, doi=3,
+                      total_budget=300, pipeline_stage="Approved", within_cutoff=True)
         _make_project(db, project_id="p-app-uncomm", composite_score=4.0, doi=3,
                       total_budget=300, pipeline_stage="Approved", within_cutoff=False)
         _make_project(db, project_id="p-app-uncomm-2", composite_score=3.0, doi=3,
@@ -389,9 +414,10 @@ class TestCutoffLines:
         assert cutoff["reality_cutoff_rank"] is None  # Reality cum = 300 ≤ 500.
 
     def test_misalignment_zone_bounds(self, db):
+        # Envelope = 600. Three Approved of 300; two committed, one not.
         self._seed_envelope(db, 600.0)
         _make_project(db, project_id="p1", composite_score=5.0, doi=3,
-                      total_budget=300, pipeline_stage="Active")
+                      total_budget=300, pipeline_stage="Approved", within_cutoff=True)
         _make_project(db, project_id="p2", composite_score=4.0, doi=3,
                       total_budget=300, pipeline_stage="Approved", within_cutoff=True)
         _make_project(db, project_id="p3", composite_score=3.0, doi=3,
@@ -405,24 +431,20 @@ class TestCutoffLines:
         assert cutoff["misalignment_zone_start"] is None
 
     def test_misalignment_zone_when_both_present(self, db):
-        # Envelope = 250. Five projects, each 100.
-        # Should-be cumulative: 100, 200, 300, 400, 500 → cutoff rank 3.
-        # Reality cumulative (only first two committed):
-        #   100, 200, 200, 200, 200 → never exceeds 250 → cutoff None.
-        # That's still a one-sided case. Let's commit three of them so reality > envelope at rank 3.
+        # Envelope = 250. Four Approved of 100; first three committed.
+        # Should-be: 100, 200, 300, 400 → cutoff at rank 3.
+        # Reality:   100, 200, 300, 300 → cutoff at rank 3 (300 > 250).
         self._seed_envelope(db, 250.0)
         _make_project(db, project_id="p1", composite_score=5.0, doi=3,
-                      total_budget=100, pipeline_stage="Active")
+                      total_budget=100, pipeline_stage="Approved", within_cutoff=True)
         _make_project(db, project_id="p2", composite_score=4.0, doi=3,
-                      total_budget=100, pipeline_stage="Active")
+                      total_budget=100, pipeline_stage="Approved", within_cutoff=True)
         _make_project(db, project_id="p3", composite_score=3.0, doi=3,
-                      total_budget=100, pipeline_stage="Active")
+                      total_budget=100, pipeline_stage="Approved", within_cutoff=True)
         _make_project(db, project_id="p4", composite_score=2.0, doi=3,
                       total_budget=100, pipeline_stage="Approved", within_cutoff=False)
 
         cutoff = compute_cutoff_lines(db)
-        # Should-be: 100, 200, 300, 400 → cutoff at rank 3.
-        # Reality:   100, 200, 300, 300 → cutoff at rank 3.
         assert cutoff["should_be_cutoff_rank"] == 3
         assert cutoff["reality_cutoff_rank"] == 3
         assert cutoff["misalignment_zone_start"] == 3
@@ -445,15 +467,95 @@ class TestCutoffLines:
         # Should-be: rank 1 = 400 (fits), rank 2 = 800 > 600 → cutoff rank 2.
         assert cutoff["should_be_cutoff_rank"] == 2
 
-    def test_hyper_maintenance_deducted_off_top(self, db):
+    def test_execution_committed_deducted_off_top(self, db):
+        # VIPER §6.2: both Active and Hyper-maintenance now deduct off the top.
         self._seed_envelope(db, 1000.0)
         _make_project(db, project_id="hm", pipeline_stage="Hyper-maintenance",
-                      total_budget=300)
+                      total_budget=200)
+        _make_project(db, project_id="act", pipeline_stage="Active",
+                      total_budget=100)
         _make_project(db, project_id="p-1", composite_score=4.0, doi=3,
                       total_budget=400, pipeline_stage="Approved")
         cutoff = compute_cutoff_lines(db)
-        assert cutoff["hyper_maintenance_committed_total"] == 300.0
+        assert cutoff["execution_committed_total"] == 300.0
         assert cutoff["contestable_envelope"] == 700.0
+
+
+# ---------------------------------------------------------------------------
+# start_year scoping (VIPER §4.2 / §6.4)
+# ---------------------------------------------------------------------------
+
+class TestStartYearScoping:
+    def _seed_envelope(self, db, value: float):
+        db.add(PlanningParameter(
+            key="ranking_total_available_budget",
+            name="x", current_value=str(int(value)),
+            default_value=str(int(value)), data_type="integer", param_group="ranking",
+        ))
+        db.commit()
+
+    def test_pool_scoped_to_start_year(self, db):
+        # Two competing Approved projects starting in different years.
+        _make_project(db, project_id="p-2026", composite_score=5.0, doi=3,
+                      total_budget=100, pipeline_stage="Approved",
+                      start_month="2026-03")
+        _make_project(db, project_id="p-2027", composite_score=4.0, doi=3,
+                      total_budget=100, pipeline_stage="Approved",
+                      start_month="2027-01")
+
+        all_ids = [i["project_id"] for i in compute_ranked_backlog(db)["items"]]
+        assert set(all_ids) == {"p-2026", "p-2027"}
+
+        scoped = compute_ranked_backlog(db, start_year=2026)
+        assert [i["project_id"] for i in scoped["items"]] == ["p-2026"]
+
+    def test_deductions_scoped_to_start_year(self, db):
+        # Type-3 pre-funded and execution-committed deductions are scoped too.
+        self._seed_envelope(db, 1000.0)
+        _make_project(db, project_id="t3-2026", project_type=3,
+                      pipeline_stage="Approved", total_budget=200,
+                      start_month="2026-05")
+        _make_project(db, project_id="t3-2027", project_type=3,
+                      pipeline_stage="Approved", total_budget=999,
+                      start_month="2027-05")
+        _make_project(db, project_id="ex-2026", pipeline_stage="Active",
+                      total_budget=100, start_month="2026-02")
+        _make_project(db, project_id="ex-2027", pipeline_stage="Active",
+                      total_budget=999, start_month="2027-02")
+
+        cutoff = compute_ranked_backlog(db, start_year=2026)["cutoff"]
+        assert cutoff["type3_pre_funded_total"] == 200.0
+        assert cutoff["execution_committed_total"] == 100.0
+        # 1000 − 200 − 100 = 700; the 2027 rows are excluded from the view.
+        assert cutoff["contestable_envelope"] == 700.0
+
+    def test_matches_start_year_handles_null_start_month(self):
+        # A transient/unsaved project with no start_month must not crash the
+        # year-scoped walk — it degrades to "excluded" rather than raising.
+        from services.ranking import _matches_start_year
+        stub = type("P", (), {"start_month": None})()
+        assert _matches_start_year(stub, None) is True       # no filter → kept
+        assert _matches_start_year(stub, 2026) is False       # scoped → excluded, no raise
+
+    def test_year_filter_does_not_mutate_within_cutoff(self, db):
+        # §6.4: the persisted flag is recomputed UNSCOPED; a scoped read must
+        # never write it. Recompute (whole-portfolio), then a year-scoped read,
+        # then assert the flags are untouched.
+        self._seed_envelope(db, 500.0)
+        a = _make_project(db, project_id="p-a", composite_score=5.0, doi=3,
+                          total_budget=300, pipeline_stage="Approved",
+                          start_month="2026-01")
+        b = _make_project(db, project_id="p-b", composite_score=4.0, doi=3,
+                          total_budget=300, pipeline_stage="Approved",
+                          start_month="2027-01")
+        recompute_within_cutoff_for_backlog(db)
+        db.refresh(a); db.refresh(b)
+        before = (a.within_cutoff, b.within_cutoff)
+
+        # A scoped read of a different year must not change the stored flags.
+        compute_ranked_backlog(db, start_year=2027)
+        db.refresh(a); db.refresh(b)
+        assert (a.within_cutoff, b.within_cutoff) == before
 
 
 # ---------------------------------------------------------------------------
@@ -469,7 +571,11 @@ class TestRecomputeWithinCutoff:
         ))
         db.commit()
 
-    def test_only_approved_projects_get_flag_set(self, db):
+    def test_only_approved_backlog_projects_in_scope(self, db):
+        # VIPER §3.3: Active has left the Backlog, so the recompute (which
+        # walks BACKLOG_STAGES only) never touches it — its flag is left as-is.
+        # Approved gets a fresh flag; the non-Approved backlog stage (Proposed)
+        # is cleared to None.
         self._seed_envelope(db, 1000.0)
         approved = _make_project(db, project_id="p-app",
                                  pipeline_stage="Approved",
@@ -477,7 +583,7 @@ class TestRecomputeWithinCutoff:
         active = _make_project(db, project_id="p-act",
                                pipeline_stage="Active",
                                composite_score=3.0, doi=3, total_budget=400,
-                               within_cutoff=True)  # stale value to be cleared
+                               within_cutoff=True)  # out of backlog scope now
         proposed = _make_project(db, project_id="p-prop",
                                  pipeline_stage="Proposed",
                                  composite_score=2.0, doi=0, total_budget=400)
@@ -487,10 +593,11 @@ class TestRecomputeWithinCutoff:
         db.refresh(active)
         db.refresh(proposed)
 
-        assert approved.within_cutoff is True  # cumulative 400 ≤ 1000
-        assert active.within_cutoff is None    # non-Approved → cleared
-        assert proposed.within_cutoff is None  # non-Approved → cleared
-        assert result["recomputed"] == 3
+        assert approved.within_cutoff is True   # cumulative 400 ≤ 1000
+        assert active.within_cutoff is True     # untouched — not in BACKLOG_STAGES
+        assert proposed.within_cutoff is None   # non-Approved backlog → cleared
+        # Only the two backlog projects (Approved + Proposed) are processed.
+        assert result["recomputed"] == 2
 
     def test_approved_below_cutoff_set_false(self, db):
         # Envelope = 500. Two Approved projects of 400 each:

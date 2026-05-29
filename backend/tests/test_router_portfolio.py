@@ -12,7 +12,9 @@ HEADERS_CTRL = {"X-Current-User": "persona-controller"}
 @patch("routers.portfolio.DEMO_DATE", "2026-04")
 class TestPortfolioRouter:
     def test_get_kpis(self, test_client, seed_personas, create_test_project):
-        create_test_project("proj-1")
+        # Portfolio KPIs serve the Change population (VIPER §3.2) — an
+        # execution-stage project qualifies.
+        create_test_project("proj-1", pipeline_stage="Active")
         resp = test_client.get("/api/portfolio/kpis", headers=HEADERS_CTRL)
         assert resp.status_code == 200
         data = resp.json()
@@ -25,7 +27,7 @@ class TestPortfolioRouter:
         assert resp.status_code == 422
 
     def test_get_projects_tree(self, test_client, seed_personas, create_test_project):
-        create_test_project("proj-1")
+        create_test_project("proj-1", pipeline_stage="Active")
         resp = test_client.get("/api/portfolio/projects", headers=HEADERS_CTRL)
         assert resp.status_code == 200
         data = resp.json()
@@ -34,7 +36,7 @@ class TestPortfolioRouter:
         assert data["total"] >= 1
 
     def test_get_projects_tree_with_status_filter(self, test_client, seed_personas, create_test_project):
-        create_test_project("proj-1", status="active")
+        create_test_project("proj-1", status="active", pipeline_stage="Active")
         resp = test_client.get("/api/portfolio/projects?status=active", headers=HEADERS_CTRL)
         assert resp.status_code == 200
 
@@ -58,8 +60,8 @@ class TestPortfolioRouter:
         assert "GET /api/intake/queue" in body["detail"]["replacements"]["list_review_queue"]
 
     def test_kpis_filtered_by_status(self, test_client, seed_personas, create_test_project):
-        create_test_project("proj-1", status="active")
-        create_test_project("proj-2", name="Draft", status="draft")
+        create_test_project("proj-1", status="active", pipeline_stage="Active")
+        create_test_project("proj-2", name="Draft", status="draft", pipeline_stage="Active")
         resp = test_client.get("/api/portfolio/kpis?status=active", headers=HEADERS_CTRL)
         assert resp.status_code == 200
         assert resp.json()["active_project_count"] == 1

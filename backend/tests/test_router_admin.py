@@ -83,13 +83,14 @@ class TestTechNavigatorScoringData:
             tn_standardization=3, tn_usage=3, tn_maintenance=3,
             tn_financial_benefit=4, tn_payback=4, tn_competitive_advantage=4,
         ))
-        # Operate-stage project — should appear but flagged
-        # competes_in_ranking=False (Operate is out of BACKLOG_STAGES).
+        # Execution-stage (Hyper-maintenance) project — should appear in the
+        # scatter (it's in the funded window) but flagged
+        # competes_in_ranking=False (not in the shrunk BACKLOG_STAGES).
         db.add(Project(
-            id="proj-operate", name="Operate Project",
+            id="proj-execution", name="Hyper-maintenance Project",
             status="active", capex_opex="opex",
             start_month="2025-01", end_month="2027-12",
-            pipeline_stage="Operate", doi=5,
+            pipeline_stage="Hyper-maintenance", doi=4,
             project_type=1, total_budget=300_000,
             tn_standardization=4, tn_usage=4, tn_maintenance=4,
             tn_financial_benefit=4, tn_payback=4, tn_competitive_advantage=3,
@@ -138,16 +139,16 @@ class TestTechNavigatorScoringData:
         assert set(body["envelope"].keys()) == {
             "total_available_budget",
             "type3_pre_funded_total",
-            "hyper_maintenance_committed_total",
+            "execution_committed_total",
             "contestable_envelope",
         }
-        # contestable = total − type3 − hyper, clamped >= 0
+        # contestable = total − type3 − execution-committed, clamped >= 0
         env = body["envelope"]
         expected_contestable = max(
             0.0,
             env["total_available_budget"]
             - env["type3_pre_funded_total"]
-            - env["hyper_maintenance_committed_total"],
+            - env["execution_committed_total"],
         )
         assert env["contestable_envelope"] == expected_contestable
         # Tiebreakers default order from ranking.DEFAULT_TIEBREAKERS minus
@@ -212,14 +213,15 @@ class TestTechNavigatorScoringData:
             "Type 3 (compliance) projects are pre-funded and don't compete in the cutoff walk"
         )
 
-    def test_competes_in_ranking_operate_stage_false(self, test_client, seed_personas, seed_projects):
+    def test_competes_in_ranking_execution_stage_false(self, test_client, seed_personas, seed_projects):
         resp = test_client.get(
             "/api/admin/tech-navigator/scoring-data", headers=HEADERS_CTRL,
         )
         body = resp.json()
-        p = next(p for p in body["projects"] if p["id"] == "proj-operate")
+        p = next(p for p in body["projects"] if p["id"] == "proj-execution")
         assert p["competes_in_ranking"] is False, (
-            "Operate-stage projects are run-portfolio, not backlog; don't compete in the walk"
+            "Execution-stage (Active/Hyper-maintenance) projects are deducted "
+            "off the top, not in the backlog walk"
         )
 
     def test_empty_pool_returns_empty_projects(self, test_client, seed_personas):

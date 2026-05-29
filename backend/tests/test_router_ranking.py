@@ -121,16 +121,18 @@ class TestGetBacklog:
         assert "p-t3" in pre_ids
 
     def test_filter_by_pipeline_stage(self, test_client, db, seed_personas):
+        # Both projects are backlog stages (VIPER §3.3); the pipeline_stage
+        # query param narrows visibility to one of them.
         _seed_envelope(db)
         _add_project(db, project_id="p-app", pipeline_stage="Approved", composite_score=5.0)
-        _add_project(db, project_id="p-act", pipeline_stage="Active", composite_score=4.0)
+        _add_project(db, project_id="p-prop", pipeline_stage="Proposed", composite_score=4.0)
         resp = test_client.get(
-            "/api/portfolio/backlog?pipeline_stage=Active",
+            "/api/portfolio/backlog?pipeline_stage=Approved",
             headers=HEADERS_CTRL,
         )
         items = resp.json()["items"]
-        assert [i["project_id"] for i in items] == ["p-act"]
-        # Filter doesn't shift the cutoff math — both projects still considered.
+        assert [i["project_id"] for i in items] == ["p-app"]
+        # Filter is visibility-only — both backlog projects still drive the cutoff math.
         assert resp.json()["cutoff"]["contestable_envelope"] == 1000.0
 
     def test_filter_by_project_type(self, test_client, db, seed_personas):
