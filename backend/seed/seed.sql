@@ -521,20 +521,22 @@ INSERT INTO users (id, username, display_name, email, role, person_id, tier3_fla
 -- Polymorphic ChargeableEntity row inserted in pass 2 [F-DM-01].
 -- v5 columns (pipeline_stage, doi, tech_navigator, progress) populated by
 -- Phase 2 T2 in s11 / s12 / s17 / s18.
+-- run_entity_id: inserted as NULL here; s12 UPDATE sets non-NULL for
+-- 'Run entity spawned' projects (VIPER §7.1 / §11.4).
 -- =============================================================================
 
-INSERT INTO projects (id, name, description, status, rag_status, capex_opex, start_month, end_month, projected_end_month, pl_person_id, is_service, annual_budget, total_budget, last_forecast_submitted_month, ai_council_approved, progress_pct_manual_override, is_active, created_at, modified_at) VALUES
-('proj-mdh-rollout', 'Master Data Hub Rollout', NULL, 'active', 'green', 'capex', '2025-10', '2026-12', '2026-12', 'p-sharma', 0, NULL, 880000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-erp2', 'ERP Integration Phase 2', NULL, 'active', 'red', 'capex', '2024-07', '2026-09', '2026-09', 'p-sharma', 0, NULL, 1810000, '2026-02', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-sensor', 'Sensor Data Pipeline', NULL, 'active', 'amber', 'capex', '2025-03', '2026-12', '2026-12', 'p-sharma', 0, NULL, 720000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-predmaint', 'Predictive Maintenance PoC', NULL, 'active', 'amber', 'capex', '2025-06', '2027-03', '2027-03', 'p-sharma', 0, NULL, 510000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-autobrake', 'Autonomous Braking Prototype', NULL, 'pending_cc_confirmation', NULL, 'capex', '2026-06', '2027-12', '2027-12', 'p-sharma', 0, NULL, 920000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-railsafety', 'Rail Safety Compliance System', NULL, 'planned', 'green', 'capex', '2026-09', '2028-06', '2028-06', 'p-weber', 0, NULL, 520000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-dwh', 'Data Warehouse Consolidation', NULL, 'planned', 'green', 'capex', '2026-07', '2027-09', '2027-09', 'p-weber', 0, NULL, 400000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-greenedge', 'Green Edge Computing Pilot', NULL, 'draft', NULL, 'capex', '2026-11', '2027-04', '2027-04', 'p-weber', 0, NULL, 28440, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-connveh', 'Connected Vehicle Platform', NULL, 'draft', NULL, 'capex', '2026-10', '2028-12', '2028-12', 'p-weber', 0, NULL, 1150000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-cloud3-run', 'Cloud Platform Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 240000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('proj-iam-run', 'Identity & Access Management Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 310000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+INSERT INTO projects (id, name, description, status, rag_status, capex_opex, start_month, end_month, projected_end_month, pl_person_id, is_service, annual_budget, total_budget, last_forecast_submitted_month, ai_council_approved, progress_pct_manual_override, is_active, created_at, modified_at, run_entity_id) VALUES
+('proj-mdh-rollout', 'Master Data Hub Rollout', NULL, 'active', 'green', 'capex', '2025-10', '2026-12', '2026-12', 'p-sharma', 0, NULL, 880000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-erp2', 'ERP Integration Phase 2', NULL, 'active', 'red', 'capex', '2024-07', '2026-09', '2026-09', 'p-sharma', 0, NULL, 1810000, '2026-02', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-sensor', 'Sensor Data Pipeline', NULL, 'active', 'amber', 'capex', '2025-03', '2026-12', '2026-12', 'p-sharma', 0, NULL, 720000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-predmaint', 'Predictive Maintenance PoC', NULL, 'active', 'amber', 'capex', '2025-06', '2027-03', '2027-03', 'p-sharma', 0, NULL, 510000, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-autobrake', 'Autonomous Braking Prototype', NULL, 'pending_cc_confirmation', NULL, 'capex', '2026-06', '2027-12', '2027-12', 'p-sharma', 0, NULL, 920000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-railsafety', 'Rail Safety Compliance System', NULL, 'planned', 'green', 'capex', '2026-09', '2028-06', '2028-06', 'p-weber', 0, NULL, 520000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-dwh', 'Data Warehouse Consolidation', NULL, 'planned', 'green', 'capex', '2026-07', '2027-09', '2027-09', 'p-weber', 0, NULL, 400000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-greenedge', 'Green Edge Computing Pilot', NULL, 'draft', NULL, 'capex', '2026-11', '2027-04', '2027-04', 'p-weber', 0, NULL, 28440, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-connveh', 'Connected Vehicle Platform', NULL, 'draft', NULL, 'capex', '2026-10', '2028-12', '2028-12', 'p-weber', 0, NULL, 1150000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-cloud3-run', 'Cloud Platform Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 240000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-iam-run', 'Identity & Access Management Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 310000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL);
 
 -- =============================================================================
 -- s06_chargeable_entities / 2. Chargeable Entities (34 — polymorphic) [F-DM-01]
@@ -1349,21 +1351,25 @@ UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardiz
 
 -- =============================================================================
 -- s12_pipeline — Pipeline stage + DoI gates per [A-PS-02] [A-DOI-01..03]
+-- VIPER §11.4: Operate migrated → Completed / Run entity spawned.
+-- run_entity_id set for 'Run entity spawned' rows only.
 -- =============================================================================
 
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-autobrake-2026-02.pdf', within_cutoff = 1 WHERE id = 'proj-autobrake';
-UPDATE projects SET pipeline_stage = 'Operate', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-cloud3-run';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-connveh';
-UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-dwh-2026-01.pdf', within_cutoff = 1 WHERE id = 'proj-dwh';
-UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-erp2-2024-06.pdf', within_cutoff = 1 WHERE id = 'proj-erp2';
-UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-greenedge';
-UPDATE projects SET pipeline_stage = 'Operate', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1 WHERE id = 'proj-iam-run';
-UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-mdh-rollout-2025-09.pdf', within_cutoff = 1 WHERE id = 'proj-mdh-rollout';
-UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-predmaint-2025-05.pdf', within_cutoff = 1 WHERE id = 'proj-predmaint';
-UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-railsafety-2025-11.pdf', within_cutoff = 1 WHERE id = 'proj-railsafety';
-UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-sensor-2025-02.pdf', within_cutoff = 1 WHERE id = 'proj-sensor';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-autobrake-2026-02.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-autobrake';
+UPDATE projects SET pipeline_stage = 'Completed', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-cloud3-run';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-connveh';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-dwh-2026-01.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-dwh';
+UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-erp2-2024-06.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-erp2';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-greenedge';
+UPDATE projects SET pipeline_stage = 'Run entity spawned', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = 'off-eunify' WHERE id = 'proj-iam-run';
+UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-mdh-rollout-2025-09.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-mdh-rollout';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-predmaint-2025-05.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-predmaint';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-railsafety-2025-11.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-railsafety';
+UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-sensor-2025-02.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-sensor';
 
 -- 11 projects updated.
+-- Paused projects: none in seed — no frozen_doi fixups required.
+-- Retired projects: none in seed — no migration required.
 
 -- =============================================================================
 -- s13_financials — baselines, forecasts, actuals
