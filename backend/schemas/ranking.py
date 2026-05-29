@@ -55,7 +55,7 @@ class CutoffLines(BaseModel):
 
     total_available_budget: float
     type3_pre_funded_total: float
-    hyper_maintenance_committed_total: float
+    execution_committed_total: float
     contestable_envelope: float
     should_be_cutoff_rank: Optional[int]
     reality_cutoff_rank: Optional[int]
