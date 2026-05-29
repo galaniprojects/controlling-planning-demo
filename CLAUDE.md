@@ -69,7 +69,7 @@ The app ships with 10 modules — see Frontend Routes table below for paths.
 |---|---|
 | Launchpad | Role-aware home — module cards (3 columns), pending actions, persona greeting, forecast cycle status |
 | Portfolio Overview | Change vs Run sub-modules, KPI dashboard, configurable hierarchy tree, project detail |
-| Backlog | Ranked intake list (DoI 0–2 demand pipeline), Tech Navigator scoring, cube + list views, send-back/resubmit cycle |
+| Backlog | Ranked pre-execution pipeline (Proposed / Under Evaluation / Approved), Tech Navigator scoring, cube + list views, send-back/resubmit cycle |
 | Project Workbench | Overview tile grid, mixed-granularity forecast grid, 5-phase cycle wizard, External Costs, Cost Allocation, version history |
 | Capacity Management | Team utilization heatmaps, cell drill-down, org-wide pivots, resource request management |
 | What-If Simulator | Anchor-against-version scenarios, Tier 1/2/3 levers across 17+ surfaces incl. Lever 12 BTC sandbox, Promote-with-routing, Apply-to-Forecast |
