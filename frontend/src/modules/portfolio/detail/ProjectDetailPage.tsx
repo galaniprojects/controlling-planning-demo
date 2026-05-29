@@ -224,6 +224,7 @@ export function ProjectDetailPage() {
         <TabsContent value="resources" className="mt-4 min-w-0">
           <ResourcesAndCostsSection
             projectId={projectId}
+            summary={summary}
             overview={overview}
             loading={loading}
           />

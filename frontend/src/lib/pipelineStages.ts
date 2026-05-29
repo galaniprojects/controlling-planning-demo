@@ -17,8 +17,8 @@ export const PIPELINE_STAGES = [
   'Approved',
   'Active',
   'Hyper-maintenance',
-  'Operate',
-  'Retired',
+  'Completed',
+  'Run entity spawned',
   'Paused',
   'Cancelled',
 ] as const;
@@ -34,11 +34,13 @@ export const BACKLOG_STAGES: ReadonlySet<PipelineStage> = new Set<PipelineStage>
   'Paused',
 ]);
 
-/** Steady-state stages — the Run Portfolio audience [A-PS-12] [E-11]. */
+/** Steady-state / terminal stages — the Run Portfolio audience [A-PS-12] [E-11].
+ * Post VIPER Wave 1/2 the vocab dropped Operate/Retired; a handed-over
+ * project becomes `Run entity spawned` and a closed one becomes `Completed`. */
 export const OPERATE_STAGES: ReadonlySet<PipelineStage> = new Set<PipelineStage>([
   'Hyper-maintenance',
-  'Operate',
-  'Retired',
+  'Completed',
+  'Run entity spawned',
 ]);
 
 /** Off-path stages without a DoI digit [A-PS-03] [A-PS-10]. */
@@ -62,9 +64,10 @@ export const PIPELINE_STAGE_BADGE_CLASS: Record<PipelineStage, string> = {
     'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   'Hyper-maintenance':
     'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
-  Operate:
+  Completed:
     'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-  Retired: 'bg-muted text-muted-foreground',
+  'Run entity spawned':
+    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
   Paused:
     'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   Cancelled:
@@ -91,8 +94,8 @@ export const DOI_LEVEL_LABEL: Record<number, string> = {
   1: 'AI Council Pass',
   2: 'Pitch Board Ready',
   3: 'Pitch Board Approved',
-  4: 'Hyper-maintenance / Operate',
-  5: 'Operate',
+  4: 'Hyper-maintenance',
+  5: 'Run / Completed',
 };
 
 /**
@@ -121,12 +124,33 @@ export function doiForStage(stage: PipelineStage | string | null): number | null
       return 3;
     case 'Hyper-maintenance':
       return 4;
-    case 'Operate':
+    case 'Completed':
       return 5;
-    case 'Retired':
+    case 'Run entity spawned':
       return 5;
     default:
       return null; // Paused / Cancelled / unknown
+  }
+}
+
+/**
+ * Human-facing display label for a pipeline stage. Most stages render their
+ * raw value, but the two VIPER terminal stages get friendlier copy in
+ * detail/badge surfaces:
+ *   - `Run entity spawned` → "Handed over"
+ *   - `Completed`          → "Completed"
+ */
+export function stageDisplayLabel(
+  stage: PipelineStage | string | null,
+): string {
+  if (!stage) return '';
+  switch (stage) {
+    case 'Run entity spawned':
+      return 'Handed over';
+    case 'Completed':
+      return 'Completed';
+    default:
+      return stage;
   }
 }
 

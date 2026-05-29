@@ -33,9 +33,11 @@ from schemas.portfolio import (
     RejectAction,
     RequestChangesAction,
     ResubmitAction,
+    RunEntityBlock,
     SendBackAction,
     TimelineInfo,
 )
+from services.calendar import current_fiscal_year, fiscal_year_of
 from services.portfolio_service import (
     build_portfolio_tree,
     compute_portfolio_kpis,
@@ -204,6 +206,44 @@ def get_project_summary(
     )
     sparkline = [{"month": r.month, "amount": round(float(r.total), 2)} for r in sparkline_rows]
 
+    # VIPER §7 (Wave 3) — Run-entity / cumulative-cost block.
+    # Populated only when the project has been handed over to a Run entity
+    # (Offering / InternalService); left None otherwise.
+    run_entity_block: RunEntityBlock | None = None
+    handover_year: int | None = None
+    cumulative_since_handover: float | None = None
+    if (
+        project.run_entity_id
+        and project.run_entity is not None
+        # Read-side guard: mirror the write-side invariant (a project hands off
+        # only to an Offering / InternalService, never another Project). Keeps
+        # the panel from rendering for a row whose link was set by some other
+        # path to a Project-type entity.
+        and project.run_entity.entity_type in ("Offering", "InternalService")
+    ):
+        re = project.run_entity
+        annual_cost = float(re.annual_cost) if re.annual_cost is not None else None
+        run_entity_block = RunEntityBlock(
+            id=re.id,
+            name=re.name,
+            identifier=re.identifier,
+            annual_cost=annual_cost,
+        )
+        # Handover year drives the cumulative window. Fall back to the current
+        # fiscal year when the project has no recorded handover month.
+        if project.handover_month:
+            handover_year = fiscal_year_of(project.handover_month)
+        else:
+            handover_year = current_fiscal_year()
+        # Demo-grade assumption: the Run entity's annual cost is held flat from
+        # handover, and the cumulative figure is inclusive of both the handover
+        # year and the current fiscal year (hence the +1 on the span). The span
+        # is clamped to >= 1 so a future handover month (year > current FY) can
+        # never yield a zero/negative cumulative.
+        if annual_cost is not None:
+            span = max(1, current_fiscal_year() - handover_year + 1)
+            cumulative_since_handover = annual_cost * span
+
     return ProjectSummary(
         id=project.id,
         name=project.name,
@@ -221,6 +261,9 @@ def get_project_summary(
         ),
         last_cr_summary=last_cr_summary,
         forecast_sparkline=sparkline,
+        run_entity=run_entity_block,
+        cumulative_since_handover=cumulative_since_handover,
+        handover_year=handover_year,
     )
 
 
