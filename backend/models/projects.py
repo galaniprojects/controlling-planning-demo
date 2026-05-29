@@ -73,7 +73,12 @@ class Project(Base):
     # no Run entity was spawned). The transition gate enforcing non-null on
     # 'Run entity spawned' is wired router-side in Wave 3.
     run_entity_id: Mapped[Optional[str]] = mapped_column(
-        ForeignKey("chargeable_entities.id"), nullable=True,
+        ForeignKey(
+            "chargeable_entities.id",
+            use_alter=True,
+            name="fk_project_run_entity",
+        ),
+        nullable=True,
     )
 
     # v5 Session E1 progress tracker [E-04c]. Milestone-anchored qualitative
