@@ -51,8 +51,10 @@ class Project(Base):
     # v5 Session A2 lifecycle: pipeline stage + DoI gate columns [A-PS-01] [A-DOI-01].
     # All nullable so existing rows survive re-seed; defaults set in seed.sql.
     pipeline_stage: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
-    # Working stage names per [A-PS-02]: Proposed, Under Evaluation, Approved, Active,
-    # Hyper-maintenance, Operate, Retired, Paused, Cancelled.
+    # Working stage names (VIPER §2.3 target set): Proposed, Under Evaluation,
+    # Approved, Active, Hyper-maintenance, Completed, Run entity spawned, Paused,
+    # Cancelled. Operate and Retired removed (VIPER §13.4); Completed and
+    # Run entity spawned added as terminal stages. See services/pipeline.py STAGES.
     doi: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 0-5 per [A-DOI-01]
     frozen_doi: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # Preserved DoI for off-path stages (Paused/Cancelled) per [A-PS-03].
@@ -63,6 +65,16 @@ class Project(Base):
     within_cutoff: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     # Settable in A2; A3 replaces with computed value driven by the ranking
     # engine's envelope walk per [A-PS-06].
+
+    # VIPER §7.1 — Run entity link.
+    # Nullable FK; populated when pipeline_stage == 'Run entity spawned'. Points
+    # to the Offering or Internal Service that now carries this project's ongoing
+    # cost after handover. Null for all other stages (including Completed, where
+    # no Run entity was spawned). The transition gate enforcing non-null on
+    # 'Run entity spawned' is wired router-side in Wave 3.
+    run_entity_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("chargeable_entities.id"), nullable=True,
+    )
 
     # v5 Session E1 progress tracker [E-04c]. Milestone-anchored qualitative
     # progress with optional deliverable checklist enrichment. All fields
@@ -135,6 +147,11 @@ class Project(Base):
     current_milestone: Mapped[Optional["ProjectMilestone"]] = relationship(
         foreign_keys=[current_milestone_id],
         post_update=True,
+    )
+    # Passive relationship to the Run entity this project spawned (VIPER §7.1).
+    # No back_populate — keeps the charging side read-only (F2 ownership rule).
+    run_entity: Mapped[Optional["ChargeableEntity"]] = relationship(
+        "ChargeableEntity", foreign_keys=[run_entity_id],
     )
 
 

@@ -1,11 +1,12 @@
 """Pipeline stage + DoI gate service [A-PS-04] [A-DOI-04..A-DOI-10].
 
-Encodes the v5 pipeline state machine and the data-completeness gate checks
-that govern DoI advancement. The router consumes:
+Encodes the VIPER pipeline state machine (§2 lifecycle model) and the
+data-completeness gate checks that govern DoI advancement. The router consumes:
 
-- ``STAGES`` and the ``BACKLOG_STAGES`` / ``OPERATE_STAGES`` / ``OFF_PATH_STAGES``
-  groupings used by both the backlog (Session A3) and the Operate Portfolio
-  view (deferred frontend).
+- ``STAGES`` and the four grouping constants — ``BACKLOG_STAGES``,
+  ``EXECUTION_STAGES``, ``TERMINAL_STAGES``, ``OFF_PATH_STAGES`` — used by
+  the backlog (§3.3), Change Portfolio (§3.2), and cutoff math (§6).
+  ``OPERATE_STAGES`` is retained as a transitional alias (see note below).
 - ``VALID_TRANSITIONS`` plus :func:`is_transition_allowed` to validate stage
   moves. Per ``[A-PS-11]`` we permit backwards transitions between on-path
   stages without an override; off-path stages (Paused / Cancelled) require an
@@ -17,6 +18,12 @@ that govern DoI advancement. The router consumes:
   ``[A-OQ-04]`` / ``[A-BK-30]`` and can be tuned later without code changes
   to the router.
 - :func:`compute_pipeline_state` — assembles the GET response payload.
+
+Target stage set (VIPER §2.3):
+  On-path:  Proposed → Under Evaluation → Approved → Active → Hyper-maintenance
+            → { Run entity spawned | Completed }
+  Off-path: Paused, Cancelled  (carry frozen_doi)
+  Removed:  Operate, Retired   (replaced by Run entity spawned / Completed)
 
 All gate checks are pure: they read the project (and, for DoI 3+, the count
 of milestones / baseline rows) and never mutate state. The router decides
@@ -41,25 +48,40 @@ STAGES: tuple[str, ...] = (
     "Approved",
     "Active",
     "Hyper-maintenance",
-    "Operate",
-    "Retired",
+    "Completed",
+    "Run entity spawned",
     "Paused",
     "Cancelled",
 )
 
-# Stages whose projects appear in the ranked backlog [A-BK-01].
+# Stages whose projects appear in the ranked backlog — pre-execution only
+# (VIPER §2.5 / §3.3). Shrunk from 5 → 3: Active and Paused removed.
 BACKLOG_STAGES: frozenset[str] = frozenset({
-    "Proposed", "Under Evaluation", "Approved", "Active", "Paused",
+    "Proposed", "Under Evaluation", "Approved",
 })
 
-# Stages whose projects sit in the Operate Portfolio view [A-PS-12].
-OPERATE_STAGES: frozenset[str] = frozenset({
-    "Hyper-maintenance", "Operate", "Retired",
+# Stages where projects are actively executing and consuming project budget
+# (VIPER §2.5 / §3.2). Replaces the old five-stage BACKLOG set for the
+# Change Portfolio and the cutoff envelope deduction (§6.2).
+EXECUTION_STAGES: frozenset[str] = frozenset({
+    "Active", "Hyper-maintenance",
+})
+
+# Terminal stages — project change lifecycle is complete (VIPER §2.3 / §2.5).
+# Completed: no Run entity spawned (internal improvement, decommission, etc.).
+# Run entity spawned: project handed off; run_entity_id points to the entity.
+TERMINAL_STAGES: frozenset[str] = frozenset({
+    "Completed", "Run entity spawned",
 })
 
 # Off-path stages without a DoI digit; they carry a frozen_doi reference
 # to the DoI held when the project left the main path [A-PS-03] [A-PS-10].
 OFF_PATH_STAGES: frozenset[str] = frozenset({"Paused", "Cancelled"})
+
+# DEPRECATED transitional alias — ranking.py/admin.py still import this;
+# removed in Wave 2 when those are re-pointed to EXECUTION_STAGES.
+# Do not add new references.
+OPERATE_STAGES: frozenset[str] = frozenset({"Hyper-maintenance"})
 
 
 # ---------------------------------------------------------------------------
@@ -85,17 +107,19 @@ VALID_TRANSITIONS: dict[str, frozenset[str]] = {
         "Under Evaluation", "Active", "Paused", "Cancelled",
     }),
     "Active": frozenset({
-        "Approved", "Hyper-maintenance", "Operate", "Paused", "Cancelled",
+        "Approved", "Hyper-maintenance",
+        "Completed", "Run entity spawned",  # terminal exits added (VIPER §2.4)
+        "Paused", "Cancelled",
     }),
     "Hyper-maintenance": frozenset({
-        "Active", "Operate", "Retired", "Paused", "Cancelled",
+        "Active",
+        "Completed", "Run entity spawned",  # terminal exits added (VIPER §2.4)
+        "Paused", "Cancelled",
     }),
-    "Operate": frozenset({
-        "Hyper-maintenance", "Retired", "Paused", "Cancelled",
-    }),
-    "Retired": frozenset({
-        "Operate", "Cancelled",
-    }),
+    # Terminal stages — no exits. Projects reaching these stages do not move
+    # on; any ongoing cost is carried by the spawned Run entity (if any).
+    "Completed": frozenset(),
+    "Run entity spawned": frozenset(),
     "Paused": frozenset(STAGES),  # Paused can resume into any stage [A-PS-10].
     "Cancelled": frozenset(STAGES),  # Un-cancel allowed but requires override.
 }
@@ -156,8 +180,9 @@ _DOI_DEFAULTS: dict[str, Optional[int]] = {
     "Approved": 3,
     "Active": 3,
     "Hyper-maintenance": 4,
-    "Operate": 5,
-    "Retired": 5,
+    "Completed": 5,           # Terminal; reached operate-readiness then closed.
+    "Run entity spawned": 5,  # Terminal; handed off to a Run entity (VIPER §2.4).
+    # Operate / Retired removed — see VIPER §2.3 / §13.4.
     "Paused": None,
     "Cancelled": None,
 }
@@ -269,6 +294,15 @@ WORKING_DOI_GATES: dict[int, list[FieldRequirement]] = {
         FieldRequirement("end_month", "Operate-stage termination date (end_month)", "project"),
     ],
 }
+
+# Stage-keyed gate requirement for the 'Run entity spawned' transition.
+# DEFINITION ONLY (VIPER Wave 1) — enforcement is wired router-side in Wave 3.
+# The DoI-keyed WORKING_DOI_GATES cannot differentiate Completed vs Run-entity-
+# spawned at DoI 5; the router uses a separate stage-keyed check for this
+# invariant. Do not add new references before Wave 3.
+RUN_ENTITY_SPAWNED_REQUIREMENT = FieldRequirement(
+    "run_entity_id", "Spawned Run entity", "project"
+)
 
 
 def _check_requirement(project, db: Session, req: FieldRequirement) -> Optional[str]:
