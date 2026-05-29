@@ -1,13 +1,7 @@
 export const BRANDING = {
-  appName: "CRETA",
-  appFullName: "Controlling, Reporting, Estimation, Tracking & Allocations",
-  appAcronymWords: [
-    { letter: "C", word: "Controlling" },
-    { letter: "R", word: "Reporting" },
-    { letter: "E", word: "Estimation" },
-    { letter: "T", word: "Tracking" },
-    { letter: "A", word: "Allocations" },
-  ],
-  csvExportPrefix: "CRETA",
+  appName: "VIPER",
+  // VIPER is not an acronym and has no expansion.
+  appFullName: "IT Financial Planning Platform",
+  csvExportPrefix: "VIPER",
   localStoragePrefix: "creta",
 } as const;

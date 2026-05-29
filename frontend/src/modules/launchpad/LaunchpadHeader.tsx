@@ -1,16 +1,10 @@
 import { Calendar, RefreshCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { BRANDING } from '@/config/branding';
 
 interface Props {
   userName: string;
   role: string;
 }
-
-const ACRONYM_WORDS = BRANDING.appAcronymWords.map((w) => ({
-  letter: w.letter,
-  rest: w.word.slice(1),
-}));
 
 const ROLE_LABELS: Record<string, string> = {
   controller: 'Controller',
@@ -64,7 +58,7 @@ function getFormattedDate(): string {
  * v5 E7 [E-06d-j] Zone 1 — Launchpad header.
  *
  * Three rows of content:
- *   1. App acronym (CRETA brand reveal)
+ *   1. App title — "VIPER" in all-caps as primary, "Prototype" as subtitle [VIPER §12.2]
  *   2. Greeting + first name + role badge
  *   3. Status row: current date + active forecast cycle badge
  */
@@ -74,15 +68,14 @@ export function LaunchpadHeader({ userName, role }: Props) {
 
   return (
     <div className="text-center py-6">
-      {/* App Acronym */}
-      <div className="flex items-center justify-center gap-0 text-base tracking-wide mb-3 flex-wrap">
-        {ACRONYM_WORDS.map((word, i) => (
-          <span key={word.letter} className="inline-flex items-center">
-            {i > 0 && <span className="mx-1.5 text-muted-foreground/40">·</span>}
-            <span className="text-primary font-bold">{word.letter}</span>
-            <span className="text-muted-foreground">{word.rest}</span>
-          </span>
-        ))}
+      {/* App title */}
+      <div className="mb-3">
+        <div className="text-4xl font-bold tracking-widest text-foreground">
+          VIPER
+        </div>
+        <div className="text-sm font-medium text-muted-foreground tracking-wide mt-0.5">
+          Prototype
+        </div>
       </div>
 
       {/* Greeting */}
