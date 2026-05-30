@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from config import DEMO_DATE
 from models.capacity import Allocation
+from models.charging import ChargeableEntity
 from models.financial import Actuals, Baseline, Forecast
 from models.organization import (
     GroupingEntity, GroupingEntityType, GroupingHierarchy,
@@ -340,6 +341,33 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
         "lifetime_forecast": round(lifetime_forecast, 2),
         "lifetime_actuals": round(lifetime_actuals, 2),
         "active_project_count": active_project_count,
+    }
+
+
+def compute_run_selector_metrics(db: Session) -> dict:
+    """Return aggregate metrics for the Run population (VIPER §3.1).
+
+    Counts active Offerings and InternalServices and sums their ``annual_cost``
+    values (NULL treated as 0 via COALESCE). Used exclusively by the
+    ``GET /api/portfolio/kpis`` route to populate the ``run`` block that drives
+    the Wave 4 Run/Change selector panel. Deliberately not folded into
+    :func:`compute_portfolio_kpis` — that function is shared by Launchpad and
+    module-card KPI callers and must remain unscoped.
+    """
+    row = (
+        db.query(
+            func.count(ChargeableEntity.id).label("entity_count"),
+            func.coalesce(func.sum(ChargeableEntity.annual_cost), 0).label("annual_cost_total"),
+        )
+        .filter(
+            ChargeableEntity.entity_type.in_(["Offering", "InternalService"]),
+            ChargeableEntity.is_active.is_(True),
+        )
+        .one()
+    )
+    return {
+        "entity_count": int(row.entity_count),
+        "annual_cost_total": round(float(row.annual_cost_total), 2),
     }
 
 
