@@ -15,7 +15,7 @@
  * visits land in the same place per [E-11].
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRightLeft, Repeat } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -29,12 +29,18 @@ import type { PortfolioKPIs } from '@/types/api';
 import { DashboardTab } from './dashboard/DashboardTab';
 import { ApprovalsTab } from './approvals/ApprovalsTab';
 import { RunPortfolioTab } from './run/RunPortfolioTab';
+import { RunCostDistributionsTab } from './run/RunCostDistributionsTab';
 // === v5 Wave 5 E5 — Portfolio external spend tab [E-08c..d] ===
 import { ExternalSpendTab } from './external-spend/ExternalSpendTab';
 
 type SubModule = 'change' | 'run';
 
 const SUBMODULE_STORAGE_KEY = 'viper:portfolio:subModule';
+// VIPER W5 §10 — persist the last-used Run contextual tab so a fresh visit
+// (or sub-module toggle) lands the user back where they left off.
+const RUN_TAB_STORAGE_KEY = 'viper:portfolio:run:tab';
+
+type RunTab = 'dashboard' | 'external-spend' | 'cost-distributions';
 
 function readPersistedSubModule(): SubModule {
   if (typeof window === 'undefined') return 'change';
@@ -47,7 +53,33 @@ function persistSubModule(value: SubModule) {
   window.localStorage.setItem(SUBMODULE_STORAGE_KEY, value);
 }
 
+function readPersistedRunTab(): RunTab {
+  if (typeof window === 'undefined') return 'dashboard';
+  const v = window.localStorage.getItem(RUN_TAB_STORAGE_KEY);
+  return v === 'external-spend' || v === 'cost-distributions'
+    ? v
+    : 'dashboard';
+}
+
+function persistRunTab(value: RunTab) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(RUN_TAB_STORAGE_KEY, value);
+}
+
+function runTabPath(tab: RunTab): string {
+  return tab === 'dashboard' ? '/portfolio/run' : `/portfolio/run/${tab}`;
+}
+
 function getTabFromPath(pathname: string): string {
+  // Run sub-module contextual tabs (VIPER W5 §10).
+  if (pathname.startsWith('/portfolio/run/external-spend')) {
+    return 'external-spend';
+  }
+  if (pathname.startsWith('/portfolio/run/cost-distributions')) {
+    return 'cost-distributions';
+  }
+  if (pathname.startsWith('/portfolio/run')) return 'dashboard';
+  // Change sub-module tabs.
   if (pathname.startsWith('/portfolio/approvals')) return 'approvals';
   if (pathname.startsWith('/portfolio/external-spend')) return 'external-spend';
   return 'dashboard';
@@ -131,22 +163,53 @@ export function PortfolioOverview() {
   }, [location.pathname, navigate]);
 
   // Persist whichever sub-module the URL is currently pinning so a fresh
-  // visit without a deep-link lands on the user's last sub-module.
+  // visit without a deep-link lands on the user's last sub-module. When the
+  // URL pins a Run tab, also persist that tab.
   useEffect(() => {
     const urlSub = getSubModuleFromPath(location.pathname);
     if (urlSub) persistSubModule(urlSub);
+    if (urlSub === 'run') {
+      persistRunTab(getTabFromPath(location.pathname) as RunTab);
+    }
   }, [location.pathname]);
+
+  // Reset the active Run tab to the Dashboard on a GENUINE role change (the
+  // controlled-value + reset-on-role pattern per CLAUDE.md). Guarded by a
+  // previous-role ref so the initial mount (role resolving undefined→defined)
+  // does NOT fire — otherwise a hard load / refresh of a Run sub-path would be
+  // bounced back to the Dashboard before its tab could initialise from the
+  // URL. Only acts while the Run sub-module is the active surface so a
+  // Change-portfolio user is never yanked across sub-modules.
+  const prevRoleRef = useRef(role);
+  useEffect(() => {
+    const prevRole = prevRoleRef.current;
+    prevRoleRef.current = role;
+    const isGenuineChange =
+      prevRole !== undefined && role !== undefined && prevRole !== role;
+    if (isGenuineChange && getSubModuleFromPath(location.pathname) === 'run') {
+      persistRunTab('dashboard');
+      navigate('/portfolio/run', { replace: true });
+    }
+    // Intentionally keyed on role only — pathname is read fresh inside.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
 
   function handleSubModuleChange(next: SubModule) {
     persistSubModule(next);
     if (next === 'run') {
-      navigate('/portfolio/run', { replace: true });
+      // Land on the user's last-used Run tab.
+      navigate(runTabPath(readPersistedRunTab()), { replace: true });
     } else {
       navigate('/portfolio', { replace: true });
     }
   }
 
   const handleTabChange = (value: string) => {
+    if (subModule === 'run') {
+      persistRunTab(value as RunTab);
+      navigate(runTabPath(value as RunTab), { replace: true });
+      return;
+    }
     if (value === 'dashboard') navigate('/portfolio', { replace: true });
     else navigate(`/portfolio/${value}`, { replace: true });
   };
@@ -214,7 +277,27 @@ export function PortfolioOverview() {
           </TabsContent>
         </Tabs>
       ) : (
-        <RunPortfolioTab />
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
+          <TabsList>
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="external-spend">External Spend</TabsTrigger>
+            <TabsTrigger value="cost-distributions">
+              Cost Distributions
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="dashboard" className="mt-4">
+            <RunPortfolioTab />
+          </TabsContent>
+
+          <TabsContent value="external-spend" className="mt-4">
+            <ExternalSpendTab scope="run" />
+          </TabsContent>
+
+          <TabsContent value="cost-distributions" className="mt-4">
+            <RunCostDistributionsTab />
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );

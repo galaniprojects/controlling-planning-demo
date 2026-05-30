@@ -16,7 +16,7 @@
  * `getPortfolioCategoryAnalysis`, and
  * `getPortfolioProjectVendorMatrix` (E2 endpoints, T1-owned wrapper).
  */
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   Table,
   TableBody,
@@ -40,7 +40,17 @@ import type {
 
 type SortKey = 'vendor' | 'forecast' | 'actuals' | 'projects';
 
-export function ExternalSpendTab() {
+interface ExternalSpendTabProps {
+  /**
+   * Which portfolio the external spend is scoped to. `'change'` (default)
+   * hits the Change `/portfolio/external-costs/*` endpoints; `'run'` swaps to
+   * the Run `/portfolio/run/external-costs/*` endpoints (VIPER Wave 5 §10).
+   * Default keeps existing Change behaviour untouched.
+   */
+  scope?: 'change' | 'run';
+}
+
+export function ExternalSpendTab({ scope = 'change' }: ExternalSpendTabProps = {}) {
   const [vendors, setVendors] = useState<PortfolioVendorSummaryRow[]>([]);
   const [categories, setCategories] = useState<PortfolioCategoryAnalysisRow[]>(
     [],
@@ -59,11 +69,19 @@ export function ExternalSpendTab() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([
-      externalCostsApi.getPortfolioVendorSummary(),
-      externalCostsApi.getPortfolioCategoryAnalysis(),
-      externalCostsApi.getPortfolioProjectVendorMatrix(),
-    ])
+    const fns =
+      scope === 'run'
+        ? {
+            vendor: externalCostsApi.getRunVendorSummary,
+            category: externalCostsApi.getRunCategoryAnalysis,
+            matrix: externalCostsApi.getRunProjectVendorMatrix,
+          }
+        : {
+            vendor: externalCostsApi.getPortfolioVendorSummary,
+            category: externalCostsApi.getPortfolioCategoryAnalysis,
+            matrix: externalCostsApi.getPortfolioProjectVendorMatrix,
+          };
+    Promise.all([fns.vendor(), fns.category(), fns.matrix()])
       .then(([vRes, cRes, mRes]) => {
         if (cancelled) return;
         setVendors(vRes.items);
@@ -87,7 +105,7 @@ export function ExternalSpendTab() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [scope]);
 
   const kpis = useMemo(() => {
     const forecast = vendors.reduce((s, v) => s + v.forecast_total, 0);
@@ -244,9 +262,8 @@ export function ExternalSpendTab() {
                       ),
                     ) ?? [];
                   return (
-                    <>
+                    <Fragment key={v.vendor_name}>
                       <TableRow
-                        key={v.vendor_name}
                         className="cursor-pointer hover:bg-accent/40"
                         onClick={() =>
                           setExpandedVendor(isOpen ? null : v.vendor_name)
@@ -318,7 +335,7 @@ export function ExternalSpendTab() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })
               )}
