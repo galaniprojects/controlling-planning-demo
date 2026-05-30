@@ -33,6 +33,7 @@ from schemas.portfolio import (
     RejectAction,
     RequestChangesAction,
     ResubmitAction,
+    RunCostTreeResponse,
     RunEntityBlock,
     SendBackAction,
     TimelineInfo,
@@ -44,6 +45,7 @@ from services.portfolio_service import (
     compute_project_financials,
     compute_run_selector_metrics,
 )
+from services.run_tree import build_run_cost_tree
 
 router = APIRouter(prefix="/api/portfolio", tags=["Portfolio Overview"])
 
@@ -1140,6 +1142,91 @@ def get_portfolio_external_cost_project_vendor_matrix(
 
     filters = {k: v for k, v in
                {"lob": lob, "status": status, "rag": rag}.items()
+               if v is not None}
+    payload = compute_project_vendor_matrix(db, user, year=year, filters=filters)
+    return {**payload, "year": year}
+
+
+# ---------------------------------------------------------------------------
+# VIPER Wave 5 — Run Cost Distributions (§10.2/§10.3)
+# ---------------------------------------------------------------------------
+
+@router.get("/run/cost-tree", response_model=RunCostTreeResponse)
+def get_run_cost_tree(
+    group_by: str = "lob",
+    node: str | None = None,
+    year: int = 2026,
+    db: Session = Depends(get_db),
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Run cost-distribution roll-up tree grouped by LoB or Program (§10.2).
+
+    Sources the Run population (Offering + Internal Service chargeable entities)
+    and builds the org hierarchy tree, rolling Program-attached entities up into
+    their parent LoB when grouping by LoB. Region/Division/Country are served by
+    ``GET /api/charging/rollup`` instead.
+    """
+    if group_by not in ("lob", "program"):
+        raise HTTPException(
+            status_code=422,
+            detail="group_by must be 'lob' or 'program'",
+        )
+    return build_run_cost_tree(db, group_by=group_by, node=node, year=year)
+
+
+@router.get("/run/external-costs/vendor-summary")
+def get_run_external_cost_vendor_summary(
+    year: int | None = None,
+    lob: str | None = None,
+    status: str | None = None,
+    rag: str | None = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Run-scoped cross-entity vendor table — mirrors the Change counterpart
+    but restricts the population to run_entity_id-linked projects."""
+    from services.external_cost_aggregation import compute_portfolio_vendor_summary
+
+    filters = {k: v for k, v in
+               {"lob": lob, "status": status, "rag": rag, "population": "run"}.items()
+               if v is not None}
+    rows = compute_portfolio_vendor_summary(db, user, year=year, filters=filters)
+    return {"items": rows, "total": len(rows), "year": year}
+
+
+@router.get("/run/external-costs/category-analysis")
+def get_run_external_cost_category_analysis(
+    year: int | None = None,
+    lob: str | None = None,
+    status: str | None = None,
+    rag: str | None = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Run-scoped cost-type breakdown — Run population only."""
+    from services.external_cost_aggregation import compute_portfolio_category_analysis
+
+    filters = {k: v for k, v in
+               {"lob": lob, "status": status, "rag": rag, "population": "run"}.items()
+               if v is not None}
+    rows = compute_portfolio_category_analysis(db, user, year=year, filters=filters)
+    return {"items": rows, "total": len(rows), "year": year}
+
+
+@router.get("/run/external-costs/project-vendor-matrix")
+def get_run_external_cost_project_vendor_matrix(
+    year: int | None = None,
+    lob: str | None = None,
+    status: str | None = None,
+    rag: str | None = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Run-scoped cross-tab grid (rows=entities, cols=vendors) — Run population only."""
+    from services.external_cost_aggregation import compute_project_vendor_matrix
+
+    filters = {k: v for k, v in
+               {"lob": lob, "status": status, "rag": rag, "population": "run"}.items()
                if v is not None}
     payload = compute_project_vendor_matrix(db, user, year=year, filters=filters)
     return {**payload, "year": year}

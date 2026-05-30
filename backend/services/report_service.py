@@ -101,6 +101,10 @@ def _get_scoped_project_ids(
             return []
     # controller / executive see everything
 
+    # Run population (VIPER §10): restrict to projects linked to a Run entity.
+    if filters.get("population") == "run":
+        q = q.filter(Project.run_entity_id.isnot(None))
+
     # Apply common filters
     if filters.get("lob"):
         from services.portfolio_service import _get_projects_for_entity_recursive
