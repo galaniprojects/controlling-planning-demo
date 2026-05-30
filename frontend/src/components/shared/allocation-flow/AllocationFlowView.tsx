@@ -40,6 +40,7 @@ import type {
 } from '@/types/api';
 import { VersionSelector } from '@/modules/charging/distribution/versions/VersionSelector';
 
+import type { FlowOrientation } from './layout';
 import {
   BUSINESS_TERMINAL_THRESHOLD,
   buildLayout,
@@ -62,10 +63,38 @@ import { FlowLegend } from './FlowLegend';
 import { FlowTooltip } from './FlowTooltip';
 import { ShowFullChainToggle } from './ShowFullChainToggle';
 
-export function AllocationFlowView() {
+export interface AllocationFlowViewProps {
+  /**
+   * Layout orientation (§10.3). Defaults to `'horizontal'` so existing
+   * workbench usage is unchanged; the Run Cost Distributions "Cascade"
+   * mode mounts it with `'vertical'`.
+   */
+  orientation?: FlowOrientation;
+  /**
+   * When `true`, suppress the page chrome (ModuleHeader, Breadcrumb,
+   * Back button) so the view can live inside a tab panel. Defaults to
+   * `false` — the workbench route keeps full chrome.
+   */
+  embedded?: boolean;
+  /**
+   * Explicit focal entity id. When provided it drives the focal entity
+   * directly, overriding the URL `?entity=` param. When omitted the
+   * existing URL-driven selection is preserved, so workbench routing is
+   * untouched. Lets the embedded panel pass the selected entity without
+   * mutating the shared URL.
+   */
+  entityId?: string;
+}
+
+export function AllocationFlowView({
+  orientation = 'horizontal',
+  embedded = false,
+  entityId: entityIdProp,
+}: AllocationFlowViewProps = {}) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const entityId = searchParams.get('entity');
+  // Prop takes precedence; fall back to the URL param when not embedded.
+  const entityId = entityIdProp ?? searchParams.get('entity');
 
   const [data, setData] = useState<CascadeChainResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -170,8 +199,13 @@ export function AllocationFlowView() {
 
   const layout = useMemo(() => {
     if (!data) return null;
-    return buildLayout(data, state.expandedDepthUp, state.expandedDepthDown);
-  }, [data, state.expandedDepthUp, state.expandedDepthDown]);
+    return buildLayout(
+      data,
+      state.expandedDepthUp,
+      state.expandedDepthDown,
+      orientation,
+    );
+  }, [data, state.expandedDepthUp, state.expandedDepthDown, orientation]);
 
   // For ShowFullChainToggle warning + disabled state.
   const fullChainStats = useMemo(() => {
@@ -268,19 +302,23 @@ export function AllocationFlowView() {
   }, [data, entityId]);
 
   return (
-    <div className="px-6 py-6 space-y-4">
-      <Breadcrumb items={breadcrumbItems} />
-      <ModuleHeader
-        title="Workbench"
-        actions={<ModuleGuideButton moduleId="project_workbench" />}
-      />
+    <div className={embedded ? 'space-y-4' : 'px-6 py-6 space-y-4'}>
+      {!embedded && (
+        <>
+          <Breadcrumb items={breadcrumbItems} />
+          <ModuleHeader
+            title="Workbench"
+            actions={<ModuleGuideButton moduleId="project_workbench" />}
+          />
 
-      <div className="flex items-center">
-        <Button variant="ghost" size="sm" onClick={back} className="-ml-2">
-          <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-          Back to Workbench
-        </Button>
-      </div>
+          <div className="flex items-center">
+            <Button variant="ghost" size="sm" onClick={back} className="-ml-2">
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+              Back to Workbench
+            </Button>
+          </div>
+        </>
+      )}
 
       {loading && (
         <Card className="p-6 space-y-3">
@@ -400,14 +438,37 @@ export function AllocationFlowView() {
                   className="block"
                 >
                   <ColumnHeaders
-                    focalCx={layout.focal.x + FOCAL_NODE_W / 2}
-                    upstreamRightX={layout.focal.x - 20}
-                    downstreamLeftX={layout.focal.x + FOCAL_NODE_W + 20}
+                    orientation={orientation}
                     hasUpstream={layout.upstream.length > 0}
                     hasDownstream={layout.downstream.length > 0}
                     hasBusiness={layout.business.length > 0}
+                    // Horizontal anchors (top strip, X-positioned).
+                    focalCx={layout.focal.x + FOCAL_NODE_W / 2}
+                    upstreamRightX={layout.focal.x - 20}
+                    downstreamLeftX={layout.focal.x + FOCAL_NODE_W + 20}
                     businessLeftX={
-                      layout.business[0] ? layout.business[0].x : undefined
+                      orientation === 'horizontal' && layout.business[0]
+                        ? layout.business[0].x
+                        : undefined
+                    }
+                    // Vertical anchors (left gutter, Y-positioned).
+                    focalCy={layout.focal.y + layout.focal.h / 2}
+                    upstreamTopY={
+                      layout.upstream.length > 0
+                        ? Math.min(...layout.upstream.map((p) => p.y)) - 12
+                        : undefined
+                    }
+                    downstreamY={
+                      layout.downstream.length > 0
+                        ? Math.min(
+                            ...layout.downstream.map((p) => p.y + p.h / 2),
+                          )
+                        : undefined
+                    }
+                    businessY={
+                      orientation === 'vertical' && layout.business[0]
+                        ? layout.business[0].y + layout.business[0].h / 2
+                        : undefined
                     }
                   />
 
@@ -428,6 +489,7 @@ export function AllocationFlowView() {
                         percentage={e.percentage}
                         amount={e.amount}
                         maxAmount={layout.maxEdgeAmount}
+                        orientation={orientation}
                         emphasised={state.hoverEdgeKey === key}
                         onMouseEnter={() =>
                           dispatch({ type: 'set_hover_edge', key })
@@ -452,6 +514,7 @@ export function AllocationFlowView() {
                         p.node.entity_id,
                       )}
                       hiddenDirection="upstream"
+                      orientation={orientation}
                       isHovered={state.hoverNodeId === p.node.entity_id}
                       onHoverChange={(h) =>
                         dispatch({
@@ -479,6 +542,7 @@ export function AllocationFlowView() {
                         p.node.entity_id,
                       )}
                       hiddenDirection="downstream"
+                      orientation={orientation}
                       isHovered={state.hoverNodeId === p.node.entity_id}
                       onHoverChange={(h) =>
                         dispatch({

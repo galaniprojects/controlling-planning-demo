@@ -55,6 +55,17 @@ export const MAX_LAYOUT_DEPTH = 12;
 export const BUSINESS_TERMINAL_THRESHOLD = 10;
 
 /**
+ * Vertical orientation only: target maximum width (px) for the "to
+ * business" terminal fan. In vertical mode the terminals would
+ * otherwise spread across a single ultra-wide row (~10×BUSINESS_NODE_W),
+ * ballooning the canvas far past the viewport and pushing the centred
+ * entity chain off-screen to the right. We instead wrap them into a
+ * bounded grid whose width stays under this target. Horizontal mode is
+ * unaffected — it keeps the original single vertically-stacked column.
+ */
+export const VERTICAL_BUSINESS_TARGET_WIDTH = 960;
+
+/**
  * Logical column classification for a positioned node.
  *
  * - `kind: 'upstream'` / `'downstream'` carry the BFS depth (1-based —
@@ -64,6 +75,15 @@ export type NodeColumnKind =
   | { kind: 'upstream'; depth: number }
   | { kind: 'focal' }
   | { kind: 'downstream'; depth: number };
+
+/**
+ * Layout orientation. `horizontal` is the original workbench DAG
+ * (depth runs L→R, siblings stack on Y). `vertical` swaps the axes so
+ * depth runs T→B and siblings stack on X — used by the Run Cost
+ * Distributions "Cascade" mode (§10.3). The swap is purely positional:
+ * node box dimensions are unchanged, only their x/y placement flips.
+ */
+export type FlowOrientation = 'horizontal' | 'vertical';
 
 export interface PositionBox {
   x: number;
@@ -198,6 +218,7 @@ export function buildLayout(
   chain: CascadeChainResponse,
   expandedDepthUp: number,
   expandedDepthDown: number,
+  orientation: FlowOrientation = 'horizontal',
 ): FlowLayout {
   const depths = computeDepths(chain);
   const capUp = Math.min(MAX_LAYOUT_DEPTH, Math.max(1, expandedDepthUp));
@@ -231,82 +252,142 @@ export function buildLayout(
   for (const arr of upByDepth.values()) sortColumn(arr);
   for (const arr of downByDepth.values()) sortColumn(arr);
 
-  // === X coordinates ===
+  // === Depth + sibling axes (orientation-aware) ===
+  // Horizontal: depth runs along X (columns L→R), siblings stack on Y.
+  // Vertical:   depth runs along Y (rows  T→B),  siblings stack on X.
+  // Node boxes keep their w/h; only the placement axes swap, so every
+  // downstream consumer (nodes, edges) stays purely positional.
+  const isV = orientation === 'vertical';
+  // Extent a box consumes along each axis.
+  const depthOf = (w: number, h: number) => (isV ? h : w);
+  const sibOf = (w: number, h: number) => (isV ? w : h);
+  // Map an abstract (depth, sibling) coordinate to absolute x/y.
+  const place = (depth: number, sib: number) =>
+    isV ? { x: sib, y: depth } : { x: depth, y: sib };
+
   // Order: farthest upstream → focal → farthest downstream → business.
   const upDepthsAsc = Array.from(upByDepth.keys()).sort((a, b) => a - b);
-  // Render farthest-upstream first (leftmost), so depth=N is column 0.
+  // Render farthest-upstream first (top/left), so depth=N is band 0.
   const upDepthsDesc = [...upDepthsAsc].reverse();
   const downDepthsAsc = Array.from(downByDepth.keys()).sort((a, b) => a - b);
 
   const hasBusiness = chain.business_terminals.length > 0;
 
-  const colXs = new Map<string, number>(); // key: "up-<d>" | "focal" | "down-<d>" | "business"
-  let cursor = SIDE_PAD;
-  for (const d of upDepthsDesc) {
-    colXs.set(`up-${d}`, cursor);
-    cursor += NODE_W + COL_GAP;
-  }
-  colXs.set('focal', cursor);
-  cursor += FOCAL_NODE_W + COL_GAP;
-  for (const d of downDepthsAsc) {
-    colXs.set(`down-${d}`, cursor);
-    cursor += NODE_W + COL_GAP;
-  }
-  if (hasBusiness) {
-    colXs.set('business', cursor);
-    cursor += BUSINESS_NODE_W + COL_GAP;
-  }
-  const totalWidth = Math.max(cursor - COL_GAP + SIDE_PAD, 1280);
-
-  // === Y coordinates ===
-  // Per-column tallest stack defines the canvas height. Nodes are
-  // stacked top-to-bottom centred on the focal row.
-  const stackHeight = (count: number, h: number) =>
-    Math.max(0, count) * h + Math.max(0, count - 1) * ROW_GAP;
-
-  const upHeights = upDepthsDesc.map((d) =>
-    stackHeight((upByDepth.get(d) ?? []).length, NODE_H),
-  );
-  const downHeights = downDepthsAsc.map((d) =>
-    stackHeight((downByDepth.get(d) ?? []).length, NODE_H),
-  );
-  // Business: top 10 + optional collapsed pill.
+  // Business terminal counts + (vertical) grid wrap, computed up-front so
+  // the band's depth extent is known before the depth-axis cursor runs.
   const businessVisibleCount = Math.min(
     chain.business_terminals.length,
     BUSINESS_TERMINAL_THRESHOLD,
   );
   const businessOverflow =
     chain.business_terminals.length > BUSINESS_TERMINAL_THRESHOLD;
-  const businessRowCount = businessVisibleCount + (businessOverflow ? 1 : 0);
-  const businessTotalHeight =
-    stackHeight(businessRowCount, BUSINESS_NODE_H + BUSINESS_GAP - ROW_GAP);
-  // (Business uses a tighter gap, derived above.)
+  // Total rendered business items = visible terminals + optional pill.
+  const businessItemCount = businessVisibleCount + (businessOverflow ? 1 : 0);
+  // Horizontal keeps a single vertically-stacked column (cols = 1).
+  // Vertical wraps into a bounded grid so the canvas width stays near the
+  // viewport instead of one ultra-wide row.
+  const businessCols = isV
+    ? Math.max(
+        1,
+        Math.min(
+          Math.max(1, businessItemCount),
+          Math.floor(
+            (VERTICAL_BUSINESS_TARGET_WIDTH + BUSINESS_GAP) /
+              (BUSINESS_NODE_W + BUSINESS_GAP),
+          ),
+        ),
+      )
+    : 1;
+  const businessGridRows =
+    businessItemCount > 0 ? Math.ceil(businessItemCount / businessCols) : 0;
+  // Extent the business band consumes along each axis.
+  const businessBandSib = isV
+    ? businessCols * BUSINESS_NODE_W + (businessCols - 1) * BUSINESS_GAP
+    : businessItemCount * BUSINESS_NODE_H +
+      Math.max(0, businessItemCount - 1) * BUSINESS_GAP;
+  const businessBandDepth = isV
+    ? businessGridRows * BUSINESS_NODE_H +
+      Math.max(0, businessGridRows - 1) * BUSINESS_GAP
+    : BUSINESS_NODE_W;
 
-  const focalStackHeight = FOCAL_NODE_H + SELF_RETAINED_OFFSET + 24;
+  // Padding: the depth axis carries the band sequence; the sibling axis
+  // carries the centred stacks. Headers live in the depth-start gutter
+  // in horizontal (TOP_PAD top strip); in vertical that gutter is the
+  // sibling-start margin instead.
+  const depthStart = isV ? TOP_PAD : SIDE_PAD;
+  const depthEndPad = isV ? 48 : SIDE_PAD;
+  const sibStart = isV ? SIDE_PAD : TOP_PAD;
+  const sibEndPad = isV ? SIDE_PAD : 48;
+
+  // Depth-axis coordinate (band start) per column.
+  // key: "up-<d>" | "focal" | "down-<d>" | "business"
+  const depthPos = new Map<string, number>();
+  let cursor = depthStart;
+  for (const d of upDepthsDesc) {
+    depthPos.set(`up-${d}`, cursor);
+    cursor += depthOf(NODE_W, NODE_H) + COL_GAP;
+  }
+  depthPos.set('focal', cursor);
+  cursor += depthOf(FOCAL_NODE_W, FOCAL_NODE_H) + COL_GAP;
+  for (const d of downDepthsAsc) {
+    depthPos.set(`down-${d}`, cursor);
+    cursor += depthOf(NODE_W, NODE_H) + COL_GAP;
+  }
+  if (hasBusiness) {
+    depthPos.set('business', cursor);
+    cursor += businessBandDepth + COL_GAP;
+  }
+  const depthTotal = cursor - COL_GAP + depthEndPad;
+
+  // === Sibling-axis sizing ===
+  // Tallest sibling stack across all bands defines the cross-axis span.
+  const siblingStack = (count: number, sibExtent: number, gap: number) =>
+    count <= 0 ? 0 : count * sibExtent + (count - 1) * gap;
+
+  const entitySib = sibOf(NODE_W, NODE_H);
+  const upHeights = upDepthsDesc.map((d) =>
+    siblingStack((upByDepth.get(d) ?? []).length, entitySib, ROW_GAP),
+  );
+  const downHeights = downDepthsAsc.map((d) =>
+    siblingStack((downByDepth.get(d) ?? []).length, entitySib, ROW_GAP),
+  );
+
+  // The focal's sibling footprint includes the self-retained badge only
+  // when the badge stacks along the sibling axis (horizontal). In
+  // vertical the badge sits below the focal along the depth axis, so it
+  // does not widen the focal band.
+  const focalStackHeight =
+    sibOf(FOCAL_NODE_W, FOCAL_NODE_H) + (isV ? 0 : SELF_RETAINED_OFFSET + 24);
+
   const tallestColumn = Math.max(
     focalStackHeight,
     ...upHeights,
     ...downHeights,
-    businessTotalHeight,
+    businessBandSib,
   );
-  const canvasHeight = TOP_PAD + tallestColumn + 48;
 
-  // Center each column's stack vertically against the focal row centre.
-  const focalCentreY = TOP_PAD + tallestColumn / 2;
+  const canvasWidth = isV
+    ? sibStart + tallestColumn + sibEndPad
+    : Math.max(depthTotal, 1280);
+  const canvasHeight = isV ? depthTotal : sibStart + tallestColumn + sibEndPad;
+
+  // Centre each band's stack against the focal's sibling centre.
+  const focalCentre = sibStart + tallestColumn / 2;
+
   const placeColumn = (
     nodes: CascadeNode[],
-    x: number,
+    depth: number,
     boxW: number,
     boxH: number,
     kindFor: (idx: number, n: CascadeNode) => NodeColumnKind,
   ): PositionedEntity[] => {
     if (nodes.length === 0) return [];
-    const stack = stackHeight(nodes.length, boxH);
-    const startY = focalCentreY - stack / 2;
+    const sibExtent = sibOf(boxW, boxH);
+    const stack = siblingStack(nodes.length, sibExtent, ROW_GAP);
+    const startSib = focalCentre - stack / 2;
     return nodes.map((n, i) => ({
       node: n,
-      x,
-      y: startY + i * (boxH + ROW_GAP),
+      ...place(depth, startSib + i * (sibExtent + ROW_GAP)),
       w: boxW,
       h: boxH,
       column: kindFor(i, n),
@@ -316,9 +397,9 @@ export function buildLayout(
   const upPositioned: PositionedEntity[] = [];
   for (const d of upDepthsDesc) {
     const nodes = upByDepth.get(d) ?? [];
-    const x = colXs.get(`up-${d}`)!;
+    const depth = depthPos.get(`up-${d}`)!;
     upPositioned.push(
-      ...placeColumn(nodes, x, NODE_W, NODE_H, () => ({
+      ...placeColumn(nodes, depth, NODE_W, NODE_H, () => ({
         kind: 'upstream',
         depth: d,
       })),
@@ -327,26 +408,29 @@ export function buildLayout(
   const downPositioned: PositionedEntity[] = [];
   for (const d of downDepthsAsc) {
     const nodes = downByDepth.get(d) ?? [];
-    const x = colXs.get(`down-${d}`)!;
+    const depth = depthPos.get(`down-${d}`)!;
     downPositioned.push(
-      ...placeColumn(nodes, x, NODE_W, NODE_H, () => ({
+      ...placeColumn(nodes, depth, NODE_W, NODE_H, () => ({
         kind: 'downstream',
         depth: d,
       })),
     );
   }
 
-  const focalX = colXs.get('focal')!;
+  const focalDepth = depthPos.get('focal')!;
+  const focalSib = focalCentre - sibOf(FOCAL_NODE_W, FOCAL_NODE_H) / 2;
   const focal: PositionedEntity = {
     node: chain.focal,
-    x: focalX,
-    y: focalCentreY - FOCAL_NODE_H / 2,
+    ...place(focalDepth, focalSib),
     w: FOCAL_NODE_W,
     h: FOCAL_NODE_H,
     column: { kind: 'focal' },
   };
+  // Self-retained badge sits just past the focal along the depth axis
+  // (below it in both orientations, since focal.x/y already encode the
+  // swap and the badge keeps the focal's sibling alignment).
   const selfRetained = {
-    x: focalX,
+    x: focal.x,
     y: focal.y + FOCAL_NODE_H + SELF_RETAINED_OFFSET,
     w: FOCAL_NODE_W,
     h: 24,
@@ -355,22 +439,32 @@ export function buildLayout(
   // === Business terminals ===
   const business: PositionedBusinessItem[] = [];
   if (hasBusiness) {
-    const x = colXs.get('business')!;
+    const depth = depthPos.get('business')!;
     const sortedTerms = [...chain.business_terminals].sort(
       (a, b) => b.percentage - a.percentage,
     );
     const visibleTerms = sortedTerms.slice(0, BUSINESS_TERMINAL_THRESHOLD);
     const hidden = sortedTerms.slice(BUSINESS_TERMINAL_THRESHOLD);
-    const totalRows = visibleTerms.length + (hidden.length > 0 ? 1 : 0);
-    const rowStep = BUSINESS_NODE_H + BUSINESS_GAP;
-    const stack = totalRows * BUSINESS_NODE_H + (totalRows - 1) * BUSINESS_GAP;
-    const startY = focalCentreY - stack / 2;
+    const startSib = focalCentre - businessBandSib / 2;
+    // Cell placement. Vertical wraps every `businessCols` items into a new
+    // depth row (grid); horizontal stays a single column stacked along the
+    // sibling axis (byte-equivalent to the original single-column layout).
+    const cellOf = (i: number) => {
+      if (isV) {
+        const col = i % businessCols;
+        const row = Math.floor(i / businessCols);
+        return place(
+          depth + row * (BUSINESS_NODE_H + BUSINESS_GAP),
+          startSib + col * (BUSINESS_NODE_W + BUSINESS_GAP),
+        );
+      }
+      return place(depth, startSib + i * (BUSINESS_NODE_H + BUSINESS_GAP));
+    };
     visibleTerms.forEach((t, i) => {
       business.push({
         kind: 'terminal',
         terminal: t,
-        x,
-        y: startY + i * rowStep,
+        ...cellOf(i),
         w: BUSINESS_NODE_W,
         h: BUSINESS_NODE_H,
       });
@@ -383,8 +477,7 @@ export function buildLayout(
         hiddenCount: hidden.length,
         hiddenAmount,
         hiddenPct,
-        x,
-        y: startY + visibleTerms.length * rowStep,
+        ...cellOf(visibleTerms.length),
         w: BUSINESS_NODE_W,
         h: BUSINESS_NODE_H,
       });
@@ -425,7 +518,7 @@ export function buildLayout(
   }
 
   return {
-    width: totalWidth,
+    width: canvasWidth,
     height: canvasHeight,
     focal,
     upstream: upPositioned,

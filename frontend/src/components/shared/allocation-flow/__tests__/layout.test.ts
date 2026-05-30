@@ -340,3 +340,111 @@ describe('maxDepths', () => {
     expect(maxDepths(c)).toEqual({ up: 2, down: 3 });
   });
 });
+
+describe('buildLayout — vertical orientation (§10.3)', () => {
+  it('runs depth along Y (upstream above focal, downstream below)', () => {
+    const c = chain({
+      focal: node('f', 'F', 1000),
+      upstream: [node('u1', 'U1', 500)],
+      downstream: [node('d1', 'D1', 300)],
+      edges: [edge('u1', 'f', 50, 500), edge('f', 'd1', 30, 300)],
+    });
+    const layout = buildLayout(c, 1, 1, 'vertical');
+    expect(layout.upstream[0]?.y ?? Infinity).toBeLessThan(layout.focal.y);
+    expect(layout.downstream[0]?.y ?? -Infinity).toBeGreaterThan(
+      layout.focal.y,
+    );
+  });
+
+  it('centres single-node bands on the focal sibling (X) axis', () => {
+    const c = chain({
+      focal: node('f', 'F', 1000),
+      upstream: [node('u1', 'U1', 500)],
+      edges: [edge('u1', 'f', 50, 500)],
+    });
+    const layout = buildLayout(c, 1, 1, 'vertical');
+    const focalCx = layout.focal.x + layout.focal.w / 2;
+    const upCx = (layout.upstream[0]?.x ?? 0) + (layout.upstream[0]?.w ?? 0) / 2;
+    expect(upCx).toBeCloseTo(focalCx);
+  });
+
+  it('inverts canvas dims vs horizontal (depth drives height)', () => {
+    const c = chain({
+      focal: node('f', 'F', 1000),
+      upstream: [node('u1', 'U1', 500)],
+      downstream: [node('d1', 'D1', 300)],
+      edges: [edge('u1', 'f', 50, 500), edge('f', 'd1', 30, 300)],
+    });
+    const h = buildLayout(c, 1, 1, 'horizontal');
+    const v = buildLayout(c, 1, 1, 'vertical');
+    // Horizontal lays the 3 bands across X (wide); vertical down Y (tall).
+    expect(v.height).toBeGreaterThan(h.height);
+    expect(h.width).toBeGreaterThan(v.width);
+  });
+
+  it('centres every depth row on the canvas mid-width, bounding the business fan', () => {
+    // Regression: a wide "to business" fan (10 terminals × BUSINESS_NODE_W
+    // ≈ 2356px in a single row) must NOT balloon the canvas and push the
+    // centred entity chain off to the right of the viewport. In vertical
+    // mode the fan wraps into a bounded grid; all rows stay centred on
+    // canvasWidth/2.
+    const terms: CascadeBusinessTerminal[] = [];
+    for (let i = 0; i < 10; i++) {
+      terms.push({
+        charging_location_id: `cl-${i}`,
+        code: `CL${i}`,
+        name: `Loc ${i}`,
+        percentage: 10,
+        amount: 100,
+      });
+    }
+    const c = chain({
+      focal: node('f', 'F', 5000),
+      upstream: [node('u1', 'U1', 800)],
+      downstream: [
+        node('d1', 'D1', 400),
+        node('d2', 'D2', 300),
+        node('d3', 'D3', 200),
+      ],
+      edges: [
+        edge('u1', 'f', 50, 800),
+        edge('f', 'd1', 40, 400),
+        edge('f', 'd2', 30, 300),
+        edge('f', 'd3', 20, 200),
+      ],
+      business: terms,
+    });
+    const layout = buildLayout(c, 3, 3, 'vertical');
+    const mid = layout.width / 2;
+    const cx = (p: { x: number; w: number }) => p.x + p.w / 2;
+    // Focal + single-node upstream centred on the canvas mid-width.
+    expect(cx(layout.focal)).toBeCloseTo(mid);
+    expect(cx(layout.upstream[0]!)).toBeCloseTo(mid);
+    // Downstream row symmetric about mid (outer node centres sum to 2·mid).
+    const dcx = layout.downstream.map(cx).sort((a, b) => a - b);
+    expect(dcx[0]! + dcx[dcx.length - 1]!).toBeCloseTo(2 * mid);
+    // Business band centred about mid (left edge + right edge ≈ 2·mid).
+    const bLeft = Math.min(...layout.business.map((b) => b.x));
+    const bRight = Math.max(...layout.business.map((b) => b.x + b.w));
+    expect(bLeft + bRight).toBeCloseTo(2 * mid);
+    // Bounded: the wrapped grid keeps the canvas within a typical panel
+    // viewport, well under the ~2356px single-row width.
+    expect(layout.width).toBeLessThan(1280);
+    // All 10 terminals still present (wrapped, not dropped).
+    expect(layout.business.length).toBe(10);
+  });
+
+  it('defaults to horizontal when orientation is omitted', () => {
+    const c = chain({
+      focal: node('f', 'F', 1000),
+      upstream: [node('u1', 'U1', 500)],
+      edges: [edge('u1', 'f', 50, 500)],
+    });
+    const omitted = buildLayout(c, 1, 1);
+    const explicit = buildLayout(c, 1, 1, 'horizontal');
+    expect(omitted.focal.x).toBe(explicit.focal.x);
+    expect(omitted.focal.y).toBe(explicit.focal.y);
+    expect(omitted.width).toBe(explicit.width);
+    expect(omitted.height).toBe(explicit.height);
+  });
+});
