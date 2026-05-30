@@ -15,7 +15,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { BacklogFilters } from '../BacklogContext';
+import {
+  type BacklogFilters,
+  DEFAULT_BACKLOG_START_YEAR,
+} from '../BacklogContext';
 
 interface Props {
   filters: BacklogFilters;
@@ -62,11 +65,26 @@ const T_LEVELS = [
   { value: 'T2', label: 'T2 — New business' },
 ];
 
+// Start-year scope (VIPER §4.1). The ranked item rows don't carry a
+// start_month client-side, so we offer a fixed range centred on the demo
+// fiscal year (DEMO_DATE April 2026): the prior planning year through the
+// short-term horizon, plus an explicit "All years" escape hatch. Default
+// is FY2026 (see DEFAULT_BACKLOG_START_YEAR in BacklogContext).
+const START_YEARS = [
+  { value: 'all', label: 'All years' },
+  { value: '2025', label: 'FY 2025' },
+  { value: '2026', label: 'FY 2026' },
+  { value: '2027', label: 'FY 2027' },
+  { value: '2028', label: 'FY 2028' },
+];
+
 function hasActive(filters: BacklogFilters): boolean {
   return (
     !!filters.pipeline_stage ||
     !!filters.project_type ||
     !!filters.tshirt_size ||
+    // Year diverges from the default FY when it's empty/all or a non-default year.
+    filters.start_year !== DEFAULT_BACKLOG_START_YEAR ||
     !!filters.transformation_level ||
     filters.within_cutoff
   );
@@ -96,6 +114,24 @@ export function BacklogFilterBar({ filters, onFilterChange, onClear }: Props) {
         placeholder="Size"
         onChange={(v) => onFilterChange('tshirt_size', v)}
       />
+
+      {/* Start-year scope — 'all' is a real value, so it does not use the
+          'all'<->'' collapsing of the shared FilterSelect. */}
+      <Select
+        value={filters.start_year || 'all'}
+        onValueChange={(v) => onFilterChange('start_year', v)}
+      >
+        <SelectTrigger className="h-9 w-auto min-w-[120px] text-sm">
+          <SelectValue placeholder="Start year" />
+        </SelectTrigger>
+        <SelectContent>
+          {START_YEARS.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {/* Client-side filters */}
       <FilterSelect

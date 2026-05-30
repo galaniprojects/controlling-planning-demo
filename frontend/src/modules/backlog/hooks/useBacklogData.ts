@@ -13,6 +13,8 @@ interface Params {
   pipeline_stage: string;
   project_type: string;
   tshirt_size: string;
+  /** Fiscal year scope (e.g. "2026"); "all" / "" / undefined = no scoping. */
+  start_year?: string;
 }
 
 export function useBacklogData(params: Params) {
@@ -27,11 +29,14 @@ export function useBacklogData(params: Params) {
   const doFetch = useCallback((p: Params) => {
     setLoading(true);
     setError(null);
+    // Only forward a numeric fiscal year; "all"/"" leave the pool unscoped.
+    const yearNum = Number(p.start_year);
     backlogApi
       .getBacklog({
         pipeline_stage: p.pipeline_stage || undefined,
         project_type: p.project_type || undefined,
         tshirt_size: p.tshirt_size || undefined,
+        start_year: Number.isFinite(yearNum) && yearNum > 0 ? yearNum : undefined,
       })
       .then((d) => {
         setData(d);
@@ -53,7 +58,13 @@ export function useBacklogData(params: Params) {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.pipeline_stage, params.project_type, params.tshirt_size, doFetch]);
+  }, [
+    params.pipeline_stage,
+    params.project_type,
+    params.tshirt_size,
+    params.start_year,
+    doFetch,
+  ]);
 
   return { data, loading, error, refetch };
 }

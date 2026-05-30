@@ -22,6 +22,33 @@ const TYPE_LABELS: Record<string, string> = {
   service: 'Service',
 };
 
+/**
+ * Change-status badge copy + colours (VIPER §3). Driven by `node.change_status`
+ * (active | hyper_maintenance | completed | handed_over | staged | paused).
+ * `handed_over` is the "Run entity spawned" pipeline stage surfaced as the
+ * friendlier "Handed over". Light + dark variants per CLAUDE.md dark-mode rules.
+ */
+const CHANGE_STATUS_LABELS: Record<string, string> = {
+  staged: 'Staged/Approved',
+  active: 'Active',
+  hyper_maintenance: 'Hyper-maintenance',
+  completed: 'Completed',
+  handed_over: 'Handed over',
+  paused: 'Paused',
+};
+
+const CHANGE_STATUS_BADGE_CLASS: Record<string, string> = {
+  staged:
+    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  hyper_maintenance:
+    'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
+  completed: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+  handed_over:
+    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  paused: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+};
+
 /** Format entity type name for display as a badge.
  *  Known types get short labels; dynamic types get title-cased. */
 function getTypeLabel(type: string): string {
@@ -53,6 +80,16 @@ const columns: TreeTableColumn<ProjectTreeNode>[] = [
         <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
           {getTypeLabel(node.type)}
         </Badge>
+        {node.change_status && CHANGE_STATUS_LABELS[node.change_status] && (
+          <Badge
+            className={cn(
+              'text-[10px] px-1.5 py-0 shrink-0 font-medium',
+              CHANGE_STATUS_BADGE_CLASS[node.change_status],
+            )}
+          >
+            {CHANGE_STATUS_LABELS[node.change_status]}
+          </Badge>
+        )}
       </div>
     ),
   },

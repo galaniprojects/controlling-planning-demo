@@ -32,6 +32,7 @@ function BacklogPageInner() {
     pipeline_stage: filters.pipeline_stage,
     project_type: filters.project_type,
     tshirt_size: filters.tshirt_size,
+    start_year: filters.start_year,
   });
 
   function scrollToShouldBe() {
