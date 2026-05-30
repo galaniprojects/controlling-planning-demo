@@ -1385,11 +1385,14 @@ export const backlogApi = {
     pipeline_stage?: string;
     project_type?: string;
     tshirt_size?: string;
+    /** Fiscal year scope (VIPER §4.2). Re-scopes items AND cutoff walk. */
+    start_year?: number;
   }) => {
     const q = new URLSearchParams();
     if (params?.pipeline_stage) q.set('pipeline_stage', params.pipeline_stage);
     if (params?.project_type) q.set('project_type', params.project_type);
     if (params?.tshirt_size) q.set('tshirt_size', params.tshirt_size);
+    if (params?.start_year) q.set('start_year', String(params.start_year));
     const qs = q.toString();
     return api.get<RankedBacklogResponse>(`/api/portfolio/backlog${qs ? '?' + qs : ''}`);
   },

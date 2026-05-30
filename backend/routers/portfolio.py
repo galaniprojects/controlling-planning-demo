@@ -42,6 +42,7 @@ from services.portfolio_service import (
     build_portfolio_tree,
     compute_portfolio_kpis,
     compute_project_financials,
+    compute_run_selector_metrics,
 )
 
 router = APIRouter(prefix="/api/portfolio", tags=["Portfolio Overview"])
@@ -75,6 +76,7 @@ def get_portfolio_kpis(
         filters["type"] = type
 
     kpis = compute_portfolio_kpis(db, filters)
+    run_metrics = compute_run_selector_metrics(db)
 
     # Build project filter for CapEx/OpEx split — scoped to the same Change
     # population so the split matches the headline KPI figures.
@@ -138,6 +140,7 @@ def get_portfolio_kpis(
         "lifetime_forecast": kpis["lifetime_forecast"],
         "lifetime_actuals": kpis["lifetime_actuals"],
         "active_project_count": kpis["active_project_count"],
+        "run": run_metrics,
     }
 
 

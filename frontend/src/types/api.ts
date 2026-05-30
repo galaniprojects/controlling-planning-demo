@@ -162,6 +162,11 @@ export interface PortfolioKPIs {
   lifetime_forecast?: number;
   lifetime_actuals?: number;
   active_project_count?: number;
+  // Run selector metrics (VIPER W4 §9.3) — Offerings + InternalServices aggregate
+  run?: {
+    entity_count: number;
+    annual_cost_total: number;
+  };
 }
 
 export interface TimelineInfo {
@@ -182,6 +187,9 @@ export interface ProjectTreeNode {
   variance_pct: number;
   timeline: TimelineInfo | null;
   children: ProjectTreeNode[];
+  // Change-population status hint (VIPER W4 §3) — drives the portfolio badge.
+  // One of: active | hyper_maintenance | completed | handed_over | staged | paused
+  change_status?: string | null;
   // CY/PY splits
   baseline_cy?: number;
   forecast_cy?: number;

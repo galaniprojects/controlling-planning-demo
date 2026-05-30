@@ -2,7 +2,7 @@
 
 This is the **living test plan** for the CRETA application. It provides step-by-step instructions for a complete regression test covering all modules, personas, interactive features, data integrity checks, and cross-module integration. This document should be updated after every version to reflect new features, changed behavior, and retired scenarios.
 
-**Total scenarios:** 198 across 15 test suites
+**Total scenarios:** 201 across 15 test suites
 **Tester:** Claude Code using preview tools (not human testers)
 **Execution rule:** No code fixes during testing — document issues only
 **Location:** All QA artifacts live in the `qa/` directory
@@ -449,7 +449,54 @@ Create at the start of Session A with this header:
 
 **Session:** A | **Est. time:** 45 min | **Default persona:** Anna Meier (Controller)
 
-> **VIPER Wave 2 (backend, 2026-05-29) — pending UI scenarios.** The Change Portfolio now scopes server-side to execution + terminal stages, plus current-FY Approved (dual-visible with the Backlog) and mid-execution Paused (`frozen_doi >= 3`); the backlog cutoff envelope now deducts in-execution committed spend (Active + Hyper-maintenance) off the top and the ranked-backlog endpoint accepts an optional `start_year` filter. These are backend-only this wave and unit-tested (`test_ranking_service.py`, `test_portfolio_service.py`). **Add browser scenarios when Wave 4 ships the UI:** (a) Change tree shows only the Change population with the correct status badges; (b) Launchpad / module-card KPIs are unchanged by the Change filter; (c) Backlog "Start year" filter re-scopes the ranked list and cutoff bands.
+> **VIPER Wave 4 (frontend, 2026-05-30) — selector + Backlog/Change UI.** The Change/Run sub-module switcher is now a full-width **segmented bar** with live metric lines (Change: '{N} projects · €{X}M forecast'; Run: '{N} entities · €{X}M annual cost', sourced from a new `run` block on `GET /portfolio/kpis`). The Change tree renders lifecycle **status badges** (Staged/Approved, Active, Hyper-maintenance, Completed, Handed over) from the per-node `change_status` hint. The Backlog filter bar gains a **Start year** select (default FY2026) that re-scopes the ranked list and cutoff bands via the Wave-2 `start_year` param. Backend unit-tested (`test_portfolio_kpis_run_block.py`, `test_ranking_service.py`, `test_portfolio_service.py`); browser scenarios below (PO-W4-01..03).
+
+### PO-W4-01: Sub-module segmented selector with live metrics
+**Goal:** Verify the Change/Run segmented bar renders with correct active state and live metric lines.
+**Persona:** Anna Meier (Controller)
+
+1. Navigate to `/portfolio`
+2. `preview_snapshot` — verify two full-width selector panels: **Change** (active, primary border + tint) and **Run** (inactive, muted)
+3. Verify the Change panel metric line reads `{N} projects · €{X}M forecast`; the Run panel reads `{N} entities · €{X}M annual cost`
+4. Click the **Run** panel — verify URL → `/portfolio/run`, Run becomes active, Change muted, and the Run Portfolio's own Total Annual Cost / entity count match the Run metric line
+5. Repeat in dark mode (toggle theme) — verify both panels and icon boxes keep contrast (semantic tokens + `dark:` variants)
+
+**Verify:**
+- [ ] Two-panel segmented bar (not the old pill toggle)
+- [ ] Active/inactive styling correct in light AND dark
+- [ ] Change metric `{N} projects · €{X}M forecast` populated from `/portfolio/kpis`
+- [ ] Run metric `{N} entities · €{X}M annual cost` matches the Run Portfolio tab totals
+
+### PO-W4-02: Change Portfolio status badges
+**Goal:** Verify project/service leaf rows render the correct lifecycle badge.
+**Persona:** Anna Meier (Controller)
+
+1. Navigate to `/portfolio`, expand a Line-of-Business node down to project/service leaves
+2. Verify leaf rows show a status badge among: **Staged/Approved**, **Active**, **Hyper-maintenance**, **Completed**, **Handed over**
+3. Verify grouping rows (Line of Business, programs) show **no** status badge
+4. Repeat in dark mode — verify badge colours keep contrast
+
+**Verify:**
+- [ ] Leaf project/service rows carry a `change_status` badge
+- [ ] Grouping rows show no badge
+- [ ] Badge labels match the pipeline stage (e.g. Run-entity-spawned → "Handed over")
+- [ ] Light + dark variants both legible
+
+### PO-W4-03: Backlog Start-year filter re-scopes list + cutoff
+**Goal:** Verify the Start year filter re-scopes the ranked backlog and cutoff bands.
+**Persona:** Anna Meier (Controller)
+
+1. Navigate to `/backlog` — verify the filter bar shows a **Start year** select defaulting to **FY 2026**
+2. Note the ranked item count and the contestable envelope figure
+3. Change the select to **FY 2025** — verify URL gains `?year=2025`, the ranked list re-scopes (fewer/different items), the **Clear** button appears, and the cutoff envelope recomputes
+4. Verify Approved / DoI-3 projects still appear in the Backlog (e.g. the pre-funded P3 row); execution-stage (Active) projects do not
+5. Select **All years** — verify the pool is unscoped
+
+**Verify:**
+- [ ] Start year select present, default FY 2026
+- [ ] Changing the year re-scopes the ranked list and recomputes cutoff bands
+- [ ] `?year=` URL param syncs; Clear button reflects non-default state
+- [ ] Approved/DoI-3 stays in Backlog; Active excluded
 
 ---
 

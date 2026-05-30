@@ -35,11 +35,23 @@ export interface BacklogFilters {
   pipeline_stage: string;
   project_type: string;
   tshirt_size: string;
+  /**
+   * Fiscal year the ranked pool + cutoff walk is scoped to (VIPER §4.1/§4.2).
+   * Server-side: re-scopes the envelope. Defaults to the demo FY "2026"
+   * (DEMO_DATE April 2026) so the page opens on the current planning year.
+   */
+  start_year: string;
   /** Client-side filters */
   transformation_level: string;
   lob_id: string;
   within_cutoff: boolean;
 }
+
+/**
+ * Demo fiscal year — the current planning year per DEMO_DATE (April 2026).
+ * Used as the default `start_year` so the backlog opens scoped to FY2026.
+ */
+export const DEFAULT_BACKLOG_START_YEAR = '2026';
 
 interface BacklogCtx {
   viewMode: ViewMode;
@@ -67,6 +79,7 @@ const DEFAULT_FILTERS: BacklogFilters = {
   pipeline_stage: '',
   project_type: '',
   tshirt_size: '',
+  start_year: DEFAULT_BACKLOG_START_YEAR,
   transformation_level: '',
   lob_id: '',
   within_cutoff: false,
@@ -83,6 +96,7 @@ export function BacklogProvider({ children }: { children: ReactNode }) {
       pipeline_stage: params.get('stage') ?? '',
       project_type: params.get('type') ?? '',
       tshirt_size: params.get('size') ?? '',
+      start_year: params.get('year') ?? DEFAULT_BACKLOG_START_YEAR,
       transformation_level: params.get('tlevel') ?? '',
       lob_id: params.get('lob') ?? '',
       within_cutoff: params.get('cutoff') === '1',
@@ -132,7 +146,7 @@ export function BacklogProvider({ children }: { children: ReactNode }) {
   const clearFilters = useCallback(() => {
     setParams((p) => {
       const next = new URLSearchParams(p);
-      ['stage', 'type', 'size', 'tlevel', 'lob', 'cutoff'].forEach((k) =>
+      ['stage', 'type', 'size', 'year', 'tlevel', 'lob', 'cutoff'].forEach((k) =>
         next.delete(k),
       );
       return next;
@@ -195,6 +209,7 @@ function keyToParam(key: keyof BacklogFilters): string {
     pipeline_stage: 'stage',
     project_type: 'type',
     tshirt_size: 'size',
+    start_year: 'year',
     transformation_level: 'tlevel',
     lob_id: 'lob',
     within_cutoff: 'cutoff',
