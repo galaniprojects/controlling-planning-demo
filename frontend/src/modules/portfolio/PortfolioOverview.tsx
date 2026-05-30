@@ -15,14 +15,17 @@
  * visits land in the same place per [E-11].
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { ArrowRightLeft, Repeat } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
 import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { useRole } from '@/contexts/RoleContext';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/formatters';
+import { portfolioApi } from '@/api/endpoints';
+import type { PortfolioKPIs } from '@/types/api';
 import { DashboardTab } from './dashboard/DashboardTab';
 import { ApprovalsTab } from './approvals/ApprovalsTab';
 import { RunPortfolioTab } from './run/RunPortfolioTab';
@@ -70,6 +73,39 @@ export function PortfolioOverview() {
 
   const role = context?.role;
   const showApprovals = role === 'controller';
+
+  // VIPER W4 §9.2 — the segmented selector shows live per-panel metrics, so
+  // the portfolio-wide KPIs are fetched once at the shell level, unconditionally
+  // on mount (the selector is always visible regardless of active sub-module).
+  const [kpis, setKpis] = useState<PortfolioKPIs | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    portfolioApi
+      .getKPIs()
+      .then((data) => {
+        if (!cancelled) setKpis(data);
+      })
+      .catch(() => {
+        // Selector degrades gracefully to name-only when KPIs are unavailable.
+        if (!cancelled) setKpis(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const changeMetric =
+    kpis == null
+      ? null
+      : `${kpis.active_project_count ?? 0} projects · ${formatCurrency(
+          kpis.current_forecast ?? 0,
+        )} forecast`;
+  const runMetric =
+    kpis == null
+      ? null
+      : `${kpis.run?.entity_count ?? 0} entities · ${formatCurrency(
+          kpis.run?.annual_cost_total ?? 0,
+        )} annual cost`;
 
   // Derive sub-module + active tab DIRECTLY from the URL on every render so
   // the rendered Tabs content is always in sync with the location pathname.
@@ -127,23 +163,30 @@ export function PortfolioOverview() {
         actions={<ModuleGuideButton moduleId="portfolio_overview" />}
       />
 
-      {/* Sub-module switcher per [E-11] */}
+      {/* Sub-module switcher per [E-11] / VIPER W4 §9.2 — full-width segmented
+          bar with a live metric line per panel. These panels navigate between
+          the Change and Run routes, so this is a navigation group (aria-current)
+          rather than a tablist (the Change content has its own real <Tabs>). */}
       <div
-        role="tablist"
+        role="group"
         aria-label="Portfolio sub-module"
-        className="inline-flex items-center rounded-lg border border-border bg-muted/40 p-0.5 gap-0.5"
+        className="flex gap-3"
       >
-        <SubModuleButton
+        <SubModulePanel
           active={subModule === 'change'}
           onClick={() => handleSubModuleChange('change')}
+          icon={<ArrowRightLeft className="h-4 w-4" />}
+          iconClassName="bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300"
           label="Change"
-          subtitle="DoI 0–4"
+          metric={changeMetric}
         />
-        <SubModuleButton
+        <SubModulePanel
           active={subModule === 'run'}
           onClick={() => handleSubModuleChange('run')}
+          icon={<Repeat className="h-4 w-4" />}
+          iconClassName="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
           label="Run"
-          subtitle="DoI 5 / offerings / services"
+          metric={runMetric}
         />
       </div>
 
@@ -177,34 +220,54 @@ export function PortfolioOverview() {
   );
 }
 
-function SubModuleButton({
+function SubModulePanel({
   active,
   onClick,
+  icon,
+  iconClassName,
   label,
-  subtitle,
+  metric,
 }: {
   active: boolean;
   onClick: () => void;
+  icon: React.ReactNode;
+  iconClassName: string;
   label: string;
-  subtitle: string;
+  metric: string | null;
 }) {
   return (
-    <Button
-      role="tab"
-      aria-selected={active}
-      variant="ghost"
+    <button
+      type="button"
+      aria-current={active ? 'page' : undefined}
       onClick={onClick}
       className={cn(
-        'rounded-md px-4 py-2 h-auto flex flex-col items-start text-left gap-0',
+        'flex-1 flex items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors',
         active
-          ? 'bg-background text-foreground shadow-sm'
-          : 'text-muted-foreground hover:text-foreground',
+          ? 'border-2 border-primary bg-primary/10 text-foreground'
+          : 'border border-border bg-muted/40 text-muted-foreground hover:bg-accent hover:shadow-sm',
       )}
     >
-      <span className="text-sm font-medium leading-tight">{label}</span>
-      <span className="text-[10px] uppercase tracking-wider opacity-70 leading-tight">
-        {subtitle}
+      <span
+        className={cn(
+          'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
+          iconClassName,
+        )}
+      >
+        {icon}
       </span>
-    </Button>
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span
+          className={cn(
+            'text-base font-medium leading-tight',
+            active ? 'text-foreground' : 'text-foreground/90',
+          )}
+        >
+          {label}
+        </span>
+        <span className="text-[13px] leading-tight text-muted-foreground">
+          {metric ?? ' '}
+        </span>
+      </span>
+    </button>
   );
 }
