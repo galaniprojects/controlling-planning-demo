@@ -2,7 +2,7 @@
 
 This is the **living test plan** for the CRETA application. It provides step-by-step instructions for a complete regression test covering all modules, personas, interactive features, data integrity checks, and cross-module integration. This document should be updated after every version to reflect new features, changed behavior, and retired scenarios.
 
-**Total scenarios:** 201 across 15 test suites
+**Total scenarios:** 204 across 15 test suites
 **Tester:** Claude Code using preview tools (not human testers)
 **Execution rule:** No code fixes during testing — document issues only
 **Location:** All QA artifacts live in the `qa/` directory
@@ -719,6 +719,63 @@ Create at the start of Session A with this header:
 - [ ] Comma for decimal separator
 - [ ] Consistent EUR symbol placement
 - [ ] No raw unformatted numbers visible
+
+---
+
+### PO-14: Run Portfolio — Contextual Tabs (VIPER W5)
+**Goal:** Verify the Run sub-module splits into Dashboard / External Spend / Cost Distributions, with deep-linking.
+**Persona:** Anna Meier (Controller)
+
+1. From Portfolio Overview, click the **Run** panel in the segmented selector → lands on `/portfolio/run`, Dashboard tab selected
+2. Confirm the tab strip shows exactly three tabs: **Dashboard**, **External Spend**, **Cost Distributions** (no CR Approvals)
+3. Dashboard tab — verify the prior Run content is intact (4 KPIs incl. €13,2M total / 0 P · 6 O · 17 S, dimension panels, entity list)
+4. Click **External Spend** — verify vendor summary + category analysis + project×vendor matrix render, scoped to handover-linked projects (e.g. ServiceNow / PwC / Cisco / Internal, ~€825K forecast)
+5. **Hard-load** `/portfolio/run/external-spend` and `/portfolio/run/cost-distributions` directly in the address bar — each must land on the correct tab (NOT bounce to Dashboard)
+6. Switch persona to Executive — verify the active tab resets to Dashboard
+
+**Verify:**
+- [ ] Three Run tabs present; no CR Approvals
+- [ ] External Spend populated and Run-scoped
+- [ ] Deep-link / refresh lands on the correct tab
+- [ ] No console errors on any tab
+
+---
+
+### PO-15: Cost Distributions — Roll-up Mode (VIPER W5)
+**Goal:** Verify the org roll-up tree and the node-vs-level rule across group-bys.
+**Persona:** Anna Meier (Controller)
+
+1. On `/portfolio/run/cost-distributions`, confirm Roll-up mode is the default, with a `[Group by ▾] [Filter ▾]` bar and Year = 2026
+2. Group by **Line of Business** — verify the tree (Corporate IT, Digital & Data, RVS, TBS) with rolled cost per node and a **Total of €13,2M**; expand a node to see entity leaves
+3. Group by **Programme** — verify entities attached only at LoB appear as direct leaves of their LoB node (above programme rows); cost still totals €13,2M (no orphaning)
+4. Group by **Region**, then **Division**, then **Country** — verify each renders without error
+5. Use the **Filter** to scope to a single LoB/Programme node — verify the tree narrows descendant-inclusively
+
+**Verify:**
+- [ ] LoB and Programme trees both total €13,2M (sums balance)
+- [ ] Programme-attached entities roll into parent LoB under "by LoB"
+- [ ] LoB-only entities are direct leaves under "by Programme"
+- [ ] European formatting throughout
+
+---
+
+### PO-16: Cost Distributions — Cascade Mode (vertical) (VIPER W5)
+**Goal:** Verify the vertical allocation cascade and that the workbench (horizontal) is unaffected.
+**Persona:** Anna Meier (Controller)
+
+1. In Roll-up mode, click a leaf entity row (e.g. **Master Data Hub**) → switches to **Cascade** mode for that entity
+2. Verify the cascade renders **vertically**: focal entity centred, **Upstream** feeders above, **Downstream** consumers and **To Business** charging-location terminals below, with per-edge % and €
+3. Confirm the panel is chrome-free (no "Workbench" ModuleHeader / Breadcrumb / "Back to Workbench"); only a "Back to roll-up" control
+4. Verify the content is horizontally centred and fills the panel (To-Business terminals wrap into a bounded grid; no collision with the Legend)
+5. Click **Back to roll-up** → returns to the tree
+6. Regression: open the Workbench allocation flow (`/workbench/allocation-flow?entity=off-mdh`) → verify it still renders **horizontally** with full Workbench chrome
+7. Repeat steps 1–4 in **dark mode**
+
+**Verify:**
+- [ ] Cascade is vertical, focal centred, sections stacked top→bottom
+- [ ] Embedded (chrome-free) inside the tab
+- [ ] Content centred, no empty half, no legend collision (light + dark)
+- [ ] Workbench allocation flow unchanged (horizontal, full chrome)
 
 ---
 
