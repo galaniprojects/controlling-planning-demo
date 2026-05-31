@@ -50,6 +50,8 @@ export interface RunCostTreeNode {
   kind: RunCostTreeNodeKind;
   /** hierarchy level id for groups (e.g. get-lob / get-prog); null for entities. */
   level: string | null;
+  /** human level name for groups (e.g. "Line of Business"); null for entities. */
+  level_label: string | null;
   /** Run entity subtype; only set when kind=entity. */
   entity_type: Exclude<ChargeableEntityType, 'Project'> | null;
   /** Run entity identifier; only set when kind=entity. */

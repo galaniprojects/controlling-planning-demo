@@ -221,8 +221,15 @@ export function RunCostDistributionsTab() {
               <span className="text-sm text-foreground">{n.name}</span>
             </span>
           ) : (
-            <span className="text-sm font-medium text-foreground">
-              {n.name}
+            <span className="inline-flex items-center gap-2">
+              {n.level_label && (
+                <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {n.level_label}
+                </span>
+              )}
+              <span className="text-sm font-medium text-foreground">
+                {n.name}
+              </span>
             </span>
           ),
       },
@@ -342,23 +349,28 @@ export function RunCostDistributionsTab() {
           </>
         )}
 
-        <Labelled label="Year">
-          <Select
-            value={String(year)}
-            onValueChange={(v) => setYear(Number(v))}
-          >
-            <SelectTrigger className="h-9 w-[100px] text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {YEAR_OPTIONS.map((y) => (
-                <SelectItem key={y} value={String(y)}>
-                  {y}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Labelled>
+        {/* Year only affects the year-scoped geo rollup; the LoB/Program tree
+            uses a flat annual_cost and Cascade carries its own version, so the
+            control is hidden where it would have no effect (review #2). */}
+        {mode === 'rollup' && !hierarchy && (
+          <Labelled label="Year">
+            <Select
+              value={String(year)}
+              onValueChange={(v) => setYear(Number(v))}
+            >
+              <SelectTrigger className="h-9 w-[100px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {YEAR_OPTIONS.map((y) => (
+                  <SelectItem key={y} value={String(y)}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Labelled>
+        )}
       </div>
 
       {mode === 'cascade' ? (
