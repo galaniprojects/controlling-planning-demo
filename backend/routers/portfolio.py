@@ -1174,6 +1174,22 @@ def get_run_cost_tree(
     return build_run_cost_tree(db, group_by=group_by, node=node, year=year)
 
 
+def _run_external_cost_filters(
+    lob: str | None, status: str | None, rag: str | None
+) -> dict:
+    """Filter dict for the Run-scoped external-cost endpoints.
+
+    ``population='run'`` restricts ``_get_scoped_project_ids`` to projects with
+    a ``run_entity_id`` link; the optional lob/status/rag mirror the Change
+    endpoints and are dropped when not supplied.
+    """
+    return {
+        k: v
+        for k, v in {"lob": lob, "status": status, "rag": rag, "population": "run"}.items()
+        if v is not None
+    }
+
+
 @router.get("/run/external-costs/vendor-summary")
 def get_run_external_cost_vendor_summary(
     year: int | None = None,
@@ -1187,9 +1203,7 @@ def get_run_external_cost_vendor_summary(
     but restricts the population to run_entity_id-linked projects."""
     from services.external_cost_aggregation import compute_portfolio_vendor_summary
 
-    filters = {k: v for k, v in
-               {"lob": lob, "status": status, "rag": rag, "population": "run"}.items()
-               if v is not None}
+    filters = _run_external_cost_filters(lob, status, rag)
     rows = compute_portfolio_vendor_summary(db, user, year=year, filters=filters)
     return {"items": rows, "total": len(rows), "year": year}
 
@@ -1206,9 +1220,7 @@ def get_run_external_cost_category_analysis(
     """Run-scoped cost-type breakdown — Run population only."""
     from services.external_cost_aggregation import compute_portfolio_category_analysis
 
-    filters = {k: v for k, v in
-               {"lob": lob, "status": status, "rag": rag, "population": "run"}.items()
-               if v is not None}
+    filters = _run_external_cost_filters(lob, status, rag)
     rows = compute_portfolio_category_analysis(db, user, year=year, filters=filters)
     return {"items": rows, "total": len(rows), "year": year}
 
@@ -1225,8 +1237,6 @@ def get_run_external_cost_project_vendor_matrix(
     """Run-scoped cross-tab grid (rows=entities, cols=vendors) — Run population only."""
     from services.external_cost_aggregation import compute_project_vendor_matrix
 
-    filters = {k: v for k, v in
-               {"lob": lob, "status": status, "rag": rag, "population": "run"}.items()
-               if v is not None}
+    filters = _run_external_cost_filters(lob, status, rag)
     payload = compute_project_vendor_matrix(db, user, year=year, filters=filters)
     return {**payload, "year": year}

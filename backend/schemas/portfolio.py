@@ -42,6 +42,7 @@ class RunCostTreeNode(BaseModel):
     name: str
     kind: str  # 'group' | 'entity'
     level: str | None  # hierarchy level id for groups (get-lob/get-prog); None for entities
+    level_label: str | None  # human level name for groups (e.g. "Line of Business"); None for entities
     entity_type: str | None  # 'Offering' | 'InternalService' for entities; None for groups
     identifier: str | None  # Run entity identifier for entities; None for groups
     annual_cost: float  # own cost of a leaf entity; 0 for group rows

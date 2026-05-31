@@ -32,7 +32,11 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from models.charging import ChargeableEntity
-from models.organization import GroupingEntity, GroupingHierarchy
+from models.organization import (
+    GroupingEntity,
+    GroupingEntityType,
+    GroupingHierarchy,
+)
 
 # Run population: chargeable entities that are not Change projects.
 RUN_ENTITY_TYPES = ("Offering", "InternalService")
@@ -94,6 +98,12 @@ def build_run_cost_tree(
     for g in all_groups:
         children_index.setdefault(g.parent_entity_id, []).append(g)
 
+    # Display name per grouping-entity type (the level label, e.g. "Line of
+    # Business" / "Program") — reference data read from the DB, never hardcoded.
+    type_name_by_id: dict[str, str] = {
+        t.id: t.name for t in db.query(GroupingEntityType).all()
+    }
+
     def _order_of(group: GroupingEntity) -> int:
         # Groups whose type is not a hierarchy level sort below everything.
         return level_order_by_type.get(group.entity_type_id, 999)
@@ -111,23 +121,50 @@ def build_run_cost_tree(
             )
         return chain
 
-    def _anchor_for(group_id: str) -> str | None:
-        """Nearest ancestor (inclusive) whose level is at/above the target.
+    # Top-level = roots of the hierarchy at/above the target level (LoB nodes).
+    top_groups = [
+        g for g in children_index.get(None, []) if _order_of(g) <= target_order
+    ]
 
-        Walks up from ``group_id`` until a node with ``level_order <=
-        target_order`` is found. This is what rolls a Program-attached entity
-        up into its parent LoB when grouping by LoB.
+    # ``reachable_ids`` is the SINGLE source of truth for which group nodes the
+    # render pass (``_build_group_node``) can actually draw: descend from a top
+    # group only through children still at/above the target level. Anchoring
+    # entities against this same set (below) guarantees a placed entity always
+    # lands on a rendered node — no silent cost loss even if the hierarchy is
+    # later deepened or gains a non-level intermediate node.
+    reachable_ids: set[str] = set()
+
+    def _mark_reachable(g: GroupingEntity) -> None:
+        if g.id in reachable_ids:
+            return
+        reachable_ids.add(g.id)
+        for cg in children_index.get(g.id, []):
+            if _order_of(cg) <= target_order:
+                _mark_reachable(cg)
+
+    for g in top_groups:
+        _mark_reachable(g)
+
+    def _anchor_for(group_id: str) -> str | None:
+        """Deepest ancestor (inclusive) that the render pass will actually draw.
+
+        Walks up from ``group_id`` and returns the first id in ``reachable_ids``.
+        For a Program-attached entity grouped by LoB this resolves to the parent
+        LoB (the Program node is not reachable at target level 0); grouped by
+        Program it resolves to the Program node itself. Sharing the
+        render-reachable set keeps anchoring and rendering on one definition.
         """
         current = group_by_id.get(group_id)
         visited: set[str] = set()
         while current and current.id not in visited:
             visited.add(current.id)
-            if _order_of(current) <= target_order:
+            if current.id in reachable_ids:
                 return current.id
-            if current.parent_entity_id:
-                current = group_by_id.get(current.parent_entity_id)
-            else:
-                break
+            current = (
+                group_by_id.get(current.parent_entity_id)
+                if current.parent_entity_id
+                else None
+            )
         return None
 
     # --- Load the Run entity population ---
@@ -162,6 +199,7 @@ def build_run_cost_tree(
             "name": e.name,
             "kind": "entity",
             "level": None,
+            "level_label": None,
             "entity_type": e.entity_type,
             "identifier": e.identifier,
             "annual_cost": round(cost, 2),
@@ -199,6 +237,7 @@ def build_run_cost_tree(
             "name": g.name,
             "kind": "group",
             "level": g.entity_type_id,
+            "level_label": type_name_by_id.get(g.entity_type_id),
             "entity_type": None,
             "identifier": None,
             "annual_cost": 0.0,
@@ -207,12 +246,6 @@ def build_run_cost_tree(
             "children": children,
         }
 
-    # Top-level = roots of the hierarchy (LoB nodes: parent None, level 0).
-    top_groups = [
-        g
-        for g in children_index.get(None, [])
-        if _order_of(g) <= target_order
-    ]
     top_groups.sort(key=lambda g: g.name)
 
     nodes: list[dict] = []

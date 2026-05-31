@@ -125,6 +125,53 @@ def test_grand_total_equals_sum_of_top_node_rolled(db, seed_run_entities):
         assert tree["grand_total"] == 350.0
 
 
+def test_conservation_with_non_level_intermediate(db):
+    """(#1 regression) An entity under a NON-level intermediate node still lands
+    on a rendered ancestor — cost is conserved, never silently dropped.
+
+    Shape:  Deep LoB (get-lob)  ->  Deep Div (get-div, NOT a hierarchy level)
+            ->  Deep Prog (get-prog)  ->  entity attached here.
+    Grouping by Programme, the Programme node is unreachable in the render pass
+    (its parent is not a level), so a naive anchor would orphan the cost. The
+    builder must roll it up onto the rendered LoB root instead.
+    """
+    from models.organization import (
+        GroupingEntity,
+        GroupingEntityType,
+        GroupingHierarchy,
+        GroupingHierarchyLevel,
+    )
+
+    db.add_all([
+        GroupingEntityType(id="get-lob", name="Line of Business"),
+        GroupingEntityType(id="get-prog", name="Programme"),
+        GroupingEntityType(id="get-div", name="Division"),  # NOT a hierarchy level
+        GroupingHierarchy(id="hier-deep", name="Deep", is_active_hierarchy=True),
+        GroupingHierarchyLevel(hierarchy_id="hier-deep", level_order=1, entity_type_id="get-lob"),
+        GroupingHierarchyLevel(hierarchy_id="hier-deep", level_order=2, entity_type_id="get-prog"),
+        GroupingEntity(id="d-lob", entity_type_id="get-lob", name="Deep LoB"),
+        GroupingEntity(id="d-div", entity_type_id="get-div", name="Deep Div",
+                       parent_entity_id="d-lob"),
+        GroupingEntity(id="d-prog", entity_type_id="get-prog", name="Deep Prog",
+                       parent_entity_id="d-div"),
+        ChargeableEntity(
+            id="svc-deep", entity_type="InternalService", identifier="ITF20099",
+            name="Deep Service", hierarchy_node_id="d-prog", annual_cost=123.0,
+        ),
+    ])
+    db.commit()
+
+    for gb in ("lob", "program"):
+        tree = build_run_cost_tree(db, group_by=gb)
+        # True conservation: the full entity cost appears in the tree.
+        assert tree["grand_total"] == 123.0, gb
+        assert sum(n["rolled_cost"] for n in tree["nodes"]) == 123.0, gb
+        lob = _find(tree["nodes"], "d-lob")
+        assert lob is not None and lob["rolled_cost"] == 123.0, gb
+        # The cost surfaces under the rendered LoB root, not orphaned.
+        assert _find(lob["children"], "svc-deep") is not None, gb
+
+
 def test_node_scope_filters_to_descendants(db, seed_run_entities):
     """The node param scopes the population descendant-inclusive."""
     # Scope to LoB Alpha → only off-a (100) + svc-p (50) = 150, Beta excluded.
@@ -147,15 +194,18 @@ def test_entity_node_field_shape(db, seed_run_entities):
 
     # Group node contract
     assert set(alpha.keys()) == {
-        "id", "name", "kind", "level", "entity_type", "identifier",
-        "annual_cost", "rolled_cost", "entity_count", "children",
+        "id", "name", "kind", "level", "level_label", "entity_type",
+        "identifier", "annual_cost", "rolled_cost", "entity_count", "children",
     }
     assert alpha["annual_cost"] == 0.0
     assert alpha["entity_type"] is None
     assert alpha["identifier"] is None
+    # Group rows carry the human level label (DB-sourced GroupingEntityType.name).
+    assert alpha["level_label"] == "Line of Business"
 
     # Entity node contract
     assert svc["level"] is None
+    assert svc["level_label"] is None
     assert svc["entity_type"] == "InternalService"
     assert svc["identifier"] == "ITF20001"
     assert svc["annual_cost"] == 50.0
