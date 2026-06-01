@@ -91,7 +91,8 @@ def get_portfolio_kpis(
         if ge_pids:
             proj_filter.append(Project.id.in_(ge_pids))
     if status:
-        proj_filter.append(Project.status == status)
+        # `status` filter now matches the lifecycle pipeline_stage.
+        proj_filter.append(Project.pipeline_stage == status)
     if rag:
         proj_filter.append(Project.rag_status == rag)
     if type:
@@ -306,7 +307,7 @@ def get_dashboard_charts(
         else:
             pq = pq.filter(False)
     if status:
-        pq = pq.filter(Project.status == status)
+        pq = pq.filter(Project.pipeline_stage == status)
     if rag:
         pq = pq.filter(Project.rag_status == rag)
     if project_type:

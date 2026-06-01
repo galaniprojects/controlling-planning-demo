@@ -477,7 +477,8 @@ def compute_capacity_projects(
         items.append({
             "project_id": project.id,
             "project_name": project.name,
-            "project_status": project.status,
+            "project_pipeline_stage": project.pipeline_stage,
+            "project_review_state": project.review_state,
             "hierarchy_node_id": entity_info["id"] if entity_info else None,
             "hierarchy_node_name": entity_info["name"] if entity_info else None,
             "pl_person_id": pl.id if pl else None,

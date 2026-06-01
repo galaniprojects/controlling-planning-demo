@@ -1068,7 +1068,7 @@ def get_pending_project_confirmations(
     # --- Projects awaiting CC confirmation ---
     projects = (
         db.query(Project)
-        .filter(Project.status == "pending_cc_confirmation")
+        .filter(Project.review_state == "pending_cc_confirmation")
         .all()
     )
     for p in projects:
@@ -1196,7 +1196,8 @@ def get_project_assignment_detail(
             "pl_name": pl.name if pl else None,
             "start_month": project.start_month,
             "end_month": project.end_month,
-            "status": project.status,
+            "pipeline_stage": project.pipeline_stage,
+            "review_state": project.review_state,
         },
         "cost_center_id": cc_id,
         "requests": request_items,
@@ -1217,8 +1218,8 @@ def confirm_project_resources(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
-    if project.status != "pending_cc_confirmation":
-        raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_cc_confirmation'")
+    if project.review_state != "pending_cc_confirmation":
+        raise HTTPException(409, f"Project review_state is '{project.review_state}', expected 'pending_cc_confirmation'")
 
     # Confirm all pending resource requests and create Allocations from assignments
     pending_requests = (
@@ -1230,7 +1231,7 @@ def confirm_project_resources(
         req.status = "confirmed"
         _create_allocations_from_assignments(db, req)
 
-    project.status = "pending_approval"
+    project.review_state = "pending_approval"
 
     # Notify controller (Anna Schneider = p-schneider)
     db.add(Notification(
@@ -1365,7 +1366,7 @@ def confirm_project_resources(
     db.commit()
     db.refresh(project)
 
-    return {"id": project.id, "name": project.name, "status": project.status}
+    return {"id": project.id, "name": project.name, "pipeline_stage": project.pipeline_stage, "review_state": project.review_state}
 
 
 @router.put("/project-confirmation/{project_id}/decline")
@@ -1381,8 +1382,8 @@ def decline_project_resources(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
-    if project.status != "pending_cc_confirmation":
-        raise HTTPException(409, f"Project status is '{project.status}', expected 'pending_cc_confirmation'")
+    if project.review_state != "pending_cc_confirmation":
+        raise HTTPException(409, f"Project review_state is '{project.review_state}', expected 'pending_cc_confirmation'")
 
     # Decline all pending resource requests
     pending_requests = (
@@ -1394,7 +1395,7 @@ def decline_project_resources(
         req.status = "declined"
         req.explanation = body.reason
 
-    project.status = "changes_requested"
+    project.review_state = "changes_requested"
     project.submission_feedback = body.reason
 
     # Notify PL
@@ -1439,7 +1440,7 @@ def decline_project_resources(
     db.commit()
     db.refresh(project)
 
-    return {"id": project.id, "name": project.name, "status": project.status}
+    return {"id": project.id, "name": project.name, "pipeline_stage": project.pipeline_stage, "review_state": project.review_state}
 
 
 # ---------------------------------------------------------------------------

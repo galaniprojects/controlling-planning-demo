@@ -338,17 +338,16 @@ def check_baseline_coverage(db) -> tuple[bool, list[str]]:
     issues: list[str] = []
     placeholders = ",".join("?" * len(_PRE_EXECUTION_STAGES))
     rows = db.execute(f"""
-        SELECT p.id, p.name, p.status, p.pipeline_stage, COUNT(b.id) AS bcount
+        SELECT p.id, p.name, p.pipeline_stage, COUNT(b.id) AS bcount
         FROM projects p
         LEFT JOIN baselines b ON b.project_id = p.id
-        WHERE p.status NOT IN ('draft','pending_cc_confirmation','pending_approval')
-          AND (p.pipeline_stage IS NULL OR p.pipeline_stage NOT IN ({placeholders}))
+        WHERE (p.pipeline_stage IS NULL OR p.pipeline_stage NOT IN ({placeholders}))
         GROUP BY p.id
     """, tuple(_PRE_EXECUTION_STAGES)).fetchall()
     for r in rows:
         if r["bcount"] == 0:
             issues.append(
-                f"  {r['id']} ({r['name']}, status={r['status']}): "
+                f"  {r['id']} ({r['name']}, stage={r['pipeline_stage']}): "
                 f"zero baseline rows"
             )
     return len(issues) == 0, issues

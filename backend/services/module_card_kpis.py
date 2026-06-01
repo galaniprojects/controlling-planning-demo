@@ -34,6 +34,7 @@ from models.scheduled_changes import ScheduledChange
 from schemas.common import CurrentUser
 from services.calculations import FTE_HOURS
 from services.forecast_cycle import derive_cycle_label
+from services.pipeline import EXECUTION_STAGES
 from services.portfolio_service import compute_portfolio_kpis
 
 
@@ -148,7 +149,7 @@ def _workbench_subtitle(db: Session, user: CurrentUser) -> list[str]:
             db.query(func.count(Project.id))
             .filter(
                 Project.is_active.is_(True),
-                Project.status == "active",
+                Project.pipeline_stage.in_(list(EXECUTION_STAGES)),
                 Project.is_service.is_(False),
                 (Project.last_forecast_submitted_month.is_(None))
                 | (Project.last_forecast_submitted_month < DEMO_DATE),

@@ -79,6 +79,13 @@ TERMINAL_STAGES: frozenset[str] = frozenset({
 # to the DoI held when the project left the main path [A-PS-03] [A-PS-10].
 OFF_PATH_STAGES: frozenset[str] = frozenset({"Paused", "Cancelled"})
 
+# Intake/submission review sub-states stored on ``Project.review_state``
+# (orthogonal to pipeline_stage; NULL when the project isn't mid-review).
+# These replace the transient values formerly overloaded onto Project.status.
+REVIEW_STATES: frozenset[str] = frozenset({
+    "pending_cc_confirmation", "pending_approval", "changes_requested",
+})
+
 
 # ---------------------------------------------------------------------------
 # Transition graph ([A-PS-11])
@@ -245,8 +252,11 @@ WORKING_DOI_GATES: dict[int, list[FieldRequirement]] = {
         FieldRequirement("project_type", "Project Type (1/2/3)", "project"),
     ],
 
-    # DoI 0 -> 1 gate [A-DOI-05]: AI Council screening complete.
+    # DoI 0 -> 1 gate [A-DOI-05]: AI Council screening complete. project_type
+    # (P1/P2/P3) is required here so a project cannot enter the *ranked* backlog
+    # without a classification (it decides pre-funded vs. contestable treatment).
     1: [
+        FieldRequirement("project_type", "Project Type (1/2/3)", "project"),
         FieldRequirement("composite_score", "Tech Navigator composite score", "project"),
         FieldRequirement("tshirt_size", "Budget t-shirt size", "project"),
         FieldRequirement("transformation_level", "Transformation level (T0/T1/T2)", "project"),
@@ -299,6 +309,35 @@ WORKING_DOI_GATES: dict[int, list[FieldRequirement]] = {
 RUN_ENTITY_SPAWNED_REQUIREMENT = FieldRequirement(
     "run_entity_id", "Spawned Run entity", "project"
 )
+
+# Stage-entry prerequisites — checked when a project ENTERS the stage,
+# independent of any DoI advance. Entering execution requires that resources
+# are confirmed (≥1 baseline row): "Active" defaults to DoI 3, so an
+# Approved→Active move is not a forward-DoI move and would otherwise skip the
+# DoI-4 baseline gate. Enforced router-side with override_reason as the escape
+# hatch (mirrors the DoI-gate 409).
+STAGE_ENTRY_REQUIREMENTS: dict[str, list[FieldRequirement]] = {
+    "Active": [
+        FieldRequirement("1", "At least one baseline row (confirmed resources)", "baseline_count"),
+    ],
+    "Hyper-maintenance": [
+        FieldRequirement("1", "At least one baseline row (confirmed resources)", "baseline_count"),
+    ],
+}
+
+
+def validate_stage_entry(project, target_stage: str, db: Session) -> list[str]:
+    """Return missing-field labels for ENTERING ``target_stage``.
+
+    Empty list = no stage-entry prerequisite (or all satisfied). The caller
+    decides whether to enforce a 409 or accept an override_reason.
+    """
+    missing: list[str] = []
+    for req in STAGE_ENTRY_REQUIREMENTS.get(target_stage, []):
+        msg = _check_requirement(project, db, req)
+        if msg is not None:
+            missing.append(msg)
+    return missing
 
 
 def _check_requirement(project, db: Session, req: FieldRequirement) -> Optional[str]:

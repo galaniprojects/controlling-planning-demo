@@ -166,7 +166,7 @@ def _build_response(db: Session, project: Project) -> ProjectDefineResponse:
         id=project.id,
         name=project.name,
         description=project.description,
-        status=project.status,
+        review_state=project.review_state,
         capex_opex=project.capex_opex,
         start_month=project.start_month,
         end_month=project.end_month,
@@ -298,7 +298,6 @@ def create_define_project(
         id=_gen_project_id(),
         name=body.name,
         description=body.description,
-        status="draft",
         capex_opex="opex",
         start_month=DEMO_DATE,
         end_month=None,
@@ -567,6 +566,9 @@ def _apply_doi_advance(
 
     project.pipeline_stage = target_stage
     project.doi = target_doi
+    # Reaching Approved or beyond concludes any intake/submission review.
+    if target_doi >= 3:
+        project.review_state = None
     if target_stage in OFF_PATH_STAGES:
         # Unreachable via the DoI-mapping above, but keep the frozen_doi
         # bookkeeping consistent with the pipeline router.

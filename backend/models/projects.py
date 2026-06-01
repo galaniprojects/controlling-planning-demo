@@ -13,10 +13,14 @@ class Project(Base):
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(30), nullable=False)
-    # Status: draft, pending_cc_confirmation, pending_approval, active, planned, completed, rejected, changes_requested
+    # Intake/submission review sub-state — orthogonal to pipeline_stage (the
+    # lifecycle source of truth). Null whenever the project is not mid-review.
+    # Values: pending_cc_confirmation, pending_approval, changes_requested.
+    # (Replaced the former overloaded `status` column; lifecycle now lives
+    # exclusively on pipeline_stage.)
+    review_state: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     submission_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    # Controller/CC Owner feedback text for changes_requested status
+    # Controller/CC Owner feedback text for the changes_requested review_state
     rag_status: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     # RAG: green, amber, red, or null for pending/draft
     capex_opex: Mapped[str] = mapped_column(String(10), nullable=False)
@@ -49,8 +53,13 @@ class Project(Base):
     tshirt_size: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)  # XS/S/M/L/XL, derived from total_budget
 
     # v5 Session A2 lifecycle: pipeline stage + DoI gate columns [A-PS-01] [A-DOI-01].
-    # All nullable so existing rows survive re-seed; defaults set in seed.sql.
-    pipeline_stage: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    # pipeline_stage is the single lifecycle source of truth (every create path
+    # and the seed set it); non-null since the status-column retirement.
+    # server_default so the raw-SQL seed INSERT (which sets the stage via the
+    # later s12 UPDATE) and create_all both satisfy the NOT NULL constraint.
+    pipeline_stage: Mapped[str] = mapped_column(
+        String(30), nullable=False, server_default="Proposed",
+    )
     # Working stage names (VIPER §2.3 target set): Proposed, Under Evaluation,
     # Approved, Active, Hyper-maintenance, Completed, Run entity spawned, Paused,
     # Cancelled. Operate and Retired removed (VIPER §13.4); Completed and

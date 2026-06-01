@@ -321,7 +321,8 @@ def get_lob_projects(
         {
             "id": p.id,
             "name": p.name,
-            "status": p.status,
+            "pipeline_stage": p.pipeline_stage,
+            "review_state": p.review_state,
             "total_budget": float(p.total_budget or p.annual_budget or 0),
         }
         for p in projects
@@ -1070,7 +1071,7 @@ def get_active_hierarchy(
             for a in assignments:
                 p = db.query(Project).filter(Project.id == a.project_id).first()
                 if p:
-                    projects.append({"id": p.id, "name": p.name, "status": p.status})
+                    projects.append({"id": p.id, "name": p.name, "pipeline_stage": p.pipeline_stage})
 
         # Get child entities (entities whose parent_entity_id == this entity)
         child_entities = (
@@ -1193,7 +1194,8 @@ def get_entity_projects(
             items.append({
                 "id": p.id,
                 "name": p.name,
-                "status": p.status,
+                "pipeline_stage": p.pipeline_stage,
+                "review_state": p.review_state,
                 "total_budget": float(p.total_budget or p.annual_budget or 0),
             })
     return {"items": items, "total": len(items)}

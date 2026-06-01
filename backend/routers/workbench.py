@@ -29,6 +29,7 @@ from schemas.workbench import (
     ProjectListItem, SubmitRequest,
 )
 from services.calculations import compute_plan_drift, add_months
+from services.pipeline import BACKLOG_STAGES, EXECUTION_STAGES
 from services.forecast_cycle import (
     clear_cycle, derive_cycle_label, get_cycle_by_id, start_cycle,
 )
@@ -70,7 +71,8 @@ def get_project_list(
         ProjectListItem(
             id=p.id, name=p.name, rag=p.rag_status,
             type="service" if p.is_service else "project",
-            status=p.status, is_service=p.is_service,
+            pipeline_stage=p.pipeline_stage, review_state=p.review_state,
+            is_service=p.is_service,
         )
         for p in projects
     ]
@@ -150,14 +152,14 @@ def get_project_overview(
     from services.calendar import current_fiscal_year
     demo_year = current_fiscal_year()
 
-    if project.status == "active":
+    if project.pipeline_stage in EXECUTION_STAGES:
         resource_title = f"Resource Plan {demo_year}"
         rp_filter = Forecast.month.like(f"{demo_year}-%")
-    elif project.status == "planned":
+    elif project.pipeline_stage in BACKLOG_STAGES:
         start_year = project.start_month[:4] if project.start_month else demo_year
         resource_title = f"Resource Plan {start_year}"
         rp_filter = None
-    elif project.status == "completed":
+    elif project.pipeline_stage == "Completed":
         resource_title = "Resources Consumed"
         rp_filter = None
     else:
@@ -195,7 +197,8 @@ def get_project_overview(
         "metadata": {
             "id": project.id, "name": project.name, "lob": _get_project_lob_name(db, project.id),
             "hierarchy_path": get_project_hierarchy_path(db, project.id),
-            "status": project.status, "rag": project.rag_status,
+            "pipeline_stage": project.pipeline_stage,
+            "review_state": project.review_state, "rag": project.rag_status,
             "timeline": {"start": project.start_month, "end": project.end_month, "projected_end": project.projected_end_month},
             "pl_name": project.pl.name if project.pl else None,
             "pending_cr": {

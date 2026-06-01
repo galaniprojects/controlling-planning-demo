@@ -42,6 +42,7 @@ from services.pipeline import (
     doi_for_stage,
     is_transition_allowed,
     validate_doi_gate,
+    validate_stage_entry,
 )
 
 
@@ -204,6 +205,22 @@ def transition_pipeline(
     if not ok:
         raise HTTPException(status_code=409, detail=edge_err)
 
+    # 1a. Stage-entry prerequisite (independent of DoI). Entering Active /
+    #     Hyper-maintenance requires a confirmed baseline — guards against the
+    #     "Approved -> Active at DoI 3" move silently skipping the DoI-4 gate.
+    #     override_reason is the deliberate escape hatch.
+    if not body.override_reason:
+        entry_missing = validate_stage_entry(project, body.target_stage, db)
+        if entry_missing:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "stage_entry_unmet",
+                    "target_stage": body.target_stage,
+                    "missing_fields": entry_missing,
+                },
+            )
+
     # 1b. Run-entity-link invariant (VIPER §2.4 / Wave 3). A move to the
     #     terminal "Run entity spawned" stage must name the ChargeableEntity
     #     the project hands off to. The entity must exist and be an Offering or
@@ -294,6 +311,10 @@ def transition_pipeline(
     old_run_entity_id = project.run_entity_id
 
     project.pipeline_stage = body.target_stage
+
+    # Leaving the pre-approval window concludes any intake/submission review.
+    if body.target_stage not in ("Proposed", "Under Evaluation"):
+        project.review_state = None
 
     # Run-entity-link: only the spawn transition stamps the link + handover
     # month. No other target stage touches these fields (per requirement 5).

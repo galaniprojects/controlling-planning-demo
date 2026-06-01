@@ -220,7 +220,7 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
             "rag": p.rag_status, "lob_id": _get_project_lob_id(db, p.id),
             "is_service": p.is_service, "is_affected": False,
             "start": p.start_month, "end": p.end_month,
-            "status": p.status,
+            "status": p.pipeline_stage,
         }
 
     # Apply actions — compute per-action budget delta

@@ -260,7 +260,6 @@ def create_intake_project(
         id=_gen_project_id(),
         name=body.name,
         description=body.description,
-        status="draft",  # back-compat with v4 launchpad / workbench filters
         capex_opex=body.capex_opex,
         start_month=body.start_month,
         end_month=body.end_month,
@@ -381,11 +380,10 @@ def approve_intake_project(
 
     old_stage = project.pipeline_stage
     old_doi = project.doi
-    old_status = project.status
 
     project.pipeline_stage = APPROVED
     project.doi = 3
-    project.status = "active"
+    project.review_state = None  # review concluded on approval
     if project.rag_status is None:
         project.rag_status = "green"
 
@@ -486,7 +484,7 @@ def send_back_intake_project(
 
     project.pipeline_stage = PROPOSED
     project.doi = 1
-    project.status = "changes_requested"
+    project.review_state = "changes_requested"
     project.submission_feedback = comments
 
     _log_audit(
@@ -576,7 +574,7 @@ def reject_intake_project(
     if project.doi is not None:
         project.frozen_doi = project.doi
     project.doi = None
-    project.status = "rejected"
+    project.review_state = None  # review concluded on rejection (stage=Cancelled)
     project.submission_feedback = reason
     project.within_cutoff = None
 
@@ -678,7 +676,7 @@ def resubmit_intake_project(
 
     project.pipeline_stage = UNDER_EVALUATION
     project.doi = 2
-    project.status = "pending_approval"
+    project.review_state = "pending_approval"
     project.submission_feedback = None
 
     _log_audit(
