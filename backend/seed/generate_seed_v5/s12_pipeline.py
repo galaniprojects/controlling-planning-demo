@@ -63,6 +63,25 @@ PIPELINE_STATE: list[tuple] = [
     # Enterprise Unified Workspace offering (off-eunify); 18 % distribution edge
     # confirms the dependency.  run_entity_id → off-eunify (Offering).
     ("proj-iam-run",      "Run entity spawned", 5, True,  None, True,  None, "off-eunify"),
+    # --- Backlog expansion (v6) — 9 Proposed, 5 Under Evaluation, 2 Approved.
+    #     within_cutoff is re-derived at load time by the ranking recompute;
+    #     the True seed value is a placeholder.
+    ("proj-cloudmig",     "Proposed",           0, False, None, True,  None, None),
+    ("proj-datalake",     "Proposed",           0, False, None, True,  None, None),
+    ("proj-mes",          "Proposed",           0, False, None, True,  None, None),
+    ("proj-zerotrust",    "Proposed",           0, False, None, True,  None, None),
+    ("proj-mdm",          "Proposed",           0, False, None, True,  None, None),
+    ("proj-elearning",    "Proposed",           0, False, None, True,  None, None),
+    ("proj-apigateway",   "Proposed",           0, False, None, True,  None, None),
+    ("proj-fielddx2",     "Proposed",           0, False, None, True,  None, None),
+    ("proj-greenit",      "Proposed",           0, False, None, True,  None, None),
+    ("proj-aiops",        "Under Evaluation",   2, True,  "https://kb.sharepoint.com/aicouncil/proj-aiops-2026-03.pdf",     True, None, None),
+    ("proj-iam2",         "Under Evaluation",   2, True,  "https://kb.sharepoint.com/aicouncil/proj-iam2-2026-02.pdf",      True, None, None),
+    ("proj-ehs",          "Under Evaluation",   2, True,  "https://kb.sharepoint.com/aicouncil/proj-ehs-2026-02.pdf",       True, None, None),
+    ("proj-crmnext",      "Under Evaluation",   1, True,  "https://kb.sharepoint.com/aicouncil/proj-crmnext-2026-01.pdf",   True, None, None),
+    ("proj-warehouse",    "Under Evaluation",   1, True,  "https://kb.sharepoint.com/aicouncil/proj-warehouse-2026-01.pdf", True, None, None),
+    ("proj-sapupg",       "Approved",           3, True,  "https://kb.sharepoint.com/aicouncil/proj-sapupg-2025-12.pdf",    True, None, None),
+    ("proj-paymtsec",     "Approved",           3, True,  "https://kb.sharepoint.com/aicouncil/proj-paymtsec-2025-11.pdf",  True, None, None),
 ]
 
 

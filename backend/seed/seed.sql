@@ -76,7 +76,12 @@ INSERT INTO planning_parameters (key, name, description, current_value, default_
 ('rag_amber_threshold', 'RAG Amber Threshold', 'Budget variance % for amber status', '5', '5', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('rag_red_threshold', 'RAG Red Threshold', 'Budget variance % for red status', '10', '10', 'percentage', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('max_utilization', 'Max Utilization', 'Maximum person utilization percentage', '100', '100', 'percentage', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
-('max_allocation_depth', 'Max Allocation Depth', 'Maximum Stage 1 distribution chain length', '6', '6', 'integer', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
+('max_allocation_depth', 'Max Allocation Depth', 'Maximum Stage 1 distribution chain length', '6', '6', 'integer', 'limits', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('ranking_total_available_budget', 'Ranking Total Available Budget', 'Total budget envelope for the ranked backlog competition', '13000000', '50000000', 'integer', 'planning', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_tshirt_xs_max', 'T-Shirt XS Max', 'Upper budget bound for XS sizing (EUR)', '200000', '100000', 'integer', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_tshirt_s_max', 'T-Shirt S Max', 'Upper budget bound for S sizing (EUR)', '500000', '250000', 'integer', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_tshirt_m_max', 'T-Shirt M Max', 'Upper budget bound for M sizing (EUR)', '1000000', '500000', 'integer', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('tn_tshirt_l_max', 'T-Shirt L Max', 'Upper budget bound for L sizing (EUR)', '2000000', '1000000', 'integer', 'thresholds', '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
 -- =============================================================================
 -- s01_taxonomy / 7. KPI Definitions (built-in catalogue)
@@ -503,7 +508,7 @@ INSERT INTO people (id, name, role_type_id, cost_center_id, is_active, created_a
 INSERT INTO demo_personas (id, person_id, role, display_name, title, default_module, managed_cost_center_id, owned_project_ids_json) VALUES
 ('persona-controller', 'p-meier', 'controller', 'Anna Meier', 'IT Controller', 'portfolio', NULL, NULL),
 ('persona-cc-owner', 'p-brenner', 'cost_center_owner', 'Thomas Brenner', 'Head of Application Development', 'capacity', 'cc-muc-apd', NULL),
-('persona-pl', 'p-sharma', 'project_lead', 'Priya Sharma', 'Senior Project Lead', 'workbench', NULL, '["proj-mdh-rollout", "proj-erp2", "proj-sensor", "proj-predmaint", "proj-autobrake"]'),
+('persona-pl', 'p-sharma', 'project_lead', 'Priya Sharma', 'Senior Project Lead', 'workbench', NULL, '["proj-mdh-rollout", "proj-erp2", "proj-sensor", "proj-predmaint", "proj-autobrake", "proj-cloudmig", "proj-apigateway", "proj-crmnext", "proj-sapupg"]'),
 ('persona-exec', 'p-weber', 'executive', 'Dr. Klaus Weber', 'VP IT Strategy & Governance', 'portfolio', NULL, NULL);
 
 -- =============================================================================
@@ -536,7 +541,23 @@ INSERT INTO projects (id, name, description, status, rag_status, capex_opex, sta
 ('proj-greenedge', 'Green Edge Computing Pilot', NULL, 'draft', NULL, 'capex', '2026-11', '2027-04', '2027-04', 'p-weber', 0, NULL, 28440, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
 ('proj-connveh', 'Connected Vehicle Platform', NULL, 'draft', NULL, 'capex', '2026-10', '2028-12', '2028-12', 'p-weber', 0, NULL, 1150000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
 ('proj-cloud3-run', 'Cloud Platform Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 240000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
-('proj-iam-run', 'Identity & Access Management Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 310000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL);
+('proj-iam-run', 'Identity & Access Management Run', NULL, 'active', 'green', 'opex', '2024-01', NULL, NULL, 'p-brenner', 1, 310000, NULL, '2026-03', 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-cloudmig', 'Cloud Migration Wave 2', NULL, 'draft', NULL, 'capex', '2026-08', '2028-03', '2028-03', 'p-sharma', 0, NULL, 1350000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-datalake', 'Enterprise Data Lake', NULL, 'draft', NULL, 'capex', '2026-09', '2028-06', '2028-06', 'p-gupta', 0, NULL, 1600000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-mes', 'Manufacturing Execution System Upgrade', NULL, 'draft', NULL, 'capex', '2026-07', '2027-12', '2027-12', 'p-kumar', 0, NULL, 780000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-zerotrust', 'Zero Trust Network Rollout', NULL, 'draft', NULL, 'capex', '2026-10', '2027-10', '2027-10', 'p-patel', 0, NULL, 640000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-mdm', 'Supplier Master Data Management', NULL, 'draft', NULL, 'capex', '2026-11', '2027-09', '2027-09', 'p-schmidt', 0, NULL, 320000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-elearning', 'Global E-Learning Platform', NULL, 'draft', NULL, 'opex', '2026-09', '2027-06', '2027-06', 'p-mueller', 0, NULL, 240000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-apigateway', 'API Gateway Consolidation', NULL, 'draft', NULL, 'capex', '2026-08', '2027-08', '2027-08', 'p-sharma', 0, NULL, 560000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-fielddx2', 'Field Diagnostics Mobile App', NULL, 'draft', NULL, 'capex', '2026-10', '2027-07', '2027-07', 'p-weber', 0, NULL, 290000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-greenit', 'Green IT Data Center Optimization', NULL, 'draft', NULL, 'capex', '2026-12', '2027-05', '2027-05', 'p-patel', 0, NULL, 95000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-aiops', 'AIOps Observability Platform', NULL, 'draft', NULL, 'capex', '2026-07', '2028-02', '2028-02', 'p-gupta', 0, NULL, 1450000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-ehs', 'EHS Compliance Tracking', NULL, 'draft', NULL, 'capex', '2026-09', '2027-11', '2027-11', 'p-kumar', 0, NULL, 680000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-crmnext', 'Next-Gen CRM Rollout', NULL, 'draft', NULL, 'capex', '2026-10', '2028-12', '2028-12', 'p-sharma', 0, NULL, 2100000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-warehouse', 'Warehouse Automation Integration', NULL, 'draft', NULL, 'capex', '2026-08', '2027-12', '2027-12', 'p-schmidt', 0, NULL, 720000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-iam2', 'Identity Governance Modernization', NULL, 'draft', NULL, 'capex', '2026-07', '2028-01', '2028-01', 'p-patel', 0, NULL, 850000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-paymtsec', 'Payment Security Compliance (PCI-DSS)', NULL, 'planned', 'green', 'capex', '2026-09', '2027-10', '2027-10', 'p-kumar', 0, NULL, 600000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL),
+('proj-sapupg', 'SAP S/4HANA Upgrade Phase 1', NULL, 'planned', 'green', 'capex', '2026-08', '2028-09', '2028-09', 'p-sharma', 0, NULL, 1950000, NULL, 0, 0, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00', NULL);
 
 -- =============================================================================
 -- s06_chargeable_entities / 2. Chargeable Entities (34 — polymorphic) [F-DM-01]
@@ -556,6 +577,22 @@ INSERT INTO chargeable_entities (id, entity_type, identifier, s_code, name, desc
 ('proj-connveh', 'Project', 'IT019450', NULL, 'Connected Vehicle Platform', NULL, 'he-tbs', 'p-weber', NULL, 0, 'proj-connveh', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-cloud3-run', 'Project', 'IT011920', NULL, 'Cloud Platform Run', NULL, 'he-cit-prog-infra', 'p-brenner', NULL, 0, 'proj-cloud3-run', NULL, 240000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('proj-iam-run', 'Project', 'IT011408', NULL, 'Identity & Access Management Run', NULL, 'he-cit', 'p-brenner', NULL, 0, 'proj-iam-run', NULL, 310000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-cloudmig', 'Project', 'IT020001', NULL, 'Cloud Migration Wave 2', NULL, 'he-cit', 'p-sharma', NULL, 0, 'proj-cloudmig', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-datalake', 'Project', 'IT020002', NULL, 'Enterprise Data Lake', NULL, 'he-dnd', 'p-gupta', NULL, 0, 'proj-datalake', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-mes', 'Project', 'IT020003', NULL, 'Manufacturing Execution System Upgrade', NULL, 'he-tbs', 'p-kumar', NULL, 0, 'proj-mes', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-zerotrust', 'Project', 'IT020004', NULL, 'Zero Trust Network Rollout', NULL, 'he-cit', 'p-patel', NULL, 0, 'proj-zerotrust', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-mdm', 'Project', 'IT020005', NULL, 'Supplier Master Data Management', NULL, 'he-dnd', 'p-schmidt', NULL, 0, 'proj-mdm', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-elearning', 'Project', 'IT020006', NULL, 'Global E-Learning Platform', NULL, 'he-cit', 'p-mueller', NULL, 0, 'proj-elearning', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-apigateway', 'Project', 'IT020007', NULL, 'API Gateway Consolidation', NULL, 'he-cit', 'p-sharma', NULL, 0, 'proj-apigateway', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-fielddx2', 'Project', 'IT020008', NULL, 'Field Diagnostics Mobile App', NULL, 'he-tbs-prog-fleet', 'p-weber', NULL, 0, 'proj-fielddx2', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-greenit', 'Project', 'IT020009', NULL, 'Green IT Data Center Optimization', NULL, 'he-cit-prog-infra', 'p-patel', NULL, 0, 'proj-greenit', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-aiops', 'Project', 'IT020010', NULL, 'AIOps Observability Platform', NULL, 'he-dnd-prog-data', 'p-gupta', NULL, 0, 'proj-aiops', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-ehs', 'Project', 'IT020011', NULL, 'EHS Compliance Tracking', NULL, 'he-rvs', 'p-kumar', NULL, 0, 'proj-ehs', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-crmnext', 'Project', 'IT020012', NULL, 'Next-Gen CRM Rollout', NULL, 'he-tbs', 'p-sharma', NULL, 0, 'proj-crmnext', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-warehouse', 'Project', 'IT020013', NULL, 'Warehouse Automation Integration', NULL, 'he-tbs-prog-fleet', 'p-schmidt', NULL, 0, 'proj-warehouse', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-iam2', 'Project', 'IT020014', NULL, 'Identity Governance Modernization', NULL, 'he-cit', 'p-patel', NULL, 0, 'proj-iam2', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-paymtsec', 'Project', 'IT020015', NULL, 'Payment Security Compliance (PCI-DSS)', NULL, 'he-cit', 'p-kumar', NULL, 0, 'proj-paymtsec', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+('proj-sapupg', 'Project', 'IT020016', NULL, 'SAP S/4HANA Upgrade Phase 1', NULL, 'he-tbs-prog-dbp', 'p-sharma', NULL, 0, 'proj-sapupg', NULL, NULL, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('off-mdh', 'Offering', 'IT00S042', 'S042', 'Master Data Hub', NULL, 'he-dnd', 'p-sharma', NULL, 95, NULL, NULL, 2400000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('off-eunify', 'Offering', 'IT00S118', 'S118', 'Enterprise Unified Workspace', NULL, 'he-cit', 'p-brenner', NULL, 90, NULL, NULL, 980000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('off-bizinsights', 'Offering', 'IT00S067', 'S067', 'Business Insights Platform', NULL, 'he-dnd', 'p-weber', NULL, 85, NULL, NULL, 1600000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
@@ -580,7 +617,7 @@ INSERT INTO chargeable_entities (id, entity_type, identifier, s_code, name, desc
 ('svc-itsm', 'InternalService', 'ITF20026', 'S720', 'ITSM Platform Service', NULL, 'he-cit', 'p-brenner', 'Number of users', 0, NULL, NULL, 175000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
 ('svc-devsec-tools', 'InternalService', 'ITF20027', NULL, 'DevSecOps Toolchain Service', NULL, 'he-cit', 'p-brenner', NULL, 0, NULL, NULL, 145000, 1, '2026-01-15 10:00:00', '2026-01-15 10:00:00');
 
--- chargeable_entities counts: 11 Project, 6 Offering, 17 InternalService.
+-- chargeable_entities counts: 27 Project, 6 Offering, 17 InternalService.
 
 -- =============================================================================
 -- s07_assignments / Project Grouping Assignments
@@ -598,7 +635,23 @@ INSERT INTO project_grouping_assignments (project_id, grouping_entity_id) VALUES
 ('proj-greenedge', 'he-cit'),
 ('proj-connveh', 'he-tbs'),
 ('proj-cloud3-run', 'he-cit-prog-infra'),
-('proj-iam-run', 'he-cit');
+('proj-iam-run', 'he-cit'),
+('proj-cloudmig', 'he-cit'),
+('proj-datalake', 'he-dnd'),
+('proj-mes', 'he-tbs'),
+('proj-zerotrust', 'he-cit'),
+('proj-mdm', 'he-dnd'),
+('proj-elearning', 'he-cit'),
+('proj-apigateway', 'he-cit'),
+('proj-fielddx2', 'he-tbs-prog-fleet'),
+('proj-greenit', 'he-cit-prog-infra'),
+('proj-aiops', 'he-dnd-prog-data'),
+('proj-ehs', 'he-rvs'),
+('proj-crmnext', 'he-tbs'),
+('proj-warehouse', 'he-tbs-prog-fleet'),
+('proj-iam2', 'he-cit'),
+('proj-paymtsec', 'he-cit'),
+('proj-sapupg', 'he-tbs-prog-dbp');
 
 -- =============================================================================
 -- s08_distribution / Stage 1 versions + edges [F-S1-01..05]  (FD-3 effective-dated rework)
@@ -1335,19 +1388,35 @@ INSERT INTO user_measurements (version_id, s_code, charging_location_id, value) 
 -- Run-stage projects (DoI 5) carry no Tech Navigator profile.
 -- =============================================================================
 
-UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 4, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.4, value_creation_score = 4.4, composite_score = 3.9, tshirt_size = 'M' WHERE id = 'proj-autobrake';
-UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 3, tn_maintenance = 4, tn_financial_benefit = 4, tn_payback = 5, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.6, value_creation_score = 4.2, composite_score = 3.9, tshirt_size = NULL WHERE id = 'proj-cloud3-run';
-UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 4, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 5, tn_payback = 3, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.4, value_creation_score = 4.0, composite_score = 3.7, tshirt_size = 'L' WHERE id = 'proj-connveh';
-UPDATE projects SET project_type = 2, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.0, value_creation_score = 3.4, composite_score = 3.2, tshirt_size = 'S' WHERE id = 'proj-dwh';
-UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.8, value_creation_score = 4.0, composite_score = 3.9, tshirt_size = 'L' WHERE id = 'proj-erp2';
-UPDATE projects SET project_type = 1, transformation_level = 'T0', tn_standardization = 2, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 2, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.0, value_creation_score = 2.8, composite_score = 2.4, tshirt_size = 'XS' WHERE id = 'proj-greenedge';
-UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 4, tn_financial_benefit = 4, tn_payback = 5, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 4.0, value_creation_score = 4.4, composite_score = 4.2, tshirt_size = NULL WHERE id = 'proj-iam-run';
-UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 5, tn_usage = 4, tn_maintenance = 4, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 4.4, value_creation_score = 4.4, composite_score = 4.4, tshirt_size = 'M' WHERE id = 'proj-mdh-rollout';
-UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 2, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.8, value_creation_score = 3.8, composite_score = 3.3, tshirt_size = 'M' WHERE id = 'proj-predmaint';
-UPDATE projects SET project_type = 3, transformation_level = 'T0', tn_standardization = 3, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 4, tn_payback = 5, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.4, value_creation_score = 4.2, composite_score = 3.3, tshirt_size = 'M' WHERE id = 'proj-railsafety';
-UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.0, value_creation_score = 3.4, composite_score = 3.2, tshirt_size = 'M' WHERE id = 'proj-sensor';
+UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 4, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.4, value_creation_score = 4.5, composite_score = 4.17, tshirt_size = 'L' WHERE id = 'proj-aiops';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 3, tn_maintenance = 4, tn_financial_benefit = 3, tn_payback = 4, tn_competitive_advantage = 2, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.6, value_creation_score = 3.3, composite_score = 3.39, tshirt_size = 'M' WHERE id = 'proj-apigateway';
+UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 4, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.4, value_creation_score = 4.5, composite_score = 4.17, tshirt_size = 'M' WHERE id = 'proj-autobrake';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 3, tn_maintenance = 4, tn_financial_benefit = 4, tn_payback = 5, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.6, value_creation_score = 4.3, composite_score = 4.09, tshirt_size = NULL WHERE id = 'proj-cloud3-run';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.4, value_creation_score = 3.9, composite_score = 3.75, tshirt_size = 'L' WHERE id = 'proj-cloudmig';
+UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 4, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 5, tn_payback = 3, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.4, value_creation_score = 4.1, composite_score = 3.89, tshirt_size = 'L' WHERE id = 'proj-connveh';
+UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 4, tn_usage = 4, tn_maintenance = 3, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.8, value_creation_score = 4.5, composite_score = 4.29, tshirt_size = 'XL' WHERE id = 'proj-crmnext';
+UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 4, tn_usage = 4, tn_maintenance = 3, tn_financial_benefit = 5, tn_payback = 3, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.8, value_creation_score = 4.1, composite_score = 4.01, tshirt_size = 'L' WHERE id = 'proj-datalake';
+UPDATE projects SET project_type = 2, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.0, value_creation_score = 3.5, composite_score = 3.35, tshirt_size = 'S' WHERE id = 'proj-dwh';
+UPDATE projects SET project_type = 3, transformation_level = 'T0', tn_standardization = 3, tn_usage = 3, tn_maintenance = 2, tn_financial_benefit = 3, tn_payback = 4, tn_competitive_advantage = 2, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.8, value_creation_score = 3.3, composite_score = 3.15, tshirt_size = 'M' WHERE id = 'proj-ehs';
+UPDATE projects SET project_type = 1, transformation_level = 'T0', tn_standardization = 4, tn_usage = 4, tn_maintenance = 4, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 2, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 4.0, value_creation_score = 2.9, composite_score = 3.23, tshirt_size = 'S' WHERE id = 'proj-elearning';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.8, value_creation_score = 4.0, composite_score = 3.94, tshirt_size = 'L' WHERE id = 'proj-erp2';
+UPDATE projects SET project_type = 2, transformation_level = 'T1', tn_standardization = 3, tn_usage = 2, tn_maintenance = 3, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.6, value_creation_score = 3.0, composite_score = 2.88, tshirt_size = 'S' WHERE id = 'proj-fielddx2';
+UPDATE projects SET project_type = 1, transformation_level = 'T0', tn_standardization = 2, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 3, tn_payback = 3, tn_competitive_advantage = 2, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.0, value_creation_score = 2.9, composite_score = 2.63, tshirt_size = 'XS' WHERE id = 'proj-greenedge';
+UPDATE projects SET project_type = 1, transformation_level = 'T0', tn_standardization = 3, tn_usage = 2, tn_maintenance = 3, tn_financial_benefit = 2, tn_payback = 3, tn_competitive_advantage = 2, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.6, value_creation_score = 2.4, composite_score = 2.46, tshirt_size = 'XS' WHERE id = 'proj-greenit';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 4, tn_financial_benefit = 4, tn_payback = 5, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 4.0, value_creation_score = 4.4, composite_score = 4.28, tshirt_size = NULL WHERE id = 'proj-iam-run';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.4, value_creation_score = 3.5, composite_score = 3.47, tshirt_size = 'M' WHERE id = 'proj-iam2';
+UPDATE projects SET project_type = 2, transformation_level = 'T2', tn_standardization = 5, tn_usage = 4, tn_maintenance = 4, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 4.4, value_creation_score = 4.5, composite_score = 4.47, tshirt_size = 'M' WHERE id = 'proj-mdh-rollout';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.0, value_creation_score = 3.5, composite_score = 3.35, tshirt_size = 'S' WHERE id = 'proj-mdm';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.0, value_creation_score = 3.9, composite_score = 3.63, tshirt_size = 'M' WHERE id = 'proj-mes';
+UPDATE projects SET project_type = 3, transformation_level = 'T0', tn_standardization = 3, tn_usage = 3, tn_maintenance = 2, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 2, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.8, value_creation_score = 3.8, composite_score = 3.5, tshirt_size = 'M' WHERE id = 'proj-paymtsec';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 2, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.8, value_creation_score = 3.9, composite_score = 3.57, tshirt_size = 'M' WHERE id = 'proj-predmaint';
+UPDATE projects SET project_type = 3, transformation_level = 'T0', tn_standardization = 3, tn_usage = 2, tn_maintenance = 2, tn_financial_benefit = 4, tn_payback = 5, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 2.4, value_creation_score = 4.3, composite_score = 3.73, tshirt_size = 'M' WHERE id = 'proj-railsafety';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 4, tn_usage = 4, tn_maintenance = 3, tn_financial_benefit = 5, tn_payback = 4, tn_competitive_advantage = 4, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.8, value_creation_score = 4.5, composite_score = 4.29, tshirt_size = 'L' WHERE id = 'proj-sapupg';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.0, value_creation_score = 3.5, composite_score = 3.35, tshirt_size = 'M' WHERE id = 'proj-sensor';
+UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardization = 3, tn_usage = 3, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 4, tn_competitive_advantage = 2, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.0, value_creation_score = 3.8, composite_score = 3.56, tshirt_size = 'M' WHERE id = 'proj-warehouse';
+UPDATE projects SET project_type = 3, transformation_level = 'T0', tn_standardization = 3, tn_usage = 4, tn_maintenance = 3, tn_financial_benefit = 4, tn_payback = 3, tn_competitive_advantage = 3, tn_value_reserved_1 = NULL, tn_value_reserved_2 = NULL, complexity_score = 3.4, value_creation_score = 3.5, composite_score = 3.47, tshirt_size = 'M' WHERE id = 'proj-zerotrust';
 
--- 11 projects scored; 0 Run-stage skipped.
+-- 27 projects scored; 0 Run-stage skipped.
 
 -- =============================================================================
 -- s12_pipeline — Pipeline stage + DoI gates per [A-PS-02] [A-DOI-01..03]
@@ -1355,23 +1424,35 @@ UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardiz
 -- run_entity_id set for 'Run entity spawned' rows only.
 -- =============================================================================
 
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-aiops-2026-03.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-aiops';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-apigateway';
 UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-autobrake-2026-02.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-autobrake';
--- proj-cloud3-run handed over to the Infrastructure Platform Service (Run
--- entity). Already distributes 50% into svc-infra-platform (Stage 1, above);
--- run_entity_id link surfaces its external vendor spend in the Run External
--- Spend tab. Terminal->terminal stage change (no backlog/cutoff impact).
-UPDATE projects SET pipeline_stage = 'Run entity spawned', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = 'svc-infra-platform', handover_month = '2025-06' WHERE id = 'proj-cloud3-run';
+UPDATE projects SET pipeline_stage = 'Completed', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-cloud3-run';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-cloudmig';
 UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-connveh';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-crmnext-2026-01.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-crmnext';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-datalake';
 UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-dwh-2026-01.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-dwh';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-ehs-2026-02.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-ehs';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-elearning';
 UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-erp2-2024-06.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-erp2';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-fielddx2';
 UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-greenedge';
-UPDATE projects SET pipeline_stage = 'Run entity spawned', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = 'off-eunify', handover_month = '2025-09' WHERE id = 'proj-iam-run';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-greenit';
+UPDATE projects SET pipeline_stage = 'Run entity spawned', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = 'off-eunify' WHERE id = 'proj-iam-run';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-iam2-2026-02.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-iam2';
 UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-mdh-rollout-2025-09.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-mdh-rollout';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-mdm';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-mes';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-paymtsec-2025-11.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-paymtsec';
 UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-predmaint-2025-05.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-predmaint';
 UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-railsafety-2025-11.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-railsafety';
+UPDATE projects SET pipeline_stage = 'Approved', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-sapupg-2025-12.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-sapupg';
 UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-sensor-2025-02.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-sensor';
+UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-warehouse-2026-01.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-warehouse';
+UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-zerotrust';
 
--- 11 projects updated.
+-- 27 projects updated.
 -- Paused projects: none in seed — no frozen_doi fixups required.
 -- Retired projects: none in seed — no migration required.
 
@@ -8150,64 +8231,4 @@ INSERT INTO audit_log (timestamp, user_person_id, entity_type, entity_id, entity
 ('2026-04-12 10:00:00', 'p-meier', 'scenario', '1', 'MDH BTC Rebalance — DE/PL/CZ', 'create', NULL, NULL, NULL, 'simulator'),
 ('2026-04-15 10:00:00', 'p-meier', 'scenario_action', 'scn-budget-pressure-15:3', 'Accelerate Rail Safety', 'promote', 'promoted_at', NULL, '2026-04-15T10:00:00', 'simulator'),
 ('2026-04-22 10:00:00', 'p-meier', 'planning_parameter', 'rag_amber_threshold', 'RAG Amber Threshold', 'create', NULL, NULL, 'scheduled_change_pending', 'scheduled_change_lifecycle');
-
--- =============================================================================
--- Issue #2: Run External Spend enrichment (handed-over / run_entity_id-linked
--- projects). Adds vendor variety on proj-cloud3-run (cloud platform) and
--- proj-iam-run (identity) so the Run External Spend tab reads substantial.
--- The proj-cloud3-run run_entity_id wiring is set in the projects UPDATE block
--- above. The Run External Spend endpoints aggregate Forecast + Actuals
--- (category='external', vendor populated); baselines are not read there.
--- =============================================================================
-INSERT INTO actuals (project_id, month, category, sub_category, hours, amount_eur, description, capex_opex, vendor, ext_status, role_type_id) VALUES
-('proj-cloud3-run', '2026-01', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'Microsoft Azure', 'invoiced', NULL),
-('proj-cloud3-run', '2026-02', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'Microsoft Azure', 'invoiced', NULL),
-('proj-cloud3-run', '2026-03', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'Microsoft Azure', 'invoiced', NULL),
-('proj-cloud3-run', '2026-01', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'Datadog', 'invoiced', NULL),
-('proj-cloud3-run', '2026-02', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'Datadog', 'invoiced', NULL),
-('proj-cloud3-run', '2026-03', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'Datadog', 'invoiced', NULL),
-('proj-cloud3-run', '2026-01', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'Snowflake', 'invoiced', NULL),
-('proj-cloud3-run', '2026-02', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'Snowflake', 'invoiced', NULL),
-('proj-cloud3-run', '2026-03', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'Snowflake', 'invoiced', NULL),
-('proj-iam-run', '2026-01', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'Okta', 'invoiced', NULL),
-('proj-iam-run', '2026-02', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'Okta', 'invoiced', NULL),
-('proj-iam-run', '2026-03', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'Okta', 'invoiced', NULL);
-
-INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_eur, description, capex_opex, ext_status, po_number, vendor, role_type_id, is_provisional) VALUES
-('proj-cloud3-run', '2026-04', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'committed', 'PO-2026-CLD-AZURE', 'Microsoft Azure', NULL, 0),
-('proj-cloud3-run', '2026-05', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'committed', 'PO-2026-CLD-AZURE', 'Microsoft Azure', NULL, 0),
-('proj-cloud3-run', '2026-06', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'committed', 'PO-2026-CLD-AZURE', 'Microsoft Azure', NULL, 0),
-('proj-cloud3-run', '2026-07', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'planned', NULL, 'Microsoft Azure', NULL, 0),
-('proj-cloud3-run', '2026-08', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'planned', NULL, 'Microsoft Azure', NULL, 0),
-('proj-cloud3-run', '2026-09', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'planned', NULL, 'Microsoft Azure', NULL, 0),
-('proj-cloud3-run', '2026-10', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'planned', NULL, 'Microsoft Azure', NULL, 0),
-('proj-cloud3-run', '2026-11', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'planned', NULL, 'Microsoft Azure', NULL, 0),
-('proj-cloud3-run', '2026-12', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'planned', NULL, 'Microsoft Azure', NULL, 0),
-('proj-cloud3-run', '2026-04', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'committed', 'PO-2026-CLD-DDOG', 'Datadog', NULL, 0),
-('proj-cloud3-run', '2026-05', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'committed', 'PO-2026-CLD-DDOG', 'Datadog', NULL, 0),
-('proj-cloud3-run', '2026-06', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'committed', 'PO-2026-CLD-DDOG', 'Datadog', NULL, 0),
-('proj-cloud3-run', '2026-07', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'planned', NULL, 'Datadog', NULL, 0),
-('proj-cloud3-run', '2026-08', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'planned', NULL, 'Datadog', NULL, 0),
-('proj-cloud3-run', '2026-09', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'planned', NULL, 'Datadog', NULL, 0),
-('proj-cloud3-run', '2026-10', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'planned', NULL, 'Datadog', NULL, 0),
-('proj-cloud3-run', '2026-11', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'planned', NULL, 'Datadog', NULL, 0),
-('proj-cloud3-run', '2026-12', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'planned', NULL, 'Datadog', NULL, 0),
-('proj-cloud3-run', '2026-04', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'committed', 'PO-2026-CLD-SNOW', 'Snowflake', NULL, 0),
-('proj-cloud3-run', '2026-05', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'committed', 'PO-2026-CLD-SNOW', 'Snowflake', NULL, 0),
-('proj-cloud3-run', '2026-06', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'committed', 'PO-2026-CLD-SNOW', 'Snowflake', NULL, 0),
-('proj-cloud3-run', '2026-07', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'planned', NULL, 'Snowflake', NULL, 0),
-('proj-cloud3-run', '2026-08', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'planned', NULL, 'Snowflake', NULL, 0),
-('proj-cloud3-run', '2026-09', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'planned', NULL, 'Snowflake', NULL, 0),
-('proj-cloud3-run', '2026-10', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'planned', NULL, 'Snowflake', NULL, 0),
-('proj-cloud3-run', '2026-11', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'planned', NULL, 'Snowflake', NULL, 0),
-('proj-cloud3-run', '2026-12', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'planned', NULL, 'Snowflake', NULL, 0),
-('proj-iam-run', '2026-04', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'committed', 'PO-2026-IAM-OKTA', 'Okta', NULL, 0),
-('proj-iam-run', '2026-05', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'committed', 'PO-2026-IAM-OKTA', 'Okta', NULL, 0),
-('proj-iam-run', '2026-06', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'committed', 'PO-2026-IAM-OKTA', 'Okta', NULL, 0),
-('proj-iam-run', '2026-07', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'planned', NULL, 'Okta', NULL, 0),
-('proj-iam-run', '2026-08', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'planned', NULL, 'Okta', NULL, 0),
-('proj-iam-run', '2026-09', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'planned', NULL, 'Okta', NULL, 0),
-('proj-iam-run', '2026-10', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'planned', NULL, 'Okta', NULL, 0),
-('proj-iam-run', '2026-11', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'planned', NULL, 'Okta', NULL, 0),
-('proj-iam-run', '2026-12', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'planned', NULL, 'Okta', NULL, 0);
 
