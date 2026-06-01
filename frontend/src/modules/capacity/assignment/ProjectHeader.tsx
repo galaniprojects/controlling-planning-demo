@@ -9,6 +9,7 @@
  * Spec: guides/Capacity_Module_Redesign_Spec.md §9.2 "Project header"
  */
 import { Badge } from '@/components/ui/badge';
+import { PipelineStageBadge } from '@/components/shared/PipelineStageBadge';
 import type { ProjectAssignmentDetail } from '@/types/api';
 
 // ---------------------------------------------------------------------------
@@ -109,12 +110,17 @@ export function ProjectHeader({ data }: ProjectHeaderProps) {
           </span>
         )}
         <span>{fmtPeriod(project.start_month, project.end_month)}</span>
-        <Badge
-          variant="outline"
-          className={`rounded px-1.5 py-0 text-[10px] font-normal ${statusClass(project.review_state ?? project.pipeline_stage ?? '')}`}
-        >
-          {humanStatus(project.review_state ?? project.pipeline_stage ?? '')}
-        </Badge>
+        {project.pipeline_stage && (
+          <PipelineStageBadge stage={project.pipeline_stage} />
+        )}
+        {project.review_state && (
+          <Badge
+            variant="outline"
+            className={`rounded px-1.5 py-0 text-[10px] font-normal ${statusClass(project.review_state)}`}
+          >
+            {humanStatus(project.review_state)}
+          </Badge>
+        )}
       </div>
 
       {/* CR banner */}

@@ -232,9 +232,9 @@ def create_intake_project(
 ) -> Project:
     """Admit a new project at DoI 0 per [A-BK-26] / [A-DOI-04].
 
-    Sets ``pipeline_stage='Proposed'``, ``doi=0``, ``status='draft'`` (back-
-    compat for v4 modules that still query ``Project.status``). Composite
-    score is left null — A3's ranking engine slots null-score projects at
+    Sets ``pipeline_stage='Proposed'``, ``doi=0``, ``review_state=None``.
+    Composite score is left null — A3's ranking engine slots null-score
+    projects at
     the bottom of the list per [A-BK-26]. The within_cutoff recompute is
     triggered as a best-effort post-commit hook by the router.
 
@@ -552,7 +552,7 @@ def reject_intake_project(
 
     - ``pipeline_stage = 'Cancelled'``. ``frozen_doi`` captures the current
       ``doi`` per [A-PS-03] before clearing the live DoI.
-    - ``status = 'rejected'`` (back-compat).
+    - ``review_state = None`` (review concluded; lifecycle is Cancelled).
     - ``submission_feedback = reason`` so the rejected card surfaces why.
     - Notification to PL.
 

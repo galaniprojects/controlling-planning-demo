@@ -55,8 +55,8 @@ DIMENSIONS: list[DimensionDef] = [
         hierarchy_note="Project vs Service; sub-types within Service",
     ),
     DimensionDef(
-        id="D03", display_name="Project Status", category="Planning Object",
-        data_type="enum", source="projects", column="status",
+        id="D03", display_name="Pipeline Stage", category="Planning Object",
+        data_type="enum", source="projects", column="pipeline_stage",
     ),
     DimensionDef(
         id="D04", display_name="RAG Status", category="Planning Object",

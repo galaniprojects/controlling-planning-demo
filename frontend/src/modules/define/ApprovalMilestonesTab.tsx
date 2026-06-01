@@ -377,7 +377,7 @@ export function ApprovalMilestonesTab({
             htmlFor="ai-council-doc-url"
             className="text-sm font-medium text-foreground"
           >
-            Approval document URL
+            AI Council confirmation document (URL)
           </label>
           <Input
             id="ai-council-doc-url"
@@ -390,8 +390,8 @@ export function ApprovalMilestonesTab({
             disabled={readOnly}
           />
           <p className="text-xs text-muted-foreground">
-            Optional. Surfaced on the project header so reviewers can jump to
-            the decision record.
+            Required to advance to DoI 1. Surfaced on the project header so
+            reviewers can jump to the decision record.
           </p>
         </div>
 

@@ -69,7 +69,7 @@ def _get_project_dimension_values(
 ) -> dict[str, dict[str, str]]:
     """Build a map of project_id → {dim_id: value} for project-level dimensions.
 
-    Returns e.g. {"proj-1": {"D01": "SAP Migration", "D03": "active", "D05": "Enterprise Core"}}
+    Returns e.g. {"proj-1": {"D01": "SAP Migration", "D03": "Active", "D05": "Enterprise Core"}}
     """
     if not project_ids:
         return {}

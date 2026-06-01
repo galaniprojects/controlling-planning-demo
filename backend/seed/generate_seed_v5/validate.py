@@ -47,10 +47,13 @@ OVER_ALLOCATED_PERSONS = {"p-fischer", "p-szabo", "p-winter"}
 # ``services/btc_service.py::BTC_SUM_TOLERANCE``.
 BTC_SUM_TOLERANCE = 0.01
 
-# Pre-execution pipeline stages (mirror services.pipeline.BACKLOG_STAGES).
-# Projects in these stages carry an estimated total_budget but no baselines
-# yet — baselines are created when the project enters delivery.
-_PRE_EXECUTION_STAGES = ("Proposed", "Under Evaluation", "Approved")
+# Stages that are NOT expected to carry baselines: pre-execution backlog
+# stages (baselines are created when a project enters delivery) plus the
+# off-path stages (Paused/Cancelled never executed). Execution + terminal
+# stages still require a baseline. (Constant name kept for back-reference.)
+_PRE_EXECUTION_STAGES = (
+    "Proposed", "Under Evaluation", "Approved", "Paused", "Cancelled",
+)
 
 
 # ---------------------------------------------------------------------------
