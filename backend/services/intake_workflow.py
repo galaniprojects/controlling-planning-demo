@@ -49,6 +49,7 @@ from models.projects import Project, ProjectMilestone
 from models.submissions import ProjectSubmissionSnapshot
 from models.system import Notification
 from routers.admin import _log_audit
+from services.chargeable_entity import ensure_project_chargeable_entity
 from schemas.common import CurrentUser
 from schemas.intake import (
     IntakeDiffField,
@@ -281,6 +282,12 @@ def create_intake_project(
         grouping_entity_id=body.lob_id,
     )
     db.add(assignment)
+
+    # Mint the 1:1 ChargeableEntity so the intake project surfaces in the
+    # Workbench / Charging / rollup modules like seeded projects do.
+    ensure_project_chargeable_entity(
+        db, project, hierarchy_node_id=body.lob_id,
+    )
 
     _log_audit(
         db, user,

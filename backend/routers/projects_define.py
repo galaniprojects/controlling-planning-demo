@@ -55,6 +55,7 @@ from schemas.projects_define import (
     ProjectFinancialsUpdate,
     ProjectIdentityUpdate,
 )
+from services.chargeable_entity import ensure_project_chargeable_entity
 from services.pipeline import (
     OFF_PATH_STAGES,
     is_transition_allowed,
@@ -315,6 +316,14 @@ def create_define_project(
 
     if body.lob_id:
         _assign_lob(db, project, body.lob_id)
+
+    # Mint the 1:1 ChargeableEntity so the project is visible in the Workbench,
+    # Charging, and cost-rollup surfaces like seeded projects (the Workbench
+    # sidebar is built from ChargeableEntity rows). hierarchy_node_id mirrors
+    # the LoB assignment when one was supplied.
+    ensure_project_chargeable_entity(
+        db, project, hierarchy_node_id=body.lob_id,
+    )
 
     _log_audit(
         db, user,
