@@ -2185,12 +2185,15 @@ export const chargingApi = {
     version?: string;
     group_by?: RollupGroupBy;
     entity_type?: ChargeableEntityType;
+    /** Scope the population to one classification (VIPER §5). */
+    change_or_run?: 'change' | 'run';
   }) => {
     const q = new URLSearchParams();
     q.set('year', String(params.year));
     if (params.version) q.set('version', params.version);
     if (params.group_by) q.set('group_by', params.group_by);
     if (params.entity_type) q.set('entity_type', params.entity_type);
+    if (params.change_or_run) q.set('change_or_run', params.change_or_run);
     return api.get<ChargingRollupListResponse>(`/api/charging/rollup?${q.toString()}`);
   },
   getRollupDrillDown: (params: {
