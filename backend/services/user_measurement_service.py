@@ -1,6 +1,6 @@
 """User Measurement authored-version service — Charging/UM rework cluster FD-1.
 
-CRETA is the system of record for the consolidated UM matrix (spec §2):
+VIPER is the system of record for the consolidated UM matrix (spec §2):
 a controller authors it; SAP is export-only ([F-DIR-01]). This service owns
 the UM version state machine, cell mutation, activation (freeze), version
 resolution, and the per-cell audit trail. It is the structural peer of

@@ -1,4 +1,4 @@
-"""Shared test fixtures for the CRETA backend test suite."""
+"""Shared test fixtures for the VIPER backend test suite."""
 
 import os
 import sys

@@ -141,7 +141,7 @@ export function CreateDraftDialog({
         <DialogHeader>
           <DialogTitle>Create User Measurement draft</DialogTitle>
           <DialogDescription>
-            UM is integer-valued and authored in CRETA per{' '}
+            UM is integer-valued and authored in VIPER per{' '}
             <span className="font-mono">[F-UM-01] [F-DIR-01]</span>. Create a
             draft, edit cells in-grid (or import a CSV), then activate to
             freeze the version per{' '}

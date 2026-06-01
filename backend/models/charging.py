@@ -2,7 +2,7 @@
 
 Per spec decisions [F-MD-01] [F-MD-02] [F-MD-03] [F-UM-01] through [F-UM-04]:
 
-- Three distinct location masters exist in CRETA: ``WorkforceLocation``
+- Three distinct location masters exist in VIPER: ``WorkforceLocation``
   (the existing ``Location`` model in ``models.organization``, retained), the
   new ``ChargingLocation`` (~90 KB charging codes), and the new ``LegalEntity``
   (~120 registered companies with a many-to-one rollup to ChargingLocation).
@@ -145,7 +145,7 @@ class LegalEntity(Base):
 class UserMeasurement(Base):
     """Sparse UM matrix cell per [F-UM-01], FK'd to a ``UMVersion`` header.
 
-    The Charging/UM rework (spec §2) makes CRETA the system of record for the
+    The Charging/UM rework (spec §2) makes VIPER the system of record for the
     consolidated UM matrix: it is authored by a controller, not imported from
     SAP. Version lifecycle, provenance, and the activation timestamp move to
     the ``UMVersion`` header (mirroring ``BTCProfile``/``BTCProfileLine``);
@@ -748,7 +748,7 @@ class RollupCache(Base):
 # is the freeze point; an active version is immutable.
 UM_VERSION_STATUSES = ("draft", "active")
 
-# Provenance per [F-UM-04]. ``sap_api`` is retired — UM is authored in CRETA,
+# Provenance per [F-UM-04]. ``sap_api`` is retired — UM is authored in VIPER,
 # SAP is export-only ([F-DIR-01]); it never described a real path.
 #   manual     — in-grid authoring
 #   csv_upload — CSV bulk-entry into a draft
@@ -760,7 +760,7 @@ UM_VERSION_SOURCES = ("manual", "csv_upload", "copy", "seed")
 class UMVersion(Base):
     """Authored UM matrix version header per [F-UM-02].
 
-    CRETA is the system of record for the consolidated UM matrix (spec §2):
+    VIPER is the system of record for the consolidated UM matrix (spec §2):
     a controller authors it, SAP is a downstream export target only. A
     *version* is the set of cells sharing ``(year, quarter, activated_at)``.
     The lifecycle mirrors ``BTCProfile`` for mental-model consistency across

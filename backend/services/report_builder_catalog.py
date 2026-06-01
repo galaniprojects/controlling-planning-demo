@@ -1,6 +1,6 @@
 """Report Builder data catalog — dimensions and measures with DB mapping metadata.
 
-This is the semantic layer that exposes CRETA's data model as business-friendly
+This is the semantic layer that exposes VIPER's data model as business-friendly
 objects for the OLAP-style Report Builder.  It is static metadata (not stored in
 the database) because it describes the *schema*, not user data.
 """

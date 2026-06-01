@@ -57,7 +57,7 @@ class Notification(Base):
     user: Mapped["Person"] = relationship()
 
 
-# Audit categories per CRETA v5 spec line ~1849. The 8 categories surfaced in
+# Audit categories per VIPER v5 spec line ~1849. The 8 categories surfaced in
 # the audit log filter UI. Tagged at write time at each ``_log_audit`` call site.
 AUDIT_CATEGORIES = (
     "master_data",                # Cost centres, people, roles, locations, rate tables, project metadata

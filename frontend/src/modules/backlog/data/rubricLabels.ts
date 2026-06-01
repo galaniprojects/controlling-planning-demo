@@ -1,9 +1,9 @@
 /**
  * Tech Navigator rubric label dictionary [A-TN-03] [A-TN-04].
  *
- * Spec note (lines 53-67 of CRETA_v5_Workshop_Spec.md):
+ * Spec note (lines 53-67 of VIPER_v5_Workshop_Spec.md):
  *   "Intermediate values of each sub-criterion are defined in the KB Tech
- *   Navigator reference slides and should be mirrored in the CRETA rubric UI."
+ *   Navigator reference slides and should be mirrored in the VIPER rubric UI."
  *
  * The spec only ships endpoint definitions for level 1 and level 5. Levels 2/3/4
  * here are interpolated placeholders (clearly flagged in PROGRESS.md

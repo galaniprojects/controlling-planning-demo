@@ -100,7 +100,7 @@ class WorkflowStep(Base):
     required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     skippable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    # Touchpoint: who performs this step (CRETA role string).
+    # Touchpoint: who performs this step (VIPER role string).
     assigned_role: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
 
     # Touchpoint: data gates (JSON list of field-completeness criteria).

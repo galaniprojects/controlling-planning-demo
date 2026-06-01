@@ -2,7 +2,7 @@
  * FocalEntityNode — the centred, accent-bordered rectangle.
  *
  * Same shape vocabulary as `EntityNode` but rendered slightly larger,
- * with the CRETA accent (`border-orange-500`, already in the Tailwind
+ * with the VIPER accent (`border-orange-500`, already in the Tailwind
  * config) on all four sides plus a subtle warm background tint.
  * Surfaces own_cost AND effective_cost so the user sees the roll-up
  * vs. self-only delta at a glance.

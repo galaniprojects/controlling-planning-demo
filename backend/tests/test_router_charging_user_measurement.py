@@ -4,7 +4,7 @@ Charging/UM rework: the legacy /api/admin/user-measurement shim (deleted in
 FD-2 commit 7) is replaced with this charging-namespaced authoring API. The
 suite covers:
 
-- /info reframes the SAP-stub language per [F-DIR-01] (CRETA = system of
+- /info reframes the SAP-stub language per [F-DIR-01] (VIPER = system of
   record; SAP = export-only).
 - POST /versions handles all three create origins per [F-UM-03] (blank /
   copy_active / copy_prior), including the copy_active "no active to copy" 409.
@@ -73,14 +73,14 @@ def seed_um_active(db, seed_charging_locations):
 # ---------------------------------------------------------------------------
 
 class TestInfo:
-    def test_returns_creta_authoring_modes(self, test_client, seed_personas):
+    def test_returns_viper_authoring_modes(self, test_client, seed_personas):
         resp = test_client.get(
             "/api/charging/user-measurement/info", headers=HEADERS_CTRL,
         )
         assert resp.status_code == 200
         body = resp.json()
-        # [F-DIR-01]: CRETA is the system of record; SAP is export-only.
-        assert body["system_of_record"] == "creta"
+        # [F-DIR-01]: VIPER is the system of record; SAP is export-only.
+        assert body["system_of_record"] == "viper"
         assert "in_grid" in body["authoring_modes"]
         assert "csv_bulk_entry" in body["authoring_modes"]
         # FD-4 shipped GET /api/charging/sap-export per [F-EXP-01].

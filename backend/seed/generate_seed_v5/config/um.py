@@ -173,7 +173,7 @@ S_CODE_LOCS: list[tuple[str, list[str]]] = [
 
 
 # ---------------------------------------------------------------------------
-# Per-version metadata. Charging/UM rework: CRETA is the system of record for
+# Per-version metadata. Charging/UM rework: VIPER is the system of record for
 # the authored UM matrix ([F-DIR-01]); ``source='seed'`` is the only
 # [F-UM-04]-legal greenfield provenance. A version is identified by
 # ``(year, quarter, activated_at)`` per [F-UM-02]:

@@ -4,9 +4,9 @@ The Launchpad shows one card per visible module. Each card now carries
 1–2 short subtitle KPI strings that are role-differentiated. This module
 owns the entire computation surface so the router can stay thin.
 
-The strings follow CRETA's European number formatting (dot-thousands +
+The strings follow VIPER's European number formatting (dot-thousands +
 comma-decimals) and are rendered as a single combined line per the spec
-table (lines 175–234 of ``guides/CRETA_v5_1_Change_Specification.md``).
+table (lines 175–234 of ``guides/VIPER_v5_1_Change_Specification.md``).
 A ``None``/empty list is returned for module/role combinations that
 should be hidden — defensive only, since the router already filters by
 ``MODULE_VISIBILITY`` before calling here.
@@ -59,7 +59,7 @@ def _format_currency_millions(value: float) -> str:
     """Compact currency for the Portfolio card subtitle (€X,Xm).
 
     Spec line 179: ``Forecast: €X.Xm``. Uses comma as decimal separator
-    per CRETA's European formatting rule (dot/comma swap).
+    per VIPER's European formatting rule (dot/comma swap).
     """
     millions = value / 1_000_000.0
     return f"€{millions:,.1f}m".replace(",", "_").replace(".", ",").replace("_", ".")

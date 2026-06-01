@@ -221,7 +221,7 @@ class TestSAPExportCSV:
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/csv")
         assert "attachment" in resp.headers["content-disposition"]
-        assert "creta-sap-export-2026.csv" in resp.headers["content-disposition"]
+        assert "viper-sap-export-2026.csv" in resp.headers["content-disposition"]
 
     def test_csv_body_has_header_plus_rows(self, test_client, seed_personas, db):
         _seed_base(db)
@@ -246,7 +246,7 @@ class TestSAPExportCSV:
             headers={"X-Current-User": "persona-controller"},
         )
         assert resp.status_code == 200
-        assert "creta-sap-export-2026-project.csv" in resp.headers["content-disposition"]
+        assert "viper-sap-export-2026-project.csv" in resp.headers["content-disposition"]
 
 
 # ---------------------------------------------------------------------------

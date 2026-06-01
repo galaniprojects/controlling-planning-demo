@@ -33,7 +33,7 @@ import sqlite3
 import sys
 from collections import defaultdict
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "creta_demo.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "viper_demo.db")
 DEMO_DATE = "2026-04"
 FTE_HOURS = 160
 
@@ -476,7 +476,7 @@ CHECKS = [
 
 def main() -> int:
     print("=" * 60)
-    print("CRETA v5 Seed Data Consistency Validator")
+    print("VIPER v5 Seed Data Consistency Validator")
     print("=" * 60)
     print()
 

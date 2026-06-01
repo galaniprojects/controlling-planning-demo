@@ -3,7 +3,7 @@
  *
  * Owns: per-side depth caps, "Show full chain" toggle, hover state,
  * legend open/closed (sessionStorage-backed key
- * `creta:allocFlow:legendOpen`, default open per `[AF-08]`), and the
+ * `viper:allocFlow:legendOpen`, default open per `[AF-08]`), and the
  * selected `DistributionVersion` id. Resets the depth + hover state
  * when the focal entity changes.
  *

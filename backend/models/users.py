@@ -30,7 +30,7 @@ class User(Base):
     """System-access entity, separate from Person per spec §1584.
 
     A ``Person`` is a master-data entity (name, cost centre, role, capacity).
-    A ``User`` is a system-access entity (login identity, CRETA role,
+    A ``User`` is a system-access entity (login identity, VIPER role,
     permission flags). Not every Person is a User; not every User maps to a
     Person — hence ``person_id`` is nullable.
 

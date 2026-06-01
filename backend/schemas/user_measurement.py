@@ -4,7 +4,7 @@ FD-2 reframes UM around the authored draft/active state machine (see
 ``routers/user_measurement_charging.py``):
 
 - ``UMInfoResponse`` replaces the legacy ``/refresh-status`` payload — the
-  language is now "CRETA is the system of record; authoring modes are in-grid
+  language is now "VIPER is the system of record; authoring modes are in-grid
   and CSV bulk-entry" per [F-DIR-01] / [F-UM-03].
 - ``UMVersionDetailResponse`` carries the header + dense cells the in-grid
   editor consumes.
@@ -138,12 +138,12 @@ class UMCsvImportResponse(BaseModel):
 class UMInfoResponse(BaseModel):
     """Reframes the legacy ``/refresh-status`` payload per [F-DIR-01].
 
-    CRETA is the system of record; authoring is in-grid + CSV bulk-entry.
+    VIPER is the system of record; authoring is in-grid + CSV bulk-entry.
     There is no SAP-derived UM ingestion. ``sap_export_available`` is plumbed
     here so the frontend can hint at FD-4's SAP export when it lands.
     """
 
-    system_of_record: str  # "creta"
+    system_of_record: str  # "viper"
     authoring_modes: list[str]  # ["in_grid", "csv_bulk_entry"]
     sap_export_available: bool
 

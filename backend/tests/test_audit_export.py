@@ -43,7 +43,7 @@ class TestExportCSV:
         assert data.startswith(b"\xef\xbb\xbf")
         # Decoded text contains preamble + header columns
         text = data.decode("utf-8-sig")
-        assert "# CRETA Audit Log Export" in text
+        assert "# VIPER Audit Log Export" in text
         assert "Anna" in text
         assert "entity_type=cost_center" in text
         # Each column heading appears

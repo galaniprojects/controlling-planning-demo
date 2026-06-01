@@ -22,7 +22,7 @@ const ENTITY_GROUPS: { group: string; description: string; entities: EntityDef[]
       {
         name: 'Distribution',
         table: 'distributions',
-        description: 'One row per actually-flowing edge between two ChargeableEntities for a given (year, version). Versioned alongside CRETA\'s baseline / forecast / actuals lifecycle; scenarios fork into version="scenario-{id}". Cycle detection is hard-block on save with chain in the error body.',
+        description: 'One row per actually-flowing edge between two ChargeableEntities for a given (year, version). Versioned alongside VIPER\'s baseline / forecast / actuals lifecycle; scenarios fork into version="scenario-{id}". Cycle detection is hard-block on save with chain in the error body.',
         fields: ['id', 'year', 'version', 'source_entity_id', 'destination_entity_id', 'percentage'],
         relationships: ['source ChargeableEntity', 'destination ChargeableEntity', 'sum-rule: to_business_pct + Σ(percentage) ≤ 100'],
       },

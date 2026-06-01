@@ -20,7 +20,7 @@ import type {
 const BASE = '/api/charging/user-measurement';
 
 export const userMeasurementApi = {
-  /** GET /info — CRETA-system-of-record reframe per [F-DIR-01]. */
+  /** GET /info — VIPER-system-of-record reframe per [F-DIR-01]. */
   getInfo: () => api.get<UMInfoResponse>(`${BASE}/info`),
 
   /** GET /versions[?year=&quarter=&status=] */
