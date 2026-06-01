@@ -25,7 +25,7 @@ from services.tech_navigator import (
 def _make_project(**overrides) -> Project:
     """Build an in-memory Project (not committed) for pure-function tests."""
     defaults = dict(
-        id="proj-test", name="Test", status="active",
+        id="proj-test", name="Test", pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01",
     )
     defaults.update(overrides)

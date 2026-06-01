@@ -49,7 +49,7 @@ def _add_project(
     proj = Project(
         id=project_id,
         name=name or project_id,
-        status="active",
+        
         capex_opex="capex",
         start_month="2026-01",
         end_month="2026-12",

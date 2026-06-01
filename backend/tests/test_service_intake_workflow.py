@@ -38,7 +38,7 @@ def _project_under_evaluation(db, seed_org_base, seed_hierarchy, **overrides) ->
         id=overrides.get("id", "proj-eval"),
         name=overrides.get("name", "Eval Project"),
         description="A project under evaluation",
-        status="pending_approval",
+        review_state="pending_approval",
         capex_opex="capex",
         start_month="2026-06",
         end_month=None,
@@ -76,7 +76,7 @@ class TestCreateIntakeProject:
 
         assert proj.pipeline_stage == PROPOSED
         assert proj.doi == 0
-        assert proj.status == "draft"
+        assert proj.pipeline_stage == "Proposed"
         assert proj.ai_council_approved is False
         assert proj.within_cutoff is None
         assert proj.composite_score is None
@@ -158,7 +158,7 @@ class TestApproveIntakeProject:
         db.commit()
         assert proj.pipeline_stage == APPROVED
         assert proj.doi == 3
-        assert proj.status == "active"
+        assert proj.pipeline_stage == "Approved"
         assert proj.rag_status == "green"
         assert proj.submission_feedback is None
 
@@ -252,7 +252,7 @@ class TestSendBackIntakeProject:
         db.commit()
         assert proj.pipeline_stage == PROPOSED
         assert proj.doi == 1
-        assert proj.status == "changes_requested"
+        assert proj.review_state == "changes_requested"
         assert proj.submission_feedback == "Need TN scoring"
 
     def test_409_when_not_under_evaluation(
@@ -363,7 +363,7 @@ class TestRejectIntakeProject:
         assert proj.pipeline_stage == CANCELLED
         assert proj.doi is None
         assert proj.frozen_doi == 2
-        assert proj.status == "rejected"
+        assert proj.pipeline_stage == "Cancelled"
         assert proj.submission_feedback == "Out of scope"
         assert proj.within_cutoff is None
 
@@ -428,7 +428,7 @@ class TestResubmitIntakeProject:
         db.commit()
         assert proj.pipeline_stage == UNDER_EVALUATION
         assert proj.doi == 2
-        assert proj.status == "pending_approval"
+        assert proj.review_state == "pending_approval"
         assert proj.submission_feedback is None
 
     def test_409_when_not_in_sent_back_state(

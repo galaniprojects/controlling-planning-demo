@@ -67,7 +67,7 @@ def _make_project(
     proj = Project(
         id=project_id,
         name=name,
-        status="active",
+        
         capex_opex="capex",
         start_month=start_month,
         end_month="2026-12",

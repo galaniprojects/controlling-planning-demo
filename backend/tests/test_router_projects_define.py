@@ -79,7 +79,7 @@ def _seed_pl_owned_project(db, project_id="proj-alpha", pl="p-pm-1") -> Project:
         id=project_id,
         name="Existing PL Project",
         description="Existing description",
-        status="draft",
+        
         capex_opex="opex",
         start_month="2026-04",
         end_month=None,
@@ -103,7 +103,7 @@ def _seed_other_project(db, project_id="proj-other") -> Project:
         id=project_id,
         name="Other PL Project",
         description=None,
-        status="draft",
+        
         capex_opex="opex",
         start_month="2026-04",
         end_month=None,
@@ -139,7 +139,7 @@ class TestCreateDefineProject:
         assert resp.status_code == 201, resp.text
         data = resp.json()
         assert data["name"] == "Brand new initiative"
-        assert data["status"] == "draft"
+        assert data["review_state"] is None
         assert data["capex_opex"] == "opex"
         assert data["start_month"] == DEMO_DATE
         assert data["end_month"] is None

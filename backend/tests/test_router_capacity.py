@@ -104,7 +104,7 @@ def _seed_c07_external_fixture(
         effective_date=rate_effective_date,
     )
     project = Project(
-        id=project_id, name="C07 Test Project", status="active",
+        id=project_id, name="C07 Test Project", pipeline_stage="Active",
         capex_opex="opex", start_month="2026-01", end_month="2026-12",
         pl_person_id=pl_person_id,
     )

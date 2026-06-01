@@ -51,7 +51,7 @@ def seed_capacity(db, seed_org_base, seed_personas):
     # A project so allocations can FK to it
     proj = Project(
         id="proj-cap-test", name="Capacity Test",
-        status="active", capex_opex="capex",
+        pipeline_stage="Active", capex_opex="capex",
         start_month="2026-01", end_month="2026-12",
     )
     db.add(proj)

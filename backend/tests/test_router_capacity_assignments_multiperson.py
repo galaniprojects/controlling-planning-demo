@@ -35,7 +35,7 @@ def seed_request(db, seed_org_base, seed_personas):
     from models.projects import Project
 
     proj = Project(
-        id="proj-mp", name="Multi-Person Test", status="active",
+        id="proj-mp", name="Multi-Person Test", pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
     )
     db.add(proj)

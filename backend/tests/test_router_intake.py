@@ -29,7 +29,7 @@ def _seed_eval_project(
         id=project_id,
         name="Eval Project",
         description="ready",
-        status="pending_approval",
+        review_state="pending_approval",
         capex_opex="capex",
         start_month="2026-06",
         end_month=None,
@@ -68,7 +68,7 @@ class TestCreateProjectEndpoint:
         data = resp.json()
         assert data["pipeline_stage"] == PROPOSED
         assert data["doi"] == 0
-        assert data["status"] == "draft"
+        assert data["review_state"] is None
         assert data["pl_person_id"] == "p-pm-1"
         assert data["project_type"] == 1
 
@@ -141,7 +141,7 @@ class TestApproveEndpoint:
         data = resp.json()
         assert data["pipeline_stage"] == APPROVED
         assert data["doi"] == 3
-        assert data["status"] == "active"
+        assert data["review_state"] is None
 
     def test_404_unknown_project(self, test_client, seed_personas, seed_hierarchy):
         resp = test_client.post(
@@ -253,7 +253,7 @@ class TestRejectEndpoint:
         data = resp.json()
         assert data["pipeline_stage"] == CANCELLED
         assert data["doi"] == 0  # null → response default 0
-        assert data["status"] == "rejected"
+        assert data["review_state"] is None
 
     def test_422_missing_reason(
         self, test_client, seed_personas, seed_hierarchy, db,
@@ -410,7 +410,7 @@ class TestQueueEndpoint:
             id="proj-prop",
             name="Proposed Project",
             description="d",
-            status="draft",
+            
             capex_opex="capex",
             start_month="2026-06",
             pipeline_stage=PROPOSED,
@@ -499,7 +499,7 @@ def _seed_eval_project_with_ce(
         id=project_id,
         name="BTC Gate Project",
         description="gate",
-        status="pending_approval",
+        review_state="pending_approval",
         capex_opex="capex",
         start_month="2026-06",
         pl_person_id="p-pm-1",
@@ -647,7 +647,7 @@ class TestDoiBTCGate:
             id="proj-svc-btc",
             name="Service-BTC Gate Project",
             description="gate-svc",
-            status="pending_approval",
+            review_state="pending_approval",
             capex_opex="capex",
             start_month="2026-06",
             pl_person_id="p-pm-1",

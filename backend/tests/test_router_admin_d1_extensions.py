@@ -123,11 +123,11 @@ class TestProjectDependency:
     def two_projects(self, db, seed_org_base):
         from models.projects import Project
         proj_a = Project(
-            id="proj-a", name="Alpha", status="active", capex_opex="capex",
+            id="proj-a", name="Alpha", pipeline_stage="Active", capex_opex="capex",
             start_month="2026-01", end_month="2026-12",
         )
         proj_b = Project(
-            id="proj-b", name="Beta", status="active", capex_opex="capex",
+            id="proj-b", name="Beta", pipeline_stage="Active", capex_opex="capex",
             start_month="2026-03", end_month="2027-06",
         )
         db.add_all([proj_a, proj_b])
@@ -201,7 +201,7 @@ class TestProjectDependency:
         from models.projects import Project, ProjectDependency
         pred, succ = two_projects
         proj_c = Project(
-            id="proj-c", name="Gamma", status="active", capex_opex="capex",
+            id="proj-c", name="Gamma", pipeline_stage="Active", capex_opex="capex",
             start_month="2026-06",
         )
         db.add(proj_c)

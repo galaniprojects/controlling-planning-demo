@@ -65,7 +65,7 @@ class TestTechNavigatorScoringData:
         # be flagged competes_in_ranking=True.
         db.add(Project(
             id="proj-scored", name="Scored Project",
-            status="active", capex_opex="capex",
+             capex_opex="capex",
             start_month="2026-01", end_month="2026-12",
             pipeline_stage="Approved", doi=3,
             project_type=2, total_budget=500_000,
@@ -76,7 +76,7 @@ class TestTechNavigatorScoringData:
         # competes_in_ranking=False (Type 3 is pre-funded, not in the walk).
         db.add(Project(
             id="proj-type3", name="Type 3 Pre-funded",
-            status="active", capex_opex="capex",
+             capex_opex="capex",
             start_month="2026-01", end_month="2026-12",
             pipeline_stage="Approved", doi=3,
             project_type=3, total_budget=200_000,
@@ -88,7 +88,7 @@ class TestTechNavigatorScoringData:
         # competes_in_ranking=False (not in the shrunk BACKLOG_STAGES).
         db.add(Project(
             id="proj-execution", name="Hyper-maintenance Project",
-            status="active", capex_opex="opex",
+             capex_opex="opex",
             start_month="2025-01", end_month="2027-12",
             pipeline_stage="Hyper-maintenance", doi=4,
             project_type=1, total_budget=300_000,
@@ -98,7 +98,7 @@ class TestTechNavigatorScoringData:
         # Missing one sub-criterion — should be filtered out
         db.add(Project(
             id="proj-partial", name="Partial Project",
-            status="active", capex_opex="capex",
+             capex_opex="capex",
             start_month="2026-01", end_month="2026-12",
             pipeline_stage="Proposed", doi=0,
             tn_standardization=4, tn_usage=4, tn_maintenance=3,
@@ -108,7 +108,7 @@ class TestTechNavigatorScoringData:
         # Out-of-scope pipeline stage (Cancelled) — filtered out
         db.add(Project(
             id="proj-cancelled", name="Cancelled Project",
-            status="active", capex_opex="capex",
+             capex_opex="capex",
             start_month="2026-01", end_month="2026-12",
             pipeline_stage="Cancelled", doi=0,
             tn_standardization=4, tn_usage=4, tn_maintenance=3,
@@ -118,7 +118,7 @@ class TestTechNavigatorScoringData:
         # pipeline_stage and sub-criteria would otherwise qualify.
         db.add(Project(
             id="proj-deleted", name="Soft-deleted Project",
-            status="active", capex_opex="capex",
+             capex_opex="capex",
             start_month="2026-01", end_month="2026-12",
             pipeline_stage="Approved", doi=3,
             project_type=2, total_budget=400_000,
@@ -298,7 +298,7 @@ class TestResetParametersRecomputesWithinCutoff:
         # the recompute fired (None → True or False).
         db.add(Project(
             id="proj-reset-test", name="Reset Test Project",
-            status="active", capex_opex="capex",
+             capex_opex="capex",
             start_month="2026-01", end_month="2026-12",
             pipeline_stage="Approved", doi=3,
             project_type=2, total_budget=500_000,

@@ -25,7 +25,7 @@ def seed_run_linked_projects(db):
     db.add(run_entity)
     db.flush()
 
-    common = dict(status="active", capex_opex="opex",
+    common = dict(pipeline_stage="Active", capex_opex="opex",
                   start_month="2025-01", end_month="2026-12")
     linked = Project(id="proj-run", name="Handed-over Project",
                      run_entity_id="svc-run", **common)

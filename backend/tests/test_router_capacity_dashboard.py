@@ -75,11 +75,11 @@ def seed_dashboard(db, seed_org_base, seed_personas):
 
     # Seed projects
     proj = Project(
-        id="proj-dash", name="Dashboard Test", status="active",
+        id="proj-dash", name="Dashboard Test", pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
     )
     proj_pl = Project(
-        id="proj-alpha", name="PL Project", status="active",
+        id="proj-alpha", name="PL Project", pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
         pl_person_id="p-pm-1",
     )

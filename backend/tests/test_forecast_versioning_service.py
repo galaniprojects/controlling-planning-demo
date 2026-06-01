@@ -63,7 +63,7 @@ def seeded_project(db):
                     cost_center_id="cc-muc-dev", competence_center_id="comp-dev")
     project = Project(
         id="proj-alpha", name="Alpha Project",
-        status="active", capex_opex="capex",
+        pipeline_stage="Active", capex_opex="capex",
         start_month="2026-04", is_service=False, is_active=True,
     )
     db.add_all([loc, cc, cost_c, role, person, project])
@@ -275,7 +275,7 @@ class TestBuildMixedGrid:
 
     def test_no_forecast_rows_returns_empty(self, db, seeded_project, horizon_params):
         # Create new project with no forecast
-        db.add(Project(id="proj-empty", name="Empty", status="active",
+        db.add(Project(id="proj-empty", name="Empty", pipeline_stage="Active",
                        capex_opex="capex", start_month="2026-04", is_active=True))
         db.commit()
         grid = build_mixed_grid(db, "proj-empty", "2026-04")
@@ -312,7 +312,7 @@ def seeded_project_with_history(db):
     person = Person(id="p-ctrl", name="Anna Meier", role_type_id="role-dev",
                     cost_center_id="cc-muc-dev", competence_center_id="comp-dev")
     project = Project(
-        id="proj-c08", name="C-08 Test", status="active", capex_opex="capex",
+        id="proj-c08", name="C-08 Test", pipeline_stage="Active", capex_opex="capex",
         start_month="2026-01", is_service=False, is_active=True,
     )
     db.add_all([loc, cc, cost_c, role, person, project])
@@ -736,7 +736,7 @@ def seeded_breakdown_project(db):
     )
     project = Project(
         id="proj-erp2", name="ERP2",
-        status="active", capex_opex="capex",
+        pipeline_stage="Active", capex_opex="capex",
         start_month="2026-01", is_service=False, is_active=True,
     )
     db.add_all([loc, cc, cost_c, role, anna, ben, project])
@@ -848,7 +848,7 @@ class TestPersonBreakdown:
         )
         project = Project(
             id="proj-rate", name="Rate Test",
-            status="active", capex_opex="capex",
+            pipeline_stage="Active", capex_opex="capex",
             start_month="2026-01", is_service=False, is_active=True,
         )
         db.add_all([loc, cc, cost_c, role, anna, project])
@@ -920,7 +920,7 @@ class TestPersonBreakdown:
         )
         project = Project(
             id="proj-q", name="Quarterly Test",
-            status="active", capex_opex="capex",
+            pipeline_stage="Active", capex_opex="capex",
             start_month="2026-01", is_service=False, is_active=True,
         )
         db.add_all([loc, cc, cost_c, role, anna, project])
@@ -1086,7 +1086,7 @@ def seeded_vendor_project(db):
         ),
         Project(
             id="proj-vendor", name="Vendor Test Project",
-            status="active", capex_opex="capex",
+            pipeline_stage="Active", capex_opex="capex",
             start_month="2026-04", is_service=False, is_active=True,
         ),
     ])
@@ -1311,7 +1311,7 @@ class TestCaptureVersionsForCycle:
 
     def test_skips_project_without_forecast(self, db, seeded_project, horizon_params, controller):
         # Add a project with no forecast rows
-        db.add(Project(id="proj-nof", name="No Forecast", status="active",
+        db.add(Project(id="proj-nof", name="No Forecast", pipeline_stage="Active",
                        capex_opex="capex", start_month="2026-04", is_active=True))
         db.commit()
         created = capture_versions_for_cycle(db, controller, "Q2 2026 Cycle")
@@ -1322,7 +1322,7 @@ class TestCaptureVersionsForCycle:
 
     def test_fan_out_multiple_projects(self, db, seeded_project, horizon_params, controller):
         # Add second project with forecast
-        db.add(Project(id="proj-beta", name="Beta", status="active",
+        db.add(Project(id="proj-beta", name="Beta", pipeline_stage="Active",
                        capex_opex="capex", start_month="2026-04", is_active=True))
         db.commit()
         for month in ["2026-04", "2026-05"]:
@@ -1410,7 +1410,7 @@ class TestComputeDiff:
 
     def test_cross_project_diff(self, db, seeded_project, horizon_params, controller):
         """Cross-project diff is valid [C-RH-05]."""
-        db.add(Project(id="proj-beta", name="Beta", status="active",
+        db.add(Project(id="proj-beta", name="Beta", pipeline_stage="Active",
                        capex_opex="capex", start_month="2026-04", is_active=True))
         db.commit()
         for month in ["2026-04"]:

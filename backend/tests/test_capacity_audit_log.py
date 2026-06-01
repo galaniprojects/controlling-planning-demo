@@ -36,7 +36,7 @@ class TestLogCapacityAction:
         from services.capacity_audit import log_capacity_action
 
         proj = Project(
-            id="proj-aud", name="Audit Test", status="active",
+            id="proj-aud", name="Audit Test", pipeline_stage="Active",
             capex_opex="capex", start_month="2026-01", end_month="2026-12",
         )
         db.add(proj)
@@ -86,7 +86,7 @@ class TestLogCapacityAction:
         from services.capacity_audit import log_capacity_action
 
         proj = Project(
-            id="proj-ts", name="TS Test", status="active",
+            id="proj-ts", name="TS Test", pipeline_stage="Active",
             capex_opex="capex", start_month="2026-01", end_month="2026-12",
         )
         db.add(proj)
@@ -124,7 +124,7 @@ class TestLogCapacityAction:
         from services.capacity_audit import log_capacity_action
 
         proj = Project(
-            id=f"proj-{action_type}", name="P", status="active",
+            id=f"proj-{action_type}", name="P", pipeline_stage="Active",
             capex_opex="capex", start_month="2026-01", end_month="2026-12",
         )
         db.add(proj)
@@ -162,7 +162,7 @@ def seed_confirmation_project(db, seed_org_base, seed_personas):
 
     proj = Project(
         id="proj-conf", name="Confirm Test",
-        status="pending_cc_confirmation",
+        pipeline_stage="Under Evaluation", review_state="pending_cc_confirmation",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
     )
     req = ResourceRequest(
@@ -481,7 +481,7 @@ def seed_partial_assignment_project(db, seed_org_base, seed_personas):
 
     proj = Project(
         id="proj-partial", name="Partial Confirm Test",
-        status="pending_cc_confirmation",
+        pipeline_stage="Under Evaluation", review_state="pending_cc_confirmation",
         capex_opex="capex", start_month="2026-04", end_month="2026-05",
     )
     req = ResourceRequest(
@@ -548,7 +548,7 @@ def seed_full_assignment_project(db, seed_org_base, seed_personas):
 
     proj = Project(
         id="proj-full", name="Fully Assigned Test",
-        status="pending_cc_confirmation",
+        pipeline_stage="Under Evaluation", review_state="pending_cc_confirmation",
         capex_opex="capex", start_month="2026-04", end_month="2026-05",
     )
     req = ResourceRequest(
@@ -612,7 +612,7 @@ def seed_multi_person_split_project(db, seed_org_base, seed_personas):
 
     proj = Project(
         id="proj-split", name="Split Confirm Test",
-        status="pending_cc_confirmation",
+        pipeline_stage="Under Evaluation", review_state="pending_cc_confirmation",
         capex_opex="capex", start_month="2026-04", end_month="2026-04",
     )
     req = ResourceRequest(
@@ -695,7 +695,7 @@ class TestAllSixActionTypesEndToEnd:
 
         proj = Project(
             id="proj-flow", name="Flow Test",
-            status="pending_cc_confirmation",
+            pipeline_stage="Under Evaluation", review_state="pending_cc_confirmation",
             capex_opex="capex", start_month="2026-04", end_month="2026-04",
         )
         req = ResourceRequest(
@@ -772,4 +772,4 @@ class TestDeclineRequestKeepsProjectStatus:
         assert proj is not None
         # Project status remains pending_cc_confirmation — only the request
         # was declined.
-        assert proj.status == "pending_cc_confirmation"
+        assert proj.review_state == "pending_cc_confirmation"

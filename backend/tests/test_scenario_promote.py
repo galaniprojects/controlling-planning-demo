@@ -76,7 +76,7 @@ def cycle_anchor(db, author_person):
     )
     # FK on project_id is required — create a placeholder project
     from models.projects import Project
-    p = Project(id="p-anchor", name="Anchor Project", status="active",
+    p = Project(id="p-anchor", name="Anchor Project", pipeline_stage="Active",
                 capex_opex="capex", start_month="2025-01", end_month="2026-12")
     db.add(p)
     db.flush()
@@ -169,7 +169,7 @@ class TestDecideRouting:
 
     def test_forecast_grid_own_project(self, db, author_person):
         from models.projects import Project
-        p = Project(id="p-own", name="Own", status="active", capex_opex="opex",
+        p = Project(id="p-own", name="Own", pipeline_stage="Active", capex_opex="opex",
                     start_month="2026-01", end_month="2026-12",
                     pl_person_id="p-promoter")
         db.add(p)
@@ -191,7 +191,7 @@ class TestDecideRouting:
             competence_center_id="comp-dev",
         )
         db.add(other)
-        p = Project(id="p-foreign", name="Foreign", status="active",
+        p = Project(id="p-foreign", name="Foreign", pipeline_stage="Active",
                     capex_opex="opex", start_month="2026-01", end_month="2026-12",
                     pl_person_id="p-other")
         db.add(p)

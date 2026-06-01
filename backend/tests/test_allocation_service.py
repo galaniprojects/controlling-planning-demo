@@ -36,7 +36,7 @@ class TestEnsureProjectAllocations:
         # Create a project with NO internal forecasts
         from models.projects import Project
         proj2 = Project(
-            id="proj-empty", name="Empty", status="active",
+            id="proj-empty", name="Empty", pipeline_stage="Active",
             capex_opex="capex", start_month="2025-01", end_month="2026-12",
         )
         db.add(proj2)
@@ -74,7 +74,7 @@ class TestEnsureProjectAllocations:
         from models.financial import Forecast as F
         from models.projects import Project
         proj = Project(
-            id="proj-big", name="Big", status="active",
+            id="proj-big", name="Big", pipeline_stage="Active",
             capex_opex="capex", start_month="2025-01", end_month="2026-12",
         )
         db.add(proj)

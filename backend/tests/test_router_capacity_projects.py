@@ -70,25 +70,25 @@ def seed_projects(db, seed_org_base, seed_personas):
 
     proj_low = Project(
         id="proj-low", name="Low Fulfillment",
-        status="pending_cc_confirmation",
+        pipeline_stage="Under Evaluation", review_state="pending_cc_confirmation",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
         pl_person_id="p-pm-1",
     )
     proj_high = Project(
         id="proj-high", name="High Fulfillment",
-        status="active",
+        pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
         pl_person_id="p-pm-1",
     )
     proj_mid = Project(
         id="proj-mid", name="Mid Fulfillment",
-        status="active",
+        pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
         pl_person_id="p-pm-1",
     )
     proj_other = Project(
         id="proj-other", name="Other Location Project",
-        status="active",
+        pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
     )
 

@@ -371,7 +371,7 @@ class TestEntityReadOnlyEndpoint:
 
         # Seed a project + linked chargeable entity.
         proj = Project(
-            id="proj-x", name="Linked", status="active",
+            id="proj-x", name="Linked", pipeline_stage="Active",
             capex_opex="capex", start_month="2026-01", end_month="2026-12",
         )
         db.add(proj)

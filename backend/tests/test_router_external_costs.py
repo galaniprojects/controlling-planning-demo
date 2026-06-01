@@ -40,12 +40,12 @@ def seed_external_costs(db, seed_org_base, seed_personas):
 
     # Two projects
     proj_a = Project(
-        id="proj-alpha", name="Alpha", status="active",
+        id="proj-alpha", name="Alpha", pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
         pl_person_id="p-pm-1",
     )
     proj_b = Project(
-        id="proj-beta", name="Beta", status="active",
+        id="proj-beta", name="Beta", pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
         pl_person_id="p-pm-1",
     )
@@ -167,7 +167,7 @@ class TestProjectVendorSummary:
         # Insert a project the PL doesn't own (no pl_person_id, not in
         # persona-pl's owned_project_ids list)
         db.add(P(
-            id="proj-secret", name="Secret", status="active",
+            id="proj-secret", name="Secret", pipeline_stage="Active",
             capex_opex="capex", start_month="2026-01", end_month="2026-12",
         ))
         db.commit()

@@ -47,21 +47,21 @@ def seed_competing_demand(db, seed_org_base, seed_personas):
 
     # PL persona owns proj-alpha and proj-beta (per conftest seed_personas)
     proj_alpha = Project(
-        id="proj-alpha", name="Alpha (PL's own)", status="active",
+        id="proj-alpha", name="Alpha (PL's own)", pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
         pl_person_id="p-pm-1",
     )
     proj_beta = Project(
-        id="proj-beta", name="Beta (PL's own)", status="active",
+        id="proj-beta", name="Beta (PL's own)", pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
         pl_person_id="p-pm-1",
     )
     proj_other = Project(
-        id="proj-other-1", name="Other PL's project", status="active",
+        id="proj-other-1", name="Other PL's project", pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
     )
     proj_other_2 = Project(
-        id="proj-other-2", name="Yet Another", status="active",
+        id="proj-other-2", name="Yet Another", pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
     )
     db.add_all([proj_alpha, proj_beta, proj_other, proj_other_2])

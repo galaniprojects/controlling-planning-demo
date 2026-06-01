@@ -266,7 +266,7 @@ class TestComputeEffectiveCost:
         n = GroupingEntity(id="lob-1", entity_type_id="get-lob", name="LoB One")
         db.add_all([et, n])
         p = Project(
-            id="proj-x", name="Project X", status="active", capex_opex="opex",
+            id="proj-x", name="Project X", pipeline_stage="Active", capex_opex="opex",
             start_month="2025-01", is_service=True, annual_budget=100000,
         )
         db.add(p)
@@ -330,7 +330,7 @@ class TestGetOwnCost:
 
     def test_project_with_annual_budget(self, db, seed_org_base):
         p = Project(
-            id="proj-y", name="Y", status="active", capex_opex="opex",
+            id="proj-y", name="Y", pipeline_stage="Active", capex_opex="opex",
             start_month="2025-01", is_service=True, annual_budget=50000,
         )
         db.add(p)
@@ -345,7 +345,7 @@ class TestGetOwnCost:
 
     def test_project_falls_back_to_total_budget(self, db, seed_org_base):
         p = Project(
-            id="proj-z", name="Z", status="active", capex_opex="capex",
+            id="proj-z", name="Z", pipeline_stage="Active", capex_opex="capex",
             start_month="2025-01", end_month="2026-12", total_budget=200000,
         )
         db.add(p)
@@ -390,7 +390,7 @@ class TestGetOwnCost:
 
     def test_project_falls_back_to_annual_cost_when_no_budget(self, db, seed_org_base):
         p = Project(
-            id="proj-ac", name="AC", status="active", capex_opex="opex",
+            id="proj-ac", name="AC", pipeline_stage="Active", capex_opex="opex",
             start_month="2026-01", is_service=True,
             annual_budget=None, total_budget=None,
         )
