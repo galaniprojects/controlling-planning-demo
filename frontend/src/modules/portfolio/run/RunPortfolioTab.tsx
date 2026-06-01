@@ -272,8 +272,6 @@ export function RunPortfolioTab() {
     };
   }, [items]);
 
-  const entityIds = useMemo(() => items.map((e) => e.id), [items]);
-
   return (
     <div className="space-y-4">
       {/* Spec-aligned KPI strip (F7 / [E-11]) */}
@@ -306,19 +304,16 @@ export function RunPortfolioTab() {
           title="By region"
           groupBy="region"
           year={ROLLUP_YEAR}
-          entityIds={entityIds}
         />
         <RunDimensionRollupPanel
           title="By division"
           groupBy="division"
           year={ROLLUP_YEAR}
-          entityIds={entityIds}
         />
         <RunDimensionRollupPanel
           title="By country"
           groupBy="country"
           year={ROLLUP_YEAR}
-          entityIds={entityIds}
         />
       </div>
 

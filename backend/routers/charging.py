@@ -2542,6 +2542,7 @@ def get_rollup(
     evaluated_date: date | None = None,
     group_by: str = "entity_type",
     entity_type: str | None = None,
+    change_or_run: str | None = None,
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role(
         "controller", "executive", "project_lead", "cost_center_owner",
@@ -2556,6 +2557,9 @@ def get_rollup(
     ``group_by`` can be: entity, entity_type, hierarchy_node, responsible,
     change_or_run, charging_location, legal_entity, region, division,
     country, stage.
+
+    ``change_or_run`` (optional) scopes the population: ``'run'`` keeps
+    Offerings + InternalServices, ``'change'`` keeps Projects (VIPER §5).
     """
     version = _resolve_version_param(db, version_id, evaluated_date)
     try:
@@ -2563,6 +2567,7 @@ def get_rollup(
             db, year, version.id,
             group_by=group_by,
             entity_type=entity_type,
+            change_or_run=change_or_run,
         )
     except ValueError as e:
         raise HTTPException(422, str(e))
