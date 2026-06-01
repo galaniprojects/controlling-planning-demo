@@ -7,7 +7,7 @@ is deleted in FD-2 commit 7) with the authoring API the new in-grid editor and
 CSV bulk-entry surfaces consume:
 
 - ``GET  /info`` — reframes the legacy ``/refresh-status`` payload per
-  [F-DIR-01] (CRETA is the system of record; SAP is export-only).
+  [F-DIR-01] (VIPER is the system of record; SAP is export-only).
 - ``GET  /versions[?year=&quarter=&status=]`` — list version headers + cell counts.
 - ``GET  /versions/{id}`` — header + dense cells (the matrix shape).
 - ``POST /versions`` — three-origin draft creation per [F-UM-03]
@@ -139,14 +139,14 @@ def _allocation_keys_for_cells(db: Session, cells) -> dict[str, "str | None"]:
 
 @router.get("/info", response_model=UMInfoResponse)
 def info(_user: CurrentUser = Depends(get_current_user)) -> UMInfoResponse:
-    """Module info: CRETA is the system of record; SAP is export-only.
+    """Module info: VIPER is the system of record; SAP is export-only.
 
     Read-visible to all roles per [F-DIR-03]. ``sap_export_available`` is
     ``True`` since FD-4 shipped ``GET /api/charging/sap-export`` per
     ``[F-EXP-01]``.
     """
     return UMInfoResponse(
-        system_of_record="creta",
+        system_of_record="viper",
         authoring_modes=["in_grid", "csv_bulk_entry"],
         sap_export_available=True,
     )

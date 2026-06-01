@@ -89,7 +89,7 @@ export interface UMCsvImportResponse {
 }
 
 export interface UMInfoResponse {
-  system_of_record: 'creta' | string;
+  system_of_record: 'viper' | string;
   authoring_modes: string[];
   sap_export_available: boolean;
 }

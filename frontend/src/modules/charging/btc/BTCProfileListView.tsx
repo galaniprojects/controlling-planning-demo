@@ -477,7 +477,8 @@ function SapExportDialog({ open, defaultYear, onClose }: SapExportDialogProps) {
         {
           headers: {
             'X-Current-User':
-              localStorage.getItem('creta-persona') || 'persona-controller',
+              localStorage.getItem(`${BRANDING.localStoragePrefix}-persona`) ||
+              'persona-controller',
           },
         },
       );

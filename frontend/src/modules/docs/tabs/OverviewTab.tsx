@@ -83,7 +83,7 @@ FastAPI Backend (:8000)
     |
     |  SQLAlchemy ORM
     v
-SQLite Database (creta_demo.db)
+SQLite Database (viper_demo.db)
     |
     Seed data: seed.sql + JSON fixtures`}</div>
 

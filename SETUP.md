@@ -1,4 +1,4 @@
-# CRETA Demo App — Setup Guide
+# VIPER Demo App — Setup Guide
 
 This guide covers fresh-clone setup for **macOS** and **Windows** side by side. The codebase itself is platform-agnostic — only the install commands and venv-activation paths differ.
 
@@ -67,7 +67,7 @@ npm install
 
 > Windows tip: if PowerShell blocks the `Activate.ps1` script later, run once per machine: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. We don't need `Activate.ps1` for install (we call `.venv\Scripts\python` directly), but it's needed for `activate` in the manual-start path below.
 
-The backend creates `creta_demo.db` (SQLite) on first launch from `backend/seed/seed.sql`. There is no separate database server to install.
+The backend creates `viper_demo.db` (SQLite) on first launch from `backend/seed/seed.sql`. There is no separate database server to install.
 
 ### Environment variables
 
@@ -76,7 +76,7 @@ The demo runs end-to-end with no environment variables set. Two optional knobs:
 | Variable | Where | Default | When you need it |
 |----------|-------|---------|------------------|
 | `ANTHROPIC_API_KEY` | Administration → Planning Parameters → Integrations (preferred) **or** shell env | unset | The AI Report Builder feature requires it. Get a key at [console.anthropic.com](https://console.anthropic.com). Without it the AI Report Builder UI loads but reports a "missing API key" error on submit. |
-| `VITE_APP_TITLE` | `frontend/.env` | `CRETA — Controlling, Reporting, Estimation, Tracking & Allocations` | Override the browser tab title; useful for demo whitelabeling. |
+| `VITE_APP_TITLE` | `frontend/.env` | `VIPER — IT Financial Planning Platform` | Override the browser tab title; useful for demo whitelabeling. |
 
 Setting the Anthropic key:
 
@@ -358,7 +358,7 @@ Stop-Process -Id <PID>                  # stop it
 - The repo uses LF line endings; mixing them can confuse `start.sh` if you edit it on Windows
 
 ### Database issues
-- Delete and restart: `rm backend/creta_demo.db` then start the backend again
+- Delete and restart: `rm backend/viper_demo.db` then start the backend again
 - The database is auto-created on startup from `seed.sql`
 - Or use the reset endpoint: `curl -X POST http://localhost:8000/api/admin/reset-demo`
 - After pulling a branch that adds new schema columns, the DB file may carry the old shape; delete and let it re-seed (this project has no Alembic migrations)

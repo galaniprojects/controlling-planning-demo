@@ -51,7 +51,7 @@ def export_csv(
     sio = io.StringIO()
     writer = csv.writer(sio)
 
-    writer.writerow([f"# CRETA Audit Log Export"])
+    writer.writerow([f"# VIPER Audit Log Export"])
     writer.writerow([f"# Exported At: {datetime.utcnow().isoformat()}Z"])
     if exported_by:
         writer.writerow([f"# Exported By: {exported_by}"])
@@ -94,7 +94,7 @@ def export_xlsx(
     ws.title = "Audit Log"
 
     # Metadata preamble
-    ws.append(["CRETA Audit Log Export"])
+    ws.append(["VIPER Audit Log Export"])
     ws.append([f"Exported At: {datetime.utcnow().isoformat()}Z"])
     if exported_by:
         ws.append([f"Exported By: {exported_by}"])

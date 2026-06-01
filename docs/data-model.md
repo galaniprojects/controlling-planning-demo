@@ -1,6 +1,6 @@
-# CRETA Data Model Reference
+# VIPER Data Model Reference
 
-Canonical reference for all SQLAlchemy models in the CRETA Demo App. **66 models across 14 files** in `backend/models/`. Compiled directly from source — the `.py` files are authoritative; this doc is a navigable wrapper. Update this doc in the same commit that changes a model.
+Canonical reference for all SQLAlchemy models in the VIPER Demo App. **66 models across 14 files** in `backend/models/`. Compiled directly from source — the `.py` files are authoritative; this doc is a navigable wrapper. Update this doc in the same commit that changes a model.
 
 ## How to read this doc
 - **Per-model blocks** list only the *interesting* columns. Boilerplate (`id` PK autoincrement, `created_at`/`modified_at` timestamps) is omitted unless something is special about them.
@@ -376,7 +376,7 @@ KB legal entity master per `[F-MD-01]`. ~120 registered companies. Many-to-one r
 **Key columns.** `id` String(50) PK, `code` String(20) UNIQUE, `name`, `charging_location_id` FK, `country_id` FK, `is_active`.
 
 ### `UMVersion` — `um_versions`
-Authored UM matrix version header per `[F-UM-02]` (Charging/UM rework cluster FD-1). CRETA is the system of record for the consolidated UM matrix (`[F-DIR-01]`): a controller authors it, SAP is export-only — there is no UM import from SAP. Lifecycle mirrors `BTCProfile`: a **draft** is editable (created empty, by CSV bulk-entry, or by copy from a prior version); **active** is frozen and immutable, `activated_at` is the freeze timestamp. A version's identity is `(year, quarter, activated_at)`. Re-entry never overwrites an active version — it creates a new draft that, on activation, becomes a new version; historical active versions remain intact for SAP-export reproducibility.
+Authored UM matrix version header per `[F-UM-02]` (Charging/UM rework cluster FD-1). VIPER is the system of record for the consolidated UM matrix (`[F-DIR-01]`): a controller authors it, SAP is export-only — there is no UM import from SAP. Lifecycle mirrors `BTCProfile`: a **draft** is editable (created empty, by CSV bulk-entry, or by copy from a prior version); **active** is frozen and immutable, `activated_at` is the freeze timestamp. A version's identity is `(year, quarter, activated_at)`. Re-entry never overwrites an active version — it creates a new draft that, on activation, becomes a new version; historical active versions remain intact for SAP-export reproducibility.
 
 **Key columns.** `id` Integer PK, `year` Integer NOT NULL, `quarter` Integer NOT NULL (1–4), `status` String(10) NOT NULL default `draft` (`draft` | `active` per `UM_VERSION_STATUSES`), `source` String(20) NOT NULL (`manual` | `csv_upload` | `copy` | `seed` per `UM_VERSION_SOURCES`/`[F-UM-04]` — `sap_api` retired), `activated_at` DateTime NULL (set on activate; NULL = draft), `copied_from_version_id` FK → um_versions (`ondelete=SET NULL`; provenance for `source='copy'`, mirrors `BTCProfile.copied_from_profile_id`), `created_at`, `created_by_person_id` FK → people (carries the retired `UserMeasurement.imported_by_person_id` semantic), `modified_at`.
 

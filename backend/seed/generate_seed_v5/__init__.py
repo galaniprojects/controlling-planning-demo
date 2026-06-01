@@ -1,4 +1,4 @@
-"""CRETA v5 seed-data generator.
+"""VIPER v5 seed-data generator.
 
 Replaces `generate_seed/` (v4). v5 retires the v4 project/service distinction
 per [F-DG-01]; the seed expresses the polymorphic ChargeableEntity model,

@@ -1,7 +1,7 @@
-# CRETA Demo App — Claude Code Project Instructions
+# VIPER Demo App — Claude Code Project Instructions
 
 ## Project Overview
-- **Name:** CRETA (Controlling, Reporting, Estimation, Tracking & Allocations) Demo App
+- **Name:** VIPER — IT Financial Planning Platform (demo app)
 - **Repo:** vision-demo-prototype (private)
 - **Purpose:** Demo application for Knorr-Bremse IT financial planning transformation, replacing legacy CaPa tool
 - **Type:** Demo with realistic mock data — not connected to any real database

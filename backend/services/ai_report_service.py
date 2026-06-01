@@ -43,7 +43,7 @@ def _get_readonly_engine():
     """Return a read-only SQLite engine (singleton)."""
     global _ro_engine
     if _ro_engine is None:
-        db_path = os.path.join(BASE_DIR, "creta_demo.db")
+        db_path = os.path.join(BASE_DIR, "viper_demo.db")
         _ro_engine = create_engine(
             f"sqlite:///{db_path}",
             connect_args={"check_same_thread": False},

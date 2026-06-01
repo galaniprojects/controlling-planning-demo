@@ -182,7 +182,7 @@ No DB write. File downloaded to the user's machine.
 
 ### Known issues / caveats
 
-- Cross-tabulated reports flatten to columns named `<DimensionValue> - <MeasureName>` (e.g. "Q1 2026 - Forecast"). Excel may auto-detect numeric columns but locale-dependent decimal/thousands separators (German `.` for thousands, `,` for decimals per CRETA's European convention) sometimes confuse Excel — a follow-on fix is to ship a German-locale variant.
+- Cross-tabulated reports flatten to columns named `<DimensionValue> - <MeasureName>` (e.g. "Q1 2026 - Forecast"). Excel may auto-detect numeric columns but locale-dependent decimal/thousands separators (German `.` for thousands, `,` for decimals per VIPER's European convention) sometimes confuse Excel — a follow-on fix is to ship a German-locale variant.
 
 ---
 

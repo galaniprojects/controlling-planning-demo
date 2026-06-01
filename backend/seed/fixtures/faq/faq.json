@@ -153,7 +153,7 @@
       {"step_number": 1, "instruction": "Locate the **persona button** in the top-right of the TopBar — it shows the current persona's display name (e.g., 'Anna Meier') and a caret."},
       {"step_number": 2, "instruction": "Click the button to open the **Persona Switcher** dropdown menu listing all four personas with display name + title on each row."},
       {"step_number": 3, "instruction": "Select one of: **Anna Meier** / IT Controller, **Thomas Brenner** / Head of Application Development (Cost Centre Owner), **Priya Sharma** / Senior Project Lead, or **Dr. Klaus Weber** / VP IT Strategy & Governance (Executive)."},
-      {"step_number": 4, "instruction": "Page contents re-render in-place with the new persona's data within ~500ms — the URL stays the same. Tile counts, pending actions, and writeable controls all update per role. The chosen persona persists across browser sessions via the `creta-persona` localstorage key. See `docs/workflows/00-system.md` (W00.1) for the full walk."}
+      {"step_number": 4, "instruction": "Page contents re-render in-place with the new persona's data within ~500ms — the URL stays the same. Tile counts, pending actions, and writeable controls all update per role. The chosen persona persists across browser sessions via the `viper-persona` localstorage key. See `docs/workflows/00-system.md` (W00.1) for the full walk."}
     ]
   },
   {

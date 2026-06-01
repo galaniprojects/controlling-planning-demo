@@ -262,7 +262,7 @@ export function UserMeasurementListView() {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              CRETA is the system of record for the consolidated UM matrix per{' '}
+              VIPER is the system of record for the consolidated UM matrix per{' '}
               <span className="font-mono">[F-DIR-01]</span>. Author by in-grid
               edit or CSV bulk-entry, then activate to freeze the version per{' '}
               <span className="font-mono">[F-UM-02]</span>.

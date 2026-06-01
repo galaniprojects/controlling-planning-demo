@@ -13,7 +13,7 @@
  *   - Shown only for Controller or Executive roles.
  *   - Hidden when scope is `my_cc` (single-CC). Slide-up animation on hide.
  *
- * Collapse state persisted in localStorage: `creta_capacity_dashboard_collapsed`.
+ * Collapse state persisted in localStorage: `viper_capacity_dashboard_collapsed`.
  * Default: expanded on first visit.
  *
  * Spec: guides/Capacity_Module_Redesign_Spec.md §11.1–§11.9

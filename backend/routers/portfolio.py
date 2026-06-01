@@ -398,7 +398,7 @@ def get_dashboard_charts(
 _V4_INTAKE_REMOVED_DETAIL = {
     "error": "v4_intake_removed",
     "message": (
-        "The v4 intake queue is removed in CRETA v5 per [A-BK-26]/[A-PS-13]. "
+        "The v4 intake queue is removed in VIPER v5 per [A-BK-26]/[A-PS-13]. "
         "Use the backlog filtered to 'Under Evaluation' for the review queue, "
         "and the /api/intake/* endpoints for project creation and controller "
         "actions."

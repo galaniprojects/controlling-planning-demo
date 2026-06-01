@@ -2496,9 +2496,9 @@ def get_sap_export(
 
     if format == "csv":
         filename = (
-            f"creta-sap-export-{year}.csv"
+            f"viper-sap-export-{year}.csv"
             if entity_type is None
-            else f"creta-sap-export-{year}-{entity_type.lower()}.csv"
+            else f"viper-sap-export-{year}-{entity_type.lower()}.csv"
         )
         return StreamingResponse(
             _sap_export_csv_rows(payload),

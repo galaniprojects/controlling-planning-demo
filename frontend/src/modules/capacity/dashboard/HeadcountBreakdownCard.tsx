@@ -3,7 +3,7 @@
  *
  * Single horizontal stacked bar showing headcount broken down by the
  * selected dimension. Dimension switcher dropdown persists selection to
- * localStorage key `creta_capacity_headcount_dimension`.
+ * localStorage key `viper_capacity_headcount_dimension`.
  *
  * Dimensions:
  *   - location (default)
