@@ -1,6 +1,6 @@
-# CRETA Workflow Catalogue
+# VIPER Workflow Catalogue
 
-Step-by-step walkthroughs of every workflow in the CRETA demo. Each workflow is documented in a way that serves two audiences:
+Step-by-step walkthroughs of every workflow in the VIPER demo. Each workflow is documented in a way that serves two audiences:
 
 - **Hand-off audience** (new operator, demo presenter, evaluator): read top-down to understand what the workflow does, when to use it, and how to perform it.
 - **Regression test audience**: each step states *Action → Expected UI Result → Verification Cue* so it can be executed as a manual test case against any deployment.

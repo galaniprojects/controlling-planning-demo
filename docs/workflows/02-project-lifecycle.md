@@ -63,7 +63,7 @@ Off-path stages (`Paused`, `Cancelled`) freeze DoI in `frozen_doi` per `[A-DOI-0
 ## W02.2: AI Council screening + DoI 0→1 advance
 
 **Purpose**: After offline AI Council review, the Controller flags `ai_council_approved` and advances the project from Proposed to Under Evaluation (early).
-**When to use**: Once-per-project gate. AI Council meets out-of-band; the controller records the decision in CRETA.
+**When to use**: Once-per-project gate. AI Council meets out-of-band; the controller records the decision in VIPER.
 **Personas involved**: Controller (Anna).
 **Pre-conditions**: ≥ 1 project at DoI 0 (e.g., "Customer Insights Pilot" from W02.1, or seeded `proj-greenedge` / `proj-connveh`).
 **Estimated walk-time**: 3 min.

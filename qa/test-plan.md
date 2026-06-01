@@ -1,6 +1,6 @@
-# CRETA Demo App — End-to-End Regression Test Plan
+# VIPER Demo App — End-to-End Regression Test Plan
 
-This is the **living test plan** for the CRETA application. It provides step-by-step instructions for a complete regression test covering all modules, personas, interactive features, data integrity checks, and cross-module integration. This document should be updated after every version to reflect new features, changed behavior, and retired scenarios.
+This is the **living test plan** for the VIPER application. It provides step-by-step instructions for a complete regression test covering all modules, personas, interactive features, data integrity checks, and cross-module integration. This document should be updated after every version to reflect new features, changed behavior, and retired scenarios.
 
 **Total scenarios:** 204 across 15 test suites
 **Tester:** Claude Code using preview tools (not human testers)
@@ -174,7 +174,7 @@ Run this before each testing session to ensure clean state.
 Create at the start of Session A with this header:
 
 ```markdown
-# CRETA Demo App — E2E Bug Report
+# VIPER Demo App — E2E Bug Report
 **Date started:** [date]
 **Tester:** Claude Code (automated via preview tooling)
 **Environment:** macOS, Chromium (preview tools, desktop viewport), Backend port 8000, Frontend port 5173
@@ -224,21 +224,21 @@ Create at the start of Session A with this header:
 
 ---
 
-### GLB-01: App Loads and CRETA Branding
-**Goal:** Verify the app loads correctly with CRETA branding throughout.
+### GLB-01: App Loads and VIPER Branding
+**Goal:** Verify the app loads correctly with VIPER branding throughout.
 **Persona:** Anna Meier (Controller)
 
 1. Navigate to `http://localhost:5173`
 2. `preview_snapshot` — verify page loads without blank screen
-3. Verify the top bar shows "CRETA" text/logo (not "CPC")
-4. Verify the browser page title contains "CRETA"
-5. `preview_snapshot` — verify breadcrumb root says "CRETA"
+3. Verify the top bar shows "VIPER" text/logo (not "CPC")
+4. Verify the browser page title contains "VIPER"
+5. `preview_snapshot` — verify breadcrumb root says "VIPER"
 6. `preview_console_logs` — verify zero console errors on initial load
 
 **Verify:**
 - [ ] App loads without errors
-- [ ] "CRETA" branding in top bar
-- [ ] "CRETA" in breadcrumb
+- [ ] "VIPER" branding in top bar
+- [ ] "VIPER" in breadcrumb
 - [ ] No "CPC" text anywhere visible
 
 ---
@@ -345,18 +345,18 @@ Create at the start of Session A with this header:
 
 1. From Launchpad, click **Portfolio Overview** tile
 2. `preview_snapshot` — verify navigated to `/portfolio`, Portfolio module loads
-3. Click CRETA breadcrumb to return to Launchpad
+3. Click VIPER breadcrumb to return to Launchpad
 4. Click **Project Workbench** tile — verify `/workbench`
 5. Return to Launchpad, click **Capacity Management** — verify `/capacity`
 6. Return, click **What-If Simulator** — verify `/simulator`
 7. Return, click **Reporting** — verify `/reporting`
 8. Return, click **Administration** — verify `/admin`
-9. For each module, verify the breadcrumb shows "CRETA / [Module Name]"
+9. For each module, verify the breadcrumb shows "VIPER / [Module Name]"
 
 **Verify:**
 - [ ] All 6 module tiles navigate to correct routes
 - [ ] Breadcrumb updates correctly per module
-- [ ] CRETA breadcrumb link returns to Launchpad
+- [ ] VIPER breadcrumb link returns to Launchpad
 
 ---
 
@@ -367,7 +367,7 @@ Create at the start of Session A with this header:
 1. Navigate to Portfolio Overview
 2. Find and click the module guide button (book/info icon)
 3. `preview_snapshot` — verify a guide panel opens with documentation content
-4. Verify the content references "CRETA" (not "CPC")
+4. Verify the content references "VIPER" (not "CPC")
 5. Close the guide panel
 6. Navigate to Project Workbench, repeat — click guide button, verify content loads
 
@@ -375,7 +375,7 @@ Create at the start of Session A with this header:
 - [ ] Guide button visible on module pages
 - [ ] Clicking it opens a panel with module documentation
 - [ ] Content loads from API (not empty/error)
-- [ ] Content references "CRETA"
+- [ ] Content references "VIPER"
 
 ---
 
@@ -401,15 +401,15 @@ Create at the start of Session A with this header:
 **Goal:** Verify breadcrumbs work for navigation context.
 **Persona:** Anna Meier (Controller)
 
-1. Navigate to Portfolio Overview — verify breadcrumb: "CRETA / Portfolio Overview"
+1. Navigate to Portfolio Overview — verify breadcrumb: "VIPER / Portfolio Overview"
 2. Navigate to Reporting, then open a report — verify breadcrumb adds report name
-3. Click "CRETA" in breadcrumb — verify returns to Launchpad
-4. Navigate to Capacity Management — verify breadcrumb: "CRETA / Capacity Management"
+3. Click "VIPER" in breadcrumb — verify returns to Launchpad
+4. Navigate to Capacity Management — verify breadcrumb: "VIPER / Capacity Management"
 
 **Verify:**
 - [ ] Breadcrumb shows current module name
 - [ ] Breadcrumb shows sub-navigation where applicable
-- [ ] CRETA link in breadcrumb returns to Launchpad
+- [ ] VIPER link in breadcrumb returns to Launchpad
 
 ---
 
@@ -2968,7 +2968,7 @@ Create at the start of Session A with this header:
 
 **Session:** E | **Est. time:** 40 min | **Default persona:** Anna Meier (Controller)
 
-**Prerequisite:** Start in light mode (clear `creta-theme` from localStorage or set to `light`).
+**Prerequisite:** Start in light mode (clear `viper-theme` from localStorage or set to `light`).
 
 ---
 
@@ -3030,7 +3030,7 @@ Create at the start of Session A with this header:
 **Goal:** Verify system theme mode resolves correctly.
 **Persona:** Anna Meier (Controller)
 
-1. `preview_eval` — set `localStorage.setItem('creta-theme', 'system')`
+1. `preview_eval` — set `localStorage.setItem('viper-theme', 'system')`
 2. `preview_eval` — reload the page
 3. `preview_eval` — check `window.matchMedia('(prefers-color-scheme: dark)').matches` to determine OS preference
 4. `preview_inspect` on `html` — verify `dark` class matches the OS preference (dark class present if OS is dark, absent if light)
@@ -3046,7 +3046,7 @@ Create at the start of Session A with this header:
 **Persona:** Anna Meier (Controller)
 
 1. Switch to dark mode via the toggle
-2. `preview_eval` — verify `localStorage.getItem('creta-theme')` returns `'dark'`
+2. `preview_eval` — verify `localStorage.getItem('viper-theme')` returns `'dark'`
 3. `preview_eval` — reload the page (`window.location.reload()`)
 4. `preview_snapshot` — verify the app loads in dark mode (no flash of light mode)
 5. `preview_inspect` on `html` — verify `dark` class is present after reload
@@ -4117,7 +4117,7 @@ These issues were identified in previous testing rounds. If encountered during t
 Create `qa/bug-report.md` at session start with this template:
 
 ```markdown
-# CRETA Demo App — E2E Bug Report
+# VIPER Demo App — E2E Bug Report
 
 **Date started:** YYYY-MM-DD
 **Test plan version:** [date of test plan used]

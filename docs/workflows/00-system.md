@@ -30,7 +30,7 @@ The header column is the value sent on the `X-Current-User` header to the backen
 | 1 | Any | Locate the persona button in the top-right of the TopBar (shows the current name + caret) | Button label reads the current persona's display name (e.g., "Anna Meier") | Button has `aria-haspopup="menu"` and the visible caret icon |
 | 2 | Any | Click the persona button | Dropdown menu opens listing all four personas with display name + title on each row | Menu items: "Anna Meier / IT Controller", "Thomas Brenner / Head of Application Development", "Priya Sharma / Senior Project Lead", "Dr. Klaus Weber / VP IT Strategy & Governance" |
 | 3 | Any | Click any other persona row (e.g., **Priya Sharma · Senior Project Lead**) | Menu closes; page contents re-render with the new persona's data within ~500ms | TopBar button now reads "Priya Sharma"; greeting band updates to "Good evening, Priya"; role-aware tile counts shift (e.g., 7 KPI tiles for PL vs 9 for Controller) |
-| 4 | Any | Hard-refresh the browser (Cmd-R) | Page reloads but stays on the chosen persona | TopBar button still reads the chosen persona's name (read from localstorage `creta-persona`) |
+| 4 | Any | Hard-refresh the browser (Cmd-R) | Page reloads but stays on the chosen persona | TopBar button still reads the chosen persona's name (read from localstorage `viper-persona`) |
 
 ### Alternative paths
 
@@ -39,7 +39,7 @@ The header column is the value sent on the `X-Current-User` header to the backen
 
 ### Post-conditions
 
-- Browser localstorage `creta-persona` updated to the chosen persona ID (`persona-controller` / `persona-cc-owner` / `persona-pl` / `persona-exec`).
+- Browser localstorage `viper-persona` updated to the chosen persona ID (`persona-controller` / `persona-cc-owner` / `persona-pl` / `persona-exec`).
 - Subsequent API calls send `X-Current-User: <persona-id>` resolving to the chosen `DemoPersona`.
 
 ### Cross-references
@@ -114,11 +114,11 @@ The header column is the value sent on the `X-Current-User` header to the backen
 ### Alternative paths
 
 - **Headless reset**: Skip the UI entirely with `curl -X POST http://localhost:8000/api/admin/reset-demo`. Useful for QA harness scripts or test setup hooks.
-- **Backend restart**: Stopping and restarting `python main.py` does NOT reset the database — `creta_demo.db` persists. Only the explicit reset endpoint or deleting the SQLite file forces a re-seed.
+- **Backend restart**: Stopping and restarting `python main.py` does NOT reset the database — `viper_demo.db` persists. Only the explicit reset endpoint or deleting the SQLite file forces a re-seed.
 
 ### Post-conditions
 
-- `creta_demo.db` reloaded from `backend/seed/seed.sql` + JSON fixtures (`backend/seed/fixtures/`).
+- `viper_demo.db` reloaded from `backend/seed/seed.sql` + JSON fixtures (`backend/seed/fixtures/`).
 - All in-flight CRs, scenario actions, BTC overlays, scheduled changes, and audit log entries are wiped.
 - Demo state matches the README's documented baseline: 4 personas, 11 projects + 6 offerings + 17 internal services, 4 pending CRs, 39 distribution edges, 27 BTC profiles, 1 published scenario + 2 draft.
 

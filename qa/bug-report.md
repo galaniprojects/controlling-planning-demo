@@ -1,4 +1,4 @@
-# CRETA Demo App — E2E Bug Report
+# VIPER Demo App — E2E Bug Report
 
 **Date started:** 2026-03-30
 **Test plan version:** 2026-03-30 (191 scenarios, 14 suites)
@@ -226,7 +226,7 @@
 - DM-02: **PASS** (dark mode: `dark` class on `<html>`, dark backgrounds, light text throughout)
 - DM-03: **PASS** (light mode: `dark` class removed, light backgrounds, dark text restored)
 - DM-04: **PASS** (system mode: localStorage='system', resolves based on OS preference — light theme with light OS)
-- DM-05: **PASS** (localStorage persistence: 'dark' stored under `creta-theme`, persists after reload, no FOUC)
+- DM-05: **PASS** (localStorage persistence: 'dark' stored under `viper-theme`, persists after reload, no FOUC)
 - DM-06: **PASS** (Charts: bar chart, line chart, donut all render with visible contrast in dark mode)
 - DM-07: **PASS** (RAG badges: Red/Amber/Green distinguishable in dark mode with proper dark: variants)
 - DM-08: **PASS** (CSS custom properties: 12 variables resolve to dark oklch values — backgrounds ~0.145-0.269, foregrounds ~0.985)

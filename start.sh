@@ -1,5 +1,5 @@
 #!/bin/bash
-# CRETA Demo App — Start Script
+# VIPER Demo App — Start Script
 # Launches both backend (port 8000) and frontend (port 5173)
 # Usage: ./start.sh
 
@@ -15,7 +15,7 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${BLUE}Starting CRETA Demo App...${NC}"
+echo -e "${BLUE}Starting VIPER Demo App...${NC}"
 
 # Start backend
 echo -e "${GREEN}[1/3] Starting backend (FastAPI on port 8000)...${NC}"
@@ -44,7 +44,7 @@ FRONTEND_PID=$!
 
 echo ""
 echo -e "${BLUE}============================================${NC}"
-echo -e "${BLUE}  CRETA Demo App is running${NC}"
+echo -e "${BLUE}  VIPER Demo App is running${NC}"
 echo -e "${BLUE}  Frontend:  http://localhost:5173${NC}"
 echo -e "${BLUE}  Backend:   http://localhost:8000${NC}"
 echo -e "${BLUE}  API Docs:  http://localhost:8000/docs${NC}"

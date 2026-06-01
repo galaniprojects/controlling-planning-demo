@@ -1,8 +1,8 @@
-# CRETA
+# VIPER
 
-**Controlling, Reporting, Estimation, Tracking & Allocations**
+**IT Financial Planning Platform**
 
-CRETA is a working demo of an end-to-end IT financial planning and portfolio management application. It covers the full controller's life-cycle — intake, ranking, planning, forecasting, capacity, charging, scenario analysis, and reporting — for an IT organisation that runs a mix of transformation projects, productised offerings, and internal services.
+VIPER is a working demo of an end-to-end IT financial planning and portfolio management application. It covers the full controller's life-cycle — intake, ranking, planning, forecasting, capacity, charging, scenario analysis, and reporting — for an IT organisation that runs a mix of transformation projects, productised offerings, and internal services.
 
 > This is a **demo** with realistic, hand-curated mock data. It is not connected to any production system, and it can be reset to its initial state at any time.
 
@@ -13,6 +13,11 @@ CRETA is a working demo of an end-to-end IT financial planning and portfolio man
 <p align="center">
   <img src="docs/screenshots/launchpad.png" alt="Launchpad — module-card grid with role-aware KPIs and a pending-actions strip" width="100%">
   <br><em>Launchpad — persona greeting, pending actions, and a 3-column module-card grid with role-aware KPIs</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/portfolio.png" alt="Portfolio Overview — Change vs Run sub-modules, KPI strip, and configurable hierarchy tree" width="100%">
+  <br><em>Portfolio Overview — Change vs Run sub-module selector, KPI strip, and a configurable n-level hierarchy tree drilling into project detail</em>
 </p>
 
 <p align="center">
@@ -34,7 +39,7 @@ CRETA is a working demo of an end-to-end IT financial planning and portfolio man
 
 ## What's inside
 
-CRETA is organised as ten modules. They share a left-rail navigation, a role-aware top bar, and a configurable n-level portfolio hierarchy.
+VIPER is organised as ten modules. They share a left-rail navigation, a role-aware top bar, and a configurable n-level portfolio hierarchy.
 
 ### Launchpad
 The home screen. A persona-aware greeting, the current date and forecast cycle status, a horizontal pending-actions strip (urgent items first), and a fixed 3-column **module-card grid** that doubles as the primary navigation entry. Each card carries a one-line description and 1–2 live KPIs computed for your role — the Workbench card, for example, reads "Forecast cycle: Q2 2026 Cycle · 4 projects overdue" for a Controller and "Your 5 projects" for a Project Lead. Cards you don't have access to are hidden entirely rather than greyed.
@@ -305,4 +310,4 @@ Or use the **Reset Demo** button in Administration. The reset is destructive (dr
 
 ## Quality Assurance
 
-A regression test plan lives in [`qa/test-plan.md`](qa/test-plan.md) — 198 scenarios across 15 test suites covering all modules, personas, and features. Backend unit tests run with `python -m pytest tests/ -v` (1745 tests).
+A regression test plan lives in [`qa/test-plan.md`](qa/test-plan.md) — 204 scenarios across 15 test suites covering all modules, personas, and features. Backend unit tests run with `python -m pytest tests/ -v` (2128 tests).
