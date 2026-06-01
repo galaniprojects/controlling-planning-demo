@@ -1356,7 +1356,11 @@ UPDATE projects SET project_type = 1, transformation_level = 'T1', tn_standardiz
 -- =============================================================================
 
 UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 2, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-autobrake-2026-02.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-autobrake';
-UPDATE projects SET pipeline_stage = 'Completed', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-cloud3-run';
+-- proj-cloud3-run handed over to the Infrastructure Platform Service (Run
+-- entity). Already distributes 50% into svc-infra-platform (Stage 1, above);
+-- run_entity_id link surfaces its external vendor spend in the Run External
+-- Spend tab. Terminal->terminal stage change (no backlog/cutoff impact).
+UPDATE projects SET pipeline_stage = 'Run entity spawned', doi = 5, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = 'svc-infra-platform', handover_month = '2025-06' WHERE id = 'proj-cloud3-run';
 UPDATE projects SET pipeline_stage = 'Proposed', doi = 0, frozen_doi = NULL, ai_council_approved = 0, ai_council_doc_url = NULL, within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-connveh';
 UPDATE projects SET pipeline_stage = 'Under Evaluation', doi = 1, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-dwh-2026-01.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-dwh';
 UPDATE projects SET pipeline_stage = 'Active', doi = 3, frozen_doi = NULL, ai_council_approved = 1, ai_council_doc_url = 'https://kb.sharepoint.com/aicouncil/proj-erp2-2024-06.pdf', within_cutoff = 1, run_entity_id = NULL WHERE id = 'proj-erp2';
@@ -8146,4 +8150,64 @@ INSERT INTO audit_log (timestamp, user_person_id, entity_type, entity_id, entity
 ('2026-04-12 10:00:00', 'p-meier', 'scenario', '1', 'MDH BTC Rebalance — DE/PL/CZ', 'create', NULL, NULL, NULL, 'simulator'),
 ('2026-04-15 10:00:00', 'p-meier', 'scenario_action', 'scn-budget-pressure-15:3', 'Accelerate Rail Safety', 'promote', 'promoted_at', NULL, '2026-04-15T10:00:00', 'simulator'),
 ('2026-04-22 10:00:00', 'p-meier', 'planning_parameter', 'rag_amber_threshold', 'RAG Amber Threshold', 'create', NULL, NULL, 'scheduled_change_pending', 'scheduled_change_lifecycle');
+
+-- =============================================================================
+-- Issue #2: Run External Spend enrichment (handed-over / run_entity_id-linked
+-- projects). Adds vendor variety on proj-cloud3-run (cloud platform) and
+-- proj-iam-run (identity) so the Run External Spend tab reads substantial.
+-- The proj-cloud3-run run_entity_id wiring is set in the projects UPDATE block
+-- above. The Run External Spend endpoints aggregate Forecast + Actuals
+-- (category='external', vendor populated); baselines are not read there.
+-- =============================================================================
+INSERT INTO actuals (project_id, month, category, sub_category, hours, amount_eur, description, capex_opex, vendor, ext_status, role_type_id) VALUES
+('proj-cloud3-run', '2026-01', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'Microsoft Azure', 'invoiced', NULL),
+('proj-cloud3-run', '2026-02', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'Microsoft Azure', 'invoiced', NULL),
+('proj-cloud3-run', '2026-03', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'Microsoft Azure', 'invoiced', NULL),
+('proj-cloud3-run', '2026-01', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'Datadog', 'invoiced', NULL),
+('proj-cloud3-run', '2026-02', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'Datadog', 'invoiced', NULL),
+('proj-cloud3-run', '2026-03', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'Datadog', 'invoiced', NULL),
+('proj-cloud3-run', '2026-01', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'Snowflake', 'invoiced', NULL),
+('proj-cloud3-run', '2026-02', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'Snowflake', 'invoiced', NULL),
+('proj-cloud3-run', '2026-03', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'Snowflake', 'invoiced', NULL),
+('proj-iam-run', '2026-01', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'Okta', 'invoiced', NULL),
+('proj-iam-run', '2026-02', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'Okta', 'invoiced', NULL),
+('proj-iam-run', '2026-03', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'Okta', 'invoiced', NULL);
+
+INSERT INTO forecasts (project_id, month, category, sub_category, hours, amount_eur, description, capex_opex, ext_status, po_number, vendor, role_type_id, is_provisional) VALUES
+('proj-cloud3-run', '2026-04', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'committed', 'PO-2026-CLD-AZURE', 'Microsoft Azure', NULL, 0),
+('proj-cloud3-run', '2026-05', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'committed', 'PO-2026-CLD-AZURE', 'Microsoft Azure', NULL, 0),
+('proj-cloud3-run', '2026-06', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'committed', 'PO-2026-CLD-AZURE', 'Microsoft Azure', NULL, 0),
+('proj-cloud3-run', '2026-07', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'planned', NULL, 'Microsoft Azure', NULL, 0),
+('proj-cloud3-run', '2026-08', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'planned', NULL, 'Microsoft Azure', NULL, 0),
+('proj-cloud3-run', '2026-09', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'planned', NULL, 'Microsoft Azure', NULL, 0),
+('proj-cloud3-run', '2026-10', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'planned', NULL, 'Microsoft Azure', NULL, 0),
+('proj-cloud3-run', '2026-11', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'planned', NULL, 'Microsoft Azure', NULL, 0),
+('proj-cloud3-run', '2026-12', 'external', 'ext-cloud', NULL, 18000.00, 'Microsoft Azure Platform Services', 'opex', 'planned', NULL, 'Microsoft Azure', NULL, 0),
+('proj-cloud3-run', '2026-04', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'committed', 'PO-2026-CLD-DDOG', 'Datadog', NULL, 0),
+('proj-cloud3-run', '2026-05', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'committed', 'PO-2026-CLD-DDOG', 'Datadog', NULL, 0),
+('proj-cloud3-run', '2026-06', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'committed', 'PO-2026-CLD-DDOG', 'Datadog', NULL, 0),
+('proj-cloud3-run', '2026-07', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'planned', NULL, 'Datadog', NULL, 0),
+('proj-cloud3-run', '2026-08', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'planned', NULL, 'Datadog', NULL, 0),
+('proj-cloud3-run', '2026-09', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'planned', NULL, 'Datadog', NULL, 0),
+('proj-cloud3-run', '2026-10', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'planned', NULL, 'Datadog', NULL, 0),
+('proj-cloud3-run', '2026-11', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'planned', NULL, 'Datadog', NULL, 0),
+('proj-cloud3-run', '2026-12', 'external', 'ext-cloud', NULL, 4500.00, 'Datadog Observability Platform', 'opex', 'planned', NULL, 'Datadog', NULL, 0),
+('proj-cloud3-run', '2026-04', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'committed', 'PO-2026-CLD-SNOW', 'Snowflake', NULL, 0),
+('proj-cloud3-run', '2026-05', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'committed', 'PO-2026-CLD-SNOW', 'Snowflake', NULL, 0),
+('proj-cloud3-run', '2026-06', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'committed', 'PO-2026-CLD-SNOW', 'Snowflake', NULL, 0),
+('proj-cloud3-run', '2026-07', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'planned', NULL, 'Snowflake', NULL, 0),
+('proj-cloud3-run', '2026-08', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'planned', NULL, 'Snowflake', NULL, 0),
+('proj-cloud3-run', '2026-09', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'planned', NULL, 'Snowflake', NULL, 0),
+('proj-cloud3-run', '2026-10', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'planned', NULL, 'Snowflake', NULL, 0),
+('proj-cloud3-run', '2026-11', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'planned', NULL, 'Snowflake', NULL, 0),
+('proj-cloud3-run', '2026-12', 'external', 'ext-cloud', NULL, 7200.00, 'Snowflake Data Cloud', 'opex', 'planned', NULL, 'Snowflake', NULL, 0),
+('proj-iam-run', '2026-04', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'committed', 'PO-2026-IAM-OKTA', 'Okta', NULL, 0),
+('proj-iam-run', '2026-05', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'committed', 'PO-2026-IAM-OKTA', 'Okta', NULL, 0),
+('proj-iam-run', '2026-06', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'committed', 'PO-2026-IAM-OKTA', 'Okta', NULL, 0),
+('proj-iam-run', '2026-07', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'planned', NULL, 'Okta', NULL, 0),
+('proj-iam-run', '2026-08', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'planned', NULL, 'Okta', NULL, 0),
+('proj-iam-run', '2026-09', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'planned', NULL, 'Okta', NULL, 0),
+('proj-iam-run', '2026-10', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'planned', NULL, 'Okta', NULL, 0),
+('proj-iam-run', '2026-11', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'planned', NULL, 'Okta', NULL, 0),
+('proj-iam-run', '2026-12', 'external', 'ext-sw-licenses', NULL, 6800.00, 'Okta Identity Cloud', 'opex', 'planned', NULL, 'Okta', NULL, 0);
 
