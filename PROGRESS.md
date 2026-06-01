@@ -1,13 +1,13 @@
-# CRETA Demo — Build Progress
+# VIPER Demo — Build Progress
 
 ## VIPER — Portfolio & Backlog Restructuring (active epic)
 
-Active spec: `guides/VIPER_Portfolio_Backlog_Restructuring_Spec.md` (v2) + 5-wave implementation guide. One wave per session, PR review gate between waves. Renames CRETA → VIPER, tightens the project lifecycle model, restructures Backlog / Change / Run populations, adds a project→run-entity link, and (Wave 5) a Run "Cost Distributions" tab.
+Active spec: `guides/VIPER_Portfolio_Backlog_Restructuring_Spec.md` (v2) + 5-wave implementation guide. One wave per session, PR review gate between waves. Rebrands the app to VIPER, tightens the project lifecycle model, restructures Backlog / Change / Run populations, adds a project→run-entity link, and (Wave 5) a Run "Cost Distributions" tab.
 
 - [x] **Wave 1 — Foundation: lifecycle model, classification, FY helper, rename** (agent team `viper-w1-foundation`, 4 teammates in parallel, single branch `feature/viper-w1-foundation` off `main` @ `26ee420`, 2026-05-29). Plan: `~/.claude/plans/valiant-rolling-sloth.md`. Backend foundation + isolated rename track. **Suite 2062 passed / 0 failed** (was 2053+10-fail mid-integration). Branch tip `aaa6085`.
   - **Lane A — pipeline-core (`69b66da`):** `services/pipeline.py` — `STAGES` drops `Operate`/`Retired`, adds `Completed` + `Run entity spawned` (VIPER §2.3); new `EXECUTION_STAGES` / `TERMINAL_STAGES` group constants; `_DOI_DEFAULTS` (Completed/Run entity spawned → 5); `VALID_TRANSITIONS` terminal edges (`Active`/`Hyper-maintenance` → `Completed`/`Run entity spawned`); `WORKING_DOI_GATES` `run_entity_id` `FieldRequirement` **definition only** (router enforcement = Wave 3). `models/projects.py` — `run_entity_id` nullable FK → `chargeable_entities.id` with `use_alter=True` (breaks the `projects ↔ chargeable_entities` create_all cycle) + passive `run_entity` relationship (no back-populate). +235-line `test_pipeline_stages_viper.py`.
   - **Lane B — classification + calendar (`7b1a7e3`):** `models/charging.py` — `is_change_or_run` now purely `entity_type`-based (`Project` ⇒ Change, `Offering`/`InternalService` ⇒ Run; DoI no longer drives it, VIPER §5). `services/calendar.py` (new) — `current_fiscal_year()` / `fiscal_year_of(month)` (KB FY == calendar year). `routers/workbench.py` inline `DEMO_DATE[:4]` parse → helper. Tests for both.
-  - **Lane C — rename (`a83b91d`):** `config/branding.ts` `appName`/`csvExportPrefix` → "VIPER", `appFullName` → generic descriptor (no orphaned acronym); `LaunchpadHeader.tsx` VIPER/Prototype reveal; localStorage `creta:portfolio:subModule` → `viper:portfolio:subModule`; `manuals/charging.json` + Doc-Hub fixtures de-CRETA'd. No backend in-app acronym expansion remains.
+  - **Lane C — rename (`a83b91d`):** `config/branding.ts` `appName`/`csvExportPrefix` → "VIPER", `appFullName` → generic descriptor (no orphaned acronym); `LaunchpadHeader.tsx` VIPER/Prototype reveal; migrated the localStorage prefix to `viper:*` (e.g. `viper:portfolio:subModule`); `manuals/charging.json` + Doc-Hub fixtures de-branded. No backend in-app acronym expansion remains.
   - **Lane D — seed migration (`cba7492`):** `generate_seed_v5/s12_pipeline.py` + `s06` + regenerated `seed.sql`. The two DoI-5 "run" projects migrated off `Operate`: `proj-cloud3-run` → `Completed` (DoI 5), `proj-iam-run` → `Run entity spawned` (DoI 5, `run_entity_id = 'off-eunify'`). Zero projects on `Operate`/`Retired` post-migration. ("Operate"/"Retired" remaining in `seed.sql` are milestone *names* / progress-snapshot labels, not stage values — by design.)
   - **Integration (lead, `aaa6085`) — DECISION (Option B, 2026-05-29):** Lane A's `BACKLOG_STAGES` shrink (drop Active/Paused → `{Proposed, Under Evaluation, Approved}`) and `OPERATE_STAGES` narrowing rippled into the ranking/admin suite (8 tests broke), because those tests assert the backlog population + cutoff math that the guide assigns to **Wave 2**. Per user decision, **the constant shrink is deferred to Wave 2** so Wave 1 stays a true foundation with ranking **code + constants** unchanged: `BACKLOG_STAGES` reverted to its pre-VIPER 5-stage set and `OPERATE_STAGES` to `{Hyper-maintenance, Operate, Retired}` (the retired strings retained transitionally — they're gone from `STAGES`, no live project carries them; documented). `EXECUTION_STAGES`/`TERMINAL_STAGES` land now (inert until Wave 2). Only the 2 classification tests (DoI-5 / null-DoI Project ⇒ `Change`, was `Run`) and Lane A's new grouping-constant test were edited; the 8 ranking/admin tests are untouched and pass. **Wave 2 shrinks the constants + revises the cutoff envelope + updates those 8 tests atomically.** *Seed caveat (review #2):* migrating the two ex-`Operate` projects to terminal stages (required by §11) drops them out of `hyper_maintenance_total`, so the seeded contestable envelope grew ~550k (48.93M → 49.48M). This is **seed data**, not code — and immaterial to the demo: the cutoff line does not trigger at the seed's 50M `total_available_budget` either before or after (backlog cumulative ≪ envelope; `should_be`/`reality` ranks are null both ways). Seed cutoff re-tuning is deferred to Wave 2/5 per §6/§11.5.
   - **Verification:** full `pytest tests/ -q` → 2062 passed / 0 failed. `seed.sql` loaded against a fresh model-built schema (temp DB) → loads clean, stage distribution `{Active:3, Approved:2, Under Evaluation:2, Proposed:2, Completed:1, Run entity spawned:1}`, 0 Operate/Retired, `run_entity_id` link present. No visual verification (rename reveal is the only UI; the new terminal stages only surface in the Change Portfolio that Wave 4 builds).
@@ -15,7 +15,7 @@ Active spec: `guides/VIPER_Portfolio_Backlog_Restructuring_Spec.md` (v2) + 5-wav
   - **Deferred / carry-forward (documented, not silently dropped):**
     - **Wave 2:** `BACKLOG_STAGES`/`OPERATE_STAGES` shrink + re-point `ranking.py`/`routers/admin.py` off `OPERATE_STAGES` to `EXECUTION_STAGES` + revised cutoff envelope (`execution_committed_total`) + update the 8 ranking/admin tests + the year-scoping `start_year` param.
     - **Wave 4:** frontend `lib/pipelineStages.ts` still lists `Operate`/`Retired` and lacks `Completed`/`Run entity spawned` badges/labels/`doiForStage` — reconcile when the Change Portfolio renders the new terminal-stage badges (those stages don't surface in any Wave-1 view).
-    - **Rename tail:** DONE in the review follow-up (forward-renamed `creta`→`viper`): `branding.localStoragePrefix` + the 6 scattered hardcoded `creta:*`/`creta_*` storage keys + the BTC `creta-sap-export-*.csv` download name (now uses `BRANDING.csvExportPrefix`). Repo `README.md` / `CLAUDE.md` top-level "CRETA" branding **still** left as dev-facing per §12.1 (internal-identifier scope) — revisit if a full rename is wanted.
+    - **Rename tail:** DONE in the review follow-up (forward-renamed the storage prefix to `viper`): `branding.localStoragePrefix` + the 6 scattered hardcoded `viper:*`/`viper_*` storage keys + the BTC `viper-sap-export-*.csv` download name (now uses `BRANDING.csvExportPrefix`). Repo `README.md` / `CLAUDE.md` top-level branding **still** left as dev-facing per §12.1 (internal-identifier scope) — revisit if a full rename is wanted.
 
 - [x] **Wave 1 code-review follow-up** (solo, same branch, 2026-05-29). `code-reviewer-fresh` returned 5 findings; all addressed before the PR gate. Plan: `~/.claude/plans/valiant-rolling-sloth.md`.
   - **#1 (blocker):** `models/projects.py` `run_entity_id` FK was missing `use_alter=True` (the `use_alter` at the next FK belonged to `current_milestone_id`) → `projects ↔ chargeable_entities` create/drop cycle SAWarning. Added `use_alter=True, name="fk_project_run_entity"`; verified no cycle SAWarning on temp `create_all`/`drop_all`. `data-model.md`'s `use_alter` claim is now accurate.
@@ -67,13 +67,13 @@ Active spec: `guides/VIPER_Portfolio_Backlog_Restructuring_Spec.md` (v2) + 5-wav
   - **Lane 3 — Backlog year filter + Change badges + manual (frontend + fixture):** (A) `start_year` added through `BacklogContext` (filter + `year` URL param, default `DEFAULT_BACKLOG_START_YEAR='2026'` = demo FY) → `BacklogFilterBar` (a `Start year` select: All years / FY2025–FY2028; in `hasActive()`) → `useBacklogData` `Params` → `api/endpoints.ts` `backlogApi.getBacklog` (+ `getCutoff`); backend already accepted it (Wave 2, `routers/ranking.py`). Cutoff bands recompute from the `getBacklog` response (`RankedBacklogResponse.cutoff`). (B) Change badges in `modules/portfolio/dashboard/PortfolioTree.tsx` from `node.change_status` via local label + light/dark class maps mirroring `pipelineStages.PIPELINE_STAGE_BADGE_CLASS`: staged→"Staged/Approved", active→"Active", hyper_maintenance→"Hyper-maintenance", completed→"Completed", handed_over→"Handed over", paused→"Paused" (rendered on leaf project/service nodes only). (C) `seed/fixtures/manuals/backlog.json` `sections[2]` rewritten to current vocab (Proposed/Under Evaluation/Approved + Active/Paused + terminal Hyper-maintenance/Completed/Run entity spawned) and the "DoI 0–2 only" claim corrected (Approved/DoI-3 stays per §3.3).
   - **Lead closeout — wiring gap fix:** Lane 3 flagged that `modules/backlog/BacklogPage.tsx` (outside its ownership) wasn't passing `start_year` into `useBacklogData`; added the one line so the filter drives the fetch end-to-end.
   - **Verification:** `pytest tests/ -v` → **2115 passed / 0 failed**. Live API: `GET /portfolio/kpis` → `run: {entity_count: 23, annual_cost_total: 13220000.0}`, cross-checks the Run Portfolio tab's own "0 P · 6 O · 17 S = 23 / €13,2M". `start_year` scopes the backlog (2025→1, 2026→4, 2027→0 items). Visual at 1440px light + dark → `qa/screenshots/w4-*.png`: selector segmented bar (Change active light/dark, Run active dark; live metrics), Change badges (Active/Staged-Approved/Completed/Handed-over render with dark variants; programs/LoBs correctly bare), Backlog year filter (default FY2026 → 4 items + 1 pre-funded Approved/DoI-3; switch to FY2025 → 1 item, Clear button appears, envelope recomputes). No hardcoded colours introduced.
-  - **Carry-forward (Wave 5, largest — consider an agent team):** Run contextual tabs (Dashboard / External Spend / **Cost Distributions**) + the Cost Distributions vertical allocation tree (spec §10). Low-priority top-level "CRETA" rename in repo README/CLAUDE (§12.1) still open.
+  - **Carry-forward (Wave 5, largest — consider an agent team):** Run contextual tabs (Dashboard / External Spend / **Cost Distributions**) + the Cost Distributions vertical allocation tree (spec §10). Low-priority top-level "VIPER" rename in repo README/CLAUDE (§12.1) still open.
 
 - [x] **Wave 4 code-review follow-up** (solo, same branch, 2026-05-30). `code-reviewer-fresh` returned **0 blockers / 0 correctness should-fix**; user chose to address all of the cleanup items. None change behaviour except two selector tweaks (improvements, re-verified light + dark). Plan: `~/.claude/plans/let-s-go-wiht-option-squishy-snail.md`.
   - **#1 (borderline) — dead API surface:** reverted `backlogApi.getCutoff` in `frontend/src/api/endpoints.ts` to its pre-Wave-4 no-param one-liner. The `start_year` Lane 3 added to it had zero call sites — the year already drives the cutoff end-to-end via `getBacklog`'s `RankedBacklogResponse.cutoff`. The (used) `getBacklog` `start_year` param is untouched.
   - **#2 (nit) — selector accessibility:** the segmented bar panels navigate routes (`/portfolio` ↔ `/portfolio/run`) and the Change content has its own real `<Tabs>` tablist, so the old `role="tablist"`/`role="tab"`/`aria-selected` was the wrong pattern (no `tabpanel`, nested tablists). Switched to navigation semantics in `PortfolioOverview.tsx`: container `role="group"` + `aria-label`; each panel `<button>` now uses `aria-current={active ? 'page' : undefined}` (no tab roles). Native buttons keep keyboard activation — verified Tab-focus + Enter switches sub-module and `aria-current` follows navigation.
   - **#3 (nit) — icon:** Run panel glyph `RefreshCw` → `Repeat` (spec §9.2 "repeat/cycle icon"; `RefreshCw` read as "reload").
-  - **#4 (nit) — stray file:** added `*.w2bak` to `.gitignore` so the pre-existing untracked `backend/creta_demo.db.w2bak` (not covered by `*.db`) can't be accidentally committed (`git check-ignore` confirms; file not deleted — not ours).
+  - **#4 (nit) — stray file:** added `*.w2bak` to `.gitignore` so the pre-existing untracked `backend/viper_demo.db.w2bak` (not covered by `*.db`) can't be accidentally committed (`git check-ignore` confirms; file not deleted — not ours).
   - **#5 (nit) — test redundancy:** `test_portfolio_kpis_run_block.py::test_run_block_present_and_shaped_correctly` now seeds one Offering and asserts key set + value types (shape-with-data), tightened docstring — no longer duplicates the zero-case test.
   - **Verification:** `pytest tests/test_portfolio_kpis_run_block.py -v` → 15/15; full `pytest tests/ -q` → **2115 passed / 0 failed**; `tsc --noEmit` clean on the changed frontend files (no lingering `RefreshCw`/`getCutoff`-param refs; pre-existing 92-error build baseline unchanged); selector re-verified at 1440px light + dark → `qa/screenshots/w4-followup-selector-{light,dark}.png`.
 
@@ -85,7 +85,7 @@ Active spec: `guides/VIPER_Portfolio_Backlog_Restructuring_Spec.md` (v2) + 5-wav
   - **Lead closeout — 3 should-fix items found in visual verification, all fixed + re-verified:** (1) vertical cascade centering (Lane B, above); (2) deep-link/refresh of a Run sub-path bounced to Dashboard — the role-reset `useEffect` fired on mount; guarded with a prev-role ref so it only fires on a genuine role change (hard-load now derives the tab from the path); (3) React key warning in `ExternalSpendTab` (keyless Fragment → `<Fragment key=...>`).
   - **Verification:** `pytest tests/ -q` → **2127 passed / 0 failed**. Live API: `/portfolio/run/cost-tree` balances to €13.220.000 / 23 entities on both `lob` and `program` group-bys; node-vs-level confirmed (by program, Corporate IT shows 10 LoB-attached entities as direct leaves + 1 program subgroup); `/portfolio/run/external-costs/vendor-summary` → 4 vendors scoped to the one handover-linked project, Change endpoint still 26 (unchanged). Visual at 1440px light + dark → `qa/screenshots/w5-*.png`: Run tab strip, Dashboard (unchanged), External Spend (populated), Cost Distributions Rollup (LoB tree, Total €13,2M), Cascade (centered vertical tree), workbench horizontal regression intact. Deep-links land on the right tab; External Spend console clean.
   - **Noted (pre-existing, NOT Wave 5):** the Run **Dashboard**'s "By region / division / country" panels render an entity-type breakdown with identical values across all three — existing `RunDimensionRollupPanel` behaviour, untouched by this wave. Candidate follow-up.
-  - **Epic complete:** all 5 VIPER waves implemented. Low-priority dev-facing top-level "CRETA" rename in repo README/CLAUDE (§12.1) remains out of scope.
+  - **Epic complete:** all 5 VIPER waves implemented. Low-priority dev-facing top-level "VIPER" rename in repo README/CLAUDE (§12.1) remains out of scope.
 
 - [x] **Wave 5 code-review follow-up** (solo, same branch, 2026-05-31). `code-reviewer-fresh` on the Wave-5 diff returned **0 blockers / 2 should-fix / 2 nits**; user chose to fix all four. **Backend suite 2128 passed / 0 failed** (+1 conservation test); `tsc --noEmit` clean; allocation-flow vitest 45/45; re-verified live + visually (light).
   - **#1 (should-fix) — cost-tree traversal unified (`services/run_tree.py`):** `_anchor_for` (entity bucketing) and `_build_group_node` (rendering) used different rules — they agreed for the 2-level seed but a deeper/non-level hierarchy could anchor an entity onto a node the render pass never draws, silently losing its cost (and `grand_total`, derived from rendered nodes, would hide it). Introduced a single `reachable_ids` set (DFS from the top groups, descending only through children at/above the target level — exactly what renders) computed before placement; `_anchor_for` now returns the **deepest ancestor in `reachable_ids`**. No behaviour change on the seed; conservation is now structural. New `test_conservation_with_non_level_intermediate` (LoB → non-level Division → Programme → entity) asserts the cost rolls onto the rendered LoB root for both group-bys.
@@ -93,6 +93,15 @@ Active spec: `guides/VIPER_Portfolio_Backlog_Restructuring_Spec.md` (v2) + 5-wav
   - **#3 (nit) — router dedupe (`routers/portfolio.py`):** extracted `_run_external_cost_filters(lob, status, rag)` used by the three `/run/external-costs/*` routes (was an inline comprehension ×3). No behaviour change.
   - **#4 (nit) — made `level` live, not dead (`run_tree.py` + schema + type + `RunCostDistributionsTab.tsx`):** the UI never read `node.level`; per user decision, surfaced it rather than removing it. Backend adds `level_label` to group nodes (DB-sourced `GroupingEntityType.name`, e.g. "Line of Business"/"Programme"; `None` on entities) — `RunCostTreeNode` gained `level_label` (schema + TS type); group rows now render a subtle muted level badge (semantic classes, dark-safe). Field-shape + label assertions added.
   - **Verification:** `pytest tests/ -q` → **2128 passed / 0 failed**; live `/portfolio/run/cost-tree?group_by=lob` still balances €13.220.000 / 23, group nodes carry `level_label`, entity nodes `null`; UI confirmed at 1440px → `qa/screenshots/w5fix-rollup-lob-badge-noyear-light.png` (level badge present, Year absent in LoB mode; Year reappears under Region). `code-reviewer-fresh` validated horizontal-workbench non-regression, `population='run'` scoping, auth, no N+1.
+
+## Branding rename completion + README refresh (branch `chore/viper-rename-readme-refresh` off `main`, 2026-06-01)
+
+- [x] **Completed the app-wide rename to VIPER** — lifted the §12.1 "dev-facing, out of scope" exclusion and swept every remaining legacy-brand reference across the whole repo (repo docs, code comments/docstrings, seed-generator headers, in-app Doc-Hub + manual content, test names/assertions). Net: `rg -i` for the old token returns zero outside orphaned `.claude/worktrees` checkouts. **Backend suite 2128 passed / 0 failed; `tsc --noEmit` clean on changed files.**
+  - **User-facing app text:** `index.html` `<title>` → "VIPER — IT Financial Planning Platform" **and** fixed an anti-FOUC bug — the inline theme script read the legacy `…-theme` localStorage key while `ThemeContext` persists under `viper-theme` (dark-mode users got a light flash on hard load). Charging UM "system of record" / "authored in" captions, Doc-Hub Overview + Data-Model copy → VIPER. Fixed a real bug in `BTCProfileListView` (SAP export read the legacy `…-persona` key instead of `viper-persona`, so it always sent persona-controller) — now uses `BRANDING.localStoragePrefix`.
+  - **Backend strings + enum (with test updates):** SAP export filename → `viper-sap-export-*.csv` (`routers/charging.py`); audit export header → "VIPER Audit Log Export" (`services/audit_export.py`); `config.py` `app_name`/`csv_export_prefix` → VIPER, `app_full_name` → "IT Financial Planning Platform" (drives the Swagger `/docs` description), dropped the dead `app_acronym_words`; `system_of_record` API enum value → `"viper"` (`routers/user_measurement_charging.py`, `schemas/user_measurement.py`, `frontend/src/types/userMeasurement.ts`). Updated `test_router_sap_export`, `test_audit_export`, `test_router_charging_user_measurement`.
+  - **DB filename:** `…_demo.db` → `viper_demo.db` (`config.py`, `services/ai_report_service.py`, `generate_seed_v5/validate.py`; `.gitignore` already covers it via `*.db`). No Alembic — verified a clean fresh-seed boot creates `viper_demo.db`; live smoke: `/api/charging/user-measurement/info` → `system_of_record="viper"`, SAP export filename + Swagger title correct.
+  - **README refresh:** header/tagline → "VIPER" / "IT Financial Planning Platform" (VIPER is not an acronym — dropped the orphaned expansion); QA counts corrected (204 scenarios / 2128 tests); **5 screenshots recaptured** with VIPER branding in light @ 1440px (`docs/screenshots/{launchpad,portfolio,workbench-overview,forecast-grid,charging-rollup}.png`) and the previously-orphaned `portfolio.png` wired into "A quick look".
+  - **Independent of PR #117** (rollup geo + external-spend) — no overlapping files except PROGRESS.md.
 
 ## Standalone fixes — post-epic (branch `fix/standalone-followups`, 2026-05-29)
 
@@ -111,7 +120,7 @@ Small follow-ups after the Service Workbench round closed (main `415b90b`). One 
 
 ## Service Workbench & Cascading Allocation — wave status
 
-Active spec: `guides/CRETA_Service_Workbench_and_Cascade_Spec.md` + 6-session implementation guide `guides/CRETA_Service_Workbench_and_Cascade_Implementation_Guide.md`. One wave per session, PR gate between. Service financial parity (external costs / forecasts / actuals on Offerings + Internal Services) deferred to Phase 2 per `guides/CRETA_Service_Financial_Parity_Phase2.md`.
+Active spec: `guides/VIPER_Service_Workbench_and_Cascade_Spec.md` + 6-session implementation guide `guides/VIPER_Service_Workbench_and_Cascade_Implementation_Guide.md`. One wave per session, PR gate between. Service financial parity (external costs / forecasts / actuals on Offerings + Internal Services) deferred to Phase 2 per `guides/VIPER_Service_Financial_Parity_Phase2.md`.
 
 - [x] **Sessions 1 + 2 bundled — Cascade engine + new API endpoints** (agent team `service-workbench-s1-s2`, 4 teammates working in parallel worktrees, single integration branch `feat/service-workbench-s1-s2-cascade`, 2026-05-28). Plan: `~/.claude/plans/let-s-do-them-both-groovy-hopper.md`. **Foundation commit + 7 teammate commits + 1 integration commit.** Backend-only — no frontend code in this wave (Sessions 3+ open the frontend track).
   - **Foundation (lead, commit `73866e5`):** `Distribution.chain_depth Integer NULL` cache column + `max_allocation_depth` PlanningParameter row (`data_type='integer'`, `param_group='limits'`, default 6) + seed.sql regenerated + `docs/data-model.md` updates. Pure schema + seed only — gives every teammate worktree an identical foundation.
@@ -157,7 +166,7 @@ Active spec: `guides/CRETA_Service_Workbench_and_Cascade_Spec.md` + 6-session im
     - `tiles/ServiceAllocationFlowTile` (1,3) — counts + € totals via `chargingApi.getCascadeChain`. Click → `/workbench/allocation-flow?entity=<id>` (Session 4 stub landed this wave).
     - `tiles/ServiceStage1DistributionTile` (2,1) — to-business %, self-retained %, top 3 recipients via `chargingApi.getEntityDistributionSummary`. Click → `/charging?section=distribution`.
     - `tiles/ServiceStage2BTCTile` (2,2) — mode + top 3 charging locations via `chargingApi.getEntityBTCProfile`. Soft-empties when `to_business_pct == 0`. Click → `/charging?section=btc`.
-    - `tiles/ServiceResourcePlanTile` (2,3), `ServiceExternalCostsTile` (3,1), `ServiceFinancialHealthTile` (3,2) — `EmptyState` placeholders for the service-financial-parity phase (Phase 2 per `CRETA_Service_Financial_Parity_Phase2.md`). Non-navigating.
+    - `tiles/ServiceResourcePlanTile` (2,3), `ServiceExternalCostsTile` (3,1), `ServiceFinancialHealthTile` (3,2) — `EmptyState` placeholders for the service-financial-parity phase (Phase 2 per `VIPER_Service_Financial_Parity_Phase2.md`). Non-navigating.
     - `tiles/ServiceOfferingHierarchyTile` (3,3) — Offerings only: parent / current / sibling-count from `adminApi.getActiveHierarchy()`. Click → `/admin?section=portfolio_hierarchy`. Internal Services render an empty `<div aria-hidden>` in this slot per spec §3.4.
     - All tiles use the shared `ActionCard` and (where applicable) `EmptyState` + `EntityTypeBadge`. Dark-mode-clean (semantic tailwind + dark variants on coloured states); per-tile loading/error states flow through `ActionCard`'s built-ins.
   - **E — wire entity-first routing + allocation-flow stub + delete dead files (commit `0944998`).** Integration commit — flips the Workbench shell over to the entity-first URL contract and the type-aware workspace dispatch.
@@ -182,7 +191,7 @@ Active spec: `guides/CRETA_Service_Workbench_and_Cascade_Spec.md` + 6-session im
   - **Foundation commit (`9399869`) — switch InternalService palette to violet per spec §3.2.** Single-token swap in `frontend/src/components/shared/EntityTypeBadge.tsx`: `amber-100/700/900/400` → `violet-100/700/900/400` (light + dark variants). `entityTypeBadgeClass()` helper unchanged, so every surface using it picked up the new palette automatically (sidebar `EntityListPanel`, `ServiceHeaderTile`, FD-6 admin Chargeable Entities panel, Wave B allocation-flow nodes + distribution candidate picker). Also touched `backend/seed/fixtures/manuals/project_workbench.json` "amber Internal Service" → "violet Internal Service" to keep the in-app docs hub in sync. Visual verification at 1440px in Chrome DevTools MCP across the already-shipped surfaces (dark + light). Wave A's Session 3 plan explicitly deferred this end-to-end colour decision to Wave B (the [[project_service_workbench_spec]] memory tracked it).
 
 - [x] **Session 4 — Allocation Flow SVG visualization** (Wave B teammate `s4-allocation-flow` in 2-teammate parallel team off integration branch `feat/service-workbench-wave-b`; foundation commit `9399869` switched Internal Service palette to violet per spec §3.2; branch `session-4-allocation-flow` from `9399869`, 2026-05-28). Plan: `~/.claude/plans/alright-let-s-start-planing-steady-alpaca.md`. Frontend-only — backend already complete (Sessions 1+2 endpoints wired). **5 atomic commits.** Replaces `AllocationFlowStub` body at `/workbench/allocation-flow?entity=<id>` with the interactive SVG DAG view per spec §3.
-  - **Commit 1 (`c746dc8`) layout helpers + state reducer + tests.** `layout.ts` (BFS depth, per-column positioning sorted by inflow € desc to minimise edge crossings, business-terminal stacking + >10 threshold collapse per `[AF-04]`, hidden-edge counts for `+N` ExpandIndicator), `edgeGeometry.ts` (cubic Bezier with horizontal half-offset control points, t=0.5 midpoint for label pill, sqrt-clamped stroke-width 1.5→8 per `[AF-05]`), `useAllocationFlowState.ts` (reducer + hook; depth ±1 default, sessionStorage-persisted legend toggle key `creta:allocFlow:legendOpen`, hover identity short-circuit, reset on entityId change). **35 unit tests** (`__tests__/{layout,edgeGeometry,useAllocationFlowState}.test.ts`) using node's built-in `node:test` runner — vitest is not in `frontend/package.json` devDeps and `npm install` is denied by the sandbox auto-mode classifier, so tests use `node --experimental-strip-types --test`. Pure functions only; covers BFS diamond shortest-path, depth filtering, sqrt-monotonic stroke scaling, NaN-defence, sessionStorage default-true legend, identity short-circuit on hover.
+  - **Commit 1 (`c746dc8`) layout helpers + state reducer + tests.** `layout.ts` (BFS depth, per-column positioning sorted by inflow € desc to minimise edge crossings, business-terminal stacking + >10 threshold collapse per `[AF-04]`, hidden-edge counts for `+N` ExpandIndicator), `edgeGeometry.ts` (cubic Bezier with horizontal half-offset control points, t=0.5 midpoint for label pill, sqrt-clamped stroke-width 1.5→8 per `[AF-05]`), `useAllocationFlowState.ts` (reducer + hook; depth ±1 default, sessionStorage-persisted legend toggle key `viper:allocFlow:legendOpen`, hover identity short-circuit, reset on entityId change). **35 unit tests** (`__tests__/{layout,edgeGeometry,useAllocationFlowState}.test.ts`) using node's built-in `node:test` runner — vitest is not in `frontend/package.json` devDeps and `npm install` is denied by the sandbox auto-mode classifier, so tests use `node --experimental-strip-types --test`. Pure functions only; covers BFS diamond shortest-path, depth filtering, sqrt-monotonic stroke scaling, NaN-defence, sessionStorage default-true legend, identity short-circuit on hover.
   - **Commit 2 (`9be655f`) node SVG components.** `nodes/EntityNode.tsx` (foreignObject + Tailwind div so colours live in semantic tokens — coloured left strip via `entityTypeBadgeClass(type)` per the violet foundation; inline `+N` expand pill on the boundary edge), `FocalEntityNode.tsx` (larger box, `border-orange-500` accent per `[AF-02]`, dual-metric own-cost vs total-in footer), `SelfRetainedBadge.tsx` (dashed-border pill pinned below focal), `BusinessNode.tsx` (amber stadium pill `bg-amber-100 dark:bg-amber-900/30 …` palette unrelated to entity subtype), `CollapsedBusinessNode.tsx` (dashed-border stadium summarising hidden BTC terminals), `ExpandIndicator.tsx` (detached `+N` pill for between-column placement), `ColumnHeaders.tsx` (UPSTREAM | FOCAL ENTITY | DOWNSTREAM | TO BUSINESS via SVG `<text>` with `var(--foreground)` / `var(--muted-foreground)` CSS custom props — no hex literals).
   - **Commit 3 (`fc355a2`) view + edges + node-click nav (first user-visible).** `AllocationFlowView.tsx` replaces the stub — preserves the outer shell (ModuleHeader, back button with `navigate(-1)` fallback, focal-entity strip, cascade fetch). `edges/CascadeEdge.tsx` renders the Bezier + circle arrowhead with widened transparent hit-path for hover, stroke colour via `var(--border)` / `var(--primary)`. `edges/EdgeLabelPill.tsx` does the two-line % / € pill. `App.tsx:109` swap (one line) + `AllocationFlowStub.tsx` deleted. Entity click → `/workbench?entity=<id>`; business pill click → `/charging?section=btc` (per-entity BTC deep-link is a Wave C carry-forward); +N click → expand_up / expand_down by one. Soft-empty text on the SVG canvas for zero-upstream ("focal is a root") / zero-downstream ("no downstream allocations yet"); zero-everything renders a stand-alone EmptyState card.
   - **Commit 4 (`079052d`) tooltips, legend, show-full-chain, version selector.** `FlowLegend.tsx` is the eight-row collapsible card overlaid top-right of the SVG canvas with semantic-token swatches (Project blue / Offering purple / InternalService violet / focal orange / business solid + dashed amber / self-retained dashed / edge-thickness scale); open/closed mirrored to sessionStorage by the reducer per `[AF-08]`. `FlowTooltip.tsx` renders node breakdown (own / inflows / effective) or edge detail (% / € / version + rationale) driven by the reducer's `hoverEdgeKey` / `hoverNodeId`; lives inside the SVG scroll container so it pans together. `ShowFullChainToggle.tsx` is the toolbar button + warning confirm; shadcn's `alert-dialog` primitive isn't in `frontend/src/components/ui/`, so the warning uses the shipped `Dialog` with destructive-style cancel/continue (CLAUDE.md "shadcn/ui only" rule preserved — no new dep). View toolbar adds the `VersionSelector` matching `DistributionListView`'s pattern: `chargingApi.listDistributionVersions({include_scenario:false})`, server-resolved in-force version as default, refetches cascade on version change via `chargingApi.getCascadeChain(id, {version_id})`.
@@ -198,7 +207,7 @@ Active spec: `guides/CRETA_Service_Workbench_and_Cascade_Spec.md` + 6-session im
       - `sw-s4-root-no-upstream-light.png` (svc-dba) — root IS with zero upstream + 2 downstream Offerings; FOCAL ENTITY column header without an UPSTREAM header.
       - `sw-s4-data-stewardship-deep-light.png` (svc-data-stewardship) — single direct upstream with a `+4` expand pill flagging hidden depth, two downstream Offerings.
       - `sw-s4-collapsed-business-light.png` (off-eunify) — 11 upstream + 25 BTC terminals; collapsed amber dashed pill renders past the top-10 threshold per `[AF-04]`.
-      - `sw-s4-monitoring-dark.png` (svc-monitoring, dark theme) — true CRETA dark mode via the seeded `creta-theme=dark` localStorage; semantic tokens flip cleanly (background, foreground, border, focal orange accent, IS violet strip, Offering purple strip, amber business swatch).
+      - `sw-s4-monitoring-dark.png` (svc-monitoring, dark theme) — true VIPER dark mode via the seeded `viper-theme=dark` localStorage; semantic tokens flip cleanly (background, foreground, border, focal orange accent, IS violet strip, Offering purple strip, amber business swatch).
   - **Open items / carry-forward (Wave C / closeout):**
     - **No Wave C diamond seed yet:** the spec calls for an explicit diamond fixture (R→A→{B,C}, B→C). Already in the unit-test grid; seed-data fixture remains the Session 6 item per the plan.
     - **No ≥10-CL seeded entity in production data:** `off-eunify` has 25 BTC terminals which exercises the `CollapsedBusinessNode` path; demo seed sufficient for Wave B verification.
@@ -296,11 +305,11 @@ Active spec: `guides/CRETA_Service_Workbench_and_Cascade_Spec.md` + 6-session im
     7. **(this commit)** Item 2 (SHOULD-FIX, docs) — replaced the N-2 PROGRESS.md entry's "lean variant" language with explicit `-100 → -500` saturation rationale, pre-empting the "no-op" misreading the fresh-context reviewer demonstrated. Plus this closeout summary.
     Suite at follow-up tip: backend pytest **2003 passed** unchanged, frontend `npm test` **82 passed across 7 files** (8 → 9 useAllocationFlowState tests reflect Track C's S-4/N-5 additions; S-8 had no associated test despite the reviewer's claim it did). `tsc -b` **92 errors = main baseline** (zero new from Wave C). Independent verification via 1 Explore agent confirmed all 7 reviewer claims plus surfaced the Breadcrumb leading-slash bug the reviewer missed.
 
-  - **Closeout: Service Workbench & Cascading Allocation round COMPLETE — 6/6 sessions across 3 PRs.** Sessions 1+2 (cascade engine + endpoints) merged in the FD-3 follow-on PR. Wave B (Sessions 3+4+5: tile grid + allocation-flow SVG + distribution editor rebuild) shipped as **PR #109**, merged 2026-05-28 at `cb882a5`. Wave C (Session 6 closeout) shipped as integration branch `feat/service-workbench-wave-c` (19 Wave C commits + 7 fresh-context review follow-up commits, see above), awaiting PR review gate. Spec `guides/CRETA_Service_Workbench_and_Cascade_Spec.md` fully realised; service financial parity (external costs / forecasts / actuals on Offerings + Internal Services) stays deferred to Phase 2 per `guides/CRETA_Service_Financial_Parity_Phase2.md`.
+  - **Closeout: Service Workbench & Cascading Allocation round COMPLETE — 6/6 sessions across 3 PRs.** Sessions 1+2 (cascade engine + endpoints) merged in the FD-3 follow-on PR. Wave B (Sessions 3+4+5: tile grid + allocation-flow SVG + distribution editor rebuild) shipped as **PR #109**, merged 2026-05-28 at `cb882a5`. Wave C (Session 6 closeout) shipped as integration branch `feat/service-workbench-wave-c` (19 Wave C commits + 7 fresh-context review follow-up commits, see above), awaiting PR review gate. Spec `guides/VIPER_Service_Workbench_and_Cascade_Spec.md` fully realised; service financial parity (external costs / forecasts / actuals on Offerings + Internal Services) stays deferred to Phase 2 per `guides/VIPER_Service_Financial_Parity_Phase2.md`.
 
 ## Charging & Allocations / UM rework — wave status
 
-Active spec: `guides/CRETA_Charging_Allocations_UM_Change_Spec.md` (frozen). Sequencing: `guides/CRETA_Charging_Allocations_UM_Implementation_Guide.md` — six clusters FD-1..FD-6, FD-1 the single serial prerequisite. One wave per session, PR gate between. The spec inverts the implemented assumption that UM is SAP-imported reference data: **CRETA authors the UM matrix; SAP is export-only**.
+Active spec: `guides/VIPER_Charging_Allocations_UM_Change_Spec.md` (frozen). Sequencing: `guides/VIPER_Charging_Allocations_UM_Implementation_Guide.md` — six clusters FD-1..FD-6, FD-1 the single serial prerequisite. One wave per session, PR gate between. The spec inverts the implemented assumption that UM is SAP-imported reference data: **VIPER authors the UM matrix; SAP is export-only**.
 
 - [x] **FD-1 — Data foundation** (solo session, branch `feature/fd1-um-data-foundation`, **PR #103** open 2026-05-19). Model + service layer only, no authoring UI. Realises spec §2 (UM model, state machine, provenance, audit) + §3 (allocation-key field). Tags `[F-UM-01..05]`, `[F-AK-01]`, partial `[F-DIR-01]`.
   - **Model** (`backend/models/charging.py`): new `UMVersion` header table (draft/active state machine, `(year,quarter,activated_at)` identity, `copied_from_version_id` lineage, `UM_VERSION_STATUSES`/`UM_VERSION_SOURCES` constants); `UserMeasurement` reworked into FK'd cells with `value` **Integer** (was `Numeric(14,4)`) + `ck_um_cell_nonzero`; `ChargeableEntity.allocation_key` String(200) NULL added. `sap_api` provenance retired. **65 models** (was 64).
@@ -319,7 +328,7 @@ Active spec: `guides/CRETA_Charging_Allocations_UM_Change_Spec.md` (frozen). Seq
   - **Router (B2 eb6ff33 + B3)** — 8 new endpoints: `GET/POST /api/charging/distribution-versions`, `GET/PUT/DELETE /api/charging/distribution-versions/{id}`, `POST /api/charging/distribution-versions/{id}/activate`, `GET /api/charging/distribution-versions/{id}/diff?compared_to_version_id=X`, `GET /api/charging/stage1/entities/{entity_id}`. Existing `POST/PUT/DELETE /api/charging/distributions` and `PUT /api/charging/entities/{id}/to-business-pct` rescoped to `version_id`. All write paths reject active-version mutations with 409 + `cycle_chain` body on cycle errors. Audit-log writes added for every version-management mutation (`entity_type='distribution_version'`, `master_data` category).
   - **Frontend (C1 34d3669 → 0ebf044, 5 commits)** — `frontend/src/api/charging.ts` + `frontend/src/types/distribution.ts` mirror B0's schemas. New components in `frontend/src/modules/charging/distribution/`: `VersionSelector`, version-create/activate/delete dialogs, `VersionDiffView` (graceful 422 handling for "no prior version" via 0ebf044), per-entity Stage 1 view (`[F-S1-06]`) with edges + to-business + residual + cost + version timeline. `DistributionListView` and `EntityDistributionEditor` reworked: in-force version label + `active_from`, version selector, "Create version" CTA controller-gated, per-edge rationale field, edits scoped to drafts (active version selector renders read-only). shadcn/ui only; semantic Tailwind colours; both themes verified. **24 screenshots in `qa/screenshots/fd3-c1-*.png`** covering list (light/dark/settled), per-entity (light/dark/draft), create modal (3 origins × 2 themes), activate (light/dark), editor (light/dark), diff (light/dark + mixed + no-partner).
   - **Lever 12 preservation (D1 b0aff93 + 35fb6ff)** — `scenario_lever12.py` refactored: one `DistributionVersion` per scenario (`scenario_id=N`, `status='draft'` permanently, eager-create on first mutation); lazy-fork preserved at edge level (only entities the user touched get scenario edges; union-aware reads fall back to anchor production version's edges for untouched sources). `_compute_scenario_effective_cost` + `_check_cycle_across_versions` swapped `version=string` for `version_id=int`. `cleanup_lever12_state` simplified to "delete scenario version row, cascade removes edges". `Scenario.anchor_distribution_version_id` pinned at scenario creation to `resolve_active_version(today)` — production reactivations don't shift impact deltas mid-flight; legacy NULL anchor falls back to resolve-by-date-at-read-time. DoI 2→3 gate verified unaffected (reads `BTCProfile`, not `Distribution`).
-  - **Seed (A2 a5454ba)** — `generate_seed_v5/s08_distribution.py` rewritten: 2 versions seeded (v1 `active_from=2025-01-01`, `status=active`, `origin=seed`, all 39 edges FK into it; v2 `active_from=NULL`, `status=draft`, `origin=copy_active`, `copied_from_version_id=1`, no edges — surfaces the prepare-ahead affordance in the demo). No scenario versions seeded (lever-12 eager-creates on first mutation). `backend/creta_demo.db` is gitignored; operators pulling this branch delete it once on next backend start. No Alembic.
+  - **Seed (A2 a5454ba)** — `generate_seed_v5/s08_distribution.py` rewritten: 2 versions seeded (v1 `active_from=2025-01-01`, `status=active`, `origin=seed`, all 39 edges FK into it; v2 `active_from=NULL`, `status=draft`, `origin=copy_active`, `copied_from_version_id=1`, no edges — surfaces the prepare-ahead affordance in the demo). No scenario versions seeded (lever-12 eager-creates on first mutation). `backend/viper_demo.db` is gitignored; operators pulling this branch delete it once on next backend start. No Alembic.
   - **Test fixtures (A3 498c606)** — 4 orphan test files migrated onto `version_id`: `test_charging_access_control.py`, `test_module_subtitle_kpis.py`, `test_rollup_query.py`, `test_router_rollup.py`. `backend/tests/conftest.py` distribution fixture helpers kept backward-compatible during transition. Zero collection errors after sweep.
   - **Design decisions resolved (cluster latitude, agent-team consensus + plan-agent review):**
     1. **Cadence-agnostic = one global production chain.** No `year` column on `DistributionVersion` or `Distribution`. Year axis lives on the cost being distributed (`ChargeableEntity.annual_cost`, BTC profile year). Spec `[F-S1-02]` "no cadence assumption" read literally.
@@ -340,7 +349,7 @@ Active spec: `guides/CRETA_Charging_Allocations_UM_Change_Spec.md` (frozen). Seq
 - [x] **FD-2 + FD-4 + FD-6 — three-cluster fan-out** (agent team `fd2-fd4-fd6-charging`, 3 teammates working in parallel worktrees, single integration branch `feat/charging-fd2-fd4-fd6`, 2026-05-20). Plan: `~/.claude/plans/zany-finding-anchor.md`. **20 atomic implementation commits across 3 teammate branches + 3 merge commits + 1 integration fix + docs commit.** Each cluster ran end-to-end in isolation; conflicts resolved at integration in two pre-known files (EntitySelector.tsx + Administration.tsx) where FD-2 removed `user_measurement` and FD-6 added `chargeable_entities` — non-adjacent line edits, clean resolution per the plan's coordination protocol.
 
   - **FD-2 — UM authoring + module relocation** (teammate `um-authoring`, 8 atomic commits). Realises spec §1 + §2 + closes the FD-1 documented auto-activate shim. Tags `[F-DIR-01]` (UI-level), `[F-DIR-02]`, `[F-DIR-03]`, `[F-UM-03]`.
-    - **Backend.** New router `backend/routers/user_measurement_charging.py` mounted at `/api/charging/user-measurement` with 9 endpoints: `GET /info` (reframed `/refresh-status` per `[F-DIR-01]` — payload now states `{system_of_record: "creta", authoring_modes: [...], sap_export_available: false}`), `GET/POST /versions` (blank / copy_active / copy_prior origin dispatch), `GET /versions/{id}` (header + dense cells), `POST /versions/from-csv` (creates draft, **does NOT auto-activate** — FD-1 shim removed), `PATCH /versions/{id}/cells` (bulk_set_cells, 409 on active), `POST /versions/{id}/activate`, `DELETE /versions/{id}` (drafts only), `GET /allocation-keys`. Read = all roles per `[F-DIR-03]`; writes = `require_role("controller")`. Legacy `backend/routers/user_measurement.py` deleted entirely (no consumers outside `main.py`). Service layer untouched — FD-1's primitives covered every need.
+    - **Backend.** New router `backend/routers/user_measurement_charging.py` mounted at `/api/charging/user-measurement` with 9 endpoints: `GET /info` (reframed `/refresh-status` per `[F-DIR-01]` — payload now states `{system_of_record: "viper", authoring_modes: [...], sap_export_available: false}`), `GET/POST /versions` (blank / copy_active / copy_prior origin dispatch), `GET /versions/{id}` (header + dense cells), `POST /versions/from-csv` (creates draft, **does NOT auto-activate** — FD-1 shim removed), `PATCH /versions/{id}/cells` (bulk_set_cells, 409 on active), `POST /versions/{id}/activate`, `DELETE /versions/{id}` (drafts only), `GET /allocation-keys`. Read = all roles per `[F-DIR-03]`; writes = `require_role("controller")`. Legacy `backend/routers/user_measurement.py` deleted entirely (no consumers outside `main.py`). Service layer untouched — FD-1's primitives covered every need.
     - **Frontend.** New module `frontend/src/modules/charging/user-measurement/`: `UserMeasurementListView` (versions list + create-draft + import-CSV CTAs + activate confirmation), `UserMeasurementMatrixViewer` (read-only sticky pivot), `UserMeasurementMatrixEditor` (in-grid integer editing with row/column paste batching to single PATCH), plus 3 version dialogs (CreateDraft / ImportCsv / ActivateDraft) mirroring `distribution/versions/*` shape. Wired into Charging shell as a 5th section after BTC. Admin removal: `EntitySelector.tsx` line 47 dropped, `Administration.tsx` case removed, `UserMeasurementPanel.tsx` + dead `adminD3Api.getUM*` consumers deleted. New `api/userMeasurement.ts` + `types/userMeasurement.ts`. `useRole()` gates Create/Import/Activate/Delete/cell-edit for non-controllers.
     - **Tests.** Old `test_router_admin_user_measurement.py` deleted; new `test_router_charging_user_measurement.py` — **62 passed** (34 new router tests + 28 existing service tests preserved). Covers all UMValidationError mappings, three create origins, CSV-creates-draft-no-activate, bulk-patch active immutability, activate freeze, delete drafts-only, allocation-keys distinct, role gates (PL 200 reads / 403 writes).
     - **Plan deviation (small, intentional):** commit ordering — types/api/`api.patch` helper landed inside commit 3 (scaffold) so commits 3–5 compile cleanly; commit 6 became deprecating-then-deleting legacy admin UM types in a two-step. `api.patch` added to `frontend/src/api/client.ts` (was missing — only get/post/put/delete shipped).
@@ -386,7 +395,7 @@ Active spec: `guides/CRETA_Charging_Allocations_UM_Change_Spec.md` (frozen). Seq
     3. **SAP audit `export` category** (FD-4 carry-forward) — `AUDIT_CATEGORIES` gains `export`; `get_sap_export` logs `category="export"`; `audit_query.list_categories()` + the `AuditLogV2Panel` badge map updated; the FD-4 debt comment removed.
     - **Full suite: 1924 passed**, 0 failures. `tsc --noEmit` clean. Model count unchanged at 66 (column add, not model add). `docs/data-model.md` updated (`ChargeableEntity.s_code`; `AUDIT_CATEGORIES` 8→9).
 
-**Charging & Allocations / UM rework round COMPLETE** — six clusters FD-1..FD-6 across PRs #103 (FD-1), #104 (FD-3), #105 (FD-2+FD-4+FD-6), and FD-5 + its post-review follow-ups (branch `feature/fd5-dashboard-triple-display`, PR pending). Spec `guides/CRETA_Charging_Allocations_UM_Change_Spec.md` fully realised.
+**Charging & Allocations / UM rework round COMPLETE** — six clusters FD-1..FD-6 across PRs #103 (FD-1), #104 (FD-3), #105 (FD-2+FD-4+FD-6), and FD-5 + its post-review follow-ups (branch `feature/fd5-dashboard-triple-display`, PR pending). Spec `guides/VIPER_Charging_Allocations_UM_Change_Spec.md` fully realised.
 
 ## v5.2 Implementation — wave status
 
@@ -614,7 +623,7 @@ Single solo session (no agent team) — five thin streams, one PR.
 **Stream 4 — Hygiene (`<seed-commit>`):**
 - Removed 2 `qa/_tmp_w6_track_b_*.mjs` scratch scripts that were accidentally committed in W6.
 - `.gitignore` — added `qa/_tmp_*.mjs` and `.clone/` so future scratch artefacts stop appearing in `git status`.
-- (User-side) deleted 13 stale `creta_demo.db.preXXX` snapshots from the working tree.
+- (User-side) deleted 13 stale `viper_demo.db.preXXX` snapshots from the working tree.
 
 **Stream 5 — Path 3 seed enablement (`<seed-commit>`):**
 - `backend/seed/seed.sql` ResourceRequest id=100 (proj-autobrake / cc-muc-apd / role-sr-arch) → `assigned_person_id='p-brenner'`. PROGRESS.md:32 (W6 Track A) had documented that no seed RR carried `assigned_person_id`, leaving the §9.1 entry-point #3 ("Review project" on PersonDetail's pending-requests card) wired but unreachable. Brenner is the cc-muc-apd Sr Architect (role matches), and his persona is the CC Owner — so both Brenner-as-CC-Owner and Anna-as-Controller can now click through end-to-end.
@@ -943,7 +952,7 @@ pytest 1688 passed (1687 W5 baseline + 1 new CR-bound-partial test). tsc clean. 
 - Single-person flow only; `[+ Add]` rendered-but-disabled per spec (W5 S10 activates the multi-person split UI). CR re-confirmation: month-row diffs render correctly. Ghost timeline borders deferred to W5 S6b.
 
 **Track B — `react-specialist` (Session 7, dashboard layer, 2 commits, `1fd18a6` / `abd2eb0`):**
-- NEW `frontend/src/modules/capacity/dashboard/*` (7 files): `DashboardLayer` (collapsible wrapper with 2×2 card grid; visibility = `(role === 'controller' || role === 'executive') && scope.kind !== 'cost_center'`; `localStorage` key `creta_capacity_dashboard_collapsed`; slide-up animation via `max-height` CSS transition); `DashboardToggle` (chevron + "Capacity Dashboard" label using Lucide `ChevronDown` / `ChevronRight`); `UtilizationDistributionCard` (Recharts vertical `BarChart`, 6 buckets >100% / 76–100% / 51–75% / 26–50% / 1–25% / 0% — see W4 P1 fix below for data source); `CapacityForecastCard` (Recharts `ComposedChart` with `Area` for Available + Allocated and `Line strokeDasharray="4 4"` for Demand; green surplus shading; month click dispatches `capacity:expand-month` CustomEvent for W5 timeline wiring); `HeadcountBreakdownCard` (single horizontal stacked `BarChart` with dimension switcher dropdown — location/hierarchy/role/CC; `localStorage` key `creta_capacity_headcount_dimension`; click segment → `setScope` for location/hierarchy/CC dimensions); `HotspotListCard` (plain HTML/CSS ranked list — `openPerson` for over-allocation/under-utilization rows, `openCell({dimensionId:'demand', pivot:'role'})` synthesized payload for unfulfilled-demand rows per user decision 2a; "View all / Show less" toggle; `CheckCircle` empty state); `index.ts` barrel.
+- NEW `frontend/src/modules/capacity/dashboard/*` (7 files): `DashboardLayer` (collapsible wrapper with 2×2 card grid; visibility = `(role === 'controller' || role === 'executive') && scope.kind !== 'cost_center'`; `localStorage` key `viper_capacity_dashboard_collapsed`; slide-up animation via `max-height` CSS transition); `DashboardToggle` (chevron + "Capacity Dashboard" label using Lucide `ChevronDown` / `ChevronRight`); `UtilizationDistributionCard` (Recharts vertical `BarChart`, 6 buckets >100% / 76–100% / 51–75% / 26–50% / 1–25% / 0% — see W4 P1 fix below for data source); `CapacityForecastCard` (Recharts `ComposedChart` with `Area` for Available + Allocated and `Line strokeDasharray="4 4"` for Demand; green surplus shading; month click dispatches `capacity:expand-month` CustomEvent for W5 timeline wiring); `HeadcountBreakdownCard` (single horizontal stacked `BarChart` with dimension switcher dropdown — location/hierarchy/role/CC; `localStorage` key `viper_capacity_headcount_dimension`; click segment → `setScope` for location/hierarchy/CC dimensions); `HotspotListCard` (plain HTML/CSS ranked list — `openPerson` for over-allocation/under-utilization rows, `openCell({dimensionId:'demand', pivot:'role'})` synthesized payload for unfulfilled-demand rows per user decision 2a; "View all / Show less" toggle; `CheckCircle` empty state); `index.ts` barrel.
 - MODIFY `frontend/src/modules/capacity/CapacityWorkspace.tsx` — slot insertion: imports `DashboardLayer` and renders it between `<KPISummaryBar />` and `<FilterChipBar />`. Updates docstring.
 
 **Track C — `react-specialist` (Session 8, PL availability view, 6 commits, `4edb0c2` / `05bcd83` / `0303ece` / `be0d577` / `9c0a997` / `c490e3c`):**
@@ -1150,7 +1159,7 @@ Branch: `feat/v5_2-capacity-foundation`. Closes Implementation Guide Session 1 �
 
 **Verification:**
 - pytest 1630 passed (W6/v5.1 baseline 1554 + 76 new W1 tests). 0 failures.
-- All 6 changed/new endpoints curl-smoke-verified end-to-end after `mv backend/creta_demo.db ...preW1-postintegration` reset:
+- All 6 changed/new endpoints curl-smoke-verified end-to-end after `mv backend/viper_demo.db ...preW1-postintegration` reset:
   * `/dashboard/forecast?scope=all` → 200, 12-month time series with `available_hours`, `allocated_hours`, `demand_hours` per month
   * `/dashboard/headcount-breakdown?scope=all&dimension=location` → 200, 3 locations (BUD/MUC/PUN) with counts + avg utilization
   * `/dashboard/hotspots?scope=all&limit=5` → 200, 5 entries spanning 2 categories (`unfulfilled_demand`, `under_utilization` — including S. Braun chronic 0% for 7 months from the seed scenario)
@@ -1161,7 +1170,7 @@ Branch: `feat/v5_2-capacity-foundation`. Closes Implementation Guide Session 1 �
 - `simplify` skill: 3 reviewers ran in parallel (reuse, quality, efficiency); 8 fixes applied in a single cleanup commit; deferred items flagged below.
 - `security-review` skill: 6 candidate findings surfaced, all filtered below confidence-8 threshold (pre-existing concerns out of PR scope per skill instructions, "lack of audit logs" hard exclusion, documented design intent for CC Owner dashboard access). 0 actionable findings.
 
-**DB ritual:** Schema change requires `rm backend/creta_demo.db` (or `mv` to a backup) after pulling the branch — no Alembic in this codebase. PR description must call this out (per `project_schema_migration.md` memory).
+**DB ritual:** Schema change requires `rm backend/viper_demo.db` (or `mv` to a backup) after pulling the branch — no Alembic in this codebase. PR description must call this out (per `project_schema_migration.md` memory).
 
 **Out of scope (deferred to follow-up):**
 - Extract `_quote` / `_load_seed_into_memory` / `_seed_path` to `seed/generate_seed_v5/_common.py` (s21 + s22 currently copy-paste; medium severity; defer until a third generator copies the pattern).
@@ -1173,7 +1182,7 @@ Branch: `feat/v5_2-capacity-foundation`. Closes Implementation Guide Session 1 �
 
 ## v5.1 Implementation — wave status
 
-Active spec: `guides/CRETA_v5_1_Change_Specification.md` (16 items: 5 bug fixes, 2 seed enrichments, 9 features). Plan: 6 waves, one wave per session, PR review gate between every wave. Agent teams used within each wave. v5 spec + impl guide archived to `docs_archive/`.
+Active spec: `guides/VIPER_v5_1_Change_Specification.md` (16 items: 5 bug fixes, 2 seed enrichments, 9 features). Plan: 6 waves, one wave per session, PR review gate between every wave. Agent teams used within each wave. v5 spec + impl guide archived to `docs_archive/`.
 
 - [x] **Wave 1** — Reorg + bug fixes (A-01..A-05) + seed expansion (B-01, B-02) — branch `fix/v5_1-batch-1-bugs-and-seed` (PR #80 merged 2026-05-05)
 - [x] **Wave 2** — Grid foundation (C-02 collapsible years + C-08 three-point cells) — branch `feat/v5_1-grid-foundation` (PR #81 merged 2026-05-05)
@@ -1264,7 +1273,7 @@ Branch: `feat/v5_1-external-costs-grid`. Closes spec item C-09 — the largest i
 - Frontend tsc: 0 new errors in touched files; pre-existing baseline errors (`OrgDetailItem` unused export in `endpoints.ts`) unchanged.
 - Visual verification: 4 screenshots saved to `qa/screenshots/wave-5-c09/` (default view + light, row expansion, dark mode). All 6 KPIs populate (Forecast €417K / Accruals €81K / Open POs €8K / Remaining Not Invoiced €5K / etc. for `proj-mdh-rollout`). Monthly grid renders 5 lines across 4 categories with proper stacked cells, sticky-right metadata, status badges (including the new `open` status on Accenture PO-2026-9000), expansion drawer showing delivery + invoice content. Both light and dark themes render cleanly.
 
-**DB ritual:** schema change requires `rm backend/creta_demo.db` after pulling the branch (no Alembic). Wave 5 is the second wave to add columns to existing tables; PR description should call this out.
+**DB ritual:** schema change requires `rm backend/viper_demo.db` after pulling the branch (no Alembic). Wave 5 is the second wave to add columns to existing tables; PR description should call this out.
 
 **Out of scope (deferred):**
 - Portfolio-scoped external cost endpoints (`portfolio/external-costs/*`) — already exist, not touched by C-09.
@@ -1319,7 +1328,7 @@ Post-merge polish: caught a small visual bug during integration verification —
 
 - **Backend pytest:** 1510 (Wave 4 baseline post-pre-work) → **1533 passing** on the integrated branch (+23: 6 lead + 8 A + 11 B + 4 C, with one pre-work test rewritten by B since the stub assertion no longer holds once the body is implemented). Full suite re-run from a fresh-DB seed.
 - **Frontend tsc:** `npx tsc --noEmit` clean.
-- **DB ritual:** confirmed `rm backend/creta_demo.db && python main.py` auto-seeds correctly. Backups saved as `creta_demo.db.preW4-leadprework` and `creta_demo.db.preW4-postmerge` alongside existing `.preS1` / `.preWAVE3`.
+- **DB ritual:** confirmed `rm backend/viper_demo.db && python main.py` auto-seeds correctly. Backups saved as `viper_demo.db.preW4-leadprework` and `viper_demo.db.preW4-postmerge` alongside existing `.preS1` / `.preWAVE3`.
 - **Visual (Anna Meier / Controller):**
   - F&P grid on `proj-erp2`: `Senior Developer ▼` parent → expanded sub-rows for Lena Fischer (MUC / Application Development) and Rajesh Patel (PUN / Application Development) with hours + EUR per month. Consulting row label shows `Consulting — Senior Solution Architect` (single role: Deloitte). Light + dark themes both render cleanly.
   - F&P grid on `proj-mdh-rollout`: Consulting label stays `Consulting` (mixed-roles fallback active), expanded sub-rows show `Accenture · Senior Solution Architect · No PO` and `Thoughtworks · Data Engineer · No PO` with sums (12k + 6k = 18k) verifying the column-level invariant.
@@ -1334,7 +1343,7 @@ Post-merge polish: caught a small visual bug during integration verification —
 - **OrgHeatmap external row (vs. chip).** OrgHeatmap shows a lightweight `+ N.N External` Badge per role group; full external row (like TeamHeatmap) deferred. The OrgHeatmap is a roll-up surface and the chip-only treatment is consistent with its visual density.
 - **No external location attribution.** External Forecast rows have no Person → CostCenter → Location chain. The Capacity External row uses the project's primary location implicitly (or "—"). If demo feedback wants location splits for external resources, that's a follow-on aggregation change.
 - **`_make_project_with_forecast` helper convention.** Teammate B's vendor-breakdown router test reuses the `_make_project_with_forecast` helper; Teammate A's person-breakdown test added `_make_project_with_person_allocations`. Both share the same test class; if a future test wants both surfaces, the two helpers compose.
-- **PR description must call out DB ritual.** `rm backend/creta_demo.db` is required before testing this branch (no Alembic). Wave 4 is the first wave that adds a column to existing tables (Wave 1–3 only added rows / new tables). PR title + description should highlight this prominently.
+- **PR description must call out DB ritual.** `rm backend/viper_demo.db` is required before testing this branch (no Alembic). Wave 4 is the first wave that adds a column to existing tables (Wave 1–3 only added rows / new tables). PR title + description should highlight this prominently.
 
 ## v5.1 Wave 3 — Phase highlighting + comparison chart (2026-05-05)
 
@@ -1442,8 +1451,8 @@ Branch: `fix/v5_1-batch-1-bugs-and-seed`. Closes the v5.1 spec's Phase 1 (bug fi
   - 724 outer-zone forecast rows marked `is_provisional=1` (months outside the Oct 2025 – Sep 2027 inner zone) so Wave 2's collapsible-year + provisional-marker work has data to render against.
 
 ### Doc reorg (lead, 1 commit at branch start)
-- `guides/CRETA_v5_Workshop_Spec.md` and `guides/CRETA_v5_Implementation_Guide.md` moved to `docs_archive/` (note: `guides/` is gitignored, archived versions are tracked).
-- v5.1 self-contained spec now at `guides/CRETA_v5_1_Change_Specification.md` (gitignored — local working spec, matches existing convention).
+- `guides/VIPER_v5_Workshop_Spec.md` and `guides/VIPER_v5_Implementation_Guide.md` moved to `docs_archive/` (note: `guides/` is gitignored, archived versions are tracked).
+- v5.1 self-contained spec now at `guides/VIPER_v5_1_Change_Specification.md` (gitignored — local working spec, matches existing convention).
 - `CLAUDE.md` "v5 Implementation Protocol" section updated to "v5.1 Implementation Protocol" pointing at the new spec.
 - This wave checklist added to PROGRESS.md.
 
@@ -1608,7 +1617,7 @@ Each on its own worktree off Phase 1's HEAD; all read `config/entities.py` as a 
 
 - Recalibrate Phase-1 narrative `total_budget` values vs T2's data-driven baseline rollups (currently 19–76% drift on 6 projects).
 - Optionally backfill Tech Navigator scores on the 2 DoI 5 Run-stage projects (proj-cloud3-run, proj-iam-run) if `[A-TN-01]`'s "regardless of status" interpretation needs strict compliance.
-- Cleanup leftover worktrees: `../creta-s1-{t1,t2,t3}` after the merged PR lands.
+- Cleanup leftover worktrees: `../viper-s1-{t1,t2,t3}` after the merged PR lands.
 
 
 
@@ -1955,7 +1964,7 @@ serial on a single branch (``v5/wave5-t1-portfolio``):
   placeholder — will swap in T2's E4 chart in a follow-up integration
   commit once T2 merges.
 - Back-button restores scroll + filters via a sessionStorage handshake
-  (`creta:portfolio:dashboard:scroll`) per [E-03b].
+  (`viper:portfolio:dashboard:scroll`) per [E-03b].
 - v4 deep-link `/portfolio/<projectId>` redirects to the new route.
 - `DashboardTab` loses its `useSidePanel` wiring; old
   `ProjectSummaryPanel.tsx` removed.
@@ -2154,7 +2163,7 @@ T1's `WorkspaceSidebar` host via the `projectsSection`,
 ## v5 Session B2 — T3 Impact Dashboard + Compare
 
 Frontend slice for the What-If Simulator workspace (Zone 2 impact dashboard +
-the dedicated Compare flow), per CRETA v5 spec lines 974–1067 and decisions
+the dedicated Compare flow), per VIPER v5 spec lines 974–1067 and decisions
 `[B-ID-01..03]` `[B-CV-01..05]` `[B-AC-02..03]`. Built in worktree
 `v5/wave4-b2-t3` (off `v5/wave4-f6-e2-b2-merged`); awaits T1 → T2 → T3 → T4
 sequential merge.
@@ -2264,7 +2273,7 @@ works on a fresh checkout.
 Wave 2 merged: F3 (+125 tests) + C1 (+94 tests) + A6 frontend brought backend baseline to 1007 tests.
 Previous: A5 (intake workflow + backlog integration backend, +68 tests) + F2 (ChargeableEntity polymorphic root + Stage 1 Distribution backend, +116 tests) + D3 (admin frontend, 5-section nav + Cluster F panels + workflow editor + audit V2 + scheduled changes) + A7 (Tech Navigator scoring rubric UI). 788 backend tests at end of Wave 1.
 Next: Wave 4 — **B2** (frontend simulator workspace) remaining.
-**Post-merge requirement on first pull:** drop `creta_demo.db` and re-seed (`rm backend/creta_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables, C1's `is_provisional` column on `forecasts`, B1's Scenario column additions, and E1's progress tracker columns + new tables all require schema regeneration. F6 + E2 add no schema changes (read-only endpoints + new frontend tile/tab); no further DB reset required for Wave 4.
+**Post-merge requirement on first pull:** drop `viper_demo.db` and re-seed (`rm backend/viper_demo.db && python main.py && curl -X POST .../api/admin/reset-demo`) — F3's BTC + RollupCache tables, C1's `is_provisional` column on `forecasts`, B1's Scenario column additions, and E1's progress tracker columns + new tables all require schema regeneration. F6 + E2 add no schema changes (read-only endpoints + new frontend tile/tab); no further DB reset required for Wave 4.
 
 ## v5 Session B2 — T1 Shell + Context + Manager (2026-04-29)
 
@@ -3520,7 +3529,7 @@ Out of scope per session brief and aligned with A2 boundaries:
   `schemas/chargeable_entity.py::validate_identifier_for_type` so the seed,
   router, and future F3 code share the same rules.
 - **Stage 1 Distribution edges per `[F-S1-01..05]`** — sparse storage (one row
-  per actually-flowing edge). Versioned per `[F-S1-04]` using CRETA's standard
+  per actually-flowing edge). Versioned per `[F-S1-04]` using VIPER's standard
   baseline/forecast/actuals model with scenario forks identified by
   `scenario-<id>`. Sum-rule per `[F-S1-02]`: `to_business_pct + Σ(distribute %)
   ≤ 100`; residual is derived. Cycle detection per `[F-S1-05]` is hard-block on
@@ -3767,9 +3776,9 @@ Branch `v5/cluster-a/a5-intake-backlog-backend` carries 7 atomic commits and 672
 ### Data Model Changes
 - New tables: `chargeable_entities`, `distributions`.
 - New columns: `allocations.chargeable_entity_id` (nullable FK).
-- **No Alembic.** Existing `creta_demo.db` will fail to read the new tables /
+- **No Alembic.** Existing `viper_demo.db` will fail to read the new tables /
   column on the next startup. Resolution: delete (or move aside)
-  `backend/creta_demo.db` and restart — the seed loader recreates schema and
+  `backend/viper_demo.db` and restart — the seed loader recreates schema and
   re-runs `seed.sql` to populate all the F2 rows.
 
 ### Working assumptions (flagged for KB confirmation)
@@ -3871,7 +3880,7 @@ Branch `v5/cluster-a/a5-intake-backlog-backend` carries 7 atomic commits and 672
 - `python -m pytest backend/tests/ -v` → **720 passed** (604 baseline + 116
   new F2 tests). 0 failures, 8.5k DeprecationWarnings (existing
   `datetime.utcnow()` calls; pre-existing in the codebase).
-- Live `python main.py` smoke test against a fresh `creta_demo.db`:
+- Live `python main.py` smoke test against a fresh `viper_demo.db`:
   - `GET /health` → 200.
   - `GET /api/admin/chargeable-entities` → 200, 40 items
     (Project: 32, Offering: 3, InternalService: 5).
@@ -4093,7 +4102,7 @@ Verified at 1440 × 900 viewport against the running backend at `localhost:8000`
 Screenshots saved to `/tmp/a7-screens/0{1..4}-*.png` during the verification run.
 
 ### Working assumptions / Ambiguities (flagged for KB confirmation)
-- **Intermediate rubric labels (levels 2 / 3 / 4) are placeholders.** The spec only ships endpoint definitions for level 1 and level 5 ("Intermediate values of each sub-criterion are defined in the KB Tech Navigator reference slides and should be mirrored in the CRETA rubric UI"). A7 hard-codes a sensible interpolation in `frontend/src/modules/backlog/data/rubricLabels.ts` so the UI is verifiable today; the long-term home of these labels is the admin Tech Navigator rubric matrix editor (`[D-CAT-04]`), which lands in a future Cluster D session. Once that admin surface ships, the dictionary should be replaced with a fetch.
+- **Intermediate rubric labels (levels 2 / 3 / 4) are placeholders.** The spec only ships endpoint definitions for level 1 and level 5 ("Intermediate values of each sub-criterion are defined in the KB Tech Navigator reference slides and should be mirrored in the VIPER rubric UI"). A7 hard-codes a sensible interpolation in `frontend/src/modules/backlog/data/rubricLabels.ts` so the UI is verifiable today; the long-term home of these labels is the admin Tech Navigator rubric matrix editor (`[D-CAT-04]`), which lands in a future Cluster D session. Once that admin surface ships, the dictionary should be replaced with a fetch.
 - **Read-only mode in the stub harness** is driven only by current role (controller / project_lead → editable; executive / cc_owner → read-only). The backend's stricter PL-ownership check (`pl_person_id == user.person_id`) is enforced server-side; in the stub harness we do not pre-disable controls for non-owning PLs because the harness is for visual verification only. A6 will refine this by passing the host project's `pl_person_id` to the rubric.
 - **Stub harness layout** mimics the planned 4-tab detail view but is intentionally minimal. The 3 non-Scores tabs render placeholder tiles. A6's real detail view will replace the stub.
 
@@ -4205,7 +4214,7 @@ Out of scope for D1, deferred per the team-lead's plan:
 
 ### Data Model Changes
 - New tables: `countries`, `regions`, `charging_locations`, `legal_entities`, `user_measurements` (with the unique constraint above), `users`, `project_dependencies`, `role_permission_grants`.
-- No migrations system (no Alembic). Existing `backend/creta_demo.db` will fail at startup against the new schema. Resolution: delete `backend/creta_demo.db` and restart — the seed loader recreates the schema and runs `seed.sql` to populate the new tables.
+- No migrations system (no Alembic). Existing `backend/viper_demo.db` will fail at startup against the new schema. Resolution: delete `backend/viper_demo.db` and restart — the seed loader recreates the schema and runs `seed.sql` to populate the new tables.
 
 ### Working Assumptions (flagged for KB confirmation)
 - **RoleType is admin-managed** — D1 ships create + update endpoints. Deactivation deferred because RoleType has no `is_active` column today; adding it would ripple to seed.sql + the rate-table joins. Refactoring opportunity flagged below.
@@ -4366,7 +4375,7 @@ Out of scope (working data only — wiring deferred):
 ### Data Model Changes
 - New tables: `workflow_templates`, `workflow_steps`, `workflow_step_actions`, `scheduled_changes`.
 - `audit_log` gains `category VARCHAR(40) NOT NULL DEFAULT 'master_data'`.
-- **No Alembic** — the existing `backend/creta_demo.db` will fail to read the new column and tables on the next startup. Move the file aside (`mv backend/creta_demo.db backend/creta_demo.db.bak`) before running `python main.py`; the startup hook re-creates the schema and re-runs `seed.sql`.
+- **No Alembic** — the existing `backend/viper_demo.db` will fail to read the new column and tables on the next startup. Move the file aside (`mv backend/viper_demo.db backend/viper_demo.db.bak`) before running `python main.py`; the startup hook re-creates the schema and re-runs `seed.sql`.
 
 ### Working assumptions
 - **Audit category mapping for Tech Navigator scores** — Tech Navigator score edits live on the project entity but are conceptually project-level qualitative metadata, not v5 master data (which is reference catalogues). I tagged them `master_data` as the closest fit. If a follow-on session adds a `project_metadata` category we can reclassify.
@@ -4568,7 +4577,7 @@ Branch `v5/cluster-a/ranking-engine-backend` carries 9 atomic commits and 477 pa
 | PUT | `/api/projects/{id}/pipeline/within-cutoff` | Manual within_cutoff setter (A3 replaces with computed) |
 
 ### Data Model Changes
-6 new columns on `projects` table. As with A1, **no Alembic** — the existing `backend/creta_demo.db` will fail with `no such column: projects.pipeline_stage` on the next startup. Delete the file before running `python main.py`; the startup hook re-creates the schema and re-runs `seed.sql`.
+6 new columns on `projects` table. As with A1, **no Alembic** — the existing `backend/viper_demo.db` will fail with `no such column: projects.pipeline_stage` on the next startup. Delete the file before running `python main.py`; the startup hook re-creates the schema and re-runs `seed.sql`.
 
 ### Working assumptions
 - **DoI gate field choices** — gate definitions are working assumptions per `[A-OQ-04]`/`[A-BK-30]`. We require only fields that already exist on `Project`. Notable choices:
@@ -4594,7 +4603,7 @@ Branch `v5/cluster-a/ranking-engine-backend` carries 9 atomic commits and 477 pa
 ### Verification
 - `python -m pytest backend/tests/ -v` → 376 passed (320 baseline + 56 new).
 - Standalone executable test of `seed.sql` against a fresh schema: all 32 project rows insert cleanly with the new columns populated; status/stage mapping matches the table above.
-- Live `python main.py` smoke test against the dev server (with the existing `backend/creta_demo.db` deleted to force re-seed) confirmed the GET endpoint returns expected JSON.
+- Live `python main.py` smoke test against the dev server (with the existing `backend/viper_demo.db` deleted to force re-seed) confirmed the GET endpoint returns expected JSON.
 
 ### Refactoring opportunities (noted, not acted on)
 - `Project.status` is now redundant for v5-aware code paths but still drives the v4 intake / CR flow. Removal lands in A5 (intake workflow rewrite).
@@ -4663,7 +4672,7 @@ A2 + A4 merged into branch `v5/cluster-a/pipeline-and-milestones-backend`. After
 - Renamed column `phase_number` → `sequence_number`.
 - `color` column on `project_milestones` is now nullable.
 
-**No migration tooling exists in this project (no Alembic).** Existing `creta_demo.db` files will fail at startup against the new schema. **Resolution:** delete `backend/creta_demo.db` and restart the server; the seed loader recreates schema + data automatically.
+**No migration tooling exists in this project (no Alembic).** Existing `viper_demo.db` files will fail at startup against the new schema. **Resolution:** delete `backend/viper_demo.db` and restart the server; the seed loader recreates schema + data automatically.
 
 ### Working assumptions
 - Column name `phase_number` → `sequence_number` (spec is silent; chosen as the cleaner name under the new `ProjectMilestone` entity).
@@ -4708,11 +4717,11 @@ A2 + A4 merged into branch `v5/cluster-a/pipeline-and-milestones-backend`. After
 | POST | `/api/admin/recompute-scores` | Recompute Tech Navigator scores across the entire portfolio |
 
 ### Data Model Changes
-14 new nullable columns on `projects` table. **No migration tooling exists in this project (no Alembic).** The next time the dev server starts against the existing `backend/creta_demo.db`, queries on `projects` will fail with `no such column: projects.project_type`. **Resolution:** delete `backend/creta_demo.db` (or move it aside) before running `python main.py`; the startup hook will re-create the schema and re-run `seed.sql` automatically.
+14 new nullable columns on `projects` table. **No migration tooling exists in this project (no Alembic).** The next time the dev server starts against the existing `backend/viper_demo.db`, queries on `projects` will fail with `no such column: projects.project_type`. **Resolution:** delete `backend/viper_demo.db` (or move it aside) before running `python main.py`; the startup hook will re-create the schema and re-run `seed.sql` automatically.
 
 ### Verification
 - `python -m pytest backend/tests/ -v` → 320 passed (60 new + 260 existing).
-- Live curl smoke test against the dev server was deferred because `creta_demo.db` is locked in the working tree (schema-incompatible without a manual delete). The integration tests cover the same router → service → DB → audit chain end-to-end.
+- Live curl smoke test against the dev server was deferred because `viper_demo.db` is locked in the working tree (schema-incompatible without a manual delete). The integration tests cover the same router → service → DB → audit chain end-to-end.
 
 ### Ambiguities (working assumptions in place)
 - `[A-OQ-06]` default ranking weights (70/30) — seeded as defaults; KB to confirm.
@@ -4885,7 +4894,7 @@ None identified during this session.
 
 ### Feature Overview
 - **Theme toggle:** Sun/Moon button in TopBar cycles between light and dark mode
-- **ThemeContext:** React context with `light`/`dark`/`system` support, localStorage persistence (`creta-theme` key)
+- **ThemeContext:** React context with `light`/`dark`/`system` support, localStorage persistence (`viper-theme` key)
 - **Flash prevention:** Inline script in `index.html` applies `.dark` class before React renders
 - **141 files converted:** All hardcoded Tailwind colors (`bg-white`, `text-slate-*`, `border-slate-*`) replaced with semantic CSS variable classes (`bg-card`, `text-foreground`, `border-border`, etc.)
 - **Status colors preserved:** Amber/green/red status badges keep light variants with `dark:` variants added
@@ -5207,7 +5216,7 @@ After the controller sent a project back with change requests and the PL accepte
 - [x] UI-007 (P2): PL resubmit button — added `handleResubmit` function and "Resubmit for Approval" button to `IntakeDetailPanel.tsx` for non-Controller users when status is `changes_requested`
 - [x] UI-008 (P3): React key warning — changed bare `<>` fragment to `<Fragment key={item.id}>` in `CompetenceCentersPanel.tsx`
 - [x] SPEC-002 (P3): Updated test plan persona IDs (`persona-pl`, `persona-exec`)
-- [x] SPEC-003 (P3): Documented correct localStorage key (`creta-persona`)
+- [x] SPEC-003 (P3): Documented correct localStorage key (`viper-persona`)
 
 ### Verification
 - [x] Executive on Simulator: "Create New Scenario" hidden, AddActionForm hidden, remove buttons hidden, metadata read-only
@@ -5235,7 +5244,7 @@ After the controller sent a project back with change requests and the PL accepte
 - **UI-006 (P3):** Overdue forecast pending action links to /portfolio instead of /workbench with project selected
 - **UI-007 (P2):** PL cannot resubmit after Controller send-back — no "Resubmit for Approval" button in Intake Queue side panel
 - **UI-008 (P3):** React key warning in CompetenceCentersPanel when expanding CC employee list
-- **SPEC-003 (P3):** Test plan references `selected-persona` localStorage key; actual key is `creta-persona`
+- **SPEC-003 (P3):** Test plan references `selected-persona` localStorage key; actual key is `viper-persona`
 
 ### Observations
 - Administration module is fully functional: all 9 entity panels load correctly, CRUD operations work, deactivation pattern works (entities go Inactive, not deleted), reset demo restores all data
