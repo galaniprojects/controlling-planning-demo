@@ -58,7 +58,6 @@ import { RunDimensionRollupPanel } from './RunDimensionRollupPanel';
 
 const TYPE_FILTERS: { value: '' | ChargeableEntityType; label: string }[] = [
   { value: '', label: 'All entity types' },
-  { value: 'Project', label: 'Projects (DoI 5)' },
   { value: 'Offering', label: 'Offerings' },
   { value: 'InternalService', label: 'Internal services' },
 ];
@@ -209,11 +208,7 @@ export function RunPortfolioTab() {
         if (cancelled) return;
         // Run Portfolio = entities classified Run by the backend
         // (Project @ DoI 5 / all Offerings / all InternalServices) per [E-11].
-        const runOnly = res.items.filter(
-          (e) =>
-            e.is_change_or_run === 'Run' ||
-            e.is_change_or_run === 'run',
-        );
+        const runOnly = res.items.filter((e) => e.is_change_or_run === 'Run');
         setItems(runOnly);
       })
       .catch((e) => {

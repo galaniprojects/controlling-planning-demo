@@ -35,6 +35,31 @@ class ProjectTreeNode(BaseModel):
     children: list["ProjectTreeNode"] = []
 
 
+class RunCostTreeNode(BaseModel):
+    """One node in the Run cost-distribution tree (VIPER §10.2/§10.3)."""
+
+    id: str
+    name: str
+    kind: str  # 'group' | 'entity'
+    level: str | None  # hierarchy level id for groups (get-lob/get-prog); None for entities
+    level_label: str | None  # human level name for groups (e.g. "Line of Business"); None for entities
+    entity_type: str | None  # 'Offering' | 'InternalService' for entities; None for groups
+    identifier: str | None  # Run entity identifier for entities; None for groups
+    annual_cost: float  # own cost of a leaf entity; 0 for group rows
+    rolled_cost: float  # cost aggregated over this node and all descendants
+    entity_count: int  # count of Run entities at/under this node
+    children: list["RunCostTreeNode"] = []
+
+
+class RunCostTreeResponse(BaseModel):
+    """Run cost-distribution tree grouped by LoB or Program (VIPER §10.2)."""
+
+    group_by: str  # 'lob' | 'program'
+    year: int
+    grand_total: float
+    nodes: list[RunCostTreeNode] = []
+
+
 class BudgetSnapshot(BaseModel):
     baseline: float
     forecast: float

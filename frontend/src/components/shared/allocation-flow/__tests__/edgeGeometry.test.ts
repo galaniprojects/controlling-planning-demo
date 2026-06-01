@@ -92,6 +92,41 @@ describe('computeEdgeGeometry', () => {
     expect(Number.isFinite(g.labelX)).toBe(true);
     expect(Number.isFinite(g.labelY)).toBe(true);
   });
+
+  // §10.3 axis-swap — vertical anchors bottom-mid → top-mid, Y control offset.
+  it('vertical: builds a Bezier from src bottom-mid to dst top-mid', () => {
+    const g = computeEdgeGeometry(
+      { x: 0, y: 0, w: 200, h: 100 },
+      { x: 0, y: 300, w: 200, h: 100 },
+      'vertical',
+    );
+    // src bottom-mid = (100, 100); dst top-mid = (100, 300)
+    expect(g.path.startsWith('M 100 100 C ')).toBe(true);
+    expect(g.path.endsWith('100 300')).toBe(true);
+    expect(g.endX).toBe(100);
+    expect(g.endY).toBe(300);
+  });
+
+  it('vertical: places label midpoint between src and dst on Y', () => {
+    const g = computeEdgeGeometry(
+      { x: 0, y: 0, w: 100, h: 100 },
+      { x: 0, y: 500, w: 100, h: 100 },
+      'vertical',
+    );
+    // Symmetric: label x fixed at 50, label y halfway between 100 and 500.
+    expect(g.labelX).toBe(50);
+    expect(g.labelY).toBe(300);
+  });
+
+  it('vertical: clamps overlapping y without NaN', () => {
+    const g = computeEdgeGeometry(
+      { x: 0, y: 100, w: 200, h: 100 },
+      { x: 300, y: 100, w: 200, h: 100 },
+      'vertical',
+    );
+    expect(Number.isFinite(g.labelX)).toBe(true);
+    expect(Number.isFinite(g.labelY)).toBe(true);
+  });
 });
 
 describe('edgeKey', () => {

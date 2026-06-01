@@ -24,6 +24,7 @@ import {
 } from '@/components/shared/EntityTypeBadge';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
+import type { FlowOrientation } from '../layout';
 import { NODE_H, NODE_W } from '../layout';
 
 export interface EntityNodeProps {
@@ -35,6 +36,7 @@ export interface EntityNodeProps {
   /** Count of hidden upstream/downstream connections — drives the +N pill. */
   hiddenCount?: number;
   hiddenDirection?: 'upstream' | 'downstream';
+  orientation?: FlowOrientation;
   isHovered?: boolean;
   onClick?: () => void;
   onHoverChange?: (hovering: boolean) => void;
@@ -49,6 +51,7 @@ export function EntityNode({
   h = NODE_H,
   hiddenCount,
   hiddenDirection,
+  orientation = 'horizontal',
   isHovered,
   onClick,
   onHoverChange,
@@ -102,9 +105,23 @@ export function EntityNode({
           so it sits flush against the node edge in SVG coordinates). */}
       {hiddenCount && hiddenCount > 0 && (
         <ExpandPill
-          // Position: left side when more upstream lurks, right side when downstream.
-          x={hiddenDirection === 'upstream' ? -16 : w - 12}
-          y={h / 2 - 12}
+          // Hidden connections sit beyond the node along the depth axis:
+          // horizontal → left (upstream) / right (downstream), centred on Y;
+          // vertical   → top  (upstream) / bottom (downstream), centred on X.
+          x={
+            orientation === 'vertical'
+              ? w / 2 - 12
+              : hiddenDirection === 'upstream'
+                ? -16
+                : w - 12
+          }
+          y={
+            orientation === 'vertical'
+              ? hiddenDirection === 'upstream'
+                ? -16
+                : h - 12
+              : h / 2 - 12
+          }
           count={hiddenCount}
           onClick={(ev) => {
             ev.stopPropagation();

@@ -8,7 +8,7 @@
  * edge per `[AF-05]`. Stroke colour uses CSS custom properties so
  * dark mode + theme switches are automatic.
  */
-import type { PositionBox } from '../layout';
+import type { FlowOrientation, PositionBox } from '../layout';
 import { computeEdgeGeometry, computeStrokeWidth } from '../edgeGeometry';
 import { EdgeLabelPill } from './EdgeLabelPill';
 
@@ -19,6 +19,7 @@ export interface CascadeEdgeProps {
   amount: number;
   maxAmount: number;
   emphasised?: boolean;
+  orientation?: FlowOrientation;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
 }
@@ -32,15 +33,16 @@ export function CascadeEdge({
   amount,
   maxAmount,
   emphasised,
+  orientation = 'horizontal',
   onMouseEnter,
   onMouseLeave,
 }: CascadeEdgeProps) {
-  const g = computeEdgeGeometry(src, dst);
+  const g = computeEdgeGeometry(src, dst, orientation);
   const stroke = computeStrokeWidth(amount, maxAmount);
   // Pull the arrowhead in slightly so it doesn't collide with the
-  // destination's left edge.
-  const arrowX = g.endX - ARROW_R * 0.5;
-  const arrowY = g.endY;
+  // destination's leading edge (left in horizontal, top in vertical).
+  const arrowX = orientation === 'vertical' ? g.endX : g.endX - ARROW_R * 0.5;
+  const arrowY = orientation === 'vertical' ? g.endY - ARROW_R * 0.5 : g.endY;
 
   return (
     <g onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>

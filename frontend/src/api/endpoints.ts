@@ -1,4 +1,5 @@
 import { api } from './client';
+import type { RunCostTreeResponse, RunCostTreeGroupBy } from '@/types/runPortfolio';
 import type {
   RoleTypeItem,
   ExternalCostTypeItem,
@@ -196,6 +197,25 @@ export const portfolioApi = {
     }
     const qs = query.toString();
     return api.get<ChartData>(`/api/portfolio/charts${qs ? '?' + qs : ''}`);
+  },
+
+  // === Run Cost Distributions — hierarchy-level org tree (VIPER Wave 5 §10.2/§10.3) ===
+  // Rolls Run-entity cost up the LoB / Program hierarchy from
+  // `chargeable_entities.hierarchy_node_id`, honouring the node-vs-level rule
+  // (Program-attached entities roll into their parent LoB when grouping by LoB).
+  // Region / Division / Country group-bys reuse `chargingApi.getRollup` instead.
+  getRunCostTree: (params: {
+    group_by: RunCostTreeGroupBy;
+    node?: string;
+    year: number;
+  }) => {
+    const q = new URLSearchParams();
+    q.set('group_by', params.group_by);
+    if (params.node) q.set('node', params.node);
+    q.set('year', String(params.year));
+    return api.get<RunCostTreeResponse>(
+      `/api/portfolio/run/cost-tree?${q.toString()}`,
+    );
   },
 
   // Intake
@@ -1789,6 +1809,23 @@ export const externalCostsApi = {
   getPortfolioProjectVendorMatrix: (params?: ExternalCostQuery) =>
     api.get<ProjectVendorMatrixResponse>(
       `/api/portfolio/external-costs/project-vendor-matrix${externalCostQs(params)}`,
+    ),
+
+  // === Run-portfolio-scoped external spend (VIPER Wave 5 §10) ===
+  // Same response envelopes as the Change `/portfolio/external-costs/*`
+  // endpoints, scoped to the Run portfolio (DoI 5 projects + offerings +
+  // internal services). Consumed by `ExternalSpendTab` with `scope="run"`.
+  getRunVendorSummary: (params?: ExternalCostQuery) =>
+    api.get<PortfolioVendorSummaryResponse>(
+      `/api/portfolio/run/external-costs/vendor-summary${externalCostQs(params)}`,
+    ),
+  getRunCategoryAnalysis: (params?: ExternalCostQuery) =>
+    api.get<PortfolioCategoryAnalysisResponse>(
+      `/api/portfolio/run/external-costs/category-analysis${externalCostQs(params)}`,
+    ),
+  getRunProjectVendorMatrix: (params?: ExternalCostQuery) =>
+    api.get<ProjectVendorMatrixResponse>(
+      `/api/portfolio/run/external-costs/project-vendor-matrix${externalCostQs(params)}`,
     ),
 };
 

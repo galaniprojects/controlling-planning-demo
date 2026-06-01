@@ -23,7 +23,7 @@ import { ProjectDetailPage } from '@/modules/portfolio/detail/ProjectDetailPage'
 import { ProjectWorkbench } from '@/modules/workbench/ProjectWorkbench';
 // Service Workbench Session 4 — interactive SVG DAG visualization for
 // the cascade allocation chain at /workbench/allocation-flow.
-import { AllocationFlowView } from '@/modules/workbench/allocation-flow/AllocationFlowView';
+import { AllocationFlowView } from '@/components/shared/allocation-flow/AllocationFlowView';
 // === v5.2 W2 — Capacity redesign shell + sub-routes ===
 import { CapacityManagement } from '@/modules/capacity/CapacityManagement';
 import { CapacityWorkspace } from '@/modules/capacity/CapacityWorkspace';
