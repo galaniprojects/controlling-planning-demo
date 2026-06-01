@@ -452,7 +452,7 @@ TECH_NAV_SCORES: dict[str, dict] = {
         "value_creation":  {"financial": 5, "payback": 3, "competitive": 4},
         "project_type": 2, "transformation_level": "T2",
     },
-    # --- Backlog expansion (v6) — 16 pre-execution projects ----------------
+    # --- Backlog expansion — 16 pre-execution projects ----------------
     "proj-sapupg": {
         "complexity":      {"standardization": 4, "usage": 4, "maintenance": 3},
         "value_creation":  {"financial": 5, "payback": 4, "competitive": 4},

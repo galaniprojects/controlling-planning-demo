@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { useRole } from '@/contexts/RoleContext';
 import { milestonesApi } from '@/api/endpoints';
 import type {
   MilestoneResponse,
@@ -129,6 +130,9 @@ export function ApprovalMilestonesTab({
   onDirtyChange,
   onSaved,
 }: Props) {
+  const { context } = useRole();
+  const role = context?.role;
+
   // -------------------------------------------------------------------------
   // Approval buffer — AI Council fields + transformation_level
   // -------------------------------------------------------------------------
@@ -301,12 +305,19 @@ export function ApprovalMilestonesTab({
   const gateMet = pipeline?.gate_status?.can_advance ?? false;
   const approved = (currentDoi ?? 0) >= 3;
   const nextDoi = pipeline?.gate_status?.next_doi ?? null;
+  // A Project Lead may only advance their own project up to DoI 2 (server gate
+  // at projects_define.py::_apply_doi_advance) — don't offer a button that
+  // would only 403 for them. Controllers can advance to any DoI.
+  const plAdvanceBlocked = role === 'project_lead' && (nextDoi ?? 0) > 2;
   // The button drives the forward gate transition; visible to the owning PL
-  // (gated to DoI 2 server-side) and controllers (any DoI). Disabled while the
-  // AI Council / transformation buffer has unsaved edits so the advance never
-  // races a pending Save.
+  // (up to DoI 2) and controllers (any DoI). Disabled while the AI Council /
+  // transformation buffer has unsaved edits so the advance never races a Save.
   const canAdvance =
-    gateMet && !readOnly && nextDoi !== null && Boolean(projectId);
+    gateMet &&
+    !readOnly &&
+    nextDoi !== null &&
+    Boolean(projectId) &&
+    !plAdvanceBlocked;
   const targetStageLabel =
     nextDoi === null
       ? ''
@@ -484,7 +495,9 @@ export function ApprovalMilestonesTab({
             : gateMet
               ? canAdvance
                 ? `All DoI requirements are satisfied. Advancing moves the project to ${targetStageLabel} (DoI ${nextDoi}).`
-                : 'All DoI requirements are satisfied. A controller or the assigned project lead can advance from here.'
+                : plAdvanceBlocked
+                  ? 'All DoI requirements are satisfied. A controller can advance the project beyond DoI 2.'
+                  : 'All DoI requirements are satisfied. A controller or the assigned project lead can advance from here.'
               : pipeline?.gate_status?.missing_fields &&
                 pipeline.gate_status.missing_fields.length > 0
                 ? `Still missing: ${pipeline.gate_status.missing_fields.join(', ')}.`

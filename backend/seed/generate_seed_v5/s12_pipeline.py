@@ -63,7 +63,7 @@ PIPELINE_STATE: list[tuple] = [
     # Enterprise Unified Workspace offering (off-eunify); 18 % distribution edge
     # confirms the dependency.  run_entity_id → off-eunify (Offering).
     ("proj-iam-run",      "Run entity spawned", 5, True,  None, True,  None, "off-eunify"),
-    # --- Backlog expansion (v6) — 9 Proposed, 5 Under Evaluation, 2 Approved.
+    # --- Backlog expansion — 9 Proposed, 5 Under Evaluation, 2 Approved.
     #     within_cutoff is re-derived at load time by the ranking recompute;
     #     the True seed value is a placeholder.
     ("proj-cloudmig",     "Proposed",           0, False, None, True,  None, None),

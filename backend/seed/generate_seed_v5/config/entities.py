@@ -11,11 +11,12 @@ Identifier formats per [F-DM-01] and ``schemas/chargeable_entity.py``:
 WBS is derived algorithmically from the identifier per [F-DM-03]; never stored.
 
 The entity counts (per [F-DG-03]):
-- 11 projects (9 Change-stage projects across DoI 0–3 + 2 Run-stage projects at DoI 5)
+- 27 projects (25 Change-stage projects across DoI 0–3 + 2 Run-stage projects at
+  DoI 5) — the original 11 plus the 16 backlog-expansion projects below
 - 6 offerings (Master Data Hub flagship + 5 supporting)
 - 17 internal services
 
-Total: 34 chargeable entities.
+Total: 50 chargeable entities.
 
 Hierarchy mappings reference the IDs declared in ``config/master.py`` and
 emitted by ``s02_grouping_entities``:
@@ -26,7 +27,7 @@ Tier-2 program children: ``he-tbs-prog-dbp``, ``he-tbs-prog-fleet``,
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
-# 11 Projects — 9 Change-stage (DoI 0–3) + 2 Run-stage (DoI 5).
+# 27 Projects — 25 Change-stage (DoI 0–3) + 2 Run-stage (DoI 5).
 #
 # Fields:
 #   id              v5-style python id; underlying Project.id and ChargeableEntity.id share this value
@@ -245,7 +246,7 @@ PROJECTS: list[dict] = [
         "narrative": "DoI 5 Operate — feeds Master Data Hub 12% upstream.",
     },
     # =======================================================================
-    # Backlog expansion (v6) — 16 pre-execution projects to demonstrate the
+    # Backlog expansion — 16 pre-execution projects to demonstrate the
     # ranked backlog + cutoff line. Mostly Proposed/Under-Evaluation with a
     # few Approved; a handful of P3 (pre-funded) to populate that section.
     # Financials-free by design (no PROJECT_STAFFING/EXTERNALS entries) so
