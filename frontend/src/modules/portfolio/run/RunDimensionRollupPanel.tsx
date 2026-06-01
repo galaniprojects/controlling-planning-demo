@@ -1,18 +1,17 @@
 /**
- * RunDimensionRollupPanel — compact rollup summary for a single dimension
+ * RunDimensionRollupPanel — compact rollup summary for a single geo dimension
  * (region / division / country) embedded in the Run Portfolio sub-module per
  * [E-11].
  *
- * Reuses the F5 rollup query backend (`chargingApi.getRollup`) but renders a
- * dense, single-dimension list rather than the full map+tree view. Filters
- * the rows down to entities classified as Run by the backend
- * (`is_change_or_run = 'Run'`) by intersecting the rollup against the active
- * Run-portfolio entity set passed from `RunPortfolioTab`.
+ * Calls the F5 rollup endpoint (`chargingApi.getRollup`) with
+ * `change_or_run='run'` so the backend scopes to the Run population
+ * (Offerings + InternalServices) and resolves the geo dimension server-side
+ * via the entity's Stage-2 BTC distribution across charging locations —
+ * rendering a dense, single-dimension list rather than the full map+tree view.
  *
- * Each row shows the dimension value, the effective cost (own + Σ inflows
- * per [F-S1-01..05]), and a horizontal share-of-total indicator. The panel
- * collapses into an empty-state when no entities contribute (e.g. the F5
- * rollup tables are empty for the year).
+ * Each row shows the dimension value, the BTC-allocated cost, and a
+ * horizontal share-of-total indicator. The panel collapses into an empty-state
+ * when no entities contribute (e.g. the rollup tables are empty for the year).
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
@@ -25,15 +24,6 @@ interface Props {
   title: string;
   groupBy: Extract<RollupGroupBy, 'region' | 'division' | 'country'>;
   year: number;
-  /**
-   * Optional entity-id allow-list. When provided the panel filters rollup
-   * rows whose `group_key` is not in the allow-list out — used here to scope
-   * the rollup to Run-portfolio entities only. The rollup endpoint itself
-   * does not aggregate at the entity level for these dimensions, so we
-   * approximate by re-running the entity-level rollup and grouping
-   * client-side. See `aggregateEntityRollup` below.
-   */
-  entityIds?: string[];
 }
 
 interface AggregatedRow {
@@ -43,15 +33,8 @@ interface AggregatedRow {
   entity_count: number;
 }
 
-/**
- * Aggregate an `entity` group_by rollup response into the requested
- * dimension. Used as the fallback when an `entityIds` allow-list narrows
- * the rollup below what the dimension-grouped endpoint can serve.
- *
- * For demo purposes the dimension key is read directly from the entity's
- * existing rollup `group_label` (which is the entity name) — we re-fetch
- * one of the dimension-grouped responses when no allow-list is provided.
- */
+// The server returns the rollup already aggregated by the requested geo
+// dimension; this just sorts by cost and keeps the top-N for the compact panel.
 function topRows(rows: AggregatedRow[], n = 6): AggregatedRow[] {
   return [...rows]
     .sort((a, b) => b.effective_cost - a.effective_cost)
@@ -62,7 +45,6 @@ export function RunDimensionRollupPanel({
   title,
   groupBy,
   year,
-  entityIds,
 }: Props) {
   const [rows, setRows] = useState<RollupRowItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +56,7 @@ export function RunDimensionRollupPanel({
     setLoading(true);
     setError(null);
     chargingApi
-      .getRollup({ year, group_by: groupBy, version: 'forecast' })
+      .getRollup({ year, group_by: groupBy, version: 'forecast', change_or_run: 'run' })
       .then((res) => {
         if (cancelled) return;
         setRows(res.rows);
@@ -94,19 +76,16 @@ export function RunDimensionRollupPanel({
     };
   }, [year, groupBy]);
 
-  const aggregated = useMemo<AggregatedRow[]>(() => {
-    // The dimension-grouped rollup endpoint is already cross-entity; for the
-    // Run-scope panel we surface the top-N rows as-is. The `entityIds`
-    // allow-list is a future hook the backend will honour once F5 supports a
-    // Change/Run filter (tracked as a follow-up — see PROGRESS.md).
-    void entityIds;
-    return rows.map((r) => ({
-      key: r.group_key,
-      label: r.group_label || '(unknown)',
-      effective_cost: r.effective_cost,
-      entity_count: r.entity_count,
-    }));
-  }, [rows, entityIds]);
+  const aggregated = useMemo<AggregatedRow[]>(
+    () =>
+      rows.map((r) => ({
+        key: r.group_key,
+        label: r.group_label || '(unknown)',
+        effective_cost: r.effective_cost,
+        entity_count: r.entity_count,
+      })),
+    [rows],
+  );
 
   const top = topRows(aggregated, 6);
   const max = top.reduce((m, r) => Math.max(m, r.effective_cost), 0) || 1;
@@ -165,7 +144,7 @@ export function RunDimensionRollupPanel({
         </div>
       )}
       <p className="text-[10px] text-muted-foreground border-t border-border/60 pt-2">
-        Effective cost = own + Σ inflows per [F-S1-01..05].
+        Cost released to KB business via BTC per [F-S2-01..08].
       </p>
     </Card>
   );

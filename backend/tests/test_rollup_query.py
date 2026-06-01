@@ -71,6 +71,17 @@ def _make_cl(db, cl_id="cl-a", code="DE-A-001"):
     return cl
 
 
+def _make_geo_cl(db, cl_id, code, *, region_id=None, country_id=None, division=None):
+    """Charging location wired to region / country / division for geo tests."""
+    cl = ChargingLocation(
+        id=cl_id, code=code, name=f"Test {code}", division=division,
+        region_id=region_id, country_id=country_id, is_active=True,
+    )
+    db.add(cl)
+    db.flush()
+    return cl
+
+
 # ---------------------------------------------------------------------------
 # query_rollup — per-dimension aggregations
 # ---------------------------------------------------------------------------
@@ -321,3 +332,135 @@ class TestGetLocationBreakdown:
         result = get_location_breakdown(db, "cl-muc", 2026, v.id)
         assert result.chargeable_entities == []
         assert result.total_amount_eur == 0.0
+
+
+# ---------------------------------------------------------------------------
+# query_rollup — geo dimensions (Stage 2 / BTC distribution)
+# ---------------------------------------------------------------------------
+
+
+def _setup_geo_fixture(db):
+    """Two entities releasing to business, split across an EMEA and an APAC
+    charging location. ce-0 (annual 100000, to_business 50%) → business 50000:
+    Munich 60% = 30000, Shanghai 40% = 20000. ce-1 (annual 200000, to_business
+    10%) → business 20000: Munich 60% = 12000, Shanghai 40% = 8000.
+    """
+    db.add_all([
+        Region(id="reg-emea", code="EMEA", name="EMEA"),
+        Region(id="reg-apac", code="APAC", name="APAC"),
+        Country(id="ctry-de", iso_code="DE", name="Germany"),
+        Country(id="ctry-cn", iso_code="CN", name="China"),
+    ])
+    db.flush()
+    _make_geo_cl(db, "cl-muc", "DE-MUC", region_id="reg-emea",
+                 country_id="ctry-de", division="Operations")
+    _make_geo_cl(db, "cl-sha", "CN-SHA", region_id="reg-apac",
+                 country_id="ctry-cn", division="Engineering")
+    entities = _setup_entities(db, count=2)
+    entities[0].to_business_pct = 50.0   # ce-0
+    entities[1].to_business_pct = 10.0   # ce-1
+    db.flush()
+    _make_btc_profile(db, "ce-0", 2026, [("cl-muc", 60), ("cl-sha", 40)])
+    _make_btc_profile(db, "ce-1", 2026, [("cl-muc", 60), ("cl-sha", 40)])
+    db.commit()
+
+
+class TestQueryRollupGeo:
+    def test_region_buckets_distinct_and_btc_weighted(self, db):
+        v = _make_version(db)
+        _setup_geo_fixture(db)
+        result = query_rollup(db, 2026, v.id, group_by="region")
+        by_key = {r.group_key: r for r in result.rows}
+        # Real geo buckets — NOT the entity_type stub that caused the bug.
+        assert set(by_key) == {"reg-emea", "reg-apac"}
+        assert "Offering" not in by_key and "InternalService" not in by_key
+        # EMEA = 30000 + 12000; APAC = 20000 + 8000.
+        assert abs(by_key["reg-emea"].effective_cost - 42000.0) < 0.01
+        assert abs(by_key["reg-apac"].effective_cost - 28000.0) < 0.01
+        assert by_key["reg-emea"].group_label == "EMEA"
+        assert by_key["reg-emea"].entity_count == 2
+
+    def test_country_and_division_are_distinct_dimensions(self, db):
+        v = _make_version(db)
+        _setup_geo_fixture(db)
+        countries = {r.group_key for r in
+                     query_rollup(db, 2026, v.id, group_by="country").rows}
+        divisions = {r.group_label for r in
+                     query_rollup(db, 2026, v.id, group_by="division").rows}
+        assert countries == {"ctry-de", "ctry-cn"}
+        assert divisions == {"Operations", "Engineering"}
+
+    def test_grand_total_reconciles_across_geo_dims(self, db):
+        v = _make_version(db)
+        _setup_geo_fixture(db)
+        # Total released-to-business is invariant to the geo split chosen.
+        region_total = query_rollup(db, 2026, v.id, group_by="region").grand_total_effective
+        country_total = query_rollup(db, 2026, v.id, group_by="country").grand_total_effective
+        assert abs(region_total - 70000.0) < 0.01
+        assert abs(region_total - country_total) < 0.01
+
+    def test_entity_without_profile_contributes_zero(self, db):
+        v = _make_version(db)
+        db.add(Region(id="reg-emea", code="EMEA", name="EMEA"))
+        db.flush()
+        _make_geo_cl(db, "cl-muc", "DE-MUC", region_id="reg-emea")
+        ents = _setup_entities(db, count=1)
+        ents[0].to_business_pct = 50.0
+        db.flush()
+        db.commit()  # no BTC profile created
+        result = query_rollup(db, 2026, v.id, group_by="region")
+        assert result.rows == []
+        assert result.grand_total_effective == 0.0
+
+    def test_location_without_region_falls_into_unassigned(self, db):
+        v = _make_version(db)
+        _make_geo_cl(db, "cl-orphan", "XX-ORP")  # no region_id
+        ents = _setup_entities(db, count=1)
+        ents[0].to_business_pct = 50.0
+        db.flush()
+        _make_btc_profile(db, "ce-0", 2026, [("cl-orphan", 100)])
+        db.commit()
+        result = query_rollup(db, 2026, v.id, group_by="region")
+        assert [r.group_label for r in result.rows] == ["(Unassigned)"]
+
+
+# ---------------------------------------------------------------------------
+# query_rollup — change_or_run population scope (VIPER §5)
+# ---------------------------------------------------------------------------
+
+
+class TestQueryRollupChangeOrRunScope:
+    def _seed_mixed(self, db):
+        # _setup_entities makes i<2 → Offering; add a Project explicitly.
+        _setup_entities(db, count=2)
+        db.add(ChargeableEntity(
+            id="ce-proj", entity_type="Project", identifier="IT099999",
+            name="A Project", to_business_pct=0.0, is_active=True,
+            annual_cost=50000.0,
+        ))
+        db.flush()
+        db.commit()
+
+    def test_run_scope_excludes_projects(self, db):
+        v = _make_version(db)
+        self._seed_mixed(db)
+        result = query_rollup(
+            db, 2026, v.id, group_by="entity_type", change_or_run="run",
+        )
+        keys = {r.group_key for r in result.rows}
+        assert "Project" not in keys
+        assert keys <= {"Offering", "InternalService"}
+
+    def test_change_scope_keeps_only_projects(self, db):
+        v = _make_version(db)
+        self._seed_mixed(db)
+        result = query_rollup(
+            db, 2026, v.id, group_by="entity_type", change_or_run="change",
+        )
+        keys = {r.group_key for r in result.rows}
+        assert keys == {"Project"}
+
+    def test_invalid_change_or_run_raises(self, db):
+        v = _make_version(db)
+        with pytest.raises(ValueError, match="Unsupported change_or_run"):
+            query_rollup(db, 2026, v.id, group_by="entity_type", change_or_run="banana")

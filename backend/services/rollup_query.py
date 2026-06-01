@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargingLocation, ChargeableEntity,
-    LegalEntity, Region,
+    Country, LegalEntity, Region,
 )
 
 
@@ -137,6 +137,146 @@ SUPPORTED_DIMS = {
     "stage",
 }
 
+# Dimensions that are NOT an attribute of the entity row but a *distribution*
+# of the entity's to-business cost across charging locations (Stage 2 / BTC).
+# An entity fans into one bucket per active BTC profile line, weighted by the
+# line percentage — see ``_geo_groups`` below. This mirrors the canonical
+# per-entity breakdown in ``query_entity_allocation_breakdown`` and the
+# Charging module's ``useChargingRollupData`` so totals reconcile.
+GEO_DIMS = {"charging_location", "legal_entity", "region", "division", "country"}
+
+# The ``is_change_or_run`` classification (models/charging.py) is purely
+# entity-type based: ``Project`` ⇒ Change, *every other* type ⇒ Run (VIPER §5).
+# A rollup is scoped to one population at the DB level — the property itself is
+# Python-only and cannot be filtered in SQL. Deriving both predicates from the
+# single ``Project`` constant (rather than enumerating the Run types) keeps this
+# in lockstep with the property should a fourth entity type ever be added.
+_CHANGE_ENTITY_TYPE = "Project"
+
+
+# ---------------------------------------------------------------------------
+# Geo aggregation (Stage 2 / BTC distribution)
+# ---------------------------------------------------------------------------
+
+def _geo_groups(
+    db: Session,
+    year: int,
+    version_id: int,
+    entities: list[ChargeableEntity],
+    dim: str,
+    cost_by_entity: dict[str, dict],
+) -> dict[str, dict]:
+    """Aggregate Stage-2 (BTC) to-business cost into geo buckets.
+
+    For each entity ``business_amount = effective_cost × to_business_pct / 100``;
+    for each line of its active BTC profile ``amount = business_amount ×
+    percentage / 100``, bucketed by the line's charging location's ``region`` /
+    ``country`` / ``division`` / location / representative legal entity. The
+    formula matches ``query_entity_allocation_breakdown`` (and the Charging
+    module's ``useChargingRollupData``); this aggregation rounds once at the
+    bucket total rather than per line, so a bucket reconciles with the
+    per-entity breakdown to within sub-cent rounding. Entities with no active
+    profile, or no to-business release, contribute nothing.
+
+    Returns a ``{group_key: group-dict}`` map in the same shape the shared
+    ``query_rollup`` tail consumes; the allocated EUR amount lands in
+    ``effective_cost`` (own_cost / inflow_total are not meaningful per geo
+    bucket and stay 0).
+    """
+    if not entities:
+        return {}
+
+    entity_ids = [e.id for e in entities]
+
+    profiles = (
+        db.query(BTCProfile)
+        .filter(
+            BTCProfile.entity_id.in_(entity_ids),
+            BTCProfile.year == year,
+            BTCProfile.status == "active",
+        )
+        .all()
+    )
+    profile_by_entity = {p.entity_id: p for p in profiles}
+
+    # Batch-load charging locations referenced by any line (+ region/country
+    # via their relationships).
+    cl_ids = {line.charging_location_id for p in profiles for line in p.lines}
+    cls: dict[str, ChargingLocation] = {}
+    if cl_ids:
+        cls = {
+            cl.id: cl
+            for cl in db.query(ChargingLocation)
+            .filter(ChargingLocation.id.in_(cl_ids)).all()
+        }
+
+    # Representative active legal entity per charging location — the first by
+    # ``code`` (deterministic, matching ``get_location_breakdown``). Only needed
+    # for the legal_entity dimension.
+    le_by_cl: dict[str, tuple[str, str]] = {}
+    if cl_ids and dim == "legal_entity":
+        for le in (
+            db.query(LegalEntity)
+            .filter(
+                LegalEntity.charging_location_id.in_(cl_ids),
+                LegalEntity.is_active.is_(True),
+            ).order_by(LegalEntity.code).all()
+        ):
+            clid = le.charging_location_id
+            if clid and clid not in le_by_cl:
+                le_by_cl[clid] = (le.id, le.name)
+
+    def _bucket(cl: Optional[ChargingLocation]) -> tuple[str, str]:
+        if dim == "region":
+            if cl is not None and cl.region_id:
+                return cl.region_id, (cl.region.name if cl.region else cl.region_id)
+        elif dim == "country":
+            if cl is not None and cl.country_id:
+                return cl.country_id, (cl.country.name if cl.country else cl.country_id)
+        elif dim == "division":
+            if cl is not None and cl.division:
+                return cl.division, cl.division
+        elif dim == "charging_location":
+            if cl is not None:
+                return cl.id, (cl.name or cl.id)
+        elif dim == "legal_entity":
+            le = le_by_cl.get(cl.id) if cl is not None else None
+            if le is not None:
+                return le[0], le[1]
+        return "__none__", "(Unassigned)"
+
+    groups: dict[str, dict] = {}
+    seen: dict[str, set] = {}
+    for ent in entities:
+        profile = profile_by_entity.get(ent.id)
+        if profile is None:
+            continue
+        eff = float(cost_by_entity.get(ent.id, {}).get("effective_cost", 0.0))
+        business_amount = eff * float(ent.to_business_pct or 0.0) / 100.0
+        if business_amount == 0:
+            continue
+        for line in profile.lines:
+            cl = cls.get(line.charging_location_id)
+            amount = business_amount * float(line.percentage) / 100.0
+            key, label = _bucket(cl)
+            g = groups.get(key)
+            if g is None:
+                g = {
+                    "group_key": key,
+                    "group_label": label,
+                    "entity_count": 0,
+                    "effective_cost": 0.0,
+                    "own_cost": 0.0,
+                    "inflow_total": 0.0,
+                }
+                groups[key] = g
+                seen[key] = set()
+            g["effective_cost"] += amount
+            if ent.id not in seen[key]:
+                seen[key].add(ent.id)
+                g["entity_count"] += 1
+    return groups
+
 
 # ---------------------------------------------------------------------------
 # Main rollup query
@@ -149,6 +289,7 @@ def query_rollup(
     *,
     group_by: str = "entity_type",
     entity_type: Optional[str] = None,
+    change_or_run: Optional[str] = None,
     is_active: bool = True,
     limit: int = 500,
 ) -> RollupListResponse:
@@ -157,6 +298,17 @@ def query_rollup(
     Fetches all active chargeable entities matching the optional filters,
     resolves their effective costs (via cache against ``version_id``), and
     aggregates by the chosen dimension.
+
+    ``change_or_run`` (optional) scopes the population to one classification
+    per VIPER §5: ``'run'`` keeps Offerings + InternalServices, ``'change'``
+    keeps Projects. Applied at the DB level via ``entity_type`` since
+    ``is_change_or_run`` is a computed property.
+
+    For the geo dimensions (region / division / country / charging_location /
+    legal_entity — see GEO_DIMS) cost is not an entity attribute but the
+    entity's to-business amount distributed across charging locations via its
+    active BTC profile; one entity fans into multiple buckets weighted by the
+    profile-line percentages.
 
     Supported ``group_by`` values: see SUPPORTED_DIMS.
     """
@@ -171,6 +323,17 @@ def query_rollup(
     q = db.query(ChargeableEntity)
     if entity_type is not None:
         q = q.filter(ChargeableEntity.entity_type == entity_type)
+    if change_or_run is not None:
+        cor = change_or_run.strip().lower()
+        if cor == "run":
+            q = q.filter(ChargeableEntity.entity_type != _CHANGE_ENTITY_TYPE)
+        elif cor == "change":
+            q = q.filter(ChargeableEntity.entity_type == _CHANGE_ENTITY_TYPE)
+        else:
+            raise ValueError(
+                f"Unsupported change_or_run '{change_or_run}'. "
+                "Valid options: 'change', 'run'.",
+            )
     if is_active:
         q = q.filter(ChargeableEntity.is_active.is_(True))
     entities = q.all()
@@ -213,30 +376,34 @@ def query_rollup(
                 stage = ent.project.pipeline_stage or "Unknown"
                 return stage, stage
             return "Run", "Run (Steady State)"
-        if dim == "division":
-            return ent.entity_type, ent.entity_type
-        if dim in ("charging_location", "legal_entity", "region", "country"):
-            return ent.entity_type, ent.entity_type
+        # Geo dimensions (GEO_DIMS) are handled by ``_geo_groups`` — they are a
+        # distribution across charging locations, not an entity attribute, so
+        # they never reach this single-bucket resolver.
         return "__unknown__", "(Unknown)"
 
     # Aggregate.
-    groups: dict[str, dict] = {}
-    for ent in entities[:limit]:
-        key, label = _dim_key_label(ent, group_by)
-        costs = cost_by_entity.get(ent.id, {"effective_cost": 0, "own_cost": 0, "inflow_total": 0})
-        if key not in groups:
-            groups[key] = {
-                "group_key": key,
-                "group_label": label,
-                "entity_count": 0,
-                "effective_cost": 0.0,
-                "own_cost": 0.0,
-                "inflow_total": 0.0,
-            }
-        groups[key]["entity_count"] += 1
-        groups[key]["effective_cost"] += float(costs.get("effective_cost", 0))
-        groups[key]["own_cost"] += float(costs.get("own_cost", 0))
-        groups[key]["inflow_total"] += float(costs.get("inflow_total", 0))
+    if group_by in GEO_DIMS:
+        groups = _geo_groups(
+            db, year, version_id, entities[:limit], group_by, cost_by_entity,
+        )
+    else:
+        groups = {}
+        for ent in entities[:limit]:
+            key, label = _dim_key_label(ent, group_by)
+            costs = cost_by_entity.get(ent.id, {"effective_cost": 0, "own_cost": 0, "inflow_total": 0})
+            if key not in groups:
+                groups[key] = {
+                    "group_key": key,
+                    "group_label": label,
+                    "entity_count": 0,
+                    "effective_cost": 0.0,
+                    "own_cost": 0.0,
+                    "inflow_total": 0.0,
+                }
+            groups[key]["entity_count"] += 1
+            groups[key]["effective_cost"] += float(costs.get("effective_cost", 0))
+            groups[key]["own_cost"] += float(costs.get("own_cost", 0))
+            groups[key]["inflow_total"] += float(costs.get("inflow_total", 0))
 
     rows = [
         RollupRow(
