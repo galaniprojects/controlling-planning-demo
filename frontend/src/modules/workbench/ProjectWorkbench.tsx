@@ -292,7 +292,7 @@ function WorkbenchContent({
       <ProjectWorkspace
         projectId={focal.project_id}
         role={role}
-        status={projects.find((p) => p.id === focal.project_id)?.status}
+        status={projects.find((p) => p.id === focal.project_id)?.review_state ?? undefined}
       />
     );
   }

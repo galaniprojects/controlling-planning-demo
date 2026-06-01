@@ -370,7 +370,8 @@ export interface WorkbenchProjectListItem {
   name: string;
   rag: string | null;
   type: string;
-  status: string;
+  pipeline_stage: string | null;
+  review_state: string | null;
   is_service: boolean;
 }
 
@@ -379,7 +380,8 @@ export interface ProjectMetadata {
   name: string;
   lob: string;
   hierarchy_path?: { type_name: string; entity_name: string }[];
-  status: string;
+  pipeline_stage: string | null;
+  review_state: string | null;
   rag: string | null;
   timeline: {
     start: string | null;
@@ -387,6 +389,11 @@ export interface ProjectMetadata {
     projected_end: string | null;
   };
   pl_name: string | null;
+  pending_cr?: {
+    cr_id: number;
+    status: string;
+    submitted_at: string | null;
+  } | null;
 }
 
 export interface ThreePointComparison {
@@ -880,7 +887,8 @@ export interface ProjectAssignmentDetail {
     pl_name: string | null;
     start_month: string;
     end_month: string | null;
-    status: string;
+    pipeline_stage: string | null;
+    review_state: string | null;
   };
   cost_center_id: string | null;
   requests: ProjectAssignmentRequestItem[];
@@ -1173,7 +1181,8 @@ export interface CapacityProjectExternalCost {
 export interface CapacityProjectItem {
   project_id: string;
   project_name: string;
-  project_status: string | null;
+  project_pipeline_stage: string | null;
+  project_review_state: string | null;
   hierarchy_node_id: string | null;
   hierarchy_node_name: string | null;
   pl_person_id: string | null;

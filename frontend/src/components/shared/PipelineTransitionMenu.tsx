@@ -99,6 +99,17 @@ export function PipelineTransitionMenu({
       setPendingTransition(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Transition failed');
+      // A direct (no-reason) transition that fails — e.g. a stage-entry or
+      // DoI gate block — would otherwise show its error inside the now-closed
+      // dropdown. Surface it in the override dialog so the user can see why and
+      // optionally override with a reason.
+      if (reason === undefined && !pendingTransition) {
+        setPendingTransition({
+          target_stage: target,
+          label: `Move to ${target}`,
+          requiresReason: true,
+        });
+      }
     } finally {
       setSubmitting(false);
     }

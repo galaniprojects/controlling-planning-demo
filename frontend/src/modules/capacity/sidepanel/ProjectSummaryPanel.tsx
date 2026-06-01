@@ -317,8 +317,8 @@ function ProjectSummaryPanelContent({
             </span>
           )}
           {item.pl_name && <span>PL: {item.pl_name}</span>}
-          {item.project_status && (
-            <span className="capitalize">· {item.project_status}</span>
+          {item.project_pipeline_stage && (
+            <span className="capitalize">· {item.project_pipeline_stage}</span>
           )}
         </div>
       </div>

@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
 import { DoIBadge } from '@/components/shared/DoIBadge';
+import { PipelineStageBadge } from '@/components/shared/PipelineStageBadge';
 import { PipelineTransitionMenu } from '@/components/shared/PipelineTransitionMenu';
 import { cn } from '@/lib/utils';
 import type { PipelineState } from '@/types/pipeline';
@@ -102,7 +103,12 @@ export function DefineShell({
           <span className="inline-flex items-center gap-3">
             <span className="truncate max-w-[60ch]">{titleText}</span>
             {pipeline ? (
-              <DoIBadge doi={currentDoi} />
+              <span className="inline-flex items-center gap-2">
+                {pipeline.pipeline_stage && (
+                  <PipelineStageBadge stage={pipeline.pipeline_stage} />
+                )}
+                <DoIBadge doi={currentDoi} />
+              </span>
             ) : (
               <Badge variant="outline" className="text-xs">
                 {projectId ? '…' : 'New'}

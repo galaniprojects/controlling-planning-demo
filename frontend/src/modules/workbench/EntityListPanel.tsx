@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { EntityTypeBadge } from '@/components/shared/EntityTypeBadge';
+import { PipelineStageBadge } from '@/components/shared/PipelineStageBadge';
 import { cn } from '@/lib/utils';
 import { PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react';
 import type {
@@ -47,7 +48,8 @@ export type WorkbenchEntityRow =
       name: string;
       type: ChargeableEntityType; // 'Project'
       rag?: string | null;
-      status?: string;
+      pipeline_stage?: string | null;
+      review_state?: string | null;
     }
   | {
       kind: 'service';
@@ -57,30 +59,21 @@ export type WorkbenchEntityRow =
       type: ChargeableEntityType; // 'Offering' | 'InternalService'
     };
 
-const STATUS_LABELS: Record<string, string> = {
-  active: 'Active',
-  completed: 'Completed',
-  planned: 'Planned',
-  draft: 'Draft',
+// Review sub-state badge (shown alongside the pipeline stage when a project is
+// mid intake/submission review). Lifecycle stage now renders via PipelineStageBadge.
+const REVIEW_LABELS: Record<string, string> = {
   pending_cc_confirmation: 'CC Review',
   pending_approval: 'Pending',
   changes_requested: 'Changes Req.',
-  rejected: 'Rejected',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  active: 'bg-muted text-muted-foreground hover:bg-muted',
-  completed: 'bg-muted text-muted-foreground hover:bg-muted',
-  planned: 'bg-muted text-muted-foreground hover:bg-muted',
-  draft:
-    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40',
+const REVIEW_COLORS: Record<string, string> = {
   pending_cc_confirmation:
     'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40',
   pending_approval:
     'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40',
   changes_requested:
     'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40',
-  rejected: 'bg-muted text-muted-foreground hover:bg-muted',
 };
 
 type Filter = 'all' | ChargeableEntityType;
@@ -264,14 +257,17 @@ export function EntityListPanel({
                   </div>
                   <div className="flex items-center gap-1.5 mt-1">
                     <EntityTypeBadge type={row.type} />
-                    {row.kind === 'project' && row.status && (
+                    {row.kind === 'project' && row.pipeline_stage && (
+                      <PipelineStageBadge stage={row.pipeline_stage} />
+                    )}
+                    {row.kind === 'project' && row.review_state && (
                       <Badge
                         className={cn(
                           'text-[10px] px-1.5 py-0 h-4',
-                          STATUS_COLORS[row.status] ?? STATUS_COLORS.active,
+                          REVIEW_COLORS[row.review_state] ?? '',
                         )}
                       >
-                        {STATUS_LABELS[row.status] ?? row.status}
+                        {REVIEW_LABELS[row.review_state] ?? row.review_state}
                       </Badge>
                     )}
                     {row.identifier && (
@@ -316,7 +312,7 @@ export function buildEntityRows(
 
   const droppedProjectIds: string[] = [];
   const projectRows: WorkbenchEntityRow[] = projects
-    .map((p) => {
+    .map((p): WorkbenchEntityRow | null => {
       const ent = entityByProjectId.get(p.id);
       if (!ent) {
         droppedProjectIds.push(p.id);
@@ -330,7 +326,8 @@ export function buildEntityRows(
         name: p.name,
         type: 'Project' as ChargeableEntityType,
         rag: p.rag ?? null,
-        status: p.status,
+        pipeline_stage: p.pipeline_stage ?? null,
+        review_state: p.review_state ?? null,
       };
     })
     .filter((r): r is WorkbenchEntityRow => r !== null);

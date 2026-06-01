@@ -111,9 +111,9 @@ export function ProjectHeader({ data }: ProjectHeaderProps) {
         <span>{fmtPeriod(project.start_month, project.end_month)}</span>
         <Badge
           variant="outline"
-          className={`rounded px-1.5 py-0 text-[10px] font-normal ${statusClass(project.status)}`}
+          className={`rounded px-1.5 py-0 text-[10px] font-normal ${statusClass(project.review_state ?? project.pipeline_stage ?? '')}`}
         >
-          {humanStatus(project.status)}
+          {humanStatus(project.review_state ?? project.pipeline_stage ?? '')}
         </Badge>
       </div>
 

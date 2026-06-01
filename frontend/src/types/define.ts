@@ -21,7 +21,7 @@ export interface ProjectDefineResponse {
   id: string;
   name: string;
   description: string | null;
-  status: string;
+  review_state: string | null;
   capex_opex: CapexOpex;
   start_month: string;          // YYYY-MM
   end_month: string | null;
