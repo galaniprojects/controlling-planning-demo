@@ -180,6 +180,35 @@ export function ApprovalMilestonesTab({
   const [milestonesLoading, setMilestonesLoading] = useState<boolean>(Boolean(projectId));
   const [milestonesError, setMilestonesError] = useState<string | null>(null);
 
+  // -------------------------------------------------------------------------
+  // DoI advance — forward gate transition driven from the readiness card.
+  // Reuses PUT /approval-milestones' advance_to_doi field so the backend
+  // applies the same role gate (PL <= DoI 2, controller any) + gate check.
+  // -------------------------------------------------------------------------
+  const [advancing, setAdvancing] = useState<boolean>(false);
+  const [advanceError, setAdvanceError] = useState<string | null>(null);
+
+  const handleAdvance = useCallback(
+    async (nextDoi: number) => {
+      if (!projectId) return;
+      setAdvancing(true);
+      setAdvanceError(null);
+      try {
+        const updated = await defineApi.updateApprovalMilestones(projectId, {
+          advance_to_doi: nextDoi,
+        });
+        onSaved?.(updated);
+      } catch (err) {
+        setAdvanceError(
+          err instanceof Error ? err.message : 'Failed to advance DoI.',
+        );
+      } finally {
+        setAdvancing(false);
+      }
+    },
+    [projectId, onSaved],
+  );
+
   const reloadMilestones = useCallback(async () => {
     if (!projectId) return;
     setMilestonesLoading(true);
@@ -271,6 +300,23 @@ export function ApprovalMilestonesTab({
   const currentDoi = pipeline?.gate_status?.current_doi ?? pipeline?.doi ?? null;
   const gateMet = pipeline?.gate_status?.can_advance ?? false;
   const approved = (currentDoi ?? 0) >= 3;
+  const nextDoi = pipeline?.gate_status?.next_doi ?? null;
+  // The button drives the forward gate transition; visible to the owning PL
+  // (gated to DoI 2 server-side) and controllers (any DoI). Disabled while the
+  // AI Council / transformation buffer has unsaved edits so the advance never
+  // races a pending Save.
+  const canAdvance =
+    gateMet && !readOnly && nextDoi !== null && Boolean(projectId);
+  const targetStageLabel =
+    nextDoi === null
+      ? ''
+      : nextDoi <= 0
+        ? 'Proposed'
+        : nextDoi <= 2
+          ? 'Under Evaluation'
+          : nextDoi === 3
+            ? 'Approved'
+            : 'Active';
 
   return (
     <div ref={containerRef} className="space-y-6">
@@ -397,32 +443,63 @@ export function ApprovalMilestonesTab({
               : 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20',
         )}
       >
-        <header className="flex items-center gap-2">
-          {approved ? (
-            <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
-          ) : gateMet ? (
-            <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
-          ) : (
-            <AlertCircle className="size-4 text-amber-600 dark:text-amber-400" />
-          )}
-          <h3 className="text-sm font-semibold text-foreground">
-            {approved
-              ? 'Project approved — ready for execution'
-              : gateMet
-                ? 'Ready to advance to the next DoI level'
-                : `DoI ${currentDoi ?? 0} → ${pipeline?.gate_status?.next_doi ?? '?'} pending`}
-          </h3>
+        <header className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {approved ? (
+              <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+            ) : gateMet ? (
+              <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <AlertCircle className="size-4 text-amber-600 dark:text-amber-400" />
+            )}
+            <h3 className="text-sm font-semibold text-foreground">
+              {approved
+                ? 'Project approved — ready for execution'
+                : gateMet
+                  ? 'Ready to advance to the next DoI level'
+                  : `DoI ${currentDoi ?? 0} → ${pipeline?.gate_status?.next_doi ?? '?'} pending`}
+            </h3>
+          </div>
+          {canAdvance ? (
+            <Button
+              size="sm"
+              onClick={() => handleAdvance(nextDoi as number)}
+              disabled={advancing || buffer.isDirty}
+              title={
+                buffer.isDirty
+                  ? 'Save the pending AI Council / level changes first.'
+                  : undefined
+              }
+            >
+              {advancing ? (
+                <Loader2 className="size-3.5 mr-1.5 animate-spin" aria-hidden />
+              ) : null}
+              {`Advance to DoI ${nextDoi}`}
+            </Button>
+          ) : null}
         </header>
         <p className="text-xs text-foreground/80">
           {approved
             ? 'Switch to the Workbench via the header action to plan the operational forecast.'
             : gateMet
-              ? 'All DoI requirements are satisfied. Use the pipeline transition in the Backlog to advance, or have a controller advance from this page.'
+              ? canAdvance
+                ? `All DoI requirements are satisfied. Advancing moves the project to ${targetStageLabel} (DoI ${nextDoi}).`
+                : 'All DoI requirements are satisfied. A controller or the assigned project lead can advance from here.'
               : pipeline?.gate_status?.missing_fields &&
                 pipeline.gate_status.missing_fields.length > 0
                 ? `Still missing: ${pipeline.gate_status.missing_fields.join(', ')}.`
                 : 'Awaiting more data before the gate can be evaluated.'}
         </p>
+        {canAdvance && buffer.isDirty ? (
+          <p className="text-[11px] text-amber-600 dark:text-amber-400">
+            Save the pending AI Council / transformation-level changes before advancing.
+          </p>
+        ) : null}
+        {advanceError ? (
+          <p className="text-[11px] text-red-600 dark:text-red-400">
+            {advanceError}
+          </p>
+        ) : null}
       </section>
 
       {/* Milestones list */}
