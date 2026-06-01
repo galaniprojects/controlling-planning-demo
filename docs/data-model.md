@@ -139,8 +139,8 @@ Central domain entity. Status lifecycle, CapEx/OpEx, Tech Navigator profile, v5 
 
 *Core identity & lifecycle:*
 - `id` String(50) PK, `name` String(300), `description` Text, `pl_person_id` FK → people (nullable, the Project Lead).
-- `status` String(30) NOT NULL — values: `draft` | `pending_cc_confirmation` | `pending_approval` | `active` | `planned` | `completed` | `rejected` | `changes_requested`.
-- `submission_feedback` Text — controller/CC Owner feedback for `changes_requested`.
+- `review_state` String(30) NULL — intake/submission review sub-state only: `pending_cc_confirmation` | `pending_approval` | `changes_requested` | NULL (not mid-review). **Orthogonal to `pipeline_stage`** (the lifecycle source of truth). Replaced the former overloaded `status` column (retired): the lifecycle values (draft/active/planned/completed/rejected) now live exclusively on `pipeline_stage`; readers use stage-group predicates (`BACKLOG_STAGES`/`EXECUTION_STAGES`/`TERMINAL_STAGES` in `services/pipeline.py`).
+- `submission_feedback` Text — controller/CC Owner feedback for the `changes_requested` review_state.
 - `rag_status` String(10) — `green` | `amber` | `red` | NULL (pending/draft).
 - `capex_opex` String(10) NOT NULL — `capex` | `opex`.
 - `start_month` String(7) `YYYY-MM` NOT NULL, `end_month` String(7) (nullable, NULL for services), `projected_end_month` String(7).
@@ -157,7 +157,7 @@ Central domain entity. Status lifecycle, CapEx/OpEx, Tech Navigator profile, v5 
 - `tshirt_size` String(2) — XS/S/M/L/XL, derived from `total_budget`. Sub-criterion weights, ranking weights, and t-shirt thresholds live in `PlanningParameter` rows under `param_group='tech_navigator'`.
 
 *v5 Session A2 lifecycle per `[A-PS-01]` `[A-DOI-01]`:*
-- `pipeline_stage` String(30) — working stage names per `[A-PS-02]`: `Proposed`, `Under Evaluation`, `Approved`, `Active`, `Hyper-maintenance`, `Completed`, `Run entity spawned`, `Paused`, `Cancelled`. **VIPER §2.3 (Wave 1):** `Operate` and `Retired` retired as project stages (a project never operates/retires — its spawned Run entity does); replaced by the two terminal stages `Completed` (no Run entity) and `Run entity spawned` (handed off, see `run_entity_id`). Seed rows migrated accordingly.
+- `pipeline_stage` String(30) NOT NULL (`server_default='Proposed'`) — **the single lifecycle source of truth** (non-null since the `status`-column retirement). Working stage names per `[A-PS-02]`: `Proposed`, `Under Evaluation`, `Approved`, `Active`, `Hyper-maintenance`, `Completed`, `Run entity spawned`, `Paused`, `Cancelled`. **VIPER §2.3 (Wave 1):** `Operate` and `Retired` retired as project stages (a project never operates/retires — its spawned Run entity does); replaced by the two terminal stages `Completed` (no Run entity) and `Run entity spawned` (handed off, see `run_entity_id`). Seed rows migrated accordingly.
 - `doi` Integer (0–5 per `[A-DOI-01]`).
 - `frozen_doi` Integer — preserved DoI for off-path stages (Paused/Cancelled) per `[A-PS-03]`.
 - `run_entity_id` String FK → `chargeable_entities.id` (nullable, `use_alter=True` to break the `projects ↔ chargeable_entities` create_all cycle) — **VIPER §7 (Wave 1).** Populated only when `pipeline_stage == 'Run entity spawned'`; points to the Offering / Internal Service that now carries the finished project's ongoing cost. Passive relationship `run_entity` (no back-populate — keeps the charging side read-only). **Wave 3 wires the router enforcement** (`POST /api/projects/{id}/pipeline/transition`): a transition to `Run entity spawned` requires a non-null `run_entity_id` (409 otherwise), the target must resolve (404 otherwise) and be an `Offering`/`InternalService`, never a `Project` (409 otherwise).
