@@ -1,6 +1,6 @@
 # VIPER Data Model Reference
 
-Canonical reference for all SQLAlchemy models in the VIPER Demo App. **66 models across 14 files** in `backend/models/`. Compiled directly from source — the `.py` files are authoritative; this doc is a navigable wrapper. Update this doc in the same commit that changes a model.
+Canonical reference for all SQLAlchemy models in the VIPER Demo App. **70 models across 14 files** in `backend/models/`. Compiled directly from source — the `.py` files are authoritative; this doc is a navigable wrapper. Update this doc in the same commit that changes a model.
 
 ## How to read this doc
 - **Per-model blocks** list only the *interesting* columns. Boilerplate (`id` PK autoincrement, `created_at`/`modified_at` timestamps) is omitted unless something is special about them.

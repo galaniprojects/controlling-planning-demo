@@ -194,6 +194,10 @@ SCENARIOS: list[dict] = [
         "archived": False,
         "tags": '["budget", "cross-portfolio", "executive-readout"]',
         "cc_owner_scope_cc_id": None,
+        # action_count counts conceptual levers (delay + accelerate + the DWH
+        # overlay descope = 3), consistent with projects_affected=3 which counts
+        # the overlay-only DWH project. Only 2 are ScenarioAction rows — the
+        # descope is Layer-2 overlay, not an action.
         "headline_impact": (
             '{"total_budget_delta": -58500, "action_count": 3, '
             '"projects_affected": 3}'

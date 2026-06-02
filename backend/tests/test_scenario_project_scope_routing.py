@@ -327,9 +327,7 @@ class TestMaterializeProvisionalCells:
                 ),
             ],
         )
-        n = materialize_provisional_cells(
-            db, sc, [grid], cycle_id="cyc-1", cycle_label="Q3 2026",
-        )
+        n = materialize_provisional_cells(db, sc, [grid])
         db.commit()
 
         assert n == 2
@@ -368,9 +366,7 @@ class TestMaterializeProvisionalCells:
                 cells={"2026-06": ResolvedCell(amount_eur=1234.0, hours=12.0)},
             )],
         )
-        materialize_provisional_cells(
-            db, sc, [grid], cycle_id=None, cycle_label=None,
-        )
+        materialize_provisional_cells(db, sc, [grid])
         db.commit()
         rows = (
             db.query(Forecast)

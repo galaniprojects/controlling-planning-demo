@@ -138,7 +138,7 @@ def apply_to_forecast(
             # is_provisional=True), instead of merely flagging existing cells.
             if a.project_id not in materialized:
                 materialized[a.project_id] = _materialize_project(
-                    db, scenario, a, cycle_id=cycle_id, cycle_label=cycle_label,
+                    db, scenario, a.project_id,
                 )
             cells_marked = materialized[a.project_id]
             summary.append({
@@ -155,6 +155,41 @@ def apply_to_forecast(
                 "project_id": a.project_id,
                 "status": "skipped",
                 "message": reason,
+            })
+            skipped += 1
+
+    # Overlay-only projects (spec §6): a project edited purely via the Layer-2
+    # overlay has no ScenarioAction to iterate above, so it would never carry
+    # forward. Enumerate the scenario's forecast overlay diffs and materialise
+    # the PL's own overlay-only projects (mirrors the promote path's
+    # _overlay_forecast_routes). Non-owned overlay is left behind.
+    from services.scenario_project_scope.routing import collect_overlay_diffs
+
+    overlay_projects: dict[str, bool] = {}  # project_id -> owned-by-this-PL
+    for d in collect_overlay_diffs(db, scenario):
+        if d.lever_category != "forecast_grid" or not d.project_id:
+            continue
+        if d.project_id in materialized:
+            continue  # already carried via an action above (dedupe)
+        overlay_projects.setdefault(d.project_id, d.project_id in pl_projects)
+    for pid, owned in overlay_projects.items():
+        if owned:
+            cells = _materialize_project(db, scenario, pid)
+            materialized[pid] = cells
+            summary.append({
+                "action_id": None,
+                "project_id": pid,
+                "status": "carried",
+                "message": "Layer-2 overlay edits carried forward (no action).",
+                "cells_marked_provisional": cells,
+            })
+            carried += 1
+        else:
+            summary.append({
+                "action_id": None,
+                "project_id": pid,
+                "status": "skipped",
+                "message": f"project '{pid}' is not owned by this PL.",
             })
             skipped += 1
 
@@ -186,18 +221,15 @@ def apply_to_forecast(
     }
 
 
-def _materialize_project(
-    db: Session, scenario: Scenario, action: ScenarioAction, *,
-    cycle_id: Optional[str], cycle_label: Optional[str],
-) -> int:
-    """Materialise the action's project resolved grid into provisional cells.
+def _materialize_project(db: Session, scenario: Scenario, project_id: str) -> int:
+    """Materialise a project's resolved grid into provisional cells.
 
     Resolves the project's plan (anchor -> macros -> overlay, spec §5.1) via the
     project-scope recompute core, then writes the resolved values into the next
     cycle as Forecast cells with ``is_provisional=True`` AND values (spec §6) —
     replacing the legacy flag-only marking.
     """
-    if not action.project_id:
+    if not project_id:
         return 0
 
     from services.scenario_project_scope.resolution import resolve_project_grid
@@ -205,7 +237,5 @@ def _materialize_project(
         materialize_provisional_cells,
     )
 
-    grid = resolve_project_grid(db, scenario, action.project_id)
-    return materialize_provisional_cells(
-        db, scenario, [grid], cycle_id=cycle_id, cycle_label=cycle_label,
-    )
+    grid = resolve_project_grid(db, scenario, project_id)
+    return materialize_provisional_cells(db, scenario, [grid])

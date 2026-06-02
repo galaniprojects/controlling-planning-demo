@@ -16,9 +16,12 @@ import pytest
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargeableEntity, ChargingLocation, Distribution,
 )
-from models.financial import ForecastVersion
+from models.financial import Forecast, ForecastVersion
 from models.people import Person
-from models.scenarios import Scenario, ScenarioAction, ScenarioPromotion
+from models.projects import Project
+from models.scenarios import (
+    Scenario, ScenarioAction, ScenarioForecastCellEdit, ScenarioPromotion,
+)
 from models.system import RolePermissionGrant
 from schemas.common import CurrentUser
 from services.scenario_lever12 import (
@@ -405,3 +408,125 @@ class TestPreviewPromote:
         for d in out["decisions"]:
             assert d["routing_type"] == "cost_allocation_update"
             assert d["permission_ok"] is True
+
+
+# ---------------------------------------------------------------------------
+# Macro curve shifts written to live forecast on promote (review finding #4)
+# ---------------------------------------------------------------------------
+
+def _macro_project(db, pid, pl_person_id, cells):
+    """A project + internal forecast cells. ``cells`` = {month: amount_eur}."""
+    db.add(Project(
+        id=pid, name=pid, status="active", capex_opex="opex",
+        start_month=min(cells), end_month=max(cells), pl_person_id=pl_person_id,
+    ))
+    for month, amt in cells.items():
+        db.add(Forecast(
+            project_id=pid, month=month, category="internal",
+            sub_category="role-dev", role_type_id=None, amount_eur=amt, hours=10.0,
+        ))
+    db.flush()
+
+
+class TestMacroPromote:
+    def test_delay_own_project_writes_shifted_curve(self, db, cycle_anchor,
+                                                    controller_user_obj):
+        # p-promoter (the controller) owns the project → own → direct write.
+        _macro_project(db, "p-mac", "p-promoter", {"2026-06": 1000.0, "2026-07": 1000.0})
+        db.add(ScenarioAction(
+            scenario_id=cycle_anchor["scenario_id"], action_order=1,
+            scope="project", action_type="delay_project", project_id="p-mac",
+            parameters_json='{"delay_months": 2}', lever_category="forecast_grid",
+        ))
+        db.commit()
+
+        result = execute_promote(
+            db, cycle_anchor["scenario_id"], user=controller_user_obj,
+        )
+        db.commit()
+
+        def at(month):
+            return (
+                db.query(Forecast)
+                .filter(Forecast.project_id == "p-mac", Forecast.month == month)
+                .first()
+            )
+        # Vacated months are gone; the curve moved +2 (total preserved).
+        assert at("2026-06") is None
+        assert at("2026-07") is None
+        assert float(at("2026-08").amount_eur) == 1000.0
+        assert float(at("2026-09").amount_eur) == 1000.0
+        # The macro action was stamped promoted.
+        assert result["promoted_count"] >= 1
+        macro = [s for s in result["summary"] if s["target_id"] == "p-mac"]
+        assert macro and macro[0]["routing_type"] == "direct_forecast_update"
+
+    def test_delay_other_pl_routes_to_change_request_no_write(self, db, cycle_anchor,
+                                                              controller_user_obj):
+        _macro_project(db, "p-mac-f", "p-someone-else", {"2026-06": 500.0})
+        db.add(ScenarioAction(
+            scenario_id=cycle_anchor["scenario_id"], action_order=1,
+            scope="project", action_type="delay_project", project_id="p-mac-f",
+            parameters_json='{"delay_months": 2}', lever_category="forecast_grid",
+        ))
+        db.commit()
+
+        result = execute_promote(
+            db, cycle_anchor["scenario_id"], user=controller_user_obj,
+        )
+        db.commit()
+
+        # Other-PL macro → change request, NOT written: original cell untouched,
+        # no shifted cell created.
+        orig = (
+            db.query(Forecast)
+            .filter(Forecast.project_id == "p-mac-f", Forecast.month == "2026-06")
+            .first()
+        )
+        assert orig is not None and float(orig.amount_eur) == 500.0
+        assert (
+            db.query(Forecast)
+            .filter(Forecast.project_id == "p-mac-f", Forecast.month == "2026-08")
+            .first()
+        ) is None
+        mac = [s for s in result["summary"] if s["target_id"] == "p-mac-f"]
+        assert mac and mac[0]["routing_type"] == "change_request"
+
+    def test_macro_plus_overlay_written_once(self, db, cycle_anchor,
+                                             controller_user_obj):
+        # A project with BOTH a macro and an overlay cell edit must be written
+        # once via the macro route (overlay folded into the resolved grid), with
+        # no double-count from the overlay route.
+        _macro_project(db, "p-mac-ov", "p-promoter", {"2026-06": 1000.0})
+        sid = cycle_anchor["scenario_id"]
+        db.add(ScenarioAction(
+            scenario_id=sid, action_order=1, scope="project",
+            action_type="delay_project", project_id="p-mac-ov",
+            parameters_json='{"delay_months": 1}', lever_category="forecast_grid",
+        ))
+        # Absolute-month overlay edit on 2026-08 (does not travel under the macro).
+        db.add(ScenarioForecastCellEdit(
+            scenario_id=sid, project_id="p-mac-ov", line_key="internal|role-dev|",
+            month="2026-08", field="amount_eur", value=4242.0,
+        ))
+        db.commit()
+
+        result = execute_promote(db, sid, user=controller_user_obj)
+        db.commit()
+
+        rows = (
+            db.query(Forecast)
+            .filter(Forecast.project_id == "p-mac-ov",
+                    Forecast.sub_category == "role-dev")
+            .all()
+        )
+        by_month = {r.month: float(r.amount_eur) for r in rows}
+        # Exactly one row per month (no double-write); the shifted cell at 2026-07
+        # and the absolute overlay at 2026-08 both present.
+        assert len(rows) == len(by_month)
+        assert by_month.get("2026-07") == 1000.0   # 2026-06 shifted +1
+        assert by_month.get("2026-08") == 4242.0   # overlay, did not travel
+        assert "2026-06" not in by_month            # vacated
+        # Only one promote summary entry targets the project (no overlay-route dup).
+        targets = [s for s in result["summary"] if s["target_id"] == "p-mac-ov"]
+        assert len(targets) == 1

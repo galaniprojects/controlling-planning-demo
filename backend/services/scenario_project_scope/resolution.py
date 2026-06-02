@@ -31,6 +31,7 @@ from services.scenario_project_scope.macros import (
     apply_macros,
     current_open_forecast_month,
 )
+from services.scenario_project_scope.rates import effective_hourly_rate
 from services.scenario_project_scope.types import (
     LINE_KIND_EXTERNAL,
     LINE_KIND_INTERNAL,
@@ -206,7 +207,14 @@ def _apply_overlay(db: Session, grid: ResolvedGrid, scenario_id: int, project_id
 
         value = float(edit.value) if edit.value is not None else None
         if edit.field == "hours":
+            # Keep € coherent with the promote writer (routing.write_forecast_cells):
+            # an hours edit recomputes amount_eur via the same effective rate, so
+            # the rollup/dashboard and the promoted live forecast agree (blocker
+            # fix). Rate keys on role_type_id, falling back to sub_category for
+            # legacy internal lines that carry the role there.
             cell.hours = value
+            rate = effective_hourly_rate(db, line.role_type_id or line.sub_category)
+            cell.amount_eur = round((value or 0.0) * rate, 2)
         elif edit.field == "amount_eur":
             cell.amount_eur = value if value is not None else 0.0
 

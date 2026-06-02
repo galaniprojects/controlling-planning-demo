@@ -26,7 +26,6 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from models.financial import Forecast
-from models.people import RateTable
 from models.scenarios import (
     Scenario,
     ScenarioForecastCellEdit,
@@ -34,6 +33,7 @@ from models.scenarios import (
     ScenarioMixChange,
     ScenarioPlanEdit,
 )
+from services.scenario_project_scope.rates import effective_hourly_rate
 from services.scenario_project_scope.types import (
     ResolvedGrid,
     RoutableDiff,
@@ -43,10 +43,6 @@ from services.scenario_project_scope.types import (
     ROUTABLE_KIND_PLAN,
 )
 
-
-# Demo fallback hourly rate when a role has no RateTable entry — mirrors
-# ``services.scenario_engine`` so €-coherence stays consistent across the app.
-_FALLBACK_HOURLY_RATE = 85.0
 
 # Plan-edit targets that route through the existing DoI gate check.
 _PIPELINE_PLAN_TARGETS = ("stage", "doi")
@@ -68,22 +64,6 @@ def _parse_line_key(line_key: str) -> tuple[Optional[str], Optional[str], Option
     sub_category = parts[1] if len(parts) > 1 and parts[1] else None
     role_type_id = parts[2] if len(parts) > 2 and parts[2] else None
     return category, sub_category, role_type_id
-
-
-def _effective_hourly_rate(db: Session, role_type_id: Optional[str]) -> float:
-    """Latest-effective hourly rate for a role (rate in force per effective_date),
-    mirroring ``scenario_engine._apply_project_action`` change_allocation lookup.
-    Falls back to the demo default when the role is unknown or unset.
-    """
-    if not role_type_id:
-        return _FALLBACK_HOURLY_RATE
-    entry = (
-        db.query(RateTable)
-        .filter(RateTable.role_type_id == role_type_id)
-        .order_by(RateTable.effective_date.desc())
-        .first()
-    )
-    return float(entry.hourly_rate) if entry else _FALLBACK_HOURLY_RATE
 
 
 def _find_forecast_cell(
@@ -351,7 +331,7 @@ def write_forecast_cells(
 
         if ce.field == "hours":
             row.hours = value
-            rate = _effective_hourly_rate(db, role_type_id or sub_category)
+            rate = effective_hourly_rate(db, role_type_id or sub_category)
             row.amount_eur = round(value * rate, 2)
         else:  # amount_eur
             row.amount_eur = value
@@ -366,52 +346,79 @@ def write_forecast_cells(
 # Write path 2 — apply-to-forecast materialiser
 # ---------------------------------------------------------------------------
 
+def _write_grid_cells(db: Session, grid: ResolvedGrid, *, provisional: bool) -> int:
+    """Upsert a resolved grid's cells into live Forecast rows. Shared by promote
+    (``provisional=False`` — commit the scenario plan to live) and
+    apply-to-forecast (``provisional=True`` — carry into the next cycle as
+    provisional). Upserts each (line, month) cell by
+    ``(project_id, month, category, sub_category, role_type_id)``: internal lines
+    write hours + €, external lines write € (hours stays NULL); existing rows are
+    updated in place, absent cells inserted. Returns the number of cells written.
+    """
+    written = 0
+    project_id = grid.project_id
+    for line in grid.lines:
+        category = line.category
+        sub_category = line.sub_category
+        role_type_id = line.role_type_id
+        for month, cell in line.cells.items():
+            row = _find_forecast_cell(
+                db, project_id, month, category, sub_category, role_type_id,
+            )
+            if row is None:
+                row = Forecast(
+                    project_id=project_id,
+                    month=month,
+                    category=category,
+                    sub_category=sub_category,
+                    role_type_id=role_type_id,
+                    amount_eur=0.0,
+                    vendor=line.vendor,
+                )
+                db.add(row)
+            row.amount_eur = round(float(cell.amount_eur), 2)
+            if cell.hours is not None:
+                row.hours = float(cell.hours)
+            if provisional:
+                row.is_provisional = True
+            written += 1
+    return written
+
+
+def write_grid_replacing_project(db: Session, grid: ResolvedGrid) -> int:
+    """Promote writer for a project whose plan was reshaped (e.g. a macro curve
+    shift): make live Forecast equal the resolved grid. Deletes the project's
+    live cells that the grid no longer contains — the months a delay/accelerate
+    vacated, and lines an overlay removed — then upserts the resolved cells
+    (``provisional=False``). Without the delete, a shift would double-count
+    (pre-shift months left populated alongside the shifted ones).
+
+    The resolved grid is built from ALL the project's live Forecast rows (anchor),
+    so unshifted cells (incl. past months) are present in the grid and preserved;
+    only genuinely-vacated cells are removed.
+    """
+    grid_keys = {
+        (line.category, line.sub_category, line.role_type_id, month)
+        for line in grid.lines
+        for month in line.cells
+    }
+    for row in db.query(Forecast).filter(Forecast.project_id == grid.project_id).all():
+        if (row.category, row.sub_category, row.role_type_id, row.month) not in grid_keys:
+            db.delete(row)
+    written = _write_grid_cells(db, grid, provisional=False)
+    db.flush()
+    return written
+
+
 def materialize_provisional_cells(
     db: Session,
     scenario: Scenario,
     grids: list[ResolvedGrid],
-    *,
-    cycle_id: Optional[str],
-    cycle_label: Optional[str],
 ) -> int:
-    """Apply-to-forecast writer: materialise resolved values into the next cycle as
-    provisional Forecast cells (``is_provisional=True``) WITH values — replacing
-    the current flag-only behaviour. Returns the number of cells written.
-
-    Upserts each resolved (line, month) cell by
-    ``(project_id, month, category, sub_category, role_type_id)``: internal
-    lines write hours + €, external lines write € (hours stays NULL). Existing
-    rows are updated in place; absent cells are inserted. Every materialised
-    cell is stamped ``is_provisional=True`` to carry provenance per [B-PR-05].
+    """Apply-to-forecast writer: materialise resolved values into the next cycle
+    as provisional Forecast cells (``is_provisional=True``) WITH values —
+    replacing the flag-only behaviour. Returns the number of cells written.
     """
-    written = 0
-
-    for grid in grids:
-        project_id = grid.project_id
-        for line in grid.lines:
-            category = line.category
-            sub_category = line.sub_category
-            role_type_id = line.role_type_id
-            for month, cell in line.cells.items():
-                row = _find_forecast_cell(
-                    db, project_id, month, category, sub_category, role_type_id,
-                )
-                if row is None:
-                    row = Forecast(
-                        project_id=project_id,
-                        month=month,
-                        category=category,
-                        sub_category=sub_category,
-                        role_type_id=role_type_id,
-                        amount_eur=0.0,
-                        vendor=line.vendor,
-                    )
-                    db.add(row)
-                row.amount_eur = round(float(cell.amount_eur), 2)
-                if cell.hours is not None:
-                    row.hours = float(cell.hours)
-                row.is_provisional = True
-                written += 1
-
+    written = sum(_write_grid_cells(db, grid, provisional=True) for grid in grids)
     db.flush()
     return written

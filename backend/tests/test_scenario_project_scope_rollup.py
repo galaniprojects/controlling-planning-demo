@@ -255,6 +255,19 @@ def test_grid_splits_skips_none_role():
     assert splits.by_role == {}
 
 
+def test_grid_splits_falls_back_to_sub_category_for_role_key():
+    # Seed/legacy internal lines carry the role in sub_category with a NULL
+    # role_type_id — by_role must still attribute the € (review finding #2).
+    line = ResolvedLine(
+        line_key="internal|role-dev|", category="internal",
+        kind=LINE_KIND_INTERNAL, sub_category="role-dev", role_type_id=None,
+        cells={"2026-01": ResolvedCell(amount_eur=1500.0, hours=15.0)},
+    )
+    splits = grid_splits(_grid(lines=[line]))
+    assert splits.internal_eur == 1500.0
+    assert splits.by_role == {"role-dev": 1500.0}
+
+
 def test_grid_splits_empty_grid():
     splits = grid_splits(_grid())
     assert splits.internal_eur == 0.0

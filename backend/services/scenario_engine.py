@@ -88,6 +88,17 @@ def _build_time_frame_breakdown(
     return segments
 
 
+def _grid_yearly_totals(grid) -> dict[int, float]:
+    """Sum a resolved grid's cell € by calendar year — used so the time-frame
+    breakdown reflects a macro's temporal shift (a delay moves € across year
+    boundaries), rather than re-using the pre-shift per-year ratio."""
+    totals: dict[int, float] = defaultdict(float)
+    for line in grid.lines:
+        for month, cell in line.cells.items():
+            totals[int(month[:4])] += cell.amount_eur
+    return dict(totals)
+
+
 def _get_year_scoped_forecast(db: Session, project_id: str, target_years: list[str]) -> float:
     """Sum of Forecast.amount_eur for a project filtered to specific years."""
     return float(
@@ -159,19 +170,38 @@ def get_scenario_state(db: Session, scenario_id: int) -> dict:
         # the workspace generates a proper narrative, so leave headline empty here.
         headline = ""
 
-        # SIM-03: compute time-frame breakdown from snapshots
+        # SIM-03: compute time-frame breakdown from snapshots. Projects edited by
+        # a macro have a shifted curve the persisted scalar can't express, so
+        # re-resolve those at read time for the year buckets (spec §5 finding);
+        # non-macro projects keep the cheap proportional distribution.
         pid_list = [s.project_id for s in states]
         yearly_fc = _get_yearly_forecasts(db, pid_list)
+        macro_pids = {
+            a.project_id for a in actions
+            if a.scope == "project" and a.project_id
+            and _ACTION_ALIASES.get(a.action_type, a.action_type) in PROJECT_MACRO_ACTION_TYPES
+        }
+        macro_yearly_adj: dict[str, dict[int, float]] = {}
+        if macro_pids:
+            from services.scenario_project_scope.resolution import resolve_project_grid
+            for pid in macro_pids:
+                macro_yearly_adj[pid] = _grid_yearly_totals(
+                    resolve_project_grid(db, scenario, pid)
+                )
         yearly_orig_totals: dict[int, float] = defaultdict(float)
         yearly_adj_totals: dict[int, float] = defaultdict(float)
         for s in states:
             proj_yearly = yearly_fc.get(s.project_id, {})
-            proj_total = sum(proj_yearly.values()) or 1.0
             for yr, amt in proj_yearly.items():
                 yearly_orig_totals[yr] += amt
-                # Distribute adjusted proportionally
-                ratio = amt / proj_total if proj_total else 0
-                yearly_adj_totals[yr] += float(s.adjusted_budget) * ratio
+            if s.project_id in macro_yearly_adj:
+                for yr, amt in macro_yearly_adj[s.project_id].items():
+                    yearly_adj_totals[yr] += amt
+            else:
+                proj_total = sum(proj_yearly.values()) or 1.0
+                for yr, amt in proj_yearly.items():
+                    ratio = amt / proj_total if proj_total else 0
+                    yearly_adj_totals[yr] += float(s.adjusted_budget) * ratio
         breakdown = _build_time_frame_breakdown(
             dict(yearly_orig_totals), dict(yearly_adj_totals)
         )
@@ -266,6 +296,9 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
 
     core_pids = _project_scope_core_pids(db, scenario, actions, set(working.keys()))
     macro_notes: list[str] = []
+    # Per-year adjusted € from the resolved grid, for core projects, so the
+    # time-frame breakdown shows a macro's year-over-year shift (spec §5 finding).
+    core_yearly_adj: dict[str, dict[int, float]] = {}
     if core_pids:
         open_month = _ps_macros.current_open_forecast_month()
         for pid in core_pids:
@@ -279,6 +312,7 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
             )
             state["adjusted_budget"] = ps["adjusted_budget"]
             state["is_affected"] = ps["is_affected"]
+            core_yearly_adj[pid] = _grid_yearly_totals(adjusted_grid)
             if adjusted_grid.start_month:
                 state["start"] = adjusted_grid.start_month
             if adjusted_grid.end_month:
@@ -360,16 +394,23 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
         if adj_rag:
             rag_dist[adj_rag] = rag_dist.get(adj_rag, 0) + 1
 
-    # SIM-03: compute time-frame breakdown
+    # SIM-03: compute time-frame breakdown. Core (new-model) projects use the
+    # resolved grid's per-year € so a macro's temporal shift is visible (spec §5);
+    # non-core projects keep the proportional original-ratio distribution.
     yearly_orig_totals: dict[int, float] = defaultdict(float)
     yearly_adj_totals: dict[int, float] = defaultdict(float)
     for pid, state in working.items():
         proj_yearly = yearly_fc.get(pid, {})
-        proj_total = sum(proj_yearly.values()) or 1.0
         for yr, amt in proj_yearly.items():
             yearly_orig_totals[yr] += amt
-            ratio = amt / proj_total if proj_total else 0
-            yearly_adj_totals[yr] += state["adjusted_budget"] * ratio
+        if pid in core_yearly_adj:
+            for yr, amt in core_yearly_adj[pid].items():
+                yearly_adj_totals[yr] += amt
+        else:
+            proj_total = sum(proj_yearly.values()) or 1.0
+            for yr, amt in proj_yearly.items():
+                ratio = amt / proj_total if proj_total else 0
+                yearly_adj_totals[yr] += state["adjusted_budget"] * ratio
     breakdown = _build_time_frame_breakdown(
         dict(yearly_orig_totals), dict(yearly_adj_totals)
     )

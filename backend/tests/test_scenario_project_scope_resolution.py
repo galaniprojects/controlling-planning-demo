@@ -17,6 +17,7 @@ from services.scenario_project_scope.resolution import (
     read_anchor_grid,
     resolve_project_grid,
 )
+from services.scenario_project_scope.rollup import rollup_grid
 from services.scenario_project_scope.types import (
     LINE_KIND_EXTERNAL,
     LINE_KIND_INTERNAL,
@@ -138,6 +139,9 @@ def test_overlay_cell_edit_wins(db):
     grid = resolve_project_grid(db, scenario, "proj-res")
     internal = _line_by_key(grid, "internal|R-DEV|")
     assert internal.cells["2026-06"].hours == 120.0  # edited value wins
+    # € is recomputed from the edited hours via the effective rate (no RateTable
+    # seeded → 85.0 fallback), so the rollup/dashboard match what promote writes.
+    assert internal.cells["2026-06"].amount_eur == 120.0 * 85.0
 
 
 def test_overlay_external_amount_edit_wins(db):
@@ -196,8 +200,10 @@ def test_cell_edit_does_not_travel_under_delay(db):
     # The macro shifted the original 2026-06 cell to 2026-08 (110h, 8800 EUR).
     assert internal.cells["2026-08"].hours == 110.0
     assert internal.cells["2026-08"].amount_eur == 8800.0
-    # The hand edit stayed on its absolute month 2026-06 (did NOT travel).
+    # The hand edit stayed on its absolute month 2026-06 (did NOT travel), and
+    # its € was recomputed from the edited hours (85.0 fallback rate).
     assert internal.cells["2026-06"].hours == 120.0
+    assert internal.cells["2026-06"].amount_eur == 120.0 * 85.0
 
 
 # ---------------------------------------------------------------------------
@@ -272,3 +278,31 @@ def test_resolve_no_overlay_no_macros_matches_anchor(db):
     internal = _line_by_key(grid, "internal|R-DEV|")
     assert internal.cells["2026-06"].hours == 110.0
     assert internal.cells["2026-06"].amount_eur == 8800.0
+
+
+def test_hours_edit_moves_rolled_up_budget(db):
+    """Regression for the review blocker: an hours cell edit must change the
+    rolled-up adjusted_budget (resolution recomputes € from the edited hours),
+    not leave it at the anchor value — so the dashboard matches what promote
+    writes. Anchor 110h @ 8800€; edit to 120h @ 85.0 fallback → 10200€.
+    """
+    _project(db)
+    _forecast(db, "proj-res", "2026-06", "internal", "R-DEV", 8800.0, hours=110.0)
+    db.commit()
+    scenario = _scenario(db)
+    db.add(ScenarioForecastCellEdit(
+        scenario_id=scenario.id, project_id="proj-res",
+        line_key="internal|R-DEV|", month="2026-06", field="hours", value=120.0,
+    ))
+    db.commit()
+
+    anchor = read_anchor_grid(db, "proj-res")
+    adjusted = resolve_project_grid(db, scenario, "proj-res")
+    state = rollup_grid(
+        adjusted, anchor, project_name="Resolution Project",
+        baseline_eur=8800.0, original_rag="green",
+    )
+    assert state["original_budget"] == 8800.0
+    assert state["adjusted_budget"] == 120.0 * 85.0  # 10200.0
+    assert state["budget_delta"] == pytest.approx(1400.0)
+    assert state["is_affected"] is True

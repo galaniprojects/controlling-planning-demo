@@ -11,7 +11,9 @@ Per [B-PR-05] [B-OQ-02]:
 import pytest
 
 from models.financial import Forecast
-from models.scenarios import Scenario, ScenarioAction, ScenarioApplyToForecastEvent
+from models.scenarios import (
+    Scenario, ScenarioAction, ScenarioApplyToForecastEvent, ScenarioForecastCellEdit,
+)
 from schemas.common import CurrentUser
 from services.scenario_apply_forecast import (
     ApplyToForecastError,
@@ -246,3 +248,62 @@ class TestApplyToForecast:
         )
         db.commit()
         assert "summary" in result
+
+
+class TestOverlayOnlyApply:
+    """Apply-to-forecast must reach a PL's own project edited PURELY via the
+    Layer-2 overlay (no ScenarioAction) — review finding #3."""
+
+    def test_overlay_only_own_project_carries_with_values(
+        self, db, seed_org_base, create_test_project, pl_user_obj,
+    ):
+        create_test_project("proj-own", forecast_amt=1000, pl_person_id="p-pm-1")
+        sc = Scenario(name="Overlay only", author_id="p-pm-1", status="private")
+        db.add(sc)
+        db.flush()
+        # No ScenarioAction — just an overlay cell edit on the own project.
+        db.add(ScenarioForecastCellEdit(
+            scenario_id=sc.id, project_id="proj-own",
+            line_key="internal|role-dev|", month="2026-02",
+            field="amount_eur", value=2222.0,
+        ))
+        db.commit()
+
+        result = apply_to_forecast(db, scenario_id=sc.id, user=pl_user_obj)
+        db.commit()
+
+        assert result["diffs_carried_forward"] >= 1
+        edited = (
+            db.query(Forecast)
+            .filter(Forecast.project_id == "proj-own", Forecast.month == "2026-02")
+            .first()
+        )
+        assert edited.is_provisional is True
+        assert float(edited.amount_eur) == 2222.0  # value carried, not just flagged
+
+    def test_overlay_only_other_project_skipped(
+        self, db, seed_org_base, create_test_project, pl_user_obj,
+    ):
+        create_test_project("proj-foreign", forecast_amt=1000, pl_person_id="p-dev-1")
+        sc = Scenario(name="Overlay foreign", author_id="p-pm-1", status="private")
+        db.add(sc)
+        db.flush()
+        db.add(ScenarioForecastCellEdit(
+            scenario_id=sc.id, project_id="proj-foreign",
+            line_key="internal|role-dev|", month="2026-02",
+            field="amount_eur", value=999.0,
+        ))
+        db.commit()
+
+        result = apply_to_forecast(db, scenario_id=sc.id, user=pl_user_obj)
+        db.commit()
+
+        assert result["diffs_carried_forward"] == 0
+        foreign = (
+            db.query(Forecast)
+            .filter(Forecast.project_id == "proj-foreign", Forecast.month == "2026-02")
+            .first()
+        )
+        # Untouched (not owned by this PL).
+        assert foreign.is_provisional is False
+        assert float(foreign.amount_eur) == 1000.0

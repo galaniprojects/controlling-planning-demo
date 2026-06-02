@@ -48,6 +48,7 @@ from models.financial import ForecastVersion
 from models.projects import Project
 from models.scenarios import (
     Scenario, ScenarioAction, ScenarioPromotion, SCENARIO_ROUTING_TYPES,
+    PROJECT_MACRO_ACTION_TYPES,
 )
 from models.system import RolePermissionGrant
 from schemas.common import CurrentUser
@@ -577,6 +578,8 @@ def preview_promote(
     actions = _select_actions(db, scenario_id, action_ids)
     decisions: list[dict] = []
     for a in actions:
+        if _is_macro(a):
+            continue  # macros previewed via the macro routes below
         d = decide_routing(db, a, controller_user_id=user.person_id)
         item = {
             "action_id": d.action_id,
@@ -593,11 +596,33 @@ def preview_promote(
             item["permission_message"] = reason
         decisions.append(item)
 
+    # Macro forecast routes (spec §6): the resolved-grid write for projects with a
+    # selected macro action (own → direct write, other-PL → change request).
+    macro_routes = _macro_forecast_routes(db, scenario, actions, user)
+    macro_pids = {r["project_id"] for r in macro_routes}
+    for r in macro_routes:
+        for a in (x for x in actions if x.id in r["action_ids"]):
+            decisions.append({
+                "action_id": a.id,
+                "action_type": a.action_type,
+                "lever_category": a.lever_category,
+                "routing_type": r["routing_type"],
+                "target_id": r["project_id"],
+                "requires_review": r["routing_type"] != "direct_forecast_update",
+                "message": (
+                    f"Macro '{a.action_type}' writes the resolved curve to "
+                    f"{r['project_id']}"
+                ),
+            })
+
     # Direct overlay-diff routing (spec §6): forecast overlay on projects without
-    # a forecast_grid action. Only in the promote-all preview — per-overlay
-    # partial selection needs the UI diff selector (Session 2+).
+    # a forecast_grid action (and not handled by a macro route). Only in the
+    # promote-all preview — per-overlay partial selection needs the UI diff
+    # selector (Session 2+).
     if action_ids is None:
         for ov in _overlay_forecast_routes(db, scenario, actions, user):
+            if ov["project_id"] in macro_pids:
+                continue
             decisions.append({
                 "action_id": None,
                 "action_type": "forecast_overlay",
@@ -638,6 +663,12 @@ def execute_promote(
     now = datetime.utcnow()
 
     for a in actions:
+        # Layer-1 macros are written by the dedicated macro route below (their
+        # diff is the whole shifted curve, not a per-action overlay), so skip
+        # them in the per-action routing loop.
+        if _is_macro(a):
+            continue
+
         decision = decide_routing(db, a, controller_user_id=user.person_id)
 
         # No route → skip with explanation.
@@ -674,11 +705,52 @@ def execute_promote(
                 "target_id": decision.target_id,
             })
 
+    # Macro forecast routes (spec §6): a delay/accelerate/pause/remove shifts the
+    # whole curve, so write the project's full resolved grid to live forecast.
+    # Runs on the selected actions (respects partial promote by action_ids); it is
+    # the sole macro-forecast writer (the per-action loop skipped macros above).
+    from services.scenario_project_scope.resolution import resolve_project_grid
+    from services.scenario_project_scope.routing import (
+        write_forecast_cells, write_grid_replacing_project,
+    )
+    macro_routes = _macro_forecast_routes(db, scenario, actions, user)
+    macro_pids = {r["project_id"] for r in macro_routes}
+    for r in macro_routes:
+        macro_actions = [a for a in actions if a.id in r["action_ids"]]
+        if r["routing_type"] == "direct_forecast_update":
+            written = write_grid_replacing_project(
+                db, resolve_project_grid(db, scenario, r["project_id"]),
+            )
+            msg = (
+                f"Macro curve shift written — {written} live cell(s) on "
+                f"{r['project_id']}."
+            )
+            rt = "direct_forecast_update"
+        else:
+            msg = (
+                f"Macro on {r['project_id']} routed to a change request "
+                "(other-PL project — not auto-written)."
+            )
+            rt = "change_request"
+        for a in macro_actions:
+            a.promoted_at = now
+            a.promoted_by_id = user.person_id
+            promoted_count += 1
+            summary.append({
+                "action_id": a.id,
+                "routing_type": rt,
+                "status": "promoted",
+                "message": msg,
+                "target_id": r["project_id"],
+            })
+
     # Direct overlay-diff routing (spec §6): write forecast overlay for projects
-    # with no forecast_grid action. Promote-all only (see preview note).
+    # with no forecast_grid action (and not already handled by a macro route).
+    # Promote-all only (see preview note).
     if action_ids is None:
-        from services.scenario_project_scope.routing import write_forecast_cells
         for ov in _overlay_forecast_routes(db, scenario, actions, user):
+            if ov["project_id"] in macro_pids:
+                continue  # the macro route wrote this project's full resolved grid
             if ov["routing_type"] == "direct_forecast_update":
                 written = write_forecast_cells(
                     db, scenario, ov["diffs"], acting_user_id=user.person_id,
@@ -789,5 +861,46 @@ def _overlay_forecast_routes(
             "own": own,
             "routing_type": "direct_forecast_update" if own is not False else "change_request",
             "diffs": entry["diffs"],
+        })
+    return routes
+
+
+def _is_macro(action: ScenarioAction) -> bool:
+    return action.scope == "project" and action.action_type in PROJECT_MACRO_ACTION_TYPES
+
+
+def _macro_forecast_routes(
+    db: Session, scenario: Scenario, selected_actions: list[ScenarioAction],
+    user: CurrentUser,
+) -> list[dict]:
+    """Layer-1 macros (delay/accelerate/pause/remove) are curve transforms, so a
+    macro's "diff" is the whole shifted curve — not an overlay cell. Promote must
+    write the project's full resolved grid (anchor → macros → overlay) to live
+    forecast, which neither the per-action overlay writer nor the no_route path
+    does. This route is the sole macro-forecast writer (spec §6).
+
+    Returns one entry per project that has a selected macro action:
+    ``{project_id, own, action_ids}``. ``own`` (project.pl_person_id vs the acting
+    controller) decides direct write vs change request. Overlay on the same
+    project is folded in (the resolved grid includes it).
+    """
+    by_project: dict[str, dict] = {}
+    for a in selected_actions:
+        if not _is_macro(a) or not a.project_id:
+            continue
+        entry = by_project.setdefault(
+            a.project_id,
+            {"project_id": a.project_id, "own": None, "action_ids": []},
+        )
+        entry["action_ids"].append(a.id)
+    routes: list[dict] = []
+    for pid, entry in by_project.items():
+        pl_id = _project_pl_id(db, pid)
+        own = (pl_id is None) or (pl_id == user.person_id)
+        routes.append({
+            "project_id": pid,
+            "own": own,
+            "routing_type": "direct_forecast_update" if own else "change_request",
+            "action_ids": entry["action_ids"],
         })
     return routes

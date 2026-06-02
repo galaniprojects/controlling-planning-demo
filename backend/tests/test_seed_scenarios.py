@@ -6,8 +6,8 @@ in the two-layer model (spec §4/§5):
 - ``scn-budget-pressure-15``: delay + accelerate STAY as Layer-1 macro
   ScenarioActions (action_type ∈ PROJECT_MACRO_ACTION_TYPES); the former
   ``reduce_budget`` blanket-scale macro is GONE and re-expressed as Layer-2
-  ScenarioForecastCellEdit overlay rows on proj-dwh's external lines, summing
-  to the −€165.000,00 the ScenarioState/headline encode.
+  ScenarioForecastCellEdit overlay rows on proj-dwh's external lines (uniform
+  ×0.70), summing to the −€58.500,00 the ScenarioState/headline encode.
 - ``scn-cco-mdh-staffing``: the senior→mid dev swap is mapped to a
   ScenarioMixChange overlay row mirroring the change_allocation params.
 - ``scn-mdh-rebalance``: lever-12 BTC scenario UNCHANGED.

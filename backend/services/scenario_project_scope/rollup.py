@@ -109,8 +109,12 @@ def grid_splits(grid: ResolvedGrid) -> GridSplits:
         line_eur = sum(cell.amount_eur for cell in line.cells.values())
         if line.kind == LINE_KIND_INTERNAL:
             internal_eur += line_eur
-            if line.role_type_id is not None:
-                by_role[line.role_type_id] = by_role.get(line.role_type_id, 0.0) + line_eur
+            # Internal lines may carry the role in role_type_id OR (legacy/seed)
+            # in sub_category with a NULL role_type_id — key on whichever is set,
+            # matching the writer (routing.write_forecast_cells).
+            role_key = line.role_type_id or line.sub_category
+            if role_key is not None:
+                by_role[role_key] = by_role.get(role_key, 0.0) + line_eur
         elif line.kind == LINE_KIND_EXTERNAL:
             external_eur += line_eur
 
