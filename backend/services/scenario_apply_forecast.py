@@ -127,14 +127,20 @@ def apply_to_forecast(
     carried = 0
     skipped = 0
 
+    # Materialise each eligible project's resolved grid once (cache by project).
+    materialized: dict[str, int] = {}
+
     for a in actions:
         eligible, reason = is_pl_carry_eligible(a, pl_projects)
         if eligible:
-            # For the demo we mark the relevant Forecast cells as provisional
-            # to communicate provenance per [B-PR-05]. The real cycle hand-off
-            # happens via the workbench forecast cycle workflow; here we only
-            # stamp the cells that will pre-populate the submission.
-            cells_marked = _mark_provisional_cells(db, a)
+            # De-stubbed write path (spec §6): materialise the project's resolved
+            # values into the next cycle as provisional Forecast cells (values +
+            # is_provisional=True), instead of merely flagging existing cells.
+            if a.project_id not in materialized:
+                materialized[a.project_id] = _materialize_project(
+                    db, scenario, a, cycle_id=cycle_id, cycle_label=cycle_label,
+                )
+            cells_marked = materialized[a.project_id]
             summary.append({
                 "action_id": a.id,
                 "project_id": a.project_id,
@@ -180,21 +186,26 @@ def apply_to_forecast(
     }
 
 
-def _mark_provisional_cells(db: Session, action: ScenarioAction) -> int:
-    """Stamp ``is_provisional=True`` on forecast cells the diff would touch.
+def _materialize_project(
+    db: Session, scenario: Scenario, action: ScenarioAction, *,
+    cycle_id: Optional[str], cycle_label: Optional[str],
+) -> int:
+    """Materialise the action's project resolved grid into provisional cells.
 
-    Best-effort: covers the project's existing forecast rows. The cycle
-    submission workflow (Cluster C) is what actually consumes these flags
-    when the PL opens the cycle wizard. For diffs without a project_id the
-    function is a no-op.
+    Resolves the project's plan (anchor -> macros -> overlay, spec §5.1) via the
+    project-scope recompute core, then writes the resolved values into the next
+    cycle as Forecast cells with ``is_provisional=True`` AND values (spec §6) —
+    replacing the legacy flag-only marking.
     """
     if not action.project_id:
         return 0
-    rows = (
-        db.query(Forecast)
-        .filter(Forecast.project_id == action.project_id)
-        .all()
+
+    from services.scenario_project_scope.resolution import resolve_project_grid
+    from services.scenario_project_scope.routing import (
+        materialize_provisional_cells,
     )
-    for r in rows:
-        r.is_provisional = True
-    return len(rows)
+
+    grid = resolve_project_grid(db, scenario, action.project_id)
+    return materialize_provisional_cells(
+        db, scenario, [grid], cycle_id=cycle_id, cycle_label=cycle_label,
+    )

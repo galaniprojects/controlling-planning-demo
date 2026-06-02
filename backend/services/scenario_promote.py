@@ -330,7 +330,7 @@ def apply_routing(
 
     # Direct updates that the demo can apply minimally.
     if rt == "direct_forecast_update":
-        return True, "Direct forecast update applied (demo stub — no live mutation)."
+        return _apply_direct_forecast_update(db, action, user)
     if rt == "tech_navigator_direct":
         return True, "Tech Navigator update applied (demo stub — no live mutation)."
     if rt == "budget_envelope_update":
@@ -522,6 +522,45 @@ def _promote_btc_line_change(db: Session, params: dict) -> tuple[bool, str]:
 
 
 # ---------------------------------------------------------------------------
+# Project-scope direct forecast write (spec §6) — de-stubs the write path
+# ---------------------------------------------------------------------------
+
+def _apply_direct_forecast_update(
+    db: Session, action: ScenarioAction, user: CurrentUser,
+) -> tuple[bool, str]:
+    """Write the action's project Layer-2 forecast overlay to live Forecast rows.
+
+    Project-scope cell/line edits live in the overlay tables, not as coarse
+    actions (spec §6). For a ``direct_forecast_update`` route we collect this
+    scenario's overlay diffs, keep the own-project forecast_grid entries for the
+    action's project, and write them to live data via the Stream-C writer.
+    """
+    from services.scenario_project_scope.routing import (
+        collect_overlay_diffs, write_forecast_cells,
+    )
+
+    scenario = (
+        db.query(Scenario).filter(Scenario.id == action.scenario_id).first()
+    )
+    if scenario is None:
+        return False, "Scenario for action no longer exists."
+
+    diffs = collect_overlay_diffs(
+        db, scenario, controller_user_id=user.person_id,
+    )
+    own_diffs = [
+        d for d in diffs
+        if d.lever_category == "forecast_grid"
+        and d.project_id == action.project_id
+        and d.own is not False
+    ]
+    written = write_forecast_cells(
+        db, scenario, own_diffs, acting_user_id=user.person_id,
+    )
+    return True, f"Direct forecast update applied — {written} live cell(s) written."
+
+
+# ---------------------------------------------------------------------------
 # Top-level orchestrator
 # ---------------------------------------------------------------------------
 
@@ -553,6 +592,24 @@ def preview_promote(
             item["permission_ok"] = ok
             item["permission_message"] = reason
         decisions.append(item)
+
+    # Direct overlay-diff routing (spec §6): forecast overlay on projects without
+    # a forecast_grid action. Only in the promote-all preview — per-overlay
+    # partial selection needs the UI diff selector (Session 2+).
+    if action_ids is None:
+        for ov in _overlay_forecast_routes(db, scenario, actions, user):
+            decisions.append({
+                "action_id": None,
+                "action_type": "forecast_overlay",
+                "lever_category": "forecast_grid",
+                "routing_type": ov["routing_type"],
+                "target_id": ov["project_id"],
+                "requires_review": ov["routing_type"] != "direct_forecast_update",
+                "message": (
+                    f"{len(ov['diffs'])} overlay cell/line edit(s) on {ov['project_id']}"
+                ),
+            })
+
     return {
         "scenario_id": scenario_id,
         "anchor_forecast_version_id": scenario.anchor_forecast_version_id,
@@ -617,6 +674,39 @@ def execute_promote(
                 "target_id": decision.target_id,
             })
 
+    # Direct overlay-diff routing (spec §6): write forecast overlay for projects
+    # with no forecast_grid action. Promote-all only (see preview note).
+    if action_ids is None:
+        from services.scenario_project_scope.routing import write_forecast_cells
+        for ov in _overlay_forecast_routes(db, scenario, actions, user):
+            if ov["routing_type"] == "direct_forecast_update":
+                written = write_forecast_cells(
+                    db, scenario, ov["diffs"], acting_user_id=user.person_id,
+                )
+                promoted_count += 1
+                summary.append({
+                    "action_id": None,
+                    "routing_type": "direct_forecast_update",
+                    "status": "promoted",
+                    "message": (
+                        f"Direct forecast update — {written} live cell(s) on "
+                        f"{ov['project_id']}."
+                    ),
+                    "target_id": ov["project_id"],
+                })
+            else:
+                skipped_count += 1
+                summary.append({
+                    "action_id": None,
+                    "routing_type": "change_request",
+                    "status": "skipped",
+                    "message": (
+                        f"Other-PL overlay on {ov['project_id']} routes to a change "
+                        "request (not auto-written)."
+                    ),
+                    "target_id": ov["project_id"],
+                })
+
     promotion = ScenarioPromotion(
         scenario_id=scenario_id,
         promoted_at=now,
@@ -649,3 +739,55 @@ def _select_actions(
     if action_ids:
         q = q.filter(ScenarioAction.id.in_(action_ids))
     return q.order_by(ScenarioAction.action_order).all()
+
+
+def _overlay_forecast_routes(
+    db: Session, scenario: Scenario, selected_actions: list[ScenarioAction],
+    user: CurrentUser,
+) -> list[dict]:
+    """Project-scope forecast overlay diffs route directly (spec §6), independent
+    of any ScenarioAction — so a project edited purely via the Layer-2 overlay
+    (no ScenarioAction, e.g. a cell descope) still promotes.
+
+    Returns one entry per project carrying cell/line forecast overlay that is NOT
+    already covered by a ``forecast_grid`` action in the current selection (those
+    projects are written by ``_apply_direct_forecast_update`` via their action).
+    Each entry: ``{project_id, own, routing_type, diffs}``.
+
+    NOTE (open design question, flagged at integration): a Layer-1 *macro* (e.g.
+    delay) promotes via its forecast_grid action but currently writes only overlay
+    cells, so the macro's curve shift is not yet materialised to live forecast on
+    promote. Whether promote should write the full resolved grid for macro
+    projects (vs. per-entry overlay diffs, which preserve partial promote) is
+    undecided — see PROGRESS.md.
+    """
+    from services.scenario_project_scope.routing import collect_overlay_diffs
+
+    diffs = [
+        d for d in collect_overlay_diffs(db, scenario, controller_user_id=user.person_id)
+        if d.lever_category == "forecast_grid"
+    ]
+    if not diffs:
+        return []
+    covered = {
+        a.project_id for a in selected_actions
+        if a.lever_category == "forecast_grid" and a.project_id
+    }
+    by_project: dict[str, dict] = {}
+    for d in diffs:
+        if d.project_id in covered:
+            continue
+        entry = by_project.setdefault(
+            d.project_id, {"project_id": d.project_id, "own": d.own, "diffs": []},
+        )
+        entry["diffs"].append(d)
+    routes: list[dict] = []
+    for pid, entry in by_project.items():
+        own = entry["own"]
+        routes.append({
+            "project_id": pid,
+            "own": own,
+            "routing_type": "direct_forecast_update" if own is not False else "change_request",
+            "diffs": entry["diffs"],
+        })
+    return routes
