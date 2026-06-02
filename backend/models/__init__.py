@@ -20,6 +20,8 @@ from models.change_requests import ChangeRequest, CRChangeDetail, CRSubmissionSn
 from models.scenarios import (
     Scenario, ScenarioAction, ScenarioState, ScenarioCapacityImpact,
     ScenarioPromotion, ScenarioApplyToForecastEvent,
+    ScenarioForecastCellEdit, ScenarioLineEdit, ScenarioMixChange,
+    ScenarioPlanEdit,
 )
 from models.system import (
     PlanningParameter, KPIDefinition, Notification, AuditLog, SystemSuggestion,
@@ -48,6 +50,8 @@ __all__ = [
     "ChangeRequest", "CRChangeDetail", "CRSubmissionSnapshot",
     "Scenario", "ScenarioAction", "ScenarioState", "ScenarioCapacityImpact",
     "ScenarioPromotion", "ScenarioApplyToForecastEvent",
+    "ScenarioForecastCellEdit", "ScenarioLineEdit", "ScenarioMixChange",
+    "ScenarioPlanEdit",
     "PlanningParameter", "KPIDefinition", "Notification", "AuditLog", "SystemSuggestion",
     "RolePermissionGrant",
     "DemoPersona", "User",
