@@ -14,10 +14,12 @@ import type { VendorSpendResponse, VendorDrillDownRow, LoBRef } from '@/types/ap
 import { ExternalCostStatusBadge } from '@/modules/workbench/forecast/ExternalCostStatusBadge';
 import { SortableHeader } from '@/components/shared/SortableHeader';
 
+// Values must match Project.pipeline_stage exactly (backend filters on it).
 const STATUS_OPTIONS = [
-  { value: 'active', label: 'Active' },
-  { value: 'planned', label: 'Planned' },
-  { value: 'completed', label: 'Completed' },
+  { value: 'Approved', label: 'Approved' },
+  { value: 'Active', label: 'Active' },
+  { value: 'Hyper-maintenance', label: 'Hyper-maintenance' },
+  { value: 'Completed', label: 'Completed' },
 ];
 
 const FISCAL_YEAR_OPTIONS = [
