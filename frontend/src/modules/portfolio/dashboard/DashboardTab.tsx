@@ -21,10 +21,13 @@ const RAG_OPTIONS = [
   { value: 'red', label: 'Red' },
 ];
 
+// Values must match Project.pipeline_stage exactly — the backend filters
+// `pipeline_stage == status`. (Legacy lowercase status values were retired.)
 const STATUS_OPTIONS = [
-  { value: 'active', label: 'Active' },
-  { value: 'planned', label: 'Planned' },
-  { value: 'completed', label: 'Completed' },
+  { value: 'Approved', label: 'Approved' },
+  { value: 'Active', label: 'Active' },
+  { value: 'Hyper-maintenance', label: 'Hyper-maintenance' },
+  { value: 'Completed', label: 'Completed' },
 ];
 
 const TYPE_OPTIONS = [

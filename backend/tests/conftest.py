@@ -276,7 +276,12 @@ def create_test_project(db, seed_org_base):
         pipeline_stage: str | None = None,
         review_state: str | None = None,
     ):
-        mapped_stage, mapped_review = _LEGACY_STATUS_MAP.get(status, ("Active", None))
+        if status not in _LEGACY_STATUS_MAP:
+            raise ValueError(
+                f"create_test_project: unknown legacy status {status!r}. "
+                "Pass a valid legacy status or use pipeline_stage/review_state directly."
+            )
+        mapped_stage, mapped_review = _LEGACY_STATUS_MAP[status]
         if pipeline_stage is None:
             pipeline_stage = mapped_stage
         if review_state is None:
