@@ -45,7 +45,7 @@ def seed_distribution_graph(db, seed_org_base, seed_personas):
     db.add(cl)
 
     p = Project(
-        id="proj-d", name="D Project", status="active", capex_opex="opex",
+        id="proj-d", name="D Project", pipeline_stage="Active", capex_opex="opex",
         start_month="2025-01", is_service=True, annual_budget=100000,
     )
     db.add(p)

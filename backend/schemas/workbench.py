@@ -10,7 +10,8 @@ class ProjectListItem(BaseModel):
     name: str
     rag: str | None
     type: str
-    status: str
+    pipeline_stage: str | None
+    review_state: str | None
     is_service: bool
 
 

@@ -111,7 +111,7 @@ export function LoBsPanel({ onDataChanged }: LoBsPanelProps) {
     setAssigning(false);
     workbenchApi.getProjects().then((res) => {
       // Get all projects, filter out ones already in this LoB
-      setAllProjects(res.items.map((p) => ({ id: p.id, name: p.name, status: p.status })));
+      setAllProjects(res.items.map((p) => ({ id: p.id, name: p.name, status: p.pipeline_stage ?? '' })));
       setAssignDialogOpen(true);
     });
   };

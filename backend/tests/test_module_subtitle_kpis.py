@@ -51,7 +51,7 @@ def seed_launchpad_data(db, seed_org_base, seed_personas):
 
     # --- Projects -----------------------------------------------------------
     proj_alpha = Project(
-        id="proj-alpha", name="Alpha", status="active",
+        id="proj-alpha", name="Alpha", 
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
         pl_person_id="p-pm-1",
         rag_status="green", total_budget=100000.0,
@@ -60,7 +60,7 @@ def seed_launchpad_data(db, seed_org_base, seed_personas):
         within_cutoff=True,
     )
     proj_beta = Project(
-        id="proj-beta", name="Beta", status="active",
+        id="proj-beta", name="Beta", 
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
         pl_person_id="p-pm-1",
         rag_status="amber", total_budget=50000.0,
@@ -70,7 +70,7 @@ def seed_launchpad_data(db, seed_org_base, seed_personas):
         pipeline_stage="Active",
     )
     proj_gamma = Project(
-        id="proj-gamma", name="Gamma", status="active",
+        id="proj-gamma", name="Gamma", 
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
         rag_status="red", total_budget=200000.0,
         last_forecast_submitted_month="2026-04",
@@ -78,7 +78,7 @@ def seed_launchpad_data(db, seed_org_base, seed_personas):
         within_cutoff=True,
     )
     proj_delta = Project(
-        id="proj-delta", name="Delta", status="pending_approval",
+        id="proj-delta", name="Delta", review_state="pending_approval",
         capex_opex="capex", start_month="2026-01",
         pipeline_stage="Under Evaluation",
         within_cutoff=False,

@@ -21,8 +21,10 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 
-# Spec defaults — used when a planning_parameters row is missing.
-# Mirror the seed values in seed.sql section 12.
+# Spec defaults — used only when the matching planning_parameters row is
+# missing. The seed pins these via tn_* rows (e.g. the t-shirt thresholds are
+# seeded to wider demo bands than the DEFAULT_TSHIRT_THRESHOLDS below), so the
+# live values come from the DB; these constants are the no-DB-row fallback.
 DEFAULT_COMPLEXITY_WEIGHTS = {
     "standardization": 40.0,
     "usage": 40.0,

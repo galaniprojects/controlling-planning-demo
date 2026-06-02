@@ -34,6 +34,7 @@ from schemas.global_launchpad import (
 )
 from services.calculations import add_months
 from services.module_card_kpis import compute_module_subtitle_kpis
+from services.pipeline import EXECUTION_STAGES, TERMINAL_STAGES
 from services.portfolio_service import compute_portfolio_kpis, get_project_entity_info, get_top_level_entity_type_id
 
 router = APIRouter(prefix="/api", tags=["Global / Launchpad"])
@@ -228,7 +229,7 @@ def _compute_module_metric(db: Session, module_id: str, user: CurrentUser) -> st
     """Compute a contextual metric string for a module tile."""
     if module_id == "portfolio":
         count = db.query(func.count(Project.id)).filter(Project.is_active.is_(True)).scalar()
-        pending = db.query(func.count(Project.id)).filter(Project.status == "pending_approval").scalar()
+        pending = db.query(func.count(Project.id)).filter(Project.review_state == "pending_approval").scalar()
         if pending > 0:
             return f"{count} projects, {pending} pending approval"
         return f"{count} active projects"
@@ -313,7 +314,7 @@ def get_pending_actions(
             db.query(Project)
             .filter(
                 pl_project_filter(user),
-                Project.status == "active",
+                Project.pipeline_stage.in_(list(EXECUTION_STAGES)),
                 Project.is_service.is_(False),
             )
             .all()
@@ -400,7 +401,7 @@ def get_pending_actions(
             db.query(Project)
             .filter(
                 pl_project_filter(user),
-                Project.status == "changes_requested",
+                Project.review_state == "changes_requested",
             )
             .all()
         )
@@ -422,7 +423,7 @@ def get_pending_actions(
             db.query(Project)
             .filter(
                 pl_project_filter(user),
-                Project.status == "pending_cc_confirmation",
+                Project.review_state == "pending_cc_confirmation",
             )
             .all()
         )
@@ -443,7 +444,7 @@ def get_pending_actions(
             db.query(Project)
             .filter(
                 pl_project_filter(user),
-                Project.status == "pending_approval",
+                Project.review_state == "pending_approval",
             )
             .all()
         )
@@ -460,14 +461,16 @@ def get_pending_actions(
                 timestamp=proj.modified_at.isoformat() if proj.modified_at else None,
             ))
 
-        # Action #8: Project Submission Decision
+        # Action #8: Project Submission Decision — the intake was decided when
+        # the project is approved-or-later (approved-side) or Cancelled (returned).
+        _decided_approved = {"Approved"} | EXECUTION_STAGES | TERMINAL_STAGES
         for proj in owned_projects:
-            if proj.status in ("active", "rejected"):
-                # Check if recently transitioned (modified_at != created_at means a status change)
+            if proj.pipeline_stage in _decided_approved or proj.pipeline_stage == "Cancelled":
+                # Check if recently transitioned (modified_at != created_at means a stage change)
                 if (proj.modified_at and proj.created_at
                         and proj.modified_at > proj.created_at
                         and proj.modified_at.isoformat()[:7] >= prev_month):
-                    decision = "approved" if proj.status == "active" else "returned"
+                    decision = "approved" if proj.pipeline_stage != "Cancelled" else "returned"
                     actions.append(PendingAction(
                         id=f"project-decision-{proj.id}",
                         type="project_decision",
@@ -485,7 +488,7 @@ def get_pending_actions(
         overdue_projects = (
             db.query(Project)
             .filter(
-                Project.status == "active",
+                Project.pipeline_stage.in_(list(EXECUTION_STAGES)),
                 Project.is_service.is_(False),
                 (Project.last_forecast_submitted_month.is_(None))
                 | (Project.last_forecast_submitted_month < prev_month),
@@ -529,7 +532,7 @@ def get_pending_actions(
         # Action #5: New Project Pending Review
         pending_projects = (
             db.query(Project)
-            .filter(Project.status == "pending_approval")
+            .filter(Project.review_state == "pending_approval")
             .all()
         )
         for proj in pending_projects:
@@ -567,7 +570,7 @@ def get_pending_actions(
         # Action: Projects pending CC confirmation (new submission workflow)
         pending_cc_projects = (
             db.query(Project)
-            .filter(Project.status == "pending_cc_confirmation")
+            .filter(Project.review_state == "pending_cc_confirmation")
             .all()
         )
         for proj in pending_cc_projects:
@@ -878,7 +881,7 @@ def create_project(
         id=f"proj-{uuid4().hex[:8]}",
         name=body.name,
         description=body.description,
-        status="draft",
+        pipeline_stage="Proposed",
         capex_opex=body.capex_opex,
         start_month=body.start_month,
         end_month=body.end_month,
@@ -952,7 +955,8 @@ def create_project(
     return {
         "id": project.id,
         "name": project.name,
-        "status": project.status,
+        "pipeline_stage": project.pipeline_stage,
+        "review_state": project.review_state,
         "estimated_cost": round(estimated_cost, 2),
     }
 
@@ -967,8 +971,12 @@ def submit_project(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
-    if project.status not in ("draft",):
-        raise HTTPException(409, f"Project is in '{project.status}' state, expected 'draft'")
+    if project.pipeline_stage != "Proposed" or project.review_state is not None:
+        raise HTTPException(
+            409,
+            f"Project is at stage '{project.pipeline_stage}' / review_state "
+            f"'{project.review_state}', expected an unsubmitted Proposed draft",
+        )
     if project.pl_person_id != user.person_id and user.role != "controller":
         raise HTTPException(403, "Only the project lead or controller can submit")
 
@@ -978,8 +986,8 @@ def submit_project(
     # Create resource requests from forecast data
     _create_resource_requests_from_forecast(db, project)
 
-    # Update status
-    project.status = "pending_cc_confirmation"
+    # Enter CC-confirmation review (lifecycle stays Proposed until approved).
+    project.review_state = "pending_cc_confirmation"
     project.submission_feedback = None
 
     # Notify CC Owner (Thomas Brenner = p-brenner)
@@ -998,7 +1006,8 @@ def submit_project(
     return {
         "id": project.id,
         "name": project.name,
-        "status": project.status,
+        "pipeline_stage": project.pipeline_stage,
+        "review_state": project.review_state,
     }
 
 
@@ -1020,7 +1029,8 @@ def get_project_draft(
         "lob_name": _get_project_lob_name(db, project.id),
         "start_month": project.start_month,
         "end_month": project.end_month,
-        "status": project.status,
+        "pipeline_stage": project.pipeline_stage,
+        "review_state": project.review_state,
         "capex_opex": project.capex_opex,
         "submission_feedback": project.submission_feedback,
     }

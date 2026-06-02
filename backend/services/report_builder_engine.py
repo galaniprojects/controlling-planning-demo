@@ -69,7 +69,7 @@ def _get_project_dimension_values(
 ) -> dict[str, dict[str, str]]:
     """Build a map of project_id → {dim_id: value} for project-level dimensions.
 
-    Returns e.g. {"proj-1": {"D01": "SAP Migration", "D03": "active", "D05": "Enterprise Core"}}
+    Returns e.g. {"proj-1": {"D01": "SAP Migration", "D03": "Active", "D05": "Enterprise Core"}}
     """
     if not project_ids:
         return {}
@@ -86,7 +86,7 @@ def _get_project_dimension_values(
             if "D02" in dim_ids:
                 result[p.id]["D02"] = _project_type_label(p.is_service)
             if "D03" in dim_ids:
-                result[p.id]["D03"] = p.status or "unknown"
+                result[p.id]["D03"] = p.pipeline_stage or "unknown"
             if "D04" in dim_ids:
                 result[p.id]["D04"] = p.rag_status or "N/A"
             if "D14" in dim_ids:
@@ -126,7 +126,7 @@ def _get_filter_values_for_dimension(
         return ["Project", "Service"]
 
     if dimension_id == "D03":
-        q = db.query(Project.status).filter(Project.is_active.is_(True))
+        q = db.query(Project.pipeline_stage).filter(Project.is_active.is_(True))
         return sorted(set(r[0] for r in q.all() if r[0]))
 
     if dimension_id == "D04":

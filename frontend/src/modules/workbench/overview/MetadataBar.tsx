@@ -44,11 +44,9 @@ export function MetadataBar({ metadata, projectId }: Props) {
           )}
           {pipelineState?.pipeline_stage ? (
             <PipelineStageBadge stage={pipelineState.pipeline_stage} />
-          ) : (
-            <Badge variant="outline" className="text-xs capitalize">
-              {metadata.status}
-            </Badge>
-          )}
+          ) : metadata.pipeline_stage ? (
+            <PipelineStageBadge stage={metadata.pipeline_stage} />
+          ) : null}
           <DoIBadge
             doi={pipelineState?.doi}
             frozenDoi={pipelineState?.frozen_doi}

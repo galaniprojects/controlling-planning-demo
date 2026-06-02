@@ -25,7 +25,7 @@ from services.portfolio_service import (
 class TestMakeProjectNode:
     def test_project_node(self):
         p = Project(
-            id="proj-1", name="Test", status="active",
+            id="proj-1", name="Test", pipeline_stage="Active",
             capex_opex="capex", start_month="2025-01", end_month="2026-12",
             rag_status="green", is_service=False,
         )
@@ -44,7 +44,7 @@ class TestMakeProjectNode:
 
     def test_service_node(self):
         p = Project(
-            id="svc-1", name="Service", status="active",
+            id="svc-1", name="Service", pipeline_stage="Active",
             capex_opex="opex", start_month="2025-01",
             is_service=True,
         )
@@ -189,7 +189,7 @@ class TestComputeProjectFinancials:
 
     def test_no_data(self, db, seed_org_base):
         from models.projects import Project
-        db.add(Project(id="proj-empty", name="E", status="active",
+        db.add(Project(id="proj-empty", name="E", pipeline_stage="Active",
                        capex_opex="capex", start_month="2025-01"))
         db.commit()
         result = compute_project_financials(db, "proj-empty")
@@ -216,7 +216,7 @@ class TestComputePortfolioKpis:
     def test_status_filter(self, db, create_test_project):
         create_test_project("proj-1", status="active")
         create_test_project("proj-2", name="Draft", status="draft")
-        result = compute_portfolio_kpis(db, {"status": "active"})
+        result = compute_portfolio_kpis(db, {"status": "Active"})
         assert result["active_project_count"] == 1
 
 
@@ -237,14 +237,14 @@ class TestChangeStatusBadge:
     def test_change_status_mapping(self, stage, expected):
         from services.portfolio_service import _change_status
         p = Project(
-            id="p", name="P", status="active", capex_opex="capex",
+            id="p", name="P",  capex_opex="capex",
             start_month="2026-01", is_service=False, pipeline_stage=stage,
         )
         assert _change_status(p) == expected
 
     def test_node_carries_change_status(self):
         p = Project(
-            id="p", name="P", status="active", capex_opex="capex",
+            id="p", name="P",  capex_opex="capex",
             start_month="2026-01", end_month="2026-12", is_service=False,
             pipeline_stage="Active",
         )
@@ -272,10 +272,12 @@ class TestChangePopulationFilter:
         create_test_project("p-active", pipeline_stage="Active")
         assert compute_portfolio_kpis(db)["active_project_count"] == 2
 
-    def test_change_excludes_null_stage(self, db, create_test_project):
-        # A stage-less project belongs to no §3.2 population → excluded from
-        # Change, but still counted on the unscoped path.
-        create_test_project("p-null", pipeline_stage=None)
+    def test_change_excludes_offpath_stage(self, db, create_test_project):
+        # A Paused project with no frozen_doi belongs to no §3.2 population →
+        # excluded from Change, but still counted on the unscoped path.
+        # (pipeline_stage is non-null since the status-column retirement, so a
+        # truly stage-less project is no longer representable.)
+        create_test_project("p-paused", pipeline_stage="Paused")
         create_test_project("p-active", pipeline_stage="Active")
         assert compute_portfolio_kpis(db)["active_project_count"] == 2
         change = compute_portfolio_kpis(db, {"population": "change"})

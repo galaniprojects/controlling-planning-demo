@@ -89,7 +89,7 @@ def _build_project_response(project: Project) -> IntakeProjectResponse:
         name=project.name,
         pipeline_stage=project.pipeline_stage or "",
         doi=project.doi if project.doi is not None else 0,
-        status=project.status,
+        review_state=project.review_state,
         pl_person_id=project.pl_person_id,
         project_type=project.project_type or 0,
         composite_score=(

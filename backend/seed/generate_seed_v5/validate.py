@@ -47,6 +47,14 @@ OVER_ALLOCATED_PERSONS = {"p-fischer", "p-szabo", "p-winter"}
 # ``services/btc_service.py::BTC_SUM_TOLERANCE``.
 BTC_SUM_TOLERANCE = 0.01
 
+# Stages that are NOT expected to carry baselines: pre-execution backlog
+# stages (baselines are created when a project enters delivery) plus the
+# off-path stages (Paused/Cancelled never executed). Execution + terminal
+# stages still require a baseline. (Constant name kept for back-reference.)
+_PRE_EXECUTION_STAGES = (
+    "Proposed", "Under Evaluation", "Approved", "Paused", "Cancelled",
+)
+
 
 # ---------------------------------------------------------------------------
 # Plumbing
@@ -103,12 +111,18 @@ def _service_ids(db: sqlite3.Connection) -> set[str]:
 # Rule 1 — Summation Integrity
 # ---------------------------------------------------------------------------
 def check_summation_integrity(db) -> tuple[bool, list[str]]:
-    """Project total_budget should approximate sum of baseline amounts."""
+    """Project total_budget should approximate sum of baseline amounts.
+
+    Pre-execution backlog projects (Proposed / Under Evaluation / Approved)
+    carry only an *estimated* ``total_budget`` — baselines are an
+    execution-time artifact created when the project enters delivery — so a
+    backlog project with no baselines is expected, not an integrity error.
+    """
     if _row_count(db, "baselines") == 0:
         return True, ["  (no data — skipping)"]
     issues: list[str] = []
     rows = db.execute("""
-        SELECT p.id, p.name, p.total_budget,
+        SELECT p.id, p.name, p.total_budget, p.pipeline_stage,
                COALESCE(SUM(b.amount_eur), 0) AS baseline_sum
         FROM projects p
         LEFT JOIN baselines b ON b.project_id = p.id
@@ -120,6 +134,9 @@ def check_summation_integrity(db) -> tuple[bool, list[str]]:
         total = float(r["total_budget"])
         bsum = float(r["baseline_sum"])
         if total == 0 and bsum == 0:
+            continue
+        # A pre-execution project with no baseline yet is fine.
+        if bsum == 0 and r["pipeline_stage"] in _PRE_EXECUTION_STAGES:
             continue
         if total > 0:
             pct_diff = abs(bsum - total) / total * 100
@@ -312,21 +329,28 @@ def check_staff_rates(db) -> tuple[bool, list[str]]:
 # Rule 7 — Baseline coverage (every project has ≥1 baseline row)
 # ---------------------------------------------------------------------------
 def check_baseline_coverage(db) -> tuple[bool, list[str]]:
-    """Every project that's not a draft should have ≥1 baseline row."""
+    """Every project in execution (or beyond) should have ≥1 baseline row.
+
+    Baselines are created when a project enters delivery, so pre-execution
+    backlog stages (Proposed / Under Evaluation / Approved) are exempt — they
+    carry an estimate only. Gating on ``pipeline_stage`` rather than the legacy
+    ``status`` enum keeps this correct in the v5 pipeline-stage model.
+    """
     if _row_count(db, "baselines") == 0:
         return True, ["  (no data — skipping)"]
     issues: list[str] = []
-    rows = db.execute("""
-        SELECT p.id, p.name, p.status, COUNT(b.id) AS bcount
+    placeholders = ",".join("?" * len(_PRE_EXECUTION_STAGES))
+    rows = db.execute(f"""
+        SELECT p.id, p.name, p.pipeline_stage, COUNT(b.id) AS bcount
         FROM projects p
         LEFT JOIN baselines b ON b.project_id = p.id
-        WHERE p.status NOT IN ('draft','pending_cc_confirmation','pending_approval')
+        WHERE (p.pipeline_stage IS NULL OR p.pipeline_stage NOT IN ({placeholders}))
         GROUP BY p.id
-    """).fetchall()
+    """, tuple(_PRE_EXECUTION_STAGES)).fetchall()
     for r in rows:
         if r["bcount"] == 0:
             issues.append(
-                f"  {r['id']} ({r['name']}, status={r['status']}): "
+                f"  {r['id']} ({r['name']}, stage={r['pipeline_stage']}): "
                 f"zero baseline rows"
             )
     return len(issues) == 0, issues

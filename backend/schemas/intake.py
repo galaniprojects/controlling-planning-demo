@@ -55,7 +55,7 @@ class IntakeProjectResponse(BaseModel):
     name: str
     pipeline_stage: str
     doi: int
-    status: str
+    review_state: Optional[str]
     pl_person_id: Optional[str]
     project_type: int
     composite_score: Optional[float]

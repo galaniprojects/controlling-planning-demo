@@ -153,8 +153,8 @@ export function DoIOverlay({
         <div className="flex items-center gap-2">
           <CheckCircle2 className="size-4" aria-hidden />
           <span>
-            DoI {currentDoi} → {gate.next_doi}: gate satisfied. Controller
-            can advance.
+            DoI {currentDoi} → {gate.next_doi}: gate satisfied — ready to
+            advance (PL up to DoI 2; controller any level).
           </span>
         </div>
       </div>

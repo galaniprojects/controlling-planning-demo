@@ -123,7 +123,7 @@ export function ForecastTab({ projectId, role }: Props) {
     workbenchApi
       .getOverview(projectId)
       .then((res) => {
-        setProjectStatus(res.metadata?.status ?? null);
+        setProjectStatus(res.metadata?.pipeline_stage ?? null);
         setPendingCR(res.metadata?.pending_cr ?? null);
       })
       .catch(() => {});
@@ -157,7 +157,7 @@ export function ForecastTab({ projectId, role }: Props) {
           latestVersionId={latestVersion?.id ?? null}
         />
         <div className="flex items-center gap-3 flex-wrap">
-          {role === 'project_lead' && projectStatus === 'active' && (
+          {role === 'project_lead' && (projectStatus === 'Active' || projectStatus === 'Hyper-maintenance') && (
             <>
               {pendingCR && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">

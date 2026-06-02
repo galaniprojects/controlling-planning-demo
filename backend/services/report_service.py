@@ -114,7 +114,7 @@ def _get_scoped_project_ids(
         else:
             return []
     if filters.get("status"):
-        q = q.filter(Project.status == filters["status"])
+        q = q.filter(Project.pipeline_stage == filters["status"])
     if filters.get("rag"):
         q = q.filter(Project.rag_status == filters["rag"])
     if filters.get("type"):
@@ -191,7 +191,7 @@ def compute_programme_rollup(
             "project_name": p.name,
             "lob_id": lob_map.get(p.id, ("", ""))[0],
             "lob_name": lob_map.get(p.id, ("", ""))[1],
-            "status": p.status,
+            "status": p.pipeline_stage,
             "rag": p.rag_status,
             "baseline_budget": round(baseline, 2),
             "current_forecast": round(forecast, 2),
@@ -338,7 +338,7 @@ def compute_cc_financial_summary(
             "external_cost": round(ext_cost, 2),
             "total_cost": round(total_cost, 2),
             "pct_of_cc_budget": 0.0,  # calculated after totals
-            "status": p.status,
+            "status": p.pipeline_stage,
         })
 
     # Calculate percentages

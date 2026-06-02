@@ -351,7 +351,7 @@ export function ProjectAssignmentPage() {
       )}
 
       {/* Actions */}
-      {!result && project.status === 'pending_cc_confirmation' && (
+      {!result && project.review_state === 'pending_cc_confirmation' && (
         <div className="flex gap-2 pt-2 border-t border-border">
           {declining ? (
             <>

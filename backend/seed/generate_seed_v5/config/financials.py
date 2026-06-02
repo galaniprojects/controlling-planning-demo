@@ -452,6 +452,87 @@ TECH_NAV_SCORES: dict[str, dict] = {
         "value_creation":  {"financial": 5, "payback": 3, "competitive": 4},
         "project_type": 2, "transformation_level": "T2",
     },
+    # --- Backlog expansion — 16 pre-execution projects ----------------
+    "proj-sapupg": {
+        "complexity":      {"standardization": 4, "usage": 4, "maintenance": 3},
+        "value_creation":  {"financial": 5, "payback": 4, "competitive": 4},
+        "project_type": 1, "transformation_level": "T1",
+    },
+    "proj-crmnext": {
+        "complexity":      {"standardization": 4, "usage": 4, "maintenance": 3},
+        "value_creation":  {"financial": 5, "payback": 4, "competitive": 4},
+        "project_type": 2, "transformation_level": "T2",
+    },
+    "proj-aiops": {
+        "complexity":      {"standardization": 4, "usage": 3, "maintenance": 3},
+        "value_creation":  {"financial": 5, "payback": 4, "competitive": 4},
+        "project_type": 2, "transformation_level": "T2",
+    },
+    "proj-datalake": {
+        "complexity":      {"standardization": 4, "usage": 4, "maintenance": 3},
+        "value_creation":  {"financial": 5, "payback": 3, "competitive": 4},
+        "project_type": 2, "transformation_level": "T2",
+    },
+    "proj-cloudmig": {
+        "complexity":      {"standardization": 4, "usage": 3, "maintenance": 3},
+        "value_creation":  {"financial": 4, "payback": 4, "competitive": 3},
+        "project_type": 1, "transformation_level": "T1",
+    },
+    "proj-iam2": {
+        "complexity":      {"standardization": 4, "usage": 3, "maintenance": 3},
+        "value_creation":  {"financial": 4, "payback": 3, "competitive": 3},
+        "project_type": 1, "transformation_level": "T1",
+    },
+    "proj-mes": {
+        "complexity":      {"standardization": 3, "usage": 3, "maintenance": 3},
+        "value_creation":  {"financial": 4, "payback": 4, "competitive": 3},
+        "project_type": 1, "transformation_level": "T1",
+    },
+    "proj-warehouse": {
+        "complexity":      {"standardization": 3, "usage": 3, "maintenance": 3},
+        "value_creation":  {"financial": 4, "payback": 4, "competitive": 2},
+        "project_type": 1, "transformation_level": "T1",
+    },
+    "proj-apigateway": {
+        "complexity":      {"standardization": 4, "usage": 3, "maintenance": 4},
+        "value_creation":  {"financial": 3, "payback": 4, "competitive": 2},
+        "project_type": 1, "transformation_level": "T1",
+    },
+    "proj-mdm": {
+        "complexity":      {"standardization": 3, "usage": 3, "maintenance": 3},
+        "value_creation":  {"financial": 4, "payback": 3, "competitive": 3},
+        "project_type": 1, "transformation_level": "T1",
+    },
+    "proj-zerotrust": {
+        "complexity":      {"standardization": 3, "usage": 4, "maintenance": 3},
+        "value_creation":  {"financial": 4, "payback": 3, "competitive": 3},
+        "project_type": 3, "transformation_level": "T0",
+    },
+    "proj-ehs": {
+        "complexity":      {"standardization": 3, "usage": 3, "maintenance": 2},
+        "value_creation":  {"financial": 3, "payback": 4, "competitive": 2},
+        "project_type": 3, "transformation_level": "T0",
+    },
+    "proj-paymtsec": {
+        "complexity":      {"standardization": 3, "usage": 3, "maintenance": 2},
+        "value_creation":  {"financial": 4, "payback": 4, "competitive": 2},
+        "project_type": 3, "transformation_level": "T0",
+    },
+    "proj-elearning": {
+        "complexity":      {"standardization": 4, "usage": 4, "maintenance": 4},
+        "value_creation":  {"financial": 3, "payback": 3, "competitive": 2},
+        "project_type": 1, "transformation_level": "T0",
+    },
+    "proj-fielddx2": {
+        "complexity":      {"standardization": 3, "usage": 2, "maintenance": 3},
+        "value_creation":  {"financial": 3, "payback": 3, "competitive": 3},
+        "project_type": 2, "transformation_level": "T1",
+    },
+    "proj-greenit": {
+        "complexity":      {"standardization": 3, "usage": 2, "maintenance": 3},
+        "value_creation":  {"financial": 2, "payback": 3, "competitive": 2},
+        "project_type": 1, "transformation_level": "T0",
+    },
     # Run-stage projects (DoI 5) — Tech Nav profiles per [A-TN-01]:
     # apply regardless of status so Run-stage entities can also be
     # ranked / scored if they're brought back into Change Portfolio.
@@ -474,10 +555,12 @@ TECH_NAV_SCORES: dict[str, dict] = {
 # weighted-average implementation normalises them, so 40/40/20 is equivalent
 # to 0.4/0.4/0.2.
 # ---------------------------------------------------------------------------
+# Mirrors services.tech_navigator DEFAULT_* so seed-computed composite scores
+# match a live recompute (previously drifted: value 40/40/20 + ranking 50/50).
 TECH_NAV_DEFAULT_WEIGHTS = {
     "complexity":     {"standardization": 40.0, "usage": 40.0, "maintenance": 20.0},
-    "value_creation": {"financial": 40.0, "payback": 40.0, "competitive": 20.0},
-    "ranking":        {"value": 50.0, "complexity": 50.0},
+    "value_creation": {"financial": 50.0, "payback": 40.0, "competitive": 10.0},
+    "ranking":        {"value": 70.0, "complexity": 30.0},
 }
 
 TSHIRT_THRESHOLDS = {

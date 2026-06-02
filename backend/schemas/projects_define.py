@@ -44,7 +44,7 @@ class ProjectDefineResponse(BaseModel):
     id: str
     name: str
     description: Optional[str]
-    status: str
+    review_state: Optional[str]
     capex_opex: str
     start_month: str
     end_month: Optional[str]

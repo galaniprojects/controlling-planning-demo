@@ -47,11 +47,11 @@ def seed_history(db, seed_org_base, seed_personas):
         location_id="loc-bud", competence_center_id="comp-dev",
     )
     proj_alpha = Project(
-        id="proj-alpha", name="Alpha", status="active",
+        id="proj-alpha", name="Alpha", pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
     )
     proj_beta = Project(
-        id="proj-beta", name="Beta", status="active",
+        id="proj-beta", name="Beta", pipeline_stage="Active",
         capex_opex="capex", start_month="2026-01", end_month="2026-12",
     )
     db.add_all([bud, cc_bud, proj_alpha, proj_beta])
@@ -381,7 +381,7 @@ class TestHistoryPerformanceSmoke:
             location_id="loc-bud", competence_center_id="comp-dev",
         )
         proj = Project(
-            id="proj-perf", name="Perf", status="active",
+            id="proj-perf", name="Perf", pipeline_stage="Active",
             capex_opex="capex", start_month="2026-01", end_month="2026-12",
         )
         db.add_all([bud, cc_bud, proj])

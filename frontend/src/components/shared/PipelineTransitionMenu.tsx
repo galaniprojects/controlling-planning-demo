@@ -47,6 +47,25 @@ interface Props {
   size?: 'sm' | 'default';
 }
 
+/** Render a transition error readably.
+ *
+ * Gate 409s ship a structured detail (`{error, missing_fields, ...}`) that
+ * `client.ts` stringifies into `err.message`; parse it back so the override
+ * dialog shows the missing-field list, not a raw JSON blob. */
+function readableTransitionError(e: unknown): string {
+  const raw = e instanceof Error ? e.message : 'Transition failed';
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.missing_fields) && parsed.missing_fields.length) {
+      return `Cannot advance yet — missing: ${parsed.missing_fields.join(', ')}.`;
+    }
+    if (parsed && typeof parsed.message === 'string') return parsed.message;
+  } catch {
+    /* not JSON — fall through to the raw string */
+  }
+  return raw;
+}
+
 export function PipelineTransitionMenu({
   projectId,
   state,
@@ -98,7 +117,18 @@ export function PipelineTransitionMenu({
       onChanged?.(next);
       setPendingTransition(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Transition failed');
+      setError(readableTransitionError(e));
+      // A direct (no-reason) transition that fails — e.g. a stage-entry or
+      // DoI gate block — would otherwise show its error inside the now-closed
+      // dropdown. Surface it in the override dialog so the user can see why and
+      // optionally override with a reason.
+      if (reason === undefined && !pendingTransition) {
+        setPendingTransition({
+          target_stage: target,
+          label: `Move to ${target}`,
+          requiresReason: true,
+        });
+      }
     } finally {
       setSubmitting(false);
     }

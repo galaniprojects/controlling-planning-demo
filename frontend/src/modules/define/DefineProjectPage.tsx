@@ -201,6 +201,7 @@ export function DefineProjectPage() {
       pipeline={pipeline}
       activeTab={activeTab}
       onTabChange={handleTabChange}
+      onPipelineChanged={reloadPipeline}
       dirty={dirty}
       identity={
         loading && projectId ? (

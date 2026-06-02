@@ -101,11 +101,9 @@ export function ProjectHeaderTile({ metadata, projectId }: Props) {
         <div className="flex flex-wrap gap-1.5 items-center">
           {pipelineState?.pipeline_stage ? (
             <PipelineStageBadge stage={pipelineState.pipeline_stage} />
-          ) : (
-            <Badge variant="outline" className="text-[10px] capitalize">
-              {metadata.status}
-            </Badge>
-          )}
+          ) : metadata.pipeline_stage ? (
+            <PipelineStageBadge stage={metadata.pipeline_stage} />
+          ) : null}
           <DoIBadge
             doi={pipelineState?.doi}
             frozenDoi={pipelineState?.frozen_doi}

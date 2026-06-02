@@ -107,9 +107,9 @@ export function OverviewSection({ projectId, summary, overview, loading }: Props
                 style={{ width: `${tlPct}%` }}
               />
             </div>
-            {meta?.status && (
+            {meta?.pipeline_stage && (
               <p className="text-xs text-muted-foreground">
-                Status: <span className="font-medium text-foreground">{meta.status}</span>
+                Stage: <span className="font-medium text-foreground">{meta.pipeline_stage}</span>
               </p>
             )}
           </Card>

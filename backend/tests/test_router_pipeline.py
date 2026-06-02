@@ -91,11 +91,12 @@ class TestGetPipeline:
         assert data["gate_status"]["next_doi"] == 4
 
     def test_unscored_project_returns_nulls(self, test_client, db, alpha):
-        # Project created by factory has no pipeline_stage; defaults are NULL/false.
+        # The factory creates an Active-stage project but leaves doi / scores
+        # unset — the gate-state fields are NULL/false for an unscored project.
         resp = test_client.get(f"/api/projects/{alpha}/pipeline", headers=HEADERS_CTRL)
         assert resp.status_code == 200
         data = resp.json()
-        assert data["pipeline_stage"] is None
+        assert data["pipeline_stage"] == "Active"
         assert data["doi"] is None
         assert data["ai_council_approved"] is False
 

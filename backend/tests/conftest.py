@@ -248,6 +248,19 @@ def create_test_project(db, seed_org_base):
     from models.projects import Project
     from models.financial import Baseline, Forecast, Actuals
 
+    # Legacy projects.status retired — map old status values to the two-axis
+    # model (pipeline_stage + review_state) so existing tests keep working.
+    _LEGACY_STATUS_MAP = {
+        "draft": ("Proposed", None),
+        "active": ("Active", None),
+        "planned": ("Approved", None),
+        "completed": ("Completed", None),
+        "rejected": ("Cancelled", None),
+        "pending_cc_confirmation": ("Under Evaluation", "pending_cc_confirmation"),
+        "pending_approval": ("Under Evaluation", "pending_approval"),
+        "changes_requested": ("Proposed", "changes_requested"),
+    }
+
     def _create(
         project_id: str = "proj-test",
         name: str = "Test Project",
@@ -261,9 +274,15 @@ def create_test_project(db, seed_org_base):
         actuals_amt: float | None = None,
         pl_person_id: str | None = None,
         pipeline_stage: str | None = None,
+        review_state: str | None = None,
     ):
+        mapped_stage, mapped_review = _LEGACY_STATUS_MAP.get(status, ("Active", None))
+        if pipeline_stage is None:
+            pipeline_stage = mapped_stage
+        if review_state is None:
+            review_state = mapped_review
         proj = Project(
-            id=project_id, name=name, status=status,
+            id=project_id, name=name, review_state=review_state,
             capex_opex=capex_opex, start_month=start_month,
             end_month=end_month, pl_person_id=pl_person_id,
             pipeline_stage=pipeline_stage,

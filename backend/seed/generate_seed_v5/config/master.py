@@ -130,6 +130,17 @@ PLANNING_PARAMETERS: list[dict] = [
     {"key": "rag_red_threshold",   "name": "RAG Red Threshold",       "description": "Budget variance % for red status",       "current": "10",  "default": "10",  "type": "percentage", "group": "thresholds"},
     {"key": "max_utilization",        "name": "Max Utilization",         "description": "Maximum person utilization percentage",     "current": "100", "default": "100", "type": "percentage", "group": "limits"},
     {"key": "max_allocation_depth",   "name": "Max Allocation Depth",    "description": "Maximum Stage 1 distribution chain length", "current": "6",   "default": "6",   "type": "integer",    "group": "limits"},
+    # Ranked-backlog budget envelope — consumed by services.ranking.load_config.
+    # Lowered from the 50M default so the cutoff line falls mid-backlog.
+    {"key": "ranking_total_available_budget", "name": "Ranking Total Available Budget", "description": "Total budget envelope for the ranked backlog competition", "current": "13000000", "default": "50000000", "type": "integer", "group": "planning"},
+    # Tech Navigator t-shirt thresholds — consumed by services.tech_navigator.
+    # Seeded to the generator's bands (XS<=200k / S<=500k / M<=1M / L<=2M) so a
+    # live recompute keeps the same sizes the seed emitted (live default is
+    # 100k/250k/500k/1M — seeding pins it to the wider demo bands).
+    {"key": "tn_tshirt_xs_max", "name": "T-Shirt XS Max", "description": "Upper budget bound for XS sizing (EUR)", "current": "200000",  "default": "100000",  "type": "integer", "group": "thresholds"},
+    {"key": "tn_tshirt_s_max",  "name": "T-Shirt S Max",  "description": "Upper budget bound for S sizing (EUR)",  "current": "500000",  "default": "250000",  "type": "integer", "group": "thresholds"},
+    {"key": "tn_tshirt_m_max",  "name": "T-Shirt M Max",  "description": "Upper budget bound for M sizing (EUR)",  "current": "1000000", "default": "500000",  "type": "integer", "group": "thresholds"},
+    {"key": "tn_tshirt_l_max",  "name": "T-Shirt L Max",  "description": "Upper budget bound for L sizing (EUR)",  "current": "2000000", "default": "1000000", "type": "integer", "group": "thresholds"},
 ]
 
 # ---------------------------------------------------------------------------

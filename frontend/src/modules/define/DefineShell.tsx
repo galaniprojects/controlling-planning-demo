@@ -22,6 +22,8 @@ import { Badge } from '@/components/ui/badge';
 import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { ModuleGuideButton } from '@/components/shared/ModuleGuideButton';
 import { DoIBadge } from '@/components/shared/DoIBadge';
+import { PipelineStageBadge } from '@/components/shared/PipelineStageBadge';
+import { PipelineTransitionMenu } from '@/components/shared/PipelineTransitionMenu';
 import { cn } from '@/lib/utils';
 import type { PipelineState } from '@/types/pipeline';
 import type { DefineTabId } from '@/modules/backlog/components/detail/DoIRequirementsRegistry';
@@ -44,6 +46,8 @@ interface Props {
   financials: ReactNode;
   /** Approval & milestones tab body (provided by sweep-builder). */
   approvalMilestones: ReactNode;
+  /** Called after a controller stage transition so the page can refetch. */
+  onPipelineChanged?: () => void;
 }
 
 const TAB_DEFS: { id: DefineTabId; label: string }[] = [
@@ -64,6 +68,7 @@ export function DefineShell({
   techNavigator,
   financials,
   approvalMilestones,
+  onPipelineChanged,
 }: Props) {
   const navigate = useNavigate();
   const currentDoi = pipeline?.gate_status?.current_doi ?? pipeline?.doi ?? null;
@@ -98,7 +103,12 @@ export function DefineShell({
           <span className="inline-flex items-center gap-3">
             <span className="truncate max-w-[60ch]">{titleText}</span>
             {pipeline ? (
-              <DoIBadge doi={currentDoi} />
+              <span className="inline-flex items-center gap-2">
+                {pipeline.pipeline_stage && (
+                  <PipelineStageBadge stage={pipeline.pipeline_stage} />
+                )}
+                <DoIBadge doi={currentDoi} />
+              </span>
             ) : (
               <Badge variant="outline" className="text-xs">
                 {projectId ? '…' : 'New'}
@@ -113,6 +123,13 @@ export function DefineShell({
         }
         actions={
           <>
+            {projectId ? (
+              <PipelineTransitionMenu
+                projectId={projectId}
+                state={pipeline}
+                onChanged={() => onPipelineChanged?.()}
+              />
+            ) : null}
             <Button
               variant={approved ? 'default' : 'outline'}
               size="sm"

@@ -60,8 +60,9 @@ class TestPortfolioRouter:
         assert "GET /api/intake/queue" in body["detail"]["replacements"]["list_review_queue"]
 
     def test_kpis_filtered_by_status(self, test_client, seed_personas, create_test_project):
-        create_test_project("proj-1", status="active", pipeline_stage="Active")
-        create_test_project("proj-2", name="Draft", status="draft", pipeline_stage="Active")
-        resp = test_client.get("/api/portfolio/kpis?status=active", headers=HEADERS_CTRL)
+        # `status` filter now matches the lifecycle pipeline_stage.
+        create_test_project("proj-1", pipeline_stage="Active")
+        create_test_project("proj-2", name="Proposed", pipeline_stage="Proposed")
+        resp = test_client.get("/api/portfolio/kpis?status=Active", headers=HEADERS_CTRL)
         assert resp.status_code == 200
         assert resp.json()["active_project_count"] == 1

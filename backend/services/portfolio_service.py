@@ -226,7 +226,7 @@ def compute_portfolio_kpis(db: Session, filters: dict | None = None) -> dict:
             return empty_result
 
     if filters.get("status"):
-        proj_q = proj_q.filter(Project.status == filters["status"])
+        proj_q = proj_q.filter(Project.pipeline_stage == filters["status"])
     if filters.get("rag"):
         proj_q = proj_q.filter(Project.rag_status == filters["rag"])
     if filters.get("type"):
@@ -454,7 +454,7 @@ def build_portfolio_tree(db: Session, filters: dict | None = None) -> list[dict]
         else:
             return []
     if filters.get("status"):
-        query = query.filter(Project.status == filters["status"])
+        query = query.filter(Project.pipeline_stage == filters["status"])
     if filters.get("rag"):
         query = query.filter(Project.rag_status == filters["rag"])
     if filters.get("type"):
@@ -588,7 +588,8 @@ def _make_project_node(p: Project, fins: dict) -> dict:
         "id": p.id,
         "name": p.name,
         "type": "service" if p.is_service else "project",
-        "status": p.status,
+        "status": p.pipeline_stage,
+        "review_state": p.review_state,
         "change_status": _change_status(p),
         "rag": p.rag_status,
         "baseline_budget": fins["baseline_total"],

@@ -35,9 +35,19 @@ from generate_seed_v5.config.entities import (
 )
 
 
-def _project_v4_status_for_seed(p: dict) -> str:
-    """Return the legacy projects.status value for a v5 project row."""
-    return p["v4_status"]
+_REVIEW_STATES = {"pending_cc_confirmation", "pending_approval", "changes_requested"}
+
+
+def _project_review_state_for_seed(p: dict) -> str | None:
+    """Return the intake/submission review_state for a v5 project row.
+
+    The legacy ``v4_status`` config field doubles as a review hint: only the
+    three transient review values map to ``review_state``; the lifecycle
+    values (draft/active/planned/...) live on ``pipeline_stage`` and leave
+    ``review_state`` NULL.
+    """
+    v4 = p.get("v4_status")
+    return v4 if v4 in _REVIEW_STATES else None
 
 
 def _project_last_forecast_submitted_month(p: dict) -> str | None:
@@ -69,7 +79,7 @@ def generate() -> str:
     # emit it for clarity. Other v5 lifecycle / Tech Navigator / progress
     # columns are nullable and left NULL here; T2 fills them in s11/s12/s17/s18.
     lines.append(
-        "INSERT INTO projects (id, name, description, status, rag_status, capex_opex, "
+        "INSERT INTO projects (id, name, description, review_state, rag_status, capex_opex, "
         "start_month, end_month, projected_end_month, pl_person_id, is_service, "
         "annual_budget, total_budget, last_forecast_submitted_month, "
         "ai_council_approved, progress_pct_manual_override, "
@@ -90,7 +100,7 @@ def generate() -> str:
         modified = CREATED_AT
         rows.append(
             f"({sql_str(p['id'])}, {sql_str(p['name'])}, NULL, "
-            f"{sql_str(_project_v4_status_for_seed(p))}, {sql_str(p['rag_status'])}, "
+            f"{sql_str(_project_review_state_for_seed(p))}, {sql_str(p['rag_status'])}, "
             f"{sql_str(p['capex_opex'])}, {sql_str(p['start_month'])}, "
             f"{sql_str(p['end_month'])}, {sql_str(projected_end)}, "
             f"{sql_str(p['pl_id'])}, {1 if is_service else 0}, "

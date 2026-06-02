@@ -148,6 +148,7 @@ class TestValidateDoiGate:
 
     def test_doi_1_passes_when_complete(self):
         proj = _StubProject(
+            project_type=1,
             composite_score=4.0, tshirt_size="M", transformation_level="T1",
             ai_council_approved=True, ai_council_doc_url="https://x",
         )

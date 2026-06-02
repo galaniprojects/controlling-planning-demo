@@ -49,7 +49,7 @@ def seed_grid_project(db, seed_org_base, seed_personas):
         RoleType(id="role-sr-arch", name="Senior Solution Architect"),
         RoleType(id="role-data-eng", name="Data Engineer"),
         Project(
-            id="proj-grid", name="Grid Test", status="active",
+            id="proj-grid", name="Grid Test", pipeline_stage="Active",
             capex_opex="capex", start_month="2025-12", end_month="2026-12",
             pl_person_id="p-pm-1",
         ),

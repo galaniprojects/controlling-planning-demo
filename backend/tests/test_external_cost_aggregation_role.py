@@ -34,7 +34,7 @@ def role_seed_project(db):
         ExternalCostType(id="ect-cloud", name="Cloud Infrastructure"),
         Project(
             id="proj-roles", name="Role Test Project",
-            status="active", capex_opex="capex",
+            pipeline_stage="Active", capex_opex="capex",
             start_month="2026-01", is_service=False, is_active=True,
         ),
     ])

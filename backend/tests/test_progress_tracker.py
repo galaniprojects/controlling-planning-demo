@@ -470,7 +470,7 @@ class TestCaptureProgressForCycle:
         from models.projects import Project
         # No forecasts created, just bare project
         p = Project(
-            id="proj-bare", name="Bare", status="active",
+            id="proj-bare", name="Bare", pipeline_stage="Active",
             capex_opex="capex", start_month="2026-01", end_month="2026-12",
         )
         db.add(p)

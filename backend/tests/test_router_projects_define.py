@@ -25,6 +25,7 @@ from __future__ import annotations
 import pytest
 
 from config import DEMO_DATE
+from models.charging import ChargeableEntity
 from models.financial import Baseline, ExternalCostType
 from models.organization import ProjectGroupingAssignment
 from models.people import RoleType
@@ -78,7 +79,7 @@ def _seed_pl_owned_project(db, project_id="proj-alpha", pl="p-pm-1") -> Project:
         id=project_id,
         name="Existing PL Project",
         description="Existing description",
-        status="draft",
+        
         capex_opex="opex",
         start_month="2026-04",
         end_month=None,
@@ -102,7 +103,7 @@ def _seed_other_project(db, project_id="proj-other") -> Project:
         id=project_id,
         name="Other PL Project",
         description=None,
-        status="draft",
+        
         capex_opex="opex",
         start_month="2026-04",
         end_month=None,
@@ -138,7 +139,7 @@ class TestCreateDefineProject:
         assert resp.status_code == 201, resp.text
         data = resp.json()
         assert data["name"] == "Brand new initiative"
-        assert data["status"] == "draft"
+        assert data["review_state"] is None
         assert data["capex_opex"] == "opex"
         assert data["start_month"] == DEMO_DATE
         assert data["end_month"] is None
@@ -216,6 +217,77 @@ class TestCreateDefineProject:
             headers=HEADERS_CTRL,
         )
         assert resp.status_code == 422
+
+    def test_create_mints_chargeable_entity(
+        self, test_client, seed_personas, db,
+    ):
+        """A name-only create yields a 1:1 Project ChargeableEntity so the
+        project is visible in the Workbench / Charging surfaces."""
+        resp = test_client.post(
+            "/api/projects/define",
+            json={"name": "Needs an entity"},
+            headers=HEADERS_PL,
+        )
+        assert resp.status_code == 201, resp.text
+        pid = resp.json()["id"]
+
+        ce = (
+            db.query(ChargeableEntity)
+            .filter(ChargeableEntity.project_id == pid)
+            .one()
+        )
+        assert ce.entity_type == "Project"
+        assert ce.id == pid
+        assert ce.project_id == pid
+        assert ce.identifier.startswith("IT0")
+        assert ce.identifier[3:].isdigit()
+        # Change-stage projects release nothing to business and never carry
+        # UM / allocation-key metadata.
+        assert float(ce.to_business_pct) == 0
+        assert ce.s_code is None
+        assert ce.allocation_key is None
+        assert ce.is_active is True
+        # PL persona is p-pm-1 — responsible defaults to the assigned lead.
+        assert ce.responsible_person_id == "p-pm-1"
+
+    def test_create_entities_get_distinct_identifiers(
+        self, test_client, seed_personas, db,
+    ):
+        """Two creates must not collide on uq_chargeable_entity_identifier."""
+        ids = []
+        for n in range(2):
+            resp = test_client.post(
+                "/api/projects/define",
+                json={"name": f"Project {n}"},
+                headers=HEADERS_CTRL,
+            )
+            assert resp.status_code == 201, resp.text
+            pid = resp.json()["id"]
+            ce = (
+                db.query(ChargeableEntity)
+                .filter(ChargeableEntity.project_id == pid)
+                .one()
+            )
+            ids.append(ce.identifier)
+        assert ids[0] != ids[1]
+
+    def test_create_with_lob_sets_entity_hierarchy(
+        self, test_client, seed_personas, seed_hierarchy, db,
+    ):
+        """The minted entity inherits the LoB as its hierarchy node."""
+        resp = test_client.post(
+            "/api/projects/define",
+            json={"name": "Entity with LoB", "lob_id": "lob-alpha"},
+            headers=HEADERS_CTRL,
+        )
+        assert resp.status_code == 201, resp.text
+        pid = resp.json()["id"]
+        ce = (
+            db.query(ChargeableEntity)
+            .filter(ChargeableEntity.project_id == pid)
+            .one()
+        )
+        assert ce.hierarchy_node_id == "lob-alpha"
 
 
 # ---------------------------------------------------------------------------

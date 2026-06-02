@@ -49,6 +49,7 @@ from models.projects import Project, ProjectMilestone
 from models.submissions import ProjectSubmissionSnapshot
 from models.system import Notification
 from routers.admin import _log_audit
+from services.chargeable_entity import ensure_project_chargeable_entity
 from schemas.common import CurrentUser
 from schemas.intake import (
     IntakeDiffField,
@@ -231,9 +232,9 @@ def create_intake_project(
 ) -> Project:
     """Admit a new project at DoI 0 per [A-BK-26] / [A-DOI-04].
 
-    Sets ``pipeline_stage='Proposed'``, ``doi=0``, ``status='draft'`` (back-
-    compat for v4 modules that still query ``Project.status``). Composite
-    score is left null — A3's ranking engine slots null-score projects at
+    Sets ``pipeline_stage='Proposed'``, ``doi=0``, ``review_state=None``.
+    Composite score is left null — A3's ranking engine slots null-score
+    projects at
     the bottom of the list per [A-BK-26]. The within_cutoff recompute is
     triggered as a best-effort post-commit hook by the router.
 
@@ -259,7 +260,6 @@ def create_intake_project(
         id=_gen_project_id(),
         name=body.name,
         description=body.description,
-        status="draft",  # back-compat with v4 launchpad / workbench filters
         capex_opex=body.capex_opex,
         start_month=body.start_month,
         end_month=body.end_month,
@@ -281,6 +281,12 @@ def create_intake_project(
         grouping_entity_id=body.lob_id,
     )
     db.add(assignment)
+
+    # Mint the 1:1 ChargeableEntity so the intake project surfaces in the
+    # Workbench / Charging / rollup modules like seeded projects do.
+    ensure_project_chargeable_entity(
+        db, project, hierarchy_node_id=body.lob_id,
+    )
 
     _log_audit(
         db, user,
@@ -374,11 +380,10 @@ def approve_intake_project(
 
     old_stage = project.pipeline_stage
     old_doi = project.doi
-    old_status = project.status
 
     project.pipeline_stage = APPROVED
     project.doi = 3
-    project.status = "active"
+    project.review_state = None  # review concluded on approval
     if project.rag_status is None:
         project.rag_status = "green"
 
@@ -479,7 +484,7 @@ def send_back_intake_project(
 
     project.pipeline_stage = PROPOSED
     project.doi = 1
-    project.status = "changes_requested"
+    project.review_state = "changes_requested"
     project.submission_feedback = comments
 
     _log_audit(
@@ -547,7 +552,7 @@ def reject_intake_project(
 
     - ``pipeline_stage = 'Cancelled'``. ``frozen_doi`` captures the current
       ``doi`` per [A-PS-03] before clearing the live DoI.
-    - ``status = 'rejected'`` (back-compat).
+    - ``review_state = None`` (review concluded; lifecycle is Cancelled).
     - ``submission_feedback = reason`` so the rejected card surfaces why.
     - Notification to PL.
 
@@ -569,7 +574,7 @@ def reject_intake_project(
     if project.doi is not None:
         project.frozen_doi = project.doi
     project.doi = None
-    project.status = "rejected"
+    project.review_state = None  # review concluded on rejection (stage=Cancelled)
     project.submission_feedback = reason
     project.within_cutoff = None
 
@@ -671,7 +676,7 @@ def resubmit_intake_project(
 
     project.pipeline_stage = UNDER_EVALUATION
     project.doi = 2
-    project.status = "pending_approval"
+    project.review_state = "pending_approval"
     project.submission_feedback = None
 
     _log_audit(

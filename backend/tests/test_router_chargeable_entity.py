@@ -20,7 +20,7 @@ def seed_chargeable_entities(db, seed_org_base, seed_personas):
     db.add_all([et, n])
 
     p = Project(
-        id="proj-x", name="Project X", status="active", capex_opex="opex",
+        id="proj-x", name="Project X", pipeline_stage="Active", capex_opex="opex",
         start_month="2025-01", is_service=True, annual_budget=100000,
     )
     db.add(p)
@@ -474,7 +474,7 @@ class TestIsChangeOrRunDerivation:
 
     def test_project_in_doi_3_is_change(self, db, seed_org_base):
         p = Project(
-            id="proj-c", name="C", status="active", capex_opex="opex",
+            id="proj-c", name="C", pipeline_stage="Active", capex_opex="opex",
             start_month="2025-01", doi=3,
         )
         db.add(p)
@@ -493,7 +493,7 @@ class TestIsChangeOrRunDerivation:
         # (a finished project hands off to a separate Run entity; the project
         # record itself never becomes Run).
         p = Project(
-            id="proj-r", name="R", status="active", capex_opex="opex",
+            id="proj-r", name="R", pipeline_stage="Active", capex_opex="opex",
             start_month="2025-01", doi=5,
         )
         db.add(p)
@@ -509,7 +509,7 @@ class TestIsChangeOrRunDerivation:
     def test_project_with_null_doi_is_change(self, db, seed_org_base):
         # VIPER §5: a Project with no DoI is still "Change" (entity_type rule).
         p = Project(
-            id="proj-n", name="N", status="active", capex_opex="opex",
+            id="proj-n", name="N", pipeline_stage="Active", capex_opex="opex",
             start_month="2025-01",
         )
         db.add(p)
