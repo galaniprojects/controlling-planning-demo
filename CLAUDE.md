@@ -2,7 +2,7 @@
 
 ## Project Overview
 - **Name:** VIPER — IT Financial Planning Platform (demo app)
-- **Repo:** vision-demo-prototype (private)
+- **Repo:** viper-prototype (private)
 - **Purpose:** Demo application for Knorr-Bremse IT financial planning transformation, replacing legacy CaPa tool
 - **Type:** Demo with realistic mock data — not connected to any real database
 
@@ -43,7 +43,7 @@ Four personas, each with different access and capabilities. Role is resolved fro
 - **DB sessions:** `get_db` dependency with try/finally cleanup — session-per-request pattern.
 
 ## Data Model Overview
-**66 models across 14 files in `backend/models/`.** This is just the orientation index; the canonical reference with columns, FKs, constraints, relationships, and decision-tag history lives in **`docs/data-model.md`** — read that before making any schema change.
+**70 models across 14 files in `backend/models/`.** This is just the orientation index; the canonical reference with columns, FKs, constraints, relationships, and decision-tag history lives in **`docs/data-model.md`** — read that before making any schema change.
 
 | Family | Models |
 |---|---|
@@ -55,7 +55,7 @@ Four personas, each with different access and capabilities. Role is resolved fro
 | Change Mgmt | `ChangeRequest`, `CRChangeDetail`, `CRSubmissionSnapshot` |
 | Capacity | `Allocation`, `ResourceRequest`, `ResourceRequestAssignment`, `CapacityActionLog` |
 | Charging | `Country`, `Region`, `ChargingLocation`, `LegalEntity`, `UMVersion`, `UserMeasurement`, `ChargeableEntity`, `DistributionVersion`, `Distribution`, `BTCProfile`, `BTCProfileLine`, `RollupCache` |
-| Scenarios | `Scenario`, `ScenarioAction`, `ScenarioState`, `ScenarioCapacityImpact`, `ScenarioPromotion`, `ScenarioApplyToForecastEvent` |
+| Scenarios | `Scenario`, `ScenarioAction`, `ScenarioState`, `ScenarioCapacityImpact`, `ScenarioPromotion`, `ScenarioApplyToForecastEvent`, `ScenarioForecastCellEdit`, `ScenarioLineEdit`, `ScenarioMixChange`, `ScenarioPlanEdit` |
 | Submissions | `ProjectSubmissionSnapshot` |
 | System | `PlanningParameter`, `KPIDefinition`, `Notification`, `AuditLog`, `SystemSuggestion`, `RolePermissionGrant` |
 | Reporting | `ForecastSnapshot`, `SavedReport`, `SavedReportShare`, `SavedView` |
