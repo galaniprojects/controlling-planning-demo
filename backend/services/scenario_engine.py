@@ -10,7 +10,10 @@ from models.financial import Baseline, Forecast
 from models.organization import CostCenter
 from models.people import Person, RateTable
 from models.projects import Project
-from models.scenarios import Scenario, ScenarioAction, ScenarioCapacityImpact, ScenarioState
+from models.scenarios import (
+    Scenario, ScenarioAction, ScenarioCapacityImpact, ScenarioState,
+    ScenarioForecastCellEdit, ScenarioLineEdit, PROJECT_MACRO_ACTION_TYPES,
+)
 from services.calculations import compute_plan_drift, compute_budget_rag, add_months, month_diff
 from services.portfolio_service import get_project_entity_info, get_top_level_entity_type_id, _get_projects_for_entity_recursive
 
@@ -85,6 +88,17 @@ def _build_time_frame_breakdown(
     return segments
 
 
+def _grid_yearly_totals(grid) -> dict[int, float]:
+    """Sum a resolved grid's cell € by calendar year — used so the time-frame
+    breakdown reflects a macro's temporal shift (a delay moves € across year
+    boundaries), rather than re-using the pre-shift per-year ratio."""
+    totals: dict[int, float] = defaultdict(float)
+    for line in grid.lines:
+        for month, cell in line.cells.items():
+            totals[int(month[:4])] += cell.amount_eur
+    return dict(totals)
+
+
 def _get_year_scoped_forecast(db: Session, project_id: str, target_years: list[str]) -> float:
     """Sum of Forecast.amount_eur for a project filtered to specific years."""
     return float(
@@ -156,19 +170,38 @@ def get_scenario_state(db: Session, scenario_id: int) -> dict:
         # the workspace generates a proper narrative, so leave headline empty here.
         headline = ""
 
-        # SIM-03: compute time-frame breakdown from snapshots
+        # SIM-03: compute time-frame breakdown from snapshots. Projects edited by
+        # a macro have a shifted curve the persisted scalar can't express, so
+        # re-resolve those at read time for the year buckets (spec §5 finding);
+        # non-macro projects keep the cheap proportional distribution.
         pid_list = [s.project_id for s in states]
         yearly_fc = _get_yearly_forecasts(db, pid_list)
+        macro_pids = {
+            a.project_id for a in actions
+            if a.scope == "project" and a.project_id
+            and _ACTION_ALIASES.get(a.action_type, a.action_type) in PROJECT_MACRO_ACTION_TYPES
+        }
+        macro_yearly_adj: dict[str, dict[int, float]] = {}
+        if macro_pids:
+            from services.scenario_project_scope.resolution import resolve_project_grid
+            for pid in macro_pids:
+                macro_yearly_adj[pid] = _grid_yearly_totals(
+                    resolve_project_grid(db, scenario, pid)
+                )
         yearly_orig_totals: dict[int, float] = defaultdict(float)
         yearly_adj_totals: dict[int, float] = defaultdict(float)
         for s in states:
             proj_yearly = yearly_fc.get(s.project_id, {})
-            proj_total = sum(proj_yearly.values()) or 1.0
             for yr, amt in proj_yearly.items():
                 yearly_orig_totals[yr] += amt
-                # Distribute adjusted proportionally
-                ratio = amt / proj_total if proj_total else 0
-                yearly_adj_totals[yr] += float(s.adjusted_budget) * ratio
+            if s.project_id in macro_yearly_adj:
+                for yr, amt in macro_yearly_adj[s.project_id].items():
+                    yearly_adj_totals[yr] += amt
+            else:
+                proj_total = sum(proj_yearly.values()) or 1.0
+                for yr, amt in proj_yearly.items():
+                    ratio = amt / proj_total if proj_total else 0
+                    yearly_adj_totals[yr] += float(s.adjusted_budget) * ratio
         breakdown = _build_time_frame_breakdown(
             dict(yearly_orig_totals), dict(yearly_adj_totals)
         )
@@ -193,6 +226,35 @@ def get_scenario_state(db: Session, scenario_id: int) -> dict:
         }
     else:
         return recalculate_scenario(db, scenario, actions)
+
+
+def _project_scope_core_pids(
+    db: Session, scenario: Scenario, actions: list[ScenarioAction], valid_pids: set[str],
+) -> set[str]:
+    """Projects whose edits use the two-layer model and therefore recompute via the
+    project-scope core (spec §6) instead of the legacy aggregate path.
+
+    A project is in the core set when it has a Layer-1 macro action
+    (delay/accelerate/pause/remove) or a Layer-2 cell/line overlay row. Mix and
+    plan overlays do not yet drive the financial grid this session, so they are
+    deliberately excluded — any non-macro legacy project action on such a project
+    still applies via ``_apply_project_action`` as the surviving compile target.
+    """
+    pids: set[str] = set()
+    for a in actions:
+        if a.scope == "project" and a.project_id in valid_pids:
+            if _ACTION_ALIASES.get(a.action_type, a.action_type) in PROJECT_MACRO_ACTION_TYPES:
+                pids.add(a.project_id)
+    for model in (ScenarioForecastCellEdit, ScenarioLineEdit):
+        for (pid,) in (
+            db.query(model.project_id)
+            .filter(model.scenario_id == scenario.id)
+            .distinct()
+            .all()
+        ):
+            if pid in valid_pids:
+                pids.add(pid)
+    return pids
 
 
 def recalculate_scenario(db: Session, scenario: Scenario, actions: list[ScenarioAction]) -> dict:
@@ -223,19 +285,76 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
             "status": p.pipeline_stage,
         }
 
-    # Apply actions — compute per-action budget delta
+    # Project-scope recompute core (spec §6): projects whose edits use the
+    # two-layer model (Layer-1 macros and/or Layer-2 cell/line overlay) recompute
+    # via the resolved cell grid → rollup, replacing the legacy aggregate path for
+    # those projects. Non-macro legacy project actions on other projects still
+    # apply below as the surviving compile target.
+    from services.scenario_project_scope import resolution as _ps_resolution
+    from services.scenario_project_scope import rollup as _ps_rollup
+    from services.scenario_project_scope import macros as _ps_macros
+
+    core_pids = _project_scope_core_pids(db, scenario, actions, set(working.keys()))
+    macro_notes: list[str] = []
+    # Per-year adjusted € from the resolved grid, for core projects, so the
+    # time-frame breakdown shows a macro's year-over-year shift (spec §5 finding).
+    core_yearly_adj: dict[str, dict[int, float]] = {}
+    if core_pids:
+        open_month = _ps_macros.current_open_forecast_month()
+        for pid in core_pids:
+            state = working[pid]
+            anchor_grid = _ps_resolution.read_anchor_grid(db, pid)
+            adjusted_grid = _ps_resolution.resolve_project_grid(db, scenario, pid)
+            ps = _ps_rollup.rollup_grid(
+                adjusted_grid, anchor_grid,
+                project_name=state["name"], baseline_eur=state["baseline"],
+                original_rag=state["rag"],
+            )
+            state["adjusted_budget"] = ps["adjusted_budget"]
+            state["is_affected"] = ps["is_affected"]
+            core_yearly_adj[pid] = _grid_yearly_totals(adjusted_grid)
+            if adjusted_grid.start_month:
+                state["start"] = adjusted_grid.start_month
+            if adjusted_grid.end_month:
+                state["end"] = adjusted_grid.end_month
+            # Surface macro clamp messages (spec §4). resolve_project_grid returns
+            # only the grid, so re-derive notes from the ordered macros directly.
+            proj_macros = [
+                a for a in actions
+                if a.scope == "project" and a.project_id == pid
+                and _ACTION_ALIASES.get(a.action_type, a.action_type) in PROJECT_MACRO_ACTION_TYPES
+            ]
+            if proj_macros:
+                macro_notes.extend(
+                    _ps_macros.apply_macros(
+                        anchor_grid, proj_macros, current_open_month=open_month,
+                    ).notes
+                )
+
+    # Apply actions — compute per-action budget delta. Project-scope actions on
+    # core projects were already applied by the core above (it is authoritative),
+    # so skip them here while still recording them in the action list.
     action_list = []
     for a in actions:
         params = json.loads(a.parameters_json) if a.parameters_json else {}
+        core_handled = a.scope == "project" and a.project_id in core_pids
 
         # Use pre-computed delta if available (pre-seeded scenarios)
         if a.impact_delta_json:
-            _apply_action(db, working, a.action_type, a.scope, a.project_id, params)
+            if not core_handled:
+                _apply_action(db, working, a.action_type, a.scope, a.project_id, params)
             action_list.append({
                 "id": a.id, "action_order": a.action_order, "scope": a.scope,
                 "action_type": a.action_type, "project_id": a.project_id,
                 "parameters": params,
                 "impact_delta": json.loads(a.impact_delta_json),
+                "group_label": a.group_label,
+            })
+        elif core_handled:
+            action_list.append({
+                "id": a.id, "action_order": a.action_order, "scope": a.scope,
+                "action_type": a.action_type, "project_id": a.project_id,
+                "parameters": params, "impact_delta": {},
                 "group_label": a.group_label,
             })
         else:
@@ -275,16 +394,23 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
         if adj_rag:
             rag_dist[adj_rag] = rag_dist.get(adj_rag, 0) + 1
 
-    # SIM-03: compute time-frame breakdown
+    # SIM-03: compute time-frame breakdown. Core (new-model) projects use the
+    # resolved grid's per-year € so a macro's temporal shift is visible (spec §5);
+    # non-core projects keep the proportional original-ratio distribution.
     yearly_orig_totals: dict[int, float] = defaultdict(float)
     yearly_adj_totals: dict[int, float] = defaultdict(float)
     for pid, state in working.items():
         proj_yearly = yearly_fc.get(pid, {})
-        proj_total = sum(proj_yearly.values()) or 1.0
         for yr, amt in proj_yearly.items():
             yearly_orig_totals[yr] += amt
-            ratio = amt / proj_total if proj_total else 0
-            yearly_adj_totals[yr] += state["adjusted_budget"] * ratio
+        if pid in core_yearly_adj:
+            for yr, amt in core_yearly_adj[pid].items():
+                yearly_adj_totals[yr] += amt
+        else:
+            proj_total = sum(proj_yearly.values()) or 1.0
+            for yr, amt in proj_yearly.items():
+                ratio = amt / proj_total if proj_total else 0
+                yearly_adj_totals[yr] += state["adjusted_budget"] * ratio
     breakdown = _build_time_frame_breakdown(
         dict(yearly_orig_totals), dict(yearly_adj_totals)
     )
@@ -302,6 +428,7 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
             "total_budget_delta": round(total_adjusted - total_original, 2),
             "rag_distribution": rag_dist,
             "time_frame_breakdown": breakdown,
+            "macro_notes": macro_notes,
         },
         "project_states": project_states,
         "capacity_impacts": [],

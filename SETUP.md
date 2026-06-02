@@ -33,8 +33,8 @@ git --version
 ## Quick Start
 
 ```bash
-git clone https://github.com/bill-pap/vision-demo-prototype.git
-cd vision-demo-prototype
+git clone https://github.com/bill-pap/viper-prototype.git
+cd viper-prototype
 ```
 
 ### One-time setup
@@ -211,7 +211,7 @@ For visual regression and feature verification, the team uses Playwright MCP and
 ## Project Structure
 
 ```
-vision-demo-prototype/
+viper-prototype/
 ├── backend/                # FastAPI + SQLAlchemy + SQLite
 │   ├── main.py             # App entry point (port 8000)
 │   ├── models/             # SQLAlchemy ORM models
@@ -385,8 +385,8 @@ A 5-minute walkthrough to verify a clean clone is healthy.
 #### macOS / Linux
 
 ```bash
-git clone https://github.com/bill-pap/vision-demo-prototype.git
-cd vision-demo-prototype
+git clone https://github.com/bill-pap/viper-prototype.git
+cd viper-prototype
 
 # Install
 cd backend && python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
@@ -401,8 +401,8 @@ cd ..
 
 ```powershell
 # In PowerShell — clone and install
-git clone https://github.com/bill-pap/vision-demo-prototype.git
-cd vision-demo-prototype
+git clone https://github.com/bill-pap/viper-prototype.git
+cd viper-prototype
 
 cd backend
 py -3.12 -m venv .venv

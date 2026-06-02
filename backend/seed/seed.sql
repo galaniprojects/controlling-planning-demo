@@ -8166,20 +8166,19 @@ INSERT INTO progress_snapshots (project_id, cycle_label, cycle_id, snapshot_at, 
 
 INSERT INTO scenarios (id, name, description, author_id, status, headline_impact, created_at, modified_at, anchor_forecast_version_id, rebased_from_version_id, visibility, tier3_content_flag, archived, archived_at, tags, last_recalculated_at, cc_owner_scope_cc_id) VALUES
 (1, 'MDH BTC Rebalance — DE/PL/CZ', 'Lever 12 demo. Rebalance Master Data Hub BTC: shift 10pp from DE-Munich onto PL-Poznan (+5pp) and CZ-Prague (+5pp). Tier 1, controller-private until impact verified.', 'p-meier', 'private', '{"total_btc_pct_shift": 10, "affected_locations": 3, "action_count": 1}', '2026-03-25 10:00:00', '2026-03-25 10:00:00', NULL, NULL, 'private', 0, 0, NULL, '["lever-12", "btc", "flagship"]', '2026-03-25 10:00:00', NULL),
-(2, 'Budget Pressure: 15% Reduction', 'Cross-portfolio response to the 15% budget reduction directive. Defers Connected Vehicle Platform 6 months, descopes Data Warehouse Consolidation 30%, accelerates Rail Safety to recover regulatory window. Published portfolio-wide for executive review.', 'p-meier', 'published', '{"total_budget_delta": -705000, "action_count": 3, "projects_affected": 3}', '2026-03-12 09:30:00', '2026-04-15 11:00:00', NULL, NULL, 'all_users', 0, 0, NULL, '["budget", "cross-portfolio", "executive-readout"]', '2026-04-15 11:00:00', NULL),
+(2, 'Budget Pressure: 15% Reduction', 'Cross-portfolio response to the 15% budget reduction directive. Defers Connected Vehicle Platform 6 months, descopes Data Warehouse Consolidation 30%, accelerates Rail Safety to recover regulatory window. Published portfolio-wide for executive review.', 'p-meier', 'published', '{"total_budget_delta": -58500, "action_count": 3, "projects_affected": 3}', '2026-03-12 09:30:00', '2026-04-15 11:00:00', NULL, NULL, 'all_users', 0, 0, NULL, '["budget", "cross-portfolio", "executive-readout"]', '2026-04-15 11:00:00', NULL),
 (3, 'MDH Staffing Mix — MUC/APD', 'CC Owner sandbox: rebalance Master Data Hub Rollout staffing from senior developers onto a 60/40 senior/mid mix to free senior capacity for incoming intakes. Scoped to MUC/APD per [F-AC-01] CC-Owner authoring rules.', 'p-brenner', 'private', '{"total_capacity_shift_fte": 0.0, "senior_to_mid_swap_pct": 40, "action_count": 1}', '2026-04-02 14:00:00', '2026-04-02 14:00:00', NULL, NULL, 'private', 1, 0, NULL, '["staffing", "cco-sandbox", "mdh"]', '2026-04-02 14:00:00', 'cc-muc-apd');
 
 INSERT INTO scenario_actions (id, scenario_id, action_order, scope, action_type, project_id, parameters_json, impact_delta_json, group_label, created_at, promoted_at, promoted_by_id, lever_category, tier) VALUES
 (1, 1, 1, 'project', 'btc_profile_line_change', 'proj-mdh-rollout', '{"entity_id": "off-mdh", "year": 2026, "lines": [{"charging_location_id": "cl-de-ber", "percentage": 1.13}, {"charging_location_id": "cl-de-fra", "percentage": 4.93}, {"charging_location_id": "cl-de-ham", "percentage": 1.59}, {"charging_location_id": "cl-de-muc", "percentage": 6.19}, {"charging_location_id": "cl-de-stg", "percentage": 2.21}, {"charging_location_id": "cl-de-wol", "percentage": 2.52}, {"charging_location_id": "cl-es-mad", "percentage": 6.09}, {"charging_location_id": "cl-fr-lyo", "percentage": 7.52}, {"charging_location_id": "cl-fr-par", "percentage": 5.62}, {"charging_location_id": "cl-hu-bud", "percentage": 3.48}, {"charging_location_id": "cl-in-pun", "percentage": 11.28}, {"charging_location_id": "cl-it-mil", "percentage": 9.38}, {"charging_location_id": "cl-nl-ams", "percentage": 3.79}, {"charging_location_id": "cl-pl-poz", "percentage": 11.11}, {"charging_location_id": "cl-uk-lon", "percentage": 7.85}, {"charging_location_id": "cl-uk-man", "percentage": 1.15}, {"charging_location_id": "cl-us-det", "percentage": 9.16}, {"charging_location_id": "cl-cz-prg", "percentage": 5.0}]}', '{"to_business_pct_delta": 0, "location_amount_delta_eur": [{"charging_location_id": "cl-de-muc", "delta": -283282}, {"charging_location_id": "cl-pl-poz", "delta":  141641}, {"charging_location_id": "cl-cz-prg", "delta":  141641}]}', 'Lever 12 / Stage 2 BTC', '2026-03-25 10:00:00', NULL, NULL, 'cost_allocation', 1),
-(2, 2, 1, 'project', 'delay_project', 'proj-connveh', '{"delay_months": 6, "reason": "Budget pressure — 15% directive"}', '{"budget_delta": -540000, "schedule_shift_months": 6}', 'Budget pressure response', '2026-03-12 09:30:00', NULL, NULL, 'forecast_grid', 1),
-(3, 2, 2, 'project', 'reduce_budget', 'proj-dwh', '{"cut_pct": 30, "scope": "external_consulting"}', '{"budget_delta": -165000}', 'Budget pressure response', '2026-03-12 09:30:00', NULL, NULL, 'forecast_grid', 1),
-(4, 2, 3, 'project', 'accelerate_project', 'proj-railsafety', '{"advance_months": 2, "from_start": "2026-09", "to_start": "2026-07", "reason": "Recover regulatory window"}', '{"budget_delta": 0, "schedule_shift_months": -2}', 'Regulatory recovery', '2026-03-12 09:30:00', NULL, NULL, 'milestone', 1),
-(5, 3, 1, 'project', 'change_allocation', 'proj-mdh-rollout', '{"cost_center_id": "cc-muc-apd", "swap_from_role": "role-sr-dev", "swap_to_role": "role-dev", "hours_per_month_swap": 40, "effective_from": "2026-05"}', '{"budget_delta_eur_per_month": -1280, "fte_change_sr_dev": -0.25, "fte_change_dev": 0.25}', 'Sourcing mix rebalance', '2026-04-02 14:00:00', NULL, NULL, 'people', 3);
+(2, 2, 1, 'project', 'delay_project', 'proj-connveh', '{"delay_months": 6, "reason": "Budget pressure — 15% directive"}', '{"budget_delta": 0, "schedule_shift_months": 6}', 'Budget pressure response', '2026-03-12 09:30:00', NULL, NULL, 'forecast_grid', 1),
+(3, 2, 2, 'project', 'accelerate_project', 'proj-railsafety', '{"advance_months": 2, "from_start": "2026-09", "to_start": "2026-07", "reason": "Recover regulatory window"}', '{"budget_delta": 0, "schedule_shift_months": -2}', 'Regulatory recovery', '2026-03-12 09:30:00', NULL, NULL, 'milestone', 1),
+(4, 3, 1, 'project', 'change_allocation', 'proj-mdh-rollout', '{"cost_center_id": "cc-muc-apd", "swap_from_role": "role-sr-dev", "swap_to_role": "role-dev", "hours_per_month_swap": 40, "effective_from": "2026-05"}', '{"budget_delta_eur_per_month": -1280, "fte_change_sr_dev": -0.25, "fte_change_dev": 0.25}', 'Sourcing mix rebalance', '2026-04-02 14:00:00', NULL, NULL, 'people', 3);
 
 INSERT INTO scenario_states (scenario_id, project_id, original_budget, adjusted_budget, budget_delta, original_rag, adjusted_rag, original_start, adjusted_start, original_end, adjusted_end, is_affected) VALUES
-(2, 'proj-connveh', 1800000.00, 1260000.00, -540000.00, NULL, 'amber', '2026-10', '2027-04', '2028-12', '2029-06', 1),
-(2, 'proj-dwh', 550000.00, 385000.00, -165000.00, 'green', 'amber', '2026-07', '2026-07', '2027-09', '2027-09', 1),
-(2, 'proj-railsafety', 650000.00, 650000.00, 0.00, 'green', 'green', '2026-09', '2026-07', '2028-06', '2028-04', 1);
+(2, 'proj-connveh', 1146690.00, 1146690.00, 0.00, NULL, 'green', '2026-10', '2027-04', '2028-12', '2029-06', 1),
+(2, 'proj-dwh', 398400.00, 339900.00, -58500.00, 'green', 'red', '2026-07', '2026-07', '2027-09', '2027-09', 1),
+(2, 'proj-railsafety', 518540.00, 518540.00, 0.00, 'green', 'green', '2026-09', '2026-07', '2028-06', '2028-04', 1);
 
 INSERT INTO scenario_capacity_impacts (scenario_id, cost_center_id, month, original_utilization_pct, adjusted_utilization_pct, fte_delta) VALUES
 (2, 'cc-muc-apd', '2026-10', 88.0, 74.0, -1.10),
@@ -8187,7 +8186,34 @@ INSERT INTO scenario_capacity_impacts (scenario_id, cost_center_id, month, origi
 (2, 'cc-muc-apd', '2026-12', 92.0, 78.0, -1.10);
 
 INSERT INTO scenario_promotions (scenario_id, promoted_at, promoted_by_id, routing_summary_json, promoted_count, skipped_count, notes) VALUES
-(2, '2026-04-15 10:00:00', 'p-meier', '[{"action_id": "scn-budget-pressure-15:3", "routing_type": "direct_forecast_update", "status": "promoted", "message": "Forecast cells updated for proj-railsafety", "target_id": "proj-railsafety"}, {"action_id": "scn-budget-pressure-15:1", "routing_type": "change_request", "status": "skipped", "message": "Skipped by promoter — pending CFO sign-off", "target_id": "proj-connveh"}, {"action_id": "scn-budget-pressure-15:2", "routing_type": "change_request", "status": "skipped", "message": "Skipped by promoter — pending CFO sign-off", "target_id": "proj-dwh"}]', 1, 2, 'Partial promote — accelerate Rail Safety only.');
+(2, '2026-04-15 10:00:00', 'p-meier', '[{"action_id": "scn-budget-pressure-15:2", "routing_type": "direct_forecast_update", "status": "promoted", "message": "Forecast cells updated for proj-railsafety", "target_id": "proj-railsafety"}, {"action_id": "scn-budget-pressure-15:1", "routing_type": "change_request", "status": "skipped", "message": "Skipped by promoter — pending CFO sign-off", "target_id": "proj-connveh"}, {"action_id": "scn-budget-pressure-15:overlay:proj-dwh-external", "routing_type": "change_request", "status": "skipped", "message": "Skipped by promoter — external descope pending CFO sign-off", "target_id": "proj-dwh"}]', 1, 2, 'Partial promote — accelerate Rail Safety only.');
+
+INSERT INTO scenario_forecast_cell_edits (scenario_id, project_id, line_key, month, field, value, created_at, updated_at) VALUES
+(2, 'proj-dwh', 'external|ext-cloud|', '2026-07', 'amount_eur', 5600.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-cloud|', '2026-08', 'amount_eur', 5600.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-cloud|', '2026-09', 'amount_eur', 5600.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-cloud|', '2026-10', 'amount_eur', 5600.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-cloud|', '2026-11', 'amount_eur', 5600.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-cloud|', '2026-12', 'amount_eur', 5600.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-cloud|', '2027-01', 'amount_eur', 5600.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-cloud|', '2027-02', 'amount_eur', 5600.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-cloud|', '2027-03', 'amount_eur', 5600.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-cloud|', '2027-04', 'amount_eur', 16800.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-cloud|', '2027-07', 'amount_eur', 16800.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-consulting|', '2026-07', 'amount_eur', 3500.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-consulting|', '2026-08', 'amount_eur', 3500.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-consulting|', '2026-09', 'amount_eur', 3500.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-consulting|', '2026-10', 'amount_eur', 3500.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-consulting|', '2026-11', 'amount_eur', 3500.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-consulting|', '2026-12', 'amount_eur', 3500.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-consulting|', '2027-01', 'amount_eur', 3500.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-consulting|', '2027-02', 'amount_eur', 3500.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-consulting|', '2027-03', 'amount_eur', 3500.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-consulting|', '2027-04', 'amount_eur', 10500.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00'),
+(2, 'proj-dwh', 'external|ext-consulting|', '2027-07', 'amount_eur', 10500.00, '2026-03-12 09:30:00', '2026-03-12 09:30:00');
+
+INSERT INTO scenario_mix_changes (scenario_id, project_id, cost_center_id, swap_from_role_id, swap_to_role_id, hours_per_month_swap, effective_from, created_at) VALUES
+(3, 'proj-mdh-rollout', 'cc-muc-apd', 'role-sr-dev', 'role-dev', 40.00, '2026-05', '2026-04-02 14:00:00');
 
 
 -- =============================================================================

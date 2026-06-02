@@ -315,3 +315,209 @@ class ScenarioApplyToForecastEvent(Base):
     # Relationships
     scenario: Mapped["Scenario"] = relationship()
     applied_by: Mapped["Person"] = relationship(foreign_keys=[applied_by_id])
+
+
+# ---------------------------------------------------------------------------
+# Project-Scope Redesign — Layer-2 hand-edit overlay (spec §5)
+# ---------------------------------------------------------------------------
+#
+# A project-scope scenario stores its edits in two layers:
+#   Layer 1 — macros as ordered transforms. Reuses ``ScenarioAction`` rows
+#     (scope='project', action_type ∈ PROJECT_MACRO_ACTION_TYPES); these are
+#     functions of the anchor curve and re-derive against a rebased anchor.
+#     No new table.
+#   Layer 2 — hand edits as a sparse overlay. The four tables below. Keyed by
+#     (project, line, month) for cell values, with companion rows for
+#     added/removed lines, mix changes, and plan (date/stage/DoI/milestone)
+#     edits. This is the WYSIWYG plan-delta the promote/apply diff consumes
+#     DIRECTLY (spec §6) — it is never replayed as a coarse action.
+#
+# Resolution order (spec §5.1): anchor → apply macros in order → overlay hand
+# edits on top, hand-edits-win. Absolute-month keying (spec §5.2): a cell edit
+# stays on its ``month`` and does NOT travel when a macro shifts the curve.
+
+# Frozen overlay vocab (imported by the project-scope recompute core + routing).
+OVERLAY_CELL_FIELDS = ("hours", "amount_eur")
+OVERLAY_LINE_OPS = ("add", "remove")
+OVERLAY_LINE_KINDS = ("internal_role", "external_cost")
+OVERLAY_PLAN_TARGETS = ("start_month", "end_month", "stage", "doi", "milestone")
+
+# Layer-1 macro action_types (stored as ScenarioAction rows, scope='project').
+PROJECT_MACRO_ACTION_TYPES = (
+    "delay_project",
+    "accelerate_project",
+    "pause_project",
+    "remove_project",
+)
+
+
+class ScenarioForecastCellEdit(Base):
+    """Layer-2 hand-edit overlay — a single forecast cell value (spec §5).
+
+    Sparse overlay keyed by (scenario, project, line, month, field). One row
+    per edited cell; clean upsert/dedup via the unique constraint, so
+    re-editing June overwrites the same row rather than appending. This *is*
+    the diff Promote / Apply-to-forecast consume directly (spec §6).
+
+    ``line_key`` identifies the forecast line the cell sits on:
+      - existing line: the natural composite "category|sub_category|role_type_id"
+        (role_type_id omitted for external lines), matching the live Forecast
+        cell key (project_id, month, category, sub_category, role_type_id).
+      - added line: a minted stable id ("new:role:<uuid>" / "new:ext:<uuid>")
+        also recorded on a companion ``ScenarioLineEdit`` row, so the overlay
+        can reference a line absent from live data (spec §5).
+
+    ``field`` ∈ OVERLAY_CELL_FIELDS: internal role lines carry ``hours`` edits
+    (€ derived via the effective rate at rollup); external lines carry
+    ``amount_eur`` edits. ``month`` is absolute (spec §5.2).
+    """
+
+    __tablename__ = "scenario_forecast_cell_edits"
+    __table_args__ = (
+        UniqueConstraint(
+            "scenario_id", "project_id", "line_key", "month", "field",
+            name="uq_scenario_cell_edit",
+        ),
+        Index("ix_scenario_cell_edit_scope", "scenario_id", "project_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    scenario_id: Mapped[int] = mapped_column(ForeignKey("scenarios.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    line_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    month: Mapped[str] = mapped_column(String(7), nullable=False)  # YYYY-MM, absolute
+    field: Mapped[str] = mapped_column(String(20), nullable=False)  # hours | amount_eur
+    value: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow,
+    )
+
+    scenario: Mapped["Scenario"] = relationship()
+    project: Mapped["Project"] = relationship()
+
+
+class ScenarioLineEdit(Base):
+    """Layer-2 companion overlay — structural add/remove of a forecast line
+    (spec §5). Covers internal role lines and external-cost line items.
+
+    ``op`` ∈ OVERLAY_LINE_OPS. Added lines get a minted stable ``line_key``
+    ("new:role:<uuid>" / "new:ext:<uuid>") so the cell overlay and the later
+    promote/apply diff can reference a line not yet in live data; removed lines
+    reference an existing natural ``line_key`` and suppress it at resolution.
+
+    ``line_kind`` ∈ OVERLAY_LINE_KINDS. The metadata columns describe the line
+    so resolution can synthesise it into the grid and routing can classify it.
+    External-cost items carry vendor / cost_type_id / capex_opex / description;
+    internal role lines carry role_type_id. Per-month values for the line live
+    in ``ScenarioForecastCellEdit`` rows under the same ``line_key``.
+    """
+
+    __tablename__ = "scenario_line_edits"
+    __table_args__ = (
+        UniqueConstraint(
+            "scenario_id", "project_id", "line_key",
+            name="uq_scenario_line_edit",
+        ),
+        Index("ix_scenario_line_edit_scope", "scenario_id", "project_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    scenario_id: Mapped[int] = mapped_column(ForeignKey("scenarios.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    line_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    op: Mapped[str] = mapped_column(String(10), nullable=False)  # add | remove
+    line_kind: Mapped[str] = mapped_column(String(20), nullable=False)  # internal_role | external_cost
+    category: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # internal | external
+    sub_category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    role_type_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("role_types.id"), nullable=True,
+    )
+    cost_type_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("external_cost_types.id"), nullable=True,
+    )
+    vendor: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    capex_opex: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    scenario: Mapped["Scenario"] = relationship()
+    project: Mapped["Project"] = relationship()
+
+
+class ScenarioMixChange(Base):
+    """Layer-2 companion overlay — seniority/sourcing mix change (spec §5, §8).
+
+    Mirrors the existing ``change_allocation`` action representation — a monthly
+    hour swap between two role types within a cost centre — so the Tier-3 mix
+    control reuses the shape rather than inventing a new one. Routes as a
+    ``people_action_item`` at promote. Designed now; the UI control lands in
+    Session 3 (Tier-3 authors only).
+    """
+
+    __tablename__ = "scenario_mix_changes"
+    __table_args__ = (
+        Index("ix_scenario_mix_change_scope", "scenario_id", "project_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    scenario_id: Mapped[int] = mapped_column(ForeignKey("scenarios.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    cost_center_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("cost_centers.id"), nullable=True,
+    )
+    swap_from_role_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("role_types.id"), nullable=True,
+    )
+    swap_to_role_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("role_types.id"), nullable=True,
+    )
+    hours_per_month_swap: Mapped[Optional[float]] = mapped_column(
+        Numeric(10, 2), nullable=True,
+    )
+    effective_from: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)  # YYYY-MM
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    scenario: Mapped["Scenario"] = relationship()
+    project: Mapped["Project"] = relationship()
+
+
+class ScenarioPlanEdit(Base):
+    """Layer-2 companion overlay — project-plan edits (spec §3, §5): project
+    start/end dates, pipeline stage, DoI gate, and milestones. Low-volume,
+    project- or milestone-level. Designed now; exercised in Session 3.
+
+    ``target`` ∈ OVERLAY_PLAN_TARGETS:
+      - date/stage/doi targets: scalar ``value`` (e.g. "2026-09", a stage name);
+        ``milestone_id`` stays "" (sentinel, not NULL, so the unique constraint
+        dedupes one row per target).
+      - milestone target: ``milestone_id`` set; structured payload in
+        ``entry_json`` (name, due month, deliverables).
+    Stage/DoI edits route through the existing DoI gate check at promote; date
+    edits feed the resolved grid's start/end (spec §6).
+    """
+
+    __tablename__ = "scenario_plan_edits"
+    __table_args__ = (
+        UniqueConstraint(
+            "scenario_id", "project_id", "target", "milestone_id",
+            name="uq_scenario_plan_edit",
+        ),
+        Index("ix_scenario_plan_edit_scope", "scenario_id", "project_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    scenario_id: Mapped[int] = mapped_column(ForeignKey("scenarios.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    target: Mapped[str] = mapped_column(String(20), nullable=False)
+    # "" sentinel (not NULL) for non-milestone targets so the unique constraint
+    # dedupes to one row per (scenario, project, target).
+    milestone_id: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="", server_default="",
+    )
+    value: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    entry_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    scenario: Mapped["Scenario"] = relationship()
+    project: Mapped["Project"] = relationship()

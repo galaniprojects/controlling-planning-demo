@@ -161,8 +161,8 @@ In-app `/docs` route with six tabs:
 ### Setup — macOS / Linux
 
 ```bash
-git clone https://github.com/bill-pap/vision-demo-prototype.git
-cd vision-demo-prototype
+git clone https://github.com/bill-pap/viper-prototype.git
+cd viper-prototype
 
 # Backend
 cd backend
@@ -177,8 +177,8 @@ npm install
 ### Setup — Windows (PowerShell)
 
 ```powershell
-git clone https://github.com/bill-pap/vision-demo-prototype.git
-cd vision-demo-prototype
+git clone https://github.com/bill-pap/viper-prototype.git
+cd viper-prototype
 
 # Backend
 cd backend
@@ -237,7 +237,7 @@ Switch personas via the role dropdown in the top-right corner. Each persona has 
 ## Project Structure
 
 ```
-vision-demo-prototype/
+viper-prototype/
 ├── backend/              # FastAPI + SQLAlchemy + SQLite
 │   ├── models/           # SQLAlchemy ORM models (Project, ChargeableEntity, BTCProfile, ...)
 │   ├── routers/          # Route handlers (~22 routers, 200+ endpoints)

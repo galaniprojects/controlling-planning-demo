@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "backend",
-      "runtimeExecutable": "/Users/vasilis/Desktop/vision-demo-prototype/backend/.venv/bin/python",
+      "runtimeExecutable": "/Users/vasilis/Desktop/viper-prototype/backend/.venv/bin/python",
       "runtimeArgs": ["main.py"],
       "port": 8000,
       "cwd": "backend"

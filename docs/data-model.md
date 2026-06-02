@@ -1,6 +1,6 @@
 # VIPER Data Model Reference
 
-Canonical reference for all SQLAlchemy models in the VIPER Demo App. **66 models across 14 files** in `backend/models/`. Compiled directly from source — the `.py` files are authoritative; this doc is a navigable wrapper. Update this doc in the same commit that changes a model.
+Canonical reference for all SQLAlchemy models in the VIPER Demo App. **70 models across 14 files** in `backend/models/`. Compiled directly from source — the `.py` files are authoritative; this doc is a navigable wrapper. Update this doc in the same commit that changes a model.
 
 ## How to read this doc
 - **Per-model blocks** list only the *interesting* columns. Boilerplate (`id` PK autoincrement, `created_at`/`modified_at` timestamps) is omitted unless something is special about them.
@@ -34,7 +34,7 @@ Canonical reference for all SQLAlchemy models in the VIPER Demo App. **66 models
 | Change Mgmt | `ChangeRequest`, `CRChangeDetail`, `CRSubmissionSnapshot` |
 | Capacity | `Allocation`, `ResourceRequest`, `ResourceRequestAssignment`, `CapacityActionLog` |
 | Charging | `Country`, `Region`, `ChargingLocation`, `LegalEntity`, `UMVersion`, `UserMeasurement`, `ChargeableEntity`, `DistributionVersion`, `Distribution`, `BTCProfile`, `BTCProfileLine`, `RollupCache` |
-| Scenarios | `Scenario`, `ScenarioAction`, `ScenarioState`, `ScenarioCapacityImpact`, `ScenarioPromotion`, `ScenarioApplyToForecastEvent` |
+| Scenarios | `Scenario`, `ScenarioAction`, `ScenarioState`, `ScenarioCapacityImpact`, `ScenarioPromotion`, `ScenarioApplyToForecastEvent`, `ScenarioForecastCellEdit`, `ScenarioLineEdit`, `ScenarioMixChange`, `ScenarioPlanEdit` |
 | Submissions | `ProjectSubmissionSnapshot` |
 | System | `PlanningParameter`, `KPIDefinition`, `Notification`, `AuditLog`, `SystemSuggestion`, `RolePermissionGrant` |
 | Reporting | `ForecastSnapshot`, `SavedReport`, `SavedReportShare`, `SavedView` |
@@ -535,6 +535,40 @@ PL Apply-to-forecast audit per `[B-PR-05]`. Provenance on resulting forecast cel
 **Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `applied_by_id` FK NOT NULL, `applied_at` DateTime NOT NULL default utcnow, `cycle_id` String(40), `cycle_label` String(60), `diffs_carried_forward` Integer (`server_default='0'`), `diffs_skipped` Integer (`server_default='0'`), `summary_json` Text.
 
 **Indexes.** `ix_scenario_atf_scenario`, `ix_scenario_atf_applied_by`.
+
+### Project-Scope Redesign — Layer-2 hand-edit overlay (Simulator spec §5)
+
+The project-scope redesign stores a scenario's edits in two layers. **Layer 1 (macros)** reuses `ScenarioAction` rows (`scope='project'`, `action_type ∈ PROJECT_MACRO_ACTION_TYPES` = `delay_project` | `accelerate_project` | `pause_project` | `remove_project`) as ordered transforms re-derivable against a rebased anchor — no new table. **Layer 2 (hand edits)** is the sparse overlay below: keyed by (project, line, month) for cell values, with companion rows for added/removed lines, mix changes, and plan edits. The overlay *is* the plan-delta the promote / apply diff consumes directly (spec §6) — it is never replayed as a coarse action. Resolution order (spec §5.1): anchor → apply macros in order → overlay hand edits on top, hand-edits-win, absolute-month keying (§5.2). Module-level vocab constants in `scenarios.py`: `OVERLAY_CELL_FIELDS`, `OVERLAY_LINE_OPS`, `OVERLAY_LINE_KINDS`, `OVERLAY_PLAN_TARGETS`, `PROJECT_MACRO_ACTION_TYPES`.
+
+`line_key` = natural composite `"category|sub_category|role_type_id"` for existing lines (matching the live `Forecast` cell key), or a minted stable id (`"new:role:<uuid>"` / `"new:ext:<uuid>"`) for lines added via the overlay.
+
+### `ScenarioForecastCellEdit` — `scenario_forecast_cell_edits`
+Layer-2 hot path: one edited forecast cell value. Sparse, upsert/dedup per cell.
+
+**Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `project_id` FK NOT NULL, `line_key` String(120) NOT NULL, `month` String(7) NOT NULL (YYYY-MM, absolute), `field` String(20) NOT NULL (`hours` | `amount_eur` — internal lines carry `hours`, external lines carry `amount_eur`), `value` Numeric(14,2), `created_at`/`updated_at` DateTime.
+
+**Constraints / indexes.** Unique `uq_scenario_cell_edit` on (`scenario_id`, `project_id`, `line_key`, `month`, `field`); index `ix_scenario_cell_edit_scope` on (`scenario_id`, `project_id`).
+
+### `ScenarioLineEdit` — `scenario_line_edits`
+Layer-2 companion: structural add/remove of a forecast line (internal role line or external-cost line item).
+
+**Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `project_id` FK NOT NULL, `line_key` String(120) NOT NULL (minted for adds), `op` String(10) NOT NULL (`add` | `remove`), `line_kind` String(20) NOT NULL (`internal_role` | `external_cost`), `category` String(20), `sub_category` String(50), `role_type_id` FK → role_types, `cost_type_id` FK → external_cost_types, `vendor` String(200), `description` String(200), `capex_opex` String(10), `created_at` DateTime. Per-month values for the line live in `ScenarioForecastCellEdit` under the same `line_key`.
+
+**Constraints / indexes.** Unique `uq_scenario_line_edit` on (`scenario_id`, `project_id`, `line_key`); index `ix_scenario_line_edit_scope` on (`scenario_id`, `project_id`).
+
+### `ScenarioMixChange` — `scenario_mix_changes`
+Layer-2 companion: seniority/sourcing mix change. Mirrors the existing `change_allocation` action representation (a monthly hour swap between two role types within a cost centre). Routes as `people_action_item` at promote. Tier-3 control, exercised in Session 3.
+
+**Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `project_id` FK NOT NULL, `cost_center_id` FK → cost_centers, `swap_from_role_id`/`swap_to_role_id` FK → role_types, `hours_per_month_swap` Numeric(10,2), `effective_from` String(7) (YYYY-MM), `created_at` DateTime.
+
+**Indexes.** `ix_scenario_mix_change_scope` on (`scenario_id`, `project_id`).
+
+### `ScenarioPlanEdit` — `scenario_plan_edits`
+Layer-2 companion: project-plan edits — project start/end dates, pipeline stage, DoI gate, milestones. Low-volume, project- or milestone-level. Exercised in Session 3.
+
+**Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `project_id` FK NOT NULL, `target` String(20) NOT NULL (`start_month` | `end_month` | `stage` | `doi` | `milestone`), `milestone_id` String(50) NOT NULL default `""`/`server_default=""` (`""` sentinel for non-milestone targets so the unique constraint dedupes one row per target), `value` String(100), `entry_json` Text (structured milestone payload), `created_at` DateTime. Stage/DoI edits route through the existing DoI gate check at promote; date edits feed the resolved grid's start/end.
+
+**Constraints / indexes.** Unique `uq_scenario_plan_edit` on (`scenario_id`, `project_id`, `target`, `milestone_id`); index `ix_scenario_plan_edit_scope` on (`scenario_id`, `project_id`).
 
 ---
 

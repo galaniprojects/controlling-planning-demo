@@ -3,7 +3,9 @@
 Emits SQL for these v5 tables (all in Cluster B's lifecycle):
 - ``scenarios`` — 3 scenarios driven by ``config/scenarios.py``.
 - ``scenario_actions`` — ordered action list per scenario, carrying the
-  v5 columns (``lever_category``, ``tier``).
+  v5 columns (``lever_category``, ``tier``). Layer-1 macros for project-scope
+  scenarios (delay / accelerate / pause / remove ∈ PROJECT_MACRO_ACTION_TYPES)
+  live here as ordered transforms (spec §4, §5).
 - ``scenario_states`` — pre-computed snapshot per affected project for the
   published scenario per [B-SL-01..05].
 - ``scenario_capacity_impacts`` — per-CC × month capacity rollup snapshot
@@ -11,6 +13,19 @@ Emits SQL for these v5 tables (all in Cluster B's lifecycle):
 - ``scenario_promotions`` — partial-promote audit row per [B-PR-03..04].
 - ``scenario_apply_to_forecast_events`` — left empty in seed (created at
   runtime by the PL Apply-to-forecast endpoint per [B-PR-05]).
+
+Project-Scope Redesign (spec §5) — Layer-2 hand-edit overlay tables, emitted
+from the optional per-scenario keys ``cell_edits`` / ``line_edits`` /
+``mix_changes`` / ``plan_edits``:
+- ``scenario_forecast_cell_edits`` — sparse per-(project, line, month, field)
+  cell overlay. The 30%% external descope on ``proj-dwh`` (formerly the removed
+  ``reduce_budget`` blanket-scale macro, spec §4) is re-expressed here as
+  explicit ``amount_eur`` cell edits on the external lines.
+- ``scenario_line_edits`` — structural add/remove of a forecast line.
+- ``scenario_mix_changes`` — seniority/sourcing mix swap (the
+  ``scn-cco-mdh-staffing`` senior→mid dev swap maps here, mirroring the
+  legacy ``change_allocation`` action params).
+- ``scenario_plan_edits`` — project-plan (date/stage/DoI/milestone) edits.
 
 Determinism: all rows emitted in stable scenario-id × action-order ×
 project-id order (no hashing, no time.time()). Anchor forecast version FKs
@@ -179,5 +194,124 @@ def generate() -> str:
         )
 
     # scenario_apply_to_forecast_events: empty at seed time per [B-PR-05].
+
+    # --- scenario_forecast_cell_edits (Layer-2 cell overlay, spec §5) -------
+    # The 30% external descope on proj-dwh is re-expressed here: explicit
+    # absolute-month amount_eur cell edits on the external lines, replacing the
+    # removed reduce_budget blanket-scale macro (spec §4). created_at/updated_at
+    # anchor to the scenario created_at for byte-stable seed.
+    cell_rows: list[str] = []
+    for s in sorted(SCENARIOS, key=lambda r: r["id"]):
+        for ce in sorted(
+            s.get("cell_edits", []),
+            key=lambda r: (r["project_id"], r["line_key"], r["month"], r["field"]),
+        ):
+            value = ce.get("value")
+            cell_rows.append(
+                "(" + ", ".join([
+                    str(s["id"]),
+                    sql_str(ce["project_id"]),
+                    sql_str(ce["line_key"]),
+                    sql_str(ce["month"]),
+                    sql_str(ce["field"]),
+                    "NULL" if value is None else f"{value:.2f}",
+                    sql_str(s["created_at"]),
+                    sql_str(s["created_at"]),
+                ]) + ")"
+            )
+    if cell_rows:
+        parts.append(
+            "\nINSERT INTO scenario_forecast_cell_edits (scenario_id, "
+            "project_id, line_key, month, field, value, created_at, "
+            "updated_at) VALUES\n"
+            + ",\n".join(cell_rows) + ";"
+        )
+
+    # --- scenario_line_edits (Layer-2 structural add/remove, spec §5) -------
+    line_rows: list[str] = []
+    for s in sorted(SCENARIOS, key=lambda r: r["id"]):
+        for le in sorted(
+            s.get("line_edits", []),
+            key=lambda r: (r["project_id"], r["line_key"]),
+        ):
+            line_rows.append(
+                "(" + ", ".join([
+                    str(s["id"]),
+                    sql_str(le["project_id"]),
+                    sql_str(le["line_key"]),
+                    sql_str(le["op"]),
+                    sql_str(le["line_kind"]),
+                    sql_str(le.get("category")),
+                    sql_str(le.get("sub_category")),
+                    sql_str(le.get("role_type_id")),
+                    sql_str(le.get("cost_type_id")),
+                    sql_str(le.get("vendor")),
+                    sql_str(le.get("description")),
+                    sql_str(le.get("capex_opex")),
+                    sql_str(s["created_at"]),
+                ]) + ")"
+            )
+    if line_rows:
+        parts.append(
+            "\nINSERT INTO scenario_line_edits (scenario_id, project_id, "
+            "line_key, op, line_kind, category, sub_category, role_type_id, "
+            "cost_type_id, vendor, description, capex_opex, created_at) VALUES\n"
+            + ",\n".join(line_rows) + ";"
+        )
+
+    # --- scenario_mix_changes (Layer-2 seniority/sourcing mix, spec §5/§8) --
+    # scn-cco-mdh-staffing's senior->mid dev swap maps here, mirroring the
+    # legacy change_allocation action params (CC, swap roles, hours/mo, eff_from).
+    mix_rows: list[str] = []
+    for s in sorted(SCENARIOS, key=lambda r: r["id"]):
+        for mc in sorted(
+            s.get("mix_changes", []),
+            key=lambda r: (r["project_id"], r.get("effective_from") or ""),
+        ):
+            hpm = mc.get("hours_per_month_swap")
+            mix_rows.append(
+                "(" + ", ".join([
+                    str(s["id"]),
+                    sql_str(mc["project_id"]),
+                    sql_str(mc.get("cost_center_id")),
+                    sql_str(mc.get("swap_from_role_id")),
+                    sql_str(mc.get("swap_to_role_id")),
+                    "NULL" if hpm is None else f"{hpm:.2f}",
+                    sql_str(mc.get("effective_from")),
+                    sql_str(s["created_at"]),
+                ]) + ")"
+            )
+    if mix_rows:
+        parts.append(
+            "\nINSERT INTO scenario_mix_changes (scenario_id, project_id, "
+            "cost_center_id, swap_from_role_id, swap_to_role_id, "
+            "hours_per_month_swap, effective_from, created_at) VALUES\n"
+            + ",\n".join(mix_rows) + ";"
+        )
+
+    # --- scenario_plan_edits (Layer-2 date/stage/DoI/milestone, spec §3/§5) -
+    plan_rows: list[str] = []
+    for s in sorted(SCENARIOS, key=lambda r: r["id"]):
+        for pe in sorted(
+            s.get("plan_edits", []),
+            key=lambda r: (r["project_id"], r["target"], r.get("milestone_id") or ""),
+        ):
+            plan_rows.append(
+                "(" + ", ".join([
+                    str(s["id"]),
+                    sql_str(pe["project_id"]),
+                    sql_str(pe["target"]),
+                    sql_str(pe.get("milestone_id", "")),
+                    sql_str(pe.get("value")),
+                    sql_str(pe.get("entry_json")),
+                    sql_str(s["created_at"]),
+                ]) + ")"
+            )
+    if plan_rows:
+        parts.append(
+            "\nINSERT INTO scenario_plan_edits (scenario_id, project_id, "
+            "target, milestone_id, value, entry_json, created_at) VALUES\n"
+            + ",\n".join(plan_rows) + ";"
+        )
 
     return "\n".join(parts) + "\n"

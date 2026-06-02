@@ -49,6 +49,52 @@ _CREATED_BUDGET    = "2026-03-12 09:30:00"
 _CREATED_CCO       = "2026-04-02 14:00:00"
 _PROMOTED_BUDGET   = "2026-04-15 10:00:00"
 
+# ---------------------------------------------------------------------------
+# Project-Scope Redesign (spec §4/§5/§6) — proj-dwh external descope overlay.
+#
+# The former reduce_budget(proj-dwh, 30%, external) blanket-scale macro is
+# removed (spec §4) and re-expressed as explicit Layer-2 ScenarioForecastCellEdit
+# overlay rows: a faithful "descope external 30%" hand-edit applying ×0.70 to
+# EVERY future cell on BOTH external lines (per human decision — 30% across all
+# external, not consulting-only).
+#
+# Anchor cells = the LIVE proj-dwh Forecast rows (the same source
+# services/scenario_project_scope/resolution.read_anchor_grid reads):
+#   ext-cloud (Snowflake Enterprise): €8.000/mo Jul-2026..Mar-2027, then the
+#     provisional ramp €24.000 in 2027-04 and 2027-07 → €120.000 total.
+#   ext-consulting (Informatica ETL): €5.000/mo Jul-2026..Mar-2027, then
+#     €15.000 in 2027-04 and 2027-07 → €75.000 total.
+# External €195.000 → €136.500 (−€58.500). line_key is the natural composite
+# the recompute core builds, "external|{sub_category}|" with an empty role slot.
+#
+# value is the ABSOLUTE resolved cell amount (overlay = WYSIWYG hand edit, not a
+# delta — spec §5.3), = round(anchor × 0.70, 2). months are absolute (spec §5.2).
+_DWH_EXTERNAL_DESCOPE_PCT = 0.70
+_DWH_REGULAR_MONTHS = (
+    "2026-07", "2026-08", "2026-09", "2026-10", "2026-11", "2026-12",
+    "2027-01", "2027-02", "2027-03",
+)
+# (line_key, month, anchor_amount_eur) for every future external cell.
+_DWH_EXTERNAL_ANCHOR_CELLS: list[tuple] = (
+    [("external|ext-cloud|", m, 8000.0) for m in _DWH_REGULAR_MONTHS]
+    + [("external|ext-cloud|", "2027-04", 24000.0),
+       ("external|ext-cloud|", "2027-07", 24000.0)]
+    + [("external|ext-consulting|", m, 5000.0) for m in _DWH_REGULAR_MONTHS]
+    + [("external|ext-consulting|", "2027-04", 15000.0),
+       ("external|ext-consulting|", "2027-07", 15000.0)]
+)
+_DWH_EXTERNAL_CELL_EDITS: list[dict] = [
+    {
+        "project_id": "proj-dwh",
+        "line_key": line_key,
+        "month": month,
+        "field": "amount_eur",
+        "value": round(anchor * _DWH_EXTERNAL_DESCOPE_PCT, 2),
+    }
+    for (line_key, month, anchor) in _DWH_EXTERNAL_ANCHOR_CELLS
+]
+
+
 # Scenario id is an autoincrement integer (per Scenario.__tablename__);
 # we assign deterministic ids 1..N here so downstream JSON stays stable.
 SCENARIOS: list[dict] = [
@@ -148,13 +194,24 @@ SCENARIOS: list[dict] = [
         "archived": False,
         "tags": '["budget", "cross-portfolio", "executive-readout"]',
         "cc_owner_scope_cc_id": None,
+        # action_count counts conceptual levers (delay + accelerate + the DWH
+        # overlay descope = 3), consistent with projects_affected=3 which counts
+        # the overlay-only DWH project. Only 2 are ScenarioAction rows — the
+        # descope is Layer-2 overlay, not an action.
         "headline_impact": (
-            '{"total_budget_delta": -705000, "action_count": 3, '
+            '{"total_budget_delta": -58500, "action_count": 3, '
             '"projects_affected": 3}'
         ),
         "created_at": _CREATED_BUDGET,
         "modified_at": "2026-04-15 11:00:00",
         "last_recalculated_at": "2026-04-15 11:00:00",
+        # Project-Scope Redesign (spec §4/§5): delay + accelerate STAY as
+        # Layer-1 macro ScenarioActions (action_type ∈ PROJECT_MACRO_ACTION_TYPES,
+        # re-derivable curve transforms). The former reduce_budget action on
+        # proj-dwh is GONE — the blanket-scale macro was removed in spec §4, so
+        # the 30% external descope is now explicit Layer-2 cell edits (see
+        # "cell_edits" below). Action order is contiguous (1 = delay, 2 =
+        # accelerate); the descope carries no action_order (it is overlay).
         "actions": [
             {
                 "action_order": 1,
@@ -165,21 +222,10 @@ SCENARIOS: list[dict] = [
                 "tier": 1,
                 "group_label": "Budget pressure response",
                 "parameters_json": '{"delay_months": 6, "reason": "Budget pressure — 15% directive"}',
-                "impact_delta_json": '{"budget_delta": -540000, "schedule_shift_months": 6}',
+                "impact_delta_json": '{"budget_delta": 0, "schedule_shift_months": 6}',
             },
             {
                 "action_order": 2,
-                "scope": "project",
-                "action_type": "reduce_budget",
-                "project_id": "proj-dwh",
-                "lever_category": "forecast_grid",
-                "tier": 1,
-                "group_label": "Budget pressure response",
-                "parameters_json": '{"cut_pct": 30, "scope": "external_consulting"}',
-                "impact_delta_json": '{"budget_delta": -165000}',
-            },
-            {
-                "action_order": 3,
                 "scope": "project",
                 "action_type": "accelerate_project",
                 "project_id": "proj-railsafety",
@@ -193,16 +239,23 @@ SCENARIOS: list[dict] = [
                 "impact_delta_json": '{"budget_delta": 0, "schedule_shift_months": -2}',
             },
         ],
-        # Pre-calculated state snapshots for the 3 affected projects
-        # (per [B-SL-01..05] published-scenario shape).
+        # Pre-calculated state snapshots for the 3 affected projects, REGENERATED
+        # from the project-scope recompute engine at integration (spec §6):
+        #  - delay (connveh +6mo) and accelerate (railsafety −2mo) are
+        #    total-preserving curve shifts → full-horizon budget_delta = 0; only
+        #    start/end move. is_affected stays True (the curve moved).
+        #  - proj-dwh: uniform 30% external descope (Layer-2 ×0.70 cell edits)
+        #    cuts external €195.000 → €136.500 → budget_delta = −€58.500.
+        # original_budget = the live forecast rollup the engine computes (not the
+        # old notional). RAG = drift-vs-baseline per the engine.
         "states": [
             {
                 "project_id": "proj-connveh",
-                "original_budget": 1800000.00,
-                "adjusted_budget": 1260000.00,
-                "budget_delta": -540000.00,
+                "original_budget": 1146690.00,
+                "adjusted_budget": 1146690.00,
+                "budget_delta": 0.00,
                 "original_rag": None,
-                "adjusted_rag": "amber",
+                "adjusted_rag": "green",
                 "original_start": "2026-10",
                 "adjusted_start": "2027-04",
                 "original_end": "2028-12",
@@ -211,11 +264,11 @@ SCENARIOS: list[dict] = [
             },
             {
                 "project_id": "proj-dwh",
-                "original_budget": 550000.00,
-                "adjusted_budget": 385000.00,
-                "budget_delta": -165000.00,
+                "original_budget": 398400.00,
+                "adjusted_budget": 339900.00,
+                "budget_delta": -58500.00,
                 "original_rag": "green",
-                "adjusted_rag": "amber",
+                "adjusted_rag": "red",
                 "original_start": "2026-07",
                 "adjusted_start": "2026-07",
                 "original_end": "2027-09",
@@ -224,8 +277,8 @@ SCENARIOS: list[dict] = [
             },
             {
                 "project_id": "proj-railsafety",
-                "original_budget": 650000.00,
-                "adjusted_budget": 650000.00,
+                "original_budget": 518540.00,
+                "adjusted_budget": 518540.00,
                 "budget_delta": 0.00,
                 "original_rag": "green",
                 "adjusted_rag": "green",
@@ -262,8 +315,13 @@ SCENARIOS: list[dict] = [
             },
         ],
         # Optional: one ScenarioPromotion row demonstrating the partial-promote
-        # audit pattern per [B-PR-03..04]. Action 3 (accelerate) was promoted
-        # to the live forecast cycle; actions 1+2 remain in scenario-only state.
+        # audit pattern per [B-PR-03..04]. The accelerate macro (now action 2)
+        # was promoted to the live forecast cycle; the delay macro (action 1)
+        # and the proj-dwh external descope (now a Layer-2 overlay diff, not an
+        # action — spec §4/§6, routed directly) remain in scenario-only state.
+        # Per spec §6 each overlay entry is individually routable/promotable, so
+        # the descope appears here as one skipped change_request keyed to the
+        # overlay rather than to a synthetic action.
         "promotions": [
             {
                 "promoted_at": _PROMOTED_BUDGET,
@@ -272,7 +330,7 @@ SCENARIOS: list[dict] = [
                 "skipped_count": 2,
                 "notes": "Partial promote — accelerate Rail Safety only.",
                 "routing_summary_json": (
-                    '[{"action_id": "scn-budget-pressure-15:3", '
+                    '[{"action_id": "scn-budget-pressure-15:2", '
                     '"routing_type": "direct_forecast_update", '
                     '"status": "promoted", '
                     '"message": "Forecast cells updated for proj-railsafety", '
@@ -282,14 +340,27 @@ SCENARIOS: list[dict] = [
                     '"status": "skipped", '
                     '"message": "Skipped by promoter — pending CFO sign-off", '
                     '"target_id": "proj-connveh"}, '
-                    '{"action_id": "scn-budget-pressure-15:2", '
+                    '{"action_id": "scn-budget-pressure-15:overlay:proj-dwh-external", '
                     '"routing_type": "change_request", '
                     '"status": "skipped", '
-                    '"message": "Skipped by promoter — pending CFO sign-off", '
+                    '"message": "Skipped by promoter — external descope pending CFO sign-off", '
                     '"target_id": "proj-dwh"}]'
                 ),
             },
         ],
+        # Project-Scope Redesign (spec §4/§5/§6): the former
+        # reduce_budget(proj-dwh, 30%, external_consulting) blanket-scale macro
+        # is removed (spec §4) and re-expressed as explicit Layer-2
+        # ScenarioForecastCellEdit overlay rows on proj-dwh's external lines —
+        # ×0.70 on every future external cell (both ext-cloud and
+        # ext-consulting), the faithful "descope external 30%" hand-edit.
+        # External €195.000 → €136.500 (−€58.500). See _DWH_EXTERNAL_CELL_EDITS
+        # above for the anchor amounts + derivation. NOTE: the pre-computed
+        # ScenarioState / capacity / promotion / headline_impact rows below are
+        # left as legacy placeholders — they are regenerated by the new recompute
+        # engine at integration (delay/accelerate are now total-preserving curve
+        # shifts), so their numbers are intentionally NOT reconciled here.
+        "cell_edits": _DWH_EXTERNAL_CELL_EDITS,
     },
     {
         "id": 3,
@@ -341,8 +412,35 @@ SCENARIOS: list[dict] = [
         "states": [],
         "capacity_impacts": [],
         "promotions": [],
+        # Project-Scope Redesign (spec §5/§8): the senior->mid dev swap is the
+        # lone Tier-3 grid control, re-expressed as a Layer-2 ScenarioMixChange
+        # overlay row. Mirrors the change_allocation action's parameters_json
+        # exactly (CC, swap roles, hours/mo, effective_from) so the Tier-3 mix
+        # control (Session 3) reuses the shape. The ScenarioAction above is kept
+        # for continuity of the tier3_content_flag + impact_delta narrative; the
+        # mix row is the canonical overlay representation the recompute core /
+        # routing consume (routes as a people_action_item at promote).
+        "mix_changes": [
+            {
+                "project_id": "proj-mdh-rollout",
+                "cost_center_id": "cc-muc-apd",
+                "swap_from_role_id": "role-sr-dev",
+                "swap_to_role_id": "role-dev",
+                "hours_per_month_swap": 40,
+                "effective_from": "2026-05",
+            },
+        ],
     },
 ]
+
+
+# Frozen overlay vocab (mirrors models.scenarios — kept local so the config
+# self-validates without importing the ORM at seed-generation time).
+_CELL_FIELDS = ("hours", "amount_eur")
+_LINE_OPS = ("add", "remove")
+_LINE_KINDS = ("internal_role", "external_cost")
+_PLAN_TARGETS = ("start_month", "end_month", "stage", "doi", "milestone")
+_MACRO_ACTION_TYPES = ("delay_project", "accelerate_project", "pause_project", "remove_project")
 
 
 # Sanity checks — fail loudly at import time so seed runs surface errors fast.
@@ -354,8 +452,53 @@ def _validate() -> None:
     for s in SCENARIOS:
         assert s["status"] in ("private", "published"), s["stable_key"]
         assert s["visibility"] in ("private", "tier3_only", "all_users"), s["stable_key"]
+        # action_order must be contiguous 1..N (project-scope macros stay as
+        # ordered transforms; no gaps after the reduce_budget removal, spec §4).
+        orders = sorted(a["action_order"] for a in s["actions"])
+        assert orders == list(range(1, len(orders) + 1)), \
+            f"{s['stable_key']}: action_order must be contiguous 1..N, got {orders}"
         for a in s["actions"]:
             assert a["tier"] in (1, 2, 3), s["stable_key"]
+        # Layer-2 cell overlay (spec §5).
+        for ce in s.get("cell_edits", []):
+            assert ce["field"] in _CELL_FIELDS, s["stable_key"]
+            assert len(ce["month"]) == 7 and ce["month"][4] == "-", s["stable_key"]
+            assert "|" in ce["line_key"], s["stable_key"]
+        for le in s.get("line_edits", []):
+            assert le["op"] in _LINE_OPS, s["stable_key"]
+            assert le["line_kind"] in _LINE_KINDS, s["stable_key"]
+        for mc in s.get("mix_changes", []):
+            assert mc["project_id"], s["stable_key"]
+        for pe in s.get("plan_edits", []):
+            assert pe["target"] in _PLAN_TARGETS, s["stable_key"]
+
+    # scn-budget-pressure-15: the proj-dwh external descope cell edits are a
+    # ×0.70 cut on EVERY future external cell (both lines), totalling −€58.500
+    # vs the live anchor (external €195.000 → €136.500). The pre-computed
+    # ScenarioState/headline numbers are NOT reconciled here — the recompute
+    # engine regenerates them at integration — so we do NOT cross-check them.
+    budget = next(s for s in SCENARIOS if s["stable_key"] == "scn-budget-pressure-15")
+    anchor_by_cell = {(lk, mo): amt for (lk, mo, amt) in _DWH_EXTERNAL_ANCHOR_CELLS}
+    edits = budget.get("cell_edits", [])
+    # One edit per future external cell on both lines (no cells missed/duplicated).
+    assert len(edits) == len(_DWH_EXTERNAL_ANCHOR_CELLS), \
+        f"expected {len(_DWH_EXTERNAL_ANCHOR_CELLS)} dwh external edits, got {len(edits)}"
+    total_delta = 0.0
+    for ce in edits:
+        anchor_val = anchor_by_cell[(ce["line_key"], ce["month"])]
+        assert abs(ce["value"] - round(anchor_val * 0.70, 2)) < 0.005, \
+            f"dwh cell {ce['line_key']} {ce['month']} must be anchor×0.70"
+        total_delta += (ce["value"] - anchor_val)
+    assert abs(total_delta - (-58500.0)) < 0.01, \
+        f"proj-dwh external descope must total -58500.00, got {total_delta:.2f}"
+    # proj-dwh ScenarioState is reconciled to the descope: delta −58.500,
+    # adjusted = original − 58.500 (connveh/railsafety stay placeholders).
+    dwh_state = next(st for st in budget["states"] if st["project_id"] == "proj-dwh")
+    assert abs(dwh_state["budget_delta"] - (-58500.0)) < 0.01, \
+        f"proj-dwh ScenarioState budget_delta must be -58500.00, got {dwh_state['budget_delta']}"
+    assert abs((dwh_state["original_budget"] + dwh_state["budget_delta"])
+               - dwh_state["adjusted_budget"]) < 0.01, \
+        "proj-dwh ScenarioState: original + delta must equal adjusted"
 
 
 _validate()
