@@ -417,7 +417,7 @@ class TestPreviewPromote:
 def _macro_project(db, pid, pl_person_id, cells):
     """A project + internal forecast cells. ``cells`` = {month: amount_eur}."""
     db.add(Project(
-        id=pid, name=pid, status="active", capex_opex="opex",
+        id=pid, name=pid, pipeline_stage="Active", capex_opex="opex",
         start_month=min(cells), end_month=max(cells), pl_person_id=pl_person_id,
     ))
     for month, amt in cells.items():

@@ -32,7 +32,7 @@ def _project(db, pid="proj-res", start="2026-05", end="2026-08"):
     p = Project(
         id=pid,
         name="Resolution Project",
-        status="active",
+        pipeline_stage="Active",
         capex_opex="opex",
         start_month=start,
         end_month=end,

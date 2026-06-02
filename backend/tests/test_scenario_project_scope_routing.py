@@ -70,11 +70,11 @@ def scenario_world(db, seed_org_base, rate_role_dev):
     """A scenario on an own project (PL == controller) with one internal
     forecast line in June, plus a foreign project owned by another PL."""
     own = Project(
-        id="proj-own-c", name="Own C", status="active", capex_opex="opex",
+        id="proj-own-c", name="Own C", pipeline_stage="Active", capex_opex="opex",
         start_month="2026-01", end_month="2026-12", pl_person_id=CONTROLLER_ID,
     )
     foreign = Project(
-        id="proj-foreign-c", name="Foreign C", status="active",
+        id="proj-foreign-c", name="Foreign C", pipeline_stage="Active",
         capex_opex="opex", start_month="2026-01", end_month="2026-12",
         pl_person_id="p-dev-2",
     )
