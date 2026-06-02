@@ -10,7 +10,10 @@ from models.financial import Baseline, Forecast
 from models.organization import CostCenter
 from models.people import Person, RateTable
 from models.projects import Project
-from models.scenarios import Scenario, ScenarioAction, ScenarioCapacityImpact, ScenarioState
+from models.scenarios import (
+    Scenario, ScenarioAction, ScenarioCapacityImpact, ScenarioState,
+    ScenarioForecastCellEdit, ScenarioLineEdit, PROJECT_MACRO_ACTION_TYPES,
+)
 from services.calculations import compute_plan_drift, compute_budget_rag, add_months, month_diff
 from services.portfolio_service import get_project_entity_info, get_top_level_entity_type_id, _get_projects_for_entity_recursive
 
@@ -195,6 +198,35 @@ def get_scenario_state(db: Session, scenario_id: int) -> dict:
         return recalculate_scenario(db, scenario, actions)
 
 
+def _project_scope_core_pids(
+    db: Session, scenario: Scenario, actions: list[ScenarioAction], valid_pids: set[str],
+) -> set[str]:
+    """Projects whose edits use the two-layer model and therefore recompute via the
+    project-scope core (spec §6) instead of the legacy aggregate path.
+
+    A project is in the core set when it has a Layer-1 macro action
+    (delay/accelerate/pause/remove) or a Layer-2 cell/line overlay row. Mix and
+    plan overlays do not yet drive the financial grid this session, so they are
+    deliberately excluded — any non-macro legacy project action on such a project
+    still applies via ``_apply_project_action`` as the surviving compile target.
+    """
+    pids: set[str] = set()
+    for a in actions:
+        if a.scope == "project" and a.project_id in valid_pids:
+            if _ACTION_ALIASES.get(a.action_type, a.action_type) in PROJECT_MACRO_ACTION_TYPES:
+                pids.add(a.project_id)
+    for model in (ScenarioForecastCellEdit, ScenarioLineEdit):
+        for (pid,) in (
+            db.query(model.project_id)
+            .filter(model.scenario_id == scenario.id)
+            .distinct()
+            .all()
+        ):
+            if pid in valid_pids:
+                pids.add(pid)
+    return pids
+
+
 def recalculate_scenario(db: Session, scenario: Scenario, actions: list[ScenarioAction]) -> dict:
     """Recalculate scenario from scratch by applying actions to current portfolio state."""
     projects = db.query(Project).filter(Project.is_active.is_(True)).all()
@@ -223,19 +255,72 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
             "status": p.pipeline_stage,
         }
 
-    # Apply actions — compute per-action budget delta
+    # Project-scope recompute core (spec §6): projects whose edits use the
+    # two-layer model (Layer-1 macros and/or Layer-2 cell/line overlay) recompute
+    # via the resolved cell grid → rollup, replacing the legacy aggregate path for
+    # those projects. Non-macro legacy project actions on other projects still
+    # apply below as the surviving compile target.
+    from services.scenario_project_scope import resolution as _ps_resolution
+    from services.scenario_project_scope import rollup as _ps_rollup
+    from services.scenario_project_scope import macros as _ps_macros
+
+    core_pids = _project_scope_core_pids(db, scenario, actions, set(working.keys()))
+    macro_notes: list[str] = []
+    if core_pids:
+        open_month = _ps_macros.current_open_forecast_month()
+        for pid in core_pids:
+            state = working[pid]
+            anchor_grid = _ps_resolution.read_anchor_grid(db, pid)
+            adjusted_grid = _ps_resolution.resolve_project_grid(db, scenario, pid)
+            ps = _ps_rollup.rollup_grid(
+                adjusted_grid, anchor_grid,
+                project_name=state["name"], baseline_eur=state["baseline"],
+                original_rag=state["rag"],
+            )
+            state["adjusted_budget"] = ps["adjusted_budget"]
+            state["is_affected"] = ps["is_affected"]
+            if adjusted_grid.start_month:
+                state["start"] = adjusted_grid.start_month
+            if adjusted_grid.end_month:
+                state["end"] = adjusted_grid.end_month
+            # Surface macro clamp messages (spec §4). resolve_project_grid returns
+            # only the grid, so re-derive notes from the ordered macros directly.
+            proj_macros = [
+                a for a in actions
+                if a.scope == "project" and a.project_id == pid
+                and _ACTION_ALIASES.get(a.action_type, a.action_type) in PROJECT_MACRO_ACTION_TYPES
+            ]
+            if proj_macros:
+                macro_notes.extend(
+                    _ps_macros.apply_macros(
+                        anchor_grid, proj_macros, current_open_month=open_month,
+                    ).notes
+                )
+
+    # Apply actions — compute per-action budget delta. Project-scope actions on
+    # core projects were already applied by the core above (it is authoritative),
+    # so skip them here while still recording them in the action list.
     action_list = []
     for a in actions:
         params = json.loads(a.parameters_json) if a.parameters_json else {}
+        core_handled = a.scope == "project" and a.project_id in core_pids
 
         # Use pre-computed delta if available (pre-seeded scenarios)
         if a.impact_delta_json:
-            _apply_action(db, working, a.action_type, a.scope, a.project_id, params)
+            if not core_handled:
+                _apply_action(db, working, a.action_type, a.scope, a.project_id, params)
             action_list.append({
                 "id": a.id, "action_order": a.action_order, "scope": a.scope,
                 "action_type": a.action_type, "project_id": a.project_id,
                 "parameters": params,
                 "impact_delta": json.loads(a.impact_delta_json),
+                "group_label": a.group_label,
+            })
+        elif core_handled:
+            action_list.append({
+                "id": a.id, "action_order": a.action_order, "scope": a.scope,
+                "action_type": a.action_type, "project_id": a.project_id,
+                "parameters": params, "impact_delta": {},
                 "group_label": a.group_label,
             })
         else:
@@ -302,6 +387,7 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
             "total_budget_delta": round(total_adjusted - total_original, 2),
             "rag_distribution": rag_dist,
             "time_frame_breakdown": breakdown,
+            "macro_notes": macro_notes,
         },
         "project_states": project_states,
         "capacity_impacts": [],
