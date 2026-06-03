@@ -10,7 +10,7 @@
  */
 
 import { useState } from 'react';
-import { ArrowDownToLine, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowDownToLine, CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { ApiError } from '@/api/client';
 import { useScenarioContext } from '../useScenarioContext';
+import { RebaseModal } from '../manager/RebaseModal';
 import type { ApplyToForecastResponse } from '../api/scenariosApi';
 
 interface Props {
@@ -32,24 +34,41 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<ApplyToForecastResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Simulator S4 — stale-anchor guard (§10). A 409 from apply-to-forecast
+  // means the scenario's anchor is out of date and must be rebased before
+  // it can seed the live forecast cycle.
+  const [staleAnchor, setStaleAnchor] = useState(false);
+  const [rebaseOpen, setRebaseOpen] = useState(false);
 
   const handleClose = () => {
     setResult(null);
     setError(null);
+    setStaleAnchor(false);
     onOpenChange(false);
   };
 
   const handleApply = async () => {
     setSubmitting(true);
     setError(null);
+    setStaleAnchor(false);
     try {
       const res = await ctx.applyToForecast();
       setResult(res);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Apply failed');
+      if (e instanceof ApiError && e.status === 409) {
+        setStaleAnchor(true);
+      } else {
+        setError(e instanceof Error ? e.message : 'Apply failed');
+      }
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleRebaseConfirm = async (newAnchorVersionId: number) => {
+    await ctx.rebase(newAnchorVersionId);
+    // Anchor refreshed — clear the guard so the user can retry Apply.
+    setStaleAnchor(false);
   };
 
   return (
@@ -57,11 +76,35 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>
-            {result ? 'Apply complete' : 'Apply scenario to forecast'}
+            {result
+              ? 'Apply complete'
+              : staleAnchor
+                ? 'Anchor is out of date'
+                : 'Apply scenario to forecast'}
           </DialogTitle>
         </DialogHeader>
 
-        {!result ? (
+        {staleAnchor ? (
+          <div className="space-y-3 py-2">
+            <div className="flex items-start gap-2 text-sm text-foreground">
+              <AlertTriangle
+                className="h-4 w-4 mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400"
+                aria-hidden="true"
+              />
+              <p>
+                This scenario is anchored to a forecast cycle that has since
+                moved on. Applying now would seed your live forecast from an
+                out-of-date baseline. Rebase the scenario to the current cycle
+                first, then apply.
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2 leading-relaxed">
+              Rebasing carries your diffs forward unchanged onto the newer
+              anchor. You can resolve any conflicts in the workspace before
+              re-applying.
+            </p>
+          </div>
+        ) : !result ? (
           <div className="space-y-3 py-2">
             <div className="flex items-start gap-2 text-sm text-foreground">
               <ArrowDownToLine
@@ -138,7 +181,14 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
         )}
 
         <DialogFooter>
-          {!result ? (
+          {staleAnchor ? (
+            <>
+              <Button variant="outline" onClick={handleClose}>
+                Cancel
+              </Button>
+              <Button onClick={() => setRebaseOpen(true)}>Rebase…</Button>
+            </>
+          ) : !result ? (
             <>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
@@ -152,6 +202,18 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
           )}
         </DialogFooter>
       </DialogContent>
+
+      {/* Stale-anchor guard — reuse the existing RebaseModal wiring. */}
+      <RebaseModal
+        open={rebaseOpen}
+        onOpenChange={setRebaseOpen}
+        scenarioName={
+          (ctx.detail?.metadata as unknown as { name?: string })?.name ??
+          `Scenario #${ctx.scenarioId}`
+        }
+        currentAnchorVersionId={ctx.anchorVersionId}
+        onConfirm={handleRebaseConfirm}
+      />
     </Dialog>
   );
 }

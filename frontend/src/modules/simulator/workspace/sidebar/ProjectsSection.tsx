@@ -13,10 +13,11 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Folder, Search } from 'lucide-react';
+import { Folder, Lock, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
+import { useRole } from '@/contexts/RoleContext';
 import { scenariosApi, type ScenarioProjectItem } from '../../api/scenariosApi';
 import { useScenarioContext } from '../../useScenarioContext';
 
@@ -24,8 +25,21 @@ const SURFACE_FALLBACK = 'forecast-grid';
 
 export function ProjectsSection() {
   const { scenarioId } = useScenarioContext();
+  const { context } = useRole();
   const navigate = useNavigate();
   const params = useParams<{ id: string; surfaceKey?: string }>();
+
+  // Simulator S4 — a PL authors only against projects they lead. The
+  // backend enforces this per-action (403 on cross-project edits); the
+  // picker greys out projects outside the PL's own set so the scope is
+  // obvious before they click in.
+  const isProjectLead = context?.role === 'project_lead';
+  const ownedProjectIds = useMemo(
+    () => new Set(context?.owned_project_ids ?? []),
+    [context?.owned_project_ids],
+  );
+  const isEditable = (projectId: string) =>
+    !isProjectLead || ownedProjectIds.has(projectId);
   const [projects, setProjects] = useState<ScenarioProjectItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,19 +108,32 @@ export function ProjectsSection() {
         />
       </div>
       <ul className="max-h-[320px] overflow-y-auto space-y-0.5">
-        {filtered.slice(0, 200).map((p) => (
-          <li key={p.id}>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start h-7 text-xs"
-              onClick={() => navigateToProject(p.id)}
-            >
-              <Folder className="h-3 w-3 mr-1.5 text-muted-foreground" />
-              <span className="truncate">{p.name}</span>
-            </Button>
-          </li>
-        ))}
+        {filtered.slice(0, 200).map((p) => {
+          const editable = isEditable(p.id);
+          return (
+            <li key={p.id}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start h-7 text-xs disabled:opacity-50"
+                onClick={() => navigateToProject(p.id)}
+                disabled={!editable}
+                title={
+                  editable
+                    ? undefined
+                    : 'You can only edit projects you lead. This project is outside your scope.'
+                }
+              >
+                {editable ? (
+                  <Folder className="h-3 w-3 mr-1.5 text-muted-foreground" />
+                ) : (
+                  <Lock className="h-3 w-3 mr-1.5 text-muted-foreground" aria-hidden="true" />
+                )}
+                <span className="truncate">{p.name}</span>
+              </Button>
+            </li>
+          );
+        })}
         {filtered.length === 0 && (
           <li className="text-[11px] text-muted-foreground italic py-2 px-2">
             No matches.

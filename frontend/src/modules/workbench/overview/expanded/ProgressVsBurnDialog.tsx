@@ -20,6 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ProgressVsBurnChart } from '@/components/charts/ProgressVsBurnChart';
 import { milestonesApi, progressApi, workbenchApi } from '@/api/endpoints';
+import { useConfig } from '@/contexts/ConfigContext';
 import { cn } from '@/lib/utils';
 import type {
   ProjectOverview,
@@ -71,6 +72,7 @@ export function ProgressVsBurnDialog({
   open,
   onOpenChange,
 }: Props) {
+  const { currentPeriod } = useConfig();
   const [overview, setOverview] = useState<ProjectOverview | null>(null);
   const [timeline, setTimeline] = useState<TimelineData | null>(null);
   const [progress, setProgress] = useState<ProgressResponse | null>(null);
@@ -127,7 +129,7 @@ export function ProgressVsBurnDialog({
     if (livePct != null) {
       // Use the latest snapshot month if available, else the demo month.
       const liveMonth =
-        isoToMonth(progress.progress_updated_at) ?? '2026-04';
+        isoToMonth(progress.progress_updated_at) ?? currentPeriod;
       // Avoid duplicates: only append if the most recent series point is
       // older than the live month.
       if (
@@ -191,7 +193,7 @@ export function ProgressVsBurnDialog({
                 milestones={milestones}
                 totalForecastEur={totalForecastEur}
                 totalBaselineEur={totalBaselineEur}
-                todayMonth={timeline?.today_month ?? '2026-04'}
+                todayMonth={timeline?.today_month ?? currentPeriod}
                 height={360}
               />
             </div>

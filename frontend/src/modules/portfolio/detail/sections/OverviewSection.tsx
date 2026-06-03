@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/shared/Skeleton';
 import { formatCurrency, formatPercent, formatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
+import { useConfig } from '@/contexts/ConfigContext';
 import {
   AreaChart,
   Area,
@@ -26,20 +27,25 @@ interface Props {
   loading: boolean;
 }
 
-const DEMO_DATE = new Date('2026-04-01');
-
-function timelinePct(start: string | null, end: string | null): number {
+function timelinePct(
+  start: string | null,
+  end: string | null,
+  now: number,
+): number {
   if (!start || !end) return 0;
   const s = new Date(start + '-01').getTime();
   const e = new Date(end + '-01').getTime();
   if (e <= s) return 0;
   const total = e - s;
-  const elapsed = DEMO_DATE.getTime() - s;
+  const elapsed = now - s;
   return Math.max(0, Math.min(100, (elapsed / total) * 100));
 }
 
 export function OverviewSection({ projectId, summary, overview, loading }: Props) {
   void projectId;
+  const { currentPeriod } = useConfig();
+  // First day of the present month — the timeline "now" marker.
+  const nowMs = new Date(currentPeriod + '-01').getTime();
   if (loading) {
     return (
       <div className="space-y-4">
@@ -60,7 +66,7 @@ export function OverviewSection({ projectId, summary, overview, loading }: Props
 
   const bs = summary?.budget_snapshot;
   const tl = summary?.timeline;
-  const tlPct = timelinePct(tl?.start ?? null, tl?.end ?? null);
+  const tlPct = timelinePct(tl?.start ?? null, tl?.end ?? null, nowMs);
   const meta = overview?.metadata;
   const capexOpex = overview?.capex_opex;
   const resPlan = overview?.resource_plan_summary ?? [];

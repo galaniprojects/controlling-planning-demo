@@ -2,7 +2,7 @@
  * v5 B2 — Single-scenario row used by both manager tables.
  */
 
-import { MoreHorizontal, Lock, Globe, Eye, Archive } from 'lucide-react';
+import { MoreHorizontal, Lock, Globe, Eye, Archive, ArrowDownToLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { TableCell, TableRow } from '@/components/ui/table';
@@ -80,6 +80,11 @@ interface Props {
   scenario: ScenarioListItem;
   isAuthor: boolean;
   showOwnerActions: boolean;
+  /**
+   * Simulator S4 — render a "Handoff from <author>" badge. Set when the
+   * viewer is a Project Lead seeing a leadership→PL handoff slice (§9.1).
+   */
+  isHandoff?: boolean;
   onOpen: (id: number) => void;
   onClone: (id: number) => void;
   onPublish?: (id: number) => void;
@@ -93,6 +98,7 @@ export function ScenarioRow({
   scenario,
   isAuthor,
   showOwnerActions,
+  isHandoff = false,
   onOpen,
   onClone,
   onPublish,
@@ -133,7 +139,15 @@ export function ScenarioRow({
         </div>
       </TableCell>
       <TableCell>
-        <VisibilityBadge scenario={scenario} />
+        <div className="flex flex-col items-start gap-1">
+          <VisibilityBadge scenario={scenario} />
+          {isHandoff && (
+            <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-400">
+              <ArrowDownToLine className="h-3 w-3 mr-1" aria-hidden="true" />
+              Handoff from {scenario.author_name}
+            </Badge>
+          )}
+        </div>
       </TableCell>
       <TableCell className="text-xs text-muted-foreground">
         {scenario.author_name}

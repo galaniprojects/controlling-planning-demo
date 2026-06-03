@@ -35,6 +35,7 @@ import {
   ReferenceLine,
   Dot,
 } from 'recharts';
+import { getRuntimeCurrentPeriod } from '@/lib/yearColumns';
 import type { TrajectoryPoint } from '@/types/api';
 import type { MilestoneResponse } from '@/types/milestones';
 
@@ -143,7 +144,6 @@ interface Props {
   todayMonth?: string;
 }
 
-const DEFAULT_TODAY = '2026-04';
 
 /** Compute milestone zones from the milestone list, classifying by today. */
 function buildZones(
@@ -177,7 +177,9 @@ export function ProgressVsBurnChart({
   totalForecastEur,
   totalBaselineEur,
   height = 320,
-  todayMonth = DEFAULT_TODAY,
+  // Fallback to the runtime present-period mirror; callers should pass
+  // `useConfig().currentPeriod` explicitly.
+  todayMonth = getRuntimeCurrentPeriod(),
 }: Props) {
   const progressByMonth = new Map<string, number>();
   for (const p of progressSeries) progressByMonth.set(p.month, p.progress_pct);

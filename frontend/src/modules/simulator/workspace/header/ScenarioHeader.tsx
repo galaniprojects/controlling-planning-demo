@@ -10,8 +10,9 @@
  */
 
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MoreHorizontal, Sparkles } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Sparkles, ArrowDownToLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,8 +41,15 @@ export function ScenarioHeader({ onOpenAdvisor, onOpenPromote }: Props) {
 
   const detail = ctx.detail;
   const meta = detail?.metadata as
-    | (typeof detail extends null ? never : { name: string; description: string | null; status: string })
+    | (typeof detail extends null
+        ? never
+        : { name: string; description: string | null; status: string })
     | undefined;
+
+  // Simulator S4 — handoff slice. A PL viewing a published scenario they
+  // did NOT author is seeing the leadership→PL handoff (§9.1); their
+  // path-to-live is Apply-to-forecast (NOT promote).
+  const isHandoff = canApply && !ctx.isOwner && meta?.status === 'published';
 
   const lastRecalcRaw = (detail?.metadata as unknown as {
     last_recalculated_at?: string | null;
@@ -95,6 +103,12 @@ export function ScenarioHeader({ onOpenAdvisor, onOpenPromote }: Props) {
                 archived={ctx.archived}
               />
             )}
+            {isHandoff && (
+              <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-400">
+                <ArrowDownToLine className="h-3 w-3 mr-1" aria-hidden="true" />
+                Handoff from {detail?.metadata.author_name}
+              </Badge>
+            )}
           </div>
           {meta?.description && (
             <p className="text-xs text-muted-foreground truncate">
@@ -130,15 +144,19 @@ export function ScenarioHeader({ onOpenAdvisor, onOpenPromote }: Props) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {meta?.status === 'private' ? (
-                <DropdownMenuItem onClick={handlePublish}>
-                  Publish
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem onClick={handleUnpublish}>
-                  Unpublish
-                </DropdownMenuItem>
-              )}
+              {/* Simulator S4 — Publish gated on canPublish (controllers +
+                  PLs; executives excluded). For a PL, publishing means
+                  oversight + handoff, NOT promote (§9.2). */}
+              {ctx.canPublish &&
+                (meta?.status === 'private' ? (
+                  <DropdownMenuItem onClick={handlePublish}>
+                    Publish
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={handleUnpublish}>
+                    Unpublish
+                  </DropdownMenuItem>
+                ))}
               <DropdownMenuItem onClick={handleArchive}>
                 {ctx.archived ? 'Restore from archive' : 'Archive'}
               </DropdownMenuItem>

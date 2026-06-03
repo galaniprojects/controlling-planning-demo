@@ -1,6 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { RoleProvider } from '@/contexts/RoleContext';
+// Simulator S4 — dynamic "present time". Fetches GET /api/config once and
+// exposes current_period / open_forecast_month / fiscal_year, replacing the
+// hardcoded demo-date literals across the app.
+import { ConfigProvider } from '@/contexts/ConfigContext';
 import { SidePanelProvider } from '@/contexts/SidePanelContext';
 import { BottomDrawerProvider } from '@/contexts/BottomDrawerContext';
 // v5.2 W6 S11 — wide (50vw) slide-over for the Workbench → Check
@@ -90,6 +94,7 @@ export default function App() {
   return (
     <ThemeProvider>
     <BrowserRouter>
+      <ConfigProvider>
       <RoleProvider>
         <SidePanelProvider>
           <AssignmentStateProvider>
@@ -147,6 +152,7 @@ export default function App() {
           </AssignmentStateProvider>
         </SidePanelProvider>
       </RoleProvider>
+      </ConfigProvider>
     </BrowserRouter>
     </ThemeProvider>
   );

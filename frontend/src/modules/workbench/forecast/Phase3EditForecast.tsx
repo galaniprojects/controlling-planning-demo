@@ -46,14 +46,13 @@ import {
   type MonthCategoryGridRow,
   type MonthCategoryGridCellState,
 } from '@/components/shared/MonthCategoryGrid';
+import { useConfig } from '@/contexts/ConfigContext';
 import type {
   ForecastGridRow,
   ForecastChange,
   SuggestionItem,
   MixedGridResponse,
 } from '@/types/api';
-
-const DEMO_DATE = '2026-04';
 
 interface Props {
   projectId: string;
@@ -97,6 +96,7 @@ export function Phase3EditForecast({
   onSaveAndReview,
   loading,
 }: Props) {
+  const { openForecastMonth } = useConfig();
   const [rows, setRows] = useState<ForecastGridRow[]>([]);
   const [grid, setGrid] = useState<MixedGridResponse | null>(null);
   const [gridLoading, setGridLoading] = useState(true);
@@ -201,7 +201,9 @@ export function Phase3EditForecast({
     return sum + c.delta;
   }, 0);
 
-  const isEditableMonth = (month: string) => month >= DEMO_DATE;
+  // LOCKED CURRENT MONTH rule: the in-progress current month is not
+  // editable; the first editable forecast month is open_forecast_month.
+  const isEditableMonth = (month: string) => month >= openForecastMonth;
 
   /** Apply a monthly edit. Used both for direct monthly cells and as the
    * underlying primitive when a quarterly value distributes. */

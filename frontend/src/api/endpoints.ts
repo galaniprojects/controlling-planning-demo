@@ -111,6 +111,28 @@ export const rolesApi = {
   getContext: (roleId: string) => api.get<RoleContext>(`/api/roles/${roleId}/context`),
 };
 
+/**
+ * Dynamic "present time" configuration. Replaces the hardcoded demo-date
+ * literals scattered across the frontend with a single backend-driven
+ * source of truth.
+ *
+ * - current_period: the in-progress month ("YYYY-MM"); months strictly
+ *   before it are elapsed/actuals.
+ * - open_forecast_month: the first editable forecast month — the
+ *   current month is LOCKED (in progress), so this is the month after
+ *   current_period.
+ * - fiscal_year: the active planning year.
+ */
+export interface AppConfig {
+  current_period: string;
+  open_forecast_month: string;
+  fiscal_year: number;
+}
+
+export const configApi = {
+  get: () => api.get<AppConfig>('/api/config'),
+};
+
 export const notificationsApi = {
   getAll: () => api.get<ListResponse<Notification>>('/api/notifications'),
 };
