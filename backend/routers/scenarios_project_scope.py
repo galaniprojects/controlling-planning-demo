@@ -17,7 +17,7 @@ SESSION 3 OWNERSHIP (keep edits inside your banner region to avoid collisions):
         Tier-3 mix control endpoint.
   - T2: external-cost line items (add / remove / edit: description, vendor,
         category).
-  - T3 (cost-allocation) lives in ``routers/scenarios.py`` (lever-12 region) —
+  - T3 (cost-allocation) lives in ``routers/scenarios.py`` (cost-allocation region) —
         NOT here.
 Endpoint-family seam: role lines use ``/projects/{pid}/lines``; external-cost
 items use ``/projects/{pid}/external-costs`` — separate families so T1 and T2

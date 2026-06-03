@@ -6,8 +6,8 @@ Compare, Advisor).
 v5 B1 additions:
 - Lifecycle: anchor selection at create, rebase, archive (soft), tag-aware
   list, Tier 3 visibility on publish.
-- Lever 12: distribution edge CRUD in sandbox, BTC line overlay, to_business
-  override, per-charging-location impact.
+- Cost allocation: distribution edge CRUD in sandbox, BTC line overlay,
+  to_business override, per-charging-location impact.
 - Impact dashboard: 8-dimension server-side recalculation per [B-ID-01..03].
 - Promote workflow (controller-only): preview + execute with [F-AC-01]
   permission gating per [B-OQ-01].
@@ -61,10 +61,10 @@ from services.scenario_engine import (
 from services.scenario_impact import (
     compute_impact_dashboard, mark_recalculated,
 )
-from services.scenario_lever12 import (
-    Lever12Error, apply_btc_lines_change, apply_distribution_create,
+from services.scenario_cost_allocation import (
+    CostAllocationError, apply_btc_lines_change, apply_distribution_create,
     apply_distribution_delete, apply_distribution_update,
-    apply_to_business_change, cleanup_lever12_state,
+    apply_to_business_change, cleanup_cost_allocation_state,
     compute_cost_allocation_impact, scenario_version,
 )
 from services.scenario_promote import (
@@ -382,12 +382,12 @@ def delete_scenario(
         "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
-    """Hard delete a scenario (owner only). Also cleans up Lever 12 sandbox rows."""
+    """Hard delete a scenario (owner only). Also cleans up cost-allocation sandbox rows."""
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
 
-    # Lever 12 sandbox cleanup: delete scenario-version Distribution rows.
-    cleanup_lever12_state(db, scenario_id)
+    # Cost-allocation sandbox cleanup: delete scenario-version Distribution rows.
+    cleanup_cost_allocation_state(db, scenario_id)
 
     db.query(ScenarioCapacityImpact).filter(
         ScenarioCapacityImpact.scenario_id == scenario_id,
@@ -852,11 +852,11 @@ def compare_scenarios(
 
 
 # ---------------------------------------------------------------------------
-# v5 B1 — Lever 12 endpoints
+# v5 B1 — Cost allocation endpoints
 # ---------------------------------------------------------------------------
 
-@router.post("/{scenario_id}/lever12/distributions")
-def lever12_create_distribution(
+@router.post("/{scenario_id}/cost-allocation/distributions")
+def cost_allocation_create_distribution(
     scenario_id: int,
     body: DistributionEdgeCreate,
     db: Session = Depends(get_db),
@@ -874,7 +874,7 @@ def lever12_create_distribution(
             destination_entity_id=body.destination_entity_id,
             percentage=body.percentage,
         )
-    except Lever12Error as exc:
+    except CostAllocationError as exc:
         body_payload = {"detail": exc.message}
         if exc.cycle_chain:
             body_payload["cycle_chain"] = exc.cycle_chain
@@ -883,8 +883,8 @@ def lever12_create_distribution(
     return result
 
 
-@router.put("/{scenario_id}/lever12/distributions/{edge_id}")
-def lever12_update_distribution(
+@router.put("/{scenario_id}/cost-allocation/distributions/{edge_id}")
+def cost_allocation_update_distribution(
     scenario_id: int, edge_id: int,
     body: DistributionEdgeUpdate,
     db: Session = Depends(get_db),
@@ -898,14 +898,14 @@ def lever12_update_distribution(
         result = apply_distribution_update(
             db, scenario_id, edge_id=edge_id, percentage=body.percentage,
         )
-    except Lever12Error as exc:
+    except CostAllocationError as exc:
         raise HTTPException(409, exc.message) from exc
     db.commit()
     return result
 
 
-@router.delete("/{scenario_id}/lever12/distributions/{edge_id}")
-def lever12_delete_distribution(
+@router.delete("/{scenario_id}/cost-allocation/distributions/{edge_id}")
+def cost_allocation_delete_distribution(
     scenario_id: int, edge_id: int,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
@@ -918,14 +918,14 @@ def lever12_delete_distribution(
         result = apply_distribution_delete(
             db, scenario_id, edge_id=edge_id,
         )
-    except Lever12Error as exc:
+    except CostAllocationError as exc:
         raise HTTPException(409, exc.message) from exc
     db.commit()
     return result
 
 
-@router.post("/{scenario_id}/lever12/to-business")
-def lever12_to_business_change(
+@router.post("/{scenario_id}/cost-allocation/to-business")
+def cost_allocation_to_business_change(
     scenario_id: int,
     body: ToBusinessChange,
     db: Session = Depends(get_db),
@@ -941,14 +941,14 @@ def lever12_to_business_change(
             db, scenario_id, entity_id=body.entity_id, year=body.year,
             new_pct=body.new_pct,
         )
-    except Lever12Error as exc:
+    except CostAllocationError as exc:
         raise HTTPException(409, exc.message) from exc
     db.commit()
     return result
 
 
-@router.post("/{scenario_id}/lever12/btc-lines")
-def lever12_btc_lines_change(
+@router.post("/{scenario_id}/cost-allocation/btc-lines")
+def cost_allocation_btc_lines_change(
     scenario_id: int,
     body: BTCLinesChange,
     db: Session = Depends(get_db),
@@ -964,17 +964,17 @@ def lever12_btc_lines_change(
             db, scenario_id, entity_id=body.entity_id, year=body.year,
             lines=[line.model_dump() for line in body.lines],
         )
-    except Lever12Error as exc:
+    except CostAllocationError as exc:
         raise HTTPException(409, exc.message) from exc
     db.commit()
     return result
 
 
 @router.get(
-    "/{scenario_id}/lever12/cost-allocation-impact",
+    "/{scenario_id}/cost-allocation/cost-allocation-impact",
     response_model=CostAllocationImpactResponse,
 )
-def lever12_cost_allocation_impact(
+def cost_allocation_impact(
     scenario_id: int,
     year: int = Query(2026, description="Fiscal year for the impact view"),
     db: Session = Depends(get_db),
@@ -997,7 +997,7 @@ def lever12_cost_allocation_impact(
 @router.get("/{scenario_id}/impact", response_model=ImpactDashboardResponse)
 def impact_dashboard(
     scenario_id: int,
-    year: int = Query(2026, description="Year for Lever 12 cost allocation calc"),
+    year: int = Query(2026, description="Year for cost allocation calc"),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
         "controller", "executive", "project_lead", "cost_center_owner",
@@ -1015,7 +1015,8 @@ def impact_dashboard(
 
     dashboard = compute_impact_dashboard(
         db, scenario_id, state,
-        include_tier3=has_tier3, include_lever12=True, lever12_year=year,
+        include_tier3=has_tier3, include_cost_allocation=True,
+        cost_allocation_year=year,
     )
     return dashboard
 

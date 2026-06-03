@@ -48,8 +48,8 @@ class Scenario(Base):
       production ``DistributionVersion`` that was in force at the time, so
       a subsequent production reactivation does not shift impact deltas
       underneath an open scenario. NULL = legacy fallback (resolve by
-      ``evaluated_date`` at read time). Wired into the lever-12 union read in
-      ``services/scenario_lever12.py``.
+      ``evaluated_date`` at read time). Wired into the cost-allocation union read in
+      ``services/scenario_cost_allocation.py``.
     """
     __tablename__ = "scenarios"
 
@@ -91,7 +91,7 @@ class Scenario(Base):
     # spec §4 Open-Question #3. Pinned at scenario creation so production
     # reactivations don't shift impact deltas mid-flight. NULL = legacy
     # behaviour (resolve by evaluated_date at read time). Wired up by
-    # services/scenario_lever12.py — the column is added here so the FK
+    # services/scenario_cost_allocation.py — the column is added here so the FK
     # exists ahead of the service refactor.
     #
     # ``use_alter=True`` breaks the create_all/drop_all dependency cycle
@@ -211,7 +211,7 @@ class ScenarioCapacityImpact(Base):
 
 
 # ---------------------------------------------------------------------------
-# v5 B1 — Promote audit + Lever-12 sandbox tracking
+# v5 B1 — Promote audit + cost-allocation sandbox tracking
 # ---------------------------------------------------------------------------
 
 # Visibility values for the Tier 3 content gating per [B-SL-03].
@@ -229,7 +229,7 @@ SCENARIO_ROUTING_TYPES = (
     "budget_envelope_update",       # Budget envelope
     "hypothetical_to_proposed",     # Hypothetical project promoted to DoI 0
     "hierarchy_update",             # Hierarchy reassignment
-    "cost_allocation_update",       # Lever 12 — distribution + BTC
+    "cost_allocation_update",       # cost allocation — distribution + BTC
     "capacity_param_update",        # Available hours per location
     "no_route",                     # Diff cannot be promoted
 )

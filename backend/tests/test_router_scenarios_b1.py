@@ -3,7 +3,7 @@ Cluster B Session B1.
 
 Endpoints exercised here:
 - Lifecycle: create with anchor, archive, rebase, publish with Tier 3 gating
-- Lever 12: distributions, to-business, btc-lines, cost-allocation-impact
+- Cost allocation: distributions, to-business, btc-lines, cost-allocation-impact
 - Impact dashboard
 - Promote preview + execute (controller-only)
 - Apply-to-forecast (PL-only)
@@ -174,10 +174,10 @@ class TestB1Lifecycle:
 
 
 # ---------------------------------------------------------------------------
-# Lever 12 endpoints
+# Cost allocation endpoints
 # ---------------------------------------------------------------------------
 
-class TestB1Lever12Endpoints:
+class TestB1CostAllocationEndpoints:
     def _create_scenario(self, test_client, b1_setup):
         resp = test_client.post(
             "/api/scenarios", headers=HEADERS_CTRL, json={"name": "L12"},
@@ -187,7 +187,7 @@ class TestB1Lever12Endpoints:
     def test_to_business_change_endpoint(self, test_client, b1_setup):
         sid = self._create_scenario(test_client, b1_setup)
         resp = test_client.post(
-            f"/api/scenarios/{sid}/lever12/to-business",
+            f"/api/scenarios/{sid}/cost-allocation/to-business",
             headers=HEADERS_CTRL,
             json={"entity_id": b1_setup["ent_id"], "year": 2026, "new_pct": 25},
         )
@@ -198,7 +198,7 @@ class TestB1Lever12Endpoints:
     def test_btc_lines_change_endpoint(self, test_client, b1_setup):
         sid = self._create_scenario(test_client, b1_setup)
         resp = test_client.post(
-            f"/api/scenarios/{sid}/lever12/btc-lines",
+            f"/api/scenarios/{sid}/cost-allocation/btc-lines",
             headers=HEADERS_CTRL,
             json={
                 "entity_id": b1_setup["ent_id"], "year": 2026,
@@ -213,7 +213,7 @@ class TestB1Lever12Endpoints:
     def test_btc_sum_violation_409(self, test_client, b1_setup):
         sid = self._create_scenario(test_client, b1_setup)
         resp = test_client.post(
-            f"/api/scenarios/{sid}/lever12/btc-lines",
+            f"/api/scenarios/{sid}/cost-allocation/btc-lines",
             headers=HEADERS_CTRL,
             json={
                 "entity_id": b1_setup["ent_id"], "year": 2026,
@@ -228,12 +228,12 @@ class TestB1Lever12Endpoints:
         sid = self._create_scenario(test_client, b1_setup)
         # First set to_business=20% then BTC line 100%
         test_client.post(
-            f"/api/scenarios/{sid}/lever12/to-business",
+            f"/api/scenarios/{sid}/cost-allocation/to-business",
             headers=HEADERS_CTRL,
             json={"entity_id": b1_setup["ent_id"], "year": 2026, "new_pct": 20},
         )
         test_client.post(
-            f"/api/scenarios/{sid}/lever12/btc-lines",
+            f"/api/scenarios/{sid}/cost-allocation/btc-lines",
             headers=HEADERS_CTRL,
             json={
                 "entity_id": b1_setup["ent_id"], "year": 2026,
@@ -243,7 +243,7 @@ class TestB1Lever12Endpoints:
             },
         )
         resp = test_client.get(
-            f"/api/scenarios/{sid}/lever12/cost-allocation-impact?year=2026",
+            f"/api/scenarios/{sid}/cost-allocation/cost-allocation-impact?year=2026",
             headers=HEADERS_CTRL,
         )
         assert resp.status_code == 200
@@ -317,7 +317,7 @@ class TestB1Promote:
         )
         sid = create.json()["id"]
         test_client.post(
-            f"/api/scenarios/{sid}/lever12/to-business",
+            f"/api/scenarios/{sid}/cost-allocation/to-business",
             headers=HEADERS_CTRL,
             json={"entity_id": b1_setup["ent_id"], "year": 2026, "new_pct": 15},
         )

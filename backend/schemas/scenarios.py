@@ -1,7 +1,7 @@
 """Pydantic schemas for What-If Simulator endpoints (Cluster B Section 10.6).
 
 v4 schemas (kept verbatim for backward-compat) + v5 B1 additions for the
-extended scenario lifecycle, Lever 12, impact dimensions, and the promote /
+extended scenario lifecycle, cost allocation, impact dimensions, and the promote /
 apply-to-forecast workflows.
 """
 from __future__ import annotations
@@ -76,7 +76,7 @@ class AdvisorApply(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# v5 B1 — Lever 12 schemas
+# v5 B1 — Cost allocation schemas
 # ---------------------------------------------------------------------------
 
 class DistributionEdgeCreate(BaseModel):

@@ -395,14 +395,15 @@ def _infer_category(action_type: str) -> str:
 
 def compute_impact_dashboard(
     db: Session, scenario_id: int, scenario_state: dict,
-    *, include_tier3: bool, include_lever12: bool = True,
-    lever12_year: int = 2026,
+    *, include_tier3: bool, include_cost_allocation: bool = True,
+    cost_allocation_year: int = 2026,
 ) -> dict:
     """Compute the full 8-dimension dashboard for a scenario.
 
     ``include_tier3`` toggles the People dimension and any Tier 3 details.
-    ``include_lever12`` toggles the per-charging-location cost allocation
-    impact section. Set False if the caller is rendering a thin context.
+    ``include_cost_allocation`` toggles the per-charging-location cost
+    allocation impact section. Set False if the caller is rendering a thin
+    context.
     """
     scenario = db.query(Scenario).filter(Scenario.id == scenario_id).first()
     if scenario is None:
@@ -453,11 +454,13 @@ def compute_impact_dashboard(
             "headline": "Tier 3 — restricted",
         }
 
-    if include_lever12:
-        from services.scenario_lever12 import compute_cost_allocation_impact
+    if include_cost_allocation:
+        from services.scenario_cost_allocation import compute_cost_allocation_impact
         try:
             dashboard["dimensions"]["cost_allocation"] = (
-                compute_cost_allocation_impact(db, scenario_id, year=lever12_year)
+                compute_cost_allocation_impact(
+                    db, scenario_id, year=cost_allocation_year,
+                )
             )
         except Exception as exc:  # noqa: BLE001
             # Defensive: cost allocation impact is a heavy compute that
@@ -468,7 +471,7 @@ def compute_impact_dashboard(
                 scenario_id, exc,
             )
             dashboard["dimensions"]["cost_allocation"] = {
-                "year": lever12_year,
+                "year": cost_allocation_year,
                 "items": [],
                 "totals": {"anchor_total": 0.0, "scenario_total": 0.0, "delta": 0.0},
                 "error": str(exc),

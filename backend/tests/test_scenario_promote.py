@@ -3,7 +3,7 @@
 Per [B-PR-01..06] [B-OQ-01] [F-AC-01]:
 - Anchor must equal latest cycle.
 - Selective per-diff routing.
-- Lever 12 promotion gated by RolePermissionGrant.
+- Cost allocation promotion gated by RolePermissionGrant.
 - Audit row recorded.
 """
 
@@ -24,11 +24,11 @@ from models.scenarios import (
 )
 from models.system import RolePermissionGrant
 from schemas.common import CurrentUser
-from services.scenario_lever12 import (
+from services.scenario_cost_allocation import (
     ACTION_BTC_LINE_CHANGE,
     ACTION_DISTRIBUTION_CHANGE,
     ACTION_TO_BUSINESS_CHANGE,
-    LEVER12_CATEGORY,
+    COST_ALLOCATION_CATEGORY,
     apply_btc_lines_change,
     apply_distribution_create,
     apply_to_business_change,
@@ -97,7 +97,7 @@ def cycle_anchor(db, author_person):
 
 
 @pytest.fixture
-def lever12_promote_world(db, author_person, cycle_anchor):
+def cost_allocation_promote_world(db, author_person, cycle_anchor):
     """Scenario with anchor + Stage 1/Stage 2 mutations ready to promote."""
     cl = ChargingLocation(id="cl-x", code="CL-X", name="Loc X")
     db.add(cl)
@@ -160,10 +160,10 @@ class TestAssertAnchorIsLatestCycle:
 # ---------------------------------------------------------------------------
 
 class TestDecideRouting:
-    def test_lever12_routing(self, db, lever12_promote_world):
+    def test_cost_allocation_routing(self, db, cost_allocation_promote_world):
         actions = (
             db.query(ScenarioAction)
-            .filter(ScenarioAction.scenario_id == lever12_promote_world["scenario_id"])
+            .filter(ScenarioAction.scenario_id == cost_allocation_promote_world["scenario_id"])
             .all()
         )
         for a in actions:
@@ -219,15 +219,15 @@ class TestDecideRouting:
 
 
 # ---------------------------------------------------------------------------
-# Lever 12 permission gating per [F-AC-01]
+# Cost allocation permission gating per [F-AC-01]
 # ---------------------------------------------------------------------------
 
-class TestLever12Permission:
-    def test_controller_can_always_promote(self, db, lever12_promote_world,
+class TestCostAllocationPermission:
+    def test_controller_can_always_promote(self, db, cost_allocation_promote_world,
                                             controller_user_obj):
         actions = (
             db.query(ScenarioAction)
-            .filter(ScenarioAction.scenario_id == lever12_promote_world["scenario_id"])
+            .filter(ScenarioAction.scenario_id == cost_allocation_promote_world["scenario_id"])
             .all()
         )
         for a in actions:
@@ -236,7 +236,7 @@ class TestLever12Permission:
             assert ok, f"controller should promote {a.action_type}: {msg}"
         db.commit()
 
-    def test_pl_without_grant_blocked(self, db, lever12_promote_world):
+    def test_pl_without_grant_blocked(self, db, cost_allocation_promote_world):
         pl_user = CurrentUser(
             user_id="persona-pl", person_id="p-pl",
             name="PL", role="project_lead",
@@ -244,7 +244,7 @@ class TestLever12Permission:
         # No RolePermissionGrant exists, so PL should be blocked.
         actions = (
             db.query(ScenarioAction)
-            .filter(ScenarioAction.scenario_id == lever12_promote_world["scenario_id"])
+            .filter(ScenarioAction.scenario_id == cost_allocation_promote_world["scenario_id"])
             .all()
         )
         for a in actions:
@@ -253,7 +253,7 @@ class TestLever12Permission:
             assert not ok
             assert "permission denied" in msg
 
-    def test_pl_with_grant_can_promote_btc(self, db, lever12_promote_world):
+    def test_pl_with_grant_can_promote_btc(self, db, cost_allocation_promote_world):
         pl_user = CurrentUser(
             user_id="persona-pl", person_id="p-pl",
             name="PL", role="project_lead",
@@ -266,7 +266,7 @@ class TestLever12Permission:
         actions = (
             db.query(ScenarioAction)
             .filter(
-                ScenarioAction.scenario_id == lever12_promote_world["scenario_id"],
+                ScenarioAction.scenario_id == cost_allocation_promote_world["scenario_id"],
                 ScenarioAction.action_type == ACTION_BTC_LINE_CHANGE,
             )
             .all()
@@ -283,10 +283,10 @@ class TestLever12Permission:
 # ---------------------------------------------------------------------------
 
 class TestExecutePromote:
-    def test_promotes_lever12_actions(self, db, lever12_promote_world,
+    def test_promotes_cost_allocation_actions(self, db, cost_allocation_promote_world,
                                       controller_user_obj):
         result = execute_promote(
-            db, lever12_promote_world["scenario_id"],
+            db, cost_allocation_promote_world["scenario_id"],
             user=controller_user_obj,
         )
         db.commit()
@@ -295,39 +295,39 @@ class TestExecutePromote:
         # Audit row recorded
         promo = (
             db.query(ScenarioPromotion)
-            .filter(ScenarioPromotion.scenario_id == lever12_promote_world["scenario_id"])
+            .filter(ScenarioPromotion.scenario_id == cost_allocation_promote_world["scenario_id"])
             .first()
         )
         assert promo is not None
         assert promo.promoted_count >= 2
 
-    def test_lever12_to_business_materialized_on_live_entity(
-        self, db, lever12_promote_world, controller_user_obj,
+    def test_cost_allocation_to_business_materialized_on_live_entity(
+        self, db, cost_allocation_promote_world, controller_user_obj,
     ):
         execute_promote(
-            db, lever12_promote_world["scenario_id"],
+            db, cost_allocation_promote_world["scenario_id"],
             user=controller_user_obj,
         )
         db.commit()
         live = (
             db.query(ChargeableEntity)
-            .filter_by(id=lever12_promote_world["ent_id"])
+            .filter_by(id=cost_allocation_promote_world["ent_id"])
             .first()
         )
         assert float(live.to_business_pct) == 10.0
 
-    def test_lever12_btc_lines_materialized(
-        self, db, lever12_promote_world, controller_user_obj,
+    def test_cost_allocation_btc_lines_materialized(
+        self, db, cost_allocation_promote_world, controller_user_obj,
     ):
         execute_promote(
-            db, lever12_promote_world["scenario_id"],
+            db, cost_allocation_promote_world["scenario_id"],
             user=controller_user_obj,
         )
         db.commit()
         profile = (
             db.query(BTCProfile)
             .filter(
-                BTCProfile.entity_id == lever12_promote_world["ent_id"],
+                BTCProfile.entity_id == cost_allocation_promote_world["ent_id"],
                 BTCProfile.year == 2026,
             )
             .first()
@@ -338,18 +338,18 @@ class TestExecutePromote:
         ).all()
         assert len(lines) == 1
         assert float(lines[0].percentage) == 100.0
-        assert lines[0].charging_location_id == lever12_promote_world["cl_id"]
+        assert lines[0].charging_location_id == cost_allocation_promote_world["cl_id"]
 
-    def test_promoted_actions_marked(self, db, lever12_promote_world,
+    def test_promoted_actions_marked(self, db, cost_allocation_promote_world,
                                      controller_user_obj):
         execute_promote(
-            db, lever12_promote_world["scenario_id"],
+            db, cost_allocation_promote_world["scenario_id"],
             user=controller_user_obj,
         )
         db.commit()
         actions = (
             db.query(ScenarioAction)
-            .filter(ScenarioAction.scenario_id == lever12_promote_world["scenario_id"])
+            .filter(ScenarioAction.scenario_id == cost_allocation_promote_world["scenario_id"])
             .all()
         )
         for a in actions:
@@ -357,18 +357,18 @@ class TestExecutePromote:
             assert a.promoted_by_id == "p-promoter"
 
     def test_partial_promote_via_action_ids(
-        self, db, lever12_promote_world, controller_user_obj,
+        self, db, cost_allocation_promote_world, controller_user_obj,
     ):
         actions = (
             db.query(ScenarioAction)
-            .filter(ScenarioAction.scenario_id == lever12_promote_world["scenario_id"])
+            .filter(ScenarioAction.scenario_id == cost_allocation_promote_world["scenario_id"])
             .order_by(ScenarioAction.action_order)
             .all()
         )
         assert len(actions) >= 2
         # Promote only the first action
         result = execute_promote(
-            db, lever12_promote_world["scenario_id"],
+            db, cost_allocation_promote_world["scenario_id"],
             action_ids=[actions[0].id], user=controller_user_obj,
         )
         db.commit()
@@ -380,7 +380,7 @@ class TestExecutePromote:
         assert actions[1].promoted_at is None
 
     def test_stale_anchor_blocks_promote(
-        self, db, lever12_promote_world, controller_user_obj,
+        self, db, cost_allocation_promote_world, controller_user_obj,
     ):
         from models.financial import ForecastVersion
         fv2 = ForecastVersion(
@@ -392,18 +392,18 @@ class TestExecutePromote:
         db.commit()
         with pytest.raises(PromoteError) as exc:
             execute_promote(
-                db, lever12_promote_world["scenario_id"],
+                db, cost_allocation_promote_world["scenario_id"],
                 user=controller_user_obj,
             )
         assert exc.value.hint == "rebase"
 
 
 class TestPreviewPromote:
-    def test_returns_decisions(self, db, lever12_promote_world, controller_user_obj):
+    def test_returns_decisions(self, db, cost_allocation_promote_world, controller_user_obj):
         out = preview_promote(
-            db, lever12_promote_world["scenario_id"], user=controller_user_obj,
+            db, cost_allocation_promote_world["scenario_id"], user=controller_user_obj,
         )
-        assert out["scenario_id"] == lever12_promote_world["scenario_id"]
+        assert out["scenario_id"] == cost_allocation_promote_world["scenario_id"]
         assert len(out["decisions"]) >= 2
         for d in out["decisions"]:
             assert d["routing_type"] == "cost_allocation_update"

@@ -15,7 +15,7 @@ Per ``[F-S1-01..05]`` and the Charging/UM rework cluster FD-3 (spec §4):
          draft starts empty; a controller can copy v1's edges into a new
          draft via the in-app 'copy active' CTA when they want to.
 - Scenario versions (``scenario_id IS NOT NULL``, permanent draft) are NOT
-  seeded; the lever-12 service eager-creates them on first mutation.
+  seeded; the cost-allocation service eager-creates them on first mutation.
 - One row per actually-flowing edge (sparse storage). Edges reference v1 via
   ``version_id`` FK. Cadence-agnostic per [F-S1-02] — no ``year`` column on
   edges; the year axis lives on the cost being distributed.

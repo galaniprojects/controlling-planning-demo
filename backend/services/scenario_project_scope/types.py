@@ -121,7 +121,7 @@ ROUTABLE_KIND_PLAN = "plan"
 class RoutableDiff:
     """A single routable unit fed DIRECTLY to the promote routing decision
     (spec §6) — no synthetic-action round-trip. Both a ``ScenarioAction`` (macros,
-    portfolio, lever-12) and an individual Layer-2 overlay entry can present this
+    portfolio, cost-allocation) and an individual Layer-2 overlay entry can present this
     shape, so each overlay entry is individually routable and promotable (partial
     promote preserved).
 

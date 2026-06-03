@@ -380,7 +380,7 @@ class DistributionVersion(Base):
     - **Provenance** via ``origin`` + ``copied_from_version_id`` so the diff
       view (`[F-S1-07]`) can render lineage; mirrors
       ``UMVersion.copied_from_version_id`` and ``BTCProfile.copied_from_profile_id``.
-    - **Scenario fork** via ``scenario_id`` — non-NULL means lever-12 sandbox,
+    - **Scenario fork** via ``scenario_id`` — non-NULL means cost-allocation sandbox,
       ``ondelete=CASCADE`` ensures cleanup-on-scenario-delete. Service invariant
       (enforced in ``services/distribution_service.py``):
       ``status='active'`` requires ``scenario_id IS NULL`` — scenario versions
@@ -450,7 +450,7 @@ class DistributionVersion(Base):
         ForeignKey("distribution_versions.id", ondelete="SET NULL"),
         nullable=True,
     )
-    # NULL = production; non-NULL = scenario-scoped (lever 12). Cascade
+    # NULL = production; non-NULL = scenario-scoped (cost allocation). Cascade
     # delete drops the scenario version and (via edge cascade) its rows
     # when the scenario is deleted.
     scenario_id: Mapped[Optional[int]] = mapped_column(
@@ -499,11 +499,11 @@ class Distribution(Base):
     distributed (``ChargeableEntity.annual_cost``, BTC profile year), not
     on the edge.
 
-    Scenario-scoped (lever 12) edges have a ``version_id`` pointing at a
+    Scenario-scoped (cost allocation) edges have a ``version_id`` pointing at a
     ``DistributionVersion`` with ``scenario_id IS NOT NULL`` and remain
     permanently in draft. Production reads union over the anchor production
     version's edges + the scenario version's edges per
-    ``services/scenario_lever12.py``.
+    ``services/scenario_cost_allocation.py``.
     """
 
     __tablename__ = "distributions"

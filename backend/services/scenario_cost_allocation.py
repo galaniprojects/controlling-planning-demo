@@ -1,8 +1,8 @@
-"""Lever 12 — Cost allocation rules sandbox engine for Cluster B What-If.
+"""Cost allocation rules sandbox engine for Cluster B What-If.
 
-Per spec [B-ES-01] (lever 12) and [F-RV-01..06]:
+Per spec [B-ES-01] (cost allocation) and [F-RV-01..06]:
 
-Lever 12 covers:
+The cost-allocation sandbox covers:
 - **Stage 1 distribution edges** (inter-service distribution between
   ChargeableEntities) — forked into the scenario via a per-scenario
   ``DistributionVersion`` (``scenario_id=N``, ``status='draft'`` permanently)
@@ -78,26 +78,26 @@ _SUM_TOLERANCE = 0.01
 # ``anchor_distribution_version_id`` (legacy v4 scenarios).
 _DEMO_FALLBACK_DATE = date(2026, 4, 1)
 
-# Action types for the Lever 12 sub-surface.
+# Action types for the cost-allocation sub-surface.
 ACTION_DISTRIBUTION_CHANGE = "distribution_edge_change"
 ACTION_BTC_LINE_CHANGE = "btc_profile_line_change"
 ACTION_TO_BUSINESS_CHANGE = "to_business_pct_change"
 
-LEVER12_ACTION_TYPES = (
+COST_ALLOCATION_ACTION_TYPES = (
     ACTION_DISTRIBUTION_CHANGE,
     ACTION_BTC_LINE_CHANGE,
     ACTION_TO_BUSINESS_CHANGE,
 )
 
-LEVER12_CATEGORY = "cost_allocation"
+COST_ALLOCATION_CATEGORY = "cost_allocation"
 
 
 # ---------------------------------------------------------------------------
 # Errors
 # ---------------------------------------------------------------------------
 
-class Lever12Error(Exception):
-    """Surface for Lever 12 mutation errors. Router maps to HTTP 409."""
+class CostAllocationError(Exception):
+    """Surface for cost-allocation mutation errors. Router maps to HTTP 409."""
 
     def __init__(self, message: str, *, cycle_chain: Optional[list[str]] = None):
         super().__init__(message)
@@ -128,7 +128,7 @@ def scenario_version(scenario_id: int) -> str:
 def _ensure_scenario(db: Session, scenario_id: int) -> Scenario:
     sc = db.query(Scenario).filter(Scenario.id == scenario_id).first()
     if sc is None:
-        raise Lever12Error(f"Scenario {scenario_id} not found")
+        raise CostAllocationError(f"Scenario {scenario_id} not found")
     return sc
 
 
@@ -143,7 +143,7 @@ def _resolve_anchor_version_id(
        scenarios that pre-date FD-3 (anchor column NULL).
 
     Returns the ``DistributionVersion.id`` (int) or None when no production
-    version is active. None propagates through the lever-12 read paths so
+    version is active. None propagates through the cost-allocation read paths so
     impact computation degrades gracefully (zero inflow contributions) when
     no anchor exists — the v4 string-keyed code path had no equivalent
     safety net but tests now exercise it.
@@ -237,7 +237,7 @@ def _assert_scenario_sum_within_100(
 
     Mirrors ``services.distribution_service.assert_sum_within_100`` semantics
     (``to_business_pct + Σdistribute % ≤ 100``) but reads only edges in the
-    given scenario ``DistributionVersion`` so the lever-12 sandbox does not
+    given scenario ``DistributionVersion`` so the cost-allocation sandbox does not
     leak production-edge percentages into validation. Cadence-agnostic per
     FD-3 [F-S1-02] — no year filter.
 
@@ -246,7 +246,7 @@ def _assert_scenario_sum_within_100(
     """
     src = db.query(ChargeableEntity).filter_by(id=source_entity_id).first()
     if src is None:
-        raise Lever12Error(f"Source entity '{source_entity_id}' not found")
+        raise CostAllocationError(f"Source entity '{source_entity_id}' not found")
 
     edges = (
         db.query(Distribution)
@@ -271,7 +271,7 @@ def _assert_scenario_sum_within_100(
     to_business = float(src.to_business_pct)
     grand_total = to_business + distribution_total
     if grand_total > 100.0 + _SUM_TOLERANCE:
-        raise Lever12Error(
+        raise CostAllocationError(
             f"Sum rule violation per [F-S1-02]: to_business_pct "
             f"({to_business:.2f}) + distributed "
             f"({distribution_total:.2f}) = {grand_total:.2f} exceeds 100%",
@@ -284,7 +284,7 @@ def _create_scenario_edge(
 ) -> Distribution:
     """Insert a scenario-version edge after duplicate-edge validation.
 
-    Cycle + sum-rule checks live at the lever-12 layer (see
+    Cycle + sum-rule checks live at the cost-allocation layer (see
     :func:`_check_cycle_across_versions` and
     :func:`_assert_scenario_sum_within_100`) so callers handle them before
     invoking this helper. Caller commits.
@@ -301,7 +301,7 @@ def _create_scenario_edge(
         .first()
     )
     if existing is not None:
-        raise Lever12Error(
+        raise CostAllocationError(
             f"Distribution edge already exists "
             f"({source_entity_id} → {destination_entity_id} in scenario "
             f"version {scenario_version_id}). Update the existing edge "
@@ -522,7 +522,7 @@ def apply_distribution_create(
         scenario_version_id=sv.id, anchor_version_id=anchor_version_id,
     )
     if chain is not None:
-        raise Lever12Error(
+        raise CostAllocationError(
             f"Cycle detected per [F-S1-05]: {' → '.join(chain)}",
             cycle_chain=chain,
         )
@@ -542,7 +542,9 @@ def apply_distribution_create(
             percentage=percentage,
         )
     except DistributionValidationError as exc:  # pragma: no cover — defensive
-        raise Lever12Error(exc.message, cycle_chain=exc.cycle_chain) from exc
+        raise CostAllocationError(
+            exc.message, cycle_chain=exc.cycle_chain,
+        ) from exc
 
     _record_action(
         db, scenario_id, ACTION_DISTRIBUTION_CHANGE,
@@ -576,7 +578,7 @@ def apply_distribution_update(
 
     edge = db.query(Distribution).filter_by(id=edge_id).first()
     if edge is None:
-        raise Lever12Error(f"Distribution edge {edge_id} not found")
+        raise CostAllocationError(f"Distribution edge {edge_id} not found")
     if edge.version_id != sv.id:
         # The edge belongs to anchor; fork first then locate the new edge by
         # source/dest matching.
@@ -594,7 +596,7 @@ def apply_distribution_update(
             .first()
         )
         if new_edge is None:
-            raise Lever12Error(
+            raise CostAllocationError(
                 f"Failed to fork edge {edge_id} into scenario {scenario_id}",
             )
         edge = new_edge
@@ -641,7 +643,7 @@ def apply_distribution_delete(
 
     edge = db.query(Distribution).filter_by(id=edge_id).first()
     if edge is None:
-        raise Lever12Error(f"Distribution edge {edge_id} not found")
+        raise CostAllocationError(f"Distribution edge {edge_id} not found")
     if edge.version_id != sv.id:
         fork_entity_edges(
             db, scenario_id, edge.source_entity_id,
@@ -657,7 +659,7 @@ def apply_distribution_delete(
             .first()
         )
         if new_edge is None:
-            raise Lever12Error(
+            raise CostAllocationError(
                 f"Failed to fork edge {edge_id} into scenario {scenario_id}",
             )
         edge = new_edge
@@ -699,10 +701,10 @@ def apply_to_business_change(
     scenario = _ensure_scenario(db, scenario_id)
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
-        raise Lever12Error(f"Chargeable entity '{entity_id}' not found")
+        raise CostAllocationError(f"Chargeable entity '{entity_id}' not found")
 
     if new_pct < 0 or new_pct > 100:
-        raise Lever12Error(
+        raise CostAllocationError(
             f"to_business_pct {new_pct} outside [0, 100] range",
         )
 
@@ -722,7 +724,7 @@ def apply_to_business_change(
     )
     edge_sum = sum(float(e.percentage) for e in edges)
     if edge_sum + new_pct > 100.0 + 0.01:
-        raise Lever12Error(
+        raise CostAllocationError(
             f"Sum rule violation per [F-S1-02]: distributed ({edge_sum:.2f}) "
             f"+ new to_business_pct ({new_pct:.2f}) = {edge_sum + new_pct:.2f} "
             f"exceeds 100%",
@@ -765,19 +767,19 @@ def apply_btc_lines_change(
     _ensure_scenario(db, scenario_id)
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
-        raise Lever12Error(f"Chargeable entity '{entity_id}' not found")
+        raise CostAllocationError(f"Chargeable entity '{entity_id}' not found")
 
     # Validate per-line percentages and sum-to-100 (when non-empty).
     total = 0.0
     for line in lines:
         pct = line.get("percentage", 0)
         if pct is None or pct < 0 or pct > 100:
-            raise Lever12Error(
+            raise CostAllocationError(
                 f"BTC line percentage {pct} outside (0, 100] range",
             )
         total += float(pct)
     if lines and abs(total - 100.0) > 0.01:
-        raise Lever12Error(
+        raise CostAllocationError(
             f"BTC lines must sum to 100% (got {total:.2f})",
         )
 
@@ -817,7 +819,7 @@ def _record_action(
 ) -> ScenarioAction:
     """Insert a ScenarioAction row and bump the modified timestamp.
 
-    All Lever 12 actions get scope='portfolio', tier=2, lever_category=
+    All cost-allocation actions get scope='portfolio', tier=2, lever_category=
     'cost_allocation' per [B-AC-02].
     """
     action = ScenarioAction(
@@ -829,7 +831,7 @@ def _record_action(
         parameters_json=json.dumps(params, default=str),
         impact_delta_json=None,
         group_label=None,
-        lever_category=LEVER12_CATEGORY,
+        lever_category=COST_ALLOCATION_CATEGORY,
         tier=2,
     )
     db.add(action)
@@ -1004,9 +1006,9 @@ def _compute_scenario_effective_cost(
     db: Session, scenario_version_id: int, anchor_version_id: Optional[int],
     entity_id: str, *, _seen: Optional[set[str]] = None,
 ) -> float:
-    """Union-aware effective cost for the lever-12 sandbox.
+    """Union-aware effective cost for the cost-allocation sandbox.
 
-    Lever 12's lazy-fork pattern means scenario-version Distribution rows
+    The cost-allocation lazy-fork pattern means scenario-version Distribution rows
     only exist for entities the user actually mutated — every other entity
     inherits its anchor edges. A vanilla single-version walk against the
     scenario version returns own_cost only for entities the user did not
@@ -1061,12 +1063,12 @@ def _compute_scenario_effective_cost(
 def _entities_touched_by_scenario(
     db: Session, scenario_id: int, year: int,
 ) -> set[str]:
-    """Return the union of entity ids that have any Lever 12 action."""
+    """Return the union of entity ids that have any cost-allocation action."""
     actions = (
         db.query(ScenarioAction)
         .filter(
             ScenarioAction.scenario_id == scenario_id,
-            ScenarioAction.action_type.in_(LEVER12_ACTION_TYPES),
+            ScenarioAction.action_type.in_(COST_ALLOCATION_ACTION_TYPES),
         )
         .all()
     )
@@ -1151,7 +1153,7 @@ def compute_cost_allocation_impact(
 
     touched = _entities_touched_by_scenario(db, scenario_id, year)
 
-    # If no Lever 12 mutations, the impact is zero.
+    # If no cost-allocation mutations, the impact is zero.
     if not touched:
         return {
             "year": year,
@@ -1271,12 +1273,12 @@ def compute_cost_allocation_impact(
 # Cleanup — invoked when a scenario is deleted so the sandbox doesn't leak
 # ---------------------------------------------------------------------------
 
-def cleanup_lever12_state(db: Session, scenario_id: int) -> int:
+def cleanup_cost_allocation_state(db: Session, scenario_id: int) -> int:
     """Delete the per-scenario sandbox ``DistributionVersion`` and its edges.
 
-    Caller commits. Returns the count of distribution edges removed. Lever
-    12 BTC and to_business_pct overlays live in ScenarioActions which the
-    scenario delete cascade already removes.
+    Caller commits. Returns the count of distribution edges removed. The
+    cost-allocation BTC and to_business_pct overlays live in ScenarioActions
+    which the scenario delete cascade already removes.
 
     Post-FD-3 semantics: the cascade chain is
     ``Scenario → DistributionVersion(scenario_id=N) → Distribution(version_id=…)``.

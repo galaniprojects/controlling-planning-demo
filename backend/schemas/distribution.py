@@ -152,8 +152,8 @@ class DistributionVersionCreate(BaseModel):
     - ``copy_prior`` — copy edges from the specific version identified by
       ``copied_from_version_id``.
 
-    Scenario-scoped versions are created lazily by the lever-12 service
-    (``services/scenario_lever12.py``), not via this endpoint. The router
+    Scenario-scoped versions are created lazily by the cost-allocation service
+    (``services/scenario_cost_allocation.py``), not via this endpoint. The router
     rejects ``scenario_id`` here with HTTP 422.
 
     ``rationale`` is optional at draft creation; activation requires a

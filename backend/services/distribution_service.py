@@ -135,7 +135,7 @@ def resolve_active_version_or_raise(
 
 
 # ---------------------------------------------------------------------------
-# Union-aware edge resolution for the Lever-12 sandbox (Simulator S3)
+# Union-aware edge resolution for the cost-allocation sandbox (Simulator S3)
 #
 # The simulator's cost-allocation sandbox forks Stage-1 edges LAZILY into a
 # per-scenario draft ``DistributionVersion`` — only sources the author has
@@ -146,7 +146,7 @@ def resolve_active_version_or_raise(
 # edges for un-forked sources).
 #
 # These three helpers are the single source of truth for that union rule.
-# ``services.scenario_lever12._compute_scenario_effective_cost`` (the impact
+# ``services.scenario_cost_allocation._compute_scenario_effective_cost`` (the impact
 # preview) and the anchor-aware branches of ``dag_resolver.compute_effective_cost``
 # / ``cascade_query.query_cascade_chain`` (the editor cascade) all call them,
 # so the two surfaces cannot drift apart on which edges are "live" in a
@@ -185,7 +185,7 @@ def union_incoming_edges(
 
     = all sandbox edges into the entity, PLUS anchor edges into the entity
     whose source was NOT forked. Mirrors the walk in
-    ``scenario_lever12._compute_scenario_effective_cost``.
+    ``scenario_cost_allocation._compute_scenario_effective_cost``.
     """
     if forked_sources is None:
         forked_sources = get_forked_sources(db, scenario_version_id)
@@ -226,7 +226,7 @@ def union_outgoing_edges(
     If the entity is forked, its complete outgoing edge set lives in the
     sandbox version (the lazy fork copies ALL of a source's anchor edges on
     first touch). Otherwise the entity inherits its anchor edges verbatim.
-    Mirrors ``scenario_lever12.list_scenario_edges``.
+    Mirrors ``scenario_cost_allocation.list_scenario_edges``.
     """
     if forked_sources is None:
         forked_sources = get_forked_sources(db, scenario_version_id)
@@ -330,7 +330,7 @@ def create_version(
     - ``'seed'`` — reserved for the seed loader; service-callers should
       not use it (it carries no copy semantics).
 
-    Scenario-scoped versions are created lazily by ``scenario_lever12``
+    Scenario-scoped versions are created lazily by ``scenario_cost_allocation``
     (it passes ``scenario_id`` here). API callers must not pass
     ``scenario_id`` — the router enforces that.
 
@@ -433,7 +433,7 @@ def activate_version(
         raise DistributionValidationError(
             f"DistributionVersion {version_id} is scenario-scoped "
             f"(scenario_id={v.scenario_id}); scenario versions stay draft "
-            f"permanently per the lever-12 sandbox contract.",
+            f"permanently per the cost-allocation sandbox contract.",
         )
     if not rationale or not rationale.strip():
         raise DistributionValidationError(
