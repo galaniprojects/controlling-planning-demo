@@ -25,6 +25,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   CalendarClock,
   PauseCircle,
   FastForward,
@@ -79,6 +87,7 @@ export function MacroStrip({ projectId }: Props) {
   const [pauseN, setPauseN] = useState('1');
   const [accelN, setAccelN] = useState('1');
   const [pending, setPending] = useState<MacroType | null>(null);
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
 
   const activeMacros = (detail?.actions ?? []).filter(
     (a) =>
@@ -165,7 +174,7 @@ export function MacroStrip({ projectId }: Props) {
             size="sm"
             className="h-8 border-red-300 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
             disabled={pending !== null}
-            onClick={() => dispatchMacro('remove_project')}
+            onClick={() => setConfirmRemoveOpen(true)}
           >
             <Trash2 className="h-3.5 w-3.5" />
             <span className="ml-1.5">Remove</span>
@@ -212,6 +221,37 @@ export function MacroStrip({ projectId }: Props) {
           ))}
         </div>
       )}
+
+      <Dialog open={confirmRemoveOpen} onOpenChange={setConfirmRemoveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove this project from the scenario?</DialogTitle>
+            <DialogDescription>
+              This drops the project's contribution from the scenario's impact.
+              It affects this scenario only and can be reverted by removing the
+              macro chip.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmRemoveOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={pending !== null}
+              onClick={async () => {
+                await dispatchMacro('remove_project');
+                setConfirmRemoveOpen(false);
+              }}
+            >
+              Remove project
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

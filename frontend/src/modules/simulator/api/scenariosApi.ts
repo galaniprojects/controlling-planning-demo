@@ -248,6 +248,7 @@ export interface ScenarioGridCell {
   display_value: number; // internal → hours; external → €
   amount_eur: number; // always the € value (internal: hours × rate)
   anchor_value: number | null; // pre-overlay value in the cell's field
+  anchor_amount_eur: number | null; // anchor cell's stored € (live-local anchor/delta)
   field: 'hours' | 'amount_eur';
   can_edit: boolean; // false for actuals (month < DEMO_DATE)
   is_changed: boolean; // resolved differs from anchor (incl. macro shifts)
@@ -272,6 +273,17 @@ export interface ScenarioGridResponse {
   open_month: string; // DEMO_DATE — actuals/future boundary
   columns: ScenarioGridColumn[];
   rows: ScenarioGridRow[];
+}
+
+export interface ScenarioProjectItem {
+  id: string;
+  name: string;
+  pipeline_stage: string;
+}
+
+export interface ScenarioProjectsResponse {
+  items: ScenarioProjectItem[];
+  total: number;
 }
 
 export interface CellEditBody {
@@ -382,6 +394,13 @@ export const scenariosApi = {
   getScenarioGrid: (scenarioId: number, projectId: string) =>
     api.get<ScenarioGridResponse>(
       `/api/scenarios/${scenarioId}/projects/${projectId}/grid`,
+    ),
+
+  // All active projects selectable in the simulator workspace (portfolio-wide
+  // what-if — NOT the Portfolio 'Change' population, which drops backlog stages).
+  getScenarioProjects: (scenarioId: number) =>
+    api.get<ScenarioProjectsResponse>(
+      `/api/scenarios/${scenarioId}/projects`,
     ),
 
   writeCellOverlay: (scenarioId: number, projectId: string, body: CellEditBody) =>

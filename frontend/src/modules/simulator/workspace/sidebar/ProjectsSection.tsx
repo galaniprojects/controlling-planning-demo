@@ -1,13 +1,15 @@
 /**
  * v5 B2 — ProjectsSection: project picker for the workspace sidebar.
  *
- * Lists active projects (filtered by `ccOwnerScopeCcId` when the scenario
- * was authored by a CC Owner per [B-AC-02]). Each row is a button that
- * navigates to a project-scoped surface (Forecast Grid by default; the
- * surface key is read from URL state to preserve the user's last view).
+ * Lists ALL active projects selectable in the simulator (portfolio-wide
+ * what-if), so any project the scenario edits — including backlog-stage ones —
+ * is reachable. Each row is a button that navigates to a project-scoped surface
+ * (Forecast Grid by default; the surface key is read from URL state to preserve
+ * the user's last view).
  *
- * Data source: `portfolioApi.getProjects()` — keeps state local; Wave-3
- * lesson: don't add another global cache when a sidebar fetch is fine.
+ * Data source: `scenariosApi.getScenarioProjects(scenarioId)` — the scenario-
+ * scoped all-active endpoint. (The Portfolio `getProjects()` was wrong here: it
+ * applies the 'Change' population filter, which drops backlog-stage projects.)
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -15,31 +17,16 @@ import { Folder, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/shared/Skeleton';
-import { portfolioApi } from '@/api/endpoints';
+import { scenariosApi, type ScenarioProjectItem } from '../../api/scenariosApi';
 import { useScenarioContext } from '../../useScenarioContext';
-import type { ProjectTreeNode } from '@/types/api';
 
 const SURFACE_FALLBACK = 'forecast-grid';
 
-function flattenTree(nodes: ProjectTreeNode[]): ProjectTreeNode[] {
-  // ProjectTreeNode includes both grouping nodes and project leaves.
-  // We only care about project leaves (those with a real project id).
-  const out: ProjectTreeNode[] = [];
-  const walk = (ns: ProjectTreeNode[]) => {
-    for (const n of ns) {
-      if (n.type === 'project') out.push(n);
-      if (n.children && n.children.length > 0) walk(n.children);
-    }
-  };
-  walk(nodes);
-  return out;
-}
-
 export function ProjectsSection() {
-  const { ccOwnerScopeCcId } = useScenarioContext();
+  const { scenarioId } = useScenarioContext();
   const navigate = useNavigate();
   const params = useParams<{ id: string; surfaceKey?: string }>();
-  const [projects, setProjects] = useState<ProjectTreeNode[]>([]);
+  const [projects, setProjects] = useState<ScenarioProjectItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -47,11 +34,11 @@ export function ProjectsSection() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    portfolioApi
-      .getProjects()
+    scenariosApi
+      .getScenarioProjects(scenarioId)
       .then((res) => {
         if (cancelled) return;
-        setProjects(flattenTree(res.items));
+        setProjects(res.items);
       })
       .catch((e: Error) => {
         if (cancelled) return;
@@ -63,25 +50,18 @@ export function ProjectsSection() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [scenarioId]);
 
   const filtered = useMemo(() => {
     const lower = search.trim().toLowerCase();
     return projects.filter((p) => {
-      // CC Owner scope: only show projects whose cost-centre matches.
-      // We don't have cc_id on ProjectTreeNode, so this is best-effort
-      // until backend exposes a per-project CC. Backend enforces the
-      // gate at action-apply time.
-      if (ccOwnerScopeCcId && (p as { cc_id?: string }).cc_id) {
-        if ((p as { cc_id?: string }).cc_id !== ccOwnerScopeCcId) return false;
-      }
       if (lower) {
         const blob = `${p.name} ${p.id}`.toLowerCase();
         if (!blob.includes(lower)) return false;
       }
       return true;
     });
-  }, [projects, search, ccOwnerScopeCcId]);
+  }, [projects, search]);
 
   const navigateToProject = (projectId: string) => {
     const surface = params.surfaceKey ?? SURFACE_FALLBACK;

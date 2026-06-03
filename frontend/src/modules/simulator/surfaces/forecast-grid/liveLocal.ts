@@ -6,12 +6,15 @@
  * precedence as the grid adapter so the preview and the grid can never
  * disagree:
  *
- *   - internal line €   = Σ over months (effective hours) × hourly_rate
- *   - external line €   = Σ over months (effective €)
- *   - project budget    = Σ line totals
- *   - anchor budget     = Σ over cells of `anchor_value` (in €)
- *   - delta-vs-anchor   = project budget − anchor budget
+ *   - unedited cell €   = the server's resolved € (`cell.amount_eur`)
+ *   - edited cell €     = internal: newHours × hourly_rate / external: new €
+ *                         (matches what the server write recomputes)
+ *   - anchor cell €     = the server's STORED anchor € (`cell.anchor_amount_eur`)
+ *   - project budget    = Σ line totals;  delta = budget − anchor
  *
+ * Anchor and unedited € come straight from the server so the preview can't drift
+ * from the recalc when a stored forecast € wasn't priced at the latest rate;
+ * only edited cells are derived locally (and use the same rate the server uses).
  * The server's recalculate is authoritative; this is a preview only. The RAG
  * badge and impact dashboard still wait for an explicit Recalculate.
  */
@@ -20,8 +23,6 @@ import type {
   ScenarioGridRow,
 } from '../../api/scenariosApi';
 import {
-  anchorCellValue,
-  effectiveCellValue,
   workingEditKey,
   type WorkingEdits,
 } from './forecastGridAdapter';
@@ -65,9 +66,11 @@ export function computeLineTotals(
     for (const cell of row.cells) {
       const key = workingEditKey(row.category, row.line_key, cell.month);
       const edit = workingEdits.get(key);
-      const eff = effectiveCellValue(cell, edit);
-      eur += lineCellEur(row, eff);
-      anchorEur += lineCellEur(row, anchorCellValue(cell));
+      // Edited → derive locally (internal: hours×rate, external: € verbatim),
+      // matching the server write recompute. Unedited → the server's resolved €.
+      eur += edit ? lineCellEur(row, edit.newValue ?? 0) : cell.amount_eur;
+      // Anchor → the server's stored anchor € (null when no anchor cell).
+      anchorEur += cell.anchor_amount_eur ?? 0;
     }
     return {
       lineKey: row.line_key,

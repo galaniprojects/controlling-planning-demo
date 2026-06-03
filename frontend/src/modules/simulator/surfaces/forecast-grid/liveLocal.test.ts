@@ -20,6 +20,7 @@ function cell(over: Partial<ScenarioGridCell>): ScenarioGridCell {
     display_value: 0,
     amount_eur: 0,
     anchor_value: 0,
+    anchor_amount_eur: 0,
     field: 'hours',
     can_edit: true,
     is_changed: false,
@@ -47,9 +48,10 @@ function resp(): ScenarioGridResponse {
         kind: 'internal_role',
         sub_category_name: 'Dev',
         hourly_rate: 100,
+        // Rate-consistent: stored € (amount_eur / anchor_amount_eur) == 80 × 100.
         cells: [
-          cell({ month: '2026-05', display_value: 80, anchor_value: 80, field: 'hours' }),
-          cell({ month: '2026-06', display_value: 80, anchor_value: 80, field: 'hours' }),
+          cell({ month: '2026-05', display_value: 80, amount_eur: 8000, anchor_value: 80, anchor_amount_eur: 8000, field: 'hours' }),
+          cell({ month: '2026-06', display_value: 80, amount_eur: 8000, anchor_value: 80, anchor_amount_eur: 8000, field: 'hours' }),
         ],
       },
       {
@@ -59,8 +61,8 @@ function resp(): ScenarioGridResponse {
         sub_category_name: 'License',
         hourly_rate: null,
         cells: [
-          cell({ month: '2026-05', display_value: 2000, amount_eur: 2000, anchor_value: 2000, field: 'amount_eur' }),
-          cell({ month: '2026-06', display_value: 2000, amount_eur: 2000, anchor_value: 2000, field: 'amount_eur' }),
+          cell({ month: '2026-05', display_value: 2000, amount_eur: 2000, anchor_value: 2000, anchor_amount_eur: 2000, field: 'amount_eur' }),
+          cell({ month: '2026-06', display_value: 2000, amount_eur: 2000, anchor_value: 2000, anchor_amount_eur: 2000, field: 'amount_eur' }),
         ],
       },
     ],
@@ -120,6 +122,41 @@ describe('computeLineTotals', () => {
     const totals = computeLineTotals(resp(), we);
     const external = totals.find((t) => t.lineKey === 'external:license')!;
     expect(external.eur).toBe(5500); // 3500 + 2000
+  });
+
+  it('anchor + unedited € come from the server stored €, not hours×rate', () => {
+    // Stored anchor € (380) deliberately != hours×rate (10 × 100 = 1000): a
+    // forecast not priced at the latest rate. The panel must mirror the server.
+    const r: ScenarioGridResponse = {
+      ...resp(),
+      rows: [
+        {
+          line_key: 'internal:dev',
+          category: 'internal',
+          kind: 'internal_role',
+          sub_category_name: 'Dev',
+          hourly_rate: 100,
+          cells: [
+            cell({ month: '2026-05', display_value: 10, amount_eur: 380, anchor_value: 10, anchor_amount_eur: 380, field: 'hours' }),
+          ],
+        },
+      ],
+    };
+    const noEdit = computeLineTotals(r, new Map());
+    // Unedited: uses stored € (380), NOT 10 × 100 = 1000.
+    expect(noEdit[0].eur).toBe(380);
+    expect(noEdit[0].anchorEur).toBe(380);
+
+    // Edited to 12h: preview derives 12 × 100 = 1200 (matches the server write
+    // recompute), while the anchor stays the stored 380.
+    const we: WorkingEdits = new Map();
+    we.set(
+      workingEditKey('internal', 'internal:dev', '2026-05'),
+      mkEdit({ month: '2026-05', anchorValue: 10, newValue: 12 }),
+    );
+    const edited = computeLineTotals(r, we);
+    expect(edited[0].eur).toBe(1200);
+    expect(edited[0].anchorEur).toBe(380);
   });
 });
 

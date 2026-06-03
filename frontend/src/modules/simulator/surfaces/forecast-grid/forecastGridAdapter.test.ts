@@ -24,6 +24,7 @@ function cell(over: Partial<ScenarioGridCell>): ScenarioGridCell {
     can_edit: true,
     is_changed: false,
     has_overlay: false,
+    anchor_amount_eur: 0,
     is_empty: false,
     ...over,
   };

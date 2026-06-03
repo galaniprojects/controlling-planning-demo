@@ -120,9 +120,12 @@ export function useForecastWorkingEdits(
         pending: true,
       };
 
-      // Snapshot for rollback, then optimistic apply.
-      const snapshot = new Map(workingEdits);
+      // Capture this key's prior entry INSIDE the updater (operates on live
+      // state) so a failed write rolls back only this cell — concurrent edits
+      // to other keys (e.g. a quarterly fan-out) are preserved.
+      let priorEntry: WorkingCellEdit | undefined;
       setWorkingEdits((prev) => {
+        priorEntry = prev.get(key);
         const next = new Map(prev);
         if (newValue === anchor) {
           // Typing the anchor value back is a revert — handled by the network
@@ -152,21 +155,27 @@ export function useForecastWorkingEdits(
               });
         reconcile(res.grid);
       } catch (e) {
-        setWorkingEdits(snapshot);
+        setWorkingEdits((prev) => {
+          const next = new Map(prev);
+          if (priorEntry) next.set(key, priorEntry);
+          else next.delete(key);
+          return next;
+        });
         setError(e instanceof Error ? e.message : 'Failed to save edit');
       } finally {
         setBusy(false);
       }
     },
-    [grid, workingEdits, projectId, applyCellOverlay, revertCellOverlay, reconcile],
+    [grid, projectId, applyCellOverlay, revertCellOverlay, reconcile],
   );
 
   const revertCell = useCallback(
     async (row: ScenarioGridRow, month: string) => {
       const field = row.category === 'internal' ? 'hours' : 'amount_eur';
-      const snapshot = new Map(workingEdits);
       const key = workingEditKey(row.category, row.line_key, month);
+      let priorEntry: WorkingCellEdit | undefined;
       setWorkingEdits((prev) => {
+        priorEntry = prev.get(key);
         const next = new Map(prev);
         next.delete(key);
         return next;
@@ -181,23 +190,28 @@ export function useForecastWorkingEdits(
         });
         reconcile(res.grid);
       } catch (e) {
-        setWorkingEdits(snapshot);
+        setWorkingEdits((prev) => {
+          const next = new Map(prev);
+          if (priorEntry) next.set(key, priorEntry);
+          return next;
+        });
         setError(e instanceof Error ? e.message : 'Failed to revert cell');
       } finally {
         setBusy(false);
       }
     },
-    [workingEdits, projectId, revertCellOverlay, reconcile],
+    [projectId, revertCellOverlay, reconcile],
   );
 
   const revertLine = useCallback(
     async (lineKey: string) => {
-      const snapshot = new Map(workingEdits);
+      // Capture the line's prior entries inside the updater; restore only those
+      // on failure so concurrent edits to other lines survive.
+      let priorEntries: [string, WorkingCellEdit][] = [];
       setWorkingEdits((prev) => {
+        priorEntries = [...prev].filter(([, edit]) => edit.lineKey === lineKey);
         const next = new Map(prev);
-        for (const [key, edit] of prev) {
-          if (edit.lineKey === lineKey) next.delete(key);
-        }
+        for (const [key] of priorEntries) next.delete(key);
         return next;
       });
       setBusy(true);
@@ -206,30 +220,43 @@ export function useForecastWorkingEdits(
         const res = await revertLineOverlay(projectId, lineKey);
         reconcile(res.grid);
       } catch (e) {
-        setWorkingEdits(snapshot);
+        setWorkingEdits((prev) => {
+          const next = new Map(prev);
+          for (const [key, edit] of priorEntries) next.set(key, edit);
+          return next;
+        });
         setError(e instanceof Error ? e.message : 'Failed to revert line');
       } finally {
         setBusy(false);
       }
     },
-    [workingEdits, projectId, revertLineOverlay, reconcile],
+    [projectId, revertLineOverlay, reconcile],
   );
 
   const revertAll = useCallback(async () => {
-    const snapshot = new Map(workingEdits);
-    setWorkingEdits(new Map());
+    let prior: WorkingEdits = new Map();
+    setWorkingEdits((prev) => {
+      prior = prev;
+      return new Map();
+    });
     setBusy(true);
     setError(null);
     try {
       const res = await clearProjectOverlay(projectId);
       reconcile(res.grid);
     } catch (e) {
-      setWorkingEdits(snapshot);
+      // Restore the cleared edits, keeping any that landed during the in-flight
+      // clear.
+      setWorkingEdits((prev) => {
+        const next = new Map(prior);
+        for (const [key, edit] of prev) next.set(key, edit);
+        return next;
+      });
       setError(e instanceof Error ? e.message : 'Failed to revert all edits');
     } finally {
       setBusy(false);
     }
-  }, [workingEdits, projectId, clearProjectOverlay, reconcile]);
+  }, [projectId, clearProjectOverlay, reconcile]);
 
   return {
     workingEdits,
