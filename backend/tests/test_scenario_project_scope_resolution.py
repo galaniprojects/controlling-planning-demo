@@ -268,6 +268,62 @@ def test_overlay_remove_line(db):
     assert _line_by_key(grid, "internal|R-DEV|") is not None
 
 
+def test_overlay_edit_external_line_metadata(db):
+    """An op='edit' overlay row (Session 3 T2) patches the resolved external
+    line's vendor + cost-type grouping in place; per-month € is untouched."""
+    _project(db)
+    _forecast(db, "proj-res", "2026-06", "external", "EC-CONSULT", 5000.0, vendor="Acme")
+    db.commit()
+    scenario = _scenario(db)
+
+    db.add(ScenarioLineEdit(
+        scenario_id=scenario.id,
+        project_id="proj-res",
+        line_key="external|EC-CONSULT|",
+        op="edit",
+        line_kind=LINE_KIND_EXTERNAL,
+        category="external",
+        sub_category="EC-LICENSE",
+        cost_type_id="EC-LICENSE",
+        vendor="Umbrella",
+        description="Renegotiated",
+    ))
+    db.commit()
+
+    grid = resolve_project_grid(db, scenario, "proj-res")
+    line = _line_by_key(grid, "external|EC-CONSULT|")
+    assert line is not None                         # identity (line_key) unchanged
+    assert line.vendor == "Umbrella"                # vendor patched
+    assert line.sub_category == "EC-LICENSE"        # cost-type grouping patched
+    assert line.cells["2026-06"].amount_eur == 5000.0  # € untouched by metadata edit
+
+
+def test_overlay_edit_partial_keeps_vendor(db):
+    """A cost-type-only edit leaves the resolved vendor at its anchor value."""
+    _project(db)
+    _forecast(db, "proj-res", "2026-06", "external", "EC-CONSULT", 5000.0, vendor="Acme")
+    db.commit()
+    scenario = _scenario(db)
+
+    db.add(ScenarioLineEdit(
+        scenario_id=scenario.id,
+        project_id="proj-res",
+        line_key="external|EC-CONSULT|",
+        op="edit",
+        line_kind=LINE_KIND_EXTERNAL,
+        category="external",
+        sub_category="EC-LICENSE",
+        cost_type_id="EC-LICENSE",
+        vendor=None,
+    ))
+    db.commit()
+
+    grid = resolve_project_grid(db, scenario, "proj-res")
+    line = _line_by_key(grid, "external|EC-CONSULT|")
+    assert line.vendor == "Acme"                    # unchanged (edit.vendor was None)
+    assert line.sub_category == "EC-LICENSE"
+
+
 def test_resolve_no_overlay_no_macros_matches_anchor(db):
     _project(db)
     _forecast(db, "proj-res", "2026-06", "internal", "R-DEV", 8800.0, hours=110.0)

@@ -550,9 +550,11 @@ Layer-2 hot path: one edited forecast cell value. Sparse, upsert/dedup per cell.
 **Constraints / indexes.** Unique `uq_scenario_cell_edit` on (`scenario_id`, `project_id`, `line_key`, `month`, `field`); index `ix_scenario_cell_edit_scope` on (`scenario_id`, `project_id`).
 
 ### `ScenarioLineEdit` — `scenario_line_edits`
-Layer-2 companion: structural add/remove of a forecast line (internal role line or external-cost line item).
+Layer-2 companion: structural add/remove of a forecast line (internal role line or external-cost line item), plus metadata `edit` of an external-cost line.
 
-**Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `project_id` FK NOT NULL, `line_key` String(120) NOT NULL (minted for adds), `op` String(10) NOT NULL (`add` | `remove`), `line_kind` String(20) NOT NULL (`internal_role` | `external_cost`), `category` String(20), `sub_category` String(50), `role_type_id` FK → role_types, `cost_type_id` FK → external_cost_types, `vendor` String(200), `description` String(200), `capex_opex` String(10), `created_at` DateTime. Per-month values for the line live in `ScenarioForecastCellEdit` under the same `line_key`.
+**Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `project_id` FK NOT NULL, `line_key` String(120) NOT NULL (minted for adds), `op` String(10) NOT NULL (`add` | `remove` | `edit`), `line_kind` String(20) NOT NULL (`internal_role` | `external_cost`), `category` String(20), `sub_category` String(50), `role_type_id` FK → role_types, `cost_type_id` FK → external_cost_types, `vendor` String(200), `description` String(200), `capex_opex` String(10), `created_at` DateTime. Per-month values for the line live in `ScenarioForecastCellEdit` under the same `line_key`.
+
+**`op='edit'` (Session 3 T2).** Edits an existing external-cost line's metadata (vendor / cost-type grouping = `sub_category`+`cost_type_id` / description / capex_opex). References the line's natural `line_key`; resolution patches the resolved line in place (vendor + sub_category) — the per-month € is untouched. Editing a still-pending added line patches its `add` row instead of minting a separate `edit` row (one row per `line_key` via `uq_scenario_line_edit`). Note: `op='edit'` rows resolve in the scenario sandbox/list but are not yet applied to live Forecast rows at promote — that widening is Session 4.
 
 **Constraints / indexes.** Unique `uq_scenario_line_edit` on (`scenario_id`, `project_id`, `line_key`); index `ix_scenario_line_edit_scope` on (`scenario_id`, `project_id`).
 
@@ -694,6 +696,10 @@ Module-level Python tuples that define authoritative value sets. When the value 
 | `AUDIT_CATEGORIES` | `system.py` | `master_data`, `configuration`, `hierarchy`, `forecast_actions`, `pipeline_transitions`, `simulator`, `access_control`, `scheduled_change_lifecycle`, `export` |
 | `SCENARIO_VISIBILITIES` | `scenarios.py` | `private`, `tier3_only`, `all_users` |
 | `SCENARIO_ROUTING_TYPES` | `scenarios.py` | `direct_forecast_update`, `change_request`, `doi_gate_check`, `tech_navigator_direct`, `tech_navigator_send_back`, `rate_table_update`, `people_action_item`, `budget_envelope_update`, `hypothetical_to_proposed`, `hierarchy_update`, `cost_allocation_update`, `capacity_param_update`, `no_route` |
+| `OVERLAY_CELL_FIELDS` | `scenarios.py` | `hours`, `amount_eur` |
+| `OVERLAY_LINE_OPS` | `scenarios.py` | `add`, `remove`, `edit` (`edit` = external-cost line metadata edit, Session 3 T2) |
+| `OVERLAY_LINE_KINDS` | `scenarios.py` | `internal_role`, `external_cost` |
+| `OVERLAY_PLAN_TARGETS` | `scenarios.py` | `start_month`, `end_month`, `stage`, `doi`, `milestone` |
 | `SCHEDULED_CHANGE_STATES` | `scheduled_changes.py` | `pending_review`, `approved`, `activated`, `rejected`, `cancelled` |
 | `STEP_TYPES` | `workflow_templates.py` | `action`, `review`, `gate`, `notification` |
 | `ESCALATION_ACTIONS` | `workflow_templates.py` | `reminder`, `escalate_to_manager`, `auto_skip`, `block` |

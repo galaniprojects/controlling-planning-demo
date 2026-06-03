@@ -25,11 +25,15 @@ from models.scenarios import (
     ScenarioAction,
     ScenarioForecastCellEdit,
     ScenarioLineEdit,
+    ScenarioMixChange,
+    ScenarioPlanEdit,
     PROJECT_MACRO_ACTION_TYPES,
 )
+from services.calculations import month_diff
 from services.scenario_project_scope.macros import (
     apply_macros,
     current_open_forecast_month,
+    _shift_grid,
 )
 from services.scenario_project_scope.rates import effective_hourly_rate
 from services.scenario_project_scope.types import (
@@ -145,10 +149,120 @@ def _line_from_key(line_key: str) -> ResolvedLine:
     )
 
 
-def _apply_overlay(db: Session, grid: ResolvedGrid, scenario_id: int, project_id: str) -> None:
+def _apply_plan_dates(db: Session, grid: ResolvedGrid, scenario_id: int, project_id: str, open_month: str) -> None:
+    """Apply ScenarioPlanEdit *date* targets to the resolved window (spec §3 item
+    7, §6): a ``start_month`` edit shifts the movable curve so the project begins
+    at the requested month — "the grid reflects the shifted window" — reusing the
+    same past-freeze shift primitive as the macros; an ``end_month`` edit sets the
+    window's end boundary.
+
+    Only ``start_month`` / ``end_month`` feed the grid here. ``stage`` / ``doi`` /
+    ``milestone`` plan edits are stored and surfaced for the editor + routed
+    through the DoI gate at promote — they do not reshape the resolved cell grid,
+    so resolution leaves the grid untouched for them.
+    """
+    plan_edits = (
+        db.query(ScenarioPlanEdit)
+        .filter(
+            ScenarioPlanEdit.scenario_id == scenario_id,
+            ScenarioPlanEdit.project_id == project_id,
+            ScenarioPlanEdit.target.in_(("start_month", "end_month")),
+        )
+        .all()
+    )
+    by_target = {e.target: e for e in plan_edits}
+
+    start_edit = by_target.get("start_month")
+    if start_edit is not None and start_edit.value:
+        new_start = start_edit.value
+        if grid.start_month:
+            delta = month_diff(grid.start_month, new_start)
+            if delta:
+                _shift_grid(grid, delta, open_month)
+        # _shift_grid moves start_month only when it sits in the movable region;
+        # pin it to the requested value either way so the window matches the edit.
+        grid.start_month = new_start
+
+    end_edit = by_target.get("end_month")
+    if end_edit is not None and end_edit.value:
+        grid.end_month = end_edit.value
+
+
+def _apply_mix(db: Session, grid: ResolvedGrid, scenario_id: int, project_id: str, open_month: str) -> None:
+    """Apply Tier-3 seniority/sourcing mix swaps to the resolved grid (spec §8).
+
+    Each ScenarioMixChange moves ``hours_per_month_swap`` hours per month (from
+    ``effective_from`` onward) from the swap-from role line to the swap-to role
+    line, recomputing € on both via the effective rate so the rollup splits
+    (investment mix / outsourcing ratio) reflect the change. Applied before the
+    per-cell overlay so a hand cell edit on either line remains the last word
+    (hand-edits-win, §5.1).
+    """
+    mix_changes = (
+        db.query(ScenarioMixChange)
+        .filter(
+            ScenarioMixChange.scenario_id == scenario_id,
+            ScenarioMixChange.project_id == project_id,
+        )
+        .all()
+    )
+    if not mix_changes:
+        return
+
+    def _internal_line_for_role(role_id: str) -> Optional[ResolvedLine]:
+        for line in grid.lines:
+            if line.kind != LINE_KIND_INTERNAL:
+                continue
+            if (line.role_type_id or line.sub_category) == role_id:
+                return line
+        return None
+
+    for mc in mix_changes:
+        from_role = mc.swap_from_role_id
+        to_role = mc.swap_to_role_id
+        per_month = float(mc.hours_per_month_swap or 0.0)
+        if not from_role or not to_role or per_month <= 0:
+            continue
+        from_line = _internal_line_for_role(from_role)
+        if from_line is None:
+            continue  # nothing to swap out of
+        to_line = _internal_line_for_role(to_role)
+        if to_line is None:
+            key = _natural_line_key("internal", to_role, to_role)
+            to_line = ResolvedLine(
+                line_key=key, category="internal", kind=LINE_KIND_INTERNAL,
+                sub_category=to_role, role_type_id=to_role,
+            )
+            grid.lines.append(to_line)
+
+        from_rate = effective_hourly_rate(db, from_role)
+        to_rate = effective_hourly_rate(db, to_role)
+        effective_from = mc.effective_from or open_month
+        boundary = max(effective_from, open_month)
+
+        for month, cell in list(from_line.cells.items()):
+            if month < boundary:
+                continue
+            available = cell.hours or 0.0
+            swap = min(per_month, available)
+            if swap <= 0:
+                continue
+            cell.hours = round(available - swap, 2)
+            cell.amount_eur = round((cell.hours or 0.0) * from_rate, 2)
+            to_cell = to_line.cells.get(month)
+            if to_cell is None:
+                to_cell = ResolvedCell(amount_eur=0.0, hours=0.0)
+                to_line.cells[month] = to_cell
+            to_cell.hours = round((to_cell.hours or 0.0) + swap, 2)
+            to_cell.amount_eur = round((to_cell.hours or 0.0) * to_rate, 2)
+
+
+def _apply_overlay(db: Session, grid: ResolvedGrid, scenario_id: int, project_id: str, open_month: str) -> None:
     """Apply the Layer-2 hand-edit overlay on top of the (post-macro) grid in
-    place (spec §5). Line add/remove first, then per-cell edits — hand-edits-win,
-    absolute-month keyed.
+    place (spec §5). Order: line add/remove → plan date shift → Tier-3 mix swap →
+    per-cell edits. Per-cell edits are applied last so they win on their absolute
+    month (hand-edits-win, §5.1); dates/mix reshape the resolved schedule beneath
+    them.
     """
     lines_by_key = {line.line_key: line for line in grid.lines}
     removed_keys: set[str] = set()
@@ -182,6 +296,27 @@ def _apply_overlay(db: Session, grid: ResolvedGrid, scenario_id: int, project_id
                 grid.lines = [l for l in grid.lines if l.line_key != edit.line_key]
                 del lines_by_key[edit.line_key]
             removed_keys.add(edit.line_key)
+        elif edit.op == "edit":
+            # Metadata-only edit of an existing external-cost line (Session 3 T2):
+            # patch the resolved line's vendor / cost-type grouping in place so the
+            # grid label + rollup grouping reflect the change. Per-month € is
+            # untouched (it lives in ScenarioForecastCellEdit). description /
+            # capex_opex are not carried on ResolvedLine — they ride the overlay
+            # row directly and are surfaced by the external-cost list endpoint.
+            line = lines_by_key.get(edit.line_key)
+            if line is not None:
+                if edit.vendor is not None:
+                    line.vendor = edit.vendor
+                if edit.sub_category is not None:
+                    line.sub_category = edit.sub_category
+
+    # Plan date shift + Tier-3 mix reshape the schedule before the absolute-keyed
+    # per-cell overlay gets the last word.
+    _apply_plan_dates(db, grid, scenario_id, project_id, open_month)
+    _apply_mix(db, grid, scenario_id, project_id, open_month)
+    # Mix may have introduced a swap-to line absent from the anchor; refresh the
+    # index so cell edits resolve against the post-mix line set.
+    lines_by_key = {line.line_key: line for line in grid.lines}
 
     cell_edits = (
         db.query(ScenarioForecastCellEdit)
@@ -246,5 +381,5 @@ def resolve_project_grid(db: Session, scenario: Scenario, project_id: str) -> Re
     open_month = current_open_forecast_month()
     grid = apply_macros(grid, macros, current_open_month=open_month).grid
 
-    _apply_overlay(db, grid, scenario.id, project_id)
+    _apply_overlay(db, grid, scenario.id, project_id, open_month)
     return grid

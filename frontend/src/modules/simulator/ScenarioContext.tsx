@@ -57,12 +57,22 @@ import {
   type DistributionEdgeCreateBody,
   type DistributionEdgeUpdateBody,
   type ImpactDashboardResponse,
+  type LineAddBody,
+  type MixChangeBody,
+  type PlanEditBody,
   type PromoteExecuteResponse,
   type PromotePreviewResponse,
   type ScenarioGridWriteResponse,
+  type ScenarioLineWriteResponse,
   type ScenarioMetadataBody,
+  type ScenarioMixWriteResponse,
+  type ScenarioPlanWriteResponse,
   type ScenarioPublishBody,
   type ToBusinessChangeBody,
+  type ExternalCostLineCreateBody,
+  type ExternalCostLineUpdateBody,
+  type ExternalCostListResponse,
+  type ExternalCostWriteResponse,
 } from './api/scenariosApi';
 
 // ---------------------------------------------------------------------------
@@ -211,6 +221,51 @@ export interface ScenarioContextValue {
   clearProjectOverlay: (
     projectId: string,
   ) => Promise<ScenarioGridWriteResponse>;
+  // Mutations — Project-scope T1 (Session 3): role lines, plan edits, Tier-3
+  // mix. Each refreshes `detail` from the write response state, marks stale, and
+  // appends a change-feed entry (like applyCellOverlay). The grid is reshaped by
+  // these, so the surface refetches off the returned response.
+  addRoleLine: (
+    projectId: string,
+    body: LineAddBody,
+  ) => Promise<ScenarioLineWriteResponse>;
+  removeRoleLine: (
+    projectId: string,
+    lineKey: string,
+  ) => Promise<ScenarioLineWriteResponse>;
+  writePlanEdit: (
+    projectId: string,
+    body: PlanEditBody,
+  ) => Promise<ScenarioPlanWriteResponse>;
+  revertPlanEdit: (
+    projectId: string,
+    ref?: { target?: PlanEditBody['target']; milestone_id?: string },
+  ) => Promise<ScenarioPlanWriteResponse>;
+  writeMixChange: (
+    projectId: string,
+    body: MixChangeBody,
+  ) => Promise<ScenarioMixWriteResponse>;
+  revertMixChange: (
+    projectId: string,
+    mixId?: number,
+  ) => Promise<ScenarioMixWriteResponse>;
+  // Mutations — Project-scope T2 (Session 3): external-cost line items. List is
+  // a plain read; add/edit/remove refresh `detail` from the write response,
+  // mark stale, and append a change-feed entry (like applyCellOverlay).
+  listExternalCosts: (projectId: string) => Promise<ExternalCostListResponse>;
+  addExternalCost: (
+    projectId: string,
+    body: ExternalCostLineCreateBody,
+  ) => Promise<ExternalCostWriteResponse>;
+  editExternalCost: (
+    projectId: string,
+    lineKey: string,
+    body: ExternalCostLineUpdateBody,
+  ) => Promise<ExternalCostWriteResponse>;
+  removeExternalCost: (
+    projectId: string,
+    lineKey: string,
+  ) => Promise<ExternalCostWriteResponse>;
   // Mutations — Lever 12
   createDistribution: (body: DistributionEdgeCreateBody) => Promise<unknown>;
   updateDistribution: (
@@ -511,6 +566,157 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
     [scenarioId, appendChange],
   );
 
+  // ---- Project-scope T1: role lines / plan / Tier-3 mix (Session 3) -------
+  const addRoleLine = useCallback(
+    async (projectId: string, body: LineAddBody): Promise<ScenarioLineWriteResponse> => {
+      const res = await scenariosApi.addRoleLine(scenarioId, projectId, body);
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: 'Added role line',
+        detail: `${projectId} · ${body.role_type_id}`,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
+  const removeRoleLine = useCallback(
+    async (projectId: string, lineKey: string): Promise<ScenarioLineWriteResponse> => {
+      const res = await scenariosApi.removeRoleLine(scenarioId, projectId, lineKey);
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: 'Removed role line',
+        detail: `${projectId} · ${lineKey}`,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
+  const writePlanEdit = useCallback(
+    async (projectId: string, body: PlanEditBody): Promise<ScenarioPlanWriteResponse> => {
+      const res = await scenariosApi.writePlanEdit(scenarioId, projectId, body);
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: `Edited plan (${body.target})`,
+        detail: `${projectId}${body.value ? ` · ${body.value}` : ''}`,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
+  const revertPlanEdit = useCallback(
+    async (
+      projectId: string,
+      ref?: { target?: PlanEditBody['target']; milestone_id?: string },
+    ): Promise<ScenarioPlanWriteResponse> => {
+      const res = await scenariosApi.revertPlanEdit(scenarioId, projectId, ref);
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: 'Reverted plan edit',
+        detail: `${projectId}${ref?.target ? ` · ${ref.target}` : ''}`,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
+  const writeMixChange = useCallback(
+    async (projectId: string, body: MixChangeBody): Promise<ScenarioMixWriteResponse> => {
+      const res = await scenariosApi.writeMixChange(scenarioId, projectId, body);
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: 'Changed seniority/sourcing mix',
+        detail: `${projectId} · ${body.swap_from_role_id} → ${body.swap_to_role_id}`,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
+  const revertMixChange = useCallback(
+    async (projectId: string, mixId?: number): Promise<ScenarioMixWriteResponse> => {
+      const res = await scenariosApi.revertMixChange(scenarioId, projectId, mixId);
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: 'Reverted mix change',
+        detail: projectId,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
+  // ---- Project-scope T2: external-cost line items (Session 3) -------------
+  const listExternalCosts = useCallback(
+    (projectId: string): Promise<ExternalCostListResponse> =>
+      scenariosApi.listExternalCosts(scenarioId, projectId),
+    [scenarioId],
+  );
+
+  const addExternalCost = useCallback(
+    async (
+      projectId: string,
+      body: ExternalCostLineCreateBody,
+    ): Promise<ExternalCostWriteResponse> => {
+      const res = await scenariosApi.addExternalCost(scenarioId, projectId, body);
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: 'Added external-cost line',
+        detail: `${projectId}${body.vendor ? ` · ${body.vendor}` : ''}`,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
+  const editExternalCost = useCallback(
+    async (
+      projectId: string,
+      lineKey: string,
+      body: ExternalCostLineUpdateBody,
+    ): Promise<ExternalCostWriteResponse> => {
+      const res = await scenariosApi.editExternalCost(
+        scenarioId, projectId, lineKey, body,
+      );
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: 'Edited external-cost line',
+        detail: `${projectId} · ${lineKey}`,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
+  const removeExternalCost = useCallback(
+    async (
+      projectId: string,
+      lineKey: string,
+    ): Promise<ExternalCostWriteResponse> => {
+      const res = await scenariosApi.removeExternalCost(
+        scenarioId, projectId, lineKey,
+      );
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: 'Removed external-cost line',
+        detail: `${projectId} · ${lineKey}`,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
   // ---- Lever 12 mutations ------------------------------------------------
   const createDistribution = useCallback(
     (body: DistributionEdgeCreateBody) =>
@@ -704,6 +910,16 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
     revertCellOverlay,
     revertLineOverlay,
     clearProjectOverlay,
+    addRoleLine,
+    removeRoleLine,
+    writePlanEdit,
+    revertPlanEdit,
+    writeMixChange,
+    revertMixChange,
+    listExternalCosts,
+    addExternalCost,
+    editExternalCost,
+    removeExternalCost,
     createDistribution,
     updateDistribution,
     deleteDistribution,

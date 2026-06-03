@@ -334,3 +334,191 @@ class ScenarioGridWriteResponse(BaseModel):
 
     state: dict
     grid: ScenarioGridResponse
+
+
+# ---------------------------------------------------------------------------
+# Project-scope redesign Session 3 — T1 edit surfaces
+#   role lines (add/remove), plan edits (dates/stage/doi/milestones), Tier-3 mix.
+# Both line ops write ScenarioLineEdit; plan writes ScenarioPlanEdit; mix writes
+# ScenarioMixChange. All write endpoints recalc + return the resolved grid so the
+# surface reconciles in one round-trip, mirroring the Session-2 cell contract.
+# ---------------------------------------------------------------------------
+
+class LineAddRequest(BaseModel):
+    """Add an internal role line to a project's plan within the scenario. A stable
+    ``new:role:<uuid>`` line_key is minted server-side; cells are then editable via
+    the cell endpoints under that key."""
+
+    role_type_id: str
+    sub_category: Optional[str] = None
+    category: Optional[str] = "internal"
+
+
+class ScenarioLineWriteResponse(BaseModel):
+    """Line add/remove response — the minted/affected ``line_key`` plus the
+    recalculated state and resolved grid (the new line appears as an empty row
+    ready for cell edits)."""
+
+    line_key: str
+    state: dict
+    grid: ScenarioGridResponse
+
+
+class PlanEditRequest(BaseModel):
+    """Upsert one project-plan overlay target. ``target`` ∈ OVERLAY_PLAN_TARGETS.
+      - date/stage/doi: scalar ``value`` (e.g. "2026-09", a stage name, "3").
+      - milestone: ``milestone_id`` set + structured ``entry_json`` (name, dates)."""
+
+    target: str
+    value: Optional[str] = None
+    milestone_id: Optional[str] = None
+    entry_json: Optional[dict] = None
+
+
+class ScenarioPlanMilestone(BaseModel):
+    milestone_id: str
+    name: str
+    forecast_start: Optional[str] = None
+    forecast_end: Optional[str] = None
+    anchor_forecast_start: Optional[str] = None
+    anchor_forecast_end: Optional[str] = None
+    is_changed: bool = False
+
+
+class ScenarioPlanResponse(BaseModel):
+    """The project's plan under the scenario: anchor values (live Project /
+    milestones) overlaid with any ScenarioPlanEdit rows, plus per-field changed
+    flags so the editor can render the diff."""
+
+    project_id: str
+    start_month: Optional[str] = None
+    end_month: Optional[str] = None
+    stage: Optional[str] = None
+    doi: Optional[int] = None
+    anchor_start_month: Optional[str] = None
+    anchor_end_month: Optional[str] = None
+    anchor_stage: Optional[str] = None
+    anchor_doi: Optional[int] = None
+    start_changed: bool = False
+    end_changed: bool = False
+    stage_changed: bool = False
+    doi_changed: bool = False
+    milestones: list[ScenarioPlanMilestone] = []
+
+
+class ScenarioPlanWriteResponse(BaseModel):
+    """Plan write/revert response: recalculated state + resolved grid (so a date
+    shift reflects immediately) + the freshly resolved plan for the editor."""
+
+    state: dict
+    grid: ScenarioGridResponse
+    plan: ScenarioPlanResponse
+
+
+class MixChangeRequest(BaseModel):
+    """Tier-3 seniority/sourcing mix swap: move ``hours_per_month_swap`` hours per
+    month from ``swap_from_role_id`` to ``swap_to_role_id`` from ``effective_from``
+    onward. Mirrors the legacy ``change_allocation`` shape (spec §8)."""
+
+    swap_from_role_id: str
+    swap_to_role_id: str
+    hours_per_month_swap: float
+    effective_from: str = Field(pattern=r"^\d{4}-\d{2}$")
+    cost_center_id: Optional[str] = None
+
+
+class ScenarioMixItem(BaseModel):
+    id: int
+    cost_center_id: Optional[str] = None
+    swap_from_role_id: Optional[str] = None
+    swap_to_role_id: Optional[str] = None
+    hours_per_month_swap: Optional[float] = None
+    effective_from: Optional[str] = None
+
+
+class ScenarioMixWriteResponse(BaseModel):
+    """Mix write/revert response: recalculated state + resolved grid + the current
+    set of mix swaps for the project."""
+
+    state: dict
+    grid: ScenarioGridResponse
+    mix_changes: list[ScenarioMixItem] = []
+
+
+class ScenarioMixListResponse(BaseModel):
+    """GET response — the current set of Tier-3 mix swaps for the project (so the
+    control can render previously-saved swaps on mount)."""
+
+    mix_changes: list[ScenarioMixItem] = []
+
+
+# ---------------------------------------------------------------------------
+# Project-scope redesign Session 3 — T2 external-cost line items
+#   add / remove / edit (vendor, category=cost-type rollup, description, capex).
+# add/remove/edit all write ScenarioLineEdit (line_kind='external_cost'); the
+# write endpoints recalc + return the resolved grid like the cell contract, plus
+# the freshly resolved external-line list so the editor reconciles in one trip.
+# ---------------------------------------------------------------------------
+
+class ExternalCostLineCreateRequest(BaseModel):
+    """Add an external-cost line item to a project's plan within the scenario. A
+    stable ``new:ext:<uuid>`` line_key is minted server-side; per-month € is then
+    editable via the cell endpoints under that key. ``cost_type_id`` is the rollup
+    grouping (maps to the line's ``sub_category``); vendor / description / capex
+    identify and annotate the item."""
+
+    cost_type_id: str
+    vendor: Optional[str] = None
+    description: Optional[str] = None
+    capex_opex: Optional[str] = None
+
+
+class ExternalCostLineUpdateRequest(BaseModel):
+    """Edit an existing (or pending-added) external-cost line's metadata. All
+    fields optional — only the provided ones are patched. ``cost_type_id`` changes
+    the rollup grouping; the line_key (identity) is unchanged."""
+
+    cost_type_id: Optional[str] = None
+    vendor: Optional[str] = None
+    description: Optional[str] = None
+    capex_opex: Optional[str] = None
+
+
+class ExternalCostTypeOption(BaseModel):
+    id: str
+    name: str
+
+
+class ExternalCostLineItem(BaseModel):
+    """One external-cost line under the scenario, anchor + overlay resolved."""
+
+    line_key: str
+    cost_type_id: Optional[str] = None
+    cost_type_name: Optional[str] = None
+    vendor: Optional[str] = None
+    description: Optional[str] = None
+    capex_opex: Optional[str] = None
+    total_eur: float                     # sum of resolved future + past cells
+    origin: str                          # "anchor" | "added"
+
+
+class ExternalCostListResponse(BaseModel):
+    """The external-cost line items for one project under the scenario, plus the
+    cost-type catalogue for the add/edit category selector."""
+
+    scenario_id: int
+    project_id: str
+    items: list[ExternalCostLineItem] = []
+    available_cost_types: list[ExternalCostTypeOption] = []
+    total: int
+
+
+class ExternalCostWriteResponse(BaseModel):
+    """External-cost add/remove/edit response: the affected ``line_key`` plus the
+    recalculated state, the freshly resolved grid (the line appears/updates/drops),
+    and the refreshed external-line list so the editor reconciles in one trip."""
+
+    line_key: str
+    state: dict
+    grid: ScenarioGridResponse
+    external_costs: ExternalCostListResponse
