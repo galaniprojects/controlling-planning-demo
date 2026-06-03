@@ -536,9 +536,17 @@ export function EntityDistributionEditor({
         isComplete={projection.isComplete}
       />
 
-      {/* Add-target trigger (draft + non-sandbox; sandbox path doesn't have
-          a version-scoped candidates endpoint yet). */}
-      {!readOnly && !sandboxMode && (
+      {/* Add-target trigger. Shown on any editable surface — including the
+          simulator sandbox (Session 3 cost-allocation gap closure: Stage 1
+          gains add-destination alongside edit-% and delete). In sandbox mode
+          `resolvedVersionId` resolves to the scenario's pinned production
+          anchor version, so the candidate picker pre-filters destinations
+          against the anchor graph (cycle/depth aware). The scenario's own
+          forked edges are validated server-side on write — `apply_distribution_create`
+          runs union-aware cycle + sum-rule checks and returns a 409 (surfaced
+          by SaveErrorBanner) for any sandbox-only cycle the anchor-scoped
+          picker could not foresee. */}
+      {!readOnly && (
         <AddDistributionTargetButton
           onClick={() => dispatch({ type: 'OPEN_PICKER' })}
         />
