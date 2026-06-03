@@ -231,6 +231,74 @@ export interface RecalculateResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Project-scope redesign Session 2 — editable forecast grid (contract)
+//
+// Purpose-built grid shape (NOT MixedGridResponse): pure monthly columns, one
+// row per resolved line, anchor value per cell so the surface can mark changed
+// cells + drive per-cell revert. Mirrors backend schemas/scenarios.py.
+// ---------------------------------------------------------------------------
+
+export interface ScenarioGridColumn {
+  key: string; // "YYYY-MM"
+  cell_type: 'monthly';
+}
+
+export interface ScenarioGridCell {
+  month: string;
+  display_value: number; // internal → hours; external → €
+  amount_eur: number; // always the € value (internal: hours × rate)
+  anchor_value: number | null; // pre-overlay value in the cell's field
+  anchor_amount_eur: number | null; // anchor cell's stored € (live-local anchor/delta)
+  field: 'hours' | 'amount_eur';
+  can_edit: boolean; // false for actuals (month < DEMO_DATE)
+  is_changed: boolean; // resolved differs from anchor (incl. macro shifts)
+  has_overlay: boolean; // a hand-overlay row exists for this cell (revertable)
+  is_empty: boolean;
+}
+
+export interface ScenarioGridRow {
+  line_key: string; // round-tripped on write/revert
+  category: 'internal' | 'external';
+  kind: 'internal_role' | 'external_cost';
+  sub_category_name: string;
+  hourly_rate: number | null; // internal lines only
+  cells: ScenarioGridCell[];
+}
+
+export interface ScenarioGridResponse {
+  scenario_id: number;
+  project_id: string;
+  start_month: string | null;
+  end_month: string | null;
+  open_month: string; // DEMO_DATE — actuals/future boundary
+  columns: ScenarioGridColumn[];
+  rows: ScenarioGridRow[];
+}
+
+export interface ScenarioProjectItem {
+  id: string;
+  name: string;
+  pipeline_stage: string;
+}
+
+export interface ScenarioProjectsResponse {
+  items: ScenarioProjectItem[];
+  total: number;
+}
+
+export interface CellEditBody {
+  line_key: string;
+  month: string; // "YYYY-MM"
+  field: 'hours' | 'amount_eur';
+  value: number | null; // null zeroes the cell; revert is a DELETE
+}
+
+export interface ScenarioGridWriteResponse {
+  state: ScenarioDetail; // verbatim recalculate_scenario output
+  grid: ScenarioGridResponse;
+}
+
+// ---------------------------------------------------------------------------
 // Wrapper object
 // ---------------------------------------------------------------------------
 
@@ -318,6 +386,55 @@ export const scenariosApi = {
 
   reorderActions: (scenarioId: number, actionIds: number[]) =>
     legacyScenariosApi.reorderActions(scenarioId, actionIds),
+
+  // -------------------------------------------------------------------------
+  // Project-scope Session 2 — editable forecast grid (read / write / revert).
+  // Macros reuse applyAction / removeAction above.
+  // -------------------------------------------------------------------------
+  getScenarioGrid: (scenarioId: number, projectId: string) =>
+    api.get<ScenarioGridResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/grid`,
+    ),
+
+  // All active projects selectable in the simulator workspace (portfolio-wide
+  // what-if — NOT the Portfolio 'Change' population, which drops backlog stages).
+  getScenarioProjects: (scenarioId: number) =>
+    api.get<ScenarioProjectsResponse>(
+      `/api/scenarios/${scenarioId}/projects`,
+    ),
+
+  writeCellOverlay: (scenarioId: number, projectId: string, body: CellEditBody) =>
+    api.put<ScenarioGridWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/cells`,
+      body,
+    ),
+
+  // Revert per cell: line_key + month (+ optional field).
+  revertCell: (
+    scenarioId: number,
+    projectId: string,
+    ref: { line_key: string; month: string; field?: 'hours' | 'amount_eur' },
+  ) => {
+    const qs = new URLSearchParams({ line_key: ref.line_key, month: ref.month });
+    if (ref.field) qs.append('field', ref.field);
+    return api.delete<ScenarioGridWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/cells?${qs.toString()}`,
+    );
+  },
+
+  // Revert per line: line_key only.
+  revertLine: (scenarioId: number, projectId: string, lineKey: string) => {
+    const qs = new URLSearchParams({ line_key: lineKey });
+    return api.delete<ScenarioGridWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/cells?${qs.toString()}`,
+    );
+  },
+
+  // Clear all cell overlays for the project: no params.
+  clearProjectOverlay: (scenarioId: number, projectId: string) =>
+    api.delete<ScenarioGridWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/cells`,
+    ),
 
   // -------------------------------------------------------------------------
   // Lever 12 (Stage 1 distributions, Stage 2 BTC, to-business override)
