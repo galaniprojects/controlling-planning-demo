@@ -1,7 +1,7 @@
 /**
- * v5 B2 — CostAllocationSurface (Lever 12) per spec §Editable surfaces #12
- * and acceptance criterion 8/9 ("Lever 12 panel exposes Stage 1 + Stage 2
- * mutations" and "Lever 12 panel reuses F4 components").
+ * v5 B2 — CostAllocationSurface per spec §Editable surfaces #12
+ * and acceptance criterion 8/9 ("cost-allocation panel exposes Stage 1 + Stage 2
+ * mutations" and "cost-allocation panel reuses F4 components").
  *
  * Three sub-tabs:
  *   - Stage 1 (`distribution`)  — embeds `EntityDistributionEditor` with
@@ -67,7 +67,7 @@ export function CostAllocationSurface({ entityId: initialEntityId, year = 2026 }
   if (!selectedEntityId) {
     return (
       <SurfaceCard
-        title="Cost allocation (Lever 12)"
+        title="Cost allocation"
         subtitle="Pick an entity to edit Stage 1 distributions, Stage 2 BTC, and preview impact."
         error={error}
       >
@@ -105,7 +105,7 @@ export function CostAllocationSurface({ entityId: initialEntityId, year = 2026 }
 
   return (
     <SurfaceCard
-      title="Cost allocation (Lever 12)"
+      title="Cost allocation"
       subtitle={`Entity ${selectedEntityId} · year ${year} · sandbox ${ctx.scenarioVersion}`}
       toolbar={
         <Button variant="ghost" size="sm" onClick={handleBack}>
@@ -286,7 +286,7 @@ function CostAllocationImpactView({ year }: { year: number }) {
               {data.items.length === 0 && (
                 <tr>
                   <td colSpan={5} className="py-4 text-center text-muted-foreground">
-                    No per-location deltas yet — apply a Lever 12 edit then refresh.
+                    No per-location deltas yet — apply a cost-allocation edit then refresh.
                   </td>
                 </tr>
               )}

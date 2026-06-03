@@ -25,7 +25,7 @@ export const FORECAST_VERSION = 'forecast' as const;
 
 /**
  * Build the sandbox version string for a scenario id.
- * Matches `services/scenario_lever12.py::scenario_version()`.
+ * Matches `services/scenario_cost_allocation.py::scenario_version()`.
  */
 export function buildScenarioVersion(scenarioId: number): string {
   return `scenario-${scenarioId}`;

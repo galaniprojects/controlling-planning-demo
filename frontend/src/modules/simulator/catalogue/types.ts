@@ -2,7 +2,9 @@
  * v5 B2 — Catalogue action types.
  *
  * Defines the data shape used by every catalogue action surface
- * (`projectLevel/`, `portfolioRules/`, `targetSetters/`, `restructuring/`).
+ * (`portfolioRules/`, `targetSetters/`, `restructuring/`). The
+ * `projectLevel` category remains in the union for record-init, but its
+ * actions were retired as catalogue inputs (authored in the grid now).
  * Each action declares its scope, lever_category, tier, parameter
  * fields, and (optionally) a custom impact-summary helper. The shared
  * `ActionForm` component renders any `ActionDefinition` automatically.

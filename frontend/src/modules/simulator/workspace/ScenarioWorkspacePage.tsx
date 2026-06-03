@@ -41,11 +41,6 @@ import {
   CostAllocationSurface,
   BacklogSandboxSurface,
   RateTableSurface,
-  ResourceAssignmentSurface,
-  MilestonesSurface,
-  VendorContractsSurface,
-  SourcingMixSurface,
-  CapExOpExSurface,
   RunningCostsSurface,
   HierarchyReassignSurface,
   BudgetEnvelopeSurface,
@@ -79,16 +74,6 @@ function renderSurface(
       return <BacklogSandboxSurface />;
     case 'rate-table':
       return <RateTableSurface />;
-    case 'resource-assignment':
-      return <ResourceAssignmentSurface projectId={entityId ?? ''} />;
-    case 'milestones':
-      return <MilestonesSurface projectId={entityId ?? ''} />;
-    case 'vendor-contracts':
-      return <VendorContractsSurface projectId={entityId ?? ''} />;
-    case 'sourcing-mix':
-      return <SourcingMixSurface projectId={entityId ?? ''} />;
-    case 'capex-opex':
-      return <CapExOpExSurface projectId={entityId ?? ''} />;
     case 'running-costs':
       return <RunningCostsSurface projectId={entityId ?? ''} />;
     case 'hierarchy-reassign':

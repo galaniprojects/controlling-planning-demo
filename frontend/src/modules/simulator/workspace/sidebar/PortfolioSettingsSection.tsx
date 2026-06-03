@@ -17,7 +17,7 @@ const ENTRIES = [
   { key: 'budget-envelope', label: 'Budget envelope', Icon: PiggyBank },
   { key: 'rate-table', label: 'Rate tables', Icon: Coins },
   { key: 'escalation-factors', label: 'Escalation factors', Icon: TrendingUp },
-  { key: 'cost-allocation', label: 'Cost allocation (Lever 12)', Icon: ShieldCheck },
+  { key: 'cost-allocation', label: 'Cost allocation', Icon: ShieldCheck },
   { key: 'hierarchy-reassign', label: 'Hierarchy reassign', Icon: Network },
 ];
 

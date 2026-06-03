@@ -10,7 +10,7 @@
  *  - Manager: list, create, remove, publish, unpublish, archive, rebase
  *  - Workspace: getDetail, updateMetadata, recalculate, impact
  *  - Actions: applyAction, removeAction, reorderActions
- *  - Lever 12: createDistribution / updateDistribution / deleteDistribution,
+ *  - Cost allocation: createDistribution / updateDistribution / deleteDistribution,
  *    setToBusiness, setBtcLines, costAllocationImpact
  *  - Compare: compare, drillDown
  *  - Promote: promotePreview, promoteExecute, promotionsList
@@ -74,7 +74,7 @@ export interface ActionBody {
 }
 
 // ---------------------------------------------------------------------------
-// Lever 12 schemas
+// Cost allocation schemas
 // ---------------------------------------------------------------------------
 
 export interface DistributionEdgeCreateBody {
@@ -666,11 +666,11 @@ export const scenariosApi = {
     ),
 
   // -------------------------------------------------------------------------
-  // Lever 12 (Stage 1 distributions, Stage 2 BTC, to-business override)
+  // Cost allocation (Stage 1 distributions, Stage 2 BTC, to-business override)
   // -------------------------------------------------------------------------
   createDistribution: (scenarioId: number, body: DistributionEdgeCreateBody) =>
     api.post<unknown>(
-      `/api/scenarios/${scenarioId}/lever12/distributions`,
+      `/api/scenarios/${scenarioId}/cost-allocation/distributions`,
       body,
     ),
 
@@ -680,30 +680,30 @@ export const scenariosApi = {
     body: DistributionEdgeUpdateBody,
   ) =>
     api.put<unknown>(
-      `/api/scenarios/${scenarioId}/lever12/distributions/${edgeId}`,
+      `/api/scenarios/${scenarioId}/cost-allocation/distributions/${edgeId}`,
       body,
     ),
 
   deleteDistribution: (scenarioId: number, edgeId: number) =>
     api.delete<unknown>(
-      `/api/scenarios/${scenarioId}/lever12/distributions/${edgeId}`,
+      `/api/scenarios/${scenarioId}/cost-allocation/distributions/${edgeId}`,
     ),
 
   setToBusiness: (scenarioId: number, body: ToBusinessChangeBody) =>
     api.post<unknown>(
-      `/api/scenarios/${scenarioId}/lever12/to-business`,
+      `/api/scenarios/${scenarioId}/cost-allocation/to-business`,
       body,
     ),
 
   setBtcLines: (scenarioId: number, body: BTCLinesChangeBody) =>
     api.post<unknown>(
-      `/api/scenarios/${scenarioId}/lever12/btc-lines`,
+      `/api/scenarios/${scenarioId}/cost-allocation/btc-lines`,
       body,
     ),
 
   costAllocationImpact: (scenarioId: number, year = 2026) =>
     api.get<CostAllocationImpactResponse>(
-      `/api/scenarios/${scenarioId}/lever12/cost-allocation-impact?year=${year}`,
+      `/api/scenarios/${scenarioId}/cost-allocation/cost-allocation-impact?year=${year}`,
     ),
 
   // -------------------------------------------------------------------------
@@ -772,40 +772,6 @@ export const scenariosApi = {
   // -------------------------------------------------------------------------
   // Aliases — explicit names matching T2/T3/T4's B2-survey naming.
   // -------------------------------------------------------------------------
-
-  // T2 — Lever 12 set
-  lever12CreateDistribution: (scenarioId: number, body: DistributionEdgeCreateBody) =>
-    api.post<unknown>(
-      `/api/scenarios/${scenarioId}/lever12/distributions`,
-      body,
-    ),
-  lever12UpdateDistribution: (
-    scenarioId: number,
-    edgeId: number,
-    body: DistributionEdgeUpdateBody,
-  ) =>
-    api.put<unknown>(
-      `/api/scenarios/${scenarioId}/lever12/distributions/${edgeId}`,
-      body,
-    ),
-  lever12DeleteDistribution: (scenarioId: number, edgeId: number) =>
-    api.delete<unknown>(
-      `/api/scenarios/${scenarioId}/lever12/distributions/${edgeId}`,
-    ),
-  lever12SetToBusinessPct: (scenarioId: number, body: ToBusinessChangeBody) =>
-    api.post<unknown>(
-      `/api/scenarios/${scenarioId}/lever12/to-business`,
-      body,
-    ),
-  lever12SetBtcLines: (scenarioId: number, body: BTCLinesChangeBody) =>
-    api.post<unknown>(
-      `/api/scenarios/${scenarioId}/lever12/btc-lines`,
-      body,
-    ),
-  lever12CostAllocationImpact: (scenarioId: number, year = 2026) =>
-    api.get<CostAllocationImpactResponse>(
-      `/api/scenarios/${scenarioId}/lever12/cost-allocation-impact?year=${year}`,
-    ),
 
   // T3 — Impact alias (mirrors `impact` above)
   getImpact: (scenarioId: number, year = 2026) =>

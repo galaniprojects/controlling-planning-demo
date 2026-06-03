@@ -9,7 +9,7 @@
  *
  * Service rejects (409) on duplicate `active_from` across production
  * active versions, empty rationale, or activation of a scenario-scoped
- * version (the lever-12 sandbox never activates).
+ * version (the cost-allocation sandbox never activates).
  *
  * Demo date is **April 2026** per CLAUDE.md — the date input defaults
  * to today (`new Date().toISOString().slice(0, 10)`) which the runtime

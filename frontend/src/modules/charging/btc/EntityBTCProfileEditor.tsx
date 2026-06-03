@@ -17,7 +17,7 @@
  * given, the manual-save handler routes the line list through the scenario
  * sandbox instead of the canonical Charging API. Mode toggling and the UM
  * "Refresh from UM" path are disabled in sandbox mode (see [B-ES-01] —
- * Lever 12 sandbox stays on the line-overlay path; mode switches and UM
+ * cost-allocation sandbox stays on the line-overlay path; mode switches and UM
  * snapshots are canonical-only operations).
  */
 import { useEffect, useMemo, useState } from 'react';
@@ -63,7 +63,7 @@ import type {
  *
  * v5 B2 [B-OQ-02]: when `scenarioVersion` is provided + `onSandboxSave` is
  * supplied, the manual-save submit branch routes the line list through the
- * scenario sandbox (Lever 12 BTC overlay) instead of writing canonical rows.
+ * scenario sandbox (cost-allocation BTC overlay) instead of writing canonical rows.
  */
 type CommonProps = {
   /**
@@ -228,7 +228,7 @@ export function EntityBTCProfileEditor(props: Props) {
     setSaving(true);
     setError(null);
     try {
-      // v5 B2 [B-OQ-02]: in sandbox mode, route to the scenario Lever 12
+      // v5 B2 [B-OQ-02]: in sandbox mode, route to the scenario cost-allocation
       // BTC-line overlay rather than writing canonical rows. The scenario
       // engine merges the overlay at impact-calc time per spec line 880.
       if (sandboxMode && onSandboxSave) {
@@ -276,7 +276,7 @@ export function EntityBTCProfileEditor(props: Props) {
   // FD-4 [F-S2-02]: explicit activate hits POST /btc-profiles/{id}/activate.
   // Automatic profiles get re-snapshotted against the *currently active*
   // UM version at this moment; manual profiles get a fresh sum-to-100 check.
-  // Disabled in sandbox mode (Lever 12 keeps canonical-only ops out of scope).
+  // Disabled in sandbox mode (cost allocation keeps canonical-only ops out of scope).
   const handleActivate = async () => {
     if (!profile) return;
     setSaving(true);
@@ -409,7 +409,7 @@ export function EntityBTCProfileEditor(props: Props) {
           ) : null}
           {/* v5 B2: hide canonical-only operations in sandbox mode.
               UM refresh and mode-switch always write canonical rows;
-              Lever 12 sandbox keeps them disabled by design ([B-ES-01]).
+              cost-allocation sandbox keeps them disabled by design ([B-ES-01]).
               FD-4 [F-S2-01]: hide mode-switch entirely for InternalService —
               the backend rejects mode-changes for them. */}
           {!sandboxMode && !isInternalService && (

@@ -3,8 +3,9 @@
  *
  * Tiny factory that turns an `ActionDefinition` id into a self-contained
  * React component rendering the shared `ActionForm` for that action.
- * Used by the 23 per-action thin wrappers in `projectLevel/`,
- * `portfolioRules/`, `targetSetters/`, `restructuring/`.
+ * Used by the per-action thin wrappers in `portfolioRules/`,
+ * `targetSetters/`, `restructuring/`. (Project-scope actions were retired
+ * as catalogue inputs — they are authored directly in the forecast grid.)
  */
 
 import { ActionForm } from './ActionForm';

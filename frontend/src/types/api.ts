@@ -2201,7 +2201,7 @@ export interface DistributionVersionResponse {
   rationale: string;
   origin: DistributionVersionOrigin;
   copied_from_version_id: number | null;
-  /** NULL for production; non-NULL = scenario-scoped (lever 12). */
+  /** NULL for production; non-NULL = scenario-scoped (cost allocation). */
   scenario_id: number | null;
   /** ISO datetime. */
   created_at: string;

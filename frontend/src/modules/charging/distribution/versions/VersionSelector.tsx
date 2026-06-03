@@ -6,7 +6,7 @@
  * always knows what they're editing against.
  *
  * Scenario-scoped versions are NOT shown — those live behind the
- * simulator's lever 12 sandbox and are filtered out server-side by
+ * simulator's cost-allocation sandbox and are filtered out server-side by
  * `listDistributionVersions({ include_scenario: false })` (default).
  *
  * Drafts are surfaced separately so the "Active" group reads cleanly.
