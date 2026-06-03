@@ -134,6 +134,124 @@ def resolve_active_version_or_raise(
     return v
 
 
+# ---------------------------------------------------------------------------
+# Union-aware edge resolution for the Lever-12 sandbox (Simulator S3)
+#
+# The simulator's cost-allocation sandbox forks Stage-1 edges LAZILY into a
+# per-scenario draft ``DistributionVersion`` — only sources the author has
+# actually touched have edges in the sandbox version; every other source
+# still computes against the production anchor. Any read that wants to see
+# the sandbox WYSIWYG (effective cost, cascade, the editor's edge list) must
+# therefore walk the UNION of (sandbox edges for forked sources) + (anchor
+# edges for un-forked sources).
+#
+# These three helpers are the single source of truth for that union rule.
+# ``services.scenario_lever12._compute_scenario_effective_cost`` (the impact
+# preview) and the anchor-aware branches of ``dag_resolver.compute_effective_cost``
+# / ``cascade_query.query_cascade_chain`` (the editor cascade) all call them,
+# so the two surfaces cannot drift apart on which edges are "live" in a
+# sandbox. They are inert for the canonical Charging path — nothing calls
+# them unless an ``anchor_version_id`` is threaded in.
+# ---------------------------------------------------------------------------
+
+
+def get_forked_sources(db: Session, scenario_version_id: int) -> set[str]:
+    """Source entity ids that have at least one edge in a sandbox version.
+
+    A source is "forked" once any of its outgoing edges has been copied into
+    (or created in) the per-scenario draft version. Forked sources read from
+    the sandbox version; un-forked sources fall back to the anchor.
+    """
+    return {
+        row[0]
+        for row in (
+            db.query(Distribution.source_entity_id)
+            .filter(Distribution.version_id == scenario_version_id)
+            .distinct()
+            .all()
+        )
+    }
+
+
+def union_incoming_edges(
+    db: Session,
+    *,
+    entity_id: str,
+    scenario_version_id: int,
+    anchor_version_id: Optional[int],
+    forked_sources: Optional[set[str]] = None,
+) -> list[Distribution]:
+    """Incoming edges to ``entity_id`` under the sandbox union rule.
+
+    = all sandbox edges into the entity, PLUS anchor edges into the entity
+    whose source was NOT forked. Mirrors the walk in
+    ``scenario_lever12._compute_scenario_effective_cost``.
+    """
+    if forked_sources is None:
+        forked_sources = get_forked_sources(db, scenario_version_id)
+
+    incoming = list(
+        db.query(Distribution)
+        .filter(
+            Distribution.version_id == scenario_version_id,
+            Distribution.destination_entity_id == entity_id,
+        )
+        .all()
+    )
+    if anchor_version_id is not None:
+        anchor_incoming = (
+            db.query(Distribution)
+            .filter(
+                Distribution.version_id == anchor_version_id,
+                Distribution.destination_entity_id == entity_id,
+            )
+            .all()
+        )
+        incoming.extend(
+            e for e in anchor_incoming if e.source_entity_id not in forked_sources
+        )
+    return incoming
+
+
+def union_outgoing_edges(
+    db: Session,
+    *,
+    entity_id: str,
+    scenario_version_id: int,
+    anchor_version_id: Optional[int],
+    forked_sources: Optional[set[str]] = None,
+) -> list[Distribution]:
+    """Outgoing edges from ``entity_id`` under the sandbox union rule.
+
+    If the entity is forked, its complete outgoing edge set lives in the
+    sandbox version (the lazy fork copies ALL of a source's anchor edges on
+    first touch). Otherwise the entity inherits its anchor edges verbatim.
+    Mirrors ``scenario_lever12.list_scenario_edges``.
+    """
+    if forked_sources is None:
+        forked_sources = get_forked_sources(db, scenario_version_id)
+
+    if entity_id in forked_sources:
+        return list(
+            db.query(Distribution)
+            .filter(
+                Distribution.version_id == scenario_version_id,
+                Distribution.source_entity_id == entity_id,
+            )
+            .all()
+        )
+    if anchor_version_id is not None:
+        return list(
+            db.query(Distribution)
+            .filter(
+                Distribution.version_id == anchor_version_id,
+                Distribution.source_entity_id == entity_id,
+            )
+            .all()
+        )
+    return []
+
+
 def list_versions(
     db: Session,
     *,

@@ -299,6 +299,142 @@ export interface ScenarioGridWriteResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Project-scope redesign Session 3 — T1 edit surfaces
+//   role lines (add/remove), plan edits (dates/stage/doi/milestones), Tier-3 mix
+// ---------------------------------------------------------------------------
+
+export interface LineAddBody {
+  role_type_id: string;
+  sub_category?: string;
+  category?: string;
+}
+
+export interface ScenarioLineWriteResponse {
+  line_key: string;
+  state: ScenarioDetail;
+  grid: ScenarioGridResponse;
+}
+
+export type PlanTarget = 'start_month' | 'end_month' | 'stage' | 'doi' | 'milestone';
+
+export interface PlanEditBody {
+  target: PlanTarget;
+  value?: string | null;
+  milestone_id?: string | null;
+  entry_json?: Record<string, unknown> | null;
+}
+
+export interface ScenarioPlanMilestone {
+  milestone_id: string;
+  name: string;
+  forecast_start: string | null;
+  forecast_end: string | null;
+  anchor_forecast_start: string | null;
+  anchor_forecast_end: string | null;
+  is_changed: boolean;
+}
+
+export interface ScenarioPlanResponse {
+  project_id: string;
+  start_month: string | null;
+  end_month: string | null;
+  stage: string | null;
+  doi: number | null;
+  anchor_start_month: string | null;
+  anchor_end_month: string | null;
+  anchor_stage: string | null;
+  anchor_doi: number | null;
+  start_changed: boolean;
+  end_changed: boolean;
+  stage_changed: boolean;
+  doi_changed: boolean;
+  milestones: ScenarioPlanMilestone[];
+}
+
+export interface ScenarioPlanWriteResponse {
+  state: ScenarioDetail;
+  grid: ScenarioGridResponse;
+  plan: ScenarioPlanResponse;
+}
+
+export interface MixChangeBody {
+  swap_from_role_id: string;
+  swap_to_role_id: string;
+  hours_per_month_swap: number;
+  effective_from: string; // "YYYY-MM"
+  cost_center_id?: string | null;
+}
+
+export interface ScenarioMixItem {
+  id: number;
+  cost_center_id: string | null;
+  swap_from_role_id: string | null;
+  swap_to_role_id: string | null;
+  hours_per_month_swap: number | null;
+  effective_from: string | null;
+}
+
+export interface ScenarioMixWriteResponse {
+  state: ScenarioDetail;
+  grid: ScenarioGridResponse;
+  mix_changes: ScenarioMixItem[];
+}
+
+export interface ScenarioMixListResponse {
+  mix_changes: ScenarioMixItem[];
+}
+
+// ---------------------------------------------------------------------------
+// Project-scope redesign Session 3 — T2 external-cost line items
+//   add / remove / edit (vendor, category=cost-type rollup, description, capex).
+// ---------------------------------------------------------------------------
+
+export interface ExternalCostLineCreateBody {
+  cost_type_id: string;
+  vendor?: string | null;
+  description?: string | null;
+  capex_opex?: string | null;
+}
+
+export interface ExternalCostLineUpdateBody {
+  cost_type_id?: string | null;
+  vendor?: string | null;
+  description?: string | null;
+  capex_opex?: string | null;
+}
+
+export interface ExternalCostTypeOption {
+  id: string;
+  name: string;
+}
+
+export interface ExternalCostLineItem {
+  line_key: string;
+  cost_type_id: string | null;
+  cost_type_name: string | null;
+  vendor: string | null;
+  description: string | null;
+  capex_opex: string | null;
+  total_eur: number;
+  origin: 'anchor' | 'added';
+}
+
+export interface ExternalCostListResponse {
+  scenario_id: number;
+  project_id: string;
+  items: ExternalCostLineItem[];
+  available_cost_types: ExternalCostTypeOption[];
+  total: number;
+}
+
+export interface ExternalCostWriteResponse {
+  line_key: string;
+  state: ScenarioDetail;
+  grid: ScenarioGridResponse;
+  external_costs: ExternalCostListResponse;
+}
+
+// ---------------------------------------------------------------------------
 // Wrapper object
 // ---------------------------------------------------------------------------
 
@@ -434,6 +570,99 @@ export const scenariosApi = {
   clearProjectOverlay: (scenarioId: number, projectId: string) =>
     api.delete<ScenarioGridWriteResponse>(
       `/api/scenarios/${scenarioId}/projects/${projectId}/cells`,
+    ),
+
+  // --- T1: lines / plan / mix ---------------------------------------------
+  // Role lines (add/remove — open to all authors), plan edits (dates / stage /
+  // DoI / milestones), and the Tier-3 mix control. All write endpoints recalc
+  // and return the resolved grid so the surface reconciles in one round-trip.
+  addRoleLine: (scenarioId: number, projectId: string, body: LineAddBody) =>
+    api.post<ScenarioLineWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/lines`,
+      body,
+    ),
+
+  removeRoleLine: (scenarioId: number, projectId: string, lineKey: string) =>
+    api.delete<ScenarioLineWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/lines/${encodeURIComponent(lineKey)}`,
+    ),
+
+  getScenarioPlan: (scenarioId: number, projectId: string) =>
+    api.get<ScenarioPlanResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/plan`,
+    ),
+
+  writePlanEdit: (scenarioId: number, projectId: string, body: PlanEditBody) =>
+    api.put<ScenarioPlanWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/plan`,
+      body,
+    ),
+
+  revertPlanEdit: (
+    scenarioId: number,
+    projectId: string,
+    ref?: { target?: PlanTarget; milestone_id?: string },
+  ) => {
+    const qs = new URLSearchParams();
+    if (ref?.target) qs.set('target', ref.target);
+    if (ref?.milestone_id) qs.set('milestone_id', ref.milestone_id);
+    const tail = qs.toString();
+    return api.delete<ScenarioPlanWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/plan${tail ? `?${tail}` : ''}`,
+    );
+  },
+
+  getScenarioMix: (scenarioId: number, projectId: string) =>
+    api.get<ScenarioMixListResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/mix`,
+    ),
+
+  writeMixChange: (scenarioId: number, projectId: string, body: MixChangeBody) =>
+    api.put<ScenarioMixWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/mix`,
+      body,
+    ),
+
+  revertMixChange: (scenarioId: number, projectId: string, mixId?: number) => {
+    const tail = mixId != null ? `?mix_id=${mixId}` : '';
+    return api.delete<ScenarioMixWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/mix${tail}`,
+    );
+  },
+
+  // --- T2: external costs --------------------------------------------------
+  // External-cost line items: list + add / edit / remove. The write endpoints
+  // recalc and return the resolved grid + the refreshed external-line list so
+  // the editor reconciles in one round-trip (mirrors the cell/line contract).
+  listExternalCosts: (scenarioId: number, projectId: string) =>
+    api.get<ExternalCostListResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/external-costs`,
+    ),
+
+  addExternalCost: (
+    scenarioId: number,
+    projectId: string,
+    body: ExternalCostLineCreateBody,
+  ) =>
+    api.post<ExternalCostWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/external-costs`,
+      body,
+    ),
+
+  editExternalCost: (
+    scenarioId: number,
+    projectId: string,
+    lineKey: string,
+    body: ExternalCostLineUpdateBody,
+  ) =>
+    api.put<ExternalCostWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/external-costs/${encodeURIComponent(lineKey)}`,
+      body,
+    ),
+
+  removeExternalCost: (scenarioId: number, projectId: string, lineKey: string) =>
+    api.delete<ExternalCostWriteResponse>(
+      `/api/scenarios/${scenarioId}/projects/${projectId}/external-costs/${encodeURIComponent(lineKey)}`,
     ),
 
   // -------------------------------------------------------------------------

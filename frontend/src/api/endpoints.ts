@@ -1932,11 +1932,13 @@ export const chargingApi = {
   },
   getEntityDistributionSummary: (
     entityId: string,
-    params?: { version_id?: number; evaluated_date?: string },
+    params?: { version_id?: number; evaluated_date?: string; scenario_id?: number },
   ) => {
     const q = new URLSearchParams();
     if (params?.version_id !== undefined) q.set('version_id', String(params.version_id));
     if (params?.evaluated_date) q.set('evaluated_date', params.evaluated_date);
+    // Simulator S3: union-aware sandbox view (Lever-12 editor).
+    if (params?.scenario_id !== undefined) q.set('scenario_id', String(params.scenario_id));
     const qs = q.toString();
     return api.get<EntityDistributionSummary>(
       `/api/charging/entities/${entityId}/distribution-summary${qs ? '?' + qs : ''}`,
@@ -2080,11 +2082,13 @@ export const chargingApi = {
   // Open to all four roles per the `/api/charging/` read pattern.
   getCascadeChain: (
     entityId: string,
-    params?: { version_id?: number; evaluated_date?: string },
+    params?: { version_id?: number; evaluated_date?: string; scenario_id?: number },
   ) => {
     const q = new URLSearchParams();
     if (params?.version_id !== undefined) q.set('version_id', String(params.version_id));
     if (params?.evaluated_date) q.set('evaluated_date', params.evaluated_date);
+    // Simulator S3: union-aware sandbox cascade (Lever-12 editor reload).
+    if (params?.scenario_id !== undefined) q.set('scenario_id', String(params.scenario_id));
     const qs = q.toString();
     return api.get<CascadeChainResponse>(
       `/api/charging/cascade/${entityId}${qs ? '?' + qs : ''}`,

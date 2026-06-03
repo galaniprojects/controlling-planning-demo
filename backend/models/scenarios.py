@@ -338,7 +338,12 @@ class ScenarioApplyToForecastEvent(Base):
 
 # Frozen overlay vocab (imported by the project-scope recompute core + routing).
 OVERLAY_CELL_FIELDS = ("hours", "amount_eur")
-OVERLAY_LINE_OPS = ("add", "remove")
+# add/remove are structural (line appears / disappears in the scenario plan);
+# edit mutates an existing line's metadata (external-cost vendor / cost-type /
+# description / capex-opex — Session 3 T2). One ScenarioLineEdit row per
+# (scenario, project, line_key), so an edit row replaces no value cells; per-month
+# € still lives in ScenarioForecastCellEdit under the same line_key.
+OVERLAY_LINE_OPS = ("add", "remove", "edit")
 OVERLAY_LINE_KINDS = ("internal_role", "external_cost")
 OVERLAY_PLAN_TARGETS = ("start_month", "end_month", "stage", "doi", "milestone")
 
@@ -405,6 +410,11 @@ class ScenarioLineEdit(Base):
     ("new:role:<uuid>" / "new:ext:<uuid>") so the cell overlay and the later
     promote/apply diff can reference a line not yet in live data; removed lines
     reference an existing natural ``line_key`` and suppress it at resolution.
+    An ``edit`` row references an existing (or added) external-cost line's
+    ``line_key`` and carries the new metadata (vendor / cost_type_id /
+    description / capex_opex); resolution patches the resolved line in place
+    (Session 3 T2). Editing a still-pending added line just updates its ``add``
+    row rather than minting a separate ``edit`` row (one row per line_key).
 
     ``line_kind`` ∈ OVERLAY_LINE_KINDS. The metadata columns describe the line
     so resolution can synthesise it into the grid and routing can classify it.
@@ -426,7 +436,7 @@ class ScenarioLineEdit(Base):
     scenario_id: Mapped[int] = mapped_column(ForeignKey("scenarios.id"), nullable=False)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=False)
     line_key: Mapped[str] = mapped_column(String(120), nullable=False)
-    op: Mapped[str] = mapped_column(String(10), nullable=False)  # add | remove
+    op: Mapped[str] = mapped_column(String(10), nullable=False)  # add | remove | edit
     line_kind: Mapped[str] = mapped_column(String(20), nullable=False)  # internal_role | external_cost
     category: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # internal | external
     sub_category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
@@ -457,6 +467,14 @@ class ScenarioMixChange(Base):
 
     __tablename__ = "scenario_mix_changes"
     __table_args__ = (
+        # One row per swap pair within a (scenario, project, cost-centre) — matches
+        # the application-level upsert in the mix endpoint, mirroring the sibling
+        # overlay tables' uniqueness (uq_scenario_cell_edit / _line_edit / _plan_edit).
+        UniqueConstraint(
+            "scenario_id", "project_id", "cost_center_id",
+            "swap_from_role_id", "swap_to_role_id",
+            name="uq_scenario_mix_change",
+        ),
         Index("ix_scenario_mix_change_scope", "scenario_id", "project_id"),
     )
 

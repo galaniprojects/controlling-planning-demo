@@ -486,3 +486,111 @@ class TestCascadeAccessControl:
         assert r.status_code == 200, (
             f"Persona {persona} expected 200, got {r.status_code}: {r.text}"
         )
+
+
+class TestCascadeSandboxScenarioId:
+    """Simulator S3: ``?scenario_id`` returns the union-aware sandbox cascade
+    so the Lever-12 editor (cascade + distribution-summary) shows its own
+    added sandbox edge — while the canonical (no param) cascade is unaffected."""
+
+    @pytest.fixture
+    def sandbox_scenario(self, db, seed_chain_pos):
+        """Anchor the chain (P→O→S) to a scenario and add a sandbox edge
+        S→X (30%). S's incoming chain (P→O→S, un-forked) is untouched."""
+        from models.scenarios import Scenario
+        from services.scenario_lever12 import apply_distribution_create
+
+        db.add(ChargeableEntity(
+            id="ce-x", entity_type="InternalService", identifier="ITF00XXX",
+            name="Sandbox Sink X", to_business_pct=0.0,
+            hierarchy_node_id="lob-cascade", annual_cost=0.0,
+        ))
+        scenario = Scenario(
+            name="Sandbox cascade scenario", author_id="p-dev-1",
+            status="private",
+            anchor_distribution_version_id=seed_chain_pos["version_id"],
+        )
+        db.add(scenario)
+        db.commit()
+        apply_distribution_create(
+            db, scenario.id, year=2026,
+            source_entity_id="ce-s", destination_entity_id="ce-x",
+            percentage=30.0,
+        )
+        db.commit()
+        return {"scenario_id": scenario.id}
+
+    def test_sandbox_cascade_shows_added_edge(
+        self, test_client, sandbox_scenario,
+    ):
+        r = test_client.get(
+            f"/api/charging/cascade/ce-s?scenario_id={sandbox_scenario['scenario_id']}",
+            headers=_h("persona-controller"),
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        # Focal effective cost preserved via the un-forked upstream chain.
+        assert body["focal"]["effective_cost"] == 1000.0
+        # The added sandbox destination is WYSIWYG-visible in the cascade.
+        assert "ce-x" in {n["entity_id"] for n in body["downstream"]}
+        assert any(
+            e["source_entity_id"] == "ce-s" and e["destination_entity_id"] == "ce-x"
+            for e in body["edges"]
+        )
+
+    def test_canonical_cascade_ignores_sandbox_edge(
+        self, test_client, sandbox_scenario,
+    ):
+        # No scenario_id → production cascade, sandbox edge absent.
+        r = test_client.get(
+            "/api/charging/cascade/ce-s",
+            headers=_h("persona-controller"),
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert "ce-x" not in {n["entity_id"] for n in body["downstream"]}
+        assert not any(
+            e["destination_entity_id"] == "ce-x" for e in body["edges"]
+        )
+
+    def test_distribution_summary_shows_sandbox_edge(
+        self, test_client, sandbox_scenario,
+    ):
+        # The editor's edge-id source must also reflect the sandbox edge.
+        r = test_client.get(
+            f"/api/charging/entities/ce-s/distribution-summary"
+            f"?scenario_id={sandbox_scenario['scenario_id']}",
+            headers=_h("persona-controller"),
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        dests = {d["destination_entity_id"] for d in body["distributions"]}
+        assert "ce-x" in dests
+
+    def test_scenario_id_enforces_visibility(self, test_client, sandbox_scenario):
+        """A non-owner cannot read another author's private scenario sandbox via
+        ``?scenario_id`` — the cascade + summary honour the scenario visibility
+        rule. The scenario is authored by p-dev-1 (= persona-controller in the
+        test seed); persona-exec (p-dev-2) is an allowed role but a non-owner."""
+        sid = sandbox_scenario["scenario_id"]
+        cascade = test_client.get(
+            f"/api/charging/cascade/ce-s?scenario_id={sid}",
+            headers=_h("persona-exec"),
+        )
+        assert cascade.status_code == 403, cascade.text
+        summary = test_client.get(
+            f"/api/charging/entities/ce-s/distribution-summary?scenario_id={sid}",
+            headers=_h("persona-exec"),
+        )
+        assert summary.status_code == 403, summary.text
+
+    def test_canonical_path_open_without_scenario_id(
+        self, test_client, sandbox_scenario,
+    ):
+        """The visibility gate only applies to the sandbox branch — the canonical
+        cascade (no scenario_id) stays open to the allowed roles."""
+        r = test_client.get(
+            "/api/charging/cascade/ce-s",
+            headers=_h("persona-exec"),
+        )
+        assert r.status_code == 200, r.text

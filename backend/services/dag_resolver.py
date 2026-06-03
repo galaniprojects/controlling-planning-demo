@@ -193,7 +193,9 @@ def get_own_cost(entity: ChargeableEntity) -> float:
 
 def compute_effective_cost(
     db: Session, year: int, version_id: int, entity_id: str,
-    *, _memo: Optional[dict[str, EffectiveCostResult]] = None,
+    *, anchor_version_id: Optional[int] = None,
+    _memo: Optional[dict[str, EffectiveCostResult]] = None,
+    _forked_sources: Optional[set[str]] = None,
 ) -> EffectiveCostResult:
     """Recursively compute an entity's effective cost.
 
@@ -211,6 +213,15 @@ def compute_effective_cost(
     Cycles are rejected at edge-save time by :func:`detect_cycle_db`, so the
     resolver does not carry a cycle-breaking guard — memoization alone
     suffices for a well-formed DAG.
+
+    **Simulator S3 — sandbox union mode:** when ``anchor_version_id`` is
+    supplied, ``version_id`` is treated as a per-scenario sandbox version and
+    the incoming-edge walk reads the UNION of (sandbox edges) + (anchor edges
+    for un-forked sources) via ``distribution_service.union_incoming_edges``.
+    This keeps the editor's cascade effective-cost identical to the impact
+    preview's. When ``anchor_version_id`` is ``None`` (the default and the
+    only value the canonical Charging path ever passes) the walk is the
+    original single-version query — behaviour is byte-identical.
     """
     if _memo is None:
         _memo = {}
@@ -233,17 +244,35 @@ def compute_effective_cost(
         own_cost=own.value, own_cost_source=own.source,
     )
 
-    incoming = (
-        db.query(Distribution)
-        .filter(
-            Distribution.version_id == version_id,
-            Distribution.destination_entity_id == entity_id,
+    if anchor_version_id is None:
+        # Canonical single-version path — unchanged.
+        incoming = (
+            db.query(Distribution)
+            .filter(
+                Distribution.version_id == version_id,
+                Distribution.destination_entity_id == entity_id,
+            )
+            .all()
         )
-        .all()
-    )
+    else:
+        # Sandbox union path. Resolve the forked-source set once and thread
+        # it through the recursion to avoid an O(depth) DISTINCT re-query.
+        from services.distribution_service import (
+            get_forked_sources, union_incoming_edges,
+        )
+        if _forked_sources is None:
+            _forked_sources = get_forked_sources(db, version_id)
+        incoming = union_incoming_edges(
+            db, entity_id=entity_id, scenario_version_id=version_id,
+            anchor_version_id=anchor_version_id,
+            forked_sources=_forked_sources,
+        )
+
     for edge in incoming:
         upstream = compute_effective_cost(
-            db, year, version_id, edge.source_entity_id, _memo=_memo,
+            db, year, version_id, edge.source_entity_id,
+            anchor_version_id=anchor_version_id, _memo=_memo,
+            _forked_sources=_forked_sources,
         )
         amount = upstream.effective_cost * float(edge.percentage) / 100.0
         result.inflows.append(InflowContribution(

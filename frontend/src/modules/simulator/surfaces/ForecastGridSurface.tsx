@@ -22,10 +22,14 @@ import { Skeleton } from '@/components/shared/Skeleton';
 import { useScenarioContext } from '../useScenarioContext';
 import { scenariosApi, type ScenarioGridResponse } from '../api/scenariosApi';
 import { SurfaceCard } from './SurfaceCard';
+import { ExternalCostEditor } from './ExternalCostEditor';
 import { EditableForecastGrid } from './forecast-grid/EditableForecastGrid';
 import { LiveLocalPanel } from './forecast-grid/LiveLocalPanel';
 import { MacroStrip } from './forecast-grid/MacroStrip';
+import { PlanEditorModal } from './forecast-grid/PlanEditorModal';
 import { RevertControls } from './forecast-grid/RevertControls';
+import { RoleLineControls } from './forecast-grid/RoleLineControls';
+import { Tier3MixControl } from './forecast-grid/Tier3MixControl';
 import { useForecastWorkingEdits } from './forecast-grid/useForecastWorkingEdits';
 
 interface Props {
@@ -54,6 +58,11 @@ export function ForecastGridSurface({ projectId }: Props) {
   const adoptGrid = useCallback((next: ScenarioGridResponse) => {
     setGrid(next);
   }, []);
+
+  // T1 structural edits (role lines / plan dates / mix) reshape the resolved
+  // grid's row + column set, so they force a clean refetch rather than an
+  // in-place adopt (mirrors the macro watcher below).
+  const bumpReconcile = useCallback(() => setReconcileTick((t) => t + 1), []);
 
   // Macro count for this project — when a macro is added/removed the resolved
   // grid changes (cells shift / drop), so force a clean refetch.
@@ -144,6 +153,9 @@ export function ForecastGridSurface({ projectId }: Props) {
         </p>
       ) : (
         <div className="space-y-4">
+          <div className="flex justify-end">
+            <PlanEditorModal projectId={projectId} onMutated={bumpReconcile} />
+          </div>
           <LiveLocalPanel
             projectId={projectId}
             grid={grid}
@@ -163,6 +175,17 @@ export function ForecastGridSurface({ projectId }: Props) {
             onRevertAll={revertAll}
             busy={busy}
           />
+          <RoleLineControls
+            projectId={projectId}
+            grid={grid}
+            onMutated={bumpReconcile}
+          />
+          <Tier3MixControl
+            projectId={projectId}
+            openMonth={grid.open_month}
+            onMutated={bumpReconcile}
+          />
+          <ExternalCostEditor projectId={projectId} onStructureChange={bumpReconcile} />
         </div>
       )}
     </SurfaceCard>

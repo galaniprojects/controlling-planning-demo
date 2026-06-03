@@ -114,6 +114,13 @@ interface Props extends DistributionSandboxHandlers {
   year?: number;
   /** Legacy — kept as a marker so existing callers don't break (`'forecast'` etc.). */
   version?: string;
+  /**
+   * Simulator S3: when set (sandbox mode), the editor loads the union-aware
+   * sandbox cascade + distribution-summary via `?scenario_id=`, so its own
+   * forked/added edges render with correct EUR amounts on (re)load. Omitted →
+   * canonical production load.
+   */
+  sandboxScenarioId?: number;
   onBack?: () => void;
 }
 
@@ -123,6 +130,7 @@ export function EntityDistributionEditor({
   entityId,
   versionId: versionIdProp,
   year: yearProp,
+  sandboxScenarioId,
   onBack,
   onSandboxCreateEdge,
   onSandboxUpdateEdge,
@@ -154,14 +162,24 @@ export function EntityDistributionEditor({
           versionIdOverride !== undefined
             ? versionIdOverride
             : selectedVersionId;
+        // Simulator S3: in sandbox mode, drive resolution by scenario_id so
+        // the backend returns the union-aware sandbox cascade/summary (the
+        // editor's own forked/added edges). Takes precedence over any
+        // resolved version_id (which, post-load, is the sandbox version id).
+        const sandboxParams =
+          sandboxMode && sandboxScenarioId !== undefined
+            ? { scenario_id: sandboxScenarioId }
+            : undefined;
         const cascadeParams =
-          versionParam !== null && versionParam !== undefined
+          sandboxParams ??
+          (versionParam !== null && versionParam !== undefined
             ? { version_id: versionParam }
-            : undefined;
+            : undefined);
         const summaryParams =
-          versionParam !== null && versionParam !== undefined
+          sandboxParams ??
+          (versionParam !== null && versionParam !== undefined
             ? { version_id: versionParam }
-            : undefined;
+            : undefined);
 
         const [cascade, summary, entity, versionsRes] = await Promise.all([
           chargingApi.getCascadeChain(entityId, cascadeParams),
@@ -198,7 +216,7 @@ export function EntityDistributionEditor({
         });
       }
     },
-    [entityId, selectedVersionId],
+    [entityId, selectedVersionId, sandboxMode, sandboxScenarioId],
   );
 
   // (Re-)load on entity change or version-prop change.
@@ -536,9 +554,17 @@ export function EntityDistributionEditor({
         isComplete={projection.isComplete}
       />
 
-      {/* Add-target trigger (draft + non-sandbox; sandbox path doesn't have
-          a version-scoped candidates endpoint yet). */}
-      {!readOnly && !sandboxMode && (
+      {/* Add-target trigger. Shown on any editable surface — including the
+          simulator sandbox (Session 3 cost-allocation gap closure: Stage 1
+          gains add-destination alongside edit-% and delete). In sandbox mode
+          `resolvedVersionId` resolves to the scenario's pinned production
+          anchor version, so the candidate picker pre-filters destinations
+          against the anchor graph (cycle/depth aware). The scenario's own
+          forked edges are validated server-side on write — `apply_distribution_create`
+          runs union-aware cycle + sum-rule checks and returns a 409 (surfaced
+          by SaveErrorBanner) for any sandbox-only cycle the anchor-scoped
+          picker could not foresee. */}
+      {!readOnly && (
         <AddDistributionTargetButton
           onClick={() => dispatch({ type: 'OPEN_PICKER' })}
         />
