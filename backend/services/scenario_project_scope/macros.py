@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import json
 
-from config import DEMO_DATE
 from models.scenarios import ScenarioAction
 from services.calculations import add_months, month_diff
 from services.scenario_project_scope.types import (
@@ -48,17 +47,19 @@ from services.scenario_project_scope.types import (
 def current_open_forecast_month() -> str:
     """The clamp boundary + past-freeze line for project-scope macros.
 
-    ``config.DEMO_DATE`` is the current demo month (April 2026). Spec §4's worked
-    accelerate example — "you asked for 3; the project can move only 2" for a
-    project starting 2026-06 — only yields 2 when the boundary is ``DEMO_DATE``
-    itself (``month_diff("2026-04", "2026-06") == 2``). So the current open
-    forecast month **is** ``DEMO_DATE``: the demo month is open for forecasting,
-    and the months strictly before it are frozen actuals that no macro may
-    reshape. (Integration note: the legacy aggregate engine treats
-    ``month > DEMO_DATE`` as the editable future; this module deliberately uses
-    ``>= DEMO_DATE`` to honour the §4 worked example. Flagged to the lead.)
+    The in-progress current month (``config.DEMO_DATE``) is **locked** for
+    forecasting — its actuals are in progress — so the first month open for
+    forecast editing is the **next** month. Months at or before ``DEMO_DATE``
+    are frozen (closed/partial actuals) that no macro may reshape. This now
+    matches the legacy aggregate engine's ``month > DEMO_DATE`` editable-future
+    convention; the single source of truth is
+    :func:`services.calendar.open_forecast_month`. (Earlier sessions used
+    ``>= DEMO_DATE`` to honour spec §4's worked accelerate example; with the
+    locked-current-month rule that example shifts by one — a project starting
+    2026-06 with open month 2026-07 can move 1, not 2.)
     """
-    return DEMO_DATE
+    from services.calendar import open_forecast_month
+    return open_forecast_month()
 
 
 # ---------------------------------------------------------------------------

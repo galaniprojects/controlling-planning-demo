@@ -7,7 +7,37 @@ See spec §8 (VIPER Portfolio & Backlog Restructuring Spec).
 """
 from __future__ import annotations
 
-from config import DEMO_DATE
+from config import DEMO_DATE, get_current_period
+from services.calculations import add_months
+
+__all__ = [
+    "current_fiscal_year",
+    "fiscal_year_of",
+    "current_period",
+    "open_forecast_month",
+]
+
+
+def current_period() -> str:
+    """Return the current planning month (``"YYYY-MM"``) — the in-progress month.
+
+    Thin alias of :func:`config.get_current_period`, re-exported here so the
+    calendar module is the single import site for VIPER's temporal helpers.
+    Months strictly before this are closed actuals; this month is in progress
+    (partial actuals) and **locked** for forecast editing.
+    """
+    return get_current_period()
+
+
+def open_forecast_month() -> str:
+    """Return the first month open for forecast editing (``"YYYY-MM"``).
+
+    The in-progress current month is locked, so the open forecast month is the
+    **next** month after :data:`config.DEMO_DATE`. This is the editable boundary:
+    a month is editable iff ``month >= open_forecast_month()`` (equivalently
+    ``month > current_period``).
+    """
+    return add_months(DEMO_DATE, 1)
 
 
 def current_fiscal_year() -> int:
