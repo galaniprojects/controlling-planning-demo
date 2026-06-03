@@ -113,15 +113,21 @@ interface ScenarioReducerState {
   loading: boolean;
   error: string | null;
   stale: boolean;
+  // Monotonic count of diff-changing mutations. Drives the debounced
+  // cross-portfolio recompute (§7): each edit bumps it, resetting the
+  // ~1s timer so the expensive impact dashboard refreshes only once
+  // editing pauses. Not reset by recalculate (which clears `stale`).
+  mutationSeq: number;
   changeSummaryEntries: ChangeSummaryEntry[];
 }
 
-const initialState: ScenarioReducerState = {
+export const initialState: ScenarioReducerState = {
   detail: null,
   impact: null,
   loading: false,
   error: null,
   stale: false,
+  mutationSeq: 0,
   changeSummaryEntries: [],
 };
 
@@ -135,7 +141,8 @@ type Action =
   | { type: 'APPEND_CHANGE'; entry: ChangeSummaryEntry }
   | { type: 'RESET' };
 
-function reducer(state: ScenarioReducerState, action: Action): ScenarioReducerState {
+// Exported for unit testing the cross-portfolio debounce state mechanics (§7).
+export function reducer(state: ScenarioReducerState, action: Action): ScenarioReducerState {
   switch (action.type) {
     case 'LOAD_START':
       return { ...state, loading: true, error: null };
@@ -152,7 +159,7 @@ function reducer(state: ScenarioReducerState, action: Action): ScenarioReducerSt
     case 'SET_IMPACT':
       return { ...state, impact: action.impact, stale: action.impact.stale };
     case 'MARK_STALE':
-      return { ...state, stale: true };
+      return { ...state, stale: true, mutationSeq: state.mutationSeq + 1 };
     case 'CLEAR_STALE':
       return { ...state, stale: false };
     case 'APPEND_CHANGE':
@@ -788,12 +795,18 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
   );
 
   // ---- Recalculate + impact ---------------------------------------------
+  // Remember the last year the impact dashboard was computed for, so the
+  // debounced auto-recompute (§7) refreshes the same year the user is
+  // viewing rather than snapping back to the default.
+  const lastImpactYearRef = useRef<number>(2026);
   const recalculate = useCallback(
     async (year?: number): Promise<ImpactDashboardResponse | null> => {
       try {
+        const resolvedYear = year ?? lastImpactYearRef.current;
+        lastImpactYearRef.current = resolvedYear;
         dispatch({ type: 'LOAD_START' });
         await scenariosApi.recalculate(scenarioId);
-        const impact = await scenariosApi.impact(scenarioId, year ?? 2026);
+        const impact = await scenariosApi.impact(scenarioId, resolvedYear);
         dispatch({ type: 'SET_IMPACT', impact });
         dispatch({ type: 'CLEAR_STALE' });
         return impact;
@@ -807,6 +820,23 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
     },
     [scenarioId],
   );
+
+  // Debounced cross-portfolio feedback (§7). The project's own financials
+  // (line totals / budget / delta / RAG) move live in the surfaces; the
+  // expensive cross-portfolio dimensions — capacity, backlog ranking,
+  // investment mix, outsourcing ratio — live in the impact dashboard and
+  // refresh here ~1s after editing pauses. Each diff-changing mutation bumps
+  // `mutationSeq`, resetting the timer; a manual Recalculate flips `stale`
+  // false, whose cleanup cancels any pending auto-recompute. Gated on
+  // `stale` so a scenario switch / fresh load never triggers a stray fire.
+  const RECOMPUTE_DEBOUNCE_MS = 1000;
+  useEffect(() => {
+    if (!state.stale || state.mutationSeq === 0) return;
+    const timer = setTimeout(() => {
+      void recalculate(lastImpactYearRef.current);
+    }, RECOMPUTE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [state.mutationSeq, state.stale, recalculate]);
 
   // ---- Promote -----------------------------------------------------------
   const promotePreview = useCallback(
