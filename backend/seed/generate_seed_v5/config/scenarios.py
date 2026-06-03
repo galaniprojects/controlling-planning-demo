@@ -121,7 +121,7 @@ SCENARIOS: list[dict] = [
         "stable_key": "scn-mdh-rebalance",
         "name": "MDH BTC Rebalance — DE/PL/CZ",
         "description": (
-            "Lever 12 demo. Rebalance Master Data Hub BTC: shift 10pp from "
+            "Cost-allocation sandbox demo. Rebalance Master Data Hub BTC: shift 10pp from "
             "DE-Munich onto PL-Poznan (+5pp) and CZ-Prague (+5pp). Tier 1, "
             "controller-private until impact verified."
         ),
@@ -130,7 +130,7 @@ SCENARIOS: list[dict] = [
         "visibility": "private",
         "tier3_content_flag": False,
         "archived": False,
-        "tags": '["lever-12", "btc", "flagship"]',
+        "tags": '["cost-allocation-sandbox", "btc", "flagship"]',
         "cc_owner_scope_cc_id": None,
         "headline_impact": (
             '{"total_btc_pct_shift": 10, "affected_locations": 3, '
@@ -159,7 +159,7 @@ SCENARIOS: list[dict] = [
                 "project_id": "proj-mdh-rollout",  # FK target — flagship project
                 "lever_category": "cost_allocation",
                 "tier": 1,
-                "group_label": "Lever 12 / Stage 2 BTC",
+                "group_label": "Cost-allocation sandbox / Stage 2 BTC",
                 "parameters_json": (
                     '{"entity_id": "off-mdh", "year": 2026, "lines": ['
                     '{"charging_location_id": "cl-de-ber", "percentage": 1.13}, '
