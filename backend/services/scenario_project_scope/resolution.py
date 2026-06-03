@@ -267,6 +267,9 @@ def _apply_overlay(db: Session, grid: ResolvedGrid, scenario_id: int, project_id
     lines_by_key = {line.line_key: line for line in grid.lines}
     removed_keys: set[str] = set()
 
+    # `uq_scenario_line_edit` (scenario, project, line_key) guarantees exactly one
+    # row per line_key, so `add` and `edit`/`remove` for the same line never
+    # coexist — iteration order is irrelevant and no `order_by` is needed.
     line_edits = (
         db.query(ScenarioLineEdit)
         .filter(

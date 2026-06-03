@@ -806,9 +806,14 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
   // debounced auto-recompute (§7) refreshes the same year the user is
   // viewing rather than snapping back to the default.
   const lastImpactYearRef = useRef<number>(2026);
+  // Drop overlapping recalculates (the debounced auto-fire racing a manual
+  // click) so we don't issue a redundant recompute that just re-wins SET_IMPACT.
+  const recalcInFlightRef = useRef(false);
   const recalculate = useCallback(
     async (year?: number): Promise<ImpactDashboardResponse | null> => {
+      if (recalcInFlightRef.current) return null;
       try {
+        recalcInFlightRef.current = true;
         const resolvedYear = year ?? lastImpactYearRef.current;
         lastImpactYearRef.current = resolvedYear;
         dispatch({ type: 'LOAD_START' });
@@ -823,6 +828,8 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
           error: e instanceof Error ? e.message : 'Recalculate failed',
         });
         return null;
+      } finally {
+        recalcInFlightRef.current = false;
       }
     },
     [scenarioId],

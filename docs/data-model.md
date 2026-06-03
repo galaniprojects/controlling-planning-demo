@@ -563,7 +563,7 @@ Layer-2 companion: seniority/sourcing mix change. Mirrors the existing `change_a
 
 **Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `project_id` FK NOT NULL, `cost_center_id` FK → cost_centers, `swap_from_role_id`/`swap_to_role_id` FK → role_types, `hours_per_month_swap` Numeric(10,2), `effective_from` String(7) (YYYY-MM), `created_at` DateTime.
 
-**Indexes.** `ix_scenario_mix_change_scope` on (`scenario_id`, `project_id`).
+**Constraints / indexes.** Unique `uq_scenario_mix_change` on (`scenario_id`, `project_id`, `cost_center_id`, `swap_from_role_id`, `swap_to_role_id`) — one row per swap pair, matching the mix-endpoint upsert (sibling to `uq_scenario_cell_edit` / `uq_scenario_line_edit` / `uq_scenario_plan_edit`); index `ix_scenario_mix_change_scope` on (`scenario_id`, `project_id`).
 
 ### `ScenarioPlanEdit` — `scenario_plan_edits`
 Layer-2 companion: project-plan edits — project start/end dates, pipeline stage, DoI gate, milestones. Low-volume, project- or milestone-level. Exercised in Session 3.

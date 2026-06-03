@@ -467,6 +467,14 @@ class ScenarioMixChange(Base):
 
     __tablename__ = "scenario_mix_changes"
     __table_args__ = (
+        # One row per swap pair within a (scenario, project, cost-centre) — matches
+        # the application-level upsert in the mix endpoint, mirroring the sibling
+        # overlay tables' uniqueness (uq_scenario_cell_edit / _line_edit / _plan_edit).
+        UniqueConstraint(
+            "scenario_id", "project_id", "cost_center_id",
+            "swap_from_role_id", "swap_to_role_id",
+            name="uq_scenario_mix_change",
+        ),
         Index("ix_scenario_mix_change_scope", "scenario_id", "project_id"),
     )
 
