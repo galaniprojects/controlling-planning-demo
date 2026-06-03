@@ -17,7 +17,7 @@ from decimal import Decimal
 import pytest
 
 from models.financial import Forecast
-from models.people import RateTable
+from models.people import RateTable, RoleType
 from models.projects import Project, ProjectMilestone
 from models.scenarios import (
     Scenario,
@@ -207,6 +207,8 @@ def t1_world(db, seed_personas):
         pl_person_id="p-dev-1",
     )
     db.add(proj)
+    db.add(RoleType(id="R1", name="Role One"))
+    db.add(RoleType(id="R2", name="Role Two"))
     db.add(Forecast(
         project_id="proj-t1r", month="2026-06", category="internal",
         sub_category="R1", role_type_id="R1", hours=100, amount_eur=Decimal("10000"),
@@ -258,6 +260,38 @@ def test_add_role_line_requires_role_type(db, test_client, t1_world):
         json={}, headers=_hdr(CONTROLLER),
     )
     assert resp.status_code == 422, resp.text
+
+
+def test_add_role_line_rejects_unknown_role(db, test_client, t1_world):
+    """A role_type_id that does not exist is rejected (no dangling reference)."""
+    sid, pid = t1_world["sid"], t1_world["pid"]
+    resp = test_client.post(
+        f"/api/scenarios/{sid}/projects/{pid}/lines",
+        json={"role_type_id": "role-does-not-exist"}, headers=_hdr(CONTROLLER),
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_plan_rejects_inverted_window(db, test_client, t1_world):
+    """Moving start_month past the project's end_month (2026-08) is rejected."""
+    sid, pid = t1_world["sid"], t1_world["pid"]
+    resp = test_client.put(
+        f"/api/scenarios/{sid}/projects/{pid}/plan",
+        json={"target": "start_month", "value": "2026-09"},
+        headers=_hdr(CONTROLLER),
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_plan_allows_valid_window(db, test_client, t1_world):
+    """A start_month inside the window (>= open month, <= end) is accepted."""
+    sid, pid = t1_world["sid"], t1_world["pid"]
+    resp = test_client.put(
+        f"/api/scenarios/{sid}/projects/{pid}/plan",
+        json={"target": "start_month", "value": "2026-06"},
+        headers=_hdr(CONTROLLER),
+    )
+    assert resp.status_code == 200, resp.text
 
 
 def test_remove_existing_role_line_records_remove_overlay(db, test_client, t1_world):

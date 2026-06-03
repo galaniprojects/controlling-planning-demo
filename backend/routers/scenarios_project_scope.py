@@ -481,6 +481,9 @@ def add_role_line(
 
     if not body.role_type_id:
         raise HTTPException(422, "role_type_id is required to add a role line.")
+    from models.people import RoleType
+    if db.query(RoleType).filter(RoleType.id == body.role_type_id).first() is None:
+        raise HTTPException(422, f"role_type_id '{body.role_type_id}' not found.")
 
     line_key = f"new:role:{uuid.uuid4().hex[:12]}"
     db.add(ScenarioLineEdit(
@@ -502,7 +505,7 @@ def add_role_line(
 
 
 @router.delete(
-    "/{scenario_id}/projects/{project_id}/lines/{line_key}",
+    "/{scenario_id}/projects/{project_id}/lines/{line_key:path}",
     response_model=ScenarioLineWriteResponse,
 )
 def remove_role_line(
@@ -710,6 +713,32 @@ def write_plan_edit(
                     f"Cannot move {body.target} to {value} (< open month {DEMO_DATE}); "
                     "nothing may reshape the past.",
                 )
+            # Keep the window non-inverted: validate against the counterpart's
+            # effective value (its overlay if one exists, else the live project).
+            # YYYY-MM strings order lexically.
+            other_target = "end_month" if body.target == "start_month" else "start_month"
+            other_overlay = (
+                db.query(ScenarioPlanEdit.value)
+                .filter(
+                    ScenarioPlanEdit.scenario_id == scenario_id,
+                    ScenarioPlanEdit.project_id == project_id,
+                    ScenarioPlanEdit.target == other_target,
+                )
+                .scalar()
+            )
+            other_value = other_overlay or getattr(project, other_target, None)
+            if other_value:
+                start_v, end_v = (
+                    (value, other_value)
+                    if body.target == "start_month"
+                    else (other_value, value)
+                )
+                if start_v > end_v:
+                    raise HTTPException(
+                        422,
+                        f"Project start_month ({start_v}) must not be after "
+                        f"end_month ({end_v}).",
+                    )
 
     existing = (
         db.query(ScenarioPlanEdit)
@@ -1128,6 +1157,11 @@ def add_external_cost_line(
     _require_project(db, project_id)
     if body.capex_opex is not None and body.capex_opex not in _CAPEX_OPEX_VALUES:
         raise HTTPException(422, f"capex_opex must be one of {_CAPEX_OPEX_VALUES}")
+    from models.financial import ExternalCostType
+    if db.query(ExternalCostType).filter(
+        ExternalCostType.id == body.cost_type_id,
+    ).first() is None:
+        raise HTTPException(422, f"cost_type_id '{body.cost_type_id}' not found.")
 
     line_key = f"new:ext:{uuid.uuid4().hex[:12]}"
     db.add(ScenarioLineEdit(
@@ -1176,6 +1210,12 @@ def edit_external_cost_line(
         and body.capex_opex is None
     ):
         raise HTTPException(422, "No metadata fields supplied to edit.")
+    if body.cost_type_id is not None:
+        from models.financial import ExternalCostType
+        if db.query(ExternalCostType).filter(
+            ExternalCostType.id == body.cost_type_id,
+        ).first() is None:
+            raise HTTPException(422, f"cost_type_id '{body.cost_type_id}' not found.")
 
     existing = (
         db.query(ScenarioLineEdit)

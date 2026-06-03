@@ -113,6 +113,19 @@ def test_list_non_viewer_returns_403(db, test_client, seed_personas, ext_world):
 # add
 # ---------------------------------------------------------------------------
 
+def test_add_rejects_unknown_cost_type(
+    db, test_client, seed_personas, ext_world,
+):
+    """A cost_type_id with no ExternalCostType row is rejected (422)."""
+    sid, pid = ext_world["scenario_id"], ext_world["project_id"]
+    resp = test_client.post(
+        f"/api/scenarios/{sid}/projects/{pid}/external-costs",
+        json={"cost_type_id": "ext-nope", "vendor": "Initech"},
+        headers=_hdr(CONTROLLER_PERSONA),
+    )
+    assert resp.status_code == 422, resp.text
+
+
 def test_add_mints_line_and_appears_in_grid_and_list(
     db, test_client, seed_personas, ext_world,
 ):
