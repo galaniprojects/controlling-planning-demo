@@ -30,8 +30,8 @@ from models.financial import ForecastVersion
 from models.projects import Project
 from models.scenarios import (
     Scenario, ScenarioAction, ScenarioApplyToForecastEvent,
-    ScenarioCapacityImpact, ScenarioPromotion, ScenarioState,
-    SCENARIO_VISIBILITIES,
+    ScenarioCapacityImpact, ScenarioForecastCellEdit, ScenarioPromotion,
+    ScenarioState, OVERLAY_CELL_FIELDS, SCENARIO_VISIBILITIES,
 )
 from schemas.common import CurrentUser
 from schemas.scenarios import (
@@ -43,7 +43,11 @@ from schemas.scenarios import (
     ImpactDashboardResponse,
     PromoteExecuteRequest, PromoteExecuteResponse,
     PromotePreviewRequest, PromotePreviewResponse,
-    ScenarioArchiveRequest, ScenarioCreate, ScenarioListItem,
+    CellEditRequest,
+    ScenarioArchiveRequest, ScenarioCreate,
+    ScenarioGridCell, ScenarioGridColumn, ScenarioGridResponse,
+    ScenarioGridRow, ScenarioGridWriteResponse,
+    ScenarioListItem,
     ScenarioListResponse, ScenarioMetadataUpdate, ScenarioPublishRequest,
     ScenarioRebaseRequest, ToBusinessChange,
 )
@@ -668,6 +672,306 @@ def reorder_actions(
             action.action_order = i + 1
     db.commit()
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Project-scope redesign Session 2 — editable forecast grid
+# ---------------------------------------------------------------------------
+
+_GRID_EPS = 0.005
+
+
+def _grid_to_response(
+    db: Session, scenario: Scenario, project_id: str,
+) -> ScenarioGridResponse:
+    """Build the editable forecast grid for one project under a scenario.
+
+    Resolves ``anchor → macros → overlay`` (adjusted) and joins it cell-by-cell
+    with the live anchor grid so each cell carries both its resolved value and
+    its pre-overlay anchor value (drives is_changed + per-cell revert). Internal
+    lines expose ``hours`` cells with a derived € amount; external lines expose
+    ``amount_eur`` cells. See ``services/scenario_project_scope/`` (Session 1).
+    """
+    from config import DEMO_DATE
+    from services.scenario_project_scope.rates import effective_hourly_rate
+    from services.scenario_project_scope.resolution import (
+        read_anchor_grid, resolve_project_grid,
+    )
+    from services.scenario_project_scope.types import LINE_KIND_INTERNAL
+    from models.people import RoleType
+
+    adjusted = resolve_project_grid(db, scenario, project_id)
+    anchor = read_anchor_grid(db, project_id)
+    anchor_by_key = {line.line_key: line for line in anchor.lines}
+
+    # Columns = sorted union of every month across adjusted + anchor lines.
+    months: set[str] = set()
+    for line in (*adjusted.lines, *anchor.lines):
+        months.update(line.cells.keys())
+    sorted_months = sorted(months)
+    columns = [ScenarioGridColumn(key=m) for m in sorted_months]
+
+    rows: list[ScenarioGridRow] = []
+    for line in adjusted.lines:
+        is_internal = line.kind == LINE_KIND_INTERNAL
+        field = "hours" if is_internal else "amount_eur"
+        anchor_line = anchor_by_key.get(line.line_key)
+
+        # Best-effort display label.
+        sub_category_name = line.sub_category or line.line_key
+        hourly_rate = None
+        if is_internal:
+            role_key = line.role_type_id or line.sub_category
+            if role_key:
+                role = (
+                    db.query(RoleType).filter(RoleType.id == role_key).first()
+                )
+                if role is not None:
+                    sub_category_name = role.name
+            hourly_rate = effective_hourly_rate(db, line.role_type_id or line.sub_category)
+        elif line.vendor:
+            sub_category_name = line.vendor
+
+        cells: list[ScenarioGridCell] = []
+        for m in sorted_months:
+            adj_cell = line.cells.get(m)
+            anc_cell = anchor_line.cells.get(m) if anchor_line else None
+
+            if is_internal:
+                display_value = float(adj_cell.hours or 0.0) if adj_cell else 0.0
+                anchor_value = (
+                    float(anc_cell.hours or 0.0) if anc_cell is not None else None
+                )
+            else:
+                display_value = float(adj_cell.amount_eur) if adj_cell else 0.0
+                anchor_value = (
+                    float(anc_cell.amount_eur) if anc_cell is not None else None
+                )
+            amount_eur = float(adj_cell.amount_eur) if adj_cell else 0.0
+
+            is_empty = adj_cell is None and anc_cell is None
+            is_changed = (
+                not is_empty
+                and abs(display_value - (anchor_value or 0.0)) > _GRID_EPS
+            )
+            cells.append(ScenarioGridCell(
+                month=m,
+                display_value=round(display_value, 2),
+                amount_eur=round(amount_eur, 2),
+                anchor_value=(round(anchor_value, 2) if anchor_value is not None else None),
+                field=field,
+                can_edit=(m >= DEMO_DATE),
+                is_changed=is_changed,
+                is_empty=is_empty,
+            ))
+
+        rows.append(ScenarioGridRow(
+            line_key=line.line_key,
+            category=line.category,
+            kind=line.kind,
+            sub_category_name=sub_category_name,
+            hourly_rate=hourly_rate,
+            cells=cells,
+        ))
+
+    return ScenarioGridResponse(
+        scenario_id=scenario.id,
+        project_id=project_id,
+        start_month=adjusted.start_month,
+        end_month=adjusted.end_month,
+        open_month=DEMO_DATE,
+        columns=columns,
+        rows=rows,
+    )
+
+
+def _field_kind_coherent(field: str, line_kind: str) -> bool:
+    """A ``hours`` edit belongs to an internal line, ``amount_eur`` to external."""
+    from services.scenario_project_scope.types import (
+        LINE_KIND_EXTERNAL, LINE_KIND_INTERNAL,
+    )
+    if line_kind == LINE_KIND_INTERNAL:
+        return field == "hours"
+    if line_kind == LINE_KIND_EXTERNAL:
+        return field == "amount_eur"
+    return False
+
+
+def _line_kind_for_key(line_key: str, category: str | None = None) -> str:
+    """Derive the overlay line kind from a line_key (or category fallback)."""
+    from services.scenario_project_scope.types import (
+        LINE_KIND_EXTERNAL, LINE_KIND_INTERNAL,
+    )
+    if line_key.startswith("new:role:"):
+        return LINE_KIND_INTERNAL
+    if line_key.startswith("new:ext:"):
+        return LINE_KIND_EXTERNAL
+    if category:
+        return LINE_KIND_INTERNAL if category == "internal" else LINE_KIND_EXTERNAL
+    cat = line_key.split("|", 1)[0] if "|" in line_key else line_key
+    return LINE_KIND_INTERNAL if cat == "internal" else LINE_KIND_EXTERNAL
+
+
+def _recalc_after_overlay_write(db: Session, scenario: Scenario) -> dict:
+    """Shared tail for cell write/revert — mirrors ``apply_action`` exactly:
+    bump modified_at, invalidate snapshot rows, commit, then recalculate."""
+    scenario.modified_at = datetime.utcnow()
+    db.query(ScenarioState).filter(
+        ScenarioState.scenario_id == scenario.id,
+    ).delete()
+    db.query(ScenarioCapacityImpact).filter(
+        ScenarioCapacityImpact.scenario_id == scenario.id,
+    ).delete()
+    db.commit()
+    actions = (
+        db.query(ScenarioAction)
+        .filter(ScenarioAction.scenario_id == scenario.id)
+        .order_by(ScenarioAction.action_order).all()
+    )
+    return recalculate_scenario(db, scenario, actions)
+
+
+@router.get(
+    "/{scenario_id}/projects/{project_id}/grid",
+    response_model=ScenarioGridResponse,
+)
+def get_project_grid(
+    scenario_id: int,
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Resolved, editable forecast grid for one project under a scenario."""
+    scenario = _get_scenario_or_404(db, scenario_id)
+    has_tier3 = user_has_tier3(db, user)
+    if not _user_can_view_scenario(scenario, user, has_tier3):
+        raise HTTPException(403, "You do not have access to this scenario.")
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if project is None:
+        raise HTTPException(404, f"Project {project_id} not found")
+    return _grid_to_response(db, scenario, project_id)
+
+
+@router.put(
+    "/{scenario_id}/projects/{project_id}/cells",
+    response_model=ScenarioGridWriteResponse,
+)
+def write_project_cell(
+    scenario_id: int,
+    project_id: str,
+    body: CellEditRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role(
+        "controller", "executive", "cost_center_owner",
+    )),
+):
+    """Upsert a single forecast-cell overlay edit, then recalculate."""
+    scenario = _get_scenario_or_404(db, scenario_id)
+    _check_scenario_owner(scenario, user)
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if project is None:
+        raise HTTPException(404, f"Project {project_id} not found")
+
+    if body.field not in OVERLAY_CELL_FIELDS:
+        raise HTTPException(
+            422, f"field must be one of {OVERLAY_CELL_FIELDS}",
+        )
+
+    # field ↔ line-kind coherence: prefer the resolved grid line, fall back to
+    # the line_key/category shape.
+    grid = _grid_to_response(db, scenario, project_id)
+    row = next((r for r in grid.rows if r.line_key == body.line_key), None)
+    line_kind = row.kind if row else _line_kind_for_key(body.line_key)
+    if not _field_kind_coherent(body.field, line_kind):
+        raise HTTPException(
+            422,
+            f"field '{body.field}' is not valid for an "
+            f"{'internal' if line_kind == 'internal_role' else 'external'} line.",
+        )
+
+    # Actuals write-guard: cannot edit a month at or before the open boundary's
+    # past (months strictly before DEMO_DATE are closed actuals).
+    from config import DEMO_DATE
+    if body.month < DEMO_DATE:
+        raise HTTPException(
+            403, f"Cannot edit actuals month {body.month} (< {DEMO_DATE}).",
+        )
+
+    existing = (
+        db.query(ScenarioForecastCellEdit)
+        .filter(
+            ScenarioForecastCellEdit.scenario_id == scenario_id,
+            ScenarioForecastCellEdit.project_id == project_id,
+            ScenarioForecastCellEdit.line_key == body.line_key,
+            ScenarioForecastCellEdit.month == body.month,
+            ScenarioForecastCellEdit.field == body.field,
+        )
+        .first()
+    )
+    if existing is not None:
+        existing.value = body.value
+    else:
+        db.add(ScenarioForecastCellEdit(
+            scenario_id=scenario_id,
+            project_id=project_id,
+            line_key=body.line_key,
+            month=body.month,
+            field=body.field,
+            value=body.value,
+        ))
+
+    state = _recalc_after_overlay_write(db, scenario)
+    return ScenarioGridWriteResponse(
+        state=state,
+        grid=_grid_to_response(db, scenario, project_id),
+    )
+
+
+@router.delete(
+    "/{scenario_id}/projects/{project_id}/cells",
+    response_model=ScenarioGridWriteResponse,
+)
+def revert_project_cells(
+    scenario_id: int,
+    project_id: str,
+    line_key: Optional[str] = Query(None),
+    month: Optional[str] = Query(None),
+    field: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role(
+        "controller", "executive", "cost_center_owner",
+    )),
+):
+    """Revert overlay cell edits at cell / line / clear-all granularity.
+
+    Deletes ONLY ``ScenarioForecastCellEdit`` rows — line/mix/plan overlays and
+    macro actions are never touched. Granularity is driven by the query params:
+    cell = line_key + month (+ optional field), line = line_key only,
+    clear-all = no params.
+    """
+    scenario = _get_scenario_or_404(db, scenario_id)
+    _check_scenario_owner(scenario, user)
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if project is None:
+        raise HTTPException(404, f"Project {project_id} not found")
+
+    q = db.query(ScenarioForecastCellEdit).filter(
+        ScenarioForecastCellEdit.scenario_id == scenario_id,
+        ScenarioForecastCellEdit.project_id == project_id,
+    )
+    if line_key is not None:
+        q = q.filter(ScenarioForecastCellEdit.line_key == line_key)
+    if month is not None:
+        q = q.filter(ScenarioForecastCellEdit.month == month)
+    if field is not None:
+        q = q.filter(ScenarioForecastCellEdit.field == field)
+    q.delete(synchronize_session=False)
+
+    state = _recalc_after_overlay_write(db, scenario)
+    return ScenarioGridWriteResponse(
+        state=state,
+        grid=_grid_to_response(db, scenario, project_id),
+    )
 
 
 # ---------------------------------------------------------------------------
