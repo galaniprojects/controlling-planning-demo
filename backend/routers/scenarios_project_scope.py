@@ -144,7 +144,9 @@ def _grid_to_response(
                 )
                 if role is not None:
                     sub_category_name = role.name
-            hourly_rate = effective_hourly_rate(db, line.role_type_id or line.sub_category)
+            # Display label only — price at the first editable forecast month
+            # (the "current" rate the user edits against).
+            hourly_rate = effective_hourly_rate(db, line.role_type_id or line.sub_category, open_month)
         elif line.vendor:
             sub_category_name = line.vendor
 

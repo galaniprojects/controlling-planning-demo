@@ -331,7 +331,7 @@ def write_forecast_cells(
 
         if ce.field == "hours":
             row.hours = value
-            rate = effective_hourly_rate(db, role_type_id or sub_category)
+            rate = effective_hourly_rate(db, role_type_id or sub_category, ce.month)
             row.amount_eur = round(value * rate, 2)
         else:  # amount_eur
             row.amount_eur = value

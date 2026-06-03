@@ -235,8 +235,6 @@ def _apply_mix(db: Session, grid: ResolvedGrid, scenario_id: int, project_id: st
             )
             grid.lines.append(to_line)
 
-        from_rate = effective_hourly_rate(db, from_role)
-        to_rate = effective_hourly_rate(db, to_role)
         effective_from = mc.effective_from or open_month
         boundary = max(effective_from, open_month)
 
@@ -247,14 +245,16 @@ def _apply_mix(db: Session, grid: ResolvedGrid, scenario_id: int, project_id: st
             swap = min(per_month, available)
             if swap <= 0:
                 continue
+            # Rate-at-month: price each swapped cell at the rate in force that
+            # month, not a single latest-wins rate for the whole window.
             cell.hours = round(available - swap, 2)
-            cell.amount_eur = round((cell.hours or 0.0) * from_rate, 2)
+            cell.amount_eur = round((cell.hours or 0.0) * effective_hourly_rate(db, from_role, month), 2)
             to_cell = to_line.cells.get(month)
             if to_cell is None:
                 to_cell = ResolvedCell(amount_eur=0.0, hours=0.0)
                 to_line.cells[month] = to_cell
             to_cell.hours = round((to_cell.hours or 0.0) + swap, 2)
-            to_cell.amount_eur = round((to_cell.hours or 0.0) * to_rate, 2)
+            to_cell.amount_eur = round((to_cell.hours or 0.0) * effective_hourly_rate(db, to_role, month), 2)
 
 
 def _apply_overlay(db: Session, grid: ResolvedGrid, scenario_id: int, project_id: str, open_month: str) -> None:
@@ -351,7 +351,7 @@ def _apply_overlay(db: Session, grid: ResolvedGrid, scenario_id: int, project_id
             # fix). Rate keys on role_type_id, falling back to sub_category for
             # legacy internal lines that carry the role there.
             cell.hours = value
-            rate = effective_hourly_rate(db, line.role_type_id or line.sub_category)
+            rate = effective_hourly_rate(db, line.role_type_id or line.sub_category, edit.month)
             cell.amount_eur = round((value or 0.0) * rate, 2)
         elif edit.field == "amount_eur":
             cell.amount_eur = value if value is not None else 0.0
