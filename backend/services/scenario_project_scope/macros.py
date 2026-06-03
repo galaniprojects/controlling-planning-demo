@@ -78,6 +78,7 @@ def _clone_line(line: ResolvedLine) -> ResolvedLine:
         kind=line.kind,
         sub_category=line.sub_category,
         role_type_id=line.role_type_id,
+        location_id=line.location_id,
         vendor=line.vendor,
         cells={m: _clone_cell(c) for m, c in line.cells.items()},
     )

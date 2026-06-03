@@ -1054,12 +1054,13 @@ def _external_costs_response(
         )
     }
 
-    # Anchor metadata per natural line_key ("external|<cost_type>|").
+    # Anchor metadata per natural line_key ("external|<cost_type>||" — 4-segment:
+    # external lines carry no role and no workforce location, S6 location-aware key).
     anchor_meta: dict[str, dict] = {}
     for row in db.query(Forecast).filter(
         Forecast.project_id == project_id, Forecast.category == "external",
     ):
-        key = f"external|{row.sub_category or ''}|"
+        key = f"external|{row.sub_category or ''}||"
         meta = anchor_meta.setdefault(
             key, {"vendor": None, "description": None, "capex_opex": None},
         )
