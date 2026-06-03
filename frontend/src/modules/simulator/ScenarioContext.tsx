@@ -52,12 +52,14 @@ import {
   type ApplyToForecastBody,
   type ApplyToForecastResponse,
   type BTCLinesChangeBody,
+  type CellEditBody,
   type CostAllocationImpactResponse,
   type DistributionEdgeCreateBody,
   type DistributionEdgeUpdateBody,
   type ImpactDashboardResponse,
   type PromoteExecuteResponse,
   type PromotePreviewResponse,
+  type ScenarioGridWriteResponse,
   type ScenarioMetadataBody,
   type ScenarioPublishBody,
   type ToBusinessChangeBody,
@@ -190,6 +192,25 @@ export interface ScenarioContextValue {
   applyAction: (body: ActionBody) => Promise<ScenarioDetail | null>;
   removeAction: (actionId: number) => Promise<void>;
   reorderActions: (actionIds: number[]) => Promise<void>;
+  // Mutations — Project-scope cell overlay (Session 2). Each returns the
+  // verbatim write response so the surface hook can reconcile its working
+  // edits against the recalculated grid. Network + stale + change-feed only;
+  // the working-edits Map stays in the surface hook.
+  applyCellOverlay: (
+    projectId: string,
+    body: CellEditBody,
+  ) => Promise<ScenarioGridWriteResponse>;
+  revertCellOverlay: (
+    projectId: string,
+    ref: { line_key: string; month: string; field?: 'hours' | 'amount_eur' },
+  ) => Promise<ScenarioGridWriteResponse>;
+  revertLineOverlay: (
+    projectId: string,
+    lineKey: string,
+  ) => Promise<ScenarioGridWriteResponse>;
+  clearProjectOverlay: (
+    projectId: string,
+  ) => Promise<ScenarioGridWriteResponse>;
   // Mutations — Lever 12
   createDistribution: (body: DistributionEdgeCreateBody) => Promise<unknown>;
   updateDistribution: (
@@ -420,6 +441,76 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
     [scenarioId, reload],
   );
 
+  // ---- Project-scope cell overlay (Session 2) ----------------------------
+  // Thin network wrappers around the frozen overlay endpoints. Each mirrors
+  // `applyAction`'s dispatch: refresh `detail` from the write response's
+  // `state`, MARK_STALE, and append a change-feed entry. The surface hook owns
+  // the working-edits Map and reconciles from the returned `grid`.
+  const applyCellOverlay = useCallback(
+    async (
+      projectId: string,
+      body: CellEditBody,
+    ): Promise<ScenarioGridWriteResponse> => {
+      const res = await scenariosApi.writeCellOverlay(scenarioId, projectId, body);
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: `Edited ${body.field === 'hours' ? 'hours' : '€'} cell`,
+        detail: `${projectId} · ${body.line_key} · ${body.month}`,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
+  const revertCellOverlay = useCallback(
+    async (
+      projectId: string,
+      ref: { line_key: string; month: string; field?: 'hours' | 'amount_eur' },
+    ): Promise<ScenarioGridWriteResponse> => {
+      const res = await scenariosApi.revertCell(scenarioId, projectId, ref);
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: 'Reverted cell edit',
+        detail: `${projectId} · ${ref.line_key} · ${ref.month}`,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
+  const revertLineOverlay = useCallback(
+    async (
+      projectId: string,
+      lineKey: string,
+    ): Promise<ScenarioGridWriteResponse> => {
+      const res = await scenariosApi.revertLine(scenarioId, projectId, lineKey);
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: 'Reverted line edits',
+        detail: `${projectId} · ${lineKey}`,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
+  const clearProjectOverlay = useCallback(
+    async (projectId: string): Promise<ScenarioGridWriteResponse> => {
+      const res = await scenariosApi.clearProjectOverlay(scenarioId, projectId);
+      dispatch({ type: 'SET_DETAIL', detail: res.state, markStale: true });
+      appendChange({
+        kind: 'action',
+        label: 'Reverted all cell edits',
+        detail: projectId,
+      });
+      return res;
+    },
+    [scenarioId, appendChange],
+  );
+
   // ---- Lever 12 mutations ------------------------------------------------
   const createDistribution = useCallback(
     (body: DistributionEdgeCreateBody) =>
@@ -609,6 +700,10 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
     applyAction,
     removeAction,
     reorderActions,
+    applyCellOverlay,
+    revertCellOverlay,
+    revertLineOverlay,
+    clearProjectOverlay,
     createDistribution,
     updateDistribution,
     deleteDistribution,
