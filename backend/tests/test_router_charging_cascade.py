@@ -566,3 +566,31 @@ class TestCascadeSandboxScenarioId:
         body = r.json()
         dests = {d["destination_entity_id"] for d in body["distributions"]}
         assert "ce-x" in dests
+
+    def test_scenario_id_enforces_visibility(self, test_client, sandbox_scenario):
+        """A non-owner cannot read another author's private scenario sandbox via
+        ``?scenario_id`` — the cascade + summary honour the scenario visibility
+        rule. The scenario is authored by p-dev-1 (= persona-controller in the
+        test seed); persona-exec (p-dev-2) is an allowed role but a non-owner."""
+        sid = sandbox_scenario["scenario_id"]
+        cascade = test_client.get(
+            f"/api/charging/cascade/ce-s?scenario_id={sid}",
+            headers=_h("persona-exec"),
+        )
+        assert cascade.status_code == 403, cascade.text
+        summary = test_client.get(
+            f"/api/charging/entities/ce-s/distribution-summary?scenario_id={sid}",
+            headers=_h("persona-exec"),
+        )
+        assert summary.status_code == 403, summary.text
+
+    def test_canonical_path_open_without_scenario_id(
+        self, test_client, sandbox_scenario,
+    ):
+        """The visibility gate only applies to the sandbox branch — the canonical
+        cascade (no scenario_id) stays open to the allowed roles."""
+        r = test_client.get(
+            "/api/charging/cascade/ce-s",
+            headers=_h("persona-exec"),
+        )
+        assert r.status_code == 200, r.text

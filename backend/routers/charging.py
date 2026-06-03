@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
-from dependencies import require_role
+from dependencies import require_role, user_has_tier3
 from models.charging import (
     CHARGEABLE_ENTITY_TYPES, ChargeableEntity, ChargingLocation, Country,
     Distribution, LegalEntity, Region, UserMeasurement,
@@ -1154,6 +1154,25 @@ def _resolve_version_param(
     return v
 
 
+def _assert_scenario_visible(
+    db: Session, scenario_id: int, user: CurrentUser,
+) -> None:
+    """Gate the union-aware sandbox cascade/summary on scenario visibility.
+
+    The ``?scenario_id`` views read another scenario's forked Stage-1 edges, so
+    they must honour the same visibility rule as the scenario endpoints — a
+    private scenario is only readable by its owner / permitted roles. Lazy
+    import mirrors this module's other scenario-service imports (no cycle:
+    ``routers.scenarios`` never imports ``routers.charging``).
+    """
+    from routers.scenarios import (
+        _get_scenario_or_404, _user_can_view_scenario,
+    )
+    scenario = _get_scenario_or_404(db, scenario_id)
+    if not _user_can_view_scenario(scenario, user, user_has_tier3(db, user)):
+        raise HTTPException(403, "You do not have access to this scenario.")
+
+
 @charging_router.get(
     "/entities/{entity_id}/distribution-summary",
     response_model=EntityDistributionSummary,
@@ -1164,7 +1183,7 @@ def get_entity_distribution_summary(
     evaluated_date: date | None = None,
     scenario_id: int | None = None,
     db: Session = Depends(get_db),
-    _user: CurrentUser = Depends(require_role(
+    user: CurrentUser = Depends(require_role(
         "controller", "executive", "project_lead", "cost_center_owner",
     )),
 ) -> EntityDistributionSummary:
@@ -1190,6 +1209,7 @@ def get_entity_distribution_summary(
         raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
 
     if scenario_id is not None:
+        _assert_scenario_visible(db, scenario_id, user)
         from services.distribution_service import (
             SUM_TOLERANCE, union_outgoing_edges,
         )
@@ -1273,7 +1293,7 @@ def update_entity_to_business_pct(
     db.commit()
     return get_entity_distribution_summary(
         entity_id, version_id=version_id, evaluated_date=None,
-        scenario_id=None, db=db, _user=user,
+        scenario_id=None, db=db, user=user,
     )
 
 
@@ -1742,7 +1762,7 @@ def get_cascade_chain(
     evaluated_date: date | None = None,
     scenario_id: int | None = None,
     db: Session = Depends(get_db),
-    _user: CurrentUser = Depends(require_role(
+    user: CurrentUser = Depends(require_role(
         "controller", "executive", "project_lead", "cost_center_owner",
     )),
 ) -> CascadeChainResponse:
@@ -1784,6 +1804,7 @@ def get_cascade_chain(
     # → unchanged canonical resolution.
     anchor_for_query: int | None = None
     if scenario_id is not None:
+        _assert_scenario_visible(db, scenario_id, user)
         from services.scenario_lever12 import resolve_sandbox_and_anchor
         sv_id, anchor_id = resolve_sandbox_and_anchor(db, scenario_id)
         if sv_id is not None:
