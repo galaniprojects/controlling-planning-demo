@@ -299,6 +299,52 @@ class TestWriteForecastCells:
         db.commit()
         assert n == 0
 
+    def test_hours_edit_prices_at_rate_in_force_at_each_month(self, db, scenario_world):
+        """S6 rate-at-month regression for the promote writer. Two cell edits
+        on the same role line in different months must each price at the rate
+        in force at *that cell's month* (uses ``ce.month``), not a single
+        latest-wins rate. A later, higher rate row exists but is not yet
+        effective for the earlier cell."""
+        sid = scenario_world["scenario_id"]
+        # role-step: €100 from 2025, stepping up to €150 from 2026-07.
+        db.add(RateTable(role_type_id="role-step", competence_center_id="comp-dev",
+                         hourly_rate=Decimal("100.00"), effective_date="2025-01-01"))
+        db.add(RateTable(role_type_id="role-step", competence_center_id="comp-dev",
+                         hourly_rate=Decimal("150.00"), effective_date="2026-07-01"))
+        # June edit (priced at 100) and July edit (priced at 150), same hours.
+        db.add(ScenarioForecastCellEdit(
+            scenario_id=sid, project_id="proj-own-c",
+            line_key="internal|role-step|", month="2026-06", field="hours",
+            value=Decimal("20"),
+        ))
+        db.add(ScenarioForecastCellEdit(
+            scenario_id=sid, project_id="proj-own-c",
+            line_key="internal|role-step|", month="2026-07", field="hours",
+            value=Decimal("20"),
+        ))
+        db.commit()
+        sc = db.query(Scenario).filter_by(id=sid).first()
+        diffs = collect_overlay_diffs(db, sc, controller_user_id=CONTROLLER_ID)
+        write_forecast_cells(db, sc, diffs, acting_user_id=CONTROLLER_ID)
+        db.commit()
+
+        june = (
+            db.query(Forecast)
+            .filter(Forecast.project_id == "proj-own-c",
+                    Forecast.month == "2026-06",
+                    Forecast.sub_category == "role-step")
+            .first()
+        )
+        july = (
+            db.query(Forecast)
+            .filter(Forecast.project_id == "proj-own-c",
+                    Forecast.month == "2026-07",
+                    Forecast.sub_category == "role-step")
+            .first()
+        )
+        assert float(june.amount_eur) == 20.0 * 100.0   # 2000.0 — June rate
+        assert float(july.amount_eur) == 20.0 * 150.0   # 3000.0 — July step-up
+
 
 # ---------------------------------------------------------------------------
 # materialize_provisional_cells — apply-to-forecast writer

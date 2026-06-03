@@ -180,6 +180,41 @@ def test_cell_edit_wins_over_mix(db):
     assert r1.cells["2026-06"].hours == 123  # cell edit overrides the mix result
 
 
+def test_mix_prices_each_month_at_rate_in_force(db):
+    """S6 rate-at-month regression for the mix swap. A swap spanning two months
+    across a rate step must re-price each month at the rate in force *that month*
+    (rate moved inside the per-month loop), not a single rate for the window."""
+    proj = _project(db, start="2026-05", end="2026-08")
+    _forecast(db, proj.id, "2026-06", "R1", 100, 10000, role_type_id="R1")
+    _forecast(db, proj.id, "2026-07", "R1", 100, 10000, role_type_id="R1")
+    # R1 steps 100 -> 200 at 2026-07; R2 flat at 50.
+    db.add(RateTable(role_type_id="R1", competence_center_id="cc-x",
+                     hourly_rate=Decimal("100.00"), effective_date="2025-01-01"))
+    db.add(RateTable(role_type_id="R1", competence_center_id="cc-x",
+                     hourly_rate=Decimal("200.00"), effective_date="2026-07-01"))
+    db.add(RateTable(role_type_id="R2", competence_center_id="cc-x",
+                     hourly_rate=Decimal("50.00"), effective_date="2025-01-01"))
+    sc = _scenario(db)
+    db.add(ScenarioMixChange(
+        scenario_id=sc.id, project_id=proj.id,
+        swap_from_role_id="R1", swap_to_role_id="R2",
+        hours_per_month_swap=Decimal("40"), effective_from="2026-06",
+    ))
+    db.commit()
+
+    grid = resolve_project_grid(db, sc, proj.id)
+    r1 = _internal_line_for_role(grid, "R1")
+    r2 = _internal_line_for_role(grid, "R2")
+    # 60h remain on R1 each month, priced at that month's rate (100 in June, 200 in July).
+    assert r1.cells["2026-06"].hours == 60
+    assert r1.cells["2026-06"].amount_eur == 6000.0    # 60h x 100
+    assert r1.cells["2026-07"].hours == 60
+    assert r1.cells["2026-07"].amount_eur == 12000.0   # 60h x 200 (step-up)
+    # 40h swapped onto R2 each month, flat 50/h.
+    assert r2.cells["2026-06"].amount_eur == 2000.0
+    assert r2.cells["2026-07"].amount_eur == 2000.0
+
+
 # ===========================================================================
 # Router integration
 # ===========================================================================
