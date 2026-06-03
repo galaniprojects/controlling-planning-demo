@@ -315,6 +315,95 @@ class TestApplyDistributionCreate:
         assert exc.value.cycle_chain is not None
         assert "ent-src" in exc.value.cycle_chain or "ent-dst" in exc.value.cycle_chain
 
+    def test_added_destination_flows_into_downstream_effective_cost(
+        self, db, lever12_world,
+    ):
+        """Session 3 add-destination: a NEW Stage-1 edge must propagate the
+        source's effective cost into the destination's per-location split.
+
+        ent-src (eff 100k, leaf) gains a NEW 15% edge to ent-3. ent-3 has its
+        own BTC profile (cl-a 100%) + to_business 40%. The edge does NOT exist
+        on the anchor version, so ent-3's anchor effective cost is own-cost
+        only (0) while its scenario effective cost picks up 100k*0.15 = 15k of
+        inflow. The per-location delta must surface that 15k → cl-a 6k.
+        """
+        ent_3 = ChargeableEntity(
+            id="ent-3", entity_type="InternalService", identifier="ITF00200",
+            name="Third Service", annual_cost=Decimal("0"),
+            to_business_pct=Decimal("40"),
+        )
+        db.add(ent_3)
+        db.flush()
+        db.add(BTCProfile(
+            entity_id="ent-3", year=2026, mode="manual", status="active",
+        ))
+        db.flush()
+        profile_3 = (
+            db.query(BTCProfile).filter(BTCProfile.entity_id == "ent-3").first()
+        )
+        db.add(BTCProfileLine(
+            profile_id=profile_3.id, charging_location_id="cl-a",
+            percentage=Decimal("100"),
+        ))
+        db.commit()
+
+        # ent-src: to_business 30 + existing edge 50 + new 15 = 95 ≤ 100.
+        apply_distribution_create(
+            db, lever12_world["scenario_id"], year=2026,
+            source_entity_id="ent-src", destination_entity_id="ent-3",
+            percentage=15.0,
+        )
+        db.commit()
+
+        out = compute_cost_allocation_impact(
+            db, lever12_world["scenario_id"], year=2026,
+        )
+        items = {(i["entity_id"], i["charging_location_id"]): i for i in out["items"]}
+        # ent-3 picks up the inflow only on the scenario side.
+        assert ("ent-3", "cl-a") in items
+        row = items[("ent-3", "cl-a")]
+        assert row["anchor_amount"] == 0.0
+        assert row["scenario_amount"] == 6000.0  # 100k * 0.15 * 0.40
+        assert row["delta"] == 6000.0
+        # ent-src's own per-location amounts are unchanged (its incoming
+        # effective cost did not move) → no noise rows for it.
+        assert ("ent-src", "cl-a") not in items
+        assert ("ent-src", "cl-b") not in items
+
+    def test_union_cycle_detected_for_sandbox_only_edge(self, db, lever12_world):
+        """Union-aware cycle: an edge that cycles ONLY through sandbox edges
+        (not present on the anchor) must still be rejected.
+
+        Anchor graph has just ent-src → ent-dst. We add a sandbox edge
+        ent-dst → ent-3, then attempt ent-3 → ent-src. That closes the loop
+        ent-src → ent-dst → ent-3 → ent-src — a cycle that exists ONLY in the
+        union of anchor + scenario edges, never in the anchor alone.
+        """
+        ent_3 = ChargeableEntity(
+            id="ent-3", entity_type="InternalService", identifier="ITF00200",
+            name="Third Service", annual_cost=Decimal("0"),
+            to_business_pct=Decimal("0"),
+        )
+        db.add(ent_3)
+        db.commit()
+
+        # Sandbox-only edge ent-dst → ent-3 (no anchor equivalent).
+        apply_distribution_create(
+            db, lever12_world["scenario_id"], year=2026,
+            source_entity_id="ent-dst", destination_entity_id="ent-3",
+            percentage=50.0,
+        )
+        db.commit()
+
+        # ent-3 → ent-src closes a loop only via the union graph.
+        with pytest.raises(Lever12Error) as exc:
+            apply_distribution_create(
+                db, lever12_world["scenario_id"], year=2026,
+                source_entity_id="ent-3", destination_entity_id="ent-src",
+                percentage=10.0,
+            )
+        assert exc.value.cycle_chain is not None
+
 
 class TestApplyDistributionUpdate:
     def test_update_anchor_edge_forks_first(self, db, lever12_world):
@@ -723,6 +812,150 @@ class TestUnionAwareEffectiveCost:
         assert items[("ent-src-up", "cl-up-a")]["anchor_amount"] == 70000.0
         assert items[("ent-src-up", "cl-up-a")]["scenario_amount"] == 58000.0
         assert items[("ent-src-up", "cl-up-a")]["delta"] == -12000.0
+
+
+# ---------------------------------------------------------------------------
+# Mixed Stage-1 + Stage-2 — MDH rebalance balance re-verification
+#
+# The seeded "MDH BTC Rebalance" demo scenario shifts both the Stage-1
+# distribution AND the Stage-2 BTC split. This class guards the invariant
+# the lead flagged: after BOTH stages are mutated, the per-charging-location
+# totals must still balance (Σ scenario per-location amounts for an entity ==
+# its scenario effective cost × to_business%), the union-aware effective-cost
+# walk must use scenario edges for forked sources and anchor edges for
+# unforked ones, and the live distribution/BTC rows must never be touched.
+# ---------------------------------------------------------------------------
+
+class TestMixedStageMDHBalance:
+    """Re-verify MDH-style balance after a combined Stage-1 + Stage-2 edit."""
+
+    def _balance_for_entity(self, out, entity_id):
+        """Sum the scenario per-location amounts surfaced for one entity."""
+        return round(
+            sum(
+                i["scenario_amount"]
+                for i in out["items"]
+                if i["entity_id"] == entity_id
+            ),
+            2,
+        )
+
+    def test_stage1_edge_and_stage2_btc_balance_and_union_aware(
+        self, db, lever12_with_upstream,
+    ):
+        """Mutate Stage 1 (upstream edge %) AND Stage 2 (BTC split) together.
+
+        Topology (from the fixture):
+            ent-up (80k) --50%--> ent-src-up (100k, to_business 50%)
+            BTCProfile on ent-src-up: cl-up-a 100%
+
+        Anchor:  eff = 100k + 80k*0.50 = 140k; to_business = 70k;
+                 BTC 100/0  → cl-a 70k, cl-b 0.
+
+        Mixed scenario:
+            Stage 1 — drop the upstream edge 50% → 25%
+                      eff (union-aware) = 100k + 80k*0.25 = 120k
+            Stage 2 — BTC 100/0 → 40/60
+                      to_business = 120k*0.5 = 60k → cl-a 24k, cl-b 36k.
+
+        The scenario side must use the FORKED upstream edge (25%), proving the
+        union walk consumed the scenario edge rather than the stale anchor 50%.
+        """
+        sid = lever12_with_upstream["scenario_id"]
+        anchor_version_id = lever12_with_upstream["active_version_id"]
+
+        # Stage 1: fork + reduce the upstream edge.
+        anchor_edge = (
+            db.query(Distribution)
+            .filter(
+                Distribution.version_id == anchor_version_id,
+                Distribution.source_entity_id == "ent-up",
+            )
+            .one()
+        )
+        apply_distribution_update(db, sid, edge_id=anchor_edge.id, percentage=25.0)
+        # Stage 2: rebalance the BTC split (still sums to 100).
+        apply_btc_lines_change(
+            db, sid, entity_id="ent-src-up", year=2026,
+            lines=[
+                {"charging_location_id": "cl-up-a", "percentage": 40.0},
+                {"charging_location_id": "cl-up-b", "percentage": 60.0},
+            ],
+        )
+        db.commit()
+
+        out = compute_cost_allocation_impact(db, sid, year=2026)
+        items = {(i["entity_id"], i["charging_location_id"]): i for i in out["items"]}
+
+        # Anchor side (unchanged): 140k eff, 70k to_business, 100/0 split.
+        assert items[("ent-src-up", "cl-up-a")]["anchor_amount"] == 70000.0
+        assert items[("ent-src-up", "cl-up-b")]["anchor_amount"] == 0.0
+        # Scenario side: union-aware 120k eff, 60k to_business, 40/60 split.
+        assert items[("ent-src-up", "cl-up-a")]["scenario_amount"] == 24000.0
+        assert items[("ent-src-up", "cl-up-b")]["scenario_amount"] == 36000.0
+        # Deltas.
+        assert items[("ent-src-up", "cl-up-a")]["delta"] == -46000.0
+        assert items[("ent-src-up", "cl-up-b")]["delta"] == 36000.0
+
+        # --- MDH balance re-verification --------------------------------
+        # Per-location scenario amounts must reconcile to eff × to_business%.
+        # eff = 120k, to_business = 50% → 60k total to-business value.
+        assert self._balance_for_entity(out, "ent-src-up") == 60000.0
+        # Anchor side balances independently: 140k × 50% = 70k.
+        anchor_balance = round(
+            sum(
+                i["anchor_amount"]
+                for i in out["items"]
+                if i["entity_id"] == "ent-src-up"
+            ),
+            2,
+        )
+        assert anchor_balance == 70000.0
+        # Grand totals reconcile.
+        assert out["totals"]["anchor_total"] == 70000.0
+        assert out["totals"]["scenario_total"] == 60000.0
+        assert out["totals"]["delta"] == -10000.0
+
+    def test_mixed_edit_does_not_mutate_live_rows(self, db, lever12_with_upstream):
+        """Invariant 2: the live anchor edge and live BTC lines are never
+        mutated by a combined Stage-1 + Stage-2 sandbox edit."""
+        sid = lever12_with_upstream["scenario_id"]
+        anchor_version_id = lever12_with_upstream["active_version_id"]
+        anchor_edge = (
+            db.query(Distribution)
+            .filter(
+                Distribution.version_id == anchor_version_id,
+                Distribution.source_entity_id == "ent-up",
+            )
+            .one()
+        )
+        apply_distribution_update(db, sid, edge_id=anchor_edge.id, percentage=25.0)
+        apply_btc_lines_change(
+            db, sid, entity_id="ent-src-up", year=2026,
+            lines=[
+                {"charging_location_id": "cl-up-a", "percentage": 40.0},
+                {"charging_location_id": "cl-up-b", "percentage": 60.0},
+            ],
+        )
+        db.commit()
+
+        # Live anchor edge still 50%.
+        live_edge = (
+            db.query(Distribution).filter(Distribution.id == anchor_edge.id).one()
+        )
+        assert float(live_edge.percentage) == 50.0
+        # Live BTC lines still cl-up-a 100% (single line).
+        live_lines = (
+            db.query(BTCProfileLine)
+            .join(BTCProfile, BTCProfileLine.profile_id == BTCProfile.id)
+            .filter(BTCProfile.entity_id == "ent-src-up")
+            .all()
+        )
+        pct_map = {
+            line.charging_location_id: float(line.percentage)
+            for line in live_lines
+        }
+        assert pct_map == {"cl-up-a": 100.0}
 
 
 # ---------------------------------------------------------------------------
