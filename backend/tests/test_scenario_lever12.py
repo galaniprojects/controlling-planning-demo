@@ -959,6 +959,107 @@ class TestMixedStageMDHBalance:
 
 
 # ---------------------------------------------------------------------------
+# Union-aware CASCADE (Simulator S3 boundary waiver)
+#
+# The Stage-1 distribution editor reloads via `cascade_query.query_cascade_chain`.
+# In sandbox mode it is called with an `anchor_version_id`, switching the walk
+# + effective-cost to the same union-of-forked-vs-anchor rule as the impact
+# preview, so the editor shows its own forked/added edges with correct EUR
+# amounts. These tests lock both the sandbox behaviour AND the guarantee that
+# the canonical (anchor=None) path is unchanged.
+# ---------------------------------------------------------------------------
+
+class TestUnionAwareCascade:
+    """`query_cascade_chain` under the sandbox union rule + canonical guard."""
+
+    def _add_sandbox_destination(self, db, sid):
+        """Add a new sandbox edge ent-src-up -> ent-x (20%). Forks the focal's
+        outgoing set (empty in anchor) and creates the sandbox version, while
+        leaving the focal's UPSTREAM source (ent-up) un-forked."""
+        ent_x = ChargeableEntity(
+            id="ent-x", entity_type="InternalService", identifier="ITF00900",
+            name="New Sink", annual_cost=Decimal("0"), to_business_pct=Decimal("0"),
+        )
+        db.add(ent_x)
+        db.commit()
+        apply_distribution_create(
+            db, sid, year=2026,
+            source_entity_id="ent-src-up", destination_entity_id="ent-x",
+            percentage=20.0,
+        )
+        db.commit()
+
+    def test_sandbox_cascade_preserves_unforked_upstream_inflow(
+        self, db, lever12_with_upstream,
+    ):
+        """Focal effective cost must include the anchor inflow from an
+        UN-forked upstream source (the exact bug class). ent-up was never
+        forked, yet ent-src-up must still cost out at 140k (own 100k + anchor
+        inflow 80k*0.5), and the newly-added sandbox edge must appear."""
+        from services import cascade_query
+        from services.scenario_lever12 import resolve_sandbox_and_anchor
+
+        sid = lever12_with_upstream["scenario_id"]
+        self._add_sandbox_destination(db, sid)
+        sv_id, anchor_id = resolve_sandbox_and_anchor(db, sid)
+        assert sv_id is not None and anchor_id is not None
+
+        result = cascade_query.query_cascade_chain(
+            db, "ent-src-up", version_id=sv_id, anchor_version_id=anchor_id,
+        )
+        # Union-aware: anchor inflow from un-forked ent-up is preserved.
+        assert result.focal.effective_cost == 140000.0
+        assert "ent-up" in {n.entity_id for n in result.upstream}
+        # The added sandbox destination is WYSIWYG-visible.
+        assert "ent-x" in {n.entity_id for n in result.downstream}
+        assert any(
+            e.source_entity_id == "ent-src-up" and e.destination_entity_id == "ent-x"
+            for e in result.edges
+        )
+
+    def test_naive_single_version_walk_loses_inflow_without_anchor(
+        self, db, lever12_with_upstream,
+    ):
+        """Contrast guard: querying the SPARSE sandbox version withOUT an
+        anchor (anchor_version_id=None) loses the un-forked upstream inflow —
+        100k own only. This is precisely why the union path exists; if a
+        future refactor dropped the anchor arg this asserts the regression."""
+        from services import cascade_query
+        from services.scenario_lever12 import resolve_sandbox_and_anchor
+
+        sid = lever12_with_upstream["scenario_id"]
+        self._add_sandbox_destination(db, sid)
+        sv_id, _ = resolve_sandbox_and_anchor(db, sid)
+
+        result = cascade_query.query_cascade_chain(
+            db, "ent-src-up", version_id=sv_id, anchor_version_id=None,
+        )
+        assert result.focal.effective_cost == 100000.0
+
+    def test_canonical_cascade_unchanged_ignores_sandbox(
+        self, db, lever12_with_upstream,
+    ):
+        """The canonical (production) cascade must be unaffected by sandbox
+        edits: focal still 140k via the anchor edge, upstream still ent-up,
+        and the sandbox-only ent-x edge must NOT leak into the production
+        cascade."""
+        from services import cascade_query
+        from services.scenario_lever12 import resolve_sandbox_and_anchor
+
+        sid = lever12_with_upstream["scenario_id"]
+        self._add_sandbox_destination(db, sid)
+        _, anchor_id = resolve_sandbox_and_anchor(db, sid)
+
+        result = cascade_query.query_cascade_chain(
+            db, "ent-src-up", version_id=anchor_id,  # anchor_version_id=None
+        )
+        assert result.focal.effective_cost == 140000.0
+        assert "ent-up" in {n.entity_id for n in result.upstream}
+        assert "ent-x" not in {n.entity_id for n in result.downstream}
+        assert not any(e.destination_entity_id == "ent-x" for e in result.edges)
+
+
+# ---------------------------------------------------------------------------
 # Anchor pinning — FD-3 OQ #3
 # ---------------------------------------------------------------------------
 

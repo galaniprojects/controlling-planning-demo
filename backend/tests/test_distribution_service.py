@@ -33,9 +33,12 @@ from services.distribution_service import (
     create_version,
     delete_distribution_edge,
     delete_version,
+    get_forked_sources,
     get_version,
     list_edges_for_version,
     list_versions,
+    union_incoming_edges,
+    union_outgoing_edges,
     resolve_active_version,
     resolve_active_version_or_raise,
     resolve_default_compared_to,
@@ -1087,3 +1090,89 @@ class TestDepthValidation:
             db.query(Distribution).filter_by(id=raw_edge.id).first().chain_depth
             == 2
         )
+
+
+# ---------------------------------------------------------------------------
+# Union-aware edge resolution (Simulator S3) — shared sandbox primitives
+#
+# These back the simulator's union-of-forked-vs-anchor cascade. They are the
+# single source of truth reused by scenario_lever12 (impact preview) and the
+# anchor-aware cascade_query / dag_resolver paths (editor reload).
+# ---------------------------------------------------------------------------
+
+
+class TestUnionEdgeHelpers:
+    @pytest.fixture
+    def union_world(self, db, graph):
+        """Anchor: A→B 30, B→C 40. Sandbox: A forked, A→B edited to 50.
+
+        So forked_sources = {A}: A reads from sandbox, B/C inherit anchor.
+        """
+        anchor = graph["active"]
+        sandbox = DistributionVersion(
+            active_from=None, status="draft", rationale="", origin="blank",
+        )
+        db.add(sandbox)
+        db.flush()
+        db.add_all([
+            Distribution(version_id=anchor.id, source_entity_id="A",
+                         destination_entity_id="B", percentage=30.0),
+            Distribution(version_id=anchor.id, source_entity_id="B",
+                         destination_entity_id="C", percentage=40.0),
+            Distribution(version_id=sandbox.id, source_entity_id="A",
+                         destination_entity_id="B", percentage=50.0),
+        ])
+        db.commit()
+        return {"anchor": anchor.id, "sandbox": sandbox.id}
+
+    def test_forked_sources(self, db, union_world):
+        assert get_forked_sources(db, union_world["sandbox"]) == {"A"}
+
+    def test_outgoing_forked_uses_sandbox(self, db, union_world):
+        out = union_outgoing_edges(
+            db, entity_id="A", scenario_version_id=union_world["sandbox"],
+            anchor_version_id=union_world["anchor"],
+        )
+        assert len(out) == 1
+        assert float(out[0].percentage) == 50.0
+
+    def test_outgoing_unforked_falls_back_to_anchor(self, db, union_world):
+        out = union_outgoing_edges(
+            db, entity_id="B", scenario_version_id=union_world["sandbox"],
+            anchor_version_id=union_world["anchor"],
+        )
+        assert len(out) == 1
+        assert out[0].destination_entity_id == "C"
+        assert float(out[0].percentage) == 40.0
+
+    def test_incoming_prefers_sandbox_excludes_anchor_dup(self, db, union_world):
+        # Into B: the sandbox A→B (50) wins; the anchor A→B (30) is excluded
+        # because its source A is forked. No double-counting.
+        inc = union_incoming_edges(
+            db, entity_id="B", scenario_version_id=union_world["sandbox"],
+            anchor_version_id=union_world["anchor"],
+        )
+        assert len(inc) == 1
+        assert float(inc[0].percentage) == 50.0
+
+    def test_incoming_unforked_source_uses_anchor(self, db, union_world):
+        # Into C: source B is un-forked → the anchor B→C (40) is used.
+        inc = union_incoming_edges(
+            db, entity_id="C", scenario_version_id=union_world["sandbox"],
+            anchor_version_id=union_world["anchor"],
+        )
+        assert len(inc) == 1
+        assert inc[0].source_entity_id == "B"
+        assert float(inc[0].percentage) == 40.0
+
+    def test_no_anchor_returns_sandbox_only(self, db, union_world):
+        # anchor=None disables fallback: un-forked B has no sandbox outgoing,
+        # and C has no sandbox incoming.
+        assert union_outgoing_edges(
+            db, entity_id="B", scenario_version_id=union_world["sandbox"],
+            anchor_version_id=None,
+        ) == []
+        assert union_incoming_edges(
+            db, entity_id="C", scenario_version_id=union_world["sandbox"],
+            anchor_version_id=None,
+        ) == []

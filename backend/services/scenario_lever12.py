@@ -154,6 +154,35 @@ def _resolve_anchor_version_id(
     return av.id if av is not None else None
 
 
+def resolve_sandbox_and_anchor(
+    db: Session, scenario_id: int,
+) -> tuple[Optional[int], Optional[int]]:
+    """Read-only resolution of a scenario's (sandbox_version_id, anchor_version_id).
+
+    Used by the union-aware cascade/summary read endpoints (Simulator S3) to
+    render the sandbox WYSIWYG without mutating anything. Unlike
+    :func:`_get_or_create_scenario_dist_version` this NEVER creates the
+    sandbox version — a scenario with no Stage-1 edits yet returns
+    ``(None, anchor)`` so the caller can fall back to a plain anchor read.
+
+    Returns ``(None, None)`` for an unknown scenario (caller decides whether
+    to 404 or degrade). ``anchor`` may be ``None`` when no production version
+    is in force (unseeded state) — same contract as
+    :func:`_resolve_anchor_version_id`.
+    """
+    scenario = db.query(Scenario).filter(Scenario.id == scenario_id).first()
+    if scenario is None:
+        return None, None
+    anchor_version_id = _resolve_anchor_version_id(db, scenario)
+    sv_row = (
+        db.query(DistributionVersion)
+        .filter(DistributionVersion.scenario_id == scenario_id)
+        .first()
+    )
+    sandbox_version_id = sv_row.id if sv_row is not None else None
+    return sandbox_version_id, anchor_version_id
+
+
 def _get_or_create_scenario_dist_version(
     db: Session, scenario_id: int,
 ) -> DistributionVersion:
@@ -1007,42 +1036,20 @@ def _compute_scenario_effective_cost(
 
     total = float(get_own_cost(entity))
 
-    # Sources for which the scenario forked Stage 1 edges. We use this set
-    # to decide which version to query for each incoming edge's source.
-    forked_sources = {
-        row[0] for row in
-        db.query(Distribution.source_entity_id)
-        .filter(Distribution.version_id == scenario_version_id)
-        .distinct()
-        .all()
-    }
-
     # Incoming edges into this entity = union of (scenario edges where the
     # source was forked) + (anchor edges where the source was NOT forked).
-    incoming_scenario = (
-        db.query(Distribution)
-        .filter(
-            Distribution.version_id == scenario_version_id,
-            Distribution.destination_entity_id == entity_id,
-        )
-        .all()
-    )
-    incoming_anchor: list[Distribution] = []
-    if anchor_version_id is not None:
-        incoming_anchor_all = (
-            db.query(Distribution)
-            .filter(
-                Distribution.version_id == anchor_version_id,
-                Distribution.destination_entity_id == entity_id,
-            )
-            .all()
-        )
-        incoming_anchor = [
-            e for e in incoming_anchor_all
-            if e.source_entity_id not in forked_sources
-        ]
+    # The union rule itself lives in distribution_service so the editor
+    # cascade (dag_resolver / cascade_query anchor-aware paths) walks the
+    # exact same edge set as this impact-preview computation — they cannot
+    # drift. The arithmetic (unrounded recursive sum) stays here, unchanged.
+    from services.distribution_service import union_incoming_edges
 
-    for edge in [*incoming_scenario, *incoming_anchor]:
+    incoming = union_incoming_edges(
+        db, entity_id=entity_id,
+        scenario_version_id=scenario_version_id,
+        anchor_version_id=anchor_version_id,
+    )
+    for edge in incoming:
         upstream_cost = _compute_scenario_effective_cost(
             db, scenario_version_id, anchor_version_id,
             edge.source_entity_id, _seen=_seen,

@@ -164,6 +164,8 @@ def _derive_year(
 
 def _build_node(
     db: Session, entity: ChargeableEntity, version_id: int, year: int,
+    *, anchor_version_id: Optional[int] = None,
+    forked_sources: Optional[set[str]] = None,
 ) -> CascadeNodeResult:
     """Compute the cascade-node payload for one entity.
 
@@ -175,23 +177,40 @@ def _build_node(
     :func:`_derive_year` and threaded through so own-cost lookups (which
     are year-scoped on ``Project.annual_budget``) stay consistent with
     the resolved version.
+
+    Simulator S3: ``anchor_version_id`` (when set) switches both the
+    effective-cost walk and the self-retained outgoing-sum to the sandbox
+    union rule. ``None`` → canonical single-version behaviour, unchanged.
     """
     from services.dag_resolver import compute_effective_cost
 
-    result = compute_effective_cost(db, year, version_id, entity.id)
+    result = compute_effective_cost(
+        db, year, version_id, entity.id, anchor_version_id=anchor_version_id,
+    )
     to_business = float(entity.to_business_pct or 0)
 
     # Self-retained = 100 - to_business - sum(outgoing distribution %).
     # Same formula the existing sum_validation surfaces use.
-    outgoing_sum = (
-        db.query(Distribution.percentage)
-        .filter(
-            Distribution.version_id == version_id,
-            Distribution.source_entity_id == entity.id,
+    if anchor_version_id is None:
+        outgoing_sum = (
+            db.query(Distribution.percentage)
+            .filter(
+                Distribution.version_id == version_id,
+                Distribution.source_entity_id == entity.id,
+            )
+            .all()
         )
-        .all()
-    )
-    out_total = sum(float(p[0]) for p in outgoing_sum)
+        out_total = sum(float(p[0]) for p in outgoing_sum)
+    else:
+        from services.distribution_service import union_outgoing_edges
+        out_total = sum(
+            float(e.percentage)
+            for e in union_outgoing_edges(
+                db, entity_id=entity.id, scenario_version_id=version_id,
+                anchor_version_id=anchor_version_id,
+                forked_sources=forked_sources,
+            )
+        )
     self_retained = max(0.0, 100.0 - to_business - out_total)
 
     return CascadeNodeResult(
@@ -208,6 +227,8 @@ def _build_node(
 
 def _walk_directed(
     db: Session, version_id: int, start_entity_id: str, direction: str,
+    *, anchor_version_id: Optional[int] = None,
+    forked_sources: Optional[set[str]] = None,
 ) -> tuple[set[str], list[Distribution]]:
     """BFS over Distribution edges in one direction.
 
@@ -215,7 +236,20 @@ def _walk_directed(
     ``"downstream"`` (walk source → destination). Returns the set of
     visited entity ids (excluding the start) and the list of all edges
     traversed during the walk (deduped by id).
+
+    Simulator S3: when ``anchor_version_id`` is supplied, ``version_id`` is a
+    per-scenario sandbox version and the per-node edge lookups use the
+    union-of-forked-vs-anchor rule (``distribution_service`` helpers) so the
+    cascade reflects the sandbox WYSIWYG. When ``None`` (canonical Charging
+    path) the queries are the original single-version filters — unchanged.
     """
+    if anchor_version_id is not None:
+        from services.distribution_service import (
+            get_forked_sources, union_incoming_edges, union_outgoing_edges,
+        )
+        if forked_sources is None:
+            forked_sources = get_forked_sources(db, version_id)
+
     visited: set[str] = set()
     edges_by_id: dict[int, Distribution] = {}
     queue: deque[str] = deque([start_entity_id])
@@ -223,14 +257,21 @@ def _walk_directed(
     while queue:
         current = queue.popleft()
         if direction == "upstream":
-            rows = (
-                db.query(Distribution)
-                .filter(
-                    Distribution.version_id == version_id,
-                    Distribution.destination_entity_id == current,
+            if anchor_version_id is None:
+                rows = (
+                    db.query(Distribution)
+                    .filter(
+                        Distribution.version_id == version_id,
+                        Distribution.destination_entity_id == current,
+                    )
+                    .all()
                 )
-                .all()
-            )
+            else:
+                rows = union_incoming_edges(
+                    db, entity_id=current, scenario_version_id=version_id,
+                    anchor_version_id=anchor_version_id,
+                    forked_sources=forked_sources,
+                )
             for edge in rows:
                 edges_by_id[edge.id] = edge
                 neighbour = edge.source_entity_id
@@ -238,14 +279,21 @@ def _walk_directed(
                     visited.add(neighbour)
                     queue.append(neighbour)
         else:  # downstream
-            rows = (
-                db.query(Distribution)
-                .filter(
-                    Distribution.version_id == version_id,
-                    Distribution.source_entity_id == current,
+            if anchor_version_id is None:
+                rows = (
+                    db.query(Distribution)
+                    .filter(
+                        Distribution.version_id == version_id,
+                        Distribution.source_entity_id == current,
+                    )
+                    .all()
                 )
-                .all()
-            )
+            else:
+                rows = union_outgoing_edges(
+                    db, entity_id=current, scenario_version_id=version_id,
+                    anchor_version_id=anchor_version_id,
+                    forked_sources=forked_sources,
+                )
             for edge in rows:
                 edges_by_id[edge.id] = edge
                 neighbour = edge.destination_entity_id
@@ -306,6 +354,8 @@ def query_cascade_chain(
     entity_id: str,
     version_id: Optional[int] = None,
     evaluated_date: Optional[date] = None,
+    *,
+    anchor_version_id: Optional[int] = None,
 ) -> CascadeChainResult:
     """Resolve the full bidirectional cascade for a focal entity.
 
@@ -314,6 +364,13 @@ def query_cascade_chain(
     sub-graph plus the focal's business terminals. ``version_id`` selects
     the Stage 1 version explicitly; otherwise resolves the production
     version in force on ``evaluated_date`` (default: today).
+
+    Simulator S3: when ``anchor_version_id`` is supplied, ``version_id`` is a
+    per-scenario sandbox draft version and the whole cascade (both walks +
+    every node's effective cost + self-retained) is computed under the
+    union-of-forked-vs-anchor rule, so the simulator editor shows its own
+    sandbox edges with correct EUR amounts. When ``None`` (the canonical
+    Charging path) the result is byte-identical to the pre-S3 behaviour.
 
     Raises ``ValueError`` for not-found focal / no active production
     version; the router maps these to HTTP 404.
@@ -330,18 +387,31 @@ def query_cascade_chain(
     from services.depth_validation import get_max_allocation_depth
     max_depth = get_max_allocation_depth(db)
 
+    # Sandbox union mode: resolve the forked-source set once and thread it
+    # through every walk + node build so the cascade is internally consistent
+    # and we avoid repeated DISTINCT queries. Inert when anchor is None.
+    forked_sources: Optional[set[str]] = None
+    if anchor_version_id is not None:
+        from services.distribution_service import get_forked_sources
+        forked_sources = get_forked_sources(db, version.id)
+
     # Walk both directions from the focal node. The focal is included
     # in neither set — we add the focal as a separate node below.
     upstream_ids, upstream_edges = _walk_directed(
         db, version.id, entity_id, "upstream",
+        anchor_version_id=anchor_version_id, forked_sources=forked_sources,
     )
     downstream_ids, downstream_edges = _walk_directed(
         db, version.id, entity_id, "downstream",
+        anchor_version_id=anchor_version_id, forked_sources=forked_sources,
     )
 
     # Build node payloads — focal first so its effective cost feeds the
     # business-terminal calc, then each upstream and downstream entity.
-    focal_node = _build_node(db, focal, version.id, year)
+    focal_node = _build_node(
+        db, focal, version.id, year,
+        anchor_version_id=anchor_version_id, forked_sources=forked_sources,
+    )
 
     upstream_nodes: list[CascadeNodeResult] = []
     if upstream_ids:
@@ -352,7 +422,14 @@ def query_cascade_chain(
         )
         # Stable-ish ordering by entity_id for deterministic responses.
         rows.sort(key=lambda r: r.id)
-        upstream_nodes = [_build_node(db, r, version.id, year) for r in rows]
+        upstream_nodes = [
+            _build_node(
+                db, r, version.id, year,
+                anchor_version_id=anchor_version_id,
+                forked_sources=forked_sources,
+            )
+            for r in rows
+        ]
 
     downstream_nodes: list[CascadeNodeResult] = []
     if downstream_ids:
@@ -362,7 +439,14 @@ def query_cascade_chain(
             .all()
         )
         rows.sort(key=lambda r: r.id)
-        downstream_nodes = [_build_node(db, r, version.id, year) for r in rows]
+        downstream_nodes = [
+            _build_node(
+                db, r, version.id, year,
+                anchor_version_id=anchor_version_id,
+                forked_sources=forked_sources,
+            )
+            for r in rows
+        ]
 
     # Effective-cost lookup keyed by entity id, for edge amount resolution.
     # Includes the focal so edges anchored at the focal also resolve.

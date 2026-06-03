@@ -1162,6 +1162,7 @@ def get_entity_distribution_summary(
     entity_id: str,
     version_id: int | None = None,
     evaluated_date: date | None = None,
+    scenario_id: int | None = None,
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role(
         "controller", "executive", "project_lead", "cost_center_owner",
@@ -1174,10 +1175,48 @@ def get_entity_distribution_summary(
     can render the edges-as-list view in one round trip. ``version_id``
     selects an explicit version; ``evaluated_date`` resolves the in-force
     production version; both omitted = in-force today.
+
+    Simulator S3: ``scenario_id`` requests the union-aware sandbox view —
+    the entity's effective outgoing edges (sandbox edges if the source was
+    forked, else the inherited anchor edges) WITH their edge ids, so the
+    Lever-12 editor renders its own added/forked destinations and routes
+    update/delete to the right row (un-forked edges fork on first touch via
+    the sandbox handlers). ``to_business_pct`` reflects the live entity value
+    here — the scenario to-business overlay surfaces in the impact preview,
+    not on this Stage-1 list. ``scenario_id`` omitted → unchanged behaviour.
     """
     entity = db.query(ChargeableEntity).filter_by(id=entity_id).first()
     if entity is None:
         raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
+
+    if scenario_id is not None:
+        from services.distribution_service import (
+            SUM_TOLERANCE, union_outgoing_edges,
+        )
+        from services.scenario_lever12 import resolve_sandbox_and_anchor
+        sv_id, anchor_id = resolve_sandbox_and_anchor(db, scenario_id)
+        if sv_id is not None:
+            # Union-aware sandbox summary (focal may or may not be forked).
+            edges = union_outgoing_edges(
+                db, entity_id=entity_id, scenario_version_id=sv_id,
+                anchor_version_id=anchor_id,
+            )
+            edges.sort(key=lambda e: e.destination_entity_id)
+            to_business = float(entity.to_business_pct or 0)
+            out_total = sum(float(e.percentage) for e in edges)
+            grand_total = to_business + out_total
+            return EntityDistributionSummary(
+                entity_id=entity.id,
+                entity_name=entity.name,
+                version_id=sv_id,
+                to_business_pct=round(to_business, 2),
+                distributions=[_serialize_distribution(e) for e in edges],
+                self_retained_pct=round(max(0.0, 100.0 - grand_total), 2),
+                sums_within_100=grand_total <= 100.0 + SUM_TOLERANCE,
+            )
+        # No Stage-1 edits yet → plain anchor summary via the standard path.
+        if anchor_id is not None:
+            version_id = anchor_id
 
     version = _resolve_version_param(db, version_id, evaluated_date)
     result = compute_sum_validation(db, entity_id, version.id)
@@ -1233,7 +1272,8 @@ def update_entity_to_business_pct(
     )
     db.commit()
     return get_entity_distribution_summary(
-        entity_id, version_id, None, db, user,
+        entity_id, version_id=version_id, evaluated_date=None,
+        scenario_id=None, db=db, _user=user,
     )
 
 
@@ -1700,6 +1740,7 @@ def get_cascade_chain(
     entity_id: str,
     version_id: int | None = None,
     evaluated_date: date | None = None,
+    scenario_id: int | None = None,
     db: Session = Depends(get_db),
     _user: CurrentUser = Depends(require_role(
         "controller", "executive", "project_lead", "cost_center_owner",
@@ -1735,9 +1776,26 @@ def get_cascade_chain(
     if ce is None:
         raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
 
+    # Simulator S3: ``scenario_id`` requests the union-aware sandbox cascade
+    # so the Lever-12 distribution editor renders its own forked/added edges
+    # with correct EUR amounts. We resolve the scenario's sandbox version +
+    # production anchor read-only. With no Stage-1 edits yet (no sandbox
+    # version) we degrade to a plain anchor cascade. ``scenario_id`` omitted
+    # → unchanged canonical resolution.
+    anchor_for_query: int | None = None
+    if scenario_id is not None:
+        from services.scenario_lever12 import resolve_sandbox_and_anchor
+        sv_id, anchor_id = resolve_sandbox_and_anchor(db, scenario_id)
+        if sv_id is not None:
+            version_id = sv_id
+            anchor_for_query = anchor_id
+        elif anchor_id is not None:
+            version_id = anchor_id
+
     try:
         result = cascade_query.query_cascade_chain(
             db, entity_id, version_id=version_id, evaluated_date=evaluated_date,
+            anchor_version_id=anchor_for_query,
         )
     except ValueError as e:
         raise HTTPException(404, str(e))
