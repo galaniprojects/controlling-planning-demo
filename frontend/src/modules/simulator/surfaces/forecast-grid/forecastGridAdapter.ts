@@ -175,7 +175,6 @@ export function makeGetCellState(
   return (row, col) => {
     const months = monthsForColumn(col);
     let displayValue = 0;
-    let anchorTotal = 0;
     let canEdit = months.length > 0;
     let anyCell = false;
     let changed = false;
@@ -192,10 +191,13 @@ export function makeGetCellState(
       const eff = effectiveCellValue(cell, edit);
       displayValue += eff;
       const anchor = anchorCellValue(cell);
-      anchorTotal += anchor;
+      // "Changed" means a revertable hand-overlay — a local working edit that
+      // differs from anchor, or a server overlay row (has_overlay). NOT raw
+      // is_changed, which also fires on macro-shifted cells that carry no
+      // overlay to revert (those show as a shifted curve, not a dirty cell).
       if (edit) {
         if ((edit.newValue ?? 0) !== anchor) changed = true;
-      } else if (cell?.is_changed) {
+      } else if (cell?.has_overlay) {
         changed = true;
       }
     }
@@ -204,15 +206,12 @@ export function makeGetCellState(
       return { displayValue: 0, canEdit: false, isEmpty: true };
     }
 
-    // Floating-point hygiene: round both to cent / hour precision before the
-    // changed comparison so a 0.000001 drift never marks a cell dirty.
+    // Floating-point hygiene: round to cent / hour precision for display.
     const roundedDisplay = Math.round(displayValue * 100) / 100;
-    const roundedAnchor = Math.round(anchorTotal * 100) / 100;
-    const isChanged = changed || roundedDisplay !== roundedAnchor;
 
     return {
       displayValue: roundedDisplay,
-      isChanged,
+      isChanged: changed,
       canEdit,
     };
   };

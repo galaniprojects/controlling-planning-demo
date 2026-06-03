@@ -23,6 +23,7 @@ function cell(over: Partial<ScenarioGridCell>): ScenarioGridCell {
     field: 'hours',
     can_edit: true,
     is_changed: false,
+    has_overlay: false,
     is_empty: false,
     ...over,
   };

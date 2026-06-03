@@ -250,7 +250,8 @@ export interface ScenarioGridCell {
   anchor_value: number | null; // pre-overlay value in the cell's field
   field: 'hours' | 'amount_eur';
   can_edit: boolean; // false for actuals (month < DEMO_DATE)
-  is_changed: boolean;
+  is_changed: boolean; // resolved differs from anchor (incl. macro shifts)
+  has_overlay: boolean; // a hand-overlay row exists for this cell (revertable)
   is_empty: boolean;
 }
 

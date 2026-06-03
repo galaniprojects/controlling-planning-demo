@@ -8,9 +8,10 @@
  *   - all       — "Revert all edits" behind a Dialog confirm.
  *
  * The edited set is the union of (a) the surface-local working edits and (b)
- * any server cell flagged `is_changed` (an overlay that landed in a prior
- * session / before this mount). Each revert also clears the matching local
- * working state through the hook callbacks.
+ * any server cell flagged `has_overlay` (a hand-overlay row that landed in a
+ * prior session / before this mount) — NOT `is_changed`, which also fires on
+ * macro-shifted cells that have no overlay to revert. Each revert also clears
+ * the matching local working state through the hook callbacks.
  */
 import { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
@@ -59,7 +60,9 @@ export function RevertControls({
     return m;
   }, [grid]);
 
-  // Union of working edits + server-changed cells, deduped by line|month.
+  // Union of working edits + server hand-overlay cells, deduped by line|month.
+  // Keys off has_overlay (an actual revertable overlay row), NOT is_changed —
+  // a macro shifts many cells off anchor with no overlay to revert.
   const editedCells = useMemo<EditedCell[]>(() => {
     const seen = new Set<string>();
     const out: EditedCell[] = [];
@@ -74,7 +77,7 @@ export function RevertControls({
     for (const edit of workingEdits.values()) push(edit.lineKey, edit.month);
     for (const row of grid.rows) {
       for (const cell of row.cells) {
-        if (cell.is_changed) push(row.line_key, cell.month);
+        if (cell.has_overlay) push(row.line_key, cell.month);
       }
     }
     return out.sort(

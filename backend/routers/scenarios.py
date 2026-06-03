@@ -704,6 +704,19 @@ def _grid_to_response(
     anchor = read_anchor_grid(db, project_id)
     anchor_by_key = {line.line_key: line for line in anchor.lines}
 
+    # (line_key, month) that carry an actual hand-overlay row — drives the
+    # revert affordance + changed highlight, distinct from is_changed (which
+    # also fires on macro-shifted cells that have no overlay to revert).
+    overlay_keys: set[tuple[str, str]] = {
+        (row.line_key, row.month)
+        for row in db.query(
+            ScenarioForecastCellEdit.line_key, ScenarioForecastCellEdit.month
+        ).filter(
+            ScenarioForecastCellEdit.scenario_id == scenario.id,
+            ScenarioForecastCellEdit.project_id == project_id,
+        )
+    }
+
     # Columns = sorted union of every month across adjusted + anchor lines.
     months: set[str] = set()
     for line in (*adjusted.lines, *anchor.lines):
@@ -762,6 +775,7 @@ def _grid_to_response(
                 field=field,
                 can_edit=(m >= DEMO_DATE),
                 is_changed=is_changed,
+                has_overlay=((line.line_key, m) in overlay_keys),
                 is_empty=is_empty,
             ))
 

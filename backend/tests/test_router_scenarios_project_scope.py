@@ -120,6 +120,13 @@ def test_grid_read_reflects_overlay_euro_anchor_and_changed(
     assert cell["anchor_value"] == 10.0           # pre-overlay hours
     assert cell["field"] == "hours"
     assert cell["is_changed"] is True
+    assert cell["has_overlay"] is True            # an overlay row exists → revertable
+    # A sibling cell with no overlay row carries has_overlay False even if present.
+    others = [
+        c for c in _row(grid, INTERNAL_KEY)["cells"]
+        if c["month"] != INTERNAL_MONTH and not c["is_empty"]
+    ]
+    assert all(c["has_overlay"] is False for c in others)
 
     row = _row(grid, INTERNAL_KEY)
     assert row["hourly_rate"] == 100.0
@@ -454,6 +461,13 @@ def test_macro_delay_via_actions_endpoint_shifts_project(
     grid = grid_resp.json()
     shifted = _cell(grid, INTERNAL_KEY, "2026-08")
     assert shifted["display_value"] == 10.0
+    # A macro shifts cells off anchor (is_changed) but creates NO overlay row,
+    # so has_overlay stays False — the curve moved; nothing is per-cell revertable.
+    assert shifted["is_changed"] is True
+    assert shifted["has_overlay"] is False
+    all_cells = [c for r in grid["rows"] for c in r["cells"]]
+    assert any(c["is_changed"] for c in all_cells)
+    assert not any(c["has_overlay"] for c in all_cells)
 
 
 # ---------------------------------------------------------------------------

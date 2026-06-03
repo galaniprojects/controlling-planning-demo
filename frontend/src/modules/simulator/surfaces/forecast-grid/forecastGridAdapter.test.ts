@@ -23,6 +23,7 @@ function cell(over: Partial<ScenarioGridCell>): ScenarioGridCell {
     field: 'hours',
     can_edit: true,
     is_changed: false,
+    has_overlay: false,
     is_empty: false,
     ...over,
   };
@@ -172,13 +173,23 @@ describe('makeGetCellState', () => {
     expect(gcs(internalRow, mayCol).isChanged).toBe(false);
   });
 
-  it('marks changed from a server is_changed flag with no working edit', () => {
+  it('marks changed from a server has_overlay flag with no working edit', () => {
     const r = baseResponse();
-    r.rows[0].cells[1].is_changed = true;
+    r.rows[0].cells[1].has_overlay = true;
     r.rows[0].cells[1].display_value = 130;
     const gcs = makeGetCellState(r, new Map());
     const state = gcs(adaptRows(r)[0], cols[1]);
     expect(state.isChanged).toBe(true);
+    expect(state.displayValue).toBe(130);
+  });
+
+  it('does NOT mark changed for a macro-shifted cell (is_changed, no overlay)', () => {
+    const r = baseResponse();
+    r.rows[0].cells[1].is_changed = true; // macro shift, no overlay row
+    r.rows[0].cells[1].display_value = 130;
+    const gcs = makeGetCellState(r, new Map());
+    const state = gcs(adaptRows(r)[0], cols[1]);
+    expect(state.isChanged).toBe(false);
     expect(state.displayValue).toBe(130);
   });
 

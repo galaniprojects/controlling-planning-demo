@@ -275,7 +275,8 @@ class ScenarioGridCell(BaseModel):
     anchor_value: Optional[float] = None  # pre-overlay value in the cell's field
     field: str                     # "hours" | "amount_eur" (what the write endpoint expects)
     can_edit: bool                 # False for actuals (month < DEMO_DATE)
-    is_changed: bool = False       # resolved value differs from anchor
+    is_changed: bool = False       # resolved value differs from anchor (incl. macro shifts)
+    has_overlay: bool = False      # a hand-overlay row exists for this cell (revertable)
     is_empty: bool = False         # neither anchor nor adjusted has the cell
 
 
