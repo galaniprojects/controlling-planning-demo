@@ -251,3 +251,68 @@ class ScenarioListResponse(BaseModel):
     published_scenarios: list[ScenarioListItem]
     archived_scenarios: list[ScenarioListItem] = []
     available_tags: list[str] = []
+
+
+# ---------------------------------------------------------------------------
+# Project-scope redesign Session 2 — editable forecast grid
+#
+# Purpose-built grid shape (NOT an extension of the workbench MixedGridResponse):
+# pure monthly columns, one row per resolved line, anchor value per cell so the
+# frontend can mark changed cells + drive per-cell revert without a second
+# request. Fed by ``resolve_project_grid`` (adjusted) joined with
+# ``read_anchor_grid`` (anchor). See guides/Simulator_Project_Scope_Redesign_*.
+# ---------------------------------------------------------------------------
+
+class ScenarioGridColumn(BaseModel):
+    key: str                       # absolute "YYYY-MM"
+    cell_type: str = "monthly"
+
+
+class ScenarioGridCell(BaseModel):
+    month: str                     # "YYYY-MM"
+    display_value: float           # internal → hours; external → €
+    amount_eur: float              # always the € value (internal: hours × rate)
+    anchor_value: Optional[float] = None  # pre-overlay value in the cell's field
+    field: str                     # "hours" | "amount_eur" (what the write endpoint expects)
+    can_edit: bool                 # False for actuals (month < DEMO_DATE)
+    is_changed: bool = False       # resolved value differs from anchor
+    is_empty: bool = False         # neither anchor nor adjusted has the cell
+
+
+class ScenarioGridRow(BaseModel):
+    line_key: str                  # natural composite — round-tripped on write/revert
+    category: str                  # "internal" | "external"
+    kind: str                      # "internal_role" | "external_cost"
+    sub_category_name: str         # display label
+    hourly_rate: Optional[float] = None  # internal lines only (for €-from-hours sub-line)
+    cells: list[ScenarioGridCell]
+
+
+class ScenarioGridResponse(BaseModel):
+    scenario_id: int
+    project_id: str
+    start_month: Optional[str] = None
+    end_month: Optional[str] = None
+    open_month: str                # DEMO_DATE — the actuals/future boundary
+    columns: list[ScenarioGridColumn]
+    rows: list[ScenarioGridRow]
+
+
+class CellEditRequest(BaseModel):
+    """Single forecast-cell overlay write. ``value=None`` zeroes the cell;
+    reverting (fall back to anchor) is a DELETE, not a null write."""
+
+    line_key: str
+    month: str = Field(pattern=r"^\d{4}-\d{2}$")
+    field: str                     # "hours" | "amount_eur" (∈ OVERLAY_CELL_FIELDS)
+    value: Optional[float] = None
+
+
+class ScenarioGridWriteResponse(BaseModel):
+    """Returned by the cell write + revert endpoints: the recalculated scenario
+    state (verbatim ``recalculate_scenario`` dict, consumed by the impact
+    dashboard) plus the freshly resolved grid for the edited project, so the
+    frontend reconciles its optimistic edit in one round-trip."""
+
+    state: dict
+    grid: ScenarioGridResponse
