@@ -81,9 +81,9 @@ import {
 
 export type ChangeSummaryKind =
   | 'action'
-  | 'lever12_distribution'
-  | 'lever12_btc'
-  | 'lever12_to_business'
+  | 'cost_allocation_distribution'
+  | 'cost_allocation_btc'
+  | 'cost_allocation_to_business'
   | 'metadata'
   | 'lifecycle'
   | 'promote'
@@ -286,7 +286,7 @@ export interface ScenarioContextValue {
     projectId: string,
     lineKey: string,
   ) => Promise<ExternalCostWriteResponse>;
-  // Mutations — Lever 12
+  // Mutations — cost allocation
   createDistribution: (body: DistributionEdgeCreateBody) => Promise<unknown>;
   updateDistribution: (
     edgeId: number,
@@ -737,13 +737,13 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
     [scenarioId, appendChange],
   );
 
-  // ---- Lever 12 mutations ------------------------------------------------
+  // ---- Cost allocation mutations -----------------------------------------
   const createDistribution = useCallback(
     (body: DistributionEdgeCreateBody) =>
       wrapMutation(
         () => scenariosApi.createDistribution(scenarioId, body),
         {
-          kind: 'lever12_distribution',
+          kind: 'cost_allocation_distribution',
           label: `Added Stage 1 edge ${body.source_entity_id} → ${body.destination_entity_id}`,
           detail: `${body.percentage}%`,
         },
@@ -756,7 +756,7 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
       wrapMutation(
         () => scenariosApi.updateDistribution(scenarioId, edgeId, body),
         {
-          kind: 'lever12_distribution',
+          kind: 'cost_allocation_distribution',
           label: `Updated Stage 1 edge #${edgeId}`,
           detail: `${body.percentage}%`,
         },
@@ -769,7 +769,7 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
       wrapMutation(
         () => scenariosApi.deleteDistribution(scenarioId, edgeId),
         {
-          kind: 'lever12_distribution',
+          kind: 'cost_allocation_distribution',
           label: `Deleted Stage 1 edge #${edgeId}`,
         },
       ),
@@ -781,7 +781,7 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
       wrapMutation(
         () => scenariosApi.setToBusiness(scenarioId, body),
         {
-          kind: 'lever12_to_business',
+          kind: 'cost_allocation_to_business',
           label: `Set to-business ${body.entity_id}`,
           detail: `${body.new_pct}% (${body.year})`,
         },
@@ -794,7 +794,7 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
       wrapMutation(
         () => scenariosApi.setBtcLines(scenarioId, body),
         {
-          kind: 'lever12_btc',
+          kind: 'cost_allocation_btc',
           label: `Updated Stage 2 BTC for ${body.entity_id}`,
           detail: `${body.lines.length} lines (${body.year})`,
         },

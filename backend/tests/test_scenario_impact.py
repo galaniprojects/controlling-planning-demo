@@ -88,7 +88,7 @@ class TestComputeImpactDashboard:
         state = recalculate_scenario(db, basic_scenario, actions)
         dashboard = compute_impact_dashboard(
             db, basic_scenario.id, state, include_tier3=True,
-            include_lever12=False,
+            include_cost_allocation=False,
         )
         assert dashboard["scenario_id"] == basic_scenario.id
         dim = dashboard["dimensions"]
@@ -118,7 +118,7 @@ class TestComputeImpactDashboard:
 
         dashboard = compute_impact_dashboard(
             db, basic_scenario.id, state, include_tier3=False,
-            include_lever12=False,
+            include_cost_allocation=False,
         )
         people = dashboard["dimensions"]["people"]
         assert people.get("redacted") is True
@@ -133,7 +133,7 @@ class TestComputeImpactDashboard:
         state = recalculate_scenario(db, basic_scenario, actions)
         dashboard = compute_impact_dashboard(
             db, basic_scenario.id, state, include_tier3=True,
-            include_lever12=False,
+            include_cost_allocation=False,
         )
         fin = dashboard["dimensions"]["financial"]
         assert "capex" in fin
@@ -151,7 +151,7 @@ class TestComputeImpactDashboard:
         state = recalculate_scenario(db, basic_scenario, actions)
         dashboard = compute_impact_dashboard(
             db, basic_scenario.id, state, include_tier3=True,
-            include_lever12=False,
+            include_cost_allocation=False,
         )
         cs = dashboard["dimensions"]["change_summary"]
         assert cs["total_actions"] == 1
@@ -160,7 +160,7 @@ class TestComputeImpactDashboard:
     def test_unknown_scenario_returns_empty(self, db):
         # Should not raise
         result = compute_impact_dashboard(
-            db, 999999, {}, include_tier3=True, include_lever12=False,
+            db, 999999, {}, include_tier3=True, include_cost_allocation=False,
         )
         assert result == {}
 

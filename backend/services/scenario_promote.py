@@ -14,7 +14,7 @@ its native system workflow:
 | budget_envelope       | budget_envelope_update                    |
 | hypothetical_project  | hypothetical_to_proposed                  |
 | hierarchy             | hierarchy_update                          |
-| cost_allocation       | cost_allocation_update (Lever 12)         |
+| cost_allocation       | cost_allocation_update                    |
 | capacity_param        | capacity_param_update                     |
 
 Per [B-PR-02]: Promote requires the scenario's anchor_forecast_version_id
@@ -25,7 +25,7 @@ Per [B-PR-04]: Partial promotion allowed. Promoted ScenarioAction rows get
 ``promoted_at`` / ``promoted_by_id`` stamped. Un-promoted actions remain
 editable. Scenario stays open.
 
-Per [B-OQ-01] working assumption: Lever 12 (cost allocation rule) diffs ARE
+Per [B-OQ-01] working assumption: cost allocation rule diffs ARE
 promotable, gated by the per-entity-type RolePermissionGrant from `[F-AC-01]`.
 The implementation checks ``RolePermissionGrant.can_edit`` for each
 ``entity_type`` involved in the diff.
@@ -52,7 +52,7 @@ from models.scenarios import (
 )
 from models.system import RolePermissionGrant
 from schemas.common import CurrentUser
-from services.scenario_lever12 import (
+from services.scenario_cost_allocation import (
     ACTION_BTC_LINE_CHANGE,
     ACTION_DISTRIBUTION_CHANGE,
     ACTION_TO_BUSINESS_CHANGE,
@@ -225,7 +225,7 @@ def decide_routing(
         return RoutingDecision(
             action_id=action.id, routing_type="cost_allocation_update",
             target_id=None, requires_review=False,
-            message="Cost allocation rule update (Lever 12).",
+            message="Cost allocation rule update.",
         )
 
     if cat == "capacity_param":
@@ -248,15 +248,15 @@ def _project_pl_id(db: Session, project_id: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
-# [F-AC-01] permission check for Lever 12 promotion
+# [F-AC-01] permission check for cost allocation promotion
 # ---------------------------------------------------------------------------
 
-def _user_can_promote_lever12(
+def _user_can_promote_cost_allocation(
     db: Session, user: CurrentUser, action: ScenarioAction,
 ) -> tuple[bool, str]:
     """Per [B-OQ-01] working assumption.
 
-    Lever 12 promotion is gated by the RolePermissionGrant grid:
+    Cost allocation promotion is gated by the RolePermissionGrant grid:
     - controller is always allowed (default override path).
     - other roles require an explicit grant for the entity_type involved.
     Returns (allowed, reason).
@@ -288,7 +288,7 @@ def _user_can_promote_lever12(
     ):
         target_perm_type = "distribution"
     else:
-        return False, f"unknown lever 12 action type '{action.action_type}'"
+        return False, f"unknown cost allocation action type '{action.action_type}'"
 
     grant = (
         db.query(RolePermissionGrant)
@@ -321,13 +321,13 @@ def apply_routing(
     """
     rt = decision.routing_type
 
-    # Lever 12 routes — copy scenario-version distribution edges back to
-    # the canonical version, materialise BTC overlays into BTCProfile/Lines.
+    # Cost allocation routes — copy scenario-version distribution edges back
+    # to the canonical version, materialise BTC overlays into BTCProfile/Lines.
     if rt == "cost_allocation_update":
-        ok, reason = _user_can_promote_lever12(db, user, action)
+        ok, reason = _user_can_promote_cost_allocation(db, user, action)
         if not ok:
             return False, f"permission denied: {reason}"
-        return _promote_lever12_action(db, action, user)
+        return _promote_cost_allocation_action(db, action, user)
 
     # Direct updates that the demo can apply minimally.
     if rt == "direct_forecast_update":
@@ -353,14 +353,14 @@ def apply_routing(
     return False, f"No applier registered for routing '{rt}'."
 
 
-def _promote_lever12_action(
+def _promote_cost_allocation_action(
     db: Session, action: ScenarioAction, user: CurrentUser,
 ) -> tuple[bool, str]:
-    """Materialise a Lever 12 action against live (canonical) data."""
+    """Materialise a cost allocation action against live (canonical) data."""
     try:
         params = json.loads(action.parameters_json) if action.parameters_json else {}
     except json.JSONDecodeError:
-        return False, "Lever 12 action parameters are not JSON-decodable."
+        return False, "Cost allocation action parameters are not JSON-decodable."
 
     if action.action_type == ACTION_DISTRIBUTION_CHANGE:
         return _promote_distribution_change(db, params)
@@ -368,7 +368,7 @@ def _promote_lever12_action(
         return _promote_to_business_change(db, params)
     if action.action_type == ACTION_BTC_LINE_CHANGE:
         return _promote_btc_line_change(db, params)
-    return False, f"Unknown Lever 12 action type '{action.action_type}'."
+    return False, f"Unknown cost allocation action type '{action.action_type}'."
 
 
 def _promote_distribution_change(db: Session, params: dict) -> tuple[bool, str]:
@@ -399,7 +399,7 @@ def _promote_distribution_change(db: Session, params: dict) -> tuple[bool, str]:
     pct = params.get("percentage")
 
     # Resolve the live production version by demo date — same logic
-    # ``services.scenario_lever12._resolve_active_distribution_version``
+    # ``services.scenario_cost_allocation._resolve_active_distribution_version``
     # uses; duplicated locally until FD-3 B1 ships
     # ``services.distribution_service.resolve_active_version``.
     _y, _m = (int(s) for s in DEMO_DATE.split("-"))
@@ -418,7 +418,7 @@ def _promote_distribution_change(db: Session, params: dict) -> tuple[bool, str]:
     if active is None:
         return False, (
             "No active production distribution version found. Activate a "
-            "production version before promoting Lever 12 distribution "
+            "production version before promoting cost allocation distribution "
             "changes."
         )
 
@@ -591,7 +591,7 @@ def preview_promote(
             "message": d.message,
         }
         if d.routing_type == "cost_allocation_update":
-            ok, reason = _user_can_promote_lever12(db, user, a)
+            ok, reason = _user_can_promote_cost_allocation(db, user, a)
             item["permission_ok"] = ok
             item["permission_message"] = reason
         decisions.append(item)

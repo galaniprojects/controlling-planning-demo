@@ -1,6 +1,6 @@
-"""Unit tests for services/scenario_lever12.py — sandbox cost allocation engine.
+"""Unit tests for services/scenario_cost_allocation.py — sandbox cost allocation engine.
 
-Per spec [B-ES-01] (Lever 12 widening) and [F-RV-01..06], plus the FD-3
+Per spec [B-ES-01] (cost allocation widening) and [F-RV-01..06], plus the FD-3
 Charging/UM rework (spec §4) which replaces the v4 string-keyed
 ``Distribution.version`` column with a first-class ``DistributionVersion``
 header keyed by ``Distribution.version_id`` (FK):
@@ -27,17 +27,17 @@ from models.charging import (
 )
 from models.people import Person
 from models.scenarios import Scenario, ScenarioAction
-from services.scenario_lever12 import (
+from services.scenario_cost_allocation import (
     ACTION_BTC_LINE_CHANGE,
     ACTION_DISTRIBUTION_CHANGE,
     ACTION_TO_BUSINESS_CHANGE,
-    Lever12Error,
+    CostAllocationError,
     apply_btc_lines_change,
     apply_distribution_create,
     apply_distribution_delete,
     apply_distribution_update,
     apply_to_business_change,
-    cleanup_lever12_state,
+    cleanup_cost_allocation_state,
     compute_cost_allocation_impact,
     fork_entity_edges,
     list_scenario_edges,
@@ -76,7 +76,7 @@ def author_person(db, seed_org_base):
 
 
 @pytest.fixture
-def lever12_world(db, author_person):
+def cost_allocation_world(db, author_person):
     """Two ChargeableEntities + 2 ChargingLocations + an active production edge.
 
     Topology:
@@ -141,7 +141,7 @@ def lever12_world(db, author_person):
     ))
 
     scenario = Scenario(
-        name="Lever 12 Test Scenario", author_id=author_person.id, status="private",
+        name="Cost Allocation Test Scenario", author_id=author_person.id, status="private",
         anchor_distribution_version_id=active_version.id,
     )
     db.add(scenario)
@@ -181,12 +181,12 @@ class TestScenarioVersionHelper:
 # ---------------------------------------------------------------------------
 
 class TestForkEntityEdges:
-    def test_initial_fork_clones_anchor_edges(self, db, lever12_world):
+    def test_initial_fork_clones_anchor_edges(self, db, cost_allocation_world):
         n = fork_entity_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
+            db, cost_allocation_world["scenario_id"], cost_allocation_world["ent_src_id"],
         )
         assert n == 1
-        sv = _scenario_dist_version(db, lever12_world["scenario_id"])
+        sv = _scenario_dist_version(db, cost_allocation_world["scenario_id"])
         assert sv is not None
         rows = (
             db.query(Distribution)
@@ -197,42 +197,42 @@ class TestForkEntityEdges:
         assert rows[0].source_entity_id == "ent-src"
         assert float(rows[0].percentage) == 50.0
 
-    def test_fork_is_idempotent(self, db, lever12_world):
+    def test_fork_is_idempotent(self, db, cost_allocation_world):
         fork_entity_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
+            db, cost_allocation_world["scenario_id"], cost_allocation_world["ent_src_id"],
         )
         n2 = fork_entity_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
+            db, cost_allocation_world["scenario_id"], cost_allocation_world["ent_src_id"],
         )
         assert n2 == 0
 
-    def test_fork_does_not_touch_anchor(self, db, lever12_world):
+    def test_fork_does_not_touch_anchor(self, db, cost_allocation_world):
         fork_entity_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
+            db, cost_allocation_world["scenario_id"], cost_allocation_world["ent_src_id"],
         )
         anchor_rows = (
             db.query(Distribution)
-            .filter(Distribution.version_id == lever12_world["active_version_id"])
+            .filter(Distribution.version_id == cost_allocation_world["active_version_id"])
             .all()
         )
         assert len(anchor_rows) == 1
         assert float(anchor_rows[0].percentage) == 50.0
 
-    def test_list_returns_anchor_when_no_fork(self, db, lever12_world):
+    def test_list_returns_anchor_when_no_fork(self, db, cost_allocation_world):
         rows = list_scenario_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
+            db, cost_allocation_world["scenario_id"], cost_allocation_world["ent_src_id"],
         )
         assert len(rows) == 1
-        assert rows[0].version_id == lever12_world["active_version_id"]
+        assert rows[0].version_id == cost_allocation_world["active_version_id"]
 
-    def test_list_returns_scenario_after_fork(self, db, lever12_world):
+    def test_list_returns_scenario_after_fork(self, db, cost_allocation_world):
         fork_entity_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
+            db, cost_allocation_world["scenario_id"], cost_allocation_world["ent_src_id"],
         )
         rows = list_scenario_edges(
-            db, lever12_world["scenario_id"], lever12_world["ent_src_id"],
+            db, cost_allocation_world["scenario_id"], cost_allocation_world["ent_src_id"],
         )
-        sv = _scenario_dist_version(db, lever12_world["scenario_id"])
+        sv = _scenario_dist_version(db, cost_allocation_world["scenario_id"])
         assert all(r.version_id == sv.id for r in rows)
 
 
@@ -241,7 +241,7 @@ class TestForkEntityEdges:
 # ---------------------------------------------------------------------------
 
 class TestApplyDistributionCreate:
-    def test_create_records_action(self, db, lever12_world, author_person):
+    def test_create_records_action(self, db, cost_allocation_world, author_person):
         # We need a third entity to create a new edge to.
         ent_3 = ChargeableEntity(
             id="ent-3", entity_type="InternalService", identifier="ITF00200",
@@ -252,7 +252,7 @@ class TestApplyDistributionCreate:
         db.commit()
 
         result = apply_distribution_create(
-            db, lever12_world["scenario_id"], year=2026,
+            db, cost_allocation_world["scenario_id"], year=2026,
             source_entity_id="ent-src", destination_entity_id="ent-3",
             percentage=10.0,
         )
@@ -264,7 +264,7 @@ class TestApplyDistributionCreate:
         # Action recorded
         actions = (
             db.query(ScenarioAction)
-            .filter(ScenarioAction.scenario_id == lever12_world["scenario_id"])
+            .filter(ScenarioAction.scenario_id == cost_allocation_world["scenario_id"])
             .all()
         )
         assert len(actions) == 1
@@ -274,10 +274,10 @@ class TestApplyDistributionCreate:
         # Both anchor and scenario edges exist; anchor untouched
         anchor = (
             db.query(Distribution)
-            .filter(Distribution.version_id == lever12_world["active_version_id"])
+            .filter(Distribution.version_id == cost_allocation_world["active_version_id"])
             .all()
         )
-        sv = _scenario_dist_version(db, lever12_world["scenario_id"])
+        sv = _scenario_dist_version(db, cost_allocation_world["scenario_id"])
         sandbox = (
             db.query(Distribution)
             .filter(Distribution.version_id == sv.id)
@@ -287,7 +287,7 @@ class TestApplyDistributionCreate:
         # 1 forked edge (ent-src→ent-dst) + 1 new (ent-src→ent-3)
         assert len(sandbox) == 2
 
-    def test_sum_violation_raises(self, db, lever12_world):
+    def test_sum_violation_raises(self, db, cost_allocation_world):
         # ent-src already has to_business_pct=30 + edge=50 = 80; adding 30 → 110 > 100
         ent_3 = ChargeableEntity(
             id="ent-3", entity_type="InternalService", identifier="ITF00200",
@@ -296,19 +296,19 @@ class TestApplyDistributionCreate:
         )
         db.add(ent_3)
         db.commit()
-        with pytest.raises(Lever12Error) as exc:
+        with pytest.raises(CostAllocationError) as exc:
             apply_distribution_create(
-                db, lever12_world["scenario_id"], year=2026,
+                db, cost_allocation_world["scenario_id"], year=2026,
                 source_entity_id="ent-src", destination_entity_id="ent-3",
                 percentage=30.0,
             )
         assert "Sum rule" in exc.value.message or "exceeds" in exc.value.message
 
-    def test_cycle_violation_raises(self, db, lever12_world):
+    def test_cycle_violation_raises(self, db, cost_allocation_world):
         # Adding ent-dst → ent-src would create a cycle
-        with pytest.raises(Lever12Error) as exc:
+        with pytest.raises(CostAllocationError) as exc:
             apply_distribution_create(
-                db, lever12_world["scenario_id"], year=2026,
+                db, cost_allocation_world["scenario_id"], year=2026,
                 source_entity_id="ent-dst", destination_entity_id="ent-src",
                 percentage=10.0,
             )
@@ -316,7 +316,7 @@ class TestApplyDistributionCreate:
         assert "ent-src" in exc.value.cycle_chain or "ent-dst" in exc.value.cycle_chain
 
     def test_added_destination_flows_into_downstream_effective_cost(
-        self, db, lever12_world,
+        self, db, cost_allocation_world,
     ):
         """Session 3 add-destination: a NEW Stage-1 edge must propagate the
         source's effective cost into the destination's per-location split.
@@ -349,14 +349,14 @@ class TestApplyDistributionCreate:
 
         # ent-src: to_business 30 + existing edge 50 + new 15 = 95 ≤ 100.
         apply_distribution_create(
-            db, lever12_world["scenario_id"], year=2026,
+            db, cost_allocation_world["scenario_id"], year=2026,
             source_entity_id="ent-src", destination_entity_id="ent-3",
             percentage=15.0,
         )
         db.commit()
 
         out = compute_cost_allocation_impact(
-            db, lever12_world["scenario_id"], year=2026,
+            db, cost_allocation_world["scenario_id"], year=2026,
         )
         items = {(i["entity_id"], i["charging_location_id"]): i for i in out["items"]}
         # ent-3 picks up the inflow only on the scenario side.
@@ -370,7 +370,7 @@ class TestApplyDistributionCreate:
         assert ("ent-src", "cl-a") not in items
         assert ("ent-src", "cl-b") not in items
 
-    def test_union_cycle_detected_for_sandbox_only_edge(self, db, lever12_world):
+    def test_union_cycle_detected_for_sandbox_only_edge(self, db, cost_allocation_world):
         """Union-aware cycle: an edge that cycles ONLY through sandbox edges
         (not present on the anchor) must still be rejected.
 
@@ -389,16 +389,16 @@ class TestApplyDistributionCreate:
 
         # Sandbox-only edge ent-dst → ent-3 (no anchor equivalent).
         apply_distribution_create(
-            db, lever12_world["scenario_id"], year=2026,
+            db, cost_allocation_world["scenario_id"], year=2026,
             source_entity_id="ent-dst", destination_entity_id="ent-3",
             percentage=50.0,
         )
         db.commit()
 
         # ent-3 → ent-src closes a loop only via the union graph.
-        with pytest.raises(Lever12Error) as exc:
+        with pytest.raises(CostAllocationError) as exc:
             apply_distribution_create(
-                db, lever12_world["scenario_id"], year=2026,
+                db, cost_allocation_world["scenario_id"], year=2026,
                 source_entity_id="ent-3", destination_entity_id="ent-src",
                 percentage=10.0,
             )
@@ -406,22 +406,22 @@ class TestApplyDistributionCreate:
 
 
 class TestApplyDistributionUpdate:
-    def test_update_anchor_edge_forks_first(self, db, lever12_world):
+    def test_update_anchor_edge_forks_first(self, db, cost_allocation_world):
         result = apply_distribution_update(
-            db, lever12_world["scenario_id"],
-            edge_id=lever12_world["edge_id"], percentage=40.0,
+            db, cost_allocation_world["scenario_id"],
+            edge_id=cost_allocation_world["edge_id"], percentage=40.0,
         )
         db.commit()
         assert result["percentage"] == 40.0
         # Anchor row unchanged
         anchor = (
             db.query(Distribution)
-            .filter(Distribution.id == lever12_world["edge_id"])
+            .filter(Distribution.id == cost_allocation_world["edge_id"])
             .first()
         )
         assert float(anchor.percentage) == 50.0
         # New scenario row exists with 40
-        sv = _scenario_dist_version(db, lever12_world["scenario_id"])
+        sv = _scenario_dist_version(db, cost_allocation_world["scenario_id"])
         sandbox = (
             db.query(Distribution)
             .filter(Distribution.version_id == sv.id)
@@ -430,30 +430,30 @@ class TestApplyDistributionUpdate:
         assert len(sandbox) == 1
         assert float(sandbox[0].percentage) == 40.0
 
-    def test_update_missing_edge_raises(self, db, lever12_world):
-        with pytest.raises(Lever12Error):
+    def test_update_missing_edge_raises(self, db, cost_allocation_world):
+        with pytest.raises(CostAllocationError):
             apply_distribution_update(
-                db, lever12_world["scenario_id"],
+                db, cost_allocation_world["scenario_id"],
                 edge_id=99999, percentage=20.0,
             )
 
 
 class TestApplyDistributionDelete:
-    def test_delete_forks_then_removes(self, db, lever12_world):
+    def test_delete_forks_then_removes(self, db, cost_allocation_world):
         result = apply_distribution_delete(
-            db, lever12_world["scenario_id"], edge_id=lever12_world["edge_id"],
+            db, cost_allocation_world["scenario_id"], edge_id=cost_allocation_world["edge_id"],
         )
         db.commit()
         assert "deleted_edge_id" in result
         # Anchor untouched
         anchor = (
             db.query(Distribution)
-            .filter(Distribution.id == lever12_world["edge_id"])
+            .filter(Distribution.id == cost_allocation_world["edge_id"])
             .first()
         )
         assert anchor is not None
         # Sandbox empty
-        sv = _scenario_dist_version(db, lever12_world["scenario_id"])
+        sv = _scenario_dist_version(db, cost_allocation_world["scenario_id"])
         sandbox = (
             db.query(Distribution)
             .filter(Distribution.version_id == sv.id)
@@ -463,7 +463,7 @@ class TestApplyDistributionDelete:
         # Action recorded
         actions = (
             db.query(ScenarioAction)
-            .filter(ScenarioAction.scenario_id == lever12_world["scenario_id"])
+            .filter(ScenarioAction.scenario_id == cost_allocation_world["scenario_id"])
             .all()
         )
         assert len(actions) == 1
@@ -476,9 +476,9 @@ class TestApplyDistributionDelete:
 # ---------------------------------------------------------------------------
 
 class TestApplyToBusinessChange:
-    def test_records_action(self, db, lever12_world):
+    def test_records_action(self, db, cost_allocation_world):
         result = apply_to_business_change(
-            db, lever12_world["scenario_id"],
+            db, cost_allocation_world["scenario_id"],
             entity_id="ent-src", year=2026, new_pct=25.0,
         )
         db.commit()
@@ -491,35 +491,35 @@ class TestApplyToBusinessChange:
         )
         assert len(actions) == 1
 
-    def test_live_entity_not_mutated(self, db, lever12_world):
+    def test_live_entity_not_mutated(self, db, cost_allocation_world):
         apply_to_business_change(
-            db, lever12_world["scenario_id"],
+            db, cost_allocation_world["scenario_id"],
             entity_id="ent-src", year=2026, new_pct=25.0,
         )
         db.commit()
         live = db.query(ChargeableEntity).filter_by(id="ent-src").first()
         assert float(live.to_business_pct) == 30.0
 
-    def test_out_of_range_raises(self, db, lever12_world):
-        with pytest.raises(Lever12Error):
+    def test_out_of_range_raises(self, db, cost_allocation_world):
+        with pytest.raises(CostAllocationError):
             apply_to_business_change(
-                db, lever12_world["scenario_id"],
+                db, cost_allocation_world["scenario_id"],
                 entity_id="ent-src", year=2026, new_pct=110.0,
             )
 
-    def test_sum_violation_raises(self, db, lever12_world):
+    def test_sum_violation_raises(self, db, cost_allocation_world):
         # Existing edges sum to 50%; new to_business 60% → 110 > 100
-        with pytest.raises(Lever12Error) as exc:
+        with pytest.raises(CostAllocationError) as exc:
             apply_to_business_change(
-                db, lever12_world["scenario_id"],
+                db, cost_allocation_world["scenario_id"],
                 entity_id="ent-src", year=2026, new_pct=60.0,
             )
         assert "Sum rule" in exc.value.message
 
-    def test_unknown_entity_raises(self, db, lever12_world):
-        with pytest.raises(Lever12Error):
+    def test_unknown_entity_raises(self, db, cost_allocation_world):
+        with pytest.raises(CostAllocationError):
             apply_to_business_change(
-                db, lever12_world["scenario_id"],
+                db, cost_allocation_world["scenario_id"],
                 entity_id="ent-bogus", year=2026, new_pct=10.0,
             )
 
@@ -529,9 +529,9 @@ class TestApplyToBusinessChange:
 # ---------------------------------------------------------------------------
 
 class TestApplyBTCLinesChange:
-    def test_records_overlay_action(self, db, lever12_world):
+    def test_records_overlay_action(self, db, cost_allocation_world):
         result = apply_btc_lines_change(
-            db, lever12_world["scenario_id"],
+            db, cost_allocation_world["scenario_id"],
             entity_id="ent-src", year=2026,
             lines=[
                 {"charging_location_id": "cl-a", "percentage": 80.0},
@@ -547,9 +547,9 @@ class TestApplyBTCLinesChange:
         )
         assert len(actions) == 1
 
-    def test_live_btc_lines_unchanged(self, db, lever12_world):
+    def test_live_btc_lines_unchanged(self, db, cost_allocation_world):
         apply_btc_lines_change(
-            db, lever12_world["scenario_id"],
+            db, cost_allocation_world["scenario_id"],
             entity_id="ent-src", year=2026,
             lines=[
                 {"charging_location_id": "cl-a", "percentage": 80.0},
@@ -570,10 +570,10 @@ class TestApplyBTCLinesChange:
         }
         assert pct_map == {"cl-a": 60.0, "cl-b": 40.0}
 
-    def test_sum_violation_raises(self, db, lever12_world):
-        with pytest.raises(Lever12Error):
+    def test_sum_violation_raises(self, db, cost_allocation_world):
+        with pytest.raises(CostAllocationError):
             apply_btc_lines_change(
-                db, lever12_world["scenario_id"],
+                db, cost_allocation_world["scenario_id"],
                 entity_id="ent-src", year=2026,
                 lines=[
                     {"charging_location_id": "cl-a", "percentage": 50.0},
@@ -581,10 +581,10 @@ class TestApplyBTCLinesChange:
                 ],
             )
 
-    def test_empty_lines_allowed(self, db, lever12_world):
+    def test_empty_lines_allowed(self, db, cost_allocation_world):
         # Empty list is a valid "wipe" overlay
         result = apply_btc_lines_change(
-            db, lever12_world["scenario_id"],
+            db, cost_allocation_world["scenario_id"],
             entity_id="ent-src", year=2026, lines=[],
         )
         db.commit()
@@ -596,26 +596,26 @@ class TestApplyBTCLinesChange:
 # ---------------------------------------------------------------------------
 
 class TestComputeCostAllocationImpact:
-    def test_no_actions_yields_empty_impact(self, db, lever12_world):
+    def test_no_actions_yields_empty_impact(self, db, cost_allocation_world):
         out = compute_cost_allocation_impact(
-            db, lever12_world["scenario_id"], year=2026,
+            db, cost_allocation_world["scenario_id"], year=2026,
         )
         assert out["touched_entity_count"] == 0
         assert out["items"] == []
         assert out["totals"]["delta"] == 0.0
-        assert out["anchor_version_id"] == lever12_world["active_version_id"]
+        assert out["anchor_version_id"] == cost_allocation_world["active_version_id"]
 
-    def test_to_business_change_shifts_per_location_amounts(self, db, lever12_world):
+    def test_to_business_change_shifts_per_location_amounts(self, db, cost_allocation_world):
         # ent-src effective_cost = annual_cost(100k) (no inflows, leaf source)
         # Anchor: to_business=30%, BTC = 60/40 → cl-a 18k, cl-b 12k
         # After scenario: to_business=20% → cl-a 12k, cl-b 8k
         apply_to_business_change(
-            db, lever12_world["scenario_id"],
+            db, cost_allocation_world["scenario_id"],
             entity_id="ent-src", year=2026, new_pct=20.0,
         )
         db.commit()
         out = compute_cost_allocation_impact(
-            db, lever12_world["scenario_id"], year=2026,
+            db, cost_allocation_world["scenario_id"], year=2026,
         )
         # Two rows, one per CL
         items = {(i["entity_id"], i["charging_location_id"]): i for i in out["items"]}
@@ -635,16 +635,16 @@ class TestComputeCostAllocationImpact:
         assert out["totals"]["scenario_total"] == 20000.0
         assert out["totals"]["delta"] == -10000.0
 
-    def test_btc_line_overlay_shifts_split(self, db, lever12_world):
+    def test_btc_line_overlay_shifts_split(self, db, cost_allocation_world):
         # Replace 60/40 with 100/0 → all 30k goes to cl-a
         apply_btc_lines_change(
-            db, lever12_world["scenario_id"],
+            db, cost_allocation_world["scenario_id"],
             entity_id="ent-src", year=2026,
             lines=[{"charging_location_id": "cl-a", "percentage": 100.0}],
         )
         db.commit()
         out = compute_cost_allocation_impact(
-            db, lever12_world["scenario_id"], year=2026,
+            db, cost_allocation_world["scenario_id"], year=2026,
         )
         items = {(i["entity_id"], i["charging_location_id"]): i for i in out["items"]}
         # cl-a goes from 18k to 30k (+12k)
@@ -664,7 +664,7 @@ class TestComputeCostAllocationImpact:
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-def lever12_with_upstream(db, author_person):
+def cost_allocation_with_upstream(db, author_person):
     """ent_src receives 50% of an upstream's cost; scenario touches BTC only.
 
     Topology:
@@ -740,7 +740,7 @@ class TestUnionAwareEffectiveCost:
     """Regression coverage for the BTC-only scenario inflow-loss bug."""
 
     def test_btc_only_scenario_preserves_upstream_inflows(
-        self, db, lever12_with_upstream,
+        self, db, cost_allocation_with_upstream,
     ):
         """Anchor and scenario totals must balance when only BTC was touched.
 
@@ -753,14 +753,14 @@ class TestUnionAwareEffectiveCost:
         """
         # Replace 100/0 with 0/100 — pure cl_a→cl_b BTC swap, no inflow change.
         apply_btc_lines_change(
-            db, lever12_with_upstream["scenario_id"],
+            db, cost_allocation_with_upstream["scenario_id"],
             entity_id="ent-src-up", year=2026,
             lines=[{"charging_location_id": "cl-up-b", "percentage": 100.0}],
         )
         db.commit()
 
         out = compute_cost_allocation_impact(
-            db, lever12_with_upstream["scenario_id"], year=2026,
+            db, cost_allocation_with_upstream["scenario_id"], year=2026,
         )
         # Both sides must agree on the to_business value (140k * 0.5 = 70k);
         # delta must net to zero across the BTC swap.
@@ -779,21 +779,21 @@ class TestUnionAwareEffectiveCost:
         assert items[("ent-src-up", "cl-up-b")]["delta"] == 70000.0
 
     def test_btc_overlay_with_partial_stage1_fork_uses_scenario_edges(
-        self, db, lever12_with_upstream,
+        self, db, cost_allocation_with_upstream,
     ):
         """When Stage 1 IS forked, scenario must use scenario edges for
         forked sources and anchor edges for unforked sources (union)."""
-        sid = lever12_with_upstream["scenario_id"]
+        sid = cost_allocation_with_upstream["scenario_id"]
 
         # 1) Fork the upstream edge and reduce 50% → 20% so inflow drops by 24k.
         #    New inflow contribution = 80k * 0.20 = 16k → ent_src eff = 116k.
-        from services.scenario_lever12 import (
+        from services.scenario_cost_allocation import (
             apply_distribution_update,
         )
         anchor_edge = (
             db.query(Distribution)
             .filter(
-                Distribution.version_id == lever12_with_upstream["active_version_id"],
+                Distribution.version_id == cost_allocation_with_upstream["active_version_id"],
                 Distribution.source_entity_id == "ent-up",
             )
             .one()
@@ -841,7 +841,7 @@ class TestMixedStageMDHBalance:
         )
 
     def test_stage1_edge_and_stage2_btc_balance_and_union_aware(
-        self, db, lever12_with_upstream,
+        self, db, cost_allocation_with_upstream,
     ):
         """Mutate Stage 1 (upstream edge %) AND Stage 2 (BTC split) together.
 
@@ -861,8 +861,8 @@ class TestMixedStageMDHBalance:
         The scenario side must use the FORKED upstream edge (25%), proving the
         union walk consumed the scenario edge rather than the stale anchor 50%.
         """
-        sid = lever12_with_upstream["scenario_id"]
-        anchor_version_id = lever12_with_upstream["active_version_id"]
+        sid = cost_allocation_with_upstream["scenario_id"]
+        anchor_version_id = cost_allocation_with_upstream["active_version_id"]
 
         # Stage 1: fork + reduce the upstream edge.
         anchor_edge = (
@@ -916,11 +916,11 @@ class TestMixedStageMDHBalance:
         assert out["totals"]["scenario_total"] == 60000.0
         assert out["totals"]["delta"] == -10000.0
 
-    def test_mixed_edit_does_not_mutate_live_rows(self, db, lever12_with_upstream):
+    def test_mixed_edit_does_not_mutate_live_rows(self, db, cost_allocation_with_upstream):
         """Invariant 2: the live anchor edge and live BTC lines are never
         mutated by a combined Stage-1 + Stage-2 sandbox edit."""
-        sid = lever12_with_upstream["scenario_id"]
-        anchor_version_id = lever12_with_upstream["active_version_id"]
+        sid = cost_allocation_with_upstream["scenario_id"]
+        anchor_version_id = cost_allocation_with_upstream["active_version_id"]
         anchor_edge = (
             db.query(Distribution)
             .filter(
@@ -990,16 +990,16 @@ class TestUnionAwareCascade:
         db.commit()
 
     def test_sandbox_cascade_preserves_unforked_upstream_inflow(
-        self, db, lever12_with_upstream,
+        self, db, cost_allocation_with_upstream,
     ):
         """Focal effective cost must include the anchor inflow from an
         UN-forked upstream source (the exact bug class). ent-up was never
         forked, yet ent-src-up must still cost out at 140k (own 100k + anchor
         inflow 80k*0.5), and the newly-added sandbox edge must appear."""
         from services import cascade_query
-        from services.scenario_lever12 import resolve_sandbox_and_anchor
+        from services.scenario_cost_allocation import resolve_sandbox_and_anchor
 
-        sid = lever12_with_upstream["scenario_id"]
+        sid = cost_allocation_with_upstream["scenario_id"]
         self._add_sandbox_destination(db, sid)
         sv_id, anchor_id = resolve_sandbox_and_anchor(db, sid)
         assert sv_id is not None and anchor_id is not None
@@ -1018,16 +1018,16 @@ class TestUnionAwareCascade:
         )
 
     def test_naive_single_version_walk_loses_inflow_without_anchor(
-        self, db, lever12_with_upstream,
+        self, db, cost_allocation_with_upstream,
     ):
         """Contrast guard: querying the SPARSE sandbox version withOUT an
         anchor (anchor_version_id=None) loses the un-forked upstream inflow —
         100k own only. This is precisely why the union path exists; if a
         future refactor dropped the anchor arg this asserts the regression."""
         from services import cascade_query
-        from services.scenario_lever12 import resolve_sandbox_and_anchor
+        from services.scenario_cost_allocation import resolve_sandbox_and_anchor
 
-        sid = lever12_with_upstream["scenario_id"]
+        sid = cost_allocation_with_upstream["scenario_id"]
         self._add_sandbox_destination(db, sid)
         sv_id, _ = resolve_sandbox_and_anchor(db, sid)
 
@@ -1037,16 +1037,16 @@ class TestUnionAwareCascade:
         assert result.focal.effective_cost == 100000.0
 
     def test_canonical_cascade_unchanged_ignores_sandbox(
-        self, db, lever12_with_upstream,
+        self, db, cost_allocation_with_upstream,
     ):
         """The canonical (production) cascade must be unaffected by sandbox
         edits: focal still 140k via the anchor edge, upstream still ent-up,
         and the sandbox-only ent-x edge must NOT leak into the production
         cascade."""
         from services import cascade_query
-        from services.scenario_lever12 import resolve_sandbox_and_anchor
+        from services.scenario_cost_allocation import resolve_sandbox_and_anchor
 
-        sid = lever12_with_upstream["scenario_id"]
+        sid = cost_allocation_with_upstream["scenario_id"]
         self._add_sandbox_destination(db, sid)
         _, anchor_id = resolve_sandbox_and_anchor(db, sid)
 
@@ -1072,12 +1072,12 @@ class TestAnchorPinning:
     cannot shift impact deltas underneath an open scenario.
     """
 
-    def test_pinned_anchor_used_when_set(self, db, lever12_world):
+    def test_pinned_anchor_used_when_set(self, db, cost_allocation_world):
         # Activate a NEWER production version with a different edge percentage.
         newer = DistributionVersion(
             active_from=date(2026, 3, 1), status="active",
             rationale="newer", origin="copy_active",
-            copied_from_version_id=lever12_world["active_version_id"],
+            copied_from_version_id=cost_allocation_world["active_version_id"],
             scenario_id=None,
         )
         db.add(newer)
@@ -1092,7 +1092,7 @@ class TestAnchorPinning:
         # Scenario is anchored to the OLDER version (50%); the listing must
         # reflect 50%, not the newer 80%.
         rows = list_scenario_edges(
-            db, lever12_world["scenario_id"], "ent-src",
+            db, cost_allocation_world["scenario_id"], "ent-src",
         )
         assert len(rows) == 1
         assert float(rows[0].percentage) == 50.0
@@ -1144,44 +1144,44 @@ class TestAnchorPinning:
 # Cleanup on scenario delete
 # ---------------------------------------------------------------------------
 
-class TestCleanupLever12State:
-    def test_cleanup_removes_scenario_distributions(self, db, lever12_world):
+class TestCleanupCostAllocationState:
+    def test_cleanup_removes_scenario_distributions(self, db, cost_allocation_world):
         apply_distribution_update(
-            db, lever12_world["scenario_id"],
-            edge_id=lever12_world["edge_id"], percentage=40.0,
+            db, cost_allocation_world["scenario_id"],
+            edge_id=cost_allocation_world["edge_id"], percentage=40.0,
         )
         db.commit()
-        sv = _scenario_dist_version(db, lever12_world["scenario_id"])
+        sv = _scenario_dist_version(db, cost_allocation_world["scenario_id"])
         assert sv is not None
         before = db.query(Distribution).filter(Distribution.version_id == sv.id).count()
         assert before == 1
 
-        n = cleanup_lever12_state(db, lever12_world["scenario_id"])
+        n = cleanup_cost_allocation_state(db, cost_allocation_world["scenario_id"])
         db.commit()
         assert n == 1
         # Header gone too — cascade removes child edges.
         assert (
             db.query(DistributionVersion)
-            .filter(DistributionVersion.scenario_id == lever12_world["scenario_id"])
+            .filter(DistributionVersion.scenario_id == cost_allocation_world["scenario_id"])
             .first()
         ) is None
 
-    def test_cleanup_does_not_touch_anchor(self, db, lever12_world):
+    def test_cleanup_does_not_touch_anchor(self, db, cost_allocation_world):
         apply_distribution_update(
-            db, lever12_world["scenario_id"],
-            edge_id=lever12_world["edge_id"], percentage=40.0,
+            db, cost_allocation_world["scenario_id"],
+            edge_id=cost_allocation_world["edge_id"], percentage=40.0,
         )
         db.commit()
-        cleanup_lever12_state(db, lever12_world["scenario_id"])
+        cleanup_cost_allocation_state(db, cost_allocation_world["scenario_id"])
         db.commit()
         anchor_count = (
             db.query(Distribution)
-            .filter(Distribution.version_id == lever12_world["active_version_id"])
+            .filter(Distribution.version_id == cost_allocation_world["active_version_id"])
             .count()
         )
         assert anchor_count == 1
 
-    def test_cleanup_with_no_sandbox_is_noop(self, db, lever12_world):
+    def test_cleanup_with_no_sandbox_is_noop(self, db, cost_allocation_world):
         """When no mutations occurred, there's no sandbox version to clean."""
-        n = cleanup_lever12_state(db, lever12_world["scenario_id"])
+        n = cleanup_cost_allocation_state(db, cost_allocation_world["scenario_id"])
         assert n == 0

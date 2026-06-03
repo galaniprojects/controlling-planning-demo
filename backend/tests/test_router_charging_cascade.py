@@ -498,7 +498,7 @@ class TestCascadeSandboxScenarioId:
         """Anchor the chain (P→O→S) to a scenario and add a sandbox edge
         S→X (30%). S's incoming chain (P→O→S, un-forked) is untouched."""
         from models.scenarios import Scenario
-        from services.scenario_lever12 import apply_distribution_create
+        from services.scenario_cost_allocation import apply_distribution_create
 
         db.add(ChargeableEntity(
             id="ce-x", entity_type="InternalService", identifier="ITF00XXX",

@@ -60,7 +60,7 @@ versions to surface the FD-3 prepare-ahead affordance in the demo:
 
 Cadence-agnostic per [F-S1-02]: there is no ``year`` on edges (the year
 axis lives on the cost being distributed, not on the Stage 1 graph).
-Scenario forks are created lazily by Cluster B's lever-12 engine and never
+Scenario forks are created lazily by Cluster B's cost-allocation engine and never
 seeded directly — they live as ``DistributionVersion`` rows with
 ``scenario_id IS NOT NULL`` and stay in draft.
 
@@ -83,7 +83,7 @@ from __future__ import annotations
 #       narrative. No edges initially.
 #
 # Scenario versions (status='draft', scenario_id IS NOT NULL) are NOT seeded —
-# they are eager-created by the lever-12 service on first mutation per
+# they are eager-created by the cost-allocation service on first mutation per
 # ``[F-S1-02]``.
 # ---------------------------------------------------------------------------
 DISTRIBUTION_VERSIONS: list[dict] = [

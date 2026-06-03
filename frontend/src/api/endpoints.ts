@@ -1959,7 +1959,7 @@ export const chargingApi = {
     const q = new URLSearchParams();
     if (params?.version_id !== undefined) q.set('version_id', String(params.version_id));
     if (params?.evaluated_date) q.set('evaluated_date', params.evaluated_date);
-    // Simulator S3: union-aware sandbox view (Lever-12 editor).
+    // Simulator S3: union-aware sandbox view (cost-allocation editor).
     if (params?.scenario_id !== undefined) q.set('scenario_id', String(params.scenario_id));
     const qs = q.toString();
     return api.get<EntityDistributionSummary>(
@@ -2109,7 +2109,7 @@ export const chargingApi = {
     const q = new URLSearchParams();
     if (params?.version_id !== undefined) q.set('version_id', String(params.version_id));
     if (params?.evaluated_date) q.set('evaluated_date', params.evaluated_date);
-    // Simulator S3: union-aware sandbox cascade (Lever-12 editor reload).
+    // Simulator S3: union-aware sandbox cascade (cost-allocation editor reload).
     if (params?.scenario_id !== undefined) q.set('scenario_id', String(params.scenario_id));
     const qs = q.toString();
     return api.get<CascadeChainResponse>(

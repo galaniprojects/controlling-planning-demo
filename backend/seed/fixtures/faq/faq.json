@@ -34,8 +34,8 @@
   {
     "id": "faq-03",
     "question": "How do I create a what-if scenario?",
-    "summary": "Open the What-If Simulator, click Create New Scenario, add actions to model changes, and review the impact dashboard.",
-    "applicable_roles": ["controller", "executive"],
+    "summary": "Open the What-If Simulator, click Create New Scenario, add actions to model changes, and review the impact dashboard. Project Leads can also create scenarios scoped to their own projects.",
+    "applicable_roles": ["controller", "executive", "project_lead"],
     "modules_involved": ["simulator"],
     "steps": [
       {"step_number": 1, "instruction": "Open the **What-If Simulator** from the Launchpad or sidebar.", "target_module": "simulator"},
@@ -398,7 +398,7 @@
       {"step_number": 3, "instruction": "A diff dialog appears with three sections: **Added** (new charging locations, emerald), **Removed** (red), **Changed** (amber — old % → new %). 'No differences' message if the snapshot already matches."},
       {"step_number": 4, "instruction": "Click **Apply changes** to commit; the editor refetches and the lines table reflects the diff. Click Cancel to abandon."},
       {"step_number": 5, "instruction": "Effects: `BTCProfile.um_snapshot_at` updates to now; `BTCProfileLine` rows rewritten; RollupCache stage2 entries for the entity invalidated; `audit_log` row in `master_data`."},
-      {"step_number": 6, "instruction": "Note: in scenario sandbox mode (Lever 12), the Refresh from UM button is hidden by design — UM is a canonical-only operation."},
+      {"step_number": 6, "instruction": "Note: in scenario sandbox mode (cost-allocation sandbox), the Refresh from UM button is hidden by design — UM is a canonical-only operation."},
       {"step_number": 7, "instruction": "See also: workflow W07.7 in `docs/workflows/07-charging.md`."}
     ]
   },
@@ -420,15 +420,15 @@
   },
   {
     "id": "faq-v5-08",
-    "question": "What is Lever 12 and how do I use it?",
-    "summary": "Lever 12 (BTC profile shift) and Lever 10 (Stage 1 distribution edge) are the simulator's cost-allocation sandboxes per [B-LV-12]. Edits never touch canonical state — they're stored as scenario-version Distribution rows + ScenarioAction overlays — and only Promote materialises them.",
+    "question": "What is the cost-allocation sandbox and how do I use it?",
+    "summary": "The cost-allocation sandbox is the simulator's fully editable surface for modelling Stage 1 distribution edge changes and Stage 2 BTC profile line changes before committing them. Edits never touch canonical state — Stage 1 forks into a per-scenario DistributionVersion; Stage 2 lives as ScenarioAction overlays — and only Promote materialises them.",
     "applicable_roles": ["controller"],
     "modules_involved": ["simulator", "charging"],
     "steps": [
-      {"step_number": 1, "instruction": "Open or create a scenario in `/simulator`. The seeded **MDH BTC Rebalance — DE/PL/CZ** is the canonical lever-12 demo.", "target_module": "simulator"},
+      {"step_number": 1, "instruction": "Open or create a scenario in `/simulator`. The seeded **MDH BTC Rebalance — DE/PL/CZ** is the canonical cost-allocation sandbox demo.", "target_module": "simulator"},
       {"step_number": 2, "instruction": "In the workspace, expand **Bulk Actions** in the left rail → click **Cost Allocation Sandbox**."},
-      {"step_number": 3, "instruction": "The sandbox surface mounts the Charging editors in sandbox mode: Distribution edges and BTC profile lines are editable, but UM refresh and mode-switch buttons are hidden (canonical-only operations)."},
-      {"step_number": 4, "instruction": "Edit BTC lines (Lever 11) or Distribution edges (Lever 10). Storage: Stage 1 forks into `Distribution.version='scenario-{id}'` rows; Stage 2 lives as `ScenarioAction` overlays on the scenario."},
+      {"step_number": 3, "instruction": "The sandbox surface mounts the Charging editors in sandbox mode: Distribution edges and BTC profile lines are fully editable. Stage 1 supports editing percentages, deleting destinations, and **adding new destinations**. Stage 2 BTC lines are fully editable (percentages must sum to 100). UM refresh and mode-switch buttons are hidden — these are canonical-only operations."},
+      {"step_number": 4, "instruction": "Edit BTC lines (Stage 2) or Distribution edges (Stage 1). Storage: Stage 1 forks into a dedicated `DistributionVersion` with `scenario_id=N`; Stage 2 lives as `ScenarioAction` overlays on the scenario — neither path touches canonical rows."},
       {"step_number": 5, "instruction": "Click **Recalculate** to populate the impact dashboard. The Cost Allocation dimension tile shows headline numbers (e.g. '€283k of annual Stage-2 charge rebalanced')."},
       {"step_number": 6, "instruction": "Promote: ⋯ menu → **Promote**. Permission per [F-AC-01]: controllers always allowed; other roles need an explicit RolePermissionGrant for `entity_type='btc_profile'` or `'distribution'`. Promotion materialises overlays onto canonical rows and creates a `ScenarioPromotion` audit row."},
       {"step_number": 7, "instruction": "See also: workflow W06.5 in `docs/workflows/06-simulator.md`."}
@@ -453,16 +453,16 @@
   {
     "id": "faq-v5-10",
     "question": "What does 'Apply to forecast' do as a Project Lead?",
-    "summary": "Pre-populates your next forecast cycle submission with diffs from a published scenario that touches your projects. Cells beyond the granularity boundary are flagged `is_provisional=true`; you still drive the cycle submission yourself.",
+    "summary": "Pre-populates your next forecast cycle submission with diffs from a scenario that touches your projects — either a scenario you authored yourself, or a published scenario from leadership that touches your project slice. Cells beyond the granularity boundary are flagged `is_provisional=true`; you still drive the cycle submission yourself.",
     "applicable_roles": ["project_lead"],
     "modules_involved": ["simulator", "workbench"],
     "steps": [
-      {"step_number": 1, "instruction": "From `/simulator`, locate a published scenario whose tags or description suggest it touches your projects (e.g. 'Budget Pressure: 15% Reduction').", "target_module": "simulator"},
-      {"step_number": 2, "instruction": "Click the scenario row. The workspace opens in **read-only** mode (PLs cannot edit non-owned scenarios)."},
-      {"step_number": 3, "instruction": "Click **Apply to forecast** in the page header. A modal lists the projects you own that the scenario touches."},
-      {"step_number": 4, "instruction": "Click **Confirm apply**. A `ScenarioApplyToForecastEvent` audit row is created. The diffs are pre-loaded onto your next forecast cycle for those projects."},
-      {"step_number": 5, "instruction": "Affected `Forecast` rows beyond the granularity boundary get `is_provisional=true` per [B-OQ-02]; the Workbench grid shows a 'Provisional' badge on those cells."},
-      {"step_number": 6, "instruction": "You still drive the forecast cycle submission afterwards (Rolling Forecast Review → 5-phase wizard). Apply-to-forecast does not auto-submit."},
+      {"step_number": 1, "instruction": "**From your own scenario:** open a scenario you authored in `/simulator` and click **Apply to forecast** in the page header. The modal confirms which of your projects will have diffs pre-loaded.", "target_module": "simulator"},
+      {"step_number": 2, "instruction": "**From a published scenario (leadership handoff):** locate a published scenario whose tags or description suggest it touches your projects (e.g. 'Budget Pressure: 15% Reduction'). Click the scenario row — the workspace opens in read-only mode for scenarios you do not own. Click **Apply to forecast**; a modal shows only the slice of diffs that affects your projects."},
+      {"step_number": 3, "instruction": "Click **Confirm apply**. A `ScenarioApplyToForecastEvent` audit row is created. The diffs are pre-loaded onto your next forecast cycle for those projects."},
+      {"step_number": 4, "instruction": "Affected `Forecast` rows beyond the granularity boundary get `is_provisional=true` per [B-OQ-02]; the Workbench grid shows a 'Provisional' badge on those cells."},
+      {"step_number": 5, "instruction": "You still drive the forecast cycle submission afterwards (Rolling Forecast Review → 5-phase wizard). Apply-to-forecast does not auto-submit."},
+      {"step_number": 6, "instruction": "The scenario is not consumed — you can re-apply after revising the plan to re-seed your forecast."},
       {"step_number": 7, "instruction": "See also: workflow W06.6 in `docs/workflows/06-simulator.md`."}
     ]
   },
@@ -521,7 +521,7 @@
     "applicable_roles": ["controller", "executive"],
     "modules_involved": ["simulator", "administration"],
     "steps": [
-      {"step_number": 1, "instruction": "Tier 3 content = anything in the `cost_allocation` lever_category — Stage 1 distribution edits (Lever 10) and Stage 2 BTC line edits (Lever 11). The first such action flips `tier3_content_flag=true` on the scenario.", "target_module": "simulator"},
+      {"step_number": 1, "instruction": "Tier 3 content = anything in the `cost_allocation` lever_category — Stage 1 distribution edge edits and Stage 2 BTC line edits. The first such action flips `tier3_content_flag=true` on the scenario.", "target_module": "simulator"},
       {"step_number": 2, "instruction": "**Visibility levels** per [B-SL-03]: `private` (author only), `tier3_only` (Tier 3 users only), `all_users` (anyone authenticated)."},
       {"step_number": 3, "instruction": "**Publish gating**: trying to publish a Tier 3 scenario without `tier3_flag` is blocked with 'Tier 3 publish requires elevated permissions'. Choose `tier3_only` to publish for Tier 3 users only."},
       {"step_number": 4, "instruction": "**Promote gating**: promoting requires both `tier3_flag=true` AND a `RolePermissionGrant` row for `entity_type='btc_profile'` or `entity_type='distribution'`. Controllers default-have these grants per [F-AC-01]; other roles need explicit admin-issued grants."},

@@ -327,7 +327,7 @@ const SEED_SUMMARY = [
   { entity: 'Legal Entities', count: '~120', note: 'Many-to-one rollup to ChargingLocation' },
   { entity: 'UM Cells', count: '312', note: 'User Measurement matrix (sparse)' },
   { entity: 'Personas', count: '4', note: 'Anna Meier · Thomas Brenner · Priya Sharma · Dr. Klaus Weber' },
-  { entity: 'Pre-built Scenarios', count: '3', note: 'Incl. MDH BTC Rebalance flagship (lever-12)' },
+  { entity: 'Pre-built Scenarios', count: '3', note: 'Incl. MDH BTC Rebalance flagship (cost-allocation sandbox)' },
   { entity: 'Workflow Templates', count: '4', note: '16 steps total; 6 named workflows backed' },
   { entity: 'Project Milestones', count: '~30', note: 'With baseline + forecast date ranges' },
   { entity: 'Milestone Deliverables', count: '~20', note: '≤10 per milestone; drives progress %' },

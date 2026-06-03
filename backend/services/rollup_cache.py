@@ -27,7 +27,7 @@ Cache hits/misses are handled transparently:
 - On MISS: recompute, insert (or replace-on-unique-conflict), return result.
 - On HIT: deserialize and return cached payload.
 
-Justification for persistent over in-memory: the simulator (lever 12) needs
+Justification for persistent over in-memory: the simulator (cost allocation) needs
 reads outside the writing request; survives uvicorn reload during demos;
 demo scale is trivial.
 """

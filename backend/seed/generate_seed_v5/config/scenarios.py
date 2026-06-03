@@ -2,12 +2,12 @@
 
 T3 owns this file. Four scenarios drive the simulator demo:
 
-1. ``scn-mdh-rebalance`` — controller-private Tier-1 lever-12 demo on the
+1. ``scn-mdh-rebalance`` — controller-private Tier-1 cost-allocation demo on the
    Master Data Hub flagship offering. Shifts the BTC profile percentages on
    ``off-mdh`` to rebalance from German cost centres into Polish + Czech
    locations. Demonstrates the [F-AC-01] controller-edit gate and the
-   sandbox-storage pattern for lever 12 (per CLAUDE.md "Lever 12 sandbox
-   storage pattern (B1)"). Anchor forecast version is left NULL at seed
+   cost-allocation sandbox-storage pattern (per CLAUDE.md "cost allocation
+   sandbox storage pattern (B1)"). Anchor forecast version is left NULL at seed
    time — ``loader._seed_forecast_versions()`` runs post-load and the
    simulator endpoint snaps the anchor to the latest cycle when the
    scenario is opened.
@@ -140,12 +140,12 @@ SCENARIOS: list[dict] = [
         "modified_at": _CREATED_REBALANCE,
         "last_recalculated_at": _CREATED_REBALANCE,
         "actions": [
-            # Lever 12 BTC line shift on off-mdh per [B-ES-01] / [F-S2-*].
+            # Cost allocation BTC line shift on off-mdh per [B-ES-01] / [F-S2-*].
             # action_type MUST be 'btc_profile_line_change' so
-            # services.scenario_lever12._collect_btc_overlay() picks this up
+            # services.scenario_cost_allocation._collect_btc_overlay() picks this up
             # and feeds compute_cost_allocation_impact(). parameters_json
-            # carries the COMPLETE post-rebalance line set (lever12 schema is
-            # full state, not deltas) — sum-to-100 is enforced.
+            # carries the COMPLETE post-rebalance line set (the cost-allocation
+            # schema is full state, not deltas) — sum-to-100 is enforced.
             #
             # Demo storyline: shift 10pp off cl-de-muc onto cl-pl-poz (+5pp)
             # and cl-cz-prg (+5pp, new line). The other 15 lines mirror the

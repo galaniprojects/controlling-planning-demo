@@ -8,7 +8,7 @@
  *   - People tile (Tier 3) is removed entirely from the strip when
  *     `tier3Visible === false` per CLAUDE.md (not greyed — hidden).
  *   - The cost-allocation tile is always rendered when the impact response
- *     includes a `cost_allocation` sub-section (Lever 12 overlay).
+ *     includes a `cost_allocation` sub-section (cost-allocation overlay).
  *
  * Recalculation model: this component does NOT trigger recalc — the
  * Recalculate button lives in T1's ScenarioHeader. We just render whatever
@@ -83,7 +83,7 @@ export function ImpactSummaryStrip({
   const dimensionOrder = DIMENSION_DISPLAY_ORDER.filter((key) => {
     if (key === 'people' && !tier3Visible) return false;
     // Cost allocation tile only shown if the backend returned the section
-    // (Lever-12 sub-section is conditionally added per ImpactDashboardResponse).
+    // (cost-allocation sub-section is conditionally added per ImpactDashboardResponse).
     if (key === 'cost_allocation' && !dims.cost_allocation) return false;
     return true;
   });

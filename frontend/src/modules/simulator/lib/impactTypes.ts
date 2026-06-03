@@ -13,7 +13,7 @@
  *
  * Source of truth for shapes = `compute_*_dimension` functions in
  * scenario_impact.py + `compute_cost_allocation_impact` in
- * scenario_lever12.py.
+ * scenario_cost_allocation.py.
  */
 
 import type { ImpactDashboardResponse as B1ImpactDashboardResponse } from '../api/scenariosApi';
@@ -152,7 +152,7 @@ export interface ChangeSummaryDimensionData {
 }
 
 // ---------------------------------------------------------------------------
-// Dimension 9 (a.k.a. Lever-12 sub-section) — Cost allocation overlay
+// Dimension 9 (a.k.a. cost-allocation sub-section) — Cost allocation overlay
 // ---------------------------------------------------------------------------
 
 export interface CostAllocationLocationItem {
@@ -243,7 +243,7 @@ export type DimensionKey =
 /**
  * Display order for the 8-tile impact strip per spec line 1074. People is at
  * position 4 (Tier-3 only, hidden for non-Tier-3 callers). Cost allocation
- * (Lever-12 overlay) is positioned next to financial since it lives in the
+ * (cost-allocation overlay) is positioned next to financial since it lives in the
  * same financial-impact mental model.
  */
 export const DIMENSION_DISPLAY_ORDER: DimensionKey[] = [

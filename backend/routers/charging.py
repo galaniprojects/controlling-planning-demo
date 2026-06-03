@@ -1198,7 +1198,7 @@ def get_entity_distribution_summary(
     Simulator S3: ``scenario_id`` requests the union-aware sandbox view —
     the entity's effective outgoing edges (sandbox edges if the source was
     forked, else the inherited anchor edges) WITH their edge ids, so the
-    Lever-12 editor renders its own added/forked destinations and routes
+    cost-allocation editor renders its own added/forked destinations and routes
     update/delete to the right row (un-forked edges fork on first touch via
     the sandbox handlers). ``to_business_pct`` reflects the live entity value
     here — the scenario to-business overlay surfaces in the impact preview,
@@ -1213,7 +1213,7 @@ def get_entity_distribution_summary(
         from services.distribution_service import (
             SUM_TOLERANCE, union_outgoing_edges,
         )
-        from services.scenario_lever12 import resolve_sandbox_and_anchor
+        from services.scenario_cost_allocation import resolve_sandbox_and_anchor
         sv_id, anchor_id = resolve_sandbox_and_anchor(db, scenario_id)
         if sv_id is not None:
             # Union-aware sandbox summary (focal may or may not be forked).
@@ -1492,7 +1492,7 @@ def create_distribution_version(
     Returns the new draft header plus its (possibly-copied) edges so the
     UI can render the version-creation modal preview in one round trip.
     Scenario-scoped versions cannot be created via this endpoint — the
-    lever-12 service creates them lazily.
+    cost-allocation service creates them lazily.
     """
     try:
         v = create_version(
@@ -1777,7 +1777,7 @@ def get_cascade_chain(
     (``status='active'``, ``scenario_id IS NULL``). An explicit
     ``version_id`` query parameter accepts any version, including
     scenario-scoped drafts (``status='draft'``, ``scenario_id IS NOT NULL``)
-    — surfaces the lever-12 sandbox state for analysis. The response's
+    — surfaces the cost-allocation sandbox state for analysis. The response's
     ``version`` block reports the resolved version's status and scenario_id.
 
     Year resolution: own-cost (``Project.annual_budget``) and BTC-profile
@@ -1797,15 +1797,15 @@ def get_cascade_chain(
         raise HTTPException(404, f"ChargeableEntity '{entity_id}' not found")
 
     # Simulator S3: ``scenario_id`` requests the union-aware sandbox cascade
-    # so the Lever-12 distribution editor renders its own forked/added edges
-    # with correct EUR amounts. We resolve the scenario's sandbox version +
+    # so the cost-allocation distribution editor renders its own forked/added
+    # edges with correct EUR amounts. We resolve the scenario's sandbox version +
     # production anchor read-only. With no Stage-1 edits yet (no sandbox
     # version) we degrade to a plain anchor cascade. ``scenario_id`` omitted
     # → unchanged canonical resolution.
     anchor_for_query: int | None = None
     if scenario_id is not None:
         _assert_scenario_visible(db, scenario_id, user)
-        from services.scenario_lever12 import resolve_sandbox_and_anchor
+        from services.scenario_cost_allocation import resolve_sandbox_and_anchor
         sv_id, anchor_id = resolve_sandbox_and_anchor(db, scenario_id)
         if sv_id is not None:
             version_id = sv_id

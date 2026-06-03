@@ -1096,7 +1096,7 @@ class TestDepthValidation:
 # Union-aware edge resolution (Simulator S3) — shared sandbox primitives
 #
 # These back the simulator's union-of-forked-vs-anchor cascade. They are the
-# single source of truth reused by scenario_lever12 (impact preview) and the
+# single source of truth reused by scenario_cost_allocation (impact preview) and the
 # anchor-aware cascade_query / dag_resolver paths (editor reload).
 # ---------------------------------------------------------------------------
 

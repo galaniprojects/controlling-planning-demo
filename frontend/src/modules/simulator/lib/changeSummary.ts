@@ -12,9 +12,9 @@ import type { ChangeSummaryEntry, ChangeSummaryKind } from '../ScenarioContext';
 
 const KIND_LABELS: Record<ChangeSummaryKind, string> = {
   action: 'Action',
-  lever12_distribution: 'Stage 1 distribution',
-  lever12_btc: 'Stage 2 BTC',
-  lever12_to_business: 'To-business %',
+  cost_allocation_distribution: 'Stage 1 distribution',
+  cost_allocation_btc: 'Stage 2 BTC',
+  cost_allocation_to_business: 'To-business %',
   metadata: 'Metadata',
   lifecycle: 'Lifecycle',
   promote: 'Promote',

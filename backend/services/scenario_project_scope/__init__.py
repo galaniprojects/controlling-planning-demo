@@ -19,6 +19,6 @@ Module map (one Session-1 workstream owns each):
   - rollup.py      — ResolvedGrid → per-project state + splits (Stream B).
   - routing.py     — direct overlay-diff routing + the two write paths (Stream C).
 
-Portfolio scope, lever-12 (cost-allocation sandbox), the promote routing
+Portfolio scope, cost-allocation sandbox, the promote routing
 vocabulary, and the impact dashboard are reused untouched.
 """

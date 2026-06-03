@@ -276,8 +276,8 @@ def test_cco_staffing_mix_change(seed_conn):
     assert act is not None and act[0] == 3 and act[1] == "people", act
 
 
-def test_mdh_rebalance_lever12_unchanged(seed_conn):
-    """The lever-12 BTC scenario is left as-is: one btc_profile_line_change
+def test_mdh_rebalance_cost_allocation_unchanged(seed_conn):
+    """The cost-allocation BTC scenario is left as-is: one btc_profile_line_change
     action, no overlay rows."""
     sid = _scenario_id(seed_conn, "MDH BTC Rebalance — DE/PL/CZ")
     cur = seed_conn.execute(
@@ -288,7 +288,7 @@ def test_mdh_rebalance_lever12_unchanged(seed_conn):
     rows = cur.fetchall()
     assert len(rows) == 1, rows
     assert rows[0] == ("btc_profile_line_change", "cost_allocation"), rows[0]
-    # No Layer-2 overlay rows for the untouched lever-12 scenario.
+    # No Layer-2 overlay rows for the untouched cost-allocation scenario.
     for table in (
         "scenario_forecast_cell_edits",
         "scenario_line_edits",

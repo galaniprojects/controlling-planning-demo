@@ -1,5 +1,5 @@
 /**
- * Cost-allocation dimension (Lever-12 overlay) per [F-RV-01..06] +
+ * Cost-allocation dimension (cost-allocation overlay) per [F-RV-01..06] +
  * spec acceptance criterion #10:
  *
  *   "Cost allocation impact preview renders per-location deltas."
@@ -33,7 +33,7 @@ export function CostAllocationDimension({
         <Route className="h-5 w-5 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">
           Cost-allocation overlay not available for this scenario. Apply a
-          Lever 12 (distribution / BTC) edit to populate this view.
+          cost-allocation (distribution / BTC) edit to populate this view.
         </p>
       </Card>
     );

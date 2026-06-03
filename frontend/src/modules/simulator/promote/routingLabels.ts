@@ -107,7 +107,7 @@ export const ROUTING_LABELS: Record<RoutingType, RoutingLabel> = {
   cost_allocation_update: {
     title: 'Cost allocation update',
     description:
-      'Lever 12 (Stage 1 distribution edge / Stage 2 BTC) — copied back from sandbox to canonical version.',
+      'Cost allocation (Stage 1 distribution edge / Stage 2 BTC) — copied back from sandbox to canonical version.',
     badgeClass:
       'border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300',
   },
@@ -183,7 +183,7 @@ export const ROUTING_CATEGORY_LABEL: Record<
   envelope: 'Budget envelope',
   hypothetical: 'Hypothetical projects',
   hierarchy: 'Hierarchy reassignment',
-  cost_allocation: 'Cost allocation (Lever 12)',
+  cost_allocation: 'Cost allocation',
   capacity: 'Capacity parameters',
   other: 'Other / no native route',
 };

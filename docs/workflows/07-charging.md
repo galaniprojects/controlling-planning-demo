@@ -41,7 +41,7 @@ No state change — read-only view. The default `(year=2026, version='forecast')
 ## W07.2: Edit a distribution edge with sum-rule validation
 
 **Purpose**: Adjust a percentage on an existing edge or change `to_business_pct`, watching the sum-rule indicator stay green.
-**When to use**: Master-data correction (a service was over-distributing), or modelling a Stage 1 mix shift before lever-12 promotion.
+**When to use**: Master-data correction (a service was over-distributing), or modelling a Stage 1 mix shift before cost-allocation sandbox promotion.
 **Personas involved**: Controller (or a role explicitly granted `RolePermissionGrant` for `entity_type='distribution'` per `[F-AC-01]`).
 **Pre-conditions**: ≥ 1 outgoing edge exists on the chosen source entity. Demo: `off-mdh` has outflow to `svc-data-stewardship` at 5%.
 **Estimated walk-time**: 4 min.
@@ -61,7 +61,7 @@ No state change — read-only view. The default `(year=2026, version='forecast')
 ### Alternative paths
 
 - **Sum-rule violation on save**: If Σ edges + to-business > 100, the inline editor raises an error message ("Only X% available before the sum cap of 100% is exceeded.") and the save is rejected client-side.
-- **Sandbox path** (lever 12): if the same editor is mounted from a scenario workspace, the same form routes through `ScenarioContext` and stores edits as `ScenarioAction` overlays on `Distribution.version='scenario-{id}'` per `[B-OQ-02]` — see [W06.5](./06-simulator.md#w065-lever-12-btc-rebalance--sandbox--impact-preview--promote).
+- **Sandbox path** (cost-allocation sandbox): if the same editor is mounted from a scenario workspace, the same form routes through `ScenarioContext` and stores edits as `ScenarioAction` overlays on a scenario-scoped `DistributionVersion` per `[B-OQ-02]` — see [W06.5](./06-simulator.md#w065-cost-allocation-sandbox-stage-1--stage-2--sandbox--impact-preview--promote). In sandbox mode, adding new Stage-1 destinations is also supported.
 
 ### Post-conditions
 
@@ -286,7 +286,7 @@ No DB change — the offending insert is rejected by `services/distribution_serv
 ### Known issues / caveats
 
 - Mode-switch dialog (`Switch to automatic` / `Switch to manual`) is the second mechanism for rebasing a profile per `[F-S2-05]`: manual → automatic asks for an S-code and warns "Switching to automatic discards the manual values below and snapshots from the UM matrix"; automatic → manual inherits the snapshot verbatim and unlocks per-line editing.
-- Sandbox-mode editors (lever 12) hide the **Refresh from UM** and **Switch to manual** buttons by design — these are canonical-only operations per `[B-ES-01]`.
+- Sandbox-mode editors (cost-allocation sandbox) hide the **Refresh from UM** and **Switch to manual** buttons by design — these are canonical-only operations per `[B-ES-01]`. Stage 2 BTC lines are fully editable in sandbox mode; percentages must sum to 100.
 
 ---
 
@@ -314,7 +314,7 @@ No DB change — the offending insert is rejected by `services/distribution_serv
 ### Alternative paths
 
 - **Empty version**: If `version='actuals'` is selected for a future-only dataset, the map renders empty bubbles ("0 €"). Switch back to forecast to see populated state.
-- **Sandbox preview**: When mounted from a scenario impact-tile preview (see [W06.5](./06-simulator.md#w065-lever-12-btc-rebalance--sandbox--impact-preview--promote)), the version locks to `scenario-{id}` and a blue chip appears in the version slot.
+- **Sandbox preview**: When mounted from a scenario impact-tile preview (see [W06.5](./06-simulator.md#w065-cost-allocation-sandbox-stage-1--stage-2--sandbox--impact-preview--promote)), the version locks to `scenario-{id}` and a blue chip appears in the version slot.
 
 ### Post-conditions
 
@@ -340,7 +340,7 @@ No state change — read-only. First query primes `RollupCache` per `services/ro
 ## Cross-workflow notes
 
 - **DAG resolution caching**: Stage 1 effective cost is cached in `RollupCache` keyed by `(year, version, entity_id)`. Distribution writes invalidate per `services/rollup_cache.invalidate_for_distribution_write`; BTC writes invalidate the matching Stage 2 entries; `annual_cost` writes on the entity invalidate both layers. Manual flush via `POST /api/admin/rollup-cache/invalidate` (controller-only).
-- **Scenario forks**: any Stage 1 edge mutation done in a scenario is stored as `Distribution.version='scenario-<id>'`; canonical `version='forecast'` rows are never touched until Promote. See [W06.5](./06-simulator.md#w065-lever-12-btc-rebalance--sandbox--impact-preview--promote).
+- **Scenario forks**: any Stage 1 edge mutation done in a scenario (including adding new destinations) is stored in a scenario-scoped `DistributionVersion` (`scenario_id=N`); canonical production versions are never touched until Promote. See [W06.5](./06-simulator.md#w065-cost-allocation-sandbox-stage-1--stage-2--sandbox--impact-preview--promote).
 - **Reporting bridge**: the fourth sidebar section `?section=reports` is a discoverability bridge to the AI Report Builder with pre-filled Cluster F prompts (e.g. "Show me total annual effective cost by charging location for 2026, broken down by division"). See [W09.6](./09-reporting.md#w096-ai-report-builder-natural-language-query).
 
 ## Related FAQ entries

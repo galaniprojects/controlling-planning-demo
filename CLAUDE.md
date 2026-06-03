@@ -72,7 +72,7 @@ The app ships with 10 modules — see Frontend Routes table below for paths.
 | Backlog | Ranked pre-execution pipeline (Proposed / Under Evaluation / Approved), Tech Navigator scoring, cube + list views, send-back/resubmit cycle |
 | Project Workbench | Overview tile grid, mixed-granularity forecast grid, 5-phase cycle wizard, External Costs, Cost Allocation, version history |
 | Capacity Management | Team utilization heatmaps, cell drill-down, org-wide pivots, resource request management |
-| What-If Simulator | Anchor-against-version scenarios, Tier 1/2/3 levers across 17+ surfaces incl. Lever 12 BTC sandbox, Promote-with-routing, Apply-to-Forecast |
+| What-If Simulator | Anchor-against-version scenarios, WYSIWYG project-scope grid + macros, Tier 1/2/3 levers across 17+ surfaces incl. cost-allocation sandbox (Stage 1 + Stage 2), PL authoring, Promote-with-routing, Apply-to-Forecast |
 | Charging & Allocations | Stage 1 inter-service distribution edges (DAG), Stage 2 BTC profiles, Location Cost Rollup, Reporting bridge |
 | Reporting | 5 standard reports + AI Report Builder (NL → query), saved views, export |
 | Administration | Configurable hierarchy editor, charging master data, UM matrix viewer, workflow templates, scheduled changes, audit log, role-permission grants, planning parameters |
