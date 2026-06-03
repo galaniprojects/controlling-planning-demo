@@ -111,10 +111,14 @@ export function adaptRows(
 ): MonthCategoryGridRow[] {
   return response.rows.map((r) => ({
     category: r.category,
-    sub_category: r.line_key, // round-tripped on write/revert
+    // line_key is the round-tripped row identity. It encodes the workforce
+    // location as its 4th segment, so same-role-multi-location splits map to
+    // distinct rows here (unique `sub_category`) — preserving per-cell edit keys.
+    sub_category: r.line_key,
     sub_category_name: r.sub_category_name,
     capex_opex: null,
     hourly_rate: r.hourly_rate,
+    location_name: r.location_name ?? null, // S6: city chip for internal splits
   }));
 }
 

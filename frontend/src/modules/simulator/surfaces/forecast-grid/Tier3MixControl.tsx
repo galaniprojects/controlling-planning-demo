@@ -23,8 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 import { referenceApi } from '@/api/endpoints';
-import type { RefRole } from '@/types/api';
+import type { RefLocation, RefRole } from '@/types/api';
 import { useTier3 } from '../../permissions';
 import { useScenarioContext } from '../../useScenarioContext';
 import { scenariosApi, type ScenarioMixItem } from '../../api/scenariosApi';
@@ -41,9 +42,11 @@ export function Tier3MixControl({ projectId, openMonth, onMutated }: Props) {
   const hasTier3 = useTier3({ impactTier3Visible: tier3Visible });
 
   const [roles, setRoles] = useState<RefRole[]>([]);
+  const [locations, setLocations] = useState<RefLocation[]>([]);
   const [mixChanges, setMixChanges] = useState<ScenarioMixItem[]>([]);
   const [fromRole, setFromRole] = useState('');
   const [toRole, setToRole] = useState('');
+  const [location, setLocation] = useState('');
   const [hours, setHours] = useState('');
   const [effectiveFrom, setEffectiveFrom] = useState(openMonth);
   const [busy, setBusy] = useState(false);
@@ -56,6 +59,12 @@ export function Tier3MixControl({ projectId, openMonth, onMutated }: Props) {
       .getRoles()
       .then((res) => {
         if (!cancelled) setRoles(res.items ?? []);
+      })
+      .catch(() => undefined);
+    void referenceApi
+      .getLocations()
+      .then((res) => {
+        if (!cancelled) setLocations(res.items ?? []);
       })
       .catch(() => undefined);
     void scenariosApi
@@ -73,6 +82,11 @@ export function Tier3MixControl({ projectId, openMonth, onMutated }: Props) {
     const map = new Map(roles.map((r) => [r.id, r.name]));
     return (id: string | null) => (id ? map.get(id) ?? id : '—');
   }, [roles]);
+
+  const locationName = useMemo(() => {
+    const map = new Map(locations.map((l) => [l.id, l.city]));
+    return (id: string | null | undefined) => (id ? map.get(id) ?? id : null);
+  }, [locations]);
 
   // Render-null for non-Tier-3 authors — the control does not exist for them.
   if (!hasTier3) return null;
@@ -99,6 +113,9 @@ export function Tier3MixControl({ projectId, openMonth, onMutated }: Props) {
         swap_to_role_id: toRole,
         hours_per_month_swap: swap,
         effective_from: effectiveFrom,
+        // Intra-location swap: send the one location; the backend mirrors it to
+        // the to-side so both role lines share the same workforce location.
+        swap_from_location_id: location || undefined,
       });
       setMixChanges(res.mix_changes);
       setHours('');
@@ -176,6 +193,23 @@ export function Tier3MixControl({ projectId, openMonth, onMutated }: Props) {
         </div>
         <div className="space-y-1">
           <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <LocationLabel kind="workforce" text="Location" iconOnly={false} />
+          </label>
+          <Select value={location} onValueChange={setLocation} disabled={busy}>
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Select…" />
+            </SelectTrigger>
+            <SelectContent>
+              {locations.map((loc) => (
+                <SelectItem key={loc.id} value={loc.id}>
+                  {loc.city}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             Hours / month
           </label>
           <Input
@@ -221,6 +255,13 @@ export function Tier3MixControl({ projectId, openMonth, onMutated }: Props) {
                 {roleName(mc.swap_from_role_id)}
                 <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
                 {roleName(mc.swap_to_role_id)}
+                {locationName(mc.swap_from_location_id) && (
+                  <LocationLabel
+                    kind="workforce"
+                    text={locationName(mc.swap_from_location_id) ?? ''}
+                    className="text-[11px] font-normal text-muted-foreground"
+                  />
+                )}
                 <span className="ml-1 font-mono text-xs text-muted-foreground">
                   {mc.hours_per_month_swap}h/mo · {mc.effective_from}
                 </span>
