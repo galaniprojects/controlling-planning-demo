@@ -44,6 +44,12 @@ class RateTable(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     role_type_id: Mapped[str] = mapped_column(ForeignKey("role_types.id"), nullable=False)
     competence_center_id: Mapped[str] = mapped_column(ForeignKey("competence_centers.id"), nullable=False)
+    # S6 location-aware rates: workforce location this rate applies to
+    # (loc-muc / loc-bud / loc-pun). Nullable for back-compat; resolve_hourly_rate
+    # prefers an exact-location row, then loc-muc, then any location for the role.
+    location_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("locations.id"), nullable=True
+    )
     hourly_rate: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     effective_date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
     previous_rate: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)

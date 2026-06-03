@@ -45,15 +45,17 @@ from services.scenario_project_scope.types import (
 )
 
 
-def _natural_line_key(category: str, sub_category, role_type_id) -> str:
-    """Natural composite line key "category|sub_category|role_type_id".
+def _natural_line_key(category: str, sub_category, role_type_id, location_id=None) -> str:
+    """Natural composite line key "category|sub_category|role_type_id|location_id".
 
     Matches the live Forecast cell key and the overlay's ``line_key`` for existing
-    lines. External lines carry no role, so the third component is empty
-    ("external|<sub>|"); internal lines carry the role id when present
-    ("internal|<sub>|<role>").
+    lines. External lines carry no role or location, so those components are empty
+    ("external|<sub>||"); internal lines carry the role id and workforce location
+    when present ("internal|<sub>|<role>|<location>"). The 4th (location) segment
+    splits same-role-multi-location staffing into one line per location (S6
+    location-aware rates), so each line prices at a single location rate.
     """
-    return f"{category}|{sub_category or ''}|{role_type_id or ''}"
+    return f"{category}|{sub_category or ''}|{role_type_id or ''}|{location_id or ''}"
 
 
 def _kind_for(category: str) -> str:
@@ -75,7 +77,7 @@ def read_anchor_grid(db: Session, project_id: str) -> ResolvedGrid:
     for row in rows:
         category = row.category
         kind = _kind_for(category)
-        key = _natural_line_key(category, row.sub_category, row.role_type_id)
+        key = _natural_line_key(category, row.sub_category, row.role_type_id, row.location_id)
 
         line = lines_by_key.get(key)
         if line is None:
@@ -85,6 +87,7 @@ def read_anchor_grid(db: Session, project_id: str) -> ResolvedGrid:
                 kind=kind,
                 sub_category=row.sub_category,
                 role_type_id=row.role_type_id,
+                location_id=row.location_id,
                 vendor=row.vendor,
             )
             lines_by_key[key] = line
@@ -140,12 +143,14 @@ def _line_from_key(line_key: str) -> ResolvedLine:
     category = parts[0] if parts and parts[0] else "internal"
     sub_category = parts[1] if len(parts) > 1 and parts[1] else None
     role_type_id = parts[2] if len(parts) > 2 and parts[2] else None
+    location_id = parts[3] if len(parts) > 3 and parts[3] else None
     return ResolvedLine(
         line_key=line_key,
         category=category,
         kind=_kind_for(category),
         sub_category=sub_category,
         role_type_id=role_type_id,
+        location_id=location_id,
     )
 
 
@@ -209,29 +214,40 @@ def _apply_mix(db: Session, grid: ResolvedGrid, scenario_id: int, project_id: st
     if not mix_changes:
         return
 
-    def _internal_line_for_role(role_id: str) -> Optional[ResolvedLine]:
+    def _internal_line_for(role_id: str, location_id) -> Optional[ResolvedLine]:
+        # Match by (role, location) so a swap targets the correct split line; a
+        # NULL swap location matches a line regardless of location (back-compat
+        # with location-less mix changes).
         for line in grid.lines:
             if line.kind != LINE_KIND_INTERNAL:
                 continue
-            if (line.role_type_id or line.sub_category) == role_id:
-                return line
+            if (line.role_type_id or line.sub_category) != role_id:
+                continue
+            if location_id is not None and line.location_id != location_id:
+                continue
+            return line
         return None
 
     for mc in mix_changes:
         from_role = mc.swap_from_role_id
         to_role = mc.swap_to_role_id
+        from_location = mc.swap_from_location_id
+        to_location = mc.swap_to_location_id
         per_month = float(mc.hours_per_month_swap or 0.0)
         if not from_role or not to_role or per_month <= 0:
             continue
-        from_line = _internal_line_for_role(from_role)
+        from_line = _internal_line_for(from_role, from_location)
         if from_line is None:
             continue  # nothing to swap out of
-        to_line = _internal_line_for_role(to_role)
+        # Resolve the to-line's location: explicit swap target, else mirror the
+        # from-line's location (intra-location swap is the default UX).
+        resolved_to_location = to_location or from_line.location_id
+        to_line = _internal_line_for(to_role, resolved_to_location)
         if to_line is None:
-            key = _natural_line_key("internal", to_role, to_role)
+            key = _natural_line_key("internal", to_role, to_role, resolved_to_location)
             to_line = ResolvedLine(
                 line_key=key, category="internal", kind=LINE_KIND_INTERNAL,
-                sub_category=to_role, role_type_id=to_role,
+                sub_category=to_role, role_type_id=to_role, location_id=resolved_to_location,
             )
             grid.lines.append(to_line)
 
@@ -245,16 +261,16 @@ def _apply_mix(db: Session, grid: ResolvedGrid, scenario_id: int, project_id: st
             swap = min(per_month, available)
             if swap <= 0:
                 continue
-            # Rate-at-month: price each swapped cell at the rate in force that
-            # month, not a single latest-wins rate for the whole window.
+            # Rate-at-month, location-aware: price each swapped cell at the rate
+            # in force that month at the line's workforce location.
             cell.hours = round(available - swap, 2)
-            cell.amount_eur = round((cell.hours or 0.0) * effective_hourly_rate(db, from_role, month), 2)
+            cell.amount_eur = round((cell.hours or 0.0) * effective_hourly_rate(db, from_role, from_line.location_id, month), 2)
             to_cell = to_line.cells.get(month)
             if to_cell is None:
                 to_cell = ResolvedCell(amount_eur=0.0, hours=0.0)
                 to_line.cells[month] = to_cell
             to_cell.hours = round((to_cell.hours or 0.0) + swap, 2)
-            to_cell.amount_eur = round((to_cell.hours or 0.0) * effective_hourly_rate(db, to_role, month), 2)
+            to_cell.amount_eur = round((to_cell.hours or 0.0) * effective_hourly_rate(db, to_role, to_line.location_id, month), 2)
 
 
 def _apply_overlay(db: Session, grid: ResolvedGrid, scenario_id: int, project_id: str, open_month: str) -> None:
@@ -290,6 +306,7 @@ def _apply_overlay(db: Session, grid: ResolvedGrid, scenario_id: int, project_id
                     kind=edit.line_kind or _kind_for(category),
                     sub_category=edit.sub_category,
                     role_type_id=edit.role_type_id,
+                    location_id=edit.location_id,
                     vendor=edit.vendor,
                 )
                 grid.lines.append(new_line)
@@ -351,7 +368,7 @@ def _apply_overlay(db: Session, grid: ResolvedGrid, scenario_id: int, project_id
             # fix). Rate keys on role_type_id, falling back to sub_category for
             # legacy internal lines that carry the role there.
             cell.hours = value
-            rate = effective_hourly_rate(db, line.role_type_id or line.sub_category, edit.month)
+            rate = effective_hourly_rate(db, line.role_type_id or line.sub_category, line.location_id, edit.month)
             cell.amount_eur = round((value or 0.0) * rate, 2)
         elif edit.field == "amount_eur":
             cell.amount_eur = value if value is not None else 0.0

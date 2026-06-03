@@ -443,6 +443,13 @@ class ScenarioLineEdit(Base):
     role_type_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("role_types.id"), nullable=True,
     )
+    # S6 location-aware rates: workforce location for an added internal role
+    # line (loc-muc / loc-bud / loc-pun). Lets routing/promote write the added
+    # line back to a Forecast row with the correct location + rate. Null for
+    # external-cost lines.
+    location_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("locations.id"), nullable=True,
+    )
     cost_type_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("external_cost_types.id"), nullable=True,
     )
@@ -472,7 +479,8 @@ class ScenarioMixChange(Base):
         # overlay tables' uniqueness (uq_scenario_cell_edit / _line_edit / _plan_edit).
         UniqueConstraint(
             "scenario_id", "project_id", "cost_center_id",
-            "swap_from_role_id", "swap_to_role_id",
+            "swap_from_role_id", "swap_from_location_id",
+            "swap_to_role_id", "swap_to_location_id",
             name="uq_scenario_mix_change",
         ),
         Index("ix_scenario_mix_change_scope", "scenario_id", "project_id"),
@@ -487,8 +495,17 @@ class ScenarioMixChange(Base):
     swap_from_role_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("role_types.id"), nullable=True,
     )
+    # S6 location-aware rates: workforce location of the from/to role lines.
+    # The Tier-3 mix UX swaps within a single location (from==to); two columns
+    # keep cross-location open without a future migration.
+    swap_from_location_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("locations.id"), nullable=True,
+    )
     swap_to_role_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("role_types.id"), nullable=True,
+    )
+    swap_to_location_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("locations.id"), nullable=True,
     )
     hours_per_month_swap: Mapped[Optional[float]] = mapped_column(
         Numeric(10, 2), nullable=True,

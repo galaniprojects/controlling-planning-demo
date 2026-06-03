@@ -287,6 +287,10 @@ class ScenarioGridRow(BaseModel):
     kind: str                      # "internal_role" | "external_cost"
     sub_category_name: str         # display label
     hourly_rate: Optional[float] = None  # internal lines only (for €-from-hours sub-line)
+    # S6 location-aware rates: workforce location of an internal role line
+    # (split per location). Null for external lines and location-less rows.
+    location_id: Optional[str] = None
+    location_name: Optional[str] = None  # display label (city) for the location chip
     cells: list[ScenarioGridCell]
 
 
@@ -352,6 +356,10 @@ class LineAddRequest(BaseModel):
     role_type_id: str
     sub_category: Optional[str] = None
     category: Optional[str] = "internal"
+    # S6 location-aware rates: workforce location for the added internal line
+    # (loc-muc / loc-bud / loc-pun). Determines the line's rate. Null → resolves
+    # via the Munich/any fallback.
+    location_id: Optional[str] = None
 
 
 class ScenarioLineWriteResponse(BaseModel):
@@ -425,6 +433,10 @@ class MixChangeRequest(BaseModel):
     hours_per_month_swap: float
     effective_from: str = Field(pattern=r"^\d{4}-\d{2}$")
     cost_center_id: Optional[str] = None
+    # S6 location-aware rates: workforce location of the from/to role lines. The
+    # UX swaps within one location (set both equal); both nullable for back-compat.
+    swap_from_location_id: Optional[str] = None
+    swap_to_location_id: Optional[str] = None
 
 
 class ScenarioMixItem(BaseModel):
@@ -434,6 +446,8 @@ class ScenarioMixItem(BaseModel):
     swap_to_role_id: Optional[str] = None
     hours_per_month_swap: Optional[float] = None
     effective_from: Optional[str] = None
+    swap_from_location_id: Optional[str] = None
+    swap_to_location_id: Optional[str] = None
 
 
 class ScenarioMixWriteResponse(BaseModel):

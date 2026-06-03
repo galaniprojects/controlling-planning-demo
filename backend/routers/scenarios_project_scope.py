@@ -98,6 +98,7 @@ def _grid_to_response(
     )
     from services.scenario_project_scope.types import LINE_KIND_INTERNAL
     from models.people import RoleType
+    from models.organization import Location
 
     adjusted = resolve_project_grid(db, scenario, project_id)
     anchor = read_anchor_grid(db, project_id)
@@ -127,6 +128,9 @@ def _grid_to_response(
     # editable month is the next one. A cell is editable iff month >= open_month.
     open_month = open_forecast_month()
 
+    # Workforce-location display labels (S6 location-aware rates) — city per id.
+    location_names = {loc.id: loc.city for loc in db.query(Location).all()}
+
     rows: list[ScenarioGridRow] = []
     for line in adjusted.lines:
         is_internal = line.kind == LINE_KIND_INTERNAL
@@ -145,8 +149,8 @@ def _grid_to_response(
                 if role is not None:
                     sub_category_name = role.name
             # Display label only — price at the first editable forecast month
-            # (the "current" rate the user edits against).
-            hourly_rate = effective_hourly_rate(db, line.role_type_id or line.sub_category, open_month)
+            # (the "current" rate the user edits against), at the line's location.
+            hourly_rate = effective_hourly_rate(db, line.role_type_id or line.sub_category, line.location_id, open_month)
         elif line.vendor:
             sub_category_name = line.vendor
 
@@ -201,6 +205,8 @@ def _grid_to_response(
             kind=line.kind,
             sub_category_name=sub_category_name,
             hourly_rate=hourly_rate,
+            location_id=line.location_id,
+            location_name=location_names.get(line.location_id) if line.location_id else None,
             cells=cells,
         ))
 
@@ -511,6 +517,7 @@ def add_role_line(
         category="internal",
         sub_category=body.sub_category or body.role_type_id,
         role_type_id=body.role_type_id,
+        location_id=body.location_id,
     ))
     state = _recalc_after_overlay_write(db, scenario)
     return ScenarioLineWriteResponse(
@@ -854,6 +861,8 @@ def _mix_items(db: Session, scenario_id: int, project_id: str) -> list[ScenarioM
             swap_to_role_id=r.swap_to_role_id,
             hours_per_month_swap=(float(r.hours_per_month_swap) if r.hours_per_month_swap is not None else None),
             effective_from=r.effective_from,
+            swap_from_location_id=r.swap_from_location_id,
+            swap_to_location_id=r.swap_to_location_id,
         )
         for r in rows
     ]
@@ -919,6 +928,11 @@ def write_mix_change(
             "nothing may reshape the past.",
         )
 
+    # Intra-location swap is the default UX: if only one side's location is given,
+    # mirror it to the other so from/to share a location.
+    from_location_id = body.swap_from_location_id or body.swap_to_location_id
+    to_location_id = body.swap_to_location_id or body.swap_from_location_id
+
     existing = (
         db.query(ScenarioMixChange)
         .filter(
@@ -926,7 +940,9 @@ def write_mix_change(
             ScenarioMixChange.project_id == project_id,
             ScenarioMixChange.cost_center_id == body.cost_center_id,
             ScenarioMixChange.swap_from_role_id == body.swap_from_role_id,
+            ScenarioMixChange.swap_from_location_id == from_location_id,
             ScenarioMixChange.swap_to_role_id == body.swap_to_role_id,
+            ScenarioMixChange.swap_to_location_id == to_location_id,
         )
         .first()
     )
@@ -939,7 +955,9 @@ def write_mix_change(
             project_id=project_id,
             cost_center_id=body.cost_center_id,
             swap_from_role_id=body.swap_from_role_id,
+            swap_from_location_id=from_location_id,
             swap_to_role_id=body.swap_to_role_id,
+            swap_to_location_id=to_location_id,
             hours_per_month_swap=body.hours_per_month_swap,
             effective_from=body.effective_from,
         ))

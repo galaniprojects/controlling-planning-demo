@@ -38,10 +38,12 @@ class ResolvedCell:
 class ResolvedLine:
     """One forecast line in the resolved grid, with its per-month cells.
 
-    ``line_key`` is the natural composite ("category|sub_category|role_type_id")
-    for existing lines, or a minted id ("new:role:<uuid>" / "new:ext:<uuid>")
-    for lines added via the overlay. ``cells`` maps absolute "YYYY-MM" →
-    ResolvedCell. ``kind`` is one of LINE_KIND_*.
+    ``line_key`` is the natural composite
+    ("category|sub_category|role_type_id|location_id") for existing lines, or a
+    minted id ("new:role:<uuid>" / "new:ext:<uuid>") for lines added via the
+    overlay. ``cells`` maps absolute "YYYY-MM" → ResolvedCell. ``kind`` is one of
+    LINE_KIND_*. ``location_id`` is the workforce location for internal role
+    lines (S6 location-aware rates); None for external lines.
     """
 
     line_key: str
@@ -49,6 +51,7 @@ class ResolvedLine:
     kind: str                           # LINE_KIND_INTERNAL | LINE_KIND_EXTERNAL
     sub_category: Optional[str] = None
     role_type_id: Optional[str] = None
+    location_id: Optional[str] = None
     vendor: Optional[str] = None
     cells: dict[str, ResolvedCell] = field(default_factory=dict)
 

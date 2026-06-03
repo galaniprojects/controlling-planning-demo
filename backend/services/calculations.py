@@ -177,24 +177,41 @@ def utilization_color_bucket(pct: float) -> str:
 # Hourly-rate resolution (v5.1 W4 pre-work)
 # ---------------------------------------------------------------------------
 
+# Workforce-location fallback used when a caller supplies no location (e.g. the
+# capacity external-FTE math) — pins the answer to Munich so those numbers stay
+# stable as the rate table gains per-location rows (S6 location-aware rates).
+FALLBACK_LOCATION_ID = "loc-muc"
+
+
 def resolve_hourly_rate(
     db,
     role_type_id: str,
     competence_center_id: Optional[str],
     month: str,
+    location_id: Optional[str] = None,
 ) -> Decimal:
-    """Resolve the hourly rate for a (role, competence-centre, month) tuple.
+    """Resolve the hourly rate for a (role, location, month) tuple.
 
     Walks `RateTable` and picks the row with the latest `effective_date`
-    that is on-or-before the first day of `month`. Filters by
-    `competence_center_id` when provided; otherwise falls back to any rate
-    for the role. Returns DEFAULT_HOURLY_RATE (€120.00) when no match.
+    on-or-before the first day of `month`. Resolution precedence (S6
+    location-aware rates):
+
+      1. exact workforce ``location_id`` (when supplied),
+      2. ``loc-muc`` (Munich) — the deterministic fallback for location-less
+         callers, so capacity external-FTE math is unchanged,
+      3. ``competence_center_id`` (when supplied) — legacy CC scope,
+      4. any rate row for the role,
+      5. ``DEFAULT_HOURLY_RATE`` (€120.00) when the role has no rate at all.
+
+    The ``location_id`` arg is appended (keyword-defaulted) so pre-existing
+    callers — capacity (location None) and the forecast workbench — keep working.
 
     Args:
         db: SQLAlchemy session.
-        role_type_id: Role catalogue id (e.g. 'role-senior-consultant').
-        competence_center_id: Optional CC scope. None → any CC.
+        role_type_id: Role catalogue id (e.g. 'role-sr-dev').
+        competence_center_id: Optional CC scope (legacy fallback).
         month: 'YYYY-MM' — the cell month being priced.
+        location_id: Optional workforce location ('loc-muc'/'loc-bud'/'loc-pun').
 
     Returns:
         Decimal hourly rate.
@@ -202,20 +219,30 @@ def resolve_hourly_rate(
     from models.people import RateTable
 
     target_date = f"{month}-01"
-    q = db.query(RateTable).filter(
+    base = db.query(RateTable).filter(
         RateTable.role_type_id == role_type_id,
         RateTable.effective_date <= target_date,
     )
-    if competence_center_id:
-        q_cc = q.filter(
-            RateTable.competence_center_id == competence_center_id
-        ).order_by(RateTable.effective_date.desc())
-        row = q_cc.first()
+
+    def _latest(query):
+        return query.order_by(RateTable.effective_date.desc()).first()
+
+    # 1) exact location
+    if location_id:
+        row = _latest(base.filter(RateTable.location_id == location_id))
         if row is not None:
             return Decimal(str(row.hourly_rate))
-        # No CC-specific rate before target date — try without the CC filter
-        # so we don't return DEFAULT for a role that does have rates elsewhere.
-    row = q.order_by(RateTable.effective_date.desc()).first()
+    # 2) Munich fallback (stable answer for location-less callers)
+    row = _latest(base.filter(RateTable.location_id == FALLBACK_LOCATION_ID))
+    if row is not None:
+        return Decimal(str(row.hourly_rate))
+    # 3) competence-centre scope (legacy)
+    if competence_center_id:
+        row = _latest(base.filter(RateTable.competence_center_id == competence_center_id))
+        if row is not None:
+            return Decimal(str(row.hourly_rate))
+    # 4) any rate for the role (covers location-less / pre-regen seed rows)
+    row = _latest(base)
     if row is not None:
         return Decimal(str(row.hourly_rate))
     return DEFAULT_HOURLY_RATE

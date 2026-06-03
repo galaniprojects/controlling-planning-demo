@@ -16,21 +16,26 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 
-def effective_hourly_rate(db: Session, role_key: Optional[str], month: str) -> float:
-    """Return the hourly rate for ``role_key`` in force at ``month`` (``YYYY-MM``).
+def effective_hourly_rate(
+    db: Session, role_key: Optional[str], location_id: Optional[str], month: str
+) -> float:
+    """Return the hourly rate for ``role_key`` at ``location_id`` in force at
+    ``month`` (``YYYY-MM``).
 
     Picks the ``RateTable`` row with the latest ``effective_date`` on-or-before
-    the first day of ``month`` (rate-at-month, not latest-wins). Scenario
-    project-scope cells carry no competence-centre, so the lookup falls back to
-    any CC for the role (mirrors the capacity router). Falls back to
-    ``DEFAULT_HOURLY_RATE`` when the role is unknown/unset or has no rate yet in
-    force at ``month``.
+    the first day of ``month`` (rate-at-month, not latest-wins), preferring the
+    given workforce location, then Munich, then any location for the role (S6
+    location-aware rates). Scenario project-scope cells carry no competence-centre,
+    so CC is not passed. Falls back to ``DEFAULT_HOURLY_RATE`` when the role is
+    unknown/unset or has no rate in force at ``month``.
 
     ``role_key`` is a ``role_type_id`` (or, for legacy internal lines that carry
     the role in ``sub_category`` with a NULL ``role_type_id``, the sub_category).
+    ``location_id`` is the line's workforce location ('loc-muc'/'loc-bud'/'loc-pun'),
+    or None to take the Munich/any fallback.
     """
     from services.calculations import DEFAULT_HOURLY_RATE, resolve_hourly_rate
 
     if not role_key:
         return float(DEFAULT_HOURLY_RATE)
-    return float(resolve_hourly_rate(db, role_key, None, month))
+    return float(resolve_hourly_rate(db, role_key, None, month, location_id=location_id))

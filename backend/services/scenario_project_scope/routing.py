@@ -52,28 +52,34 @@ _PIPELINE_PLAN_TARGETS = ("stage", "doi")
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _parse_line_key(line_key: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
-    """Split a natural composite ``"category|sub_category|role_type_id"`` into
-    its parts. Empty trailing segments (e.g. external lines omit role_type_id)
-    resolve to ``None``. Minted line_keys ("new:role:..." / "new:ext:...") are
-    NOT natural composites — callers detect those via ``line_key.startswith``
-    and read metadata off the companion ``ScenarioLineEdit`` instead.
+def _parse_line_key(
+    line_key: str,
+) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """Split a natural composite
+    ``"category|sub_category|role_type_id|location_id"`` into its parts. Empty
+    trailing segments (external lines omit role_type_id + location) resolve to
+    ``None``. Minted line_keys ("new:role:..." / "new:ext:...") are NOT natural
+    composites — callers detect those via ``line_key.startswith`` and read
+    metadata off the companion ``ScenarioLineEdit`` instead.
     """
     parts = line_key.split("|")
     category = parts[0] if parts and parts[0] else None
     sub_category = parts[1] if len(parts) > 1 and parts[1] else None
     role_type_id = parts[2] if len(parts) > 2 and parts[2] else None
-    return category, sub_category, role_type_id
+    location_id = parts[3] if len(parts) > 3 and parts[3] else None
+    return category, sub_category, role_type_id, location_id
 
 
 def _find_forecast_cell(
     db: Session, project_id: str, month: str, category: Optional[str],
     sub_category: Optional[str], role_type_id: Optional[str],
+    location_id: Optional[str] = None,
 ) -> Optional[Forecast]:
     """Locate a live Forecast row by its cell key
-    ``(project_id, month, category, sub_category, role_type_id)``. Handles a
-    NULL ``role_type_id`` explicitly (legacy internal lines carry the role in
-    ``sub_category`` with a NULL ``role_type_id`` column).
+    ``(project_id, month, category, sub_category, role_type_id, location_id)``.
+    Handles NULL ``role_type_id`` / ``location_id`` explicitly (legacy internal
+    lines carry the role in ``sub_category`` with a NULL ``role_type_id``; rows
+    seeded before location-aware rates carry a NULL ``location_id``).
     """
     q = db.query(Forecast).filter(
         Forecast.project_id == project_id,
@@ -85,6 +91,10 @@ def _find_forecast_cell(
         q = q.filter(Forecast.role_type_id == role_type_id)
     else:
         q = q.filter(Forecast.role_type_id.is_(None))
+    if location_id:
+        q = q.filter(Forecast.location_id == location_id)
+    else:
+        q = q.filter(Forecast.location_id.is_(None))
     return q.first()
 
 
@@ -256,7 +266,7 @@ def write_forecast_cells(
             # 'add' line rows carry no values themselves — their cells are
             # written via the cell diffs below.
             continue
-        category, sub_category, role_type_id = _parse_line_key(le.line_key)
+        category, sub_category, role_type_id, location_id = _parse_line_key(le.line_key)
         rows = db.query(Forecast).filter(
             Forecast.project_id == d.project_id,
             Forecast.category == category,
@@ -266,6 +276,10 @@ def write_forecast_cells(
             rows = rows.filter(Forecast.role_type_id == role_type_id)
         else:
             rows = rows.filter(Forecast.role_type_id.is_(None))
+        if location_id:
+            rows = rows.filter(Forecast.location_id == location_id)
+        else:
+            rows = rows.filter(Forecast.location_id.is_(None))
         for r in rows.all():
             db.delete(r)
             written += 1
@@ -304,16 +318,17 @@ def write_forecast_cells(
             category = le.category
             sub_category = le.sub_category
             role_type_id = le.role_type_id
+            location_id = le.location_id
             vendor = le.vendor
             capex_opex = le.capex_opex
             description = le.description
         else:
-            category, sub_category, role_type_id = _parse_line_key(ce.line_key)
+            category, sub_category, role_type_id, location_id = _parse_line_key(ce.line_key)
 
         value = float(ce.value) if ce.value is not None else 0.0
 
         row = _find_forecast_cell(
-            db, ce.project_id, ce.month, category, sub_category, role_type_id,
+            db, ce.project_id, ce.month, category, sub_category, role_type_id, location_id,
         )
         if row is None:
             row = Forecast(
@@ -322,6 +337,7 @@ def write_forecast_cells(
                 category=category,
                 sub_category=sub_category,
                 role_type_id=role_type_id,
+                location_id=location_id,
                 amount_eur=0.0,
                 vendor=vendor,
                 capex_opex=capex_opex,
@@ -331,7 +347,7 @@ def write_forecast_cells(
 
         if ce.field == "hours":
             row.hours = value
-            rate = effective_hourly_rate(db, role_type_id or sub_category, ce.month)
+            rate = effective_hourly_rate(db, role_type_id or sub_category, location_id, ce.month)
             row.amount_eur = round(value * rate, 2)
         else:  # amount_eur
             row.amount_eur = value
@@ -361,9 +377,10 @@ def _write_grid_cells(db: Session, grid: ResolvedGrid, *, provisional: bool) -> 
         category = line.category
         sub_category = line.sub_category
         role_type_id = line.role_type_id
+        location_id = line.location_id
         for month, cell in line.cells.items():
             row = _find_forecast_cell(
-                db, project_id, month, category, sub_category, role_type_id,
+                db, project_id, month, category, sub_category, role_type_id, location_id,
             )
             if row is None:
                 row = Forecast(
@@ -372,6 +389,7 @@ def _write_grid_cells(db: Session, grid: ResolvedGrid, *, provisional: bool) -> 
                     category=category,
                     sub_category=sub_category,
                     role_type_id=role_type_id,
+                    location_id=location_id,
                     amount_eur=0.0,
                     vendor=line.vendor,
                 )
@@ -398,12 +416,12 @@ def write_grid_replacing_project(db: Session, grid: ResolvedGrid) -> int:
     only genuinely-vacated cells are removed.
     """
     grid_keys = {
-        (line.category, line.sub_category, line.role_type_id, month)
+        (line.category, line.sub_category, line.role_type_id, line.location_id, month)
         for line in grid.lines
         for month in line.cells
     }
     for row in db.query(Forecast).filter(Forecast.project_id == grid.project_id).all():
-        if (row.category, row.sub_category, row.role_type_id, row.month) not in grid_keys:
+        if (row.category, row.sub_category, row.role_type_id, row.location_id, row.month) not in grid_keys:
             db.delete(row)
     written = _write_grid_cells(db, grid, provisional=False)
     db.flush()
