@@ -29,7 +29,7 @@ OPEN = "2026-04"
 def _grid(cells, start="2026-06", end="2026-08"):
     """One internal line with the given {month: (amount, hours)} cells."""
     line = ResolvedLine(
-        line_key="internal|R-DEV|",
+        line_key="internal|R-DEV||",
         category="internal",
         kind=LINE_KIND_INTERNAL,
         sub_category="R-DEV",

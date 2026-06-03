@@ -31,7 +31,7 @@ PL_PERSONA = "persona-pl"                    # wrong role
 CC_PERSONA = "persona-cc-owner"              # excluded (Session 4)
 
 PROJECT_ID = "proj-ext2"
-EXTERNAL_KEY = "external|ext-lic|"           # natural key for the anchor line
+EXTERNAL_KEY = "external|ext-lic||"           # natural key for the anchor line
 EXTERNAL_MONTH = "2026-07"
 
 
@@ -305,7 +305,7 @@ def test_edit_internal_line_key_returns_422(
 ):
     sid, pid = ext_world["scenario_id"], ext_world["project_id"]
     resp = test_client.put(
-        f"/api/scenarios/{sid}/projects/{pid}/external-costs/internal|role-dev|",
+        f"/api/scenarios/{sid}/projects/{pid}/external-costs/internal|role-dev||",
         json={"vendor": "X"}, headers=_hdr(CONTROLLER_PERSONA),
     )
     assert resp.status_code == 422, resp.text
@@ -316,7 +316,7 @@ def test_edit_unknown_anchor_line_returns_404(
 ):
     sid, pid = ext_world["scenario_id"], ext_world["project_id"]
     resp = test_client.put(
-        f"/api/scenarios/{sid}/projects/{pid}/external-costs/external|ext-ghost|",
+        f"/api/scenarios/{sid}/projects/{pid}/external-costs/external|ext-ghost||",
         json={"vendor": "X"}, headers=_hdr(CONTROLLER_PERSONA),
     )
     assert resp.status_code == 404, resp.text

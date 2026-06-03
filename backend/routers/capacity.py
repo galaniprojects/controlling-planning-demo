@@ -180,7 +180,8 @@ def compute_external_role_rows(
         for m in months:
             amt = sums.get((role_id, m), 0.0)
             if amt > 0:
-                rate = float(resolve_hourly_rate(db, role_id, None, m))
+                # external — no workforce location (resolver pins None → loc-muc).
+                rate = float(resolve_hourly_rate(db, role_id, None, m, location_id=None))
                 fte = amt / rate / FTE_HOURS if (rate and FTE_HOURS) else 0.0
                 fte = round(fte, 2)
                 if fte > 0:
@@ -236,7 +237,8 @@ def _compute_org_role_external_summary(
 
     total_fte = 0.0
     for m, amt in per_month.items():
-        rate = float(resolve_hourly_rate(db, role_id, None, m))
+        # external — no workforce location (resolver pins None → loc-muc).
+        rate = float(resolve_hourly_rate(db, role_id, None, m, location_id=None))
         if rate and FTE_HOURS:
             total_fte += amt / rate / FTE_HOURS
     avg_fte = total_fte / len(months) if months else 0.0

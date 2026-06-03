@@ -88,7 +88,7 @@ def test_anchor_read_internal_and_external_shape(db):
     assert grid.start_month == "2026-05"
     assert grid.end_month == "2026-08"
 
-    internal = _line_by_key(grid, "internal|R-DEV|")
+    internal = _line_by_key(grid, "internal|R-DEV||")
     assert internal is not None
     assert internal.kind == LINE_KIND_INTERNAL
     assert internal.category == "internal"
@@ -96,7 +96,7 @@ def test_anchor_read_internal_and_external_shape(db):
     assert internal.cells["2026-05"].hours == 100.0
     assert internal.cells["2026-06"].hours == 110.0
 
-    external = _line_by_key(grid, "external|EC-CONSULT|")
+    external = _line_by_key(grid, "external|EC-CONSULT||")
     assert external is not None
     assert external.kind == LINE_KIND_EXTERNAL
     assert external.vendor == "Acme"
@@ -129,7 +129,7 @@ def test_overlay_cell_edit_wins(db):
     db.add(ScenarioForecastCellEdit(
         scenario_id=scenario.id,
         project_id="proj-res",
-        line_key="internal|R-DEV|",
+        line_key="internal|R-DEV||",
         month="2026-06",
         field="hours",
         value=120.0,
@@ -137,7 +137,7 @@ def test_overlay_cell_edit_wins(db):
     db.commit()
 
     grid = resolve_project_grid(db, scenario, "proj-res")
-    internal = _line_by_key(grid, "internal|R-DEV|")
+    internal = _line_by_key(grid, "internal|R-DEV||")
     assert internal.cells["2026-06"].hours == 120.0  # edited value wins
     # € is recomputed from the edited hours via the rate-at-month lookup (no
     # RateTable seeded → DEFAULT_HOURLY_RATE 120.0 fallback), so the
@@ -154,7 +154,7 @@ def test_overlay_external_amount_edit_wins(db):
     db.add(ScenarioForecastCellEdit(
         scenario_id=scenario.id,
         project_id="proj-res",
-        line_key="external|EC-CONSULT|",
+        line_key="external|EC-CONSULT||",
         month="2026-06",
         field="amount_eur",
         value=7500.0,
@@ -162,7 +162,7 @@ def test_overlay_external_amount_edit_wins(db):
     db.commit()
 
     grid = resolve_project_grid(db, scenario, "proj-res")
-    external = _line_by_key(grid, "external|EC-CONSULT|")
+    external = _line_by_key(grid, "external|EC-CONSULT||")
     assert external.cells["2026-06"].amount_eur == 7500.0
 
 
@@ -188,7 +188,7 @@ def test_cell_edit_does_not_travel_under_delay(db):
     db.add(ScenarioForecastCellEdit(
         scenario_id=scenario.id,
         project_id="proj-res",
-        line_key="internal|R-DEV|",
+        line_key="internal|R-DEV||",
         month="2026-06",
         field="hours",
         value=120.0,
@@ -196,7 +196,7 @@ def test_cell_edit_does_not_travel_under_delay(db):
     db.commit()
 
     grid = resolve_project_grid(db, scenario, "proj-res")
-    internal = _line_by_key(grid, "internal|R-DEV|")
+    internal = _line_by_key(grid, "internal|R-DEV||")
 
     # The macro shifted the original 2026-06 cell to 2026-08 (110h, 8800 EUR).
     assert internal.cells["2026-08"].hours == 110.0
@@ -256,7 +256,7 @@ def test_overlay_remove_line(db):
     db.add(ScenarioLineEdit(
         scenario_id=scenario.id,
         project_id="proj-res",
-        line_key="external|EC-CONSULT|",
+        line_key="external|EC-CONSULT||",
         op="remove",
         line_kind=LINE_KIND_EXTERNAL,
         category="external",
@@ -265,8 +265,8 @@ def test_overlay_remove_line(db):
     db.commit()
 
     grid = resolve_project_grid(db, scenario, "proj-res")
-    assert _line_by_key(grid, "external|EC-CONSULT|") is None
-    assert _line_by_key(grid, "internal|R-DEV|") is not None
+    assert _line_by_key(grid, "external|EC-CONSULT||") is None
+    assert _line_by_key(grid, "internal|R-DEV||") is not None
 
 
 def test_overlay_edit_external_line_metadata(db):
@@ -280,7 +280,7 @@ def test_overlay_edit_external_line_metadata(db):
     db.add(ScenarioLineEdit(
         scenario_id=scenario.id,
         project_id="proj-res",
-        line_key="external|EC-CONSULT|",
+        line_key="external|EC-CONSULT||",
         op="edit",
         line_kind=LINE_KIND_EXTERNAL,
         category="external",
@@ -292,7 +292,7 @@ def test_overlay_edit_external_line_metadata(db):
     db.commit()
 
     grid = resolve_project_grid(db, scenario, "proj-res")
-    line = _line_by_key(grid, "external|EC-CONSULT|")
+    line = _line_by_key(grid, "external|EC-CONSULT||")
     assert line is not None                         # identity (line_key) unchanged
     assert line.vendor == "Umbrella"                # vendor patched
     assert line.sub_category == "EC-LICENSE"        # cost-type grouping patched
@@ -309,7 +309,7 @@ def test_overlay_edit_partial_keeps_vendor(db):
     db.add(ScenarioLineEdit(
         scenario_id=scenario.id,
         project_id="proj-res",
-        line_key="external|EC-CONSULT|",
+        line_key="external|EC-CONSULT||",
         op="edit",
         line_kind=LINE_KIND_EXTERNAL,
         category="external",
@@ -320,7 +320,7 @@ def test_overlay_edit_partial_keeps_vendor(db):
     db.commit()
 
     grid = resolve_project_grid(db, scenario, "proj-res")
-    line = _line_by_key(grid, "external|EC-CONSULT|")
+    line = _line_by_key(grid, "external|EC-CONSULT||")
     assert line.vendor == "Acme"                    # unchanged (edit.vendor was None)
     assert line.sub_category == "EC-LICENSE"
 
@@ -332,7 +332,7 @@ def test_resolve_no_overlay_no_macros_matches_anchor(db):
     scenario = _scenario(db)
 
     grid = resolve_project_grid(db, scenario, "proj-res")
-    internal = _line_by_key(grid, "internal|R-DEV|")
+    internal = _line_by_key(grid, "internal|R-DEV||")
     assert internal.cells["2026-06"].hours == 110.0
     assert internal.cells["2026-06"].amount_eur == 8800.0
 
@@ -349,7 +349,7 @@ def test_hours_edit_moves_rolled_up_budget(db):
     scenario = _scenario(db)
     db.add(ScenarioForecastCellEdit(
         scenario_id=scenario.id, project_id="proj-res",
-        line_key="internal|R-DEV|", month="2026-06", field="hours", value=120.0,
+        line_key="internal|R-DEV||", month="2026-06", field="hours", value=120.0,
     ))
     db.commit()
 
@@ -390,7 +390,7 @@ def test_hours_edit_prices_at_rate_in_force_at_month(db):
     db.commit()
 
     scenario = _scenario(db)
-    line_key = "internal|R-STEP|"
+    line_key = "internal|R-STEP||"
     db.add(ScenarioForecastCellEdit(
         scenario_id=scenario.id, project_id="proj-res",
         line_key=line_key, month="2026-06", field="hours", value=20.0,
@@ -423,7 +423,7 @@ def test_edit_to_same_hours_leaves_eur_unchanged(db):
     db.commit()
 
     scenario = _scenario(db)
-    line_key = "internal|R-STEP|"
+    line_key = "internal|R-STEP||"
     db.add(ScenarioForecastCellEdit(
         scenario_id=scenario.id, project_id="proj-res",
         line_key=line_key, month="2026-06", field="hours", value=10.0,  # same as anchor

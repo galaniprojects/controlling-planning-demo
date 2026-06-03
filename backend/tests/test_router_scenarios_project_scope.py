@@ -32,8 +32,8 @@ EXEC_PERSONA = "persona-exec"               # person_id p-dev-2 (non-owner viewe
 PL_PERSONA = "persona-pl"                    # project_lead (wrong role for write)
 
 PROJECT_ID = "proj-ps2"
-INTERNAL_KEY = "internal|role-dev|"
-EXTERNAL_KEY = "external|ext-lic|"
+INTERNAL_KEY = "internal|role-dev||"
+EXTERNAL_KEY = "external|ext-lic||"
 INTERNAL_MONTH = "2026-06"
 EXTERNAL_MONTH = "2026-07"
 ACTUALS_MONTH = "2026-01"

@@ -99,7 +99,7 @@ class TestCollectOverlayDiffs:
         sid = scenario_world["scenario_id"]
         db.add(ScenarioForecastCellEdit(
             scenario_id=sid, project_id="proj-own-c",
-            line_key="internal|role-dev|", month="2026-06", field="hours",
+            line_key="internal|role-dev||", month="2026-06", field="hours",
             value=Decimal("20"),
         ))
         db.add(ScenarioLineEdit(
@@ -144,12 +144,12 @@ class TestCollectOverlayDiffs:
         sid = scenario_world["scenario_id"]
         db.add(ScenarioForecastCellEdit(
             scenario_id=sid, project_id="proj-own-c",
-            line_key="internal|role-dev|", month="2026-06", field="hours",
+            line_key="internal|role-dev||", month="2026-06", field="hours",
             value=Decimal("20"),
         ))
         db.add(ScenarioForecastCellEdit(
             scenario_id=sid, project_id="proj-foreign-c",
-            line_key="internal|role-dev|", month="2026-06", field="hours",
+            line_key="internal|role-dev||", month="2026-06", field="hours",
             value=Decimal("5"),
         ))
         db.commit()
@@ -163,7 +163,7 @@ class TestCollectOverlayDiffs:
         sid = scenario_world["scenario_id"]
         db.add(ScenarioForecastCellEdit(
             scenario_id=sid, project_id="proj-own-c",
-            line_key="internal|role-dev|", month="2026-06", field="hours",
+            line_key="internal|role-dev||", month="2026-06", field="hours",
             value=Decimal("20"),
         ))
         db.commit()
@@ -181,7 +181,7 @@ class TestWriteForecastCells:
         sid = scenario_world["scenario_id"]
         db.add(ScenarioForecastCellEdit(
             scenario_id=sid, project_id="proj-own-c",
-            line_key="internal|role-dev|", month="2026-06", field="hours",
+            line_key="internal|role-dev||", month="2026-06", field="hours",
             value=Decimal("20"),
         ))
         db.commit()
@@ -206,7 +206,7 @@ class TestWriteForecastCells:
         sid = scenario_world["scenario_id"]
         db.add(ScenarioForecastCellEdit(
             scenario_id=sid, project_id="proj-own-c",
-            line_key="external|ext-lic|", month="2026-08", field="amount_eur",
+            line_key="external|ext-lic||", month="2026-08", field="amount_eur",
             value=Decimal("5000"),
         ))
         db.commit()
@@ -266,7 +266,7 @@ class TestWriteForecastCells:
         # proj-own-c already has one internal|role-dev row in June.
         db.add(ScenarioLineEdit(
             scenario_id=sid, project_id="proj-own-c",
-            line_key="internal|role-dev|", op="remove", line_kind="internal_role",
+            line_key="internal|role-dev||", op="remove", line_kind="internal_role",
             category="internal", sub_category="role-dev",
         ))
         db.commit()
@@ -288,7 +288,7 @@ class TestWriteForecastCells:
         sid = scenario_world["scenario_id"]
         db.add(ScenarioForecastCellEdit(
             scenario_id=sid, project_id="proj-foreign-c",
-            line_key="internal|role-dev|", month="2026-06", field="hours",
+            line_key="internal|role-dev||", month="2026-06", field="hours",
             value=Decimal("99"),
         ))
         db.commit()
@@ -314,12 +314,12 @@ class TestWriteForecastCells:
         # June edit (priced at 100) and July edit (priced at 150), same hours.
         db.add(ScenarioForecastCellEdit(
             scenario_id=sid, project_id="proj-own-c",
-            line_key="internal|role-step|", month="2026-06", field="hours",
+            line_key="internal|role-step||", month="2026-06", field="hours",
             value=Decimal("20"),
         ))
         db.add(ScenarioForecastCellEdit(
             scenario_id=sid, project_id="proj-own-c",
-            line_key="internal|role-step|", month="2026-07", field="hours",
+            line_key="internal|role-step||", month="2026-07", field="hours",
             value=Decimal("20"),
         ))
         db.commit()
@@ -345,6 +345,59 @@ class TestWriteForecastCells:
         assert float(june.amount_eur) == 20.0 * 100.0   # 2000.0 — June rate
         assert float(july.amount_eur) == 20.0 * 150.0   # 3000.0 — July step-up
 
+    def test_multi_location_promote_keeps_split_lines(self, db, scenario_world):
+        """S6 location-aware promote: two same-role lines at different workforce
+        locations promote to two DISTINCT live Forecast rows (split by
+        location_id), each priced at its own location's rate — they must NOT
+        collapse onto one cell key on write-back."""
+        sid = scenario_world["scenario_id"]
+        # Per-location rates for role-loc: Munich €100/h, Budapest €60/h.
+        db.add(RateTable(role_type_id="role-loc", competence_center_id="comp-dev",
+                         location_id="loc-muc", hourly_rate=Decimal("100.00"),
+                         effective_date="2025-01-01"))
+        db.add(RateTable(role_type_id="role-loc", competence_center_id="comp-dev",
+                         location_id="loc-bud", hourly_rate=Decimal("60.00"),
+                         effective_date="2025-01-01"))
+        # Two live anchor rows: same role, different location, same month.
+        db.add(Forecast(project_id="proj-own-c", month="2026-06", category="internal",
+                        sub_category="role-loc", role_type_id=None,
+                        location_id="loc-muc", hours=10, amount_eur=Decimal("1000.00")))
+        db.add(Forecast(project_id="proj-own-c", month="2026-06", category="internal",
+                        sub_category="role-loc", role_type_id=None,
+                        location_id="loc-bud", hours=10, amount_eur=Decimal("600.00")))
+        # Hours edit on each location-split line (keys carry the 4th segment).
+        db.add(ScenarioForecastCellEdit(
+            scenario_id=sid, project_id="proj-own-c",
+            line_key="internal|role-loc||loc-muc", month="2026-06", field="hours",
+            value=Decimal("20"),
+        ))
+        db.add(ScenarioForecastCellEdit(
+            scenario_id=sid, project_id="proj-own-c",
+            line_key="internal|role-loc||loc-bud", month="2026-06", field="hours",
+            value=Decimal("30"),
+        ))
+        db.commit()
+        sc = db.query(Scenario).filter_by(id=sid).first()
+        diffs = collect_overlay_diffs(db, sc, controller_user_id=CONTROLLER_ID)
+        n = write_forecast_cells(db, sc, diffs, acting_user_id=CONTROLLER_ID)
+        db.commit()
+
+        assert n == 2
+        rows = (
+            db.query(Forecast)
+            .filter(Forecast.project_id == "proj-own-c",
+                    Forecast.sub_category == "role-loc",
+                    Forecast.month == "2026-06")
+            .all()
+        )
+        by_loc = {r.location_id: r for r in rows}
+        # Two distinct location rows survive — not collapsed into one.
+        assert set(by_loc) == {"loc-muc", "loc-bud"}
+        assert float(by_loc["loc-muc"].hours) == 20.0
+        assert float(by_loc["loc-muc"].amount_eur) == 2000.0   # 20h x 100 (Munich)
+        assert float(by_loc["loc-bud"].hours) == 30.0
+        assert float(by_loc["loc-bud"].amount_eur) == 1800.0   # 30h x 60 (Budapest)
+
 
 # ---------------------------------------------------------------------------
 # materialize_provisional_cells — apply-to-forecast writer
@@ -359,7 +412,7 @@ class TestMaterializeProvisionalCells:
             lines=[
                 # Existing internal June line — upsert in place.
                 ResolvedLine(
-                    line_key="internal|role-dev|", category="internal",
+                    line_key="internal|role-dev||", category="internal",
                     kind=LINE_KIND_INTERNAL, sub_category="role-dev",
                     role_type_id=None,
                     cells={"2026-06": ResolvedCell(amount_eur=2500.0, hours=25.0)},
@@ -406,7 +459,7 @@ class TestMaterializeProvisionalCells:
         grid = ResolvedGrid(
             project_id="proj-own-c",
             lines=[ResolvedLine(
-                line_key="internal|role-dev|", category="internal",
+                line_key="internal|role-dev||", category="internal",
                 kind=LINE_KIND_INTERNAL, sub_category="role-dev",
                 role_type_id=None,
                 cells={"2026-06": ResolvedCell(amount_eur=1234.0, hours=12.0)},
