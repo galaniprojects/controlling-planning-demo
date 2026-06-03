@@ -143,7 +143,9 @@ def test_actuals_can_edit_flag_and_open_month(
     )
     assert resp.status_code == 200
     grid = resp.json()
-    assert grid["open_month"] == "2026-04"
+    # Locked-current-month rule: open month is the month after DEMO_DATE
+    # (pinned to 2026-04 in tests, so the open forecast month is 2026-05).
+    assert grid["open_month"] == "2026-05"
 
     actuals_cell = _cell(grid, INTERNAL_KEY, ACTUALS_MONTH)
     assert actuals_cell["can_edit"] is False

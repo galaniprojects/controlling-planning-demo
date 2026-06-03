@@ -13,6 +13,7 @@
 import { useEffect, useState } from 'react';
 import { ActionCard } from '@/components/shared/ActionCard';
 import { milestonesApi, progressApi } from '@/api/endpoints';
+import { useConfig } from '@/contexts/ConfigContext';
 import { cn } from '@/lib/utils';
 import type { MilestoneResponse } from '@/types/milestones';
 import type { ProgressResponse } from '@/types/progress';
@@ -22,8 +23,6 @@ interface Props {
   onClick?: () => void;
 }
 
-const DEMO_MONTH = '2026-04';
-
 function compareMonth(a: string | null, b: string | null): number {
   if (!a) return 1;
   if (!b) return -1;
@@ -31,6 +30,10 @@ function compareMonth(a: string | null, b: string | null): number {
 }
 
 export function MilestoneStatusTile({ projectId, onClick }: Props) {
+  const { currentPeriod } = useConfig();
+  // Local alias — the "current" milestone is the one containing the
+  // present period.
+  const DEMO_MONTH = currentPeriod;
   const [milestones, setMilestones] = useState<MilestoneResponse[] | null>(
     null,
   );

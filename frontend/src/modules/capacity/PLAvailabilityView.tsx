@@ -27,6 +27,7 @@ import { CalendarRange } from 'lucide-react';
 import { ModuleHeader } from '@/components/shared/ModuleHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useSidePanel } from '@/contexts/SidePanelContext';
+import { useConfig } from '@/contexts/ConfigContext';
 import { capacityApi } from '@/api/endpoints';
 import { addMonths } from '@/modules/capacity/timeline/timeAxis';
 import { AvailabilityScopeBar } from './availability/AvailabilityScopeBar';
@@ -44,13 +45,12 @@ import type {
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEMO_MONTH = '2026-04';
 const WINDOW_MONTHS = 12;
 
-function getWindowBounds(): { start: string; end: string } {
+function getWindowBounds(currentPeriod: string): { start: string; end: string } {
   return {
-    start: DEMO_MONTH,
-    end: addMonths(DEMO_MONTH, WINDOW_MONTHS - 1),
+    start: currentPeriod,
+    end: addMonths(currentPeriod, WINDOW_MONTHS - 1),
   };
 }
 
@@ -270,6 +270,7 @@ export default function PLAvailabilityView({
   onRequestRole,
 }: PLAvailabilityViewProps = {}) {
   const isSlideOver = mode === 'slideover';
+  const { currentPeriod } = useConfig();
   const [searchParams, setSearchParams] = useSearchParams();
   const { openPanel, closePanel } = useSidePanel();
 
@@ -323,7 +324,7 @@ export default function PLAvailabilityView({
 
   // Fetch on location filter change (role filter is applied client-side for instant response)
   useEffect(() => {
-    const { start, end } = getWindowBounds();
+    const { start, end } = getWindowBounds(currentPeriod);
     const params: {
       month_from?: string;
       month_to?: string;
@@ -354,7 +355,7 @@ export default function PLAvailabilityView({
       });
   // selectedRoleIds intentionally NOT read inside the effect — we apply
   // the role filter client-side, so role changes don't refetch.
-  }, [selectedLocationId]);
+  }, [selectedLocationId, currentPeriod]);
 
   // Derived data
   const allLocations = useMemo(() => extractLocations(items), [items]);

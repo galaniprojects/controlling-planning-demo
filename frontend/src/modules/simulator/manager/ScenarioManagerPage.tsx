@@ -7,8 +7,10 @@
  *  - My Scenarios + Published Scenarios + (optional) Archived tables
  *  - Rebase + archive + clone + publish + delete actions
  *
- * PL persona is excluded from creation per [E-06c]; backend already
- * rejects non-controller/exec/cc-owner POST. Frontend hides the button.
+ * Simulator S4: PLs are now scenario authors (§9). The create button is
+ * shown to PLs; the backend scopes their edits per-action (403 on
+ * cross-project). For a PL, the "Published" list is relabelled as the
+ * leadership→PL handoff slice (§9.1).
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -34,6 +36,9 @@ export function ScenarioManagerPage() {
   const { context } = useRole();
   const canCreate = useCanCreateScenario();
   const currentUserName = context?.user_name ?? '';
+  // Simulator S4 — for a PL, the published list the API returns is the
+  // handoff slice (§9.1). Label it distinctly.
+  const isProjectLead = context?.role === 'project_lead';
 
   const [response, setResponse] = useState<ScenarioListResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -243,6 +248,7 @@ export function ScenarioManagerPage() {
         currentUserName={currentUserName}
         onOpen={handleOpen}
         onClone={handleClone}
+        handoffMode={isProjectLead}
       />
 
       {showArchived && response?.archived_scenarios && response.archived_scenarios.length > 0 && (

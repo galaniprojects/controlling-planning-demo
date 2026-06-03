@@ -20,16 +20,16 @@ import {
 } from '@/modules/capacity/timeline/timeAxis';
 import type { TimeAxisState, Quarter } from '@/modules/capacity/timeline/timeAxis';
 import { RoleAvailabilityRow } from './RoleAvailabilityRow';
+import { useConfig } from '@/contexts/ConfigContext';
 import type { RoleData, SelectedRole } from './types';
 import type { LocationAvailabilitySummary } from '@/types/api';
 
-const DEMO_MONTH = '2026-04';
 const WINDOW_MONTHS = 12;
 
-/** Generate the fixed 12-month window starting from the demo month. */
-function getWindowMonths(): string[] {
-  const end = addMonths(DEMO_MONTH, WINDOW_MONTHS - 1);
-  return generateMonthRange(DEMO_MONTH, end);
+/** Generate the fixed 12-month window starting from the current period. */
+function getWindowMonths(currentPeriod: string): string[] {
+  const end = addMonths(currentPeriod, WINDOW_MONTHS - 1);
+  return generateMonthRange(currentPeriod, end);
 }
 
 interface AvailabilityGridProps {
@@ -43,10 +43,11 @@ export function AvailabilityGrid({
   locationSummary,
   onRoleClick,
 }: AvailabilityGridProps) {
-  const visibleMonths = useMemo(() => getWindowMonths(), []);
+  const { currentPeriod } = useConfig();
+  const visibleMonths = useMemo(() => getWindowMonths(currentPeriod), [currentPeriod]);
 
   const [axisState, setAxisState] = useState<TimeAxisState>(() =>
-    defaultTimeAxisState(visibleMonths, DEMO_MONTH),
+    defaultTimeAxisState(visibleMonths, currentPeriod),
   );
 
   const columns = useMemo(

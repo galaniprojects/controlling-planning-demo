@@ -200,6 +200,12 @@ export interface ScenarioContextValue {
   anchorVersionId: number | null;
   isOwner: boolean;
   canPromote: boolean;
+  /**
+   * Simulator S4 — may this user publish the scenario? Controllers
+   * (publish → review → promote) and PLs (publish = oversight + handoff,
+   * §9.2) can. Executives cannot. Owner-gated regardless.
+   */
+  canPublish: boolean;
   canApplyToForecast: boolean;
   tier3Visible: boolean;
   ccOwnerScopeCcId: string | null;
@@ -913,6 +919,11 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
 
   const canPromote = role === 'controller';
   const canApplyToForecast = role === 'project_lead';
+  // Publication: controllers, PLs, and CC owners may publish their own
+  // scenarios (matches the backend publish/unpublish gates); executives may not
+  // (read-only oversight). Owner-gated by the consumer.
+  const canPublish =
+    role === 'controller' || role === 'project_lead' || role === 'cost_center_owner';
 
   const tier3Visible = useMemo(() => {
     // Trust impact response when present.
@@ -936,6 +947,7 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
     anchorVersionId,
     isOwner,
     canPromote,
+    canPublish,
     canApplyToForecast,
     tier3Visible,
     ccOwnerScopeCcId,

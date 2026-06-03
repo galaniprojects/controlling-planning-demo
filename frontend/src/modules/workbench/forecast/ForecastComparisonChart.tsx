@@ -59,6 +59,7 @@ import {
 import { workbenchApi } from '@/api/endpoints';
 import { milestonesApi } from '@/api/endpoints';
 import { isElapsedMonth } from '@/lib/yearColumns';
+import { useConfig } from '@/contexts/ConfigContext';
 import type { MixedGridResponse } from '@/types/api';
 import type { MilestoneResponse } from '@/types/milestones';
 
@@ -67,9 +68,6 @@ interface Props {
   /** Ref to the F&P grid's scroll container — enables lockstep scroll. */
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
 }
-
-// Mirror MixedGranularityGrid line 80 — the demo "today" date.
-const DEMO_DATE = '2026-04';
 
 // Spec-mandated colours for the three series.
 const COLOR_BASELINE = '#cbd5e1'; // gray
@@ -135,7 +133,7 @@ function clampToRangeIndex(
   return monthOrdinal;
 }
 
-function aggregateGrid(grid: MixedGridResponse): ChartRow[] {
+function aggregateGrid(grid: MixedGridResponse, currentPeriod: string): ChartRow[] {
   // Sum across all rows per monthly column. Quarterly columns are skipped
   // because the chart axis is monthly (we always request granularity=monthly
   // server-side). Also pull baseline_amount_eur + actuals_amount_eur from
@@ -174,7 +172,7 @@ function aggregateGrid(grid: MixedGridResponse): ChartRow[] {
     baseCum += slot.baseline;
     fcCum += slot.forecast;
     actCum += slot.actuals;
-    const isPast = isElapsedMonth(month);
+    const isPast = isElapsedMonth(month, currentPeriod);
     return {
       month,
       baseline: slot.baseline,
@@ -305,6 +303,9 @@ export function ForecastComparisonChart({
   projectId,
   scrollContainerRef,
 }: Props) {
+  const { currentPeriod } = useConfig();
+  // Local alias — the chart's "today" marker is the current period.
+  const DEMO_DATE = currentPeriod;
   const [grid, setGrid] = useState<MixedGridResponse | null>(null);
   const [milestones, setMilestones] = useState<MilestoneResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -350,7 +351,10 @@ export function ForecastComparisonChart({
   // -------------------------------------------------------------------------
   // Derived chart data
   // -------------------------------------------------------------------------
-  const chartRows = useMemo(() => (grid ? aggregateGrid(grid) : []), [grid]);
+  const chartRows = useMemo(
+    () => (grid ? aggregateGrid(grid, currentPeriod) : []),
+    [grid, currentPeriod],
+  );
 
   const monthKeys = useMemo(() => chartRows.map((r) => r.month), [chartRows]);
 
@@ -386,14 +390,14 @@ export function ForecastComparisonChart({
     const baselineTotal = chartRows.reduce((s, r) => s + r.baseline, 0);
     const forecastTotal = chartRows.reduce((s, r) => s + r.forecast, 0);
     const ytdActuals = chartRows
-      .filter((r) => isElapsedMonth(r.month) || r.month === DEMO_DATE)
+      .filter((r) => isElapsedMonth(r.month, currentPeriod) || r.month === DEMO_DATE)
       .reduce((s, r) => s + r.actuals, 0);
     const planDrift = baselineTotal !== 0
       ? ((forecastTotal - baselineTotal) / baselineTotal) * 100
       : 0;
     // Execution variance = actuals to date − forecast for those same months.
     const forecastToDate = chartRows
-      .filter((r) => isElapsedMonth(r.month) || r.month === DEMO_DATE)
+      .filter((r) => isElapsedMonth(r.month, currentPeriod) || r.month === DEMO_DATE)
       .reduce((s, r) => s + r.forecast, 0);
     const execVariance = ytdActuals - forecastToDate;
     return {

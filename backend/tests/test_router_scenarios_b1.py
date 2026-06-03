@@ -98,11 +98,12 @@ class TestB1Lifecycle:
         assert resp.status_code == 200
         assert resp.json()["anchor_forecast_version_id"] == b1_setup["version_id"]
 
-    def test_pl_cannot_create(self, test_client, b1_setup):
+    def test_pl_can_create(self, test_client, b1_setup):
+        # Session 4 (§9): Project Leads are now admitted as scenario authors.
         resp = test_client.post(
             "/api/scenarios", headers=HEADERS_PL, json={"name": "PL"},
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 200
 
     def test_cc_owner_create_auto_scopes(self, test_client, b1_setup):
         resp = test_client.post(
@@ -379,8 +380,12 @@ class TestB1Promote:
 
 class TestB1ApplyToForecast:
     def test_pl_apply_own_scenario(self, test_client, b1_setup, db):
-        # PL creates is forbidden, so we seed a scenario authored by PL.
-        sc = Scenario(name="PL ATF", author_id="p-pm-1", status="private")
+        # Seed a scenario authored by the PL, anchored to the latest cycle so
+        # the Session-4 stale-anchor guard on apply-to-forecast is satisfied.
+        sc = Scenario(
+            name="PL ATF", author_id="p-pm-1", status="private",
+            anchor_forecast_version_id=b1_setup["version_id"],
+        )
         db.add(sc)
         db.flush()
         db.add(ScenarioAction(

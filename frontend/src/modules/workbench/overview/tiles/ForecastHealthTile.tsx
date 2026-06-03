@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { ActionCard } from '@/components/shared/ActionCard';
 import { Badge } from '@/components/ui/badge';
 import { workbenchApi } from '@/api/endpoints';
+import { useConfig } from '@/contexts/ConfigContext';
 import { cn } from '@/lib/utils';
 import type {
   ForecastVersionMeta,
@@ -36,14 +37,24 @@ const VERSION_TYPE_COLOR: Record<ForecastVersionType, string> = {
     'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
 };
 
-const DEMO_DATE = new Date('2026-04-30');
 const STALE_DAYS = 60;
 
-function relativeDays(iso: string | null): { label: string; staleness: 'fresh' | 'aging' | 'stale' } {
+/** End-of-month Date for a "YYYY-MM" present period (e.g. "2026-06" → 2026-06-30). */
+function endOfMonthDate(currentPeriod: string): Date {
+  const year = parseInt(currentPeriod.slice(0, 4), 10);
+  const month = parseInt(currentPeriod.slice(5, 7), 10); // 1-based
+  // Day 0 of the next month is the last day of `month`.
+  return new Date(year, month, 0);
+}
+
+function relativeDays(
+  iso: string | null,
+  now: Date,
+): { label: string; staleness: 'fresh' | 'aging' | 'stale' } {
   if (!iso) return { label: '—', staleness: 'stale' };
   const dt = new Date(iso);
   if (Number.isNaN(dt.getTime())) return { label: '—', staleness: 'stale' };
-  const diffMs = DEMO_DATE.getTime() - dt.getTime();
+  const diffMs = now.getTime() - dt.getTime();
   const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   if (days < 0) return { label: 'in the future', staleness: 'fresh' };
   if (days === 0) return { label: 'today', staleness: 'fresh' };
@@ -54,6 +65,7 @@ function relativeDays(iso: string | null): { label: string; staleness: 'fresh' |
 }
 
 export function ForecastHealthTile({ projectId, onClick }: Props) {
+  const { currentPeriod } = useConfig();
   const [latest, setLatest] = useState<ForecastVersionMeta | null>(null);
   const [versionCount, setVersionCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -82,7 +94,7 @@ export function ForecastHealthTile({ projectId, onClick }: Props) {
     };
   }, [projectId]);
 
-  const rel = relativeDays(latest?.created_at ?? null);
+  const rel = relativeDays(latest?.created_at ?? null, endOfMonthDate(currentPeriod));
   const statusBadgeClass =
     rel.staleness === 'fresh'
       ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'

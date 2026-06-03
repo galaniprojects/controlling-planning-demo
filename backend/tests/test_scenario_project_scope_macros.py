@@ -18,7 +18,12 @@ from services.scenario_project_scope.types import (
 )
 
 
-OPEN = current_open_forecast_month()  # == DEMO_DATE == "2026-04"
+# Explicit open-month boundary for these macro unit tests (the engine takes it
+# as a parameter). Fixed to "2026-04" so the worked §4 examples below stay
+# deterministic regardless of the real current month. The *default* open month
+# (current_open_forecast_month) is the next month after today — asserted
+# separately in test_current_open_month_is_next_month.
+OPEN = "2026-04"
 
 
 def _grid(cells, start="2026-06", end="2026-08"):
@@ -57,8 +62,11 @@ def _total(grid):
 # open month
 # ---------------------------------------------------------------------------
 
-def test_current_open_month_is_demo_date():
-    assert current_open_forecast_month() == DEMO_DATE == "2026-04"
+def test_current_open_month_is_next_month():
+    # Locked-current-month rule: the in-progress month (DEMO_DATE) is closed for
+    # forecasting, so the open month is the next one.
+    from services.calculations import add_months
+    assert current_open_forecast_month() == add_months(DEMO_DATE, 1)
 
 
 # ---------------------------------------------------------------------------

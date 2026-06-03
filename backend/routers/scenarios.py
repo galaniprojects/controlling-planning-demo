@@ -25,7 +25,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import get_db
-from dependencies import get_current_user, require_role, user_has_tier3
+from dependencies import (
+    assert_pl_may_touch_project, get_current_user, pl_leads_project,
+    require_role, user_has_tier3,
+)
 from models.financial import ForecastVersion
 from models.projects import Project
 from models.scenarios import (
@@ -112,11 +115,55 @@ def _get_scenario_or_404(db: Session, scenario_id: int) -> Scenario:
     return sc
 
 
-def _user_can_view_scenario(scenario: Scenario, user: CurrentUser, has_tier3: bool) -> bool:
-    """Per [B-AC-01..03] [B-SL-03] visibility rules."""
+def _scenario_touches_pl_project(
+    db: Session, scenario: Scenario, user: CurrentUser,
+) -> bool:
+    """True if any action in ``scenario`` targets a project the PL leads.
+
+    Used for the targeted leadership→PL handoff (Simulator §9.1): a published
+    scenario authored by someone else is visible to a PL only via the slice of
+    their own projects it touches.
+    """
+    rows = (
+        db.query(ScenarioAction.project_id)
+        .filter(
+            ScenarioAction.scenario_id == scenario.id,
+            ScenarioAction.project_id.isnot(None),
+        )
+        .distinct()
+        .all()
+    )
+    for (pid,) in rows:
+        if pid and pl_leads_project(db, user, pid):
+            return True
+    return False
+
+
+def _user_can_view_scenario(
+    scenario: Scenario, user: CurrentUser, has_tier3: bool,
+    db: Optional[Session] = None,
+) -> bool:
+    """Per [B-AC-01..03] [B-SL-03] and Simulator §9/§9.2 visibility rules.
+
+    For Project Leads, visibility is directional (§9.2): a PL sees their own
+    authored scenarios, plus any *published* scenario whose diffs touch one of
+    their projects (the targeted handoff, §9.1). A PL never sees a peer PL's
+    scenario laterally, nor a published scenario that does not touch their
+    projects. ``db`` is required to evaluate the handoff touch-check; when not
+    supplied (legacy callers) the handoff is conservatively denied.
+    """
     # Owner always sees own scenarios.
     if scenario.author_id == user.person_id:
         return True
+
+    # Project Leads: directional, no lateral visibility (§9.2).
+    if user.role == "project_lead":
+        if scenario.status != "published":
+            return False
+        if db is None:
+            return False
+        return _scenario_touches_pl_project(db, scenario, user)
+
     # Private scenarios: only the owner.
     if scenario.status == "private":
         return False
@@ -177,7 +224,7 @@ def list_scenarios(
     # Filter published by Tier 3 visibility.
     visible_published = [
         p for p in published
-        if _user_can_view_scenario(p, user, has_tier3)
+        if _user_can_view_scenario(p, user, has_tier3, db)
     ]
 
     def matches_tag(s: Scenario) -> bool:
@@ -217,16 +264,15 @@ def create_scenario(
     body: ScenarioCreate,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
-    """Create a scenario per [B-AC-01..03] [B-SL-01].
+    """Create a scenario per [B-AC-01..03] [B-SL-01] and Simulator §9.
 
-    PL is intentionally excluded from creation (per [E-06c]) — PL only
-    consumes published scenarios via Apply-to-forecast.
-
-    CC Owner creation requires ``cc_owner_scope_cc_id`` to match the
-    persona's managed cost centre per [E-06b].
+    Project Leads may now author scenarios (Simulator §9), scoped per-action
+    to the projects they lead (enforced at the action/overlay write boundary
+    and on clone below). CC Owner creation requires ``cc_owner_scope_cc_id``
+    to match the persona's managed cost centre per [E-06b].
     """
     # Cap at 10 scenarios per user (existing v4 rule, kept for soft warning).
     count = (
@@ -295,7 +341,7 @@ def create_scenario(
             raise HTTPException(404, f"Source scenario {body.clone_from} not found")
         # Clone published-only or owned scenarios.
         has_tier3 = user_has_tier3(db, user)
-        if not _user_can_view_scenario(source, user, has_tier3):
+        if not _user_can_view_scenario(source, user, has_tier3, db):
             raise HTTPException(
                 403, "Cannot clone a scenario you cannot view.",
             )
@@ -304,6 +350,10 @@ def create_scenario(
             .filter(ScenarioAction.scenario_id == body.clone_from)
             .order_by(ScenarioAction.action_order).all()
         )
+        # Per-action scoping (Simulator §9): a PL may only clone into a
+        # scenario actions that target projects they lead.
+        for a in source_actions:
+            assert_pl_may_touch_project(db, user, a.project_id)
         for a in source_actions:
             db.add(ScenarioAction(
                 scenario_id=scenario.id, action_order=a.action_order,
@@ -329,7 +379,7 @@ def delete_scenario(
     scenario_id: int,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
     """Hard delete a scenario (owner only). Also cleans up Lever 12 sandbox rows."""
@@ -361,10 +411,20 @@ def publish_scenario(
     body: Optional[ScenarioPublishRequest] = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
-    """Publish per [B-SL-03] with Tier 3 content gating (Option C)."""
+    """Publish per [B-SL-03] with Tier 3 content gating (Option C).
+
+    Publication is directional and role-dependent (Simulator §9.2). For a
+    controller, publish sits on the path to live (publish-for-review → Promote).
+    For a Project Lead, publish means *expose for oversight and feed the
+    targeted handoff*: it flips ``status`` to ``published`` so the scenario
+    flows upward to controllers and becomes visible to PLs whose projects it
+    touches — but it grants no promote route (PLs cannot promote; their path to
+    live stays Apply-to-forecast). Lateral PL→PL browsing is prevented by
+    ``_user_can_view_scenario``.
+    """
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
 
@@ -394,7 +454,7 @@ def unpublish_scenario(
     scenario_id: int,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
     scenario = _get_scenario_or_404(db, scenario_id)
@@ -411,7 +471,7 @@ def archive_scenario(
     body: ScenarioArchiveRequest,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
     """Soft archive per [B-SL-05] — scenarios remain queryable, are read-only."""
@@ -437,7 +497,7 @@ def rebase_scenario(
     body: ScenarioRebaseRequest,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
     """Re-anchor a scenario to a newer cycle version per [B-SL-02].
@@ -483,7 +543,7 @@ def get_scenario_detail(
     """Get full scenario state. Tier 3 content redacted for non-Tier-3 users."""
     scenario = _get_scenario_or_404(db, scenario_id)
     has_tier3 = user_has_tier3(db, user)
-    if not _user_can_view_scenario(scenario, user, has_tier3):
+    if not _user_can_view_scenario(scenario, user, has_tier3, db):
         raise HTTPException(403, "You do not have access to this scenario.")
 
     state = get_scenario_state(db, scenario_id)
@@ -517,7 +577,7 @@ def update_scenario_metadata(
     body: ScenarioMetadataUpdate,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
     """Update scenario name/description/tags/visibility."""
@@ -555,12 +615,16 @@ def apply_action(
     body: ActionRequest,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
     """Apply an action and return full recalculated state."""
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
+
+    # Per-action project scoping (Simulator §9): a PL may only add actions
+    # targeting projects they lead. Controllers/executives are unrestricted.
+    assert_pl_may_touch_project(db, user, body.project_id)
 
     # CC Owner scoping per [E-06b]: only resource (people / capacity) actions
     # within their CC. Reject anything else.
@@ -616,7 +680,7 @@ def remove_action(
     scenario_id: int, action_id: int,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
     scenario = _get_scenario_or_404(db, scenario_id)
@@ -651,7 +715,7 @@ def reorder_actions(
     body: ActionReorder,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
     scenario = _get_scenario_or_404(db, scenario_id)
@@ -687,7 +751,7 @@ def get_drill_down(
 ):
     scenario = _get_scenario_or_404(db, scenario_id)
     has_tier3 = user_has_tier3(db, user)
-    if not _user_can_view_scenario(scenario, user, has_tier3):
+    if not _user_can_view_scenario(scenario, user, has_tier3, db):
         raise HTTPException(403, "You do not have access to this scenario.")
 
     state = get_scenario_state(db, scenario_id)
@@ -740,7 +804,7 @@ def compare_scenarios(
         _get_scenario_or_404(db, sid) for sid in body.scenario_ids
     ]
     for sc in scenarios:
-        if not _user_can_view_scenario(sc, user, has_tier3):
+        if not _user_can_view_scenario(sc, user, has_tier3, db):
             raise HTTPException(
                 403,
                 f"You do not have access to scenario {sc.id}.",
@@ -921,7 +985,7 @@ def lever12_cost_allocation_impact(
     """Per-charging-location impact for the scenario per [F-RV-01..06]."""
     scenario = _get_scenario_or_404(db, scenario_id)
     has_tier3 = user_has_tier3(db, user)
-    if not _user_can_view_scenario(scenario, user, has_tier3):
+    if not _user_can_view_scenario(scenario, user, has_tier3, db):
         raise HTTPException(403, "You do not have access to this scenario.")
     return compute_cost_allocation_impact(db, scenario_id, year=year)
 
@@ -942,7 +1006,7 @@ def impact_dashboard(
     """8-dimension impact dashboard per [B-ID-01..03]."""
     scenario = _get_scenario_or_404(db, scenario_id)
     has_tier3 = user_has_tier3(db, user)
-    if not _user_can_view_scenario(scenario, user, has_tier3):
+    if not _user_can_view_scenario(scenario, user, has_tier3, db):
         raise HTTPException(403, "You do not have access to this scenario.")
 
     state = get_scenario_state(db, scenario_id)
@@ -961,7 +1025,7 @@ def recalculate_endpoint(
     scenario_id: int,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
     """Stamp the scenario as freshly recalculated (clears stale indicator)."""
@@ -1044,7 +1108,7 @@ def list_promotions(
     """Return the audit trail of past promotions for a scenario."""
     scenario = _get_scenario_or_404(db, scenario_id)
     has_tier3 = user_has_tier3(db, user)
-    if not _user_can_view_scenario(scenario, user, has_tier3):
+    if not _user_can_view_scenario(scenario, user, has_tier3, db):
         raise HTTPException(403, "You do not have access to this scenario.")
     rows = (
         db.query(ScenarioPromotion)

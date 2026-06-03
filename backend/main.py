@@ -45,6 +45,7 @@ from routers.charging import (  # noqa: E402
     router as charging_router,
     charging_router as charging_consumer_router,
 )
+from routers.config import router as config_router  # noqa: E402
 from routers.documentation import router as docs_router  # noqa: E402
 from routers.global_launchpad import router as launchpad_router  # noqa: E402
 from routers.intake import router as intake_router  # noqa: E402
@@ -82,6 +83,7 @@ app.include_router(audit_router)
 app.include_router(capacity_router)
 app.include_router(charging_router)
 app.include_router(charging_consumer_router)
+app.include_router(config_router)
 app.include_router(docs_router)
 app.include_router(launchpad_router)
 app.include_router(intake_router)

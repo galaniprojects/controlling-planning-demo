@@ -334,7 +334,7 @@ const SEED_SUMMARY = [
   { entity: 'Progress Snapshots', count: '~10', note: 'Captured at cycle close' },
   { entity: 'Forecast Versions', count: '2 per project', note: 'Q1 2026 + Q2 2026 cycles' },
   { entity: 'Notifications', count: '19', note: 'Persona-differentiated' },
-  { entity: 'Demo Date', count: 'April 2026', note: 'All time-dependent logic anchored here' },
+  { entity: 'Demo Date', count: 'Current month (dynamic)', note: 'Runtime-computed from the real date; seed shifted on load' },
 ];
 
 export function DataModelTab() {
@@ -493,7 +493,7 @@ AuditLog (8 categories)`}</div>
           <ul className="list-disc list-inside space-y-1 text-muted-foreground">
             <li><strong>Baseline</strong> — original approved budget (set at project approval, updated by approved CRs).</li>
             <li><strong>Forecast</strong> — current expected spend (updated via the 5-phase forecast cycle wizard or by approved CRs).</li>
-            <li><strong>Actuals</strong> — recorded spend to date (terminates at the demo date boundary: April 2026).</li>
+            <li><strong>Actuals</strong> — recorded spend to date (terminates at the current-month boundary; dynamic demo date).</li>
           </ul>
           <p>
             v5 introduces a <strong>mixed-granularity grid</strong> per <code className="text-xs">[C-FG-01..07]</code>: cells inside the granularity boundary are

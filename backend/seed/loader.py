@@ -29,7 +29,14 @@ def get_db_path() -> str:
 
 
 def load_seed_sql() -> None:
-    """Execute seed.sql against the SQLite database."""
+    """Execute seed.sql against the SQLite database.
+
+    The committed seed.sql is the canonical (2026-04-anchored) assembled output.
+    Before loading we shift every date literal forward to the real current month
+    (the living-demo transform — see ``seed/date_shift.py``) so the seeded data
+    always reflects the present: actuals end last month, forecasts open next
+    month, narrative beats keep their relative offsets.
+    """
     db_path = get_db_path()
     sql_path = os.path.join(SEED_DIR, "seed.sql")
 
@@ -37,12 +44,20 @@ def load_seed_sql() -> None:
         print("[seed] seed.sql not found — skipping SQL seed.")
         return
 
+    from seed.date_shift import CANONICAL_BASE, month_delta, shift_sql_dates
+
+    delta = month_delta(CANONICAL_BASE, config.DEMO_DATE)
+
     conn = sqlite3.connect(db_path)
     try:
         with open(sql_path, "r") as f:
             sql = f.read()
-        conn.executescript(sql)
-        print(f"[seed] Loaded seed.sql ({os.path.getsize(sql_path)} bytes)")
+        shifted = shift_sql_dates(sql, delta)
+        conn.executescript(shifted)
+        print(
+            f"[seed] Loaded seed.sql ({os.path.getsize(sql_path)} bytes), "
+            f"date-shifted +{delta} months ({CANONICAL_BASE} -> {config.DEMO_DATE})."
+        )
     finally:
         conn.close()
 
@@ -188,7 +203,23 @@ def _seed_forecast_versions() -> None:
             project_ids=[],
         )
 
-        DEMO_DATE = "2026-04"
+        # The SQL load is date-shifted to the real current month, so the
+        # forecast-version anchor and cycle labels must follow. v2 = the current
+        # cycle; v1 = the prior cycle (one quarter back).
+        from services.calculations import add_months
+        from services.forecast_cycle import derive_cycle_label
+
+        DEMO_DATE = config.DEMO_DATE
+        prior_period = add_months(DEMO_DATE, -3)
+
+        def _cycle_ts(period: str) -> datetime:
+            return datetime(int(period[:4]), int(period[5:7]), 15, 10, 0, 0)
+
+        v1_label = derive_cycle_label(prior_period)
+        v2_label = derive_cycle_label(DEMO_DATE)
+        v1_created = _cycle_ts(prior_period)
+        v2_created = _cycle_ts(DEMO_DATE)
+
         projects = db.query(Project).filter(Project.is_active.is_(True)).all()
         count = 0
 
@@ -212,7 +243,7 @@ def _seed_forecast_versions() -> None:
             grid_v1["grand_total"] = round(grid_v1["grand_total"] * 1.05, 2)
 
             payload_v1 = serialize_forecast_payload(
-                project.id, grid_v1, "2026-01-15T10:00:00"
+                project.id, grid_v1, v1_created.isoformat()
             )
             cell_count_v1 = sum(
                 1 for row in grid_v1["rows"]
@@ -223,11 +254,11 @@ def _seed_forecast_versions() -> None:
                 project_id=project.id,
                 version_number=_next_version_number(db, project.id),
                 version_type="cycle",
-                cycle_label="Q1 2026 Cycle",
-                cycle_id="seed-q1-2026",
+                cycle_label=v1_label,
+                cycle_id="seed-prior-cycle",
                 change_request_id=None,
                 created_by_id="p-controller",
-                created_at=datetime(2026, 1, 15, 10, 0, 0),
+                created_at=v1_created,
                 granularity_boundary_months=grid_v1["granularity_boundary_months"],
                 planning_horizon_months=grid_v1["planning_horizon_months"],
                 payload_json=payload_v1,
@@ -240,7 +271,7 @@ def _seed_forecast_versions() -> None:
             # v2: 'Q2 2026 Cycle' — current state snapshot
             grid_v2 = build_mixed_grid(db, project.id, DEMO_DATE)
             payload_v2 = serialize_forecast_payload(
-                project.id, grid_v2, "2026-04-15T10:00:00"
+                project.id, grid_v2, v2_created.isoformat()
             )
             cell_count_v2 = sum(
                 1 for row in grid_v2["rows"]
@@ -251,11 +282,11 @@ def _seed_forecast_versions() -> None:
                 project_id=project.id,
                 version_number=_next_version_number(db, project.id),
                 version_type="cycle",
-                cycle_label="Q2 2026 Cycle",
-                cycle_id="seed-q2-2026",
+                cycle_label=v2_label,
+                cycle_id="seed-current-cycle",
                 change_request_id=None,
                 created_by_id="p-controller",
-                created_at=datetime(2026, 4, 15, 10, 0, 0),
+                created_at=v2_created,
                 granularity_boundary_months=grid_v2["granularity_boundary_months"],
                 planning_horizon_months=grid_v2["planning_horizon_months"],
                 payload_json=payload_v2,

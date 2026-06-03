@@ -34,7 +34,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
-from dependencies import get_current_user, require_role, user_has_tier3
+from dependencies import (
+    assert_pl_may_touch_project,
+    get_current_user,
+    require_role,
+    user_has_tier3,
+)
 from models.projects import Project, ProjectMilestone
 from models.scenarios import (
     Scenario, ScenarioAction, ScenarioCapacityImpact,
@@ -86,7 +91,7 @@ def _grid_to_response(
     lines expose ``hours`` cells with a derived € amount; external lines expose
     ``amount_eur`` cells. See ``services/scenario_project_scope/`` (Session 1).
     """
-    from config import DEMO_DATE
+    from services.calendar import open_forecast_month
     from services.scenario_project_scope.rates import effective_hourly_rate
     from services.scenario_project_scope.resolution import (
         read_anchor_grid, resolve_project_grid,
@@ -117,6 +122,10 @@ def _grid_to_response(
         months.update(line.cells.keys())
     sorted_months = sorted(months)
     columns = [ScenarioGridColumn(key=m) for m in sorted_months]
+
+    # Editable boundary: the in-progress current month is locked, so the first
+    # editable month is the next one. A cell is editable iff month >= open_month.
+    open_month = open_forecast_month()
 
     rows: list[ScenarioGridRow] = []
     for line in adjusted.lines:
@@ -178,7 +187,7 @@ def _grid_to_response(
                 anchor_value=(round(anchor_value, 2) if anchor_value is not None else None),
                 anchor_amount_eur=(round(anchor_amount_eur, 2) if anchor_amount_eur is not None else None),
                 field=field,
-                can_edit=(m >= DEMO_DATE),
+                can_edit=(m >= open_month),
                 is_changed=is_changed,
                 has_overlay=((line.line_key, m) in overlay_keys),
                 is_empty=is_empty,
@@ -198,7 +207,7 @@ def _grid_to_response(
         project_id=project_id,
         start_month=adjusted.start_month,
         end_month=adjusted.end_month,
-        open_month=DEMO_DATE,
+        open_month=open_month,
         columns=columns,
         rows=rows,
     )
@@ -317,7 +326,7 @@ def write_project_cell(
     body: CellEditRequest,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive",
+        "controller", "executive", "project_lead",
     )),
 ):
     """Upsert a single forecast-cell overlay edit, then recalculate.
@@ -327,6 +336,7 @@ def write_project_cell(
     """
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
+    assert_pl_may_touch_project(db, user, project_id)
     project = db.query(Project).filter(Project.id == project_id).first()
     if project is None:
         raise HTTPException(404, f"Project {project_id} not found")
@@ -346,12 +356,14 @@ def write_project_cell(
             f"{'internal' if line_kind == 'internal_role' else 'external'} line.",
         )
 
-    # Actuals write-guard: cannot edit a month at or before the open boundary's
-    # past (months strictly before DEMO_DATE are closed actuals).
-    from config import DEMO_DATE
-    if body.month < DEMO_DATE:
+    # Write-guard: the in-progress current month and everything before it are
+    # locked (closed/partial actuals); only months >= the open forecast month
+    # (next month) may be edited.
+    from services.calendar import open_forecast_month
+    open_month = open_forecast_month()
+    if body.month < open_month:
         raise HTTPException(
-            403, f"Cannot edit actuals month {body.month} (< {DEMO_DATE}).",
+            403, f"Cannot edit month {body.month} (< open month {open_month}).",
         )
 
     existing = (
@@ -396,7 +408,7 @@ def revert_project_cells(
     field: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive",
+        "controller", "executive", "project_lead",
     )),
 ):
     """Revert overlay cell edits at cell / line / clear-all granularity.
@@ -408,6 +420,7 @@ def revert_project_cells(
     """
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
+    assert_pl_may_touch_project(db, user, project_id)
     project = db.query(Project).filter(Project.id == project_id).first()
     if project is None:
         raise HTTPException(404, f"Project {project_id} not found")
@@ -466,7 +479,7 @@ def add_role_line(
     project_id: str,
     body: LineAddRequest,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller", "executive")),
+    user: CurrentUser = Depends(require_role("controller", "executive", "project_lead")),
 ):
     """Add an internal role line to the project's plan within the scenario.
 
@@ -477,6 +490,7 @@ def add_role_line(
     """
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
+    assert_pl_may_touch_project(db, user, project_id)
     _require_project(db, project_id)
 
     if not body.role_type_id:
@@ -513,7 +527,7 @@ def remove_role_line(
     project_id: str,
     line_key: str,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller", "executive")),
+    user: CurrentUser = Depends(require_role("controller", "executive", "project_lead")),
 ):
     """Drop a role line from the scenario's plan.
 
@@ -523,6 +537,7 @@ def remove_role_line(
     """
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
+    assert_pl_may_touch_project(db, user, project_id)
     _require_project(db, project_id)
 
     if line_key.startswith("new:role:") or line_key.startswith("new:ext:"):
@@ -672,7 +687,7 @@ def write_plan_edit(
     project_id: str,
     body: PlanEditRequest,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller", "executive")),
+    user: CurrentUser = Depends(require_role("controller", "executive", "project_lead")),
 ):
     """Upsert one project-plan overlay target (date / stage / DoI / milestone).
 
@@ -683,12 +698,14 @@ def write_plan_edit(
     """
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
+    assert_pl_may_touch_project(db, user, project_id)
     project = _require_project(db, project_id)
 
     if body.target not in OVERLAY_PLAN_TARGETS:
         raise HTTPException(422, f"target must be one of {OVERLAY_PLAN_TARGETS}")
 
-    from config import DEMO_DATE
+    from services.calendar import open_forecast_month
+    open_month = open_forecast_month()
 
     milestone_id = ""
     value: Optional[str] = None
@@ -707,10 +724,10 @@ def write_plan_edit(
             import re
             if not re.fullmatch(r"\d{4}-\d{2}", value):
                 raise HTTPException(422, f"{body.target} must be 'YYYY-MM'.")
-            if value < DEMO_DATE:
+            if value < open_month:
                 raise HTTPException(
                     403,
-                    f"Cannot move {body.target} to {value} (< open month {DEMO_DATE}); "
+                    f"Cannot move {body.target} to {value} (< open month {open_month}); "
                     "nothing may reshape the past.",
                 )
             # Keep the window non-inverted: validate against the counterpart's
@@ -781,12 +798,13 @@ def revert_plan_edit(
     target: Optional[str] = Query(None),
     milestone_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller", "executive")),
+    user: CurrentUser = Depends(require_role("controller", "executive", "project_lead")),
 ):
     """Revert plan overlay edits: one target (optionally a specific milestone) or
     — with no params — all plan edits for the project."""
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
+    assert_pl_may_touch_project(db, user, project_id)
     project = _require_project(db, project_id)
 
     q = db.query(ScenarioPlanEdit).filter(
@@ -871,7 +889,7 @@ def write_mix_change(
     project_id: str,
     body: MixChangeRequest,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller", "executive")),
+    user: CurrentUser = Depends(require_role("controller", "executive", "project_lead")),
 ):
     """Upsert a Tier-3 seniority/sourcing mix swap (spec §8 — the lone Tier-3 grid
     control). WRITES are gated on ``user_has_tier3``; the FE renders the control
@@ -879,6 +897,7 @@ def write_mix_change(
     (scenario, project, cost_center, swap_from, swap_to)."""
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
+    assert_pl_may_touch_project(db, user, project_id)
     _require_project(db, project_id)
 
     if not user_has_tier3(db, user):
@@ -889,11 +908,12 @@ def write_mix_change(
     if body.hours_per_month_swap is None or body.hours_per_month_swap <= 0:
         raise HTTPException(422, "hours_per_month_swap must be a positive number.")
 
-    from config import DEMO_DATE
-    if body.effective_from < DEMO_DATE:
+    from services.calendar import open_forecast_month
+    open_month = open_forecast_month()
+    if body.effective_from < open_month:
         raise HTTPException(
             403,
-            f"effective_from {body.effective_from} is in the past (< {DEMO_DATE}); "
+            f"effective_from {body.effective_from} is in the past (< open month {open_month}); "
             "nothing may reshape the past.",
         )
 
@@ -939,12 +959,13 @@ def revert_mix_change(
     project_id: str,
     mix_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller", "executive")),
+    user: CurrentUser = Depends(require_role("controller", "executive", "project_lead")),
 ):
     """Revert a Tier-3 mix swap (by ``mix_id``) or all of them for the project.
     Tier-3 gated, like the write."""
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
+    assert_pl_may_touch_project(db, user, project_id)
     _require_project(db, project_id)
 
     if not user_has_tier3(db, user):
@@ -1143,7 +1164,7 @@ def add_external_cost_line(
     project_id: str,
     body: ExternalCostLineCreateRequest,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller", "executive")),
+    user: CurrentUser = Depends(require_role("controller", "executive", "project_lead")),
 ):
     """Add an external-cost line item to the project's scenario plan. Mints a
     stable ``new:ext:<uuid>`` line_key; per-month € is entered via the cell path.
@@ -1154,6 +1175,7 @@ def add_external_cost_line(
 
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
+    assert_pl_may_touch_project(db, user, project_id)
     _require_project(db, project_id)
     if body.capex_opex is not None and body.capex_opex not in _CAPEX_OPEX_VALUES:
         raise HTTPException(422, f"capex_opex must be one of {_CAPEX_OPEX_VALUES}")
@@ -1190,7 +1212,7 @@ def edit_external_cost_line(
     line_key: str,
     body: ExternalCostLineUpdateRequest,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller", "executive")),
+    user: CurrentUser = Depends(require_role("controller", "executive", "project_lead")),
 ):
     """Edit an external-cost line's metadata (vendor / cost-type / description /
     capex). Existing anchor line → upsert an ``op='edit'`` overlay row; pending
@@ -1199,6 +1221,7 @@ def edit_external_cost_line(
 
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
+    assert_pl_may_touch_project(db, user, project_id)
     _require_project(db, project_id)
     _require_external_line_key(line_key)
     if body.capex_opex is not None and body.capex_opex not in _CAPEX_OPEX_VALUES:
@@ -1271,13 +1294,14 @@ def remove_external_cost_line(
     project_id: str,
     line_key: str,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_role("controller", "executive")),
+    user: CurrentUser = Depends(require_role("controller", "executive", "project_lead")),
 ):
     """Remove an external-cost line from the scenario plan. An added line drops its
     overlay row + cell edits entirely; an anchor line gets an ``op='remove'`` row
     (resolution suppresses it) and its cell edits are cleared."""
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
+    assert_pl_may_touch_project(db, user, project_id)
     _require_project(db, project_id)
     _require_external_line_key(line_key)
 

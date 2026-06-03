@@ -38,8 +38,9 @@ export function OverviewTab() {
             visibility, capacity management, what-if scenario planning, and multi-dimensional reporting.
           </p>
           <p>
-            This is a <strong>demo application</strong> with realistic mock data simulating an April 2026 operational
-            date. All financial values use EUR with European formatting (dot for thousands, comma for decimals).
+            This is a <strong>demo application</strong> with realistic mock data anchored to the real current month
+            (a dynamic demo date) — the seed re-anchors on load so actuals always end at the current month and
+            forecasts open next month. All financial values use EUR with European formatting (dot for thousands, comma for decimals).
           </p>
         </CardContent>
       </Card>

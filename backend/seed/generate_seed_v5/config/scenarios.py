@@ -1,6 +1,6 @@
 """What-If scenario definitions per Cluster B [B-AC-01..03] [B-SL-01..05].
 
-T3 owns this file. Three scenarios drive the simulator demo:
+T3 owns this file. Four scenarios drive the simulator demo:
 
 1. ``scn-mdh-rebalance`` — controller-private Tier-1 lever-12 demo on the
    Master Data Hub flagship offering. Shifts the BTC profile percentages on
@@ -27,6 +27,22 @@ T3 owns this file. Three scenarios drive the simulator demo:
    levers within that CC are editable by Thomas Brenner. One people-tier
    action targeting the Master Data Hub project (``proj-mdh-rollout``).
 
+4. ``scn-pl-predmaint-defer`` — Project-Lead-authored private scenario
+   (Session 4) exercising the PL authoring + Apply-to-Forecast path.
+   Authored by Priya Sharma (``p-sharma``, persona ``persona-pl``) and
+   scoped to one of her own projects, ``proj-predmaint`` (Predictive
+   Maintenance PoC). A Tier-1 ``delay_project`` macro defers the project 3
+   months to relieve a resource clash, paired with a Layer-2
+   ``end_month`` ScenarioPlanEdit (2027-03 → 2027-06) so the resolution
+   engine reshapes the window. ``status``/``visibility`` are ``private``;
+   ``cc_owner_scope_cc_id`` is NULL (a PL scenario is project-scoped, not
+   CC-scoped). Visible to Priya via the owner branch in
+   ``routers.scenarios._user_can_view_scenario`` (author_id == person_id);
+   not laterally visible to other PLs (Simulator §9.2). States/capacity/
+   promotions are left empty — the simulator recompute engine computes the
+   ScenarioState snapshot when the scenario is opened (same as scenarios 1
+   and 3).
+
 All ScenarioAction rows carry the v5 ``lever_category`` + ``tier`` columns.
 The ``parameters_json`` and ``impact_delta_json`` columns are JSON strings
 serialised once here (so seed regen is byte-identical).
@@ -48,6 +64,8 @@ _CREATED_REBALANCE = "2026-03-25 10:00:00"
 _CREATED_BUDGET    = "2026-03-12 09:30:00"
 _CREATED_CCO       = "2026-04-02 14:00:00"
 _PROMOTED_BUDGET   = "2026-04-15 10:00:00"
+# PL-authored scenario (Session 4) — drafted by Priya Sharma in early April.
+_CREATED_PL        = "2026-04-08 16:20:00"
 
 # ---------------------------------------------------------------------------
 # Project-Scope Redesign (spec §4/§5/§6) — proj-dwh external descope overlay.
@@ -428,6 +446,66 @@ SCENARIOS: list[dict] = [
                 "swap_to_role_id": "role-dev",
                 "hours_per_month_swap": 40,
                 "effective_from": "2026-05",
+            },
+        ],
+    },
+    {
+        "id": 4,
+        "stable_key": "scn-pl-predmaint-defer",
+        "name": "Predictive Maintenance — Defer 3 Months",
+        "description": (
+            "Project Lead draft: defer Predictive Maintenance PoC 3 months "
+            "to relieve a sensor-team resource clash with the Sensor Data "
+            "Pipeline ramp. Total-preserving timeline shift — the curve moves "
+            "right, the budget is unchanged. Private to the author until the "
+            "re-plan is agreed with the CC owner."
+        ),
+        # Authored by the PL persona (persona-pl → p-sharma). proj-predmaint is
+        # one of Priya's owned projects (entities.PL_OWNED_PROJECT_IDS), so the
+        # PL filter and the owner-visibility branch both resolve cleanly.
+        "author_id": "p-sharma",
+        "status": "private",
+        "visibility": "private",
+        "tier3_content_flag": False,  # Tier-1 schedule lever only
+        "archived": False,
+        "tags": '["pl-authored", "schedule", "defer"]',
+        "cc_owner_scope_cc_id": None,  # project-scoped, not CC-scoped
+        "headline_impact": (
+            '{"total_budget_delta": 0, "schedule_shift_months": 3, '
+            '"action_count": 1, "projects_affected": 1}'
+        ),
+        "created_at": _CREATED_PL,
+        "modified_at": _CREATED_PL,
+        "last_recalculated_at": _CREATED_PL,
+        "actions": [
+            {
+                "action_order": 1,
+                "scope": "project",
+                "action_type": "delay_project",
+                "project_id": "proj-predmaint",
+                "lever_category": "forecast_grid",
+                "tier": 1,
+                "group_label": "Resource-clash re-plan",
+                "parameters_json": (
+                    '{"delay_months": 3, '
+                    '"reason": "Relieve sensor-team clash with Sensor Data Pipeline ramp"}'
+                ),
+                "impact_delta_json": '{"budget_delta": 0, "schedule_shift_months": 3}',
+            },
+        ],
+        # States/capacity/promotions left empty: the simulator recompute engine
+        # produces the ScenarioState snapshot on open (matches scenarios 1 & 3).
+        "states": [],
+        "capacity_impacts": [],
+        "promotions": [],
+        # Layer-2 end_month plan edit pairing the 3-month deferral: the PoC's end
+        # boundary moves 2027-03 → 2027-06 so the resolved grid window reflects
+        # the shift (resolution._apply_plan_dates consumes start_month/end_month).
+        "plan_edits": [
+            {
+                "project_id": "proj-predmaint",
+                "target": "end_month",
+                "value": "2027-06",
             },
         ],
     },

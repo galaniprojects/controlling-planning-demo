@@ -74,6 +74,34 @@ def setup_db():
     Base.metadata.drop_all(bind=TEST_ENGINE)
 
 
+@pytest.fixture(autouse=True)
+def pin_demo_date(monkeypatch):
+    """Pin the dynamic current period to a fixed canonical month for tests.
+
+    ``config.DEMO_DATE`` is now derived from the real date (the living-demo
+    change), which would make every date-relative assertion in the suite
+    time-dependent. Tests are authored against ``"2026-04"``; this autouse
+    fixture restores that anchor everywhere it is bound — ``config`` itself,
+    the ``services.calendar`` helpers, and any module that did
+    ``from config import DEMO_DATE`` at import — so existing expectations hold.
+
+    Note: the *editable boundary* still derives as next-month
+    (``open_forecast_month() == "2026-05"`` here), since the locked-current-month
+    rule is a deliberate behaviour change independent of the anchor.
+    """
+    import sys
+    import config
+
+    CANON = "2026-04"
+    monkeypatch.setattr(config, "DEMO_DATE", CANON, raising=False)
+    monkeypatch.setattr(config, "get_current_period", lambda: CANON, raising=False)
+    for mod in list(sys.modules.values()):
+        if mod is None or mod is config:
+            continue
+        if getattr(mod, "DEMO_DATE", None) is not None:
+            monkeypatch.setattr(mod, "DEMO_DATE", CANON, raising=False)
+
+
 @pytest.fixture
 def db():
     """Yield a fresh SQLAlchemy session, closed after test."""
