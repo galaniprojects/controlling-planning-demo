@@ -118,6 +118,7 @@ def test_grid_read_reflects_overlay_euro_anchor_and_changed(
     assert cell["display_value"] == 25.0          # resolved hours
     assert cell["amount_eur"] == 2500.0           # 25h x 100 = 2500 €
     assert cell["anchor_value"] == 10.0           # pre-overlay hours
+    assert cell["anchor_amount_eur"] == 1000.0    # stored anchor € (10h x 100)
     assert cell["field"] == "hours"
     assert cell["is_changed"] is True
     assert cell["has_overlay"] is True            # an overlay row exists → revertable
@@ -535,3 +536,137 @@ def test_write_invalidates_scenario_state_snapshot(
         .filter(ScenarioState.scenario_id == sid)
         .count() == 0
     )
+
+
+# ---------------------------------------------------------------------------
+# 14: anchor_amount_eur reflects the STORED anchor € (not hours x latest rate)
+# ---------------------------------------------------------------------------
+
+def test_anchor_amount_eur_reflects_stored_euro_not_rate(
+    db, test_client, seed_personas, ps_world,
+):
+    """The grid must hand the live-local panel the anchor cell's stored €, so the
+    panel's anchor/delta can't drift when a stored forecast € was not priced at
+    the current latest rate (role-dev rate = 100)."""
+    sid, pid = ps_world["scenario_id"], ps_world["project_id"]
+    # An internal cell whose stored € (380) != hours x latest-rate (10 x 100).
+    db.add(Forecast(
+        project_id=pid, month="2026-08", category="internal",
+        sub_category="role-dev", role_type_id=None, hours=10,
+        amount_eur=Decimal("380.00"),
+    ))
+    db.commit()
+
+    resp = test_client.get(
+        f"/api/scenarios/{sid}/projects/{pid}/grid", headers=_hdr(CONTROLLER_PERSONA),
+    )
+    assert resp.status_code == 200, resp.text
+    cell = _cell(resp.json(), INTERNAL_KEY, "2026-08")
+    assert cell["anchor_value"] == 10.0          # anchor hours
+    assert cell["anchor_amount_eur"] == 380.0    # STORED €, not 10 x 100 = 1000
+    assert cell["has_overlay"] is False
+
+
+# ---------------------------------------------------------------------------
+# 15: CC Owner is excluded from cell write + revert (access layer is Session 4)
+# ---------------------------------------------------------------------------
+
+def test_cc_owner_cannot_write_or_revert_cells(
+    db, test_client, seed_personas, ps_world,
+):
+    sid, pid = ps_world["scenario_id"], ps_world["project_id"]
+    body = {
+        "line_key": INTERNAL_KEY, "month": INTERNAL_MONTH,
+        "field": "hours", "value": 20,
+    }
+    w = test_client.put(
+        f"/api/scenarios/{sid}/projects/{pid}/cells", json=body,
+        headers=_hdr("persona-cc-owner"),
+    )
+    assert w.status_code == 403, w.text
+    r = test_client.delete(
+        f"/api/scenarios/{sid}/projects/{pid}/cells"
+        f"?line_key={INTERNAL_KEY}&month={INTERNAL_MONTH}",
+        headers=_hdr("persona-cc-owner"),
+    )
+    assert r.status_code == 403, r.text
+    # No overlay row was created by the rejected write.
+    assert (
+        db.query(ScenarioForecastCellEdit)
+        .filter(ScenarioForecastCellEdit.scenario_id == sid)
+        .count() == 0
+    )
+
+
+# ---------------------------------------------------------------------------
+# 16: revert with a field/month filter but no line_key is rejected (no bulk wipe)
+# ---------------------------------------------------------------------------
+
+def test_revert_field_without_line_key_returns_422(
+    db, test_client, seed_personas, ps_world,
+):
+    sid, pid = ps_world["scenario_id"], ps_world["project_id"]
+    # Seed two overlays on different lines so a bulk field-delete would be visible.
+    db.add(ScenarioForecastCellEdit(
+        scenario_id=sid, project_id=pid, line_key=INTERNAL_KEY,
+        month=INTERNAL_MONTH, field="hours", value=Decimal("20"),
+    ))
+    db.add(ScenarioForecastCellEdit(
+        scenario_id=sid, project_id=pid, line_key=EXTERNAL_KEY,
+        month=EXTERNAL_MONTH, field="amount_eur", value=Decimal("4000"),
+    ))
+    db.commit()
+
+    resp = test_client.delete(
+        f"/api/scenarios/{sid}/projects/{pid}/cells?field=hours",
+        headers=_hdr(CONTROLLER_PERSONA),
+    )
+    assert resp.status_code == 422, resp.text
+    # Nothing was deleted.
+    assert (
+        db.query(ScenarioForecastCellEdit)
+        .filter(ScenarioForecastCellEdit.scenario_id == sid)
+        .count() == 2
+    )
+
+
+# ---------------------------------------------------------------------------
+# 17: project selector lists all active projects regardless of stage (excl. Cancelled)
+# ---------------------------------------------------------------------------
+
+def test_list_scenario_projects_includes_all_active_stages(
+    db, test_client, seed_personas, ps_world,
+):
+    sid = ps_world["scenario_id"]
+    # A backlog-stage project (would be dropped by the Change-population filter)
+    # and a Cancelled project (should be excluded).
+    db.add(Project(
+        id="proj-ps2-backlog", name="PS2 Backlog", pipeline_stage="Under Evaluation",
+        capex_opex="opex", start_month="2026-03", end_month="2026-12",
+        pl_person_id="p-dev-1", rag_status="green",
+    ))
+    db.add(Project(
+        id="proj-ps2-cancelled", name="PS2 Cancelled", pipeline_stage="Cancelled",
+        capex_opex="opex", start_month="2026-03", end_month="2026-12",
+        pl_person_id="p-dev-1", rag_status="green",
+    ))
+    db.commit()
+
+    resp = test_client.get(
+        f"/api/scenarios/{sid}/projects", headers=_hdr(CONTROLLER_PERSONA),
+    )
+    assert resp.status_code == 200, resp.text
+    ids = {p["id"] for p in resp.json()["items"]}
+    assert "proj-ps2" in ids                 # Active
+    assert "proj-ps2-backlog" in ids         # backlog stage still selectable
+    assert "proj-ps2-cancelled" not in ids   # Cancelled excluded
+
+
+def test_list_scenario_projects_non_viewer_403(
+    db, test_client, seed_personas, ps_world,
+):
+    sid = ps_world["scenario_id"]
+    resp = test_client.get(
+        f"/api/scenarios/{sid}/projects", headers=_hdr(EXEC_PERSONA),
+    )
+    assert resp.status_code == 403, resp.text

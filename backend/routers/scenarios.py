@@ -47,6 +47,7 @@ from schemas.scenarios import (
     ScenarioArchiveRequest, ScenarioCreate,
     ScenarioGridCell, ScenarioGridColumn, ScenarioGridResponse,
     ScenarioGridRow, ScenarioGridWriteResponse,
+    ScenarioProjectItem, ScenarioProjectsResponse,
     ScenarioListItem,
     ScenarioListResponse, ScenarioMetadataUpdate, ScenarioPublishRequest,
     ScenarioRebaseRequest, ToBusinessChange,
@@ -761,8 +762,18 @@ def _grid_to_response(
                     float(anc_cell.amount_eur) if anc_cell is not None else None
                 )
             amount_eur = float(adj_cell.amount_eur) if adj_cell else 0.0
+            # The anchor cell's STORED € (Forecast.amount_eur), distinct from
+            # anchor_value (which is anchor hours for internal lines). The
+            # live-local panel uses this for its anchor/delta so it can't drift
+            # from the server when stored € != hours x latest-rate.
+            anchor_amount_eur = (
+                float(anc_cell.amount_eur) if anc_cell is not None else None
+            )
 
             is_empty = adj_cell is None and anc_cell is None
+            # is_changed reflects adjusted-vs-anchor drift INCLUDING macro shifts
+            # (diagnostic / asserted in tests); the frontend drives its
+            # changed-highlight + revert off has_overlay, not this flag.
             is_changed = (
                 not is_empty
                 and abs(display_value - (anchor_value or 0.0)) > _GRID_EPS
@@ -772,6 +783,7 @@ def _grid_to_response(
                 display_value=round(display_value, 2),
                 amount_eur=round(amount_eur, 2),
                 anchor_value=(round(anchor_value, 2) if anchor_value is not None else None),
+                anchor_amount_eur=(round(anchor_amount_eur, 2) if anchor_amount_eur is not None else None),
                 field=field,
                 can_edit=(m >= DEMO_DATE),
                 is_changed=is_changed,
@@ -866,6 +878,42 @@ def get_project_grid(
     return _grid_to_response(db, scenario, project_id)
 
 
+@router.get(
+    "/{scenario_id}/projects",
+    response_model=ScenarioProjectsResponse,
+)
+def list_scenario_projects(
+    scenario_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Projects selectable in the simulator workspace for this scenario.
+
+    Returns EVERY active project (excluding Cancelled), regardless of pipeline
+    stage — the simulator is portfolio-wide what-if, so backlog-stage projects
+    the scenario edits must be reachable. This is deliberately NOT the Portfolio
+    'Change' population (which excludes backlog stages). Run entities are not
+    ``Project`` rows, so they are naturally excluded.
+    """
+    scenario = _get_scenario_or_404(db, scenario_id)
+    has_tier3 = user_has_tier3(db, user)
+    if not _user_can_view_scenario(scenario, user, has_tier3):
+        raise HTTPException(403, "You do not have access to this scenario.")
+    rows = (
+        db.query(Project)
+        .filter(Project.is_active.is_(True), Project.pipeline_stage != "Cancelled")
+        .order_by(Project.name)
+        .all()
+    )
+    items = [
+        ScenarioProjectItem(
+            id=p.id, name=p.name, pipeline_stage=p.pipeline_stage,
+        )
+        for p in rows
+    ]
+    return ScenarioProjectsResponse(items=items, total=len(items))
+
+
 @router.put(
     "/{scenario_id}/projects/{project_id}/cells",
     response_model=ScenarioGridWriteResponse,
@@ -876,10 +924,14 @@ def write_project_cell(
     body: CellEditRequest,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive",
     )),
 ):
-    """Upsert a single forecast-cell overlay edit, then recalculate."""
+    """Upsert a single forecast-cell overlay edit, then recalculate.
+
+    CC Owners are intentionally excluded — the scoped PL/CC authoring + access
+    layer is Session 4 (see Simulator project-scope redesign guide).
+    """
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -891,11 +943,9 @@ def write_project_cell(
             422, f"field must be one of {OVERLAY_CELL_FIELDS}",
         )
 
-    # field ↔ line-kind coherence: prefer the resolved grid line, fall back to
-    # the line_key/category shape.
-    grid = _grid_to_response(db, scenario, project_id)
-    row = next((r for r in grid.rows if r.line_key == body.line_key), None)
-    line_kind = row.kind if row else _line_kind_for_key(body.line_key)
+    # field ↔ line-kind coherence: derive the line kind from the line_key shape
+    # (cheap) rather than resolving the whole grid just to validate.
+    line_kind = _line_kind_for_key(body.line_key)
     if not _field_kind_coherent(body.field, line_kind):
         raise HTTPException(
             422,
@@ -953,7 +1003,7 @@ def revert_project_cells(
     field: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_role(
-        "controller", "executive", "cost_center_owner",
+        "controller", "executive",
     )),
 ):
     """Revert overlay cell edits at cell / line / clear-all granularity.
@@ -961,13 +1011,22 @@ def revert_project_cells(
     Deletes ONLY ``ScenarioForecastCellEdit`` rows — line/mix/plan overlays and
     macro actions are never touched. Granularity is driven by the query params:
     cell = line_key + month (+ optional field), line = line_key only,
-    clear-all = no params.
+    clear-all = no params. CC Owners are excluded (access layer is Session 4).
     """
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
     project = db.query(Project).filter(Project.id == project_id).first()
     if project is None:
         raise HTTPException(404, f"Project {project_id} not found")
+
+    # Guard against an unintended bulk delete: a field/month filter is only
+    # meaningful within a single line, so it requires line_key.
+    if line_key is None and (field is not None or month is not None):
+        raise HTTPException(
+            422,
+            "line_key is required when filtering revert by month or field "
+            "(omit all params to clear the whole project).",
+        )
 
     q = db.query(ScenarioForecastCellEdit).filter(
         ScenarioForecastCellEdit.scenario_id == scenario_id,

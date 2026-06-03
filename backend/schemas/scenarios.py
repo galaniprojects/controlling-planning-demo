@@ -273,6 +273,7 @@ class ScenarioGridCell(BaseModel):
     display_value: float           # internal → hours; external → €
     amount_eur: float              # always the € value (internal: hours × rate)
     anchor_value: Optional[float] = None  # pre-overlay value in the cell's field
+    anchor_amount_eur: Optional[float] = None  # anchor cell's stored € (live-local anchor/delta)
     field: str                     # "hours" | "amount_eur" (what the write endpoint expects)
     can_edit: bool                 # False for actuals (month < DEMO_DATE)
     is_changed: bool = False       # resolved value differs from anchor (incl. macro shifts)
@@ -307,6 +308,22 @@ class CellEditRequest(BaseModel):
     month: str = Field(pattern=r"^\d{4}-\d{2}$")
     field: str                     # "hours" | "amount_eur" (∈ OVERLAY_CELL_FIELDS)
     value: Optional[float] = None
+
+
+class ScenarioProjectItem(BaseModel):
+    id: str
+    name: str
+    pipeline_stage: str
+
+
+class ScenarioProjectsResponse(BaseModel):
+    """All projects selectable in the simulator workspace — every active project
+    regardless of pipeline stage (the simulator is portfolio-wide what-if), so a
+    scenario's affected projects are always reachable. NOT the Portfolio 'Change'
+    population, which excludes backlog-stage projects."""
+
+    items: list[ScenarioProjectItem]
+    total: int
 
 
 class ScenarioGridWriteResponse(BaseModel):
