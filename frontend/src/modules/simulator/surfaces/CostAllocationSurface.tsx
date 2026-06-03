@@ -126,6 +126,7 @@ export function CostAllocationSurface({ entityId: initialEntityId, year = 2026 }
             entityId={selectedEntityId}
             year={year}
             version={ctx.scenarioVersion}
+            sandboxScenarioId={ctx.scenarioId}
             onSandboxCreateEdge={(input) => ctx.createDistribution(input)}
             onSandboxUpdateEdge={(edgeId, input) =>
               ctx.updateDistribution(edgeId, input)
