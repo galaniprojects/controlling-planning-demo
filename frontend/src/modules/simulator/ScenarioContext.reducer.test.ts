@@ -43,6 +43,21 @@ describe('ScenarioContext reducer — debounce mechanics (§7)', () => {
     expect(s2.mutationSeq).toBe(2);
   });
 
+  it('SET_DETAIL with markStale bumps mutationSeq (the real overlay edit path)', () => {
+    const detail = {} as never;
+    // Overlay writes (cells/lines/plan/mix/external) dispatch SET_DETAIL
+    // markStale:true — this MUST advance the debounce sequence.
+    const edited = reducer(initialState, { type: 'SET_DETAIL', detail, markStale: true });
+    expect(edited.stale).toBe(true);
+    expect(edited.mutationSeq).toBe(1);
+  });
+
+  it('SET_DETAIL without markStale (a plain reload) does NOT bump mutationSeq', () => {
+    const detail = {} as never;
+    const reloaded = reducer(initialState, { type: 'SET_DETAIL', detail });
+    expect(reloaded.mutationSeq).toBe(0);
+  });
+
   it('CLEAR_STALE clears stale but does NOT bump mutationSeq', () => {
     const edited = reducer(initialState, { type: 'MARK_STALE' });
     const cleared = reducer(edited, { type: 'CLEAR_STALE' });

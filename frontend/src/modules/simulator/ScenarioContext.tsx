@@ -155,6 +155,13 @@ export function reducer(state: ScenarioReducerState, action: Action): ScenarioRe
         error: null,
         detail: action.detail,
         stale: action.markStale ?? state.stale,
+        // The project-scope overlay writes (cells / lines / plan / mix /
+        // external) refresh detail with markStale:true — that's the real edit
+        // path, so it must bump the debounce sequence too (a plain reload
+        // leaves markStale undefined and does not bump).
+        mutationSeq: action.markStale
+          ? state.mutationSeq + 1
+          : state.mutationSeq,
       };
     case 'SET_IMPACT':
       return { ...state, impact: action.impact, stale: action.impact.stale };
