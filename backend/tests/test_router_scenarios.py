@@ -40,11 +40,13 @@ class TestScenariosRouter:
         data = resp.json()
         assert data["name"] == "Test Scenario"
 
-    def test_create_scenario_forbidden(self, test_client, seed_personas):
+    def test_pl_can_create_scenario(self, test_client, seed_personas):
+        # Session 4 (§9): Project Leads are now admitted as scenario authors
+        # (scoped per-action to their own projects). A bare scenario succeeds.
         resp = test_client.post("/api/scenarios", headers=HEADERS_PL, json={
-            "name": "Should Fail",
+            "name": "PL authored",
         })
-        assert resp.status_code == 403
+        assert resp.status_code == 200
 
     def test_get_nonexistent_scenario(self, test_client, seed_personas):
         resp = test_client.get("/api/scenarios/9999", headers=HEADERS_CTRL)

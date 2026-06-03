@@ -25,7 +25,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from models.financial import Forecast
+from models.financial import Forecast, ForecastVersion
 from models.projects import Project
 from models.scenarios import (
     Scenario, ScenarioAction, ScenarioApplyToForecastEvent,
@@ -38,11 +38,19 @@ from schemas.common import CurrentUser
 # ---------------------------------------------------------------------------
 
 class ApplyToForecastError(Exception):
-    """Surface for apply-to-forecast errors. Router maps to 409."""
+    """Surface for apply-to-forecast errors. Router maps to 409.
 
-    def __init__(self, message: str):
+    Carries an optional ``hint`` (mirroring ``PromoteError``) so the stale-anchor
+    guard can flag a ``"rebase"`` remediation. The router currently surfaces only
+    ``message`` on the 409, so the rebase remediation is also baked into the
+    message text — the ``hint`` is available for callers/tests that inspect the
+    exception directly and for any future router that forwards it.
+    """
+
+    def __init__(self, message: str, *, hint: Optional[str] = None):
         super().__init__(message)
         self.message = message
+        self.hint = hint
 
 
 # ---------------------------------------------------------------------------
@@ -50,8 +58,20 @@ class ApplyToForecastError(Exception):
 # ---------------------------------------------------------------------------
 
 # Lever categories the PL can submit through the forecast cycle.
+#
+# Widened for Session 4 (spec §8, §10): the eligible-category set admits
+# everything the project-scope editing surface can produce, so the WYSIWYG-plan
+# promise does not break at the apply handoff. In particular:
+#   - ``external_cost`` — added / removed / edited external-cost line items.
+#   - ``forecast_grid`` already covers internal cell edits AND the structural
+#     add/remove of role and external lines (``collect_overlay_diffs`` classifies
+#     every ``ScenarioLineEdit`` as forecast_grid), so the resolved-grid
+#     materialisation carries those line changes as provisional cells.
+# Portfolio-level / cross-project diffs stay OUT — PL authority is own-project
+# only, enforced by the scope + ownership checks in ``is_pl_carry_eligible``.
 PL_FORECAST_CARRY_CATEGORIES = {
     "forecast_grid",
+    "external_cost",
     "milestone",
     "people",  # only when targeted at PL's own project
     "sourcing_mix",
@@ -89,6 +109,49 @@ def is_pl_carry_eligible(
 
 
 # ---------------------------------------------------------------------------
+# Stale-anchor guard (spec §10) — shared with Promote
+# ---------------------------------------------------------------------------
+
+def assert_anchor_is_latest_cycle(db: Session, scenario: Scenario) -> None:
+    """Refuse apply-to-forecast on a stale anchor, matching Promote (spec §10).
+
+    A PL seeds *their own* live forecast cycle off the scenario, so a stale
+    anchor would pre-fill the next cycle from an out-of-date baseline — exactly
+    the silent drift the guard exists to prevent. We reuse Promote's
+    ``assert_anchor_is_latest_cycle`` so a PL hitting a stale anchor gets the
+    same rebase prompt a controller does, and re-raise its ``PromoteError`` as an
+    ``ApplyToForecastError`` (the router maps that to 409) carrying ``hint="rebase"``.
+
+    No-cycle tolerance: when **no** ``cycle`` ForecastVersion exists at all (the
+    legacy demo state, where scenarios carry no anchor version), there is no
+    "latest cycle" to be behind — so the guard is a no-op. Once any cycle version
+    exists, the full guard applies: a missing/absent or behind anchor is refused.
+    """
+    from services.scenario_promote import (
+        PromoteError, assert_anchor_is_latest_cycle as _promote_guard,
+    )
+
+    latest_cycle = (
+        db.query(ForecastVersion)
+        .filter(ForecastVersion.version_type == "cycle")
+        .order_by(ForecastVersion.created_at.desc())
+        .first()
+    )
+    if latest_cycle is None:
+        # No cycle versions exist — nothing to be stale against (legacy state).
+        return
+
+    try:
+        _promote_guard(db, scenario)
+    except PromoteError as exc:
+        raise ApplyToForecastError(
+            f"{exc.message} Apply-to-forecast would otherwise seed the next cycle "
+            "from an out-of-date baseline — rebase the scenario first.",
+            hint=exc.hint or "rebase",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
 # Top-level orchestrator
 # ---------------------------------------------------------------------------
 
@@ -115,7 +178,17 @@ def apply_to_forecast(
             "Cannot apply a non-published scenario you do not own.",
         )
 
-    pl_projects = set(user.project_ids or [])
+    # Stale-anchor guard (spec §10) — refuse on a stale anchor, rebase first.
+    assert_anchor_is_latest_cycle(db, scenario)
+
+    # The PL's led set must match the authoring boundary (dependencies.pl_leads_project):
+    # a project counts as led via the persona's static project_ids OR via Project.pl_person_id.
+    # Without the pl_person_id arm, a project led only that way (e.g. dynamically created) could
+    # be authored against but silently skipped here.
+    pl_projects = set(user.project_ids or []) | {
+        pid
+        for (pid,) in db.query(Project.id).filter(Project.pl_person_id == user.person_id)
+    }
     actions = (
         db.query(ScenarioAction)
         .filter(ScenarioAction.scenario_id == scenario_id)
@@ -158,11 +231,20 @@ def apply_to_forecast(
             })
             skipped += 1
 
-    # Overlay-only projects (spec §6): a project edited purely via the Layer-2
-    # overlay has no ScenarioAction to iterate above, so it would never carry
-    # forward. Enumerate the scenario's forecast overlay diffs and materialise
-    # the PL's own overlay-only projects (mirrors the promote path's
+    # Overlay-only projects (spec §6, §10): a project edited purely via the
+    # Layer-2 overlay has no ScenarioAction to iterate above, so it would never
+    # carry forward. Enumerate the scenario's forecast overlay diffs and
+    # materialise the PL's own overlay-only projects (mirrors the promote path's
     # _overlay_forecast_routes). Non-owned overlay is left behind.
+    #
+    # Widened eligibility (spec §10): the ``forecast_grid`` filter below carries
+    # the FULL project-scope edit surface, not just internal cell edits —
+    # ``collect_overlay_diffs`` classifies every ``ScenarioLineEdit`` (external-
+    # cost add/remove/edit AND role-line add/remove) as ``forecast_grid``, so a
+    # project touched by those alone is materialised, and ``_materialize_project``
+    # resolves the full grid (cells + external lines + structural line changes)
+    # into provisional cells. Portfolio / cross-project diffs are not
+    # ``forecast_grid`` and stay left behind (PL authority is own-project only).
     from services.scenario_project_scope.routing import collect_overlay_diffs
 
     overlay_projects: dict[str, bool] = {}  # project_id -> owned-by-this-PL

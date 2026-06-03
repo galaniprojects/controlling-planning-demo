@@ -65,8 +65,12 @@ def _scenario_id(conn, stable_name: str) -> int:
     return row[0]
 
 
-def test_three_scenarios_present(seed_conn):
-    """All three demo scenarios load, with the expected author/visibility."""
+def test_four_scenarios_present(seed_conn):
+    """All four demo scenarios load, with the expected author/visibility.
+
+    Session 4 added a fourth, PL-authored scenario (``scn-pl-predmaint-defer``)
+    exercising the Project-Lead authoring path.
+    """
     cur = seed_conn.execute(
         "SELECT name, author_id, status, visibility FROM scenarios ORDER BY id"
     )
@@ -76,6 +80,7 @@ def test_three_scenarios_present(seed_conn):
         "MDH BTC Rebalance — DE/PL/CZ",
         "Budget Pressure: 15% Reduction",
         "MDH Staffing Mix — MUC/APD",
+        "Predictive Maintenance — Defer 3 Months",
     }, names
     by_name = {r[0]: r for r in rows}
     # Published cross-portfolio scenario visible to all_users.
@@ -84,6 +89,38 @@ def test_three_scenarios_present(seed_conn):
     # CC-Owner sandbox stays private, authored by Thomas Brenner.
     assert by_name["MDH Staffing Mix — MUC/APD"][1] == "p-brenner"
     assert by_name["MDH Staffing Mix — MUC/APD"][3] == "private"
+    # PL-authored scenario: private, authored by Priya Sharma (p-sharma),
+    # not CC-scoped.
+    assert by_name["Predictive Maintenance — Defer 3 Months"][1] == "p-sharma"
+    assert by_name["Predictive Maintenance — Defer 3 Months"][2] == "private"
+    assert by_name["Predictive Maintenance — Defer 3 Months"][3] == "private"
+
+
+def test_pl_scenario_authoring_path(seed_conn):
+    """The Session-4 PL scenario is project-scoped (not CC-scoped) with a
+    Tier-1 delay macro on a Priya-owned project + a paired end_month plan edit."""
+    sid = _scenario_id(seed_conn, "Predictive Maintenance — Defer 3 Months")
+
+    # CC scope is NULL — a PL scenario is project-scoped, not CC-scoped.
+    cc = seed_conn.execute(
+        "SELECT cc_owner_scope_cc_id FROM scenarios WHERE id = ?", (sid,)
+    ).fetchone()[0]
+    assert cc is None
+
+    # One Tier-1 delay macro on proj-predmaint.
+    acts = seed_conn.execute(
+        "SELECT action_type, project_id, tier FROM scenario_actions "
+        "WHERE scenario_id = ? ORDER BY action_order", (sid,)
+    ).fetchall()
+    assert acts == [("delay_project", "proj-predmaint", 1)], acts
+
+    # Paired end_month plan edit (value shifts with the living-seed delta; at
+    # the canonical 2026-04 anchor with no shift it is 2027-06).
+    plan = seed_conn.execute(
+        "SELECT project_id, target, value FROM scenario_plan_edits "
+        "WHERE scenario_id = ?", (sid,)
+    ).fetchall()
+    assert plan == [("proj-predmaint", "end_month", "2027-06")], plan
 
 
 def test_budget_scenario_macros_only_no_reduce_budget(seed_conn):
