@@ -385,6 +385,18 @@ def test_add_role_line_rejects_unknown_role(db, test_client, t1_world):
     assert resp.status_code == 422, resp.text
 
 
+def test_add_role_line_rejects_unknown_location(db, test_client, t1_world):
+    """An unknown location_id is rejected (S6) — otherwise it would insert a
+    dangling FK and silently price at the Munich fallback."""
+    sid, pid = t1_world["sid"], t1_world["pid"]
+    resp = test_client.post(
+        f"/api/scenarios/{sid}/projects/{pid}/lines",
+        json={"role_type_id": "R2", "location_id": "loc-does-not-exist"},
+        headers=_hdr(CONTROLLER),
+    )
+    assert resp.status_code == 422, resp.text
+
+
 def test_plan_rejects_inverted_window(db, test_client, t1_world):
     """Moving start_month past the project's end_month (2026-08) is rejected."""
     sid, pid = t1_world["sid"], t1_world["pid"]
@@ -617,6 +629,22 @@ def test_mix_put_same_role_422(db, test_client, t1_world):
         json={
             "swap_from_role_id": "R1", "swap_to_role_id": "R1",
             "hours_per_month_swap": 40, "effective_from": "2026-06",
+        },
+        headers=_hdr(CONTROLLER),
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_mix_put_rejects_unknown_location_422(db, test_client, t1_world):
+    """An unknown swap location is rejected (S6) — same dangling-FK / silent
+    mis-pricing guard as the add-line endpoint."""
+    sid, pid = t1_world["sid"], t1_world["pid"]
+    resp = test_client.put(
+        f"/api/scenarios/{sid}/projects/{pid}/mix",
+        json={
+            "swap_from_role_id": "R1", "swap_to_role_id": "R2",
+            "hours_per_month_swap": 40, "effective_from": "2026-06",
+            "swap_from_location_id": "loc-does-not-exist",
         },
         headers=_hdr(CONTROLLER),
     )

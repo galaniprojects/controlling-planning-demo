@@ -131,6 +131,17 @@ def _grid_to_response(
     # Workforce-location display labels (S6 location-aware rates) — city per id.
     location_names = {loc.id: loc.city for loc in db.query(Location).all()}
 
+    # Memoise the per-line display rate by (role_key, location); open_month is
+    # fixed for this response, so identical (role, location) lines share a lookup
+    # instead of re-querying RateTable per line (mirrors forecast_versioning).
+    _rate_memo: dict[tuple[str | None, str | None], float] = {}
+
+    def _display_rate(role_key: str | None, location_id: str | None) -> float:
+        memo_key = (role_key, location_id)
+        if memo_key not in _rate_memo:
+            _rate_memo[memo_key] = effective_hourly_rate(db, role_key, location_id, open_month)
+        return _rate_memo[memo_key]
+
     rows: list[ScenarioGridRow] = []
     for line in adjusted.lines:
         is_internal = line.kind == LINE_KIND_INTERNAL
@@ -150,7 +161,7 @@ def _grid_to_response(
                     sub_category_name = role.name
             # Display label only — price at the first editable forecast month
             # (the "current" rate the user edits against), at the line's location.
-            hourly_rate = effective_hourly_rate(db, line.role_type_id or line.sub_category, line.location_id, open_month)
+            hourly_rate = _display_rate(line.role_type_id or line.sub_category, line.location_id)
         elif line.vendor:
             sub_category_name = line.vendor
 
@@ -506,6 +517,13 @@ def add_role_line(
     from models.people import RoleType
     if db.query(RoleType).filter(RoleType.id == body.role_type_id).first() is None:
         raise HTTPException(422, f"role_type_id '{body.role_type_id}' not found.")
+    # Validate the workforce location like the role (S6) — an unknown location would
+    # otherwise insert a dangling FK (SQLite FK enforcement is off) and silently
+    # resolve to the Munich rate fallback rather than erroring.
+    if body.location_id:
+        from models.organization import Location
+        if db.query(Location).filter(Location.id == body.location_id).first() is None:
+            raise HTTPException(422, f"location_id '{body.location_id}' not found.")
 
     line_key = f"new:role:{uuid.uuid4().hex[:12]}"
     db.add(ScenarioLineEdit(
@@ -932,6 +950,12 @@ def write_mix_change(
     # mirror it to the other so from/to share a location.
     from_location_id = body.swap_from_location_id or body.swap_to_location_id
     to_location_id = body.swap_to_location_id or body.swap_from_location_id
+    # Validate the workforce location(s) like the role (S6) — an unknown location
+    # would insert a dangling FK and silently mis-resolve the swap's rate.
+    from models.organization import Location
+    for loc_id in {from_location_id, to_location_id}:
+        if loc_id is not None and db.query(Location).filter(Location.id == loc_id).first() is None:
+            raise HTTPException(422, f"location_id '{loc_id}' not found.")
 
     existing = (
         db.query(ScenarioMixChange)

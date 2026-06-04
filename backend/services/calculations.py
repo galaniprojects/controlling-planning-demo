@@ -232,11 +232,17 @@ def resolve_hourly_rate(
         row = _latest(base.filter(RateTable.location_id == location_id))
         if row is not None:
             return Decimal(str(row.hourly_rate))
-    # 2) Munich fallback (stable answer for location-less callers)
+    # 2) Munich fallback (stable answer for location-less callers).
+    #    Deliberately ABOVE the competence-centre filter: post location-split a
+    #    role's rows at all three locations share one competence_center_id, so a
+    #    cc-only filter would pick a *nondeterministic* location's rate (whichever
+    #    same-effective-date row sorts first). Pinning location-less callers to
+    #    Munich keeps the answer deterministic and stable. (Regression-tested in
+    #    test_calculations.py::test_location_none_with_cc_prefers_munich_not_cc.)
     row = _latest(base.filter(RateTable.location_id == FALLBACK_LOCATION_ID))
     if row is not None:
         return Decimal(str(row.hourly_rate))
-    # 3) competence-centre scope (legacy)
+    # 3) competence-centre scope (legacy fallback when no location row exists)
     if competence_center_id:
         row = _latest(base.filter(RateTable.competence_center_id == competence_center_id))
         if row is not None:

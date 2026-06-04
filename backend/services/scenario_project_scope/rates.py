@@ -36,6 +36,9 @@ def effective_hourly_rate(
     """
     from services.calculations import DEFAULT_HOURLY_RATE, resolve_hourly_rate
 
+    # Unrated-role fallback is DEFAULT_HOURLY_RATE (€120) — deliberately unified
+    # with the canonical resolver (S6); the old local €85 FALLBACK_HOURLY_RATE was
+    # retired so the simulator and the live forecast price unknown roles identically.
     if not role_key:
         return float(DEFAULT_HOURLY_RATE)
     return float(resolve_hourly_rate(db, role_key, None, month, location_id=location_id))
