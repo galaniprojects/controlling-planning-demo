@@ -20,6 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { scenariosApi, type PromotionAuditItem } from '../api/scenariosApi';
+import { parseServerTimestamp } from '@/lib/formatters';
 import {
   ROUTING_LABELS,
   type RoutingType,
@@ -106,7 +107,7 @@ export function PromoteAuditDrawer({ scenarioId, open, onOpenChange }: Props) {
                   <header className="flex items-center justify-between gap-2">
                     <div className="space-y-0.5">
                       <div className="text-sm font-semibold text-foreground">
-                        {new Date(item.promoted_at).toLocaleString()}
+                        {new Date(parseServerTimestamp(item.promoted_at)).toLocaleString()}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Promoted by{' '}

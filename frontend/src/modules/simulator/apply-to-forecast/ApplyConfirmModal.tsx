@@ -72,7 +72,10 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    // While the rebase modal is open, suppress this dialog's own overlay so
+    // only one dialog is visible at a time (§10). The parent `open` state is
+    // preserved, so closing the rebase modal restores the stale-anchor view.
+    <Dialog open={open && !rebaseOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>

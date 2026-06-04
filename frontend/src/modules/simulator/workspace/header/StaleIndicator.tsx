@@ -7,17 +7,21 @@
  */
 
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { parseServerTimestamp } from '@/lib/formatters';
 
 interface Props {
   stale: boolean;
   lastRecalculatedAt?: string | null;
 }
 
+// F5: `last_recalculated_at` is a naive-UTC server timestamp — parse it as UTC
+// via the shared `parseServerTimestamp` so the relative label isn't skewed by
+// the viewer's offset.
 function formatRelative(iso: string | null | undefined): string {
   if (!iso) return 'never';
-  const ts = Date.parse(iso);
+  const ts = parseServerTimestamp(iso);
   if (Number.isNaN(ts)) return iso;
-  const diff = Date.now() - ts;
+  const diff = Math.max(0, Date.now() - ts);
   const minutes = Math.round(diff / 60000);
   if (minutes < 1) return 'just now';
   if (minutes < 60) return `${minutes}m ago`;

@@ -15,20 +15,28 @@ export function ApplyButton() {
   const [open, setOpen] = useState(false);
   const ctx = useScenarioContext();
 
-  // Apply-to-forecast targets published scenarios per [B-PR-05]; show
-  // a disabled button with a hint when the scenario isn't published.
+  // Apply-to-forecast is allowed when the user OWNS the scenario (any
+  // status, incl. private) OR the scenario is PUBLISHED — matching the
+  // backend gate in scenario_apply_forecast.apply_to_forecast. Show a
+  // disabled button with a hint reflecting the real reason otherwise.
   const detail = ctx.detail;
   const status = (detail?.metadata as unknown as { status?: string })?.status;
   const isPublished = status === 'published';
+  const isOwner = ctx.isOwner;
+  const canApply = isOwner || isPublished;
 
   return (
     <>
       <Button
         size="sm"
         variant="default"
-        disabled={!isPublished}
+        disabled={!canApply}
         onClick={() => setOpen(true)}
-        title={isPublished ? undefined : 'Only published scenarios can be applied'}
+        title={
+          canApply
+            ? undefined
+            : 'You can only apply scenarios you own or that are published'
+        }
       >
         <ArrowDownToLine className="h-4 w-4 mr-1.5" aria-hidden="true" />
         Apply to forecast
