@@ -150,9 +150,18 @@ export function EntityBTCProfileEditor(props: Props) {
           prof = await chargingApi.getEntityBTCProfile(props.entityId, props.year);
         } catch (e: unknown) {
           // 404 is expected when no profile yet exists — surface a creation
-          // prompt rather than failing the whole panel.
+          // prompt (or, for Internal Services, the "automatic / UM-derived"
+          // read-only state) rather than failing the whole panel. The backend
+          // detail is "No BTC profile for entity '…' year …" (it carries
+          // neither the literal "not found" nor "404"), so match it explicitly
+          // alongside the generic phrasings (F6).
           const msg = e instanceof Error ? e.message : '';
-          if (msg.toLowerCase().includes('not found') || msg.includes('404')) {
+          const lower = msg.toLowerCase();
+          if (
+            lower.includes('not found') ||
+            lower.includes('no btc profile') ||
+            msg.includes('404')
+          ) {
             setProfileMissing(true);
             prof = null;
           } else {
@@ -315,8 +324,45 @@ export function EntityBTCProfileEditor(props: Props) {
   }
 
   if (profileMissing && !profile) {
-    // (entityId, year) path: entity exists but no profile yet — show a prompt.
+    // (entityId, year) path: entity exists but no profile yet.
     const targetYear = (props.year ?? new Date().getFullYear()) as number;
+
+    // FD-4 [F-S2-01]: Internal Services derive their BTC automatically from the
+    // UM matrix — there is no manual BTC profile row, so the 404 is *expected*
+    // for them. Render the same "Automatic / UM-derived" read-only state the
+    // live charging module shows (mirrors the automatic-mode messaging below)
+    // instead of the "no profile yet" creation prompt (F6).
+    if (isInternalService) {
+      return (
+        <Card className="p-6 space-y-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-foreground">
+              Automatic — UM-derived
+            </h3>
+            <Badge
+              variant="outline"
+              className="text-[10px] border-blue-500 text-blue-700 dark:text-blue-400"
+            >
+              {entity.entity_type}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {entity.name} ({entity.identifier}) is an Internal Service — its
+            Business-Transfer Charging distribution for {targetYear} is derived
+            automatically from the UM matrix, with no manual profile to edit.
+            {sandboxMode
+              ? ' Cost-allocation sandbox edits apply to the Stage 1 distribution only.'
+              : ' Manage the underlying UM data in the Charging & Allocations module.'}
+          </p>
+          {onBack && (
+            <Button variant="outline" size="sm" onClick={onBack}>
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+            </Button>
+          )}
+        </Card>
+      );
+    }
+
     return (
       <Card className="p-6 space-y-3">
         <div>

@@ -14,22 +14,82 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { ScenarioListItem } from '@/types/api';
-import { formatCurrencyDelta } from '@/lib/formatters';
+import { formatCurrencyDelta, formatDecimal } from '@/lib/formatters';
 
-function formatHeadlineImpact(raw: string | null): string {
+/** European number with minimal decimals: 10 → "10", 10.5 → "10,5". */
+function fmtCompactNumber(value: number): string {
+  return formatDecimal(value, 1).replace(/,0$/, '');
+}
+
+/**
+ * Format a scenario's stored `headline_impact` JSON into a compact, human
+ * summary for the manager table (F1).
+ *
+ * The backend stores `headline_impact` as a JSON string whose SHAPE varies by
+ * the kind of scenario:
+ *   - financial-delta    `{ total_budget_delta, action_count, ... }`
+ *                        (incl. a budget-neutral schedule-shift variant that
+ *                         also carries `schedule_shift_months`)
+ *   - BTC pct-shift      `{ total_btc_pct_shift, affected_locations, action_count }`
+ *   - staffing / mix     `{ total_capacity_shift_fte, senior_to_mid_swap_pct, action_count }`
+ *
+ * The previous formatter only handled the financial shape and fell back to the
+ * raw JSON string for the others, dumping `{"total_btc_pct_shift": 10, …}` into
+ * the table cell. We now recognise every shape and degrade gracefully to the
+ * verbatim string for non-JSON / unknown shapes, and to "—" for null.
+ */
+export function formatHeadlineImpact(raw: string | null): string {
   if (!raw) return '—';
+
+  let parsed: Record<string, unknown>;
   try {
-    const parsed = JSON.parse(raw) as {
-      total_budget_delta?: number;
-      action_count?: number;
-    };
-    if (typeof parsed.total_budget_delta === 'number') {
-      const count = parsed.action_count ?? 0;
-      return `${formatCurrencyDelta(parsed.total_budget_delta)} (${count} action${count !== 1 ? 's' : ''})`;
-    }
+    parsed = JSON.parse(raw) as Record<string, unknown>;
   } catch {
-    // Not JSON — return as-is
+    return raw; // Not JSON — show verbatim.
   }
+  if (!parsed || typeof parsed !== 'object') return raw;
+
+  const num = (key: string): number | null =>
+    typeof parsed[key] === 'number' ? (parsed[key] as number) : null;
+
+  const count = num('action_count') ?? 0;
+  const actions = `${count} action${count !== 1 ? 's' : ''}`;
+
+  // 1. Financial-delta shape (incl. the budget-neutral schedule-shift variant).
+  const budgetDelta = num('total_budget_delta');
+  if (budgetDelta !== null) {
+    const months = num('schedule_shift_months');
+    if (budgetDelta === 0 && months) {
+      const sign = months > 0 ? '+' : '';
+      return `Schedule ${sign}${months} mo (${actions})`;
+    }
+    return `${formatCurrencyDelta(budgetDelta)} (${actions})`;
+  }
+
+  // 2. BTC percentage-shift shape.
+  const btcShift = num('total_btc_pct_shift');
+  if (btcShift !== null) {
+    const locs = num('affected_locations');
+    const locPart =
+      locs && locs > 0 ? ` · ${locs} location${locs !== 1 ? 's' : ''}` : '';
+    return `BTC shift ${fmtCompactNumber(btcShift)}pp${locPart} (${actions})`;
+  }
+
+  // 3. Staffing / capacity-mix shape.
+  const swapPct = num('senior_to_mid_swap_pct');
+  const fteShift = num('total_capacity_shift_fte');
+  if (swapPct !== null || fteShift !== null) {
+    const parts: string[] = [];
+    if (swapPct !== null) {
+      parts.push(`${fmtCompactNumber(swapPct)}% senior→mid`);
+    }
+    if (fteShift !== null && fteShift !== 0) {
+      parts.push(`${fmtCompactNumber(fteShift)} FTE`);
+    }
+    const label = parts.length > 0 ? parts.join(' · ') : 'Staffing mix';
+    return `${label} (${actions})`;
+  }
+
   return raw;
 }
 
