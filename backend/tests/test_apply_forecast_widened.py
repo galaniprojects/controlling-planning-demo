@@ -1,11 +1,13 @@
 """Session 4 — Apply-to-Forecast widening + stale-anchor guard (spec §8, §10).
 
-Covers the two Session-4 changes layered on top of the Session-1 write path:
+Covers the two Session-4 changes layered on top of the apply path — now
+re-expressed under the locked apply-to-CR contract (apply stages draft Change
+Requests, it does NOT write provisional Forecast cells):
 
-  1. WIDENED ELIGIBILITY — apply now carries the FULL project-scope edit surface
-     as provisional cells, not just internal forecast cells: external-cost line
-     items and added / removed role lines transfer too. (Internal cells and the
-     stale-anchor-tolerant legacy world are covered by
+  1. WIDENED ELIGIBILITY — apply stages the FULL project-scope edit surface as
+     draft-CR change details, not just internal forecast cells: external-cost
+     line items and added / removed role lines transfer too. (Internal cells and
+     the stale-anchor-tolerant legacy world are covered by
      ``tests/test_scenario_apply_forecast.py``.)
 
   2. STALE-ANCHOR GUARD — apply refuses (ApplyToForecastError with hint="rebase")
@@ -21,6 +23,7 @@ import uuid
 
 import pytest
 
+from models.change_requests import ChangeRequest, CRChangeDetail
 from models.financial import Forecast, ForecastVersion
 from models.scenarios import (
     Scenario,
@@ -54,11 +57,12 @@ class TestWidenedCarry:
         assert "external_cost" in PL_FORECAST_CARRY_CATEGORIES
         assert "forecast_grid" in PL_FORECAST_CARRY_CATEGORIES
 
-    def test_external_cost_line_carries_as_provisional_cell(
+    def test_external_cost_line_carries_as_draft_cr(
         self, db, seed_org_base, create_test_project, pl_user_obj,
     ):
         """An added external-cost line item (ScenarioLineEdit op=add + a value
-        cell on a future month) materialises as a provisional Forecast cell."""
+        cell on a future month) stages a draft CR detail; the live forecast is
+        untouched."""
         create_test_project("proj-own", forecast_amt=1000, pl_person_id="p-pm-1")
         sc = Scenario(name="Ext add", author_id="p-pm-1", status="private")
         db.add(sc)
@@ -82,24 +86,43 @@ class TestWidenedCarry:
         db.commit()
 
         assert result["diffs_carried_forward"] >= 1
-        ext_row = (
+        cr = (
+            db.query(ChangeRequest)
+            .filter(
+                ChangeRequest.project_id == "proj-own",
+                ChangeRequest.source_scenario_id == sc.id,
+            )
+            .one()
+        )
+        assert cr.status == "draft"
+        assert cr.submitted_by_id == "p-pm-1"
+        detail = (
+            db.query(CRChangeDetail)
+            .filter(
+                CRChangeDetail.change_request_id == cr.id,
+                CRChangeDetail.month == "2026-06",
+                CRChangeDetail.line_item_type == "ct-licence",
+            )
+            .one()
+        )
+        assert float(detail.new_value) == 5000.0
+
+        # No external Forecast cell was written (live forecast untouched).
+        assert (
             db.query(Forecast)
             .filter(
                 Forecast.project_id == "proj-own",
                 Forecast.category == "external",
-                Forecast.month == "2026-06",
             )
-            .first()
+            .count()
+            == 0
         )
-        assert ext_row is not None, "external-cost line did not materialise"
-        assert ext_row.is_provisional is True
-        assert float(ext_row.amount_eur) == 5000.0
 
-    def test_added_role_line_carries_as_provisional_cell(
+    def test_added_role_line_carries_as_draft_cr(
         self, db, seed_org_base, create_test_project, pl_user_obj,
     ):
-        """An added internal role line carries forward as a provisional cell with
-        a € value derived from the cell's hours edit."""
+        """An added internal role line stages a draft CR detail carrying the
+        edited hours; the live forecast gains no row."""
         create_test_project("proj-own", forecast_amt=1000, pl_person_id="p-pm-1")
         sc = Scenario(name="Role add", author_id="p-pm-1", status="private")
         db.add(sc)
@@ -121,24 +144,42 @@ class TestWidenedCarry:
         db.commit()
 
         assert result["diffs_carried_forward"] >= 1
-        added = (
+        cr = (
+            db.query(ChangeRequest)
+            .filter(
+                ChangeRequest.project_id == "proj-own",
+                ChangeRequest.source_scenario_id == sc.id,
+            )
+            .one()
+        )
+        assert cr.status == "draft"
+        detail = (
+            db.query(CRChangeDetail)
+            .filter(
+                CRChangeDetail.change_request_id == cr.id,
+                CRChangeDetail.month == "2026-06",
+                CRChangeDetail.line_item_type == "role-pm",
+            )
+            .one()
+        )
+        assert float(detail.new_value) == 40.0
+
+        # No live Forecast row was added for the new role line.
+        assert (
             db.query(Forecast)
             .filter(
                 Forecast.project_id == "proj-own",
                 Forecast.role_type_id == "role-pm",
-                Forecast.month == "2026-06",
             )
-            .first()
+            .count()
+            == 0
         )
-        assert added is not None, "added role line did not materialise"
-        assert added.is_provisional is True
-        assert float(added.hours) == 40.0
 
-    def test_removed_line_not_materialised(
+    def test_removed_line_emits_drop_to_zero_detail(
         self, db, seed_org_base, create_test_project, pl_user_obj,
     ):
-        """A line removed in the scenario must not be carried into the next cycle
-        as a provisional cell (the resolved grid drops it)."""
+        """A line removed in the scenario stages a drop-to-zero CR detail and the
+        replacement external line stages its own detail; live forecast unchanged."""
         create_test_project(
             "proj-own", forecast_amt=1000, pl_person_id="p-pm-1",
             months=["2026-06", "2026-07"],
@@ -167,35 +208,39 @@ class TestWidenedCarry:
         ))
         db.commit()
 
+        before = {
+            (r.project_id, r.month, r.category): (r.hours, r.amount_eur)
+            for r in db.query(Forecast).all()
+        }
+
         result = apply_to_forecast(db, scenario_id=sc.id, user=pl_user_obj)
         db.commit()
 
         assert result["diffs_carried_forward"] >= 1
-        # The external replacement materialised provisionally.
-        ext_row = (
-            db.query(Forecast)
-            .filter(
-                Forecast.project_id == "proj-own",
-                Forecast.category == "external",
-                Forecast.month == "2026-06",
-            )
-            .first()
-        )
-        assert ext_row is not None and ext_row.is_provisional is True
-
-        # The removed internal line's existing live rows are NOT stamped
-        # provisional by the apply (materialisation upserts only the resolved
-        # grid, which no longer contains the removed line).
-        internal_rows = (
-            db.query(Forecast)
-            .filter(
-                Forecast.project_id == "proj-own",
-                Forecast.category == "internal",
-            )
+        details = (
+            db.query(CRChangeDetail)
+            .join(ChangeRequest, CRChangeDetail.change_request_id == ChangeRequest.id)
+            .filter(ChangeRequest.source_scenario_id == sc.id)
             .all()
         )
-        assert internal_rows, "sanity: live internal rows still exist"
-        assert all(not r.is_provisional for r in internal_rows)
+        # The replacement external line staged its € value.
+        assert any(
+            d.line_item_type == "ct-licence" and float(d.new_value) == 1234.0
+            for d in details
+        )
+        # The removed internal line staged a drop-to-zero detail (old hours -> 0).
+        drop = [d for d in details if d.line_item_type == "role-dev"]
+        assert drop, "removed line did not stage a drop-to-zero detail"
+        assert all(float(d.new_value) == 0.0 for d in drop)
+        assert all(float(d.old_value) > 0.0 for d in drop)
+
+        # Live forecast rows are completely unchanged (no provisional cells).
+        after = {
+            (r.project_id, r.month, r.category): (r.hours, r.amount_eur)
+            for r in db.query(Forecast).all()
+        }
+        assert after == before
+        assert not any(r.is_provisional for r in db.query(Forecast).all())
 
 
 # ---------------------------------------------------------------------------
@@ -292,10 +337,10 @@ class TestStaleAnchorGuard:
         assert exc.value.hint == "rebase"
         assert "rebase" in exc.value.message.lower()
 
-    def test_stale_anchor_does_not_write_provisional_cells(
+    def test_stale_anchor_creates_no_change_requests(
         self, db, anchored_world, pl_user_obj,
     ):
-        """The guard fires before materialisation — no cells stamped provisional."""
+        """The guard fires before any CR creation — no draft CRs are staged."""
         _make_cycle_version(db, version_number=2, label="Q3 2026")
         db.commit()
 
@@ -303,6 +348,8 @@ class TestStaleAnchorGuard:
             apply_to_forecast(
                 db, scenario_id=anchored_world["scenario_id"], user=pl_user_obj,
             )
+        assert db.query(ChangeRequest).count() == 0
+        # And the live forecast is untouched.
         rows = (
             db.query(Forecast)
             .filter(Forecast.project_id == "proj-own")
@@ -389,13 +436,23 @@ class TestApplyOwnershipParity:
         assert "proj-fk-led" not in skipped_pids
         assert result["diffs_carried_forward"] >= 1
 
-        row = (
-            db.query(Forecast)
+        # The FK-led project's overlay was staged as a draft CR authored by the PL.
+        cr = (
+            db.query(ChangeRequest)
             .filter(
-                Forecast.project_id == "proj-fk-led",
-                Forecast.month == "2026-06",
-                Forecast.is_provisional.is_(True),
+                ChangeRequest.project_id == "proj-fk-led",
+                ChangeRequest.source_scenario_id == sc.id,
             )
-            .first()
+            .one()
         )
-        assert row is not None, "FK-led project's overlay was not carried forward"
+        assert cr.status == "draft"
+        assert cr.submitted_by_id == "p-pm-1"
+        detail = (
+            db.query(CRChangeDetail)
+            .filter(
+                CRChangeDetail.change_request_id == cr.id,
+                CRChangeDetail.month == "2026-06",
+            )
+            .one()
+        )
+        assert float(detail.new_value) == 25.0
