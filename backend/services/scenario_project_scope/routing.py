@@ -33,6 +33,7 @@ from models.scenarios import (
     ScenarioMixChange,
     ScenarioPlanEdit,
 )
+from services.change_request_factory import CRDetailInput
 from services.scenario_project_scope.rates import effective_hourly_rate
 from services.scenario_project_scope.types import (
     ResolvedGrid,
@@ -440,3 +441,69 @@ def materialize_provisional_cells(
     written = sum(_write_grid_cells(db, grid, provisional=True) for grid in grids)
     db.flush()
     return written
+
+
+# ---------------------------------------------------------------------------
+# Grid → CR-detail diff (feeds services.change_request_factory)
+# ---------------------------------------------------------------------------
+
+_DIFF_EPS = 0.01
+
+
+def _cell_value(category: str, cell) -> float:
+    """The diff-relevant field: hours for internal lines, € for external."""
+    if category == "internal":
+        return float(cell.hours) if cell.hours is not None else 0.0
+    return float(cell.amount_eur) if cell.amount_eur is not None else 0.0
+
+
+def diff_grids_to_details(
+    adjusted: ResolvedGrid, anchor: ResolvedGrid
+) -> list[CRDetailInput]:
+    """Per-cell change list of ``adjusted`` vs ``anchor`` (live forecast baseline).
+
+    One :class:`CRDetailInput` per moved ``(line, month)`` cell. Internal lines
+    carry **hours**, external lines carry **€** (matching the wizard so the
+    resource-request delta math is identical). ``line_item_type`` is the role id
+    for internal lines (``role-…``) and the cost-type id for external lines, so
+    the factory's role grouping + RR gate work unchanged. A line present in the
+    anchor but dropped in the adjusted plan emits a drop-to-zero detail.
+    """
+    anchor_lines = {line.line_key: line for line in anchor.lines}
+    adjusted_keys = {line.line_key for line in adjusted.lines}
+    details: list[CRDetailInput] = []
+
+    def emit(line, month: str, old_val: float, new_val: float) -> None:
+        if abs(new_val - old_val) < _DIFF_EPS:
+            return
+        item = line.role_type_id or line.sub_category or line.line_key
+        details.append(
+            CRDetailInput(
+                category=line.category,
+                field_changed=item,
+                old_value=str(round(old_val, 2)),
+                new_value=str(round(new_val, 2)),
+                delta=str(round(new_val - old_val, 2)),
+                line_item_type=item,
+                month=month,
+            )
+        )
+
+    # Changed / added cells.
+    for line in adjusted.lines:
+        a_line = anchor_lines.get(line.line_key)
+        for month, cell in line.cells.items():
+            new_val = _cell_value(line.category, cell)
+            old_cell = a_line.cells.get(month) if a_line else None
+            old_val = _cell_value(line.category, old_cell) if old_cell else 0.0
+            emit(line, month, old_val, new_val)
+
+    # Lines dropped entirely in the adjusted plan → drop-to-zero.
+    for line in anchor.lines:
+        if line.line_key in adjusted_keys:
+            continue
+        for month, cell in line.cells.items():
+            old_val = _cell_value(line.category, cell)
+            emit(line, month, old_val, 0.0)
+
+    return details

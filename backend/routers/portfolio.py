@@ -1019,67 +1019,17 @@ def _apply_cr_changes_to_forecast(cr: ChangeRequest, db: Session) -> None:
     ensure_project_allocations(cr.project_id, db)
 
 
-def _create_resource_requests_from_cr(cr: ChangeRequest, db: Session) -> None:
-    """Create ResourceRequest rows from a CR's internal resource change details.
-
-    Groups by role type, computes period and average hours, creates one request
-    per role directed to cc-rail-systems.
+def _create_resource_requests_from_cr(
+    cr: ChangeRequest, db: Session, *, cost_center_id: str = "cc-muc-apd"
+) -> None:
+    """Backward-compatible alias — the implementation now lives in the reusable
+    ``services.change_request_factory`` (relocated + parameterized on the cost
+    centre as part of the simulator promote/apply CR work). Lazy import avoids a
+    router<->service import cycle at module load.
     """
-    from collections import defaultdict
-    from models.capacity import ResourceRequest
+    from services.change_request_factory import create_resource_requests_from_cr
 
-    # Delete any existing pending CR-linked requests
-    db.query(ResourceRequest).filter(
-        ResourceRequest.change_request_id == cr.id,
-        ResourceRequest.status == "pending",
-    ).delete()
-
-    CC_ID = "cc-muc-apd"
-
-    # Group change details by role type (internal resources only)
-    groups: dict[str, list] = defaultdict(list)
-    for detail in cr.change_details:
-        if detail.line_item_type and detail.line_item_type.startswith("role-") and detail.month:
-            groups[detail.line_item_type].append(detail)
-
-    for role_id, details in groups.items():
-        sorted_details = sorted(details, key=lambda d: d.month)
-        delta_values = []
-        old_values = []
-        for d in sorted_details:
-            try:
-                new_val = float(d.new_value.replace("€", "").replace(",", "").strip()) if d.new_value else 0.0
-                old_val = float(d.old_value.replace("€", "").replace(",", "").strip()) if d.old_value else 0.0
-                delta_values.append(new_val - old_val)
-                old_values.append(old_val)
-            except (ValueError, AttributeError):
-                delta_values.append(0)
-                old_values.append(0)
-
-        avg_delta = sum(delta_values) / len(delta_values) if delta_values else 0
-        avg_old = sum(old_values) / len(old_values) if old_values else 0
-
-        # Skip if no actual change
-        if abs(avg_delta) < 0.01:
-            continue
-
-        direction = "increase" if avg_delta > 0 else "decrease"
-
-        req = ResourceRequest(
-            project_id=cr.project_id,
-            change_request_id=cr.id,
-            cost_center_id=CC_ID,
-            request_type="resource",
-            role_type_id=role_id,
-            hours_or_amount_per_month=round(abs(avg_delta), 2),
-            original_hours_per_month=round(avg_old, 2),
-            change_direction=direction,
-            period_start=sorted_details[0].month,
-            period_end=sorted_details[-1].month,
-            priority="medium",
-            status="pending",
-        )
-        db.add(req)
+    create_resource_requests_from_cr(cr, db, cost_center_id=cost_center_id)
 
 
 # ---------------------------------------------------------------------------

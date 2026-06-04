@@ -819,94 +819,103 @@ def submit_forecast_cycle(
     if not cycle:
         raise HTTPException(404, "No active forecast cycle")
 
-    # Use cost centre groups if available (v3 redesign), otherwise legacy groups
+    # Use cost centre groups if available (v3 redesign), otherwise legacy groups.
+    # CR creation is delegated to the shared change_request_factory (also reused by
+    # the simulator's promote / apply-to-forecast). The wizard keeps its per-group
+    # status (internal -> pending_cc_confirmation, external -> pending_controller_approval)
+    # via CRGroupInput.status; source_scenario_id is None (wizard CRs aren't
+    # scenario-originated).
+    from services.change_request_factory import (
+        CRDetailInput,
+        CRGroupInput,
+        create_change_requests,
+    )
+
     cc_groups = body.cost_centre_groups or cycle.cost_centre_groups
     created_crs = []
 
-    if cc_groups:
-        for group in cc_groups:
-            cc_name = group.get("name", group.get("id", ""))
-            items = group.get("items", [])
-            justification = group.get("justification", "")
-            categories = {c.get("category") for c in items}
-            has_internal = "internal" in categories
-            change_category = "resource" if has_internal else "external_cost"
-            initial_status = "pending_cc_confirmation" if has_internal else "pending_controller_approval"
-
-            cr = ChangeRequest(
-                project_id=project_id,
-                submitted_by_id=user.person_id,
-                submission_timestamp=datetime.utcnow(),
-                status=initial_status,
-                change_category=change_category,
-                summary=justification or f"Forecast update: {cc_name}",
-                justification=justification,
-                is_system_suggested=any(
-                    c.get("suggestion_id") in cycle.applied_suggestion_ids
-                    for c in items if c.get("suggestion_id") is not None
-                ),
+    def _details(items: list[dict]) -> list[CRDetailInput]:
+        return [
+            CRDetailInput(
+                category=item.get("category", ""),
+                field_changed=item.get("sub_category", ""),
+                old_value=str(item.get("old_value", "")),
+                new_value=str(item.get("new_value", "")),
+                delta=str(item.get("delta", "")),
+                line_item_type=item.get("sub_category"),
+                month=item.get("month"),
             )
-            db.add(cr)
-            db.flush()
+            for item in items
+        ]
 
-            for item in items:
-                detail = CRChangeDetail(
-                    change_request_id=cr.id,
-                    field_changed=item.get("sub_category", ""),
-                    old_value=str(item.get("old_value", "")),
-                    new_value=str(item.get("new_value", "")),
-                    delta=str(item.get("delta", "")),
-                    line_item_type=item.get("sub_category"),
-                    month=item.get("month"),
+    if cc_groups:
+        groups: list[CRGroupInput] = []
+        group_meta: list[str] = []  # parallel cost-centre names for the summary
+        for group in cc_groups:
+            items = group.get("items", [])
+            details = _details(items)
+            if not details:
+                continue
+            cc_name = group.get("name", group.get("id", ""))
+            justification = group.get("justification", "")
+            has_internal = "internal" in {c.get("category") for c in items}
+            groups.append(
+                CRGroupInput(
+                    cost_center_id=group.get("id"),
+                    cost_center_name=cc_name,
+                    change_category="resource" if has_internal else "external_cost",
+                    summary=justification or f"Forecast update: {cc_name}",
+                    justification=justification,
+                    details=details,
+                    is_system_suggested=any(
+                        c.get("suggestion_id") in cycle.applied_suggestion_ids
+                        for c in items if c.get("suggestion_id") is not None
+                    ),
+                    status="pending_cc_confirmation" if has_internal else "pending_controller_approval",
                 )
-                db.add(detail)
-
-            # Create resource requests for CC Owner to act on
-            if initial_status == "pending_cc_confirmation":
-                db.flush()  # ensure change details are visible via relationship
-                from routers.portfolio import _create_resource_requests_from_cr
-                _create_resource_requests_from_cr(cr, db)
-
+            )
+            group_meta.append(cc_name)
+        crs = create_change_requests(
+            db,
+            project_id=project_id,
+            submitted_by_id=user.person_id,
+            groups=groups,
+            initial_status="pending_cc_confirmation",  # per-group status overrides
+        )
+        for cr, cc_name in zip(crs, group_meta):
             created_crs.append({"id": cr.id, "status": cr.status, "category": cr.change_category, "cost_centre": cc_name})
     else:
-        # Legacy fallback: group by type
+        # Legacy fallback: group by type.
+        groups = []
         for group in (body.groups or cycle.review_groups):
+            items = group.get("items", [])
+            details = _details(items)
+            if not details:
+                continue
             group_type = group.get("type", "other")
-            initial_status = "pending_cc_confirmation" if group_type == "resource" else "pending_controller_approval"
-            cr = ChangeRequest(
-                project_id=project_id,
-                submitted_by_id=user.person_id,
-                submission_timestamp=datetime.utcnow(),
-                status=initial_status,
-                change_category=group_type,
-                summary=group.get("justification", f"Forecast update: {group.get('type', 'changes')}"),
-                justification=group.get("justification"),
-                is_system_suggested=any(
-                    sid in cycle.applied_suggestion_ids
-                    for sid in [c.get("suggestion_id") for c in group.get("items", [])]
-                ),
-            )
-            db.add(cr)
-            db.flush()
-
-            for item in group.get("items", []):
-                detail = CRChangeDetail(
-                    change_request_id=cr.id,
-                    field_changed=item.get("sub_category", ""),
-                    old_value=str(item.get("old_value", "")),
-                    new_value=str(item.get("new_value", "")),
-                    delta=str(item.get("delta", "")),
-                    line_item_type=item.get("sub_category"),
-                    month=item.get("month"),
+            groups.append(
+                CRGroupInput(
+                    cost_center_id=None,
+                    cost_center_name=group_type,
+                    change_category=group_type,
+                    summary=group.get("justification", f"Forecast update: {group.get('type', 'changes')}"),
+                    justification=group.get("justification"),
+                    details=details,
+                    is_system_suggested=any(
+                        sid in cycle.applied_suggestion_ids
+                        for sid in [c.get("suggestion_id") for c in items]
+                    ),
+                    status="pending_cc_confirmation" if group_type == "resource" else "pending_controller_approval",
                 )
-                db.add(detail)
-
-            # Create resource requests for CC Owner to act on
-            if initial_status == "pending_cc_confirmation":
-                db.flush()  # ensure change details are visible via relationship
-                from routers.portfolio import _create_resource_requests_from_cr
-                _create_resource_requests_from_cr(cr, db)
-
+            )
+        crs = create_change_requests(
+            db,
+            project_id=project_id,
+            submitted_by_id=user.person_id,
+            groups=groups,
+            initial_status="pending_controller_approval",  # per-group status overrides
+        )
+        for cr in crs:
             created_crs.append({"id": cr.id, "status": cr.status, "category": cr.change_category})
 
     db.commit()
