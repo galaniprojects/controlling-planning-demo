@@ -15,6 +15,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 import { ragBgColor } from '@/lib/rag';
 import { formatCurrencyDetailed } from '@/lib/formatters';
 import { useScenarioContext } from '../../useScenarioContext';
@@ -140,7 +141,13 @@ function LineGroup({
   lines,
 }: {
   title: string;
-  lines: { lineKey: string; name: string; eur: number; anchorEur: number }[];
+  lines: {
+    lineKey: string;
+    name: string;
+    locationName?: string | null;
+    eur: number;
+    anchorEur: number;
+  }[];
 }) {
   return (
     <div>
@@ -155,7 +162,16 @@ function LineGroup({
               key={l.lineKey}
               className="flex items-center justify-between text-sm"
             >
-              <span className="text-foreground truncate pr-2">{l.name}</span>
+              <span className="flex items-center gap-1.5 text-foreground truncate pr-2">
+                {l.name}
+                {l.locationName && (
+                  <LocationLabel
+                    kind="workforce"
+                    text={l.locationName}
+                    className="text-[11px] font-normal text-muted-foreground"
+                  />
+                )}
+              </span>
               <span className="font-tabular text-foreground inline-flex items-center gap-2">
                 {formatCurrencyDetailed(l.eur)}
                 {lineDelta !== 0 && (
