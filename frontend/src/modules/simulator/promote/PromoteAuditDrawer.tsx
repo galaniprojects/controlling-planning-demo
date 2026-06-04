@@ -103,14 +103,13 @@ export function PromoteAuditDrawer({ scenarioId, open, onOpenChange }: Props) {
           {!loading && !error && items && items.length > 0 && (
             <ul className="space-y-3">
               {items.map((item) => {
-                // Sim E2E S2: count routed change_request rows so the event
-                // header can flag how many draft CRs the promotion opened.
-                const crCount = item.summary.filter(
-                  (row) =>
-                    row.status === 'promoted' &&
-                    (row.routing_type === 'change_request' ||
-                      row.change_request_id != null),
-                ).length;
+                // Sim E2E S2: sum the real created-CR count per row so the event
+                // header reflects how many draft CRs the promotion actually
+                // opened (empty-diff routes contribute 0, not a phantom CR).
+                const crCount = item.summary.reduce(
+                  (sum, row) => sum + (row.change_requests_created ?? 0),
+                  0,
+                );
                 return (
                 <li
                   key={item.id}

@@ -776,33 +776,51 @@ def execute_promote(
                 f"{r['project_id']}."
             )
             rt = "direct_forecast_update"
+            macro_status = "promoted"
+            cr_ids: list[int] = []
         else:
             # Other-PL project: the controller cannot write the PL's forecast
             # directly, so route the resolved curve shift to a draft CR per cost
-            # centre authored by the project's PL (F8). Empty diff → no CR.
+            # centre authored by the project's PL (F8). Empty diff → no CR, and
+            # the route is reported as skipped (not promoted) so the count and
+            # the FE deep-link reflect only real CRs.
             crs = _create_promote_draft_crs(db, scenario, r["project_id"])
-            if crs:
+            cr_ids = [cr.id for cr in crs]
+            rt = "change_request"
+            if cr_ids:
                 msg = (
-                    f"Routed to {len(crs)} draft change request(s) for the "
+                    f"Routed to {len(cr_ids)} draft change request(s) for the "
                     f"project PL on {r['project_id']}."
                 )
+                macro_status = "promoted"
             else:
                 msg = (
                     f"Macro on {r['project_id']} nets to no change — no draft "
                     "change request created."
                 )
-            rt = "change_request"
-        for a in macro_actions:
+                macro_status = "skipped"
+        for idx, a in enumerate(macro_actions):
             a.promoted_at = now
             a.promoted_by_id = user.person_id
-            promoted_count += 1
-            summary.append({
+            if macro_status == "promoted":
+                promoted_count += 1
+            else:
+                skipped_count += 1
+            row = {
                 "action_id": a.id,
                 "routing_type": rt,
-                "status": "promoted",
+                "status": macro_status,
                 "message": msg,
                 "target_id": r["project_id"],
-            })
+                "project_id": r["project_id"],
+            }
+            if rt == "change_request":
+                # Attribute the project's CR count to its first action row only,
+                # so summing/filtering on the FE counts one project once.
+                row["change_requests_created"] = len(cr_ids) if idx == 0 else 0
+                if idx == 0 and len(cr_ids) == 1:
+                    row["change_request_id"] = cr_ids[0]
+            summary.append(row)
 
     # Direct overlay-diff routing (spec §6): write forecast overlay for projects
     # with no forecast_grid action (and not already handled by a macro route).
@@ -829,26 +847,35 @@ def execute_promote(
             else:
                 # Other-PL overlay: route to a draft CR per cost centre authored
                 # by the project's PL (F8) rather than silently skipping. Empty
-                # diff → no CR.
+                # diff → no CR, reported as skipped.
                 crs = _create_promote_draft_crs(db, scenario, ov["project_id"])
-                promoted_count += 1
-                if crs:
+                cr_ids = [cr.id for cr in crs]
+                if cr_ids:
+                    promoted_count += 1
+                    ov_status = "promoted"
                     ov_msg = (
-                        f"Routed to {len(crs)} draft change request(s) for the "
+                        f"Routed to {len(cr_ids)} draft change request(s) for the "
                         f"project PL on {ov['project_id']}."
                     )
                 else:
+                    skipped_count += 1
+                    ov_status = "skipped"
                     ov_msg = (
                         f"Other-PL overlay on {ov['project_id']} nets to no "
                         "change — no draft change request created."
                     )
-                summary.append({
+                ov_row = {
                     "action_id": None,
                     "routing_type": "change_request",
-                    "status": "promoted",
+                    "status": ov_status,
                     "message": ov_msg,
                     "target_id": ov["project_id"],
-                })
+                    "project_id": ov["project_id"],
+                    "change_requests_created": len(cr_ids),
+                }
+                if len(cr_ids) == 1:
+                    ov_row["change_request_id"] = cr_ids[0]
+                summary.append(ov_row)
 
     promotion = ScenarioPromotion(
         scenario_id=scenario_id,

@@ -200,3 +200,27 @@ class TestGroupDetailsByCostCenter:
         groups = group_details_by_cost_center(db, "proj-grp2", [_external()])
         assert len(groups) == 1
         assert groups[0].change_category == "external_cost"
+
+    def test_no_allocation_project_rr_falls_back_to_real_cost_centre(self, db, seed_org_base, create_test_project):
+        """A project with no allocations yields a synthetic "unknown" CC group;
+        the resource request must fall back to a real CC, not write a dangling
+        cost_center_id (SF3)."""
+        from models.organization import CostCenter
+
+        # The default RR cost centre must exist for the fallback to resolve.
+        db.add(CostCenter(id="cc-muc-apd", name="MUC APD", location_id="loc-muc",
+                          competence_center_id="comp-dev"))
+        create_test_project("proj-noalloc", pl_person_id="p-pm-1")  # no allocations
+        db.commit()
+
+        groups = group_details_by_cost_center(db, "proj-noalloc", [_internal()])
+        assert groups[0].cost_center_id == "unknown"  # synthetic — no real CC
+
+        crs = create_change_requests(
+            db, project_id="proj-noalloc", submitted_by_id="p-pm-1",
+            groups=groups, initial_status="draft",
+        )
+        db.commit()
+        rr = db.query(ResourceRequest).filter_by(change_request_id=crs[0].id).first()
+        assert rr is not None
+        assert rr.cost_center_id == "cc-muc-apd"  # fell back to a real CC, not "unknown"

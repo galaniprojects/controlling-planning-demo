@@ -161,13 +161,14 @@ export interface PromotePreviewResponse {
 }
 
 export interface PromoteResultItem {
-  action_id: number;
+  action_id?: number | null; // null for overlay-only routes (no ScenarioAction)
   routing_type: string;
   status: 'promoted' | 'skipped';
   message: string;
-  // For change_request routings, `target_id` carries the created draft CR id.
   target_id?: string | null;
-  // Explicit created-CR id (preferred when present). Sim E2E S2.
+  // Number of draft CRs this row created (0 when the diff netted to no change).
+  change_requests_created?: number;
+  // The created draft CR id, when the row maps to a single CR. Sim E2E S2.
   change_request_id?: number;
   // Project the routed change request targets — enables a Workbench deep-link.
   project_id?: string | null;

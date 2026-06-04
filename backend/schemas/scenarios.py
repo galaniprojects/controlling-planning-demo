@@ -160,11 +160,15 @@ class PromotePreviewResponse(BaseModel):
 
 
 class PromoteResultItem(BaseModel):
-    action_id: int
+    action_id: Optional[int] = None  # None for overlay-only (no ScenarioAction)
     routing_type: str
     status: str  # 'promoted' | 'skipped'
     message: str
     target_id: Optional[str] = None
+    project_id: Optional[str] = None  # affected project (enables Workbench deep-link)
+    # Number of draft CRs this row created (0 when the diff netted to no change).
+    change_requests_created: Optional[int] = None
+    change_request_id: Optional[int] = None  # set when the row maps to a single CR
 
 
 class PromoteExecuteResponse(BaseModel):

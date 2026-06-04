@@ -266,6 +266,14 @@ def create_resource_requests_from_cr(
     previously hard-coded to ``cc-muc-apd``, which mis-targeted any role whose
     cost centre differs.)
     """
+    # Resolve to a REAL cost centre. group_details_by_cost_center yields a
+    # synthetic id ("unknown"/"external") when a project has no allocations
+    # mapping its roles to a CC; that string would create a ResourceRequest with
+    # a dangling cost_center_id (SQLite FK enforcement is off) that no CC Owner
+    # inbox surfaces. Fall back to the default seed CC for any unresolvable id.
+    if not db.query(CostCenter.id).filter(CostCenter.id == cost_center_id).first():
+        cost_center_id = DEFAULT_RR_COST_CENTER_ID
+
     # Delete any existing pending CR-linked requests (idempotent re-run).
     db.query(ResourceRequest).filter(
         ResourceRequest.change_request_id == cr.id,

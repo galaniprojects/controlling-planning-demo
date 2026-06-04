@@ -319,26 +319,28 @@ export function PromoteReviewPage() {
               )}
             </p>
             {(() => {
-              // Sim E2E S2: promote now routes cross-project diffs into draft
-              // Change Requests (one per other-PL project). Surface the count
-              // and a deep-link to each project's Workbench Change History.
+              // Sim E2E S2: promote routes cross-project diffs into draft Change
+              // Requests (per cost centre on each other-PL project). Key off the
+              // real created-CR count so empty-diff routes (which net to no
+              // change) neither inflate the total nor render a dead deep-link.
               const crRows = executeResult.summary.filter(
-                (row) =>
-                  row.status === 'promoted' &&
-                  (row.routing_type === 'change_request' ||
-                    row.change_request_id != null),
+                (row) => (row.change_requests_created ?? 0) > 0,
               );
               if (crRows.length === 0) return null;
+              const totalCrs = crRows.reduce(
+                (sum, row) => sum + (row.change_requests_created ?? 0),
+                0,
+              );
               return (
                 <div className="space-y-2">
                   <p className="text-sm text-foreground">
-                    Created {crRows.length} draft change request
-                    {crRows.length === 1 ? '' : 's'} for routed diffs.
+                    Created {totalCrs} draft change request
+                    {totalCrs === 1 ? '' : 's'} for routed diffs.
                   </p>
                   <ul className="divide-y divide-border rounded border border-border">
-                    {crRows.map((row) => (
+                    {crRows.map((row, i) => (
                       <li
-                        key={row.action_id}
+                        key={row.action_id ?? row.project_id ?? i}
                         className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs"
                       >
                         <span className="truncate text-foreground">
