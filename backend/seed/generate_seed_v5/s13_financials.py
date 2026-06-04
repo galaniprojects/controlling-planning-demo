@@ -35,6 +35,12 @@ ACTUALS_PARTIAL = "2026-04"
 INNER_ZONE_END = "2027-03"     # monthly inner-zone last month [C-FG-07]
 OUTER_ZONE_END = "2029-03"     # quarterly outer-zone last anchor month
 RUN_HORIZON_END = "2029-03"    # cap forecast/baseline horizon for Run-stage projects
+# S6 rate-at-month: the canonical month the current rate steps in (mirrors
+# s04_roles_rates, which seeds a previous-period row at 2025-01-01 ≈95% and the
+# current row at 2026-01-01). Pricing each internal cell at the rate in force at
+# its month keeps the seeded anchor equal to what the rate-at-month engine
+# recomputes — so historical recompute (e.g. forecast_versioning) is anchor-exact.
+RATE_STEP_MONTH = "2026-01"
 
 BATCH_SIZE = 100  # rows per multi-row INSERT statement
 
@@ -148,6 +154,18 @@ def _adjusted_forecast(
     return hours, amount
 
 
+def _rate_at_month(role: str, loc: str | None, month: str) -> float | None:
+    """Hourly rate in force at `month` for (role, location) — the previous-period
+    rate (≈95%) before RATE_STEP_MONTH, the current rate from it onward. Mirrors
+    the two seeded rate_table periods so the stored amount equals hours × the
+    rate-at-month the engine resolves. Returns None when the combo is not chargeable.
+    """
+    cur = get_rate(role, loc) if loc else None
+    if cur is None:
+        return None
+    return cur if month >= RATE_STEP_MONTH else round(cur * 0.95, 2)
+
+
 # ---------------------------------------------------------------------------
 # Row emission helpers
 # ---------------------------------------------------------------------------
@@ -177,22 +195,25 @@ def _emit_internal_rows(
         base_amount = base_hours * rate
 
         # --- Baselines (monthly, full active range) ---
+        # S6 rate-at-month: price each cell at the rate in force at its month.
         for mo in baseline_months:
+            bl_amount = base_hours * _rate_at_month(role, loc, mo)
             rows_baseline.append(
                 f"({sql_str(pid)}, {sql_str(mo)}, 'internal', {sql_str(role)}, "
-                f"{base_hours}, {base_amount:.2f}, NULL, {sql_str(co)}, NULL, NULL, NULL, "
+                f"{base_hours}, {bl_amount:.2f}, NULL, {sql_str(co)}, NULL, NULL, NULL, "
                 f"{sql_str(loc)})"
             )
 
         # --- Forecasts (monthly inner + quarterly outer) ---
         for mo in forecast_months:
-            f_hours, f_amount = _adjusted_forecast(
+            f_hours, _f_amount = _adjusted_forecast(
                 pid, "internal", role, mo, base_hours, base_amount, loc,
             )
             is_outer = mo > INNER_ZONE_END
             scale = 3.0 if is_outer else 1.0
             cell_hours = (f_hours * scale) if f_hours is not None else None
-            cell_amount = f_amount * scale
+            # Rate-at-month: amount = adjusted hours × the month's rate (× outer scale).
+            cell_amount = (f_hours or 0.0) * _rate_at_month(role, loc, mo) * scale
             provisional = 1 if is_outer else 0
             rows_forecast.append(
                 f"({sql_str(pid)}, {sql_str(mo)}, 'internal', {sql_str(role)}, "
@@ -208,7 +229,7 @@ def _emit_internal_rows(
             if _should_have_actuals(mo, proj):
                 var = _variance(rag)
                 a_hours = round(f_hours * var) if f_hours is not None else None
-                a_amount = (a_hours * rate) if a_hours is not None else (f_amount * var)
+                a_amount = (a_hours * _rate_at_month(role, loc, mo)) if a_hours is not None else (f_amount * var)
                 rows_actuals.append(
                     f"({sql_str(pid)}, {sql_str(mo)}, 'internal', {sql_str(role)}, "
                     f"{a_hours}, {a_amount:.2f}, NULL, {sql_str(co)}, NULL, NULL, NULL, "
@@ -217,7 +238,7 @@ def _emit_internal_rows(
             elif _should_have_partial_actuals(mo, proj):
                 partial = random.uniform(0.40, 0.60)
                 a_hours = round(f_hours * partial) if f_hours is not None else None
-                a_amount = (a_hours * rate) if a_hours is not None else (f_amount * partial)
+                a_amount = (a_hours * _rate_at_month(role, loc, mo)) if a_hours is not None else (f_amount * partial)
                 rows_actuals.append(
                     f"({sql_str(pid)}, {sql_str(mo)}, 'internal', {sql_str(role)}, "
                     f"{a_hours}, {a_amount:.2f}, NULL, {sql_str(co)}, NULL, NULL, NULL, "
