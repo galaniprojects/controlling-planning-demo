@@ -116,6 +116,12 @@ export function WideSlideOver({
     };
   }, [open, onClose]);
 
+  // a11y: keep the panel mounted (so the open/close slide transition still
+  // runs) but strip its dialog semantics while closed. Leaving `role="dialog"`
+  // on a permanently-mounted, off-screen panel left an empty, nameless dialog
+  // in the accessibility tree even when dismissed; `inert` + `aria-hidden`
+  // pull the closed panel out of the a11y tree and block focus on its
+  // off-screen controls, without unmounting (which would kill the exit slide).
   return (
     <>
       {/* Backdrop (dim the workbench behind) */}
@@ -130,9 +136,11 @@ export function WideSlideOver({
       {/* Panel */}
       <aside
         ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
+        role={open ? 'dialog' : undefined}
+        aria-modal={open ? true : undefined}
+        aria-label={open ? title : undefined}
+        aria-hidden={open ? undefined : true}
+        inert={!open}
         tabIndex={-1}
         className={
           'fixed right-0 top-14 bottom-0 z-50 border-l border-border bg-background shadow-2xl ' +

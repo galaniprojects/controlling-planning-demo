@@ -24,13 +24,16 @@ import { useScenarioContext } from '../useScenarioContext';
 import { ActionForm } from '../catalogue/ActionForm';
 import { findActionById } from '../catalogue/catalogueDef';
 
+/** The four Tier-3 restructuring actions reachable from the Resources sidebar. */
+export type PeopleMasterActionId =
+  | 'hire-block'
+  | 'remove-role'
+  | 'reduce-headcount'
+  | 'relocate-team';
+
 interface Props {
   /** Optional initial action picker (one of the 4 restructuring actions). */
-  initialActionId?:
-    | 'hire-block'
-    | 'remove-role'
-    | 'reduce-headcount'
-    | 'relocate-team';
+  initialActionId?: PeopleMasterActionId;
 }
 
 const ACTION_TILES: Array<{
