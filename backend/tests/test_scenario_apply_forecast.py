@@ -209,9 +209,11 @@ class TestApplyToForecast:
             db, scenario_id=applyforecast_world["scenario_id"],
             user=pl_user_obj,
         )
-        # Per [B-OQ-02] working assumption: provenance visible.
+        # Per [B-OQ-02] working assumption: provenance visible to controller.
+        # The leaked spec tag is intentionally NOT surfaced in the UI string.
         assert "Provenance" in result["provenance_note"]
-        assert "B-OQ-02" in result["provenance_note"]
+        assert "Visible to controller" in result["provenance_note"]
+        assert "B-OQ-02" not in result["provenance_note"]
 
     def test_unknown_scenario_raises(self, db, pl_user_obj):
         with pytest.raises(ApplyToForecastError):
@@ -248,6 +250,76 @@ class TestApplyToForecast:
         )
         db.commit()
         assert "summary" in result
+
+
+class TestApplyGate:
+    """Issue A (§5) — the apply gate must allow the scenario OWNER (any
+    status, incl. private) OR a PUBLISHED scenario, and reject everything
+    else. This pins the backend gate so the frontend gate
+    (`disabled={!(isOwner || isPublished)}`) provably agrees.
+    """
+
+    def _make_other_author(self, db):
+        from models.people import Person
+        if db.query(Person).filter_by(id="p-other-author").first() is None:
+            db.add(Person(
+                id="p-other-author", name="Other Author",
+                role_type_id="role-dev", cost_center_id="cc-muc-dev",
+                competence_center_id="comp-dev",
+            ))
+            db.flush()
+
+    def test_owner_private_allowed(self, db, seed_org_base,
+                                   create_test_project, pl_user_obj):
+        # Owner applies their OWN private scenario — allowed.
+        create_test_project("proj-own", forecast_amt=1000, pl_person_id="p-pm-1")
+        sc = Scenario(name="Owner private", author_id="p-pm-1", status="private")
+        db.add(sc)
+        db.flush()
+        db.add(ScenarioAction(
+            scenario_id=sc.id, action_order=1, scope="project",
+            action_type="reduce_budget", project_id="proj-own",
+            parameters_json='{"percentage": 10}',
+            lever_category="forecast_grid", tier=1,
+        ))
+        db.commit()
+
+        result = apply_to_forecast(db, scenario_id=sc.id, user=pl_user_obj)
+        db.commit()
+        assert result["diffs_carried_forward"] == 1
+
+    def test_published_non_owner_allowed(self, db, seed_org_base,
+                                         create_test_project, pl_user_obj):
+        # Non-owner applies a PUBLISHED scenario — allowed.
+        self._make_other_author(db)
+        create_test_project("proj-own", forecast_amt=1000, pl_person_id="p-pm-1")
+        sc = Scenario(name="Published other",
+                      author_id="p-other-author", status="published")
+        db.add(sc)
+        db.flush()
+        db.add(ScenarioAction(
+            scenario_id=sc.id, action_order=1, scope="project",
+            action_type="reduce_budget", project_id="proj-own",
+            parameters_json='{"percentage": 10}',
+            lever_category="forecast_grid", tier=1,
+        ))
+        db.commit()
+
+        result = apply_to_forecast(db, scenario_id=sc.id, user=pl_user_obj)
+        db.commit()
+        assert "summary" in result
+
+    def test_non_owner_non_published_rejected(self, db, seed_org_base,
+                                              create_test_project, pl_user_obj):
+        # Non-owner, non-published (private) scenario — rejected.
+        self._make_other_author(db)
+        sc = Scenario(name="Private other",
+                      author_id="p-other-author", status="private")
+        db.add(sc)
+        db.commit()
+        with pytest.raises(ApplyToForecastError) as exc:
+            apply_to_forecast(db, scenario_id=sc.id, user=pl_user_obj)
+        assert "non-published" in exc.value.message
 
 
 class TestOverlayOnlyApply:

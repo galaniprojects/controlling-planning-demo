@@ -298,7 +298,7 @@ def apply_to_forecast(
         "summary": summary,
         "provenance_note": (
             "Provenance: scenario-originated values marked with "
-            f"is_provisional=True. Visible to controller per [B-OQ-02]."
+            "is_provisional=True. Visible to controller."
         ),
     }
 

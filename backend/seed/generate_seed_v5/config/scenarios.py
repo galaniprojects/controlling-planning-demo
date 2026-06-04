@@ -388,7 +388,7 @@ SCENARIOS: list[dict] = [
             "CC Owner sandbox: rebalance Master Data Hub Rollout staffing "
             "from senior developers onto a 60/40 senior/mid mix to free "
             "senior capacity for incoming intakes. Scoped to MUC/APD per "
-            "[F-AC-01] CC-Owner authoring rules."
+            "CC-Owner authoring rules."
         ),
         "author_id": "p-brenner",
         "status": "private",
