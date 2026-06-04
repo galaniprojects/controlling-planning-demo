@@ -160,11 +160,15 @@ class PromotePreviewResponse(BaseModel):
 
 
 class PromoteResultItem(BaseModel):
-    action_id: int
+    action_id: Optional[int] = None  # None for overlay-only (no ScenarioAction)
     routing_type: str
     status: str  # 'promoted' | 'skipped'
     message: str
     target_id: Optional[str] = None
+    project_id: Optional[str] = None  # affected project (enables Workbench deep-link)
+    # Number of draft CRs this row created (0 when the diff netted to no change).
+    change_requests_created: Optional[int] = None
+    change_request_id: Optional[int] = None  # set when the row maps to a single CR
 
 
 class PromoteExecuteResponse(BaseModel):
@@ -186,10 +190,13 @@ class ApplyToForecastRequest(BaseModel):
 
 
 class ApplyToForecastSummaryItem(BaseModel):
-    action_id: int
+    action_id: Optional[int] = None  # None for overlay-only (no ScenarioAction)
     project_id: Optional[str] = None
     status: str
     message: str
+    # Apply-to-CR: number of draft CRs created for this project. (Replaces the
+    # legacy cells_marked_provisional, kept Optional for backward compatibility.)
+    change_requests_created: Optional[int] = None
     cells_marked_provisional: Optional[int] = None
 
 
@@ -200,6 +207,7 @@ class ApplyToForecastResponse(BaseModel):
     applied_at: str
     diffs_carried_forward: int
     diffs_skipped: int
+    draft_change_requests_created: int = 0  # total draft CRs across all projects
     summary: list[ApplyToForecastSummaryItem]
     provenance_note: str
 

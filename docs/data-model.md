@@ -291,15 +291,17 @@ Mirrored in `frontend/src/types/api.ts::ExternalCostStatus` and `backend/schemas
 ## Change Management (`change_requests.py`)
 
 ### `ChangeRequest` — `change_requests`
-Two-stage approval workflow: CC Owner confirmation → Controller approval.
+Two-stage approval workflow: CC Owner confirmation → Controller approval. CRs can originate from three sources: manual submission via the Rolling Forecast Review wizard (`source_scenario_id` NULL), Promote of an other-PL scenario diff, or Apply-to-forecast from a scenario (both record `source_scenario_id` for provenance and deduplication).
 
-**Key columns.** `id` Integer PK, `project_id` FK NOT NULL, `submitted_by_id` FK → people NOT NULL, `submission_timestamp` DateTime NOT NULL, `status` String(30) NOT NULL (`draft` | `pending_cc_confirmation` | `sent_back_by_cc` | `pending_controller_approval` | `sent_back_by_controller` | `approved` | `rejected`), `change_category` String(20) (`scope` | `timeline` | `resource` | `external_cost` | `other`), `summary` String(500) NOT NULL, `justification` Text, `is_system_suggested` Boolean default False.
+**Key columns.** `id` Integer PK, `project_id` FK NOT NULL, `submitted_by_id` FK → people NOT NULL, `submission_timestamp` DateTime NOT NULL, `status` String(30) NOT NULL (`draft` | `pending_cc_confirmation` | `sent_back_by_cc` | `pending_controller_approval` | `sent_back_by_controller` | `approved` | `rejected`), `change_category` String(20) (`scope` | `timeline` | `resource` | `external_cost` | `other`), `summary` String(500) NOT NULL, `justification` Text, `is_system_suggested` Boolean default False, `source_scenario_id` Integer (nullable — logical reference to `scenarios.id`, not a DB-level FK to avoid a cycle in the dependency graph: `change_requests → scenarios → forecast_versions → change_requests`).
 
 *Stage 1 — CC Owner confirmation:* `cc_owner_id` FK, `cc_confirmation_timestamp`, `cc_status` String(20) (`pending` | `confirmed` | `declined`), `cc_comments` Text.
 
 *Stage 2 — Controller approval:* `controller_id` FK, `controller_approval_timestamp`, `controller_status` String(20) (`pending` | `approved` | `rejected` | `sent_back`), `controller_comments`, `controller_feedback`.
 
 **Relationships.** `project` (back_populates), `submitted_by`/`cc_owner`/`controller` (foreign_keys-disambiguated), `change_details` (back_populates).
+
+**Notes.** When a CR is created from a Promote or Apply action, `source_scenario_id` is set to identify the originating scenario. On re-promote or re-apply of the same scenario, draft CRs (status `draft` only) with matching `source_scenario_id` and `project_id` are replaced, achieving deduplication for re-runs. Wizard-submitted CRs retain `source_scenario_id=NULL`.
 
 ### `CRChangeDetail` — `cr_change_details`
 Per-line-item delta of what changed in a CR.
@@ -532,11 +534,13 @@ Audit row per Promote click that processed ≥1 routable diff per `[B-PR-03..04]
 **Indexes.** `ix_scenario_promotions_scenario`.
 
 ### `ScenarioApplyToForecastEvent` — `scenario_apply_to_forecast_events`
-PL Apply-to-forecast audit per `[B-PR-05]`. Provenance on resulting forecast cells uses `Forecast.is_provisional=True` per `[B-OQ-02]`.
+PL Apply-to-forecast audit per Session 2 E2E Fixes. Applies a scenario's forecast diffs to the PL's next cycle by creating one `draft` ChangeRequest per cost centre per affected project, grouped by cost centre and stored with `source_scenario_id` set for provenance and deduplication.
 
-**Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `applied_by_id` FK NOT NULL, `applied_at` DateTime NOT NULL default utcnow, `cycle_id` String(40), `cycle_label` String(60), `diffs_carried_forward` Integer (`server_default='0'`), `diffs_skipped` Integer (`server_default='0'`), `summary_json` Text.
+**Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `applied_by_id` FK NOT NULL, `applied_at` DateTime NOT NULL default utcnow, `cycle_id` String(40), `cycle_label` String(60), `diffs_carried_forward` Integer (`server_default='0'` — counts projects that produced ≥1 draft CR), `diffs_skipped` Integer (`server_default='0'` — counts projects skipped because no diffs or empty diff), `summary_json` Text.
 
 **Indexes.** `ix_scenario_atf_scenario`, `ix_scenario_atf_applied_by`.
+
+**Notes.** `is_provisional` column on Forecast is preserved and still used for the granularity-boundary case per `[C-FG-07]` — only the apply path stopped writing scenario-carried provisional cells in favor of draft CRs.
 
 ### Project-Scope Redesign — Layer-2 hand-edit overlay (Simulator spec §5)
 

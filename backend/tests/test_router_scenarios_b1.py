@@ -27,7 +27,9 @@ from models.financial import ForecastVersion
 from models.organization import ProjectGroupingAssignment
 from models.people import Person
 from models.projects import Project
-from models.scenarios import Scenario, ScenarioAction, ScenarioPromotion
+from models.scenarios import (
+    Scenario, ScenarioAction, ScenarioForecastCellEdit, ScenarioPromotion,
+)
 from models.system import RolePermissionGrant
 from models.users import User
 
@@ -388,6 +390,14 @@ class TestB1ApplyToForecast:
         )
         db.add(sc)
         db.flush()
+        # Overlay edit on the own project guarantees a real diff vs the live
+        # forecast — apply now stages diffs as draft CRs, so a no-op action
+        # (reduce_budget is a project-scope no-op) would carry nothing.
+        db.add(ScenarioForecastCellEdit(
+            scenario_id=sc.id, project_id="proj-alpha",
+            line_key="internal|role-dev||", month="2026-02",
+            field="hours", value=30.0,
+        ))
         db.add(ScenarioAction(
             scenario_id=sc.id, action_order=1, scope="project",
             action_type="reduce_budget", project_id="proj-alpha",
@@ -401,7 +411,9 @@ class TestB1ApplyToForecast:
         )
         assert resp.status_code == 200
         body = resp.json()
+        # Apply now creates draft Change Requests instead of provisional cells.
         assert body["diffs_carried_forward"] >= 1
+        assert body.get("draft_change_requests_created", 0) >= 1
 
     def test_controller_cannot_apply_to_forecast(self, test_client, b1_setup, db):
         sc = Scenario(name="ATF", author_id="p-pm-1", status="published")

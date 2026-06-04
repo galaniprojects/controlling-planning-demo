@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -23,6 +23,14 @@ class ChangeRequest(Base):
     summary: Mapped[str] = mapped_column(String(500), nullable=False)
     justification: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_system_suggested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Provenance + re-run dedupe for scenario-originated draft CRs (What-If
+    # Simulator promote / apply-to-forecast). NULL for wizard-submitted CRs.
+    # A re-apply/re-promote replaces prior *draft* CRs sharing this scenario id
+    # for the same project; CRs already moved past `draft` are never touched.
+    # Logical reference to scenarios.id (no DB-level FK: a hard FK would close a
+    # change_requests -> scenarios -> forecast_versions -> change_requests cycle
+    # that SQLite cannot order for create/drop without ALTER).
+    source_scenario_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # Stage 1 — CC Owner confirmation
     cc_owner_id: Mapped[Optional[str]] = mapped_column(ForeignKey("people.id"), nullable=True)

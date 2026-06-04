@@ -47,6 +47,7 @@ function resp(): ScenarioGridResponse {
         category: 'internal',
         kind: 'internal_role',
         sub_category_name: 'Dev',
+        location_name: 'Munich',
         hourly_rate: 100,
         // Rate-consistent: stored € (amount_eur / anchor_amount_eur) == 80 × 100.
         cells: [
@@ -94,6 +95,15 @@ describe('computeLineTotals', () => {
     // external: 2000 + 2000 = 4000
     expect(external.eur).toBe(4000);
     expect(external.anchorEur).toBe(4000);
+  });
+
+  it('threads location_name through so same-role/multi-location lines disambiguate (F2)', () => {
+    const totals = computeLineTotals(resp(), new Map());
+    const internal = totals.find((t) => t.lineKey === 'internal:dev')!;
+    const external = totals.find((t) => t.lineKey === 'external:license')!;
+    expect(internal.locationName).toBe('Munich');
+    // External lines have no workforce location → null, not undefined.
+    expect(external.locationName).toBeNull();
   });
 
   it('applies pending working edits to the live total (not the anchor)', () => {

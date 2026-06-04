@@ -20,11 +20,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, History, Loader2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, History, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { parseServerTimestamp } from '@/lib/formatters';
+import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import { useCanPromote } from '../permissions';
 import { useScenarioContext } from '../useScenarioContext';
 import type {
@@ -317,6 +318,66 @@ export function PromoteReviewPage() {
                 </>
               )}
             </p>
+            {(() => {
+              // Sim E2E S2: promote routes cross-project diffs into draft Change
+              // Requests (per cost centre on each other-PL project). Key off the
+              // real created-CR count so empty-diff routes (which net to no
+              // change) neither inflate the total nor render a dead deep-link.
+              const crRows = executeResult.summary.filter(
+                (row) => (row.change_requests_created ?? 0) > 0,
+              );
+              if (crRows.length === 0) return null;
+              const totalCrs = crRows.reduce(
+                (sum, row) => sum + (row.change_requests_created ?? 0),
+                0,
+              );
+              return (
+                <div className="space-y-2">
+                  <p className="text-sm text-foreground">
+                    Created {totalCrs} draft change request
+                    {totalCrs === 1 ? '' : 's'} for routed diffs.
+                  </p>
+                  <ul className="divide-y divide-border rounded border border-border">
+                    {crRows.map((row, i) => (
+                      <li
+                        key={row.action_id ?? row.project_id ?? i}
+                        className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs"
+                      >
+                        <span className="truncate text-foreground">
+                          {row.project_id ?? row.message}
+                        </span>
+                        {row.project_id ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 shrink-0 px-2 text-xs text-primary"
+                            onClick={() =>
+                              navigateToWorkbenchByProject(
+                                row.project_id as string,
+                                navigate,
+                              )
+                            }
+                          >
+                            Open CR
+                            <ExternalLink
+                              className="ml-1 h-3 w-3"
+                              aria-hidden="true"
+                            />
+                          </Button>
+                        ) : (
+                          <span className="shrink-0 text-muted-foreground">
+                            {row.target_id
+                              ? `CR ${row.target_id}`
+                              : 'created'}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
             <div className="flex gap-2">
               <Button
                 type="button"

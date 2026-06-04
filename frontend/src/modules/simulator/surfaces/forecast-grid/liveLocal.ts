@@ -31,6 +31,8 @@ export interface LineTotal {
   lineKey: string;
   category: 'internal' | 'external';
   name: string;
+  /** S6: city label for internal splits, qualifies same-role/multi-location lines. */
+  locationName?: string | null;
   /** Live € total (internal: Σhours×rate, external: Σ€). */
   eur: number;
   /** Anchor € total for the line (pre-overlay). */
@@ -76,6 +78,7 @@ export function computeLineTotals(
       lineKey: row.line_key,
       category: row.category,
       name: row.sub_category_name,
+      locationName: row.location_name ?? null,
       eur: Math.round(eur * 100) / 100,
       anchorEur: Math.round(anchorEur * 100) / 100,
     };

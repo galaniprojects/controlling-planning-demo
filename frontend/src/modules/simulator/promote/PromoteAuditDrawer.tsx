@@ -9,7 +9,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Clock, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Clock, ExternalLink, Loader2 } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -21,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { scenariosApi, type PromotionAuditItem } from '../api/scenariosApi';
 import { parseServerTimestamp } from '@/lib/formatters';
+import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import {
   ROUTING_LABELS,
   type RoutingType,
@@ -33,6 +35,7 @@ interface Props {
 }
 
 export function PromoteAuditDrawer({ scenarioId, open, onOpenChange }: Props) {
+  const navigate = useNavigate();
   const [items, setItems] = useState<PromotionAuditItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +102,15 @@ export function PromoteAuditDrawer({ scenarioId, open, onOpenChange }: Props) {
 
           {!loading && !error && items && items.length > 0 && (
             <ul className="space-y-3">
-              {items.map((item) => (
+              {items.map((item) => {
+                // Sim E2E S2: sum the real created-CR count per row so the event
+                // header reflects how many draft CRs the promotion actually
+                // opened (empty-diff routes contribute 0, not a phantom CR).
+                const crCount = item.summary.reduce(
+                  (sum, row) => sum + (row.change_requests_created ?? 0),
+                  0,
+                );
+                return (
                 <li
                   key={item.id}
                   className="space-y-2 rounded-md border border-border bg-card p-3"
@@ -121,6 +132,14 @@ export function PromoteAuditDrawer({ scenarioId, open, onOpenChange }: Props) {
                       >
                         {item.promoted_count} applied
                       </Badge>
+                      {crCount > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="border-primary/40 text-[10px] text-primary"
+                        >
+                          {crCount} draft CR{crCount === 1 ? '' : 's'}
+                        </Badge>
+                      )}
                       {item.skipped_count > 0 && (
                         <Badge
                           variant="outline"
@@ -170,12 +189,35 @@ export function PromoteAuditDrawer({ scenarioId, open, onOpenChange }: Props) {
                           <span className="flex-1 text-muted-foreground">
                             {row.message}
                           </span>
+                          {(row.routing_type === 'change_request' ||
+                            row.change_request_id != null) &&
+                            row.project_id && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 shrink-0 px-1.5 text-[10px] text-primary"
+                                onClick={() =>
+                                  navigateToWorkbenchByProject(
+                                    row.project_id as string,
+                                    navigate,
+                                  )
+                                }
+                              >
+                                Open CR
+                                <ExternalLink
+                                  className="ml-1 h-2.5 w-2.5"
+                                  aria-hidden="true"
+                                />
+                              </Button>
+                            )}
                         </li>
                       );
                     })}
                   </ul>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>

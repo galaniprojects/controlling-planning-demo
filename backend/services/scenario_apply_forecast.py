@@ -1,20 +1,25 @@
 """Scenario PL Apply-to-Forecast workflow per [B-PR-05].
 
-PL-only path that pre-populates the next forecast cycle submission with
-the PL's own-project diffs from a scenario.
+PL-only path that stages the PL's own-project diffs from a scenario as
+**draft Change Requests** the PL refines in the Workbench before submitting
+into the normal CR workflow.
 
-Per spec [B-PR-05]:
+Per spec [B-PR-05] + the locked apply-to-CR product decision:
 - Available during an active forecast cycle, including pre-existing
   scenarios.
 - Only diffs within the PL's edit authority are carried forward (forecast
   grid values, milestone dates, resource plan changes on own projects).
 - Portfolio-level / cross-project diffs are left behind with a message.
-- Scenario-originated values are marked with a provenance indicator
-  (consistent with the ``is_provisional`` marker pattern from Cluster C).
-- Scenario is NOT consumed; same scenario can be applied multiple times.
+- Each eligible own-project diff becomes one **draft** ChangeRequest per
+  cost centre (grouped exactly like the Rolling Forecast wizard), authored
+  by the applying PL, tagged with ``source_scenario_id``. Apply NO LONGER
+  writes provisional Forecast cells — the live forecast is left untouched
+  until the PL submits the draft CR(s) through the normal workflow.
+- Scenario is NOT consumed; same scenario can be applied multiple times
+  (re-apply replaces this scenario's prior draft CRs for the project).
 
 Per [B-OQ-02] working assumption: provenance note IS visible to the
-controller in the resulting forecast submission metadata.
+controller in the resulting Change Requests' metadata.
 """
 
 from __future__ import annotations
@@ -65,8 +70,8 @@ class ApplyToForecastError(Exception):
 #   - ``external_cost`` — added / removed / edited external-cost line items.
 #   - ``forecast_grid`` already covers internal cell edits AND the structural
 #     add/remove of role and external lines (``collect_overlay_diffs`` classifies
-#     every ``ScenarioLineEdit`` as forecast_grid), so the resolved-grid
-#     materialisation carries those line changes as provisional cells.
+#     every ``ScenarioLineEdit`` as forecast_grid), so the resolved-grid diff
+#     stages those line changes as draft-CR change details.
 # Portfolio-level / cross-project diffs stay OUT — PL authority is own-project
 # only, enforced by the scope + ownership checks in ``is_pl_carry_eligible``.
 PL_FORECAST_CARRY_CATEGORIES = {
@@ -200,28 +205,40 @@ def apply_to_forecast(
     carried = 0
     skipped = 0
 
-    # Materialise each eligible project's resolved grid once (cache by project).
+    # Stage each eligible project's diff into draft CR(s) once (cache by project).
+    # Value = number of draft CRs created for that project (0 == empty diff).
     materialized: dict[str, int] = {}
 
     for a in actions:
         eligible, reason = is_pl_carry_eligible(a, pl_projects)
         if eligible:
-            # De-stubbed write path (spec §6): materialise the project's resolved
-            # values into the next cycle as provisional Forecast cells (values +
-            # is_provisional=True), instead of merely flagging existing cells.
+            # Apply-to-CR path: diff the project's resolved (scenario-adjusted)
+            # grid against the live forecast baseline and stage the changes as
+            # draft Change Requests (one per cost centre) — NO provisional cells.
             if a.project_id not in materialized:
                 materialized[a.project_id] = _materialize_project(
-                    db, scenario, a.project_id,
+                    db, scenario, a.project_id, user,
                 )
-            cells_marked = materialized[a.project_id]
-            summary.append({
-                "action_id": a.id,
-                "project_id": a.project_id,
-                "status": "carried",
-                "message": reason,
-                "cells_marked_provisional": cells_marked,
-            })
-            carried += 1
+            crs_created = materialized[a.project_id]
+            if crs_created > 0:
+                summary.append({
+                    "action_id": a.id,
+                    "project_id": a.project_id,
+                    "status": "carried",
+                    "message": reason,
+                    "change_requests_created": crs_created,
+                })
+                carried += 1
+            else:
+                summary.append({
+                    "action_id": a.id,
+                    "project_id": a.project_id,
+                    "status": "skipped",
+                    "message": (
+                        f"{reason} (no change vs live forecast — no draft CR created)."
+                    ),
+                })
+                skipped += 1
         else:
             summary.append({
                 "action_id": a.id,
@@ -233,18 +250,19 @@ def apply_to_forecast(
 
     # Overlay-only projects (spec §6, §10): a project edited purely via the
     # Layer-2 overlay has no ScenarioAction to iterate above, so it would never
-    # carry forward. Enumerate the scenario's forecast overlay diffs and
-    # materialise the PL's own overlay-only projects (mirrors the promote path's
+    # carry forward. Enumerate the scenario's forecast overlay diffs and stage
+    # the PL's own overlay-only projects as draft CRs (mirrors the promote path's
     # _overlay_forecast_routes). Non-owned overlay is left behind.
     #
     # Widened eligibility (spec §10): the ``forecast_grid`` filter below carries
     # the FULL project-scope edit surface, not just internal cell edits —
     # ``collect_overlay_diffs`` classifies every ``ScenarioLineEdit`` (external-
     # cost add/remove/edit AND role-line add/remove) as ``forecast_grid``, so a
-    # project touched by those alone is materialised, and ``_materialize_project``
+    # project touched by those alone is staged, and ``_materialize_project``
     # resolves the full grid (cells + external lines + structural line changes)
-    # into provisional cells. Portfolio / cross-project diffs are not
-    # ``forecast_grid`` and stay left behind (PL authority is own-project only).
+    # and diffs it into draft CR change details. Portfolio / cross-project diffs
+    # are not ``forecast_grid`` and stay left behind (PL authority is own-project
+    # only).
     from services.scenario_project_scope.routing import collect_overlay_diffs
 
     overlay_projects: dict[str, bool] = {}  # project_id -> owned-by-this-PL
@@ -256,16 +274,28 @@ def apply_to_forecast(
         overlay_projects.setdefault(d.project_id, d.project_id in pl_projects)
     for pid, owned in overlay_projects.items():
         if owned:
-            cells = _materialize_project(db, scenario, pid)
-            materialized[pid] = cells
-            summary.append({
-                "action_id": None,
-                "project_id": pid,
-                "status": "carried",
-                "message": "Layer-2 overlay edits carried forward (no action).",
-                "cells_marked_provisional": cells,
-            })
-            carried += 1
+            crs_created = _materialize_project(db, scenario, pid, user)
+            materialized[pid] = crs_created
+            if crs_created > 0:
+                summary.append({
+                    "action_id": None,
+                    "project_id": pid,
+                    "status": "carried",
+                    "message": "Layer-2 overlay edits staged as draft CR(s) (no action).",
+                    "change_requests_created": crs_created,
+                })
+                carried += 1
+            else:
+                summary.append({
+                    "action_id": None,
+                    "project_id": pid,
+                    "status": "skipped",
+                    "message": (
+                        "Layer-2 overlay edits net to no change vs live forecast — "
+                        "no draft CR created."
+                    ),
+                })
+                skipped += 1
         else:
             summary.append({
                 "action_id": None,
@@ -295,29 +325,60 @@ def apply_to_forecast(
         "applied_at": event.applied_at.isoformat(),
         "diffs_carried_forward": carried,
         "diffs_skipped": skipped,
+        "draft_change_requests_created": sum(
+            s.get("change_requests_created", 0) for s in summary
+        ),
         "summary": summary,
         "provenance_note": (
-            "Provenance: scenario-originated values marked with "
-            "is_provisional=True. Visible to controller."
+            "Provenance: scenario-originated changes staged as draft Change "
+            "Requests for the PL to refine and submit. The live forecast is "
+            "unchanged until submission. Visible to controller."
         ),
     }
 
 
-def _materialize_project(db: Session, scenario: Scenario, project_id: str) -> int:
-    """Materialise a project's resolved grid into provisional cells.
+def _materialize_project(
+    db: Session, scenario: Scenario, project_id: str, user: CurrentUser,
+) -> int:
+    """Stage a project's scenario diff as draft Change Request(s).
 
-    Resolves the project's plan (anchor -> macros -> overlay, spec §5.1) via the
-    project-scope recompute core, then writes the resolved values into the next
-    cycle as Forecast cells with ``is_provisional=True`` AND values (spec §6) —
-    replacing the legacy flag-only marking.
+    Resolves the project's adjusted plan (anchor -> macros -> overlay, spec §5.1)
+    via the project-scope recompute core, diffs it against the live forecast
+    baseline, and stages the per-cell changes as draft Change Requests — one per
+    cost centre, authored by the applying PL, tagged with ``source_scenario_id``
+    (re-apply replaces this scenario's prior draft CRs for the project). The live
+    forecast is NOT mutated. Returns the number of draft CRs created (0 == empty
+    diff, so no CR).
     """
     if not project_id:
         return 0
 
-    from services.scenario_project_scope.resolution import resolve_project_grid
-    from services.scenario_project_scope.routing import (
-        materialize_provisional_cells,
+    from services.change_request_factory import (
+        create_change_requests,
+        group_details_by_cost_center,
     )
+    from services.scenario_project_scope.resolution import (
+        read_anchor_grid,
+        resolve_project_grid,
+    )
+    from services.scenario_project_scope.routing import diff_grids_to_details
 
-    grid = resolve_project_grid(db, scenario, project_id)
-    return materialize_provisional_cells(db, scenario, [grid])
+    anchor = read_anchor_grid(db, project_id)
+    adjusted = resolve_project_grid(db, scenario, project_id)
+    details = diff_grids_to_details(adjusted, anchor)
+    if not details:
+        return 0  # no change vs live forecast — no CR for this project
+
+    groups = group_details_by_cost_center(
+        db, project_id, details,
+        summary_label="Scenario apply",
+        justification=(
+            f"Staged from What-If scenario #{scenario.id} "
+            f"({scenario.name}) via apply-to-forecast."
+        ),
+    )
+    crs = create_change_requests(
+        db, project_id=project_id, submitted_by_id=user.person_id,
+        groups=groups, initial_status="draft", source_scenario_id=scenario.id,
+    )
+    return len(crs)
