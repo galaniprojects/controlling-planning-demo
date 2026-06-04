@@ -24,6 +24,7 @@ import { ArrowLeft, History, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { parseServerTimestamp } from '@/lib/formatters';
 import { useCanPromote } from '../permissions';
 import { useScenarioContext } from '../useScenarioContext';
 import type {
@@ -304,7 +305,10 @@ export function PromoteReviewPage() {
             <p>
               Applied {executeResult.promoted_count} diff
               {executeResult.promoted_count === 1 ? '' : 's'} at{' '}
-              <span className="font-mono">{executeResult.promoted_at}</span>.
+              <span className="font-mono">
+                {new Date(parseServerTimestamp(executeResult.promoted_at)).toLocaleString()}
+              </span>
+              .
               {executeResult.skipped_count > 0 && (
                 <>
                   {' '}

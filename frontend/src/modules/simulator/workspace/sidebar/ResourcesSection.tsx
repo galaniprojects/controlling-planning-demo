@@ -10,30 +10,22 @@
  * surface key. The actual surface components live under `surfaces/`.
  */
 
+import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight, Sliders, UserPlus, UserMinus, Users, MoveRight } from 'lucide-react';
 import { useTier3 } from '../../permissions';
 import { useScenarioContext } from '../../useScenarioContext';
 import { Badge } from '@/components/ui/badge';
-
-interface Props {
-  /** Called when the user picks a surface or restructuring action.
-   *  T1's WorkspaceSidebar should map (surfaceKey | actionId) to a
-   *  workspace navigation. Falls back to a no-op if not provided. */
-  onSelectSurface?: (
-    target:
-      | { kind: 'surface'; surfaceKey: 'people_master' | 'capacity_parameters' }
-      | { kind: 'action'; actionId: string },
-  ) => void;
-}
 
 interface ResourceEntry {
   id: string;
   label: string;
   description: string;
   icon: typeof Sliders;
-  target:
-    | { kind: 'surface'; surfaceKey: 'people_master' | 'capacity_parameters' }
-    | { kind: 'action'; actionId: string };
+  /** Route surface key handled by ScenarioWorkspacePage's `renderSurface`. */
+  surfaceKey: 'people-master' | 'capacity-parameters';
+  /** Optional `:entityId` segment — the restructuring action to pre-open
+   *  inside the People master surface. */
+  actionId?: string;
 }
 
 const RESOURCE_ENTRIES: ResourceEntry[] = [
@@ -42,48 +34,59 @@ const RESOURCE_ENTRIES: ResourceEntry[] = [
     label: 'People master data',
     description: 'Hire, depart, or reassign people in the sandbox.',
     icon: Users,
-    target: { kind: 'surface', surfaceKey: 'people_master' },
+    surfaceKey: 'people-master',
   },
   {
     id: 'capacity-parameters',
     label: 'Capacity parameters',
     description: 'Adjust available hours per location.',
     icon: Sliders,
-    target: { kind: 'surface', surfaceKey: 'capacity_parameters' },
+    surfaceKey: 'capacity-parameters',
   },
   {
     id: 'remove-role',
     label: 'Remove role from portfolio',
     description: 'Cascade: zero allocations, surface affected projects.',
     icon: UserMinus,
-    target: { kind: 'action', actionId: 'remove-role' },
+    surfaceKey: 'people-master',
+    actionId: 'remove-role',
   },
   {
     id: 'reduce-headcount',
     label: 'Reduce headcount by location',
     description: 'Tighten supply pool by N people or N%.',
     icon: Users,
-    target: { kind: 'action', actionId: 'reduce-headcount' },
+    surfaceKey: 'people-master',
+    actionId: 'reduce-headcount',
   },
   {
     id: 'relocate-team',
     label: 'Relocate team',
     description: 'Move headcount block between locations.',
     icon: MoveRight,
-    target: { kind: 'action', actionId: 'relocate-team' },
+    surfaceKey: 'people-master',
+    actionId: 'relocate-team',
   },
   {
     id: 'hire-block',
     label: 'Hire block',
     description: 'Add hypothetical FTEs to the capacity pool.',
     icon: UserPlus,
-    target: { kind: 'action', actionId: 'hire-block' },
+    surfaceKey: 'people-master',
+    actionId: 'hire-block',
   },
 ];
 
-export function ResourcesSection({ onSelectSurface }: Props) {
+export function ResourcesSection() {
   const { tier3Visible } = useScenarioContext();
   const hasTier3 = useTier3({ impactTier3Visible: tier3Visible });
+  const navigate = useNavigate();
+  const params = useParams<{ id: string }>();
+
+  const navigateToEntry = (entry: ResourceEntry) => {
+    const base = `/simulator/scenarios/${params.id}/surface/${entry.surfaceKey}`;
+    navigate(entry.actionId ? `${base}/${entry.actionId}` : base);
+  };
 
   // Hidden DOM — render nothing for non-Tier-3 users.
   if (!hasTier3) return null;
@@ -107,7 +110,7 @@ export function ResourcesSection({ onSelectSurface }: Props) {
           <li key={entry.id}>
             <button
               type="button"
-              onClick={() => onSelectSurface?.(entry.target)}
+              onClick={() => navigateToEntry(entry)}
               className="group flex w-full items-start gap-2 rounded-md border border-border bg-card p-2.5 text-left transition-colors hover:border-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <entry.icon className="mt-0.5 h-4 w-4 text-muted-foreground group-hover:text-primary" />

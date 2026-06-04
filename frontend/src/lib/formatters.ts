@@ -94,3 +94,21 @@ export function formatPercent(
 export function formatDecimal(value: number, decimals: number = 2): string {
   return value.toFixed(decimals).replace('.', ',');
 }
+
+/**
+ * Parse a backend timestamp string to epoch millis, treating it as UTC.
+ *
+ * The backend emits naive UTC timestamps via `str(datetime.utcnow())` /
+ * `.isoformat()`, e.g. `"2026-06-04 10:30:00.123456"` or
+ * `"2026-06-04T10:30:00.123456"` — no timezone designator. `Date.parse` would
+ * treat a tz-less string as LOCAL time, skewing any "N ago" / localized
+ * display by the viewer's UTC offset (and some engines reject the
+ * space separator outright). Normalise to ISO-UTC: swap a space for `T` and
+ * append `Z` when no timezone designator is present. Returns `NaN` on
+ * unparseable input (callers should guard).
+ */
+export function parseServerTimestamp(raw: string): number {
+  const s = raw.trim().replace(' ', 'T');
+  const hasTz = /([zZ]|[+-]\d{2}:?\d{2})$/.test(s);
+  return Date.parse(hasTz ? s : `${s}Z`);
+}

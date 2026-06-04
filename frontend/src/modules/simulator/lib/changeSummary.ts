@@ -25,6 +25,36 @@ export function changeKindLabel(kind: ChangeSummaryKind): string {
   return KIND_LABELS[kind] ?? kind;
 }
 
+/**
+ * Promotable kinds — the actual diffs the scenario carries against the live
+ * forecast: project-scope actions plus the cost-allocation surfaces (Stage 1
+ * distribution, Stage 2 BTC, to-business %). Everything else — metadata edits,
+ * lifecycle transitions (publish / unpublish / archive / rebase), and the
+ * promote / apply workflow events — is recorded in the feed for context but is
+ * not a diff, so it must not inflate the change-summary badge count.
+ */
+const PROMOTABLE_KINDS: ReadonlySet<ChangeSummaryKind> = new Set<ChangeSummaryKind>([
+  'action',
+  'cost_allocation_distribution',
+  'cost_allocation_btc',
+  'cost_allocation_to_business',
+]);
+
+/** True when the entry represents a promotable diff (vs. workflow noise). */
+export function isPromotableKind(kind: ChangeSummaryKind): boolean {
+  return PROMOTABLE_KINDS.has(kind);
+}
+
+/**
+ * Entries that count toward the change-summary badge — i.e. actual diffs the
+ * scenario carries against the live forecast. Filters out metadata / lifecycle
+ * / promote / apply events so the badge reflects pending changes, not workflow
+ * noise.
+ */
+export function diffEntries(entries: ChangeSummaryEntry[]): ChangeSummaryEntry[] {
+  return entries.filter((e) => isPromotableKind(e.kind));
+}
+
 export function formatRelativeTime(timestampMs: number, now: number = Date.now()): string {
   const diff = Math.max(0, now - timestampMs);
   const seconds = Math.round(diff / 1000);

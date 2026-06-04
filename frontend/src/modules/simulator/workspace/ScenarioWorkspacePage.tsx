@@ -35,6 +35,7 @@ import { BacklogSection } from './sidebar/BacklogSection';
 import { PortfolioSettingsSection } from './sidebar/PortfolioSettingsSection';
 import { SandboxBorder } from './SandboxBorder';
 import { ChangeSummaryDrawer } from '../drawer/ChangeSummaryDrawer';
+import { diffEntries } from '../lib/changeSummary';
 import { ImpactSummaryStripContainer } from './impact/ImpactSummaryStripContainer';
 import {
   ForecastGridSurface,
@@ -49,7 +50,7 @@ import {
   PipelineStageSurface,
   TechNavigatorScoreSurface,
 } from '../surfaces';
-import { PeopleMasterSurface } from '../surfaces/PeopleMasterSurface';
+import { PeopleMasterSurface, type PeopleMasterActionId } from '../surfaces/PeopleMasterSurface';
 import { CapacityParametersSurface } from '../surfaces/CapacityParametersSurface';
 import { BulkActionsSection } from './sidebar/BulkActionsSection';
 import { ResourcesSection } from './sidebar/ResourcesSection';
@@ -89,7 +90,10 @@ function renderSurface(
     case 'tech-navigator-score':
       return <TechNavigatorScoreSurface projectId={entityId ?? ''} />;
     case 'people-master':
-      return <PeopleMasterSurface />;
+      // F7: the optional `:entityId` segment carries the restructuring action
+      // to pre-open (remove-role / reduce-headcount / relocate-team / hire-block).
+      // An unrecognised value falls through to the tile list inside the surface.
+      return <PeopleMasterSurface initialActionId={entityId as PeopleMasterActionId | undefined} />;
     case 'capacity-parameters':
       return <CapacityParametersSurface />;
     default:
@@ -103,6 +107,11 @@ function ScenarioWorkspaceInner() {
   const params = useParams<{ surfaceKey?: string; entityId?: string }>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [advisorOpen, setAdvisorOpen] = useState(false);
+
+  // Badge counts only promotable diffs against the live forecast (actions +
+  // cost-allocation surfaces); metadata / lifecycle / promote / apply events
+  // are recorded in the feed for context but are not diffs.
+  const diffCount = diffEntries(ctx.changeSummaryEntries).length;
 
   // Lazy-load advisor only when the flag is on.
   const [AdvisorPanel, setAdvisorPanel] = useState<React.ComponentType<{
@@ -197,9 +206,9 @@ function ScenarioWorkspaceInner() {
       >
         <History className="h-4 w-4 mr-1.5" aria-hidden="true" />
         Change summary
-        {ctx.changeSummaryEntries.length > 0 && (
+        {diffCount > 0 && (
           <span className="ml-2 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-primary-foreground text-primary text-[10px] font-tabular">
-            {ctx.changeSummaryEntries.length}
+            {diffCount}
           </span>
         )}
       </Button>

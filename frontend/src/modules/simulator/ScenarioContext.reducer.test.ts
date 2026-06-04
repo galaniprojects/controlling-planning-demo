@@ -75,6 +75,29 @@ describe('ScenarioContext reducer — debounce mechanics (§7)', () => {
     expect(next.mutationSeq).toBe(edited.mutationSeq);
   });
 
+  it('SET_IMPACT clears the loading flag raised by LOAD_START (F4)', () => {
+    // recalculate() dispatches LOAD_START → SET_IMPACT → CLEAR_STALE. SET_IMPACT
+    // must clear `loading` (and any stale error), otherwise the recalc button
+    // stays stuck spinning after the first successful recompute.
+    const loading = reducer(initialState, { type: 'LOAD_START' });
+    expect(loading.loading).toBe(true);
+
+    const impact = { stale: false } as ImpactDashboardResponse;
+    const done = reducer(loading, { type: 'SET_IMPACT', impact });
+    expect(done.loading).toBe(false);
+    expect(done.error).toBeNull();
+    expect(done.impact).toBe(impact);
+  });
+
+  it('SET_IMPACT clears a prior error left by a failed load', () => {
+    const errored = reducer(initialState, { type: 'LOAD_ERROR', error: 'boom' });
+    expect(errored.error).toBe('boom');
+    const impact = { stale: true } as ImpactDashboardResponse;
+    const recovered = reducer(errored, { type: 'SET_IMPACT', impact });
+    expect(recovered.error).toBeNull();
+    expect(recovered.stale).toBe(true);
+  });
+
   it('RESET returns mutationSeq to 0 so a scenario switch cannot trigger a stray recompute', () => {
     const edited = reducer(initialState, { type: 'MARK_STALE' });
     const reset = reducer(edited, { type: 'RESET' });

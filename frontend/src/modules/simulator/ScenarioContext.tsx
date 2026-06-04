@@ -164,7 +164,17 @@ export function reducer(state: ScenarioReducerState, action: Action): ScenarioRe
           : state.mutationSeq,
       };
     case 'SET_IMPACT':
-      return { ...state, impact: action.impact, stale: action.impact.stale };
+      // F4: a successful recalc dispatches LOAD_START → SET_IMPACT → CLEAR_STALE.
+      // SET_IMPACT must clear the `loading` flag raised by LOAD_START (and any
+      // stale error), otherwise the recalc button stays stuck in its spinner
+      // state forever after the first recompute.
+      return {
+        ...state,
+        loading: false,
+        error: null,
+        impact: action.impact,
+        stale: action.impact.stale,
+      };
     case 'MARK_STALE':
       return { ...state, stale: true, mutationSeq: state.mutationSeq + 1 };
     case 'CLEAR_STALE':
