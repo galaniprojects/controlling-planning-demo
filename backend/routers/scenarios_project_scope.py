@@ -937,6 +937,14 @@ def write_mix_change(
     if body.hours_per_month_swap is None or body.hours_per_month_swap <= 0:
         raise HTTPException(422, "hours_per_month_swap must be a positive number.")
 
+    # Validate the swap roles exist (parity with add_role_line + the location guard
+    # below) — an unknown role would otherwise dangle the same way an unknown
+    # location would.
+    from models.people import RoleType
+    for role_id in (body.swap_from_role_id, body.swap_to_role_id):
+        if db.query(RoleType).filter(RoleType.id == role_id).first() is None:
+            raise HTTPException(422, f"role_type_id '{role_id}' not found.")
+
     from services.calendar import open_forecast_month
     open_month = open_forecast_month()
     if body.effective_from < open_month:

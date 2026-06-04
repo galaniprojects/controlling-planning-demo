@@ -229,7 +229,12 @@ def _emit_internal_rows(
             if _should_have_actuals(mo, proj):
                 var = _variance(rag)
                 a_hours = round(f_hours * var) if f_hours is not None else None
-                a_amount = (a_hours * _rate_at_month(role, loc, mo)) if a_hours is not None else (f_amount * var)
+                # Both branches stay rate-at-month: hours×month-rate when hours
+                # exist, else scale the (current-rate) f_amount by the period ratio
+                # (mo_rate/rate ∈ {0.95, 1.0}) so a future None-hours internal entry
+                # can't silently mis-price historical actuals.
+                a_amount = (a_hours * _rate_at_month(role, loc, mo)) if a_hours is not None \
+                    else (f_amount * var * _rate_at_month(role, loc, mo) / rate)
                 rows_actuals.append(
                     f"({sql_str(pid)}, {sql_str(mo)}, 'internal', {sql_str(role)}, "
                     f"{a_hours}, {a_amount:.2f}, NULL, {sql_str(co)}, NULL, NULL, NULL, "
@@ -238,7 +243,8 @@ def _emit_internal_rows(
             elif _should_have_partial_actuals(mo, proj):
                 partial = random.uniform(0.40, 0.60)
                 a_hours = round(f_hours * partial) if f_hours is not None else None
-                a_amount = (a_hours * _rate_at_month(role, loc, mo)) if a_hours is not None else (f_amount * partial)
+                a_amount = (a_hours * _rate_at_month(role, loc, mo)) if a_hours is not None \
+                    else (f_amount * partial * _rate_at_month(role, loc, mo) / rate)
                 rows_actuals.append(
                     f"({sql_str(pid)}, {sql_str(mo)}, 'internal', {sql_str(role)}, "
                     f"{a_hours}, {a_amount:.2f}, NULL, {sql_str(co)}, NULL, NULL, NULL, "
@@ -252,7 +258,13 @@ def _emit_external_rows(
     rows_forecast: list[str],
     rows_actuals: list[str],
 ) -> None:
-    """Emit rows for external cost line items for one project."""
+    """Emit rows for external cost line items for one project.
+
+    External costs are flat EUR amounts (not hours × rate), so the S6 rate-at-month
+    re-price deliberately does NOT apply here — externals carry no previous-period
+    (95%) value and stay constant across the rate step, consistent with the engine
+    having no external rate recompute. (Internal lines step; externals do not.)
+    """
     pid = proj["id"]
     rag = proj.get("rag_status")
     externals = PROJECT_EXTERNALS.get(pid, [])

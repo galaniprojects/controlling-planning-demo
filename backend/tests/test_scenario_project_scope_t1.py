@@ -651,6 +651,21 @@ def test_mix_put_rejects_unknown_location_422(db, test_client, t1_world):
     assert resp.status_code == 422, resp.text
 
 
+def test_mix_put_rejects_unknown_role_422(db, test_client, t1_world):
+    """An unknown swap role is rejected (parity with the location guard +
+    add_role_line) — an unknown role would otherwise dangle."""
+    sid, pid = t1_world["sid"], t1_world["pid"]
+    resp = test_client.put(
+        f"/api/scenarios/{sid}/projects/{pid}/mix",
+        json={
+            "swap_from_role_id": "R1", "swap_to_role_id": "role-does-not-exist",
+            "hours_per_month_swap": 40, "effective_from": "2026-06",
+        },
+        headers=_hdr(CONTROLLER),
+    )
+    assert resp.status_code == 422, resp.text
+
+
 def test_mix_delete_clears(db, test_client, t1_world):
     sid, pid = t1_world["sid"], t1_world["pid"]
     test_client.put(
