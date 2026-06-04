@@ -13,6 +13,7 @@ from decimal import Decimal
 
 import pytest
 
+from models.change_requests import ChangeRequest, CRChangeDetail
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargeableEntity, ChargingLocation, Distribution,
 )
@@ -492,6 +493,25 @@ class TestMacroPromote:
         mac = [s for s in result["summary"] if s["target_id"] == "p-mac-f"]
         assert mac and mac[0]["routing_type"] == "change_request"
 
+        # F8: the other-PL diff is now routed to a DRAFT CR authored by the
+        # project's PL (it no longer silently vanishes).
+        crs = (
+            db.query(ChangeRequest)
+            .filter(ChangeRequest.project_id == "p-mac-f")
+            .all()
+        )
+        assert crs, "expected at least one draft CR for the other-PL project"
+        for cr in crs:
+            assert cr.status == "draft"
+            assert cr.submitted_by_id == "p-someone-else"  # the project's PL
+            assert cr.source_scenario_id == cycle_anchor["scenario_id"]
+        details = (
+            db.query(CRChangeDetail)
+            .filter(CRChangeDetail.change_request_id.in_([c.id for c in crs]))
+            .all()
+        )
+        assert details, "expected CRChangeDetail rows on the draft CR(s)"
+
     def test_macro_plus_overlay_written_once(self, db, cycle_anchor,
                                              controller_user_obj):
         # A project with BOTH a macro and an overlay cell edit must be written
@@ -530,3 +550,156 @@ class TestMacroPromote:
         # Only one promote summary entry targets the project (no overlay-route dup).
         targets = [s for s in result["summary"] if s["target_id"] == "p-mac-ov"]
         assert len(targets) == 1
+
+
+# ---------------------------------------------------------------------------
+# F8: other-PL forecast diffs route to a DRAFT Change Request (no silent drop)
+# ---------------------------------------------------------------------------
+
+class TestPromoteOtherPLDraftCR:
+    def test_other_pl_creates_one_draft_cr_per_cost_center(
+        self, db, cycle_anchor, controller_user_obj, seed_org_base,
+    ):
+        """A delayed other-PL project staffed across two cost centres produces one
+        draft CR per cost centre, authored by the project's PL."""
+        from models.capacity import Allocation
+        from models.organization import CostCenter
+        from models.people import Person
+
+        # Two cost centres, two people in different roles/CCs.
+        db.add_all([
+            CostCenter(id="cc-a", name="CC A", location_id="loc-muc",
+                       competence_center_id="comp-dev"),
+            CostCenter(id="cc-b", name="CC B", location_id="loc-muc",
+                       competence_center_id="comp-dev"),
+        ])
+        db.add_all([
+            Person(id="p-r1", name="Role One", role_type_id="role-dev",
+                   cost_center_id="cc-a", competence_center_id="comp-dev"),
+            Person(id="p-r2", name="Role Two", role_type_id="role-pm",
+                   cost_center_id="cc-b", competence_center_id="comp-dev"),
+        ])
+        # Project owned by a different PL → other-PL routing.
+        db.add(Project(
+            id="p-multi", name="Multi CC", pipeline_stage="Active",
+            capex_opex="opex", start_month="2026-06", end_month="2026-07",
+            pl_person_id="p-other-pl",
+        ))
+        # Two internal forecast lines (role-dev, role-pm), one per cost centre.
+        for month in ("2026-06", "2026-07"):
+            db.add(Forecast(
+                project_id="p-multi", month=month, category="internal",
+                sub_category="role-dev", role_type_id=None,
+                amount_eur=1000.0, hours=10.0,
+            ))
+            db.add(Forecast(
+                project_id="p-multi", month=month, category="internal",
+                sub_category="role-pm", role_type_id=None,
+                amount_eur=2000.0, hours=10.0,
+            ))
+        # Allocations so the factory maps each role to its cost centre.
+        db.add_all([
+            Allocation(person_id="p-r1", project_id="p-multi", month="2026-06",
+                       hours=10.0),
+            Allocation(person_id="p-r2", project_id="p-multi", month="2026-06",
+                       hours=10.0),
+        ])
+        db.add(ScenarioAction(
+            scenario_id=cycle_anchor["scenario_id"], action_order=1,
+            scope="project", action_type="delay_project", project_id="p-multi",
+            parameters_json='{"delay_months": 2}', lever_category="forecast_grid",
+        ))
+        db.commit()
+
+        execute_promote(db, cycle_anchor["scenario_id"], user=controller_user_obj)
+        db.commit()
+
+        crs = (
+            db.query(ChangeRequest)
+            .filter(ChangeRequest.project_id == "p-multi")
+            .all()
+        )
+        # One CR per distinct cost centre (cc-a, cc-b).
+        assert len(crs) == 2
+        assert {cr.status for cr in crs} == {"draft"}
+        assert {cr.submitted_by_id for cr in crs} == {"p-other-pl"}
+        cc_ids = {
+            d.line_item_type for cr in crs for d in cr.change_details
+        }
+        assert "role-dev" in cc_ids and "role-pm" in cc_ids
+
+    def test_rerun_does_not_duplicate_draft_crs(
+        self, db, cycle_anchor, controller_user_obj, seed_org_base,
+    ):
+        """Re-running execute_promote replaces (not duplicates) the prior draft
+        CRs for the project (factory dedupe via source_scenario_id)."""
+        sid = cycle_anchor["scenario_id"]
+        db.add(Project(
+            id="p-ov-f", name="Overlay Foreign", pipeline_stage="Active",
+            capex_opex="opex", start_month="2026-06", end_month="2026-06",
+            pl_person_id="p-other-pl",
+        ))
+        db.add(Forecast(
+            project_id="p-ov-f", month="2026-06", category="internal",
+            sub_category="role-dev", role_type_id=None,
+            amount_eur=1000.0, hours=10.0,
+        ))
+        # Overlay edit changes the hours → a real diff (internal lines diff on
+        # hours; no macro action).
+        db.add(ScenarioForecastCellEdit(
+            scenario_id=sid, project_id="p-ov-f", line_key="internal|role-dev||",
+            month="2026-06", field="hours", value=20.0,
+        ))
+        db.commit()
+
+        execute_promote(db, sid, user=controller_user_obj)
+        db.commit()
+        first = (
+            db.query(ChangeRequest)
+            .filter(ChangeRequest.project_id == "p-ov-f")
+            .all()
+        )
+        assert len(first) >= 1
+
+        # Re-run: overlay route fires again (no actions consumed); dedupe replaces.
+        execute_promote(db, sid, user=controller_user_obj)
+        db.commit()
+        second = (
+            db.query(ChangeRequest)
+            .filter(ChangeRequest.project_id == "p-ov-f")
+            .all()
+        )
+        assert len(second) == len(first), "re-run must not duplicate draft CRs"
+
+    def test_other_pl_empty_diff_creates_no_cr(
+        self, db, cycle_anchor, controller_user_obj, seed_org_base,
+    ):
+        """An other-PL project whose overlay edit nets to no change creates no CR."""
+        sid = cycle_anchor["scenario_id"]
+        db.add(Project(
+            id="p-ov-empty", name="Overlay Empty", pipeline_stage="Active",
+            capex_opex="opex", start_month="2026-06", end_month="2026-06",
+            pl_person_id="p-other-pl",
+        ))
+        db.add(Forecast(
+            project_id="p-ov-empty", month="2026-06", category="internal",
+            sub_category="role-dev", role_type_id=None,
+            amount_eur=1000.0, hours=10.0,
+        ))
+        # Overlay edit sets the SAME hours → resolved diff is empty.
+        db.add(ScenarioForecastCellEdit(
+            scenario_id=sid, project_id="p-ov-empty",
+            line_key="internal|role-dev||", month="2026-06",
+            field="hours", value=10.0,
+        ))
+        db.commit()
+
+        execute_promote(db, sid, user=controller_user_obj)
+        db.commit()
+
+        crs = (
+            db.query(ChangeRequest)
+            .filter(ChangeRequest.project_id == "p-ov-empty")
+            .all()
+        )
+        assert crs == [], "empty diff must not create a change request"

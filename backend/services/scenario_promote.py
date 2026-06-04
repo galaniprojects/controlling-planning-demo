@@ -247,6 +247,50 @@ def _project_pl_id(db: Session, project_id: str) -> Optional[str]:
     return proj.pl_person_id if proj else None
 
 
+def _create_promote_draft_crs(
+    db: Session, scenario: Scenario, project_id: str,
+) -> list:
+    """Create draft Change Request(s) for an other-PL project's promoted forecast
+    diff (F8). Resolves the scenario-adjusted grid against the live anchor, diffs
+    it to CR details, groups them per cost centre, and creates one ``draft`` CR
+    per cost centre authored by the project's PL — reusing the shared
+    change-request factory (which also writes ``CRChangeDetail`` rows + resource
+    requests, and dedupes this scenario's prior draft CRs for the project on
+    re-run via ``source_scenario_id``). Returns the created CRs ([] if the diff
+    nets to zero, in which case no CR is created).
+
+    The controller-as-trigger provenance lives in the ``ScenarioPromotion`` audit
+    row; the CR itself is authored by the PL so it lands in their workbench.
+    """
+    from services.change_request_factory import (
+        create_change_requests, group_details_by_cost_center,
+    )
+    from services.scenario_project_scope.resolution import (
+        read_anchor_grid, resolve_project_grid,
+    )
+    from services.scenario_project_scope.routing import diff_grids_to_details
+
+    anchor = read_anchor_grid(db, project_id)
+    adjusted = resolve_project_grid(db, scenario, project_id)
+    details = diff_grids_to_details(adjusted, anchor)
+    if not details:
+        return []
+
+    pl_id = _project_pl_id(db, project_id)
+    groups = group_details_by_cost_center(
+        db, project_id, details,
+        summary_label="Scenario promote",
+        justification=(
+            f"Promoted from What-If scenario '{scenario.name}' "
+            f"(#{scenario.id}) by the controller."
+        ),
+    )
+    return create_change_requests(
+        db, project_id=project_id, submitted_by_id=pl_id,
+        groups=groups, initial_status="draft", source_scenario_id=scenario.id,
+    )
+
+
 # ---------------------------------------------------------------------------
 # [F-AC-01] permission check for cost allocation promotion
 # ---------------------------------------------------------------------------
@@ -344,8 +388,14 @@ def apply_routing(
     # Routes that generate downstream action items rather than mutating live
     # data immediately. These are 'success' for the promote step — the action
     # item itself is the output.
+    if rt == "change_request":
+        # Other-PL forecast diffs become draft CRs in the grid-aware promote
+        # loops (macro + overlay), NOT in this coarse per-action branch — that
+        # avoids double-creating across the three other-PL paths (decision #6).
+        # This branch only reports the routing; the loop creates the CR.
+        return True, "Routed to a draft change request via the promote loop."
     if rt in (
-        "change_request", "doi_gate_check", "tech_navigator_send_back",
+        "doi_gate_check", "tech_navigator_send_back",
         "rate_table_update", "people_action_item", "capacity_param_update",
     ):
         return True, f"Action item created via {rt}."
@@ -727,10 +777,20 @@ def execute_promote(
             )
             rt = "direct_forecast_update"
         else:
-            msg = (
-                f"Macro on {r['project_id']} routed to a change request "
-                "(other-PL project — not auto-written)."
-            )
+            # Other-PL project: the controller cannot write the PL's forecast
+            # directly, so route the resolved curve shift to a draft CR per cost
+            # centre authored by the project's PL (F8). Empty diff → no CR.
+            crs = _create_promote_draft_crs(db, scenario, r["project_id"])
+            if crs:
+                msg = (
+                    f"Routed to {len(crs)} draft change request(s) for the "
+                    f"project PL on {r['project_id']}."
+                )
+            else:
+                msg = (
+                    f"Macro on {r['project_id']} nets to no change — no draft "
+                    "change request created."
+                )
             rt = "change_request"
         for a in macro_actions:
             a.promoted_at = now
@@ -767,15 +827,26 @@ def execute_promote(
                     "target_id": ov["project_id"],
                 })
             else:
-                skipped_count += 1
+                # Other-PL overlay: route to a draft CR per cost centre authored
+                # by the project's PL (F8) rather than silently skipping. Empty
+                # diff → no CR.
+                crs = _create_promote_draft_crs(db, scenario, ov["project_id"])
+                promoted_count += 1
+                if crs:
+                    ov_msg = (
+                        f"Routed to {len(crs)} draft change request(s) for the "
+                        f"project PL on {ov['project_id']}."
+                    )
+                else:
+                    ov_msg = (
+                        f"Other-PL overlay on {ov['project_id']} nets to no "
+                        "change — no draft change request created."
+                    )
                 summary.append({
                     "action_id": None,
                     "routing_type": "change_request",
-                    "status": "skipped",
-                    "message": (
-                        f"Other-PL overlay on {ov['project_id']} routes to a change "
-                        "request (not auto-written)."
-                    ),
+                    "status": "promoted",
+                    "message": ov_msg,
                     "target_id": ov["project_id"],
                 })
 
