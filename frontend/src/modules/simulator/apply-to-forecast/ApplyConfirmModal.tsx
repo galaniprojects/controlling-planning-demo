@@ -3,14 +3,21 @@
  *
  * Two phases:
  *  1. confirm — user reviews scope (own-project diffs only) and clicks Apply.
- *  2. result — modal swaps to a summary of carried / skipped diffs.
+ *  2. result — modal swaps to a summary of the draft Change Requests created.
  *
- * Provenance is communicated via Cluster C's Forecast.is_provisional
- * flag; the modal surfaces the backend's provenance_note verbatim.
+ * Sim E2E S2: applying no longer writes provisional Forecast cells; instead
+ * it opens one DRAFT Change Request per cost centre. The result view counts
+ * those CRs and deep-links each one to its project's Workbench Change History.
  */
 
 import { useState } from 'react';
-import { ArrowDownToLine, CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  ArrowDownToLine,
+  AlertTriangle,
+  FileText,
+  ExternalLink,
+} from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -20,9 +27,13 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ApiError } from '@/api/client';
+import { navigateToWorkbenchByProject } from '@/lib/workbenchNavigation';
 import { useScenarioContext } from '../useScenarioContext';
 import { RebaseModal } from '../manager/RebaseModal';
-import type { ApplyToForecastResponse } from '../api/scenariosApi';
+import type {
+  ApplyToForecastResponse,
+  ApplyToForecastSummaryItem,
+} from '../api/scenariosApi';
 
 interface Props {
   open: boolean;
@@ -31,6 +42,7 @@ interface Props {
 
 export function ApplyConfirmModal({ open, onOpenChange }: Props) {
   const ctx = useScenarioContext();
+  const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<ApplyToForecastResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +82,26 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
     // Anchor refreshed — clear the guard so the user can retry Apply.
     setStaleAnchor(false);
   };
+
+  // Open the project's Workbench Change History so the controller can review
+  // the freshly-created draft CR. We navigate by project; the Change History
+  // tab surfaces the draft CR (and CRDetailModal) for that project.
+  const handleOpenChangeRequest = async (item: ApplyToForecastSummaryItem) => {
+    if (!item.project_id) return;
+    onOpenChange(false);
+    await navigateToWorkbenchByProject(item.project_id, navigate);
+  };
+
+  // Total draft CRs created: prefer the explicit top-level count, fall back to
+  // summing the per-item counts so the headline stays correct if either the
+  // aggregate or the per-row field is omitted by the backend.
+  const draftCrCount =
+    result?.draft_change_requests_created ??
+    (result?.summary.reduce(
+      (sum, item) => sum + (item.change_requests_created ?? 0),
+      0,
+    ) ??
+      0);
 
   return (
     // While the rebase modal is open, suppress this dialog's own overlay so
@@ -122,9 +154,9 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
               </p>
             </div>
             <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2 leading-relaxed">
-              Carried cells are flagged as <em>provisional</em> in the
-              Workbench grid. They remain editable and become canonical when
-              you submit your next forecast cycle.
+              Applying opens a <em>draft change request</em> per cost centre in
+              the Workbench. Nothing is written to the live forecast until each
+              CR is reviewed and approved.
             </div>
             {error && (
               <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
@@ -132,25 +164,26 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
           </div>
         ) : (
           <div className="space-y-3 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded border border-border p-2">
-                <div className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
-                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  Carried forward
-                </div>
-                <p className="text-xl font-semibold text-foreground mt-1">
-                  {result.diffs_carried_forward}
-                </p>
+            <div className="rounded border border-border p-3">
+              <div className="flex items-center gap-1.5 text-xs text-primary">
+                <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                Draft change requests created
               </div>
-              <div className="rounded border border-border p-2">
-                <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
-                  <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                  Skipped
-                </div>
-                <p className="text-xl font-semibold text-foreground mt-1">
-                  {result.diffs_skipped}
-                </p>
-              </div>
+              <p className="text-2xl font-semibold text-foreground mt-1">
+                {draftCrCount}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                One draft CR per affected cost centre. Review and approve each
+                in the Workbench to write the changes into the live forecast.
+                {result.diffs_skipped > 0 && (
+                  <>
+                    {' '}
+                    {result.diffs_skipped} diff
+                    {result.diffs_skipped === 1 ? '' : 's'} skipped
+                    (out-of-scope).
+                  </>
+                )}
+              </p>
             </div>
             <p className="text-xs text-muted-foreground">
               {result.provenance_note}
@@ -158,25 +191,46 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
             {result.summary.length > 0 && (
               <div className="max-h-48 overflow-y-auto border border-border rounded">
                 <ul className="divide-y divide-border">
-                  {result.summary.map((item) => (
-                    <li
-                      key={item.action_id}
-                      className="px-2 py-1.5 text-xs flex justify-between gap-2"
-                    >
-                      <span className="text-foreground">
-                        {item.project_id ?? `action #${item.action_id}`}
-                      </span>
-                      <span
-                        className={
-                          item.status === 'carried'
-                            ? 'text-emerald-700 dark:text-emerald-400'
-                            : 'text-muted-foreground'
-                        }
+                  {result.summary.map((item) => {
+                    const created = item.change_requests_created ?? 0;
+                    const hasCr =
+                      item.change_request_id != null && item.project_id != null;
+                    return (
+                      <li
+                        key={item.action_id}
+                        className="px-2 py-1.5 text-xs flex items-center justify-between gap-2"
                       >
-                        {item.status} — {item.message}
-                      </span>
-                    </li>
-                  ))}
+                        <span className="text-foreground truncate">
+                          {item.project_id ?? `action #${item.action_id}`}
+                          {created > 0 && (
+                            <span className="text-muted-foreground">
+                              {' '}
+                              — {created} draft CR{created === 1 ? '' : 's'}
+                            </span>
+                          )}
+                        </span>
+                        {hasCr ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 shrink-0 px-2 text-xs text-primary"
+                            onClick={() => handleOpenChangeRequest(item)}
+                          >
+                            Open CR
+                            <ExternalLink
+                              className="ml-1 h-3 w-3"
+                              aria-hidden="true"
+                            />
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground shrink-0">
+                            {item.message}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

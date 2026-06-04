@@ -165,7 +165,12 @@ export interface PromoteResultItem {
   routing_type: string;
   status: 'promoted' | 'skipped';
   message: string;
+  // For change_request routings, `target_id` carries the created draft CR id.
   target_id?: string | null;
+  // Explicit created-CR id (preferred when present). Sim E2E S2.
+  change_request_id?: number;
+  // Project the routed change request targets — enables a Workbench deep-link.
+  project_id?: string | null;
 }
 
 export interface PromoteExecuteResponse {
@@ -206,7 +211,13 @@ export interface ApplyToForecastSummaryItem {
   project_id?: string | null;
   status: string;
   message: string;
+  // Legacy provisional-cell framing — kept optional for backward compat.
   cells_marked_provisional?: number | null;
+  // Sim E2E S2: apply now creates draft Change Requests (one per cost
+  // centre) instead of writing provisional Forecast cells.
+  change_requests_created?: number;
+  // The created draft CR id, when a single CR maps to this item.
+  change_request_id?: number;
 }
 
 export interface ApplyToForecastResponse {
@@ -218,6 +229,8 @@ export interface ApplyToForecastResponse {
   diffs_skipped: number;
   summary: ApplyToForecastSummaryItem[];
   provenance_note: string;
+  // Sim E2E S2: total number of draft CRs created across all cost centres.
+  draft_change_requests_created?: number;
 }
 
 // ---------------------------------------------------------------------------
