@@ -41,6 +41,13 @@ class Baseline(Base):
     role_type_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("role_types.id"), nullable=True
     )
+    # S6 location-aware rates: workforce location an internal line is staffed at
+    # (loc-muc / loc-bud / loc-pun). Drives per-location rate resolution so the
+    # stored amount and any recompute price at the same location rate. Null for
+    # external lines and legacy rows.
+    location_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("locations.id"), nullable=True
+    )
 
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="baselines")
@@ -78,6 +85,11 @@ class Forecast(Base):
     role_type_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("role_types.id"), nullable=True
     )
+    # S6 location-aware rates: workforce location an internal line is staffed at
+    # (loc-muc / loc-bud / loc-pun). See Baseline.location_id for semantics.
+    location_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("locations.id"), nullable=True
+    )
     # C1 [C-FG-07]: provisional flag — True for months beyond the granularity boundary
     is_provisional: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0"
@@ -113,6 +125,11 @@ class Actuals(Base):
     # See Baseline.role_type_id for semantics.
     role_type_id: Mapped[Optional[str]] = mapped_column(
         ForeignKey("role_types.id"), nullable=True
+    )
+    # S6 location-aware rates: workforce location an internal line is staffed at
+    # (loc-muc / loc-bud / loc-pun). See Baseline.location_id for semantics.
+    location_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("locations.id"), nullable=True
     )
 
     # Relationships

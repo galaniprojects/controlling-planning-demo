@@ -275,7 +275,9 @@ def generate() -> str:
                     sql_str(mc["project_id"]),
                     sql_str(mc.get("cost_center_id")),
                     sql_str(mc.get("swap_from_role_id")),
+                    sql_str(mc.get("swap_from_location_id")),
                     sql_str(mc.get("swap_to_role_id")),
+                    sql_str(mc.get("swap_to_location_id")),
                     "NULL" if hpm is None else f"{hpm:.2f}",
                     sql_str(mc.get("effective_from")),
                     sql_str(s["created_at"]),
@@ -284,7 +286,8 @@ def generate() -> str:
     if mix_rows:
         parts.append(
             "\nINSERT INTO scenario_mix_changes (scenario_id, project_id, "
-            "cost_center_id, swap_from_role_id, swap_to_role_id, "
+            "cost_center_id, swap_from_role_id, swap_from_location_id, "
+            "swap_to_role_id, swap_to_location_id, "
             "hours_per_month_swap, effective_from, created_at) VALUES\n"
             + ",\n".join(mix_rows) + ";"
         )

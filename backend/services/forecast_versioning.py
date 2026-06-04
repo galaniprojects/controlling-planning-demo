@@ -240,15 +240,18 @@ def _collect_person_breakdown(
             entry["hours_by_month"].get(alloc.month, 0.0) + float(alloc.hours or 0.0)
         )
 
-    # Resolve rates once per (competence_center_id, month) pair across all
-    # months that any column actually consumes.
-    rate_cache: dict[tuple[str | None, str], float] = {}
+    # Resolve rates once per (competence_center_id, location_id, month) tuple
+    # across all months that any column actually consumes. Location is threaded
+    # so per-location rate rows price each person at their workforce location
+    # (S6 location-aware rates); a person with no location takes the resolver's
+    # Munich/any fallback, keeping pre-regen seed numbers stable.
+    rate_cache: dict[tuple[str | None, str | None, str], float] = {}
 
-    def _rate(cc_id: str | None, month: str) -> float:
-        key = (cc_id, month)
+    def _rate(cc_id: str | None, loc_id: str | None, month: str) -> float:
+        key = (cc_id, loc_id, month)
         if key not in rate_cache:
             rate_cache[key] = float(
-                resolve_hourly_rate(db, role_type_id, cc_id, month)
+                resolve_hourly_rate(db, role_type_id, cc_id, month, location_id=loc_id)
             )
         return rate_cache[key]
 
@@ -258,6 +261,9 @@ def _collect_person_breakdown(
         cost_center = entry["cost_center"]
         hours_by_month: dict[str, float] = entry["hours_by_month"]
         cc_id = person.competence_center_id
+        # Workforce location for the person (Person → CostCenter.location_id),
+        # threaded into rate resolution so each line prices at its location rate.
+        loc_id = cost_center.location_id if cost_center is not None else None
 
         cells: list[dict] = []
         row_total = 0.0
@@ -267,7 +273,7 @@ def _collect_person_breakdown(
 
             if cell_type == "monthly":
                 month_hours = hours_by_month.get(col_key, 0.0)
-                amount = month_hours * _rate(cc_id, col_key)
+                amount = month_hours * _rate(cc_id, loc_id, col_key)
                 cell_hours = round(month_hours, 2)
                 cell_amount = round(amount, 2)
                 is_provisional = col_key > horizon_end_month  # always False here
@@ -291,7 +297,7 @@ def _collect_person_breakdown(
                     if mh == 0.0:
                         continue
                     q_hours += mh
-                    q_amount += mh * _rate(cc_id, m)
+                    q_amount += mh * _rate(cc_id, loc_id, m)
                 cell_hours = round(q_hours, 2)
                 cell_amount = round(q_amount, 2)
                 cells.append({

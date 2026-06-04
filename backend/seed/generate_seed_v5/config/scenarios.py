@@ -94,12 +94,12 @@ _DWH_REGULAR_MONTHS = (
 )
 # (line_key, month, anchor_amount_eur) for every future external cell.
 _DWH_EXTERNAL_ANCHOR_CELLS: list[tuple] = (
-    [("external|ext-cloud|", m, 8000.0) for m in _DWH_REGULAR_MONTHS]
-    + [("external|ext-cloud|", "2027-04", 24000.0),
-       ("external|ext-cloud|", "2027-07", 24000.0)]
-    + [("external|ext-consulting|", m, 5000.0) for m in _DWH_REGULAR_MONTHS]
-    + [("external|ext-consulting|", "2027-04", 15000.0),
-       ("external|ext-consulting|", "2027-07", 15000.0)]
+    [("external|ext-cloud||", m, 8000.0) for m in _DWH_REGULAR_MONTHS]
+    + [("external|ext-cloud||", "2027-04", 24000.0),
+       ("external|ext-cloud||", "2027-07", 24000.0)]
+    + [("external|ext-consulting||", m, 5000.0) for m in _DWH_REGULAR_MONTHS]
+    + [("external|ext-consulting||", "2027-04", 15000.0),
+       ("external|ext-consulting||", "2027-07", 15000.0)]
 )
 _DWH_EXTERNAL_CELL_EDITS: list[dict] = [
     {
@@ -121,7 +121,7 @@ SCENARIOS: list[dict] = [
         "stable_key": "scn-mdh-rebalance",
         "name": "MDH BTC Rebalance — DE/PL/CZ",
         "description": (
-            "Lever 12 demo. Rebalance Master Data Hub BTC: shift 10pp from "
+            "Cost-allocation sandbox demo. Rebalance Master Data Hub BTC: shift 10pp from "
             "DE-Munich onto PL-Poznan (+5pp) and CZ-Prague (+5pp). Tier 1, "
             "controller-private until impact verified."
         ),
@@ -130,7 +130,7 @@ SCENARIOS: list[dict] = [
         "visibility": "private",
         "tier3_content_flag": False,
         "archived": False,
-        "tags": '["lever-12", "btc", "flagship"]',
+        "tags": '["cost-allocation-sandbox", "btc", "flagship"]',
         "cc_owner_scope_cc_id": None,
         "headline_impact": (
             '{"total_btc_pct_shift": 10, "affected_locations": 3, '
@@ -159,7 +159,7 @@ SCENARIOS: list[dict] = [
                 "project_id": "proj-mdh-rollout",  # FK target — flagship project
                 "lever_category": "cost_allocation",
                 "tier": 1,
-                "group_label": "Lever 12 / Stage 2 BTC",
+                "group_label": "Cost-allocation sandbox / Stage 2 BTC",
                 "parameters_json": (
                     '{"entity_id": "off-mdh", "year": 2026, "lines": ['
                     '{"charging_location_id": "cl-de-ber", "percentage": 1.13}, '
@@ -420,8 +420,11 @@ SCENARIOS: list[dict] = [
                     '"hours_per_month_swap": 40, '
                     '"effective_from": "2026-05"}'
                 ),
+                # S6 location-aware: 40h/mo move Sr Dev->Dev within loc-muc =
+                # 40 x (82 - 100) = -720 EUR/mo (was -1280, pre-location-aware,
+                # which double-counted the Pune dev line being repriced to Munich).
                 "impact_delta_json": (
-                    '{"budget_delta_eur_per_month": -1280, '
+                    '{"budget_delta_eur_per_month": -720, '
                     '"fte_change_sr_dev": -0.25, '
                     '"fte_change_dev": 0.25}'
                 ),
@@ -443,7 +446,9 @@ SCENARIOS: list[dict] = [
                 "project_id": "proj-mdh-rollout",
                 "cost_center_id": "cc-muc-apd",
                 "swap_from_role_id": "role-sr-dev",
+                "swap_from_location_id": "loc-muc",
                 "swap_to_role_id": "role-dev",
+                "swap_to_location_id": "loc-muc",
                 "hours_per_month_swap": 40,
                 "effective_from": "2026-05",
             },

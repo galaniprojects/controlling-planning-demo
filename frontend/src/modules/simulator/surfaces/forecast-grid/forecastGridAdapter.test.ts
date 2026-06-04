@@ -219,3 +219,105 @@ describe('buildCellIndex', () => {
     expect(c?.display_value).toBe(80);
   });
 });
+
+// ---------------------------------------------------------------------------
+// S6 location-aware rates — same-role-multi-location splits.
+//
+// The backend splits an internal role line per workforce location and encodes
+// the location as the 4th line_key segment ("internal|<sub>|<role>|<location>").
+// The adapter round-trips line_key onto `sub_category`, so two split lines must
+// stay distinct rows + distinct cell/working-edit keys.
+// ---------------------------------------------------------------------------
+
+function splitLocationResponse(): ScenarioGridResponse {
+  return {
+    scenario_id: 1,
+    project_id: 'proj-x',
+    start_month: '2026-05',
+    end_month: '2026-05',
+    open_month: '2026-04',
+    columns: [{ key: '2026-05', cell_type: 'monthly' }],
+    rows: [
+      {
+        line_key: 'internal|dev|role-dev|loc-muc',
+        category: 'internal',
+        kind: 'internal_role',
+        sub_category_name: 'Senior Developer',
+        hourly_rate: 120,
+        location_id: 'loc-muc',
+        location_name: 'Munich',
+        cells: [cell({ month: '2026-05', display_value: 80, anchor_value: 80, field: 'hours' })],
+      },
+      {
+        line_key: 'internal|dev|role-dev|loc-bud',
+        category: 'internal',
+        kind: 'internal_role',
+        sub_category_name: 'Senior Developer',
+        hourly_rate: 70,
+        location_id: 'loc-bud',
+        location_name: 'Budapest',
+        cells: [cell({ month: '2026-05', display_value: 40, anchor_value: 40, field: 'hours' })],
+      },
+    ],
+  };
+}
+
+describe('S6 location-aware row identity', () => {
+  it('keeps same-role-different-location lines as distinct rows (unique sub_category)', () => {
+    const rows = adaptRows(splitLocationResponse());
+    expect(rows).toHaveLength(2);
+    expect(rows[0].sub_category).toBe('internal|dev|role-dev|loc-muc');
+    expect(rows[1].sub_category).toBe('internal|dev|role-dev|loc-bud');
+    expect(rows[0].sub_category).not.toBe(rows[1].sub_category);
+    // Same display label — only the location chip distinguishes them in the UI.
+    expect(rows[0].sub_category_name).toBe(rows[1].sub_category_name);
+  });
+
+  it('carries location_name through to the grid row', () => {
+    const rows = adaptRows(splitLocationResponse());
+    expect(rows[0].location_name).toBe('Munich');
+    expect(rows[1].location_name).toBe('Budapest');
+  });
+
+  it('null location_name for location-less rows (e.g. external)', () => {
+    const rows = adaptRows(baseResponse());
+    expect(rows[0].location_name).toBeNull();
+    expect(rows[1].location_name).toBeNull();
+  });
+
+  it('indexes split-line cells under distinct keys', () => {
+    const idx = buildCellIndex(splitLocationResponse());
+    const muc = idx.get(workingEditKey('internal', 'internal|dev|role-dev|loc-muc', '2026-05'));
+    const bud = idx.get(workingEditKey('internal', 'internal|dev|role-dev|loc-bud', '2026-05'));
+    expect(muc?.display_value).toBe(80);
+    expect(bud?.display_value).toBe(40);
+  });
+
+  it('resolves per-split-line cell state independently (rate differs by location)', () => {
+    const resp = splitLocationResponse();
+    const rows = adaptRows(resp);
+    const col = adaptColumns(resp)[0];
+    const gcs = makeGetCellState(resp, new Map());
+    expect(gcs(rows[0], col).displayValue).toBe(80); // Munich hours
+    expect(gcs(rows[1], col).displayValue).toBe(40); // Budapest hours
+    // Each row keeps its own location rate for €-from-hours derivation.
+    expect(rows[0].hourly_rate).toBe(120);
+    expect(rows[1].hourly_rate).toBe(70);
+  });
+
+  it('a working edit on one split line does not leak to the other', () => {
+    const resp = splitLocationResponse();
+    const rows = adaptRows(resp);
+    const col = adaptColumns(resp)[0];
+    const we: WorkingEdits = new Map();
+    we.set(
+      workingEditKey('internal', 'internal|dev|role-dev|loc-muc', '2026-05'),
+      edit({ lineKey: 'internal|dev|role-dev|loc-muc', newValue: 200, anchorValue: 80 }),
+    );
+    const gcs = makeGetCellState(resp, we);
+    expect(gcs(rows[0], col).displayValue).toBe(200); // edited Munich line
+    expect(gcs(rows[0], col).isChanged).toBe(true);
+    expect(gcs(rows[1], col).displayValue).toBe(40); // Budapest untouched
+    expect(gcs(rows[1], col).isChanged).toBe(false);
+  });
+});

@@ -98,6 +98,7 @@ def _grid_to_response(
     )
     from services.scenario_project_scope.types import LINE_KIND_INTERNAL
     from models.people import RoleType
+    from models.organization import Location
 
     adjusted = resolve_project_grid(db, scenario, project_id)
     anchor = read_anchor_grid(db, project_id)
@@ -127,6 +128,20 @@ def _grid_to_response(
     # editable month is the next one. A cell is editable iff month >= open_month.
     open_month = open_forecast_month()
 
+    # Workforce-location display labels (S6 location-aware rates) — city per id.
+    location_names = {loc.id: loc.city for loc in db.query(Location).all()}
+
+    # Memoise the per-line display rate by (role_key, location); open_month is
+    # fixed for this response, so identical (role, location) lines share a lookup
+    # instead of re-querying RateTable per line (mirrors forecast_versioning).
+    _rate_memo: dict[tuple[str | None, str | None], float] = {}
+
+    def _display_rate(role_key: str | None, location_id: str | None) -> float:
+        memo_key = (role_key, location_id)
+        if memo_key not in _rate_memo:
+            _rate_memo[memo_key] = effective_hourly_rate(db, role_key, location_id, open_month)
+        return _rate_memo[memo_key]
+
     rows: list[ScenarioGridRow] = []
     for line in adjusted.lines:
         is_internal = line.kind == LINE_KIND_INTERNAL
@@ -144,7 +159,9 @@ def _grid_to_response(
                 )
                 if role is not None:
                     sub_category_name = role.name
-            hourly_rate = effective_hourly_rate(db, line.role_type_id or line.sub_category)
+            # Display label only — price at the first editable forecast month
+            # (the "current" rate the user edits against), at the line's location.
+            hourly_rate = _display_rate(line.role_type_id or line.sub_category, line.location_id)
         elif line.vendor:
             sub_category_name = line.vendor
 
@@ -199,6 +216,8 @@ def _grid_to_response(
             kind=line.kind,
             sub_category_name=sub_category_name,
             hourly_rate=hourly_rate,
+            location_id=line.location_id,
+            location_name=location_names.get(line.location_id) if line.location_id else None,
             cells=cells,
         ))
 
@@ -498,6 +517,13 @@ def add_role_line(
     from models.people import RoleType
     if db.query(RoleType).filter(RoleType.id == body.role_type_id).first() is None:
         raise HTTPException(422, f"role_type_id '{body.role_type_id}' not found.")
+    # Validate the workforce location like the role (S6) — an unknown location would
+    # otherwise insert a dangling FK (SQLite FK enforcement is off) and silently
+    # resolve to the Munich rate fallback rather than erroring.
+    if body.location_id:
+        from models.organization import Location
+        if db.query(Location).filter(Location.id == body.location_id).first() is None:
+            raise HTTPException(422, f"location_id '{body.location_id}' not found.")
 
     line_key = f"new:role:{uuid.uuid4().hex[:12]}"
     db.add(ScenarioLineEdit(
@@ -509,6 +535,7 @@ def add_role_line(
         category="internal",
         sub_category=body.sub_category or body.role_type_id,
         role_type_id=body.role_type_id,
+        location_id=body.location_id,
     ))
     state = _recalc_after_overlay_write(db, scenario)
     return ScenarioLineWriteResponse(
@@ -852,6 +879,8 @@ def _mix_items(db: Session, scenario_id: int, project_id: str) -> list[ScenarioM
             swap_to_role_id=r.swap_to_role_id,
             hours_per_month_swap=(float(r.hours_per_month_swap) if r.hours_per_month_swap is not None else None),
             effective_from=r.effective_from,
+            swap_from_location_id=r.swap_from_location_id,
+            swap_to_location_id=r.swap_to_location_id,
         )
         for r in rows
     ]
@@ -908,6 +937,14 @@ def write_mix_change(
     if body.hours_per_month_swap is None or body.hours_per_month_swap <= 0:
         raise HTTPException(422, "hours_per_month_swap must be a positive number.")
 
+    # Validate the swap roles exist (parity with add_role_line + the location guard
+    # below) — an unknown role would otherwise dangle the same way an unknown
+    # location would.
+    from models.people import RoleType
+    for role_id in (body.swap_from_role_id, body.swap_to_role_id):
+        if db.query(RoleType).filter(RoleType.id == role_id).first() is None:
+            raise HTTPException(422, f"role_type_id '{role_id}' not found.")
+
     from services.calendar import open_forecast_month
     open_month = open_forecast_month()
     if body.effective_from < open_month:
@@ -917,6 +954,17 @@ def write_mix_change(
             "nothing may reshape the past.",
         )
 
+    # Intra-location swap is the default UX: if only one side's location is given,
+    # mirror it to the other so from/to share a location.
+    from_location_id = body.swap_from_location_id or body.swap_to_location_id
+    to_location_id = body.swap_to_location_id or body.swap_from_location_id
+    # Validate the workforce location(s) like the role (S6) — an unknown location
+    # would insert a dangling FK and silently mis-resolve the swap's rate.
+    from models.organization import Location
+    for loc_id in {from_location_id, to_location_id}:
+        if loc_id is not None and db.query(Location).filter(Location.id == loc_id).first() is None:
+            raise HTTPException(422, f"location_id '{loc_id}' not found.")
+
     existing = (
         db.query(ScenarioMixChange)
         .filter(
@@ -924,7 +972,9 @@ def write_mix_change(
             ScenarioMixChange.project_id == project_id,
             ScenarioMixChange.cost_center_id == body.cost_center_id,
             ScenarioMixChange.swap_from_role_id == body.swap_from_role_id,
+            ScenarioMixChange.swap_from_location_id == from_location_id,
             ScenarioMixChange.swap_to_role_id == body.swap_to_role_id,
+            ScenarioMixChange.swap_to_location_id == to_location_id,
         )
         .first()
     )
@@ -937,7 +987,9 @@ def write_mix_change(
             project_id=project_id,
             cost_center_id=body.cost_center_id,
             swap_from_role_id=body.swap_from_role_id,
+            swap_from_location_id=from_location_id,
             swap_to_role_id=body.swap_to_role_id,
+            swap_to_location_id=to_location_id,
             hours_per_month_swap=body.hours_per_month_swap,
             effective_from=body.effective_from,
         ))
@@ -1034,12 +1086,13 @@ def _external_costs_response(
         )
     }
 
-    # Anchor metadata per natural line_key ("external|<cost_type>|").
+    # Anchor metadata per natural line_key ("external|<cost_type>||" — 4-segment:
+    # external lines carry no role and no workforce location, S6 location-aware key).
     anchor_meta: dict[str, dict] = {}
     for row in db.query(Forecast).filter(
         Forecast.project_id == project_id, Forecast.category == "external",
     ):
-        key = f"external|{row.sub_category or ''}|"
+        key = f"external|{row.sub_category or ''}||"
         meta = anchor_meta.setdefault(
             key, {"vendor": None, "description": None, "capex_opex": None},
         )

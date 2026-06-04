@@ -26,7 +26,11 @@ from models.scenarios import (
     ScenarioMixChange,
     ScenarioPlanEdit,
 )
-from services.scenario_project_scope.resolution import resolve_project_grid
+from services.scenario_project_scope.resolution import (
+    read_anchor_grid,
+    resolve_project_grid,
+)
+from services.scenario_project_scope.rollup import rollup_grid
 
 
 # ---------------------------------------------------------------------------
@@ -87,7 +91,7 @@ def test_plan_start_month_shifts_resolved_window(db):
     grid = resolve_project_grid(db, sc, proj.id)
 
     assert grid.start_month == "2026-07"
-    line = _line(grid, "internal|R1|R1")
+    line = _line(grid, "internal|R1|R1|")
     assert "2026-07" in line.cells and "2026-08" in line.cells
     # Original months no longer carry the curve (it travelled +2).
     assert "2026-05" not in line.cells and "2026-06" not in line.cells
@@ -107,7 +111,7 @@ def test_plan_end_month_sets_window_boundary(db):
     grid = resolve_project_grid(db, sc, proj.id)
     assert grid.end_month == "2026-11"
     # Cells are untouched by an end-only edit.
-    assert _line(grid, "internal|R1|R1").cells["2026-05"].hours == 100
+    assert _line(grid, "internal|R1|R1|").cells["2026-05"].hours == 100
 
 
 # ===========================================================================
@@ -170,7 +174,7 @@ def test_cell_edit_wins_over_mix(db):
         hours_per_month_swap=Decimal("40"), effective_from="2026-06",
     ))
     db.add(ScenarioForecastCellEdit(
-        scenario_id=sc.id, project_id=proj.id, line_key="internal|R1|R1",
+        scenario_id=sc.id, project_id=proj.id, line_key="internal|R1|R1|",
         month="2026-06", field="hours", value=Decimal("123"),
     ))
     db.commit()
@@ -178,6 +182,115 @@ def test_cell_edit_wins_over_mix(db):
     grid = resolve_project_grid(db, sc, proj.id)
     r1 = _internal_line_for_role(grid, "R1")
     assert r1.cells["2026-06"].hours == 123  # cell edit overrides the mix result
+
+
+def test_mix_prices_each_month_at_rate_in_force(db):
+    """S6 rate-at-month regression for the mix swap. A swap spanning two months
+    across a rate step must re-price each month at the rate in force *that month*
+    (rate moved inside the per-month loop), not a single rate for the window."""
+    proj = _project(db, start="2026-05", end="2026-08")
+    _forecast(db, proj.id, "2026-06", "R1", 100, 10000, role_type_id="R1")
+    _forecast(db, proj.id, "2026-07", "R1", 100, 10000, role_type_id="R1")
+    # R1 steps 100 -> 200 at 2026-07; R2 flat at 50.
+    db.add(RateTable(role_type_id="R1", competence_center_id="cc-x",
+                     hourly_rate=Decimal("100.00"), effective_date="2025-01-01"))
+    db.add(RateTable(role_type_id="R1", competence_center_id="cc-x",
+                     hourly_rate=Decimal("200.00"), effective_date="2026-07-01"))
+    db.add(RateTable(role_type_id="R2", competence_center_id="cc-x",
+                     hourly_rate=Decimal("50.00"), effective_date="2025-01-01"))
+    sc = _scenario(db)
+    db.add(ScenarioMixChange(
+        scenario_id=sc.id, project_id=proj.id,
+        swap_from_role_id="R1", swap_to_role_id="R2",
+        hours_per_month_swap=Decimal("40"), effective_from="2026-06",
+    ))
+    db.commit()
+
+    grid = resolve_project_grid(db, sc, proj.id)
+    r1 = _internal_line_for_role(grid, "R1")
+    r2 = _internal_line_for_role(grid, "R2")
+    # 60h remain on R1 each month, priced at that month's rate (100 in June, 200 in July).
+    assert r1.cells["2026-06"].hours == 60
+    assert r1.cells["2026-06"].amount_eur == 6000.0    # 60h x 100
+    assert r1.cells["2026-07"].hours == 60
+    assert r1.cells["2026-07"].amount_eur == 12000.0   # 60h x 200 (step-up)
+    # 40h swapped onto R2 each month, flat 50/h.
+    assert r2.cells["2026-06"].amount_eur == 2000.0
+    assert r2.cells["2026-07"].amount_eur == 2000.0
+
+
+def test_senior_to_mid_mix_swap_yields_negative_budget_delta(db):
+    """MDH-style staffing-mix swap: moving hours from a senior role (expensive)
+    to a mid role (cheaper) LOWERS the rolled-up budget, so the delta is
+    NEGATIVE (a saving) — the swap must not produce a spurious positive delta.
+    Anchor 100 senior hours @ €150 = €15.000; after swapping 40h to mid @ €90
+    the plan is 60×150 + 40×90 = €12.600."""
+    proj = _project(db, start="2026-05", end="2026-06")
+    # Senior €150/h; Mid €90/h (role-level rates, resolver 'any' fallback).
+    db.add(RateTable(role_type_id="R-SR", competence_center_id="cc-x",
+                     hourly_rate=Decimal("150.00"), effective_date="2025-01-01"))
+    db.add(RateTable(role_type_id="R-MID", competence_center_id="cc-x",
+                     hourly_rate=Decimal("90.00"), effective_date="2025-01-01"))
+    # Anchor: 100 senior hours in June = €15.000.
+    db.add(Forecast(project_id=proj.id, month="2026-06", category="internal",
+                    sub_category="R-SR", role_type_id="R-SR",
+                    hours=100, amount_eur=Decimal("15000")))
+    sc = _scenario(db)
+    db.add(ScenarioMixChange(
+        scenario_id=sc.id, project_id=proj.id,
+        swap_from_role_id="R-SR", swap_to_role_id="R-MID",
+        hours_per_month_swap=Decimal("40"), effective_from="2026-06",
+    ))
+    db.commit()
+
+    anchor = read_anchor_grid(db, proj.id)
+    adjusted = resolve_project_grid(db, sc, proj.id)
+    state = rollup_grid(
+        adjusted, anchor, project_name="T1 Project",
+        baseline_eur=15000.0, original_rag="green",
+    )
+    # 60 senior @150 + 40 mid @90 = 9000 + 3600 = 12600 < 15000 anchor.
+    assert state["adjusted_budget"] == 12600.0
+    assert state["budget_delta"] < 0
+    assert state["budget_delta"] == pytest.approx(-2400.0)
+    assert state["is_affected"] is True
+
+
+def test_location_split_mix_swap_negative_delta(db):
+    """Location-aware MDH swap: a senior→mid swap pinned to a single workforce
+    location prices each leg at that location's rate and yields a negative delta.
+    This is the location-split form of the swap above and the regression guard
+    for the blended-rate fix — it exercises the full resolve_project_grid path
+    (anchor → macro clone → location-keyed mix), so it also guards
+    macros._clone_line carrying ResolvedLine.location_id through the clone."""
+    proj = _project(db, start="2026-05", end="2026-06")
+    db.add(RateTable(role_type_id="R-SR", competence_center_id="cc-x",
+                     location_id="loc-bud", hourly_rate=Decimal("110.00"),
+                     effective_date="2025-01-01"))
+    db.add(RateTable(role_type_id="R-MID", competence_center_id="cc-x",
+                     location_id="loc-bud", hourly_rate=Decimal("70.00"),
+                     effective_date="2025-01-01"))
+    db.add(Forecast(project_id=proj.id, month="2026-06", category="internal",
+                    sub_category="R-SR", role_type_id="R-SR", location_id="loc-bud",
+                    hours=100, amount_eur=Decimal("11000")))
+    sc = _scenario(db)
+    db.add(ScenarioMixChange(
+        scenario_id=sc.id, project_id=proj.id,
+        swap_from_role_id="R-SR", swap_to_role_id="R-MID",
+        swap_from_location_id="loc-bud", swap_to_location_id="loc-bud",
+        hours_per_month_swap=Decimal("40"), effective_from="2026-06",
+    ))
+    db.commit()
+
+    anchor = read_anchor_grid(db, proj.id)
+    adjusted = resolve_project_grid(db, sc, proj.id)
+    state = rollup_grid(
+        adjusted, anchor, project_name="T1 Project",
+        baseline_eur=11000.0, original_rag="green",
+    )
+    # 60 senior @110 + 40 mid @70 = 6600 + 2800 = 9400 < 11000 anchor.
+    assert state["adjusted_budget"] == 9400.0
+    assert state["budget_delta"] == pytest.approx(-1600.0)
 
 
 # ===========================================================================
@@ -188,7 +301,7 @@ CONTROLLER = "persona-controller"   # p-dev-1, author/owner
 EXEC = "persona-exec"               # p-dev-2, non-owner
 PL = "persona-pl"                   # wrong role
 
-ROLE_KEY = "internal|R1|R1"
+ROLE_KEY = "internal|R1|R1|"
 
 
 def _hdr(p):
@@ -268,6 +381,18 @@ def test_add_role_line_rejects_unknown_role(db, test_client, t1_world):
     resp = test_client.post(
         f"/api/scenarios/{sid}/projects/{pid}/lines",
         json={"role_type_id": "role-does-not-exist"}, headers=_hdr(CONTROLLER),
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_add_role_line_rejects_unknown_location(db, test_client, t1_world):
+    """An unknown location_id is rejected (S6) — otherwise it would insert a
+    dangling FK and silently price at the Munich fallback."""
+    sid, pid = t1_world["sid"], t1_world["pid"]
+    resp = test_client.post(
+        f"/api/scenarios/{sid}/projects/{pid}/lines",
+        json={"role_type_id": "R2", "location_id": "loc-does-not-exist"},
+        headers=_hdr(CONTROLLER),
     )
     assert resp.status_code == 422, resp.text
 
@@ -503,6 +628,37 @@ def test_mix_put_same_role_422(db, test_client, t1_world):
         f"/api/scenarios/{sid}/projects/{pid}/mix",
         json={
             "swap_from_role_id": "R1", "swap_to_role_id": "R1",
+            "hours_per_month_swap": 40, "effective_from": "2026-06",
+        },
+        headers=_hdr(CONTROLLER),
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_mix_put_rejects_unknown_location_422(db, test_client, t1_world):
+    """An unknown swap location is rejected (S6) — same dangling-FK / silent
+    mis-pricing guard as the add-line endpoint."""
+    sid, pid = t1_world["sid"], t1_world["pid"]
+    resp = test_client.put(
+        f"/api/scenarios/{sid}/projects/{pid}/mix",
+        json={
+            "swap_from_role_id": "R1", "swap_to_role_id": "R2",
+            "hours_per_month_swap": 40, "effective_from": "2026-06",
+            "swap_from_location_id": "loc-does-not-exist",
+        },
+        headers=_hdr(CONTROLLER),
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_mix_put_rejects_unknown_role_422(db, test_client, t1_world):
+    """An unknown swap role is rejected (parity with the location guard +
+    add_role_line) — an unknown role would otherwise dangle."""
+    sid, pid = t1_world["sid"], t1_world["pid"]
+    resp = test_client.put(
+        f"/api/scenarios/{sid}/projects/{pid}/mix",
+        json={
+            "swap_from_role_id": "R1", "swap_to_role_id": "role-does-not-exist",
             "hours_per_month_swap": 40, "effective_from": "2026-06",
         },
         headers=_hdr(CONTROLLER),

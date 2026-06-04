@@ -262,6 +262,11 @@ export interface ScenarioGridRow {
   kind: 'internal_role' | 'external_cost';
   sub_category_name: string;
   hourly_rate: number | null; // internal lines only
+  // S6 location-aware rates: workforce location of an internal role line (split
+  // per location). Null for external lines and location-less rows. The line_key
+  // already encodes the location as its 4th segment, so split lines stay unique.
+  location_id?: string | null;
+  location_name?: string | null; // city label for the location chip
   cells: ScenarioGridCell[];
 }
 
@@ -307,6 +312,9 @@ export interface LineAddBody {
   role_type_id: string;
   sub_category?: string;
   category?: string;
+  // S6 location-aware rates: workforce location for the added internal line
+  // (determines the line's rate). Null → resolves via Munich/any fallback.
+  location_id?: string;
 }
 
 export interface ScenarioLineWriteResponse {
@@ -363,6 +371,11 @@ export interface MixChangeBody {
   hours_per_month_swap: number;
   effective_from: string; // "YYYY-MM"
   cost_center_id?: string | null;
+  // S6 location-aware rates: workforce location of the from/to role lines. The
+  // UX swaps within ONE location — send `swap_from_location_id`; the backend
+  // mirrors it to the to-side when only one is given. Both nullable (back-compat).
+  swap_from_location_id?: string | null;
+  swap_to_location_id?: string | null;
 }
 
 export interface ScenarioMixItem {
@@ -372,6 +385,8 @@ export interface ScenarioMixItem {
   swap_to_role_id: string | null;
   hours_per_month_swap: number | null;
   effective_from: string | null;
+  swap_from_location_id?: string | null;
+  swap_to_location_id?: string | null;
 }
 
 export interface ScenarioMixWriteResponse {

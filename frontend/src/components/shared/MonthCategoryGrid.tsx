@@ -36,6 +36,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 import { cn } from '@/lib/utils';
 import {
   formatCurrency,
@@ -56,6 +57,13 @@ export interface MonthCategoryGridRow {
   sub_category_name: string;          // display label
   capex_opex?: string | null;         // optional CapEx/OpEx pill
   hourly_rate?: number | null;        // internal rows: € rate for display
+  /**
+   * Optional workforce-location city for internal rows split per location
+   * (S6 location-aware rates). When present it renders a qualified location
+   * chip beside the role name so same-role-multi-location splits are
+   * distinguishable. Null/absent for external and location-less rows.
+   */
+  location_name?: string | null;
 }
 
 export interface MonthCategoryGridColumn {
@@ -426,6 +434,13 @@ function SectionRows({
           <TableCell className="sticky left-0 bg-card font-medium text-sm z-10 border-r border-border whitespace-nowrap">
             <div className="flex items-center gap-1.5">
               <span>{row.sub_category_name}</span>
+              {row.location_name && (
+                <LocationLabel
+                  kind="workforce"
+                  text={row.location_name}
+                  className="text-[11px] font-normal text-muted-foreground"
+                />
+              )}
               {row.capex_opex && (
                 <Badge
                   variant="outline"

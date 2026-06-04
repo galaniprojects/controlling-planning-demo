@@ -147,8 +147,8 @@ class TestWidenedCarry:
         db.add(sc)
         db.flush()
 
-        # The seeded internal line key: "internal|role-dev|" (role_type_id NULL).
-        removed_key = "internal|role-dev|"
+        # The seeded internal line key: "internal|role-dev||" (role_type_id NULL).
+        removed_key = "internal|role-dev||"
         db.add(ScenarioLineEdit(
             scenario_id=sc.id, project_id="proj-own", line_key=removed_key,
             op="remove", line_kind="internal_role", category="internal",
@@ -239,7 +239,7 @@ def anchored_world(db, seed_org_base, create_test_project):
     db.flush()
     db.add(ScenarioForecastCellEdit(
         scenario_id=sc.id, project_id="proj-own",
-        line_key="internal|role-dev|", month="2026-06",
+        line_key="internal|role-dev||", month="2026-06",
         field="hours", value=20.0,
     ))
     db.commit()
@@ -261,7 +261,7 @@ class TestStaleAnchorGuard:
         db.flush()
         db.add(ScenarioForecastCellEdit(
             scenario_id=sc.id, project_id="proj-own",
-            line_key="internal|role-dev|", month="2026-06",
+            line_key="internal|role-dev||", month="2026-06",
             field="hours", value=20.0,
         ))
         db.commit()
@@ -325,7 +325,7 @@ class TestStaleAnchorGuard:
         db.flush()
         db.add(ScenarioForecastCellEdit(
             scenario_id=sc.id, project_id="proj-own",
-            line_key="internal|role-dev|", month="2026-06",
+            line_key="internal|role-dev||", month="2026-06",
             field="hours", value=20.0,
         ))
         db.commit()
@@ -372,7 +372,7 @@ class TestApplyOwnershipParity:
         db.flush()
         db.add(ScenarioForecastCellEdit(
             scenario_id=sc.id, project_id="proj-fk-led",
-            line_key="internal|role-dev|", month="2026-06",
+            line_key="internal|role-dev||", month="2026-06",
             field="hours", value=25.0,
         ))
         db.commit()

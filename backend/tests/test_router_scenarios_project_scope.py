@@ -32,8 +32,8 @@ EXEC_PERSONA = "persona-exec"               # person_id p-dev-2 (non-owner viewe
 PL_PERSONA = "persona-pl"                    # project_lead (wrong role for write)
 
 PROJECT_ID = "proj-ps2"
-INTERNAL_KEY = "internal|role-dev|"
-EXTERNAL_KEY = "external|ext-lic|"
+INTERNAL_KEY = "internal|role-dev||"
+EXTERNAL_KEY = "external|ext-lic||"
 INTERNAL_MONTH = "2026-06"
 EXTERNAL_MONTH = "2026-07"
 ACTUALS_MONTH = "2026-01"
@@ -132,6 +132,31 @@ def test_grid_read_reflects_overlay_euro_anchor_and_changed(
     row = _row(grid, INTERNAL_KEY)
     assert row["hourly_rate"] == 100.0
     assert row["category"] == "internal"
+
+
+def test_grid_hourly_rate_label_priced_at_open_forecast_month(
+    db, test_client, seed_personas, ps_world,
+):
+    """The row ``hourly_rate`` display label prices at the first editable
+    forecast month (open_forecast_month == 2026-05 in tests), so a future
+    rate step-up that is not yet in force at the open month must NOT change the
+    label (S6 rate-at-month: the label is the rate the user edits against)."""
+    sid, pid = ps_world["scenario_id"], ps_world["project_id"]
+    # ps_world seeds role-dev @ 100 from 2025-06. Add a later step-up that is
+    # not yet effective at the open month (2026-05).
+    db.add(RateTable(
+        role_type_id="role-dev", competence_center_id="comp-dev",
+        hourly_rate=Decimal("175.00"), effective_date="2026-09-01",
+    ))
+    db.commit()
+
+    resp = test_client.get(
+        f"/api/scenarios/{sid}/projects/{pid}/grid", headers=_hdr(CONTROLLER_PERSONA),
+    )
+    assert resp.status_code == 200, resp.text
+    row = _row(resp.json(), INTERNAL_KEY)
+    # Label stays at the rate in force at the open month, not the latest (175).
+    assert row["hourly_rate"] == 100.0
 
 
 def test_actuals_can_edit_flag_and_open_month(

@@ -13,7 +13,7 @@ Canonical reference for all SQLAlchemy models in the VIPER Demo App. **70 models
 
 - **SQLAlchemy ORM only** for application code — no raw SQL except `backend/seed/seed.sql`.
 - **Soft delete** via `is_active` flag on master-data models — never hard-delete cost centres, people, LoBs, or competence centres.
-- **Effective-date rate tables** — `RateTable` carries `previous_rate` + `previous_effective_date` so historical cost calculations use the rate in effect at the time.
+- **Effective-date rate tables** — `RateTable` carries `previous_rate` + `previous_effective_date` so historical cost calculations use the rate in effect at the time; S6 adds a `location_id` dimension (workforce location) so rates are resolved per `(role, location, month)` tuple — see Cross-Cutting Patterns.
 - **Server-side computation** — frontend receives ready-to-render data; no roll-ups or calculations client-side.
 - **Sparse-edge storage** for graph/matrix data (`Distribution`, `BTCProfileLine`, `UserMeasurement`) — only non-zero/actually-flowing rows are stored; absence = zero.
 - **Polymorphism** via discriminator column on `ChargeableEntity` (`entity_type`) and dual-FK on `Allocation` (`project_id` + `chargeable_entity_id`).
@@ -110,9 +110,9 @@ Master-data record for a team member. **Distinct from `User`** — Person is HR-
 **Notes.** Referenced as FK target by 15+ models (Project's `pl_person_id` and `progress_updated_by_id`, MilestoneDeliverable's `completed_by_id`, ForecastVersion's `created_by_id`, Allocation, ResourceRequest, CapacityActionLog, ChargeableEntity's `responsible_person_id`, ProjectDependency's `created_by_person_id`, etc.). Not every Person is a User; not every User maps to a Person.
 
 ### `RateTable` — `rate_table`
-Hourly rates by `(role_type, competence_center)` with effective-date validity. Tracks current + previous rate so historical cost calculations apply the rate in effect at the time.
+Hourly rates by `(role_type, competence_center, workforce_location)` with effective-date validity. Tracks current + previous rate so historical cost calculations apply the rate in effect at the time. **S6 location-aware rates:** the grain is now one row per `(role_type, competence_center, workforce_location, effective_period)`; the seed ships two real effective periods per location (`2025-01-01` prev, `2026-01-01` current). Rate resolution via `services.calculations.resolve_hourly_rate` walks a 5-step precedence: (1) exact workforce `location_id`, (2) `loc-muc` Munich deterministic fallback for location-less callers, (3) `competence_center_id` legacy scope, (4) any rate row for the role, (5) `DEFAULT_HOURLY_RATE` (€120.00).
 
-**Key columns.** `id` Integer PK, `role_type_id` FK, `competence_center_id` FK, `hourly_rate` Numeric(10,2), `effective_date` String(10) `YYYY-MM-DD`, `previous_rate` Numeric(10,2) nullable, `previous_effective_date` String(10) nullable.
+**Key columns.** `id` Integer PK, `role_type_id` FK, `competence_center_id` FK, `location_id` FK → locations (nullable — workforce location `loc-muc` / `loc-bud` / `loc-pun`; null for legacy/back-compat rows), `hourly_rate` Numeric(10,2), `effective_date` String(10) `YYYY-MM-DD`, `previous_rate` Numeric(10,2) nullable, `previous_effective_date` String(10) nullable.
 
 ---
 
@@ -227,7 +227,7 @@ Cost categories (Consulting, Cloud-Infrastructure, Licenses, Hardware, Other). A
 ### `Baseline` — `baselines`
 Immutable approved plan — one row per project × month × line item.
 
-**Key columns.** `id` Integer PK, `project_id` FK NOT NULL, `month` String(7) NOT NULL, `category` String(20) NOT NULL (`internal` | `external`), `sub_category` String(50) NOT NULL (role_type_id or cost_type_id), `hours` Numeric(10,2) (internal only), `amount_eur` Numeric(14,2) NOT NULL, `description` String(200) (external line-item), `capex_opex` String(10) (per-line CapEx/OpEx), `vendor` String(200), `ext_status` String(30), `role_type_id` FK → role_types (nullable; v5.1 `[C-07]` optional role attribution for external consulting/leased-staff items, always NULL for `category='internal'`).
+**Key columns.** `id` Integer PK, `project_id` FK NOT NULL, `month` String(7) NOT NULL, `category` String(20) NOT NULL (`internal` | `external`), `sub_category` String(50) NOT NULL (role_type_id or cost_type_id), `hours` Numeric(10,2) (internal only), `amount_eur` Numeric(14,2) NOT NULL, `description` String(200) (external line-item), `capex_opex` String(10) (per-line CapEx/OpEx), `vendor` String(200), `ext_status` String(30), `role_type_id` FK → role_types (nullable; v5.1 `[C-07]` optional role attribution for external consulting/leased-staff items, always NULL for `category='internal'`), `location_id` FK → locations (nullable; **S6** workforce location `loc-muc` / `loc-bud` / `loc-pun` for internal lines — drives per-location rate resolution so stored amounts and any recompute price at the same location's rate; null for external lines and legacy rows).
 
 **Notes.** Role attribution enables F&P grid `[Category] — [Role Name]` labels.
 
@@ -235,6 +235,7 @@ Immutable approved plan — one row per project × month × line item.
 Living plan updated via approved CRs. Mixed-granularity per `[C-FV-01]`.
 
 **Key columns.** Same shape as `Baseline` plus:
+- `location_id` FK → locations (nullable; **S6** same semantics as `Baseline.location_id` — workforce location for internal lines, null for external/legacy).
 - `is_provisional` Boolean (`server_default="0"`) — `True` for cells beyond granularity boundary (outer zone per `[C-FG-07]`). Manual CR writes clear this flag.
 - *External-cost procurement tracking (v5.1 `[C-09]`, all nullable, only for `category='external'`):* `po_number` String(50), `vendor`, `ext_status`, `po_amount` Numeric(14,2) (`server_default="0"`, monthly committed PO obligation), `accrual_amount` Numeric(14,2) (`server_default="0"`, monthly accrual estimate), `contract_end_month` String(7) (denormalised line-level metadata).
 
@@ -242,6 +243,7 @@ Living plan updated via approved CRs. Mixed-granularity per `[C-FV-01]`.
 Read-only historical spend (from SAP/CATS).
 
 **Key columns.** Same shape as `Baseline` plus:
+- `location_id` FK → locations (nullable; **S6** same semantics as `Baseline.location_id` — workforce location for internal lines, null for external/legacy).
 - `po_number` String(50) — v5.1 `[C-09]` mirrors `Forecast.po_number` so `open_po` reconciles per `(vendor, po_number)` pair.
 - `invoiced_amount` Numeric(14,2) (`server_default="0"`) — v5.1 `[C-09]` subset of `amount_eur` actually invoiced (vs. only goods-received). Drives the **Remaining Not Invoiced** KPI.
 - `role_type_id` FK → role_types (nullable; v5.1 `[C-07]` same semantics as Baseline).
@@ -540,7 +542,7 @@ PL Apply-to-forecast audit per `[B-PR-05]`. Provenance on resulting forecast cel
 
 The project-scope redesign stores a scenario's edits in two layers. **Layer 1 (macros)** reuses `ScenarioAction` rows (`scope='project'`, `action_type ∈ PROJECT_MACRO_ACTION_TYPES` = `delay_project` | `accelerate_project` | `pause_project` | `remove_project`) as ordered transforms re-derivable against a rebased anchor — no new table. **Layer 2 (hand edits)** is the sparse overlay below: keyed by (project, line, month) for cell values, with companion rows for added/removed lines, mix changes, and plan edits. The overlay *is* the plan-delta the promote / apply diff consumes directly (spec §6) — it is never replayed as a coarse action. Resolution order (spec §5.1): anchor → apply macros in order → overlay hand edits on top, hand-edits-win, absolute-month keying (§5.2). Module-level vocab constants in `scenarios.py`: `OVERLAY_CELL_FIELDS`, `OVERLAY_LINE_OPS`, `OVERLAY_LINE_KINDS`, `OVERLAY_PLAN_TARGETS`, `PROJECT_MACRO_ACTION_TYPES`.
 
-`line_key` = natural composite `"category|sub_category|role_type_id"` for existing lines (matching the live `Forecast` cell key), or a minted stable id (`"new:role:<uuid>"` / `"new:ext:<uuid>"`) for lines added via the overlay.
+`line_key` = natural composite `"category|sub_category|role_type_id|location_id"` for existing lines (matching the live `Forecast` cell key — **S6 four-segment format**; external lines and legacy rows carry an empty fourth segment `"external|<sub>||"`, internal lines carry role id + workforce location `"internal|<sub>|<role>|<location>"`), or a minted stable id (`"new:role:<uuid>"` / `"new:ext:<uuid>"`) for lines added via the overlay. The location segment splits same-role/multi-location staffing into one line per location so each line prices at a single location rate.
 
 ### `ScenarioForecastCellEdit` — `scenario_forecast_cell_edits`
 Layer-2 hot path: one edited forecast cell value. Sparse, upsert/dedup per cell.
@@ -552,7 +554,7 @@ Layer-2 hot path: one edited forecast cell value. Sparse, upsert/dedup per cell.
 ### `ScenarioLineEdit` — `scenario_line_edits`
 Layer-2 companion: structural add/remove of a forecast line (internal role line or external-cost line item), plus metadata `edit` of an external-cost line.
 
-**Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `project_id` FK NOT NULL, `line_key` String(120) NOT NULL (minted for adds), `op` String(10) NOT NULL (`add` | `remove` | `edit`), `line_kind` String(20) NOT NULL (`internal_role` | `external_cost`), `category` String(20), `sub_category` String(50), `role_type_id` FK → role_types, `cost_type_id` FK → external_cost_types, `vendor` String(200), `description` String(200), `capex_opex` String(10), `created_at` DateTime. Per-month values for the line live in `ScenarioForecastCellEdit` under the same `line_key`.
+**Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `project_id` FK NOT NULL, `line_key` String(120) NOT NULL (minted for adds), `op` String(10) NOT NULL (`add` | `remove` | `edit`), `line_kind` String(20) NOT NULL (`internal_role` | `external_cost`), `category` String(20), `sub_category` String(50), `role_type_id` FK → role_types, `location_id` FK → locations (nullable; **S6** workforce location for an added internal role line — lets routing/promote write the new `Forecast` row with the correct location and price at the matching rate; null for external-cost lines), `cost_type_id` FK → external_cost_types, `vendor` String(200), `description` String(200), `capex_opex` String(10), `created_at` DateTime. Per-month values for the line live in `ScenarioForecastCellEdit` under the same `line_key`.
 
 **`op='edit'` (Session 3 T2).** Edits an existing external-cost line's metadata (vendor / cost-type grouping = `sub_category`+`cost_type_id` / description / capex_opex). References the line's natural `line_key`; resolution patches the resolved line in place (vendor + sub_category) — the per-month € is untouched. Editing a still-pending added line patches its `add` row instead of minting a separate `edit` row (one row per `line_key` via `uq_scenario_line_edit`). Note: `op='edit'` rows resolve in the scenario sandbox/list but are not yet applied to live Forecast rows at promote — that widening is Session 4.
 
@@ -561,9 +563,9 @@ Layer-2 companion: structural add/remove of a forecast line (internal role line 
 ### `ScenarioMixChange` — `scenario_mix_changes`
 Layer-2 companion: seniority/sourcing mix change. Mirrors the existing `change_allocation` action representation (a monthly hour swap between two role types within a cost centre). Routes as `people_action_item` at promote. Tier-3 control, exercised in Session 3.
 
-**Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `project_id` FK NOT NULL, `cost_center_id` FK → cost_centers, `swap_from_role_id`/`swap_to_role_id` FK → role_types, `hours_per_month_swap` Numeric(10,2), `effective_from` String(7) (YYYY-MM), `created_at` DateTime.
+**Key columns.** `id` Integer PK, `scenario_id` FK NOT NULL, `project_id` FK NOT NULL, `cost_center_id` FK → cost_centers, `swap_from_role_id` FK → role_types, `swap_from_location_id` FK → locations (nullable; **S6** workforce location of the from-line — the Tier-3 mix UX swaps within a single location so from==to in practice; two columns keep cross-location swaps open without a future migration), `swap_to_role_id` FK → role_types, `swap_to_location_id` FK → locations (nullable; **S6** workforce location of the to-line), `hours_per_month_swap` Numeric(10,2), `effective_from` String(7) (YYYY-MM), `created_at` DateTime.
 
-**Constraints / indexes.** Unique `uq_scenario_mix_change` on (`scenario_id`, `project_id`, `cost_center_id`, `swap_from_role_id`, `swap_to_role_id`) — one row per swap pair, matching the mix-endpoint upsert (sibling to `uq_scenario_cell_edit` / `uq_scenario_line_edit` / `uq_scenario_plan_edit`); index `ix_scenario_mix_change_scope` on (`scenario_id`, `project_id`).
+**Constraints / indexes.** Unique `uq_scenario_mix_change` on (`scenario_id`, `project_id`, `cost_center_id`, `swap_from_role_id`, `swap_from_location_id`, `swap_to_role_id`, `swap_to_location_id`) — one row per (role-pair, location-pair) within a scenario+project+CC (**S6** location columns added to the key so a Munich→Munich and Budapest→Budapest swap on the same roles are independent rows); index `ix_scenario_mix_change_scope` on (`scenario_id`, `project_id`).
 
 ### `ScenarioPlanEdit` — `scenario_plan_edits`
 Layer-2 companion: project-plan edits — project start/end dates, pipeline stage, DoI gate, milestones. Low-volume, project- or milestone-level. Exercised in Session 3.
@@ -791,6 +793,8 @@ Module-level Python tuples that define authoritative value sets. When the value 
 
 ### Effective-date rate tables
 `RateTable` carries `previous_rate` + `previous_effective_date` for one-step historical lookback. Forecast and actuals rate selection happens at compute time in `services/calculations.py`.
+
+**S6 location-aware rates.** `RateTable` gains a nullable `location_id` FK (workforce location — `loc-muc` Munich / `loc-bud` Budapest / `loc-pun` Pune). `services.calculations.resolve_hourly_rate` walks five fallback tiers in order: (1) exact `location_id` match, (2) `loc-muc` Munich deterministic fallback (keeps location-less callers such as capacity external-FTE math stable), (3) `competence_center_id` legacy scope, (4) any rate row for the role, (5) `DEFAULT_HOURLY_RATE` (€120.00). All three financial tables (`Baseline`, `Forecast`, `Actuals`) carry the matching nullable `location_id` so stored amounts and any recompute always use the same location's rate. The simulator project-scope grid splits internal lines per `(role, workforce_location)` pair using a 4-segment `line_key` (`"internal|<sub>|<role>|<location>"`) so each displayed line prices at a single stable rate.
 
 ### Temporal anchor (dynamic present time / living seed)
 VIPER's "today" is **runtime-computed, not a fixed literal**. `config.get_current_period()` returns the real current month (`date.today()` → `YYYY-MM`); `config.DEMO_DATE` is computed once at import as a stable, backward-compatible alias for the many existing reads. The **in-progress current month is locked for forecasting** (it carries partial actuals); the first editable forecast month is `services.calendar.open_forecast_month()` = `DEMO_DATE + 1` (editable iff `month >= open_forecast_month()`). The temporal context is exposed to the frontend via `GET /api/config` → `{current_period, open_forecast_month, fiscal_year}`.

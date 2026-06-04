@@ -434,3 +434,44 @@ class TestResolveHourlyRate:
         assert resolve_hourly_rate(
             db_with_rates, "role-dev", "cc-apd", "2023-06"
         ) == Decimal("120.00")
+
+    def test_location_none_with_cc_prefers_munich_not_cc(self):
+        """S6 location-aware precedence: a caller passing a competence_center_id but
+        no location_id gets the Munich (loc-muc) rate DETERMINISTICALLY — not a
+        competence-centre pick. Post location-split a role's rows at all locations
+        share one competence_center_id, so a cc-only filter would return a
+        nondeterministic location's rate; the loc-muc fallback deliberately sits
+        above the cc filter (resolve_hourly_rate steps 2 vs 3). Pins that ordering.
+        """
+        from decimal import Decimal
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+
+        from database import Base
+        from models.organization import CompetenceCenter, Location
+        from models.people import RateTable, RoleType
+        from services.calculations import resolve_hourly_rate
+
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        s = sessionmaker(bind=engine)()
+        s.add(RoleType(id="role-dev", name="Developer"))
+        s.add(CompetenceCenter(id="cc-apd", name="APD"))
+        s.add(Location(id="loc-muc", city="Munich", country="Germany"))
+        s.add(Location(id="loc-bud", city="Budapest", country="Hungary"))
+        # Same role + same CC at two locations, same effective date — so a cc-only
+        # filter could return either; only the location dimension disambiguates.
+        s.add(RateTable(role_type_id="role-dev", competence_center_id="cc-apd",
+                        location_id="loc-muc", hourly_rate=100, effective_date="2024-01-01"))
+        s.add(RateTable(role_type_id="role-dev", competence_center_id="cc-apd",
+                        location_id="loc-bud", hourly_rate=60, effective_date="2024-01-01"))
+        s.commit()
+
+        # Exact location still wins when supplied.
+        assert resolve_hourly_rate(
+            s, "role-dev", "cc-apd", "2026-04", location_id="loc-bud"
+        ) == Decimal("60.00")
+        # CC set, location None → deterministic Munich (100), NOT a cc pick (could be 60).
+        assert resolve_hourly_rate(
+            s, "role-dev", "cc-apd", "2026-04", location_id=None
+        ) == Decimal("100.00")

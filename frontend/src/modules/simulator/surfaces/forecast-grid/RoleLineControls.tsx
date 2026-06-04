@@ -20,8 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { LocationLabel } from '@/components/shared/LocationLabel';
 import { referenceApi } from '@/api/endpoints';
-import type { RefRole } from '@/types/api';
+import type { RefLocation, RefRole } from '@/types/api';
 import { useScenarioContext } from '../../useScenarioContext';
 import type { ScenarioGridResponse } from '../../api/scenariosApi';
 
@@ -34,7 +35,9 @@ interface Props {
 export function RoleLineControls({ projectId, grid, onMutated }: Props) {
   const { addRoleLine, removeRoleLine } = useScenarioContext();
   const [roles, setRoles] = useState<RefRole[]>([]);
+  const [locations, setLocations] = useState<RefLocation[]>([]);
   const [selectedRole, setSelectedRole] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +50,14 @@ export function RoleLineControls({ projectId, grid, onMutated }: Props) {
       })
       .catch(() => {
         /* non-fatal — the add control just stays empty */
+      });
+    void referenceApi
+      .getLocations()
+      .then((res) => {
+        if (!cancelled) setLocations(res.items ?? []);
+      })
+      .catch(() => {
+        /* non-fatal — the location control just stays empty */
       });
     return () => {
       cancelled = true;
@@ -63,8 +74,12 @@ export function RoleLineControls({ projectId, grid, onMutated }: Props) {
     setBusy(true);
     setError(null);
     try {
-      await addRoleLine(projectId, { role_type_id: selectedRole });
+      await addRoleLine(projectId, {
+        role_type_id: selectedRole,
+        location_id: selectedLocation || undefined,
+      });
       setSelectedRole('');
+      setSelectedLocation('');
       onMutated();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add role line');
@@ -113,6 +128,27 @@ export function RoleLineControls({ projectId, grid, onMutated }: Props) {
             </SelectContent>
           </Select>
         </div>
+        <div className="flex-1 space-y-1">
+          <label className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <LocationLabel kind="workforce" text="Location" iconOnly={false} />
+          </label>
+          <Select
+            value={selectedLocation}
+            onValueChange={setSelectedLocation}
+            disabled={busy}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Select a location…" />
+            </SelectTrigger>
+            <SelectContent>
+              {locations.map((loc) => (
+                <SelectItem key={loc.id} value={loc.id}>
+                  {loc.city}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Button onClick={handleAdd} disabled={busy || !selectedRole}>
           <Plus className="h-4 w-4 mr-1" />
           Add
@@ -126,8 +162,15 @@ export function RoleLineControls({ projectId, grid, onMutated }: Props) {
               key={row.line_key}
               className="flex items-center justify-between px-3 py-2 text-sm"
             >
-              <span className="text-foreground">
+              <span className="flex items-center gap-1.5 text-foreground">
                 {row.sub_category_name}
+                {row.location_name && (
+                  <LocationLabel
+                    kind="workforce"
+                    text={row.location_name}
+                    className="text-[11px] font-normal text-muted-foreground"
+                  />
+                )}
                 {row.line_key.startsWith('new:role:') && (
                   <span className="ml-2 text-[11px] text-primary">added</span>
                 )}
