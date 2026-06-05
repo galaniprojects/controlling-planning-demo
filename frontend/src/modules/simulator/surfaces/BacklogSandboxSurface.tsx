@@ -23,12 +23,15 @@ import {
 import { useBacklogData } from '@/modules/backlog/hooks/useBacklogData';
 import { RankedListView } from '@/modules/backlog/components/ranked/RankedListView';
 import { CutoffSummaryStrip } from '@/modules/backlog/components/CutoffSummaryStrip';
+import { BacklogFilterBar } from '@/modules/backlog/components/BacklogFilterBar';
 import { useScenarioContext } from '../useScenarioContext';
 import { SurfaceCard } from './SurfaceCard';
 
 function BacklogInner() {
   const {
     filters,
+    setFilter,
+    clearFilters,
     sortField,
     sortDir,
     hasSortOverride,
@@ -42,22 +45,21 @@ function BacklogInner() {
     tshirt_size: filters.tshirt_size,
   });
 
-  if (error) {
-    return (
-      <Card className="border-red-500 bg-red-50 dark:bg-red-900/20 p-3">
-        <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
-      </Card>
-    );
-  }
-  if (loading || !data) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-96 w-full" />
-      </div>
-    );
-  }
-  return (
+  // The filter bar wires straight into the sandbox provider's in-memory filter
+  // state (pipeline-stage / project-type / t-shirt-size feed the server-side
+  // backlog query; T-level / within-cutoff are applied client-side), so it must
+  // render above the loading/error states rather than disappearing while the
+  // re-filtered ranking re-fetches.
+  const body = error ? (
+    <Card className="border-red-500 bg-red-50 dark:bg-red-900/20 p-3">
+      <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
+    </Card>
+  ) : loading || !data ? (
+    <div className="space-y-4">
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-96 w-full" />
+    </div>
+  ) : (
     <div className="space-y-4">
       <CutoffSummaryStrip
         cutoff={data.cutoff}
@@ -74,6 +76,17 @@ function BacklogInner() {
         onSort={setSort}
         onClearSort={clearSort}
       />
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <BacklogFilterBar
+        filters={filters as BacklogFilters}
+        onFilterChange={setFilter}
+        onClear={clearFilters}
+      />
+      {body}
     </div>
   );
 }
