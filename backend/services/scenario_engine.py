@@ -703,6 +703,34 @@ def _apply_portfolio_action(db: Session, working: dict, action_type: str, params
                 state["adjusted_budget"] = 0
                 state["is_affected"] = True
 
+    elif action_type == "inject_hypothetical_project":
+        # Sim no-op lever fix (A5): add a synthetic project to the working set so it
+        # shows up in project_states and the portfolio totals. Key is deterministic
+        # (slug of the name, -2/-3 suffix on collision) so recalc replay is stable.
+        name = params.get("name") or "Hypothetical Project"
+        total_budget = float(params.get("total_budget", 0))
+        slug = "".join(c if c.isalnum() else "-" for c in name.lower())
+        key = f"hypo-{slug}"
+        if key in working:
+            n = 2
+            while f"{key}-{n}" in working:
+                n += 1
+            key = f"{key}-{n}"
+        # NOTE: a hypothetical project has no rows in the Forecast table, so it
+        # cannot contribute to the per-year time_frame_breakdown (which is built
+        # from real Forecast rows / resolved grids). Its budget therefore appears
+        # in total_budget_adjusted and project_states but NOT in the year buckets.
+        working[key] = {
+            "name": name, "original_budget": 0.0,
+            "adjusted_budget": total_budget, "baseline": 0.0,
+            "rag": "green", "lob_id": "",
+            "is_service": False, "is_affected": True,
+            "start": None, "end": None,
+            "status": "Proposed",
+            "transformation_level": params.get("transformation_level"),
+            "project_type": params.get("project_type"),
+        }
+
     elif action_type == "cap_cost_category":
         _apply_cap_cost_category(db, working, params)
 
