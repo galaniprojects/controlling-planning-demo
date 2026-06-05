@@ -85,7 +85,8 @@ class TestActionAliases:
 
 def _make_working_state(project_id="proj-1", budget=10000.0, baseline=9000.0,
                         lob_id="lob-alpha", is_service=False, start="2025-01",
-                        end="2026-12", status="active"):
+                        end="2026-12", status="active",
+                        transformation_level=None, project_type=None):
     return {
         project_id: {
             "name": "Test Project",
@@ -99,6 +100,9 @@ def _make_working_state(project_id="proj-1", budget=10000.0, baseline=9000.0,
             "start": start,
             "end": end,
             "status": status,
+            # A0 — enriched working-state fields (sim no-op lever fix)
+            "transformation_level": transformation_level,
+            "project_type": project_type,
         }
     }
 
@@ -314,3 +318,272 @@ class TestGetScenarioState:
         assert result is not None
         assert result["metadata"]["name"] == "Test"
         assert len(result["project_states"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Sim no-op lever fix — previously no-op portfolio/project levers (A1-A7)
+# Each lever MUST move adjusted_budget (or, for reassign, re-bucket without a
+# budget change). Tests are written against qa/CONTRACTS-sim-noop.md.
+# ---------------------------------------------------------------------------
+
+@patch("services.scenario_engine.DEMO_DATE", "2026-04")
+class TestCutByHierarchy:
+    """A1 — cut_by_hierarchy: reduce member projects of a hierarchy node
+    (and its descendants), scoped via _get_projects_for_entity_recursive."""
+
+    def test_cuts_only_member_projects(self, db, seed_org_base, seed_hierarchy,
+                                       create_test_project):
+        # proj-1 sits under prog-one (child of lob-alpha); proj-2 under lob-beta.
+        create_test_project("proj-1")
+        create_test_project("proj-2", name="P2")
+        db.add(ProjectGroupingAssignment(
+            project_id="proj-1", grouping_entity_id=seed_hierarchy["prog_one_id"],
+        ))
+        db.add(ProjectGroupingAssignment(
+            project_id="proj-2", grouping_entity_id=seed_hierarchy["lob_beta_id"],
+        ))
+        db.commit()
+
+        working = {
+            **_make_working_state("proj-1", 10000),
+            **_make_working_state("proj-2", 20000),
+        }
+        _apply_portfolio_action(db, working, "cut_by_hierarchy", {
+            "hierarchy_node_id": seed_hierarchy["lob_alpha_id"],
+            "percentage": 20,
+        })
+        # proj-1 is a (recursive) member of lob-alpha → cut 20%.
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(8000.0)
+        assert working["proj-1"]["is_affected"] is True
+        # proj-2 is under lob-beta → untouched.
+        assert working["proj-2"]["adjusted_budget"] == pytest.approx(20000.0)
+
+    def test_unknown_node_is_noop(self, db, seed_org_base, seed_hierarchy,
+                                  create_test_project):
+        create_test_project("proj-1")
+        db.add(ProjectGroupingAssignment(
+            project_id="proj-1", grouping_entity_id=seed_hierarchy["prog_one_id"],
+        ))
+        db.commit()
+        working = _make_working_state("proj-1", 10000)
+        _apply_portfolio_action(db, working, "cut_by_hierarchy", {
+            "hierarchy_node_id": "does-not-exist", "percentage": 50,
+        })
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(10000.0)
+
+
+@patch("services.scenario_engine.DEMO_DATE", "2026-04")
+class TestCutByTransformation:
+    """A2 — cut_by_transformation: reduce projects whose transformation_level
+    matches the target ("T0"/"T1"/"T2")."""
+
+    def test_cuts_only_matching_level(self, db, seed_org_base):
+        working = {
+            **_make_working_state("proj-t1", 10000, transformation_level="T1"),
+            **_make_working_state("proj-t0", 20000, transformation_level="T0"),
+        }
+        _apply_portfolio_action(db, working, "cut_by_transformation", {
+            "transformation_level": "T1", "percentage": 25,
+        })
+        assert working["proj-t1"]["adjusted_budget"] == pytest.approx(7500.0)
+        assert working["proj-t1"]["is_affected"] is True
+        # T0 project untouched.
+        assert working["proj-t0"]["adjusted_budget"] == pytest.approx(20000.0)
+
+    def test_missing_level_is_noop(self, db, seed_org_base):
+        working = _make_working_state("proj-1", 10000, transformation_level=None)
+        _apply_portfolio_action(db, working, "cut_by_transformation", {
+            "transformation_level": "T2", "percentage": 30,
+        })
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(10000.0)
+
+
+@patch("services.scenario_engine.DEMO_DATE", "2026-04")
+class TestAdjustRateTable:
+    """A3 — adjust_rate_table: uplift category-scoped forecast cost by a
+    percentage, optionally filtered by role/location."""
+
+    def test_internal_scope_no_filter_uplifts(self, db, seed_org_base,
+                                              create_test_project):
+        # internal forecast 1000 x 3 months (2026-01..03), effective from 2026-01.
+        create_test_project("proj-1", months=["2026-01", "2026-02", "2026-03"],
+                            forecast_amt=1000)
+        working = _make_working_state("proj-1", 10000)
+        _apply_portfolio_action(db, working, "adjust_rate_table", {
+            "rate_table_scope": "internal", "percentage": 10,
+            "effective_month": "2026-01",
+        })
+        # uplift = sum(internal forecast >= 2026-01) * 10% = 3000 * 0.10 = 300
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(10300.0)
+        assert working["proj-1"]["is_affected"] is True
+
+    def test_role_filter_scopes_uplift(self, db, seed_org_base, create_test_project):
+        # A role_type_id filter restricts to projects that ALLOCATE matching
+        # persons (Person.role_type_id -> Allocation.project_id), then uplifts
+        # those projects' category-scoped forecast.
+        create_test_project("proj-1", months=["2026-01", "2026-02", "2026-03"],
+                            forecast_amt=1000)
+        create_test_project("proj-2", name="P2",
+                            months=["2026-01", "2026-02", "2026-03"], forecast_amt=1000)
+        # p-dev-1 (role-dev) works on proj-1; p-pm-1 (role-pm) works on proj-2.
+        db.add(Allocation(project_id="proj-1", person_id="p-dev-1",
+                          month="2026-05", hours=40))
+        db.add(Allocation(project_id="proj-2", person_id="p-pm-1",
+                          month="2026-05", hours=40))
+        db.commit()
+        working = {
+            **_make_working_state("proj-1", 10000),
+            **_make_working_state("proj-2", 10000),
+        }
+        _apply_portfolio_action(db, working, "adjust_rate_table", {
+            "rate_table_scope": "internal", "role_type_id": "role-dev",
+            "percentage": 10, "effective_month": "2026-01",
+        })
+        # Only proj-1 (allocates a role-dev person) is uplifted: 3000 * 10% = 300.
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(10300.0)
+        assert working["proj-2"]["adjusted_budget"] == pytest.approx(10000.0)
+
+
+@patch("services.scenario_engine.DEMO_DATE", "2026-04")
+class TestChangeBudgetEnvelope:
+    """A4 — change_budget_envelope: percent uplift per project, or absolute
+    pro-rata so the scoped-year envelope sums to the target value."""
+
+    def test_percent_mode(self, db, seed_org_base, create_test_project):
+        # year-2026 forecast = 1000 x 3 = 3000.
+        create_test_project("proj-1", months=["2026-01", "2026-02", "2026-03"],
+                            forecast_amt=1000)
+        working = _make_working_state("proj-1", 10000)
+        _apply_portfolio_action(db, working, "change_budget_envelope", {
+            "mode": "percent", "value": 10, "year": 2026,
+        })
+        # adjusted += scoped_year(3000) * 10% = 300
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(10300.0)
+        assert working["proj-1"]["is_affected"] is True
+
+    def test_absolute_mode_prorata(self, db, seed_org_base, create_test_project):
+        # Two projects each with year-2026 forecast 3000 → grand total 6000.
+        create_test_project("proj-1", months=["2026-01", "2026-02", "2026-03"],
+                            forecast_amt=1000)
+        create_test_project("proj-2", name="P2",
+                            months=["2026-01", "2026-02", "2026-03"], forecast_amt=1000)
+        working = {
+            **_make_working_state("proj-1", 10000),
+            **_make_working_state("proj-2", 20000),
+        }
+        _apply_portfolio_action(db, working, "change_budget_envelope", {
+            "mode": "absolute", "value": 12000, "year": 2026,
+        })
+        # ratio = 12000 / 6000 = 2; per project adjusted += scoped(3000) * (2 - 1)
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(13000.0)
+        assert working["proj-2"]["adjusted_budget"] == pytest.approx(23000.0)
+
+
+@patch("services.scenario_engine.DEMO_DATE", "2026-04")
+class TestInjectHypotheticalProject:
+    """A5 — inject_hypothetical_project: add a synthetic working entry whose
+    adjusted_budget == total_budget (so the portfolio delta == +total_budget)."""
+
+    def test_injects_synthetic_project(self, db, seed_org_base):
+        working = _make_working_state("proj-1", 10000)
+        _apply_portfolio_action(db, working, "inject_hypothetical_project", {
+            "name": "New Platform", "total_budget": 50000,
+            "project_type": 2, "transformation_level": "T2",
+        })
+        key = "hypo-new-platform"
+        assert key in working
+        hypo = working[key]
+        assert hypo["original_budget"] == 0
+        assert hypo["adjusted_budget"] == pytest.approx(50000.0)
+        assert hypo["baseline"] == 0
+        assert hypo["is_affected"] is True
+        assert hypo["project_type"] == 2
+        assert hypo["transformation_level"] == "T2"
+        # Existing project untouched.
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(10000.0)
+
+    def test_collision_gets_suffix(self, db, seed_org_base):
+        working = {}
+        for _ in range(2):
+            _apply_portfolio_action(db, working, "inject_hypothetical_project", {
+                "name": "New Platform", "total_budget": 1000,
+                "project_type": 1, "transformation_level": "T0",
+            })
+        assert "hypo-new-platform" in working
+        assert "hypo-new-platform-2" in working
+
+
+@patch("services.scenario_engine.DEMO_DATE", "2026-04")
+class TestReassignHierarchy:
+    """A6 — reassign_hierarchy (project-scoped): NO budget change; resolves the
+    target node to its top-level ancestor and stamps reassigned_node_id."""
+
+    def test_sets_reassigned_node_without_budget_change(self, db, seed_org_base,
+                                                        seed_hierarchy):
+        working = _make_working_state("proj-1", 10000)
+        before = working["proj-1"]["adjusted_budget"]
+        _apply_project_action(db, working, "reassign_hierarchy", "proj-1", {
+            "hierarchy_node_id": seed_hierarchy["prog_one_id"],
+        })
+        # prog-one resolves up to its top-level LoB ancestor (lob-alpha).
+        assert working["proj-1"]["reassigned_node_id"] == seed_hierarchy["lob_alpha_id"]
+        # No budget movement.
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(before)
+        assert working["proj-1"]["is_affected"] is True
+
+    def test_top_level_node_resolves_to_itself(self, db, seed_org_base,
+                                               seed_hierarchy):
+        working = _make_working_state("proj-1", 10000)
+        _apply_project_action(db, working, "reassign_hierarchy", "proj-1", {
+            "hierarchy_node_id": seed_hierarchy["lob_beta_id"],
+        })
+        assert working["proj-1"]["reassigned_node_id"] == seed_hierarchy["lob_beta_id"]
+
+
+@patch("services.scenario_engine.DEMO_DATE", "2026-04")
+class TestRateEscalationSurfaces:
+    """A7 — rate_escalation surface-contract reconciliation. The surface payloads
+    {pct, rate_scope} and {pct, from_month, category} must move the budget via
+    forecast uplift; the catalogue per-person payload still works."""
+
+    def test_surface_rate_scope(self, db, seed_org_base, create_test_project):
+        # Forecasts from DEMO_DATE (2026-04) onward so from_month default catches them.
+        create_test_project("proj-1", months=["2026-04", "2026-05", "2026-06"],
+                            forecast_amt=1000)
+        working = _make_working_state("proj-1", 10000)
+        _apply_portfolio_action(db, working, "rate_escalation", {
+            "pct": 10, "rate_scope": "internal",
+        })
+        # uplift = sum(internal forecast >= 2026-04) * 10% = 3000 * 0.10 = 300
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(10300.0)
+        assert working["proj-1"]["is_affected"] is True
+
+    def test_surface_from_month_category(self, db, seed_org_base, create_test_project):
+        create_test_project("proj-1", months=["2026-01", "2026-02", "2026-03"],
+                            forecast_amt=1000)
+        working = _make_working_state("proj-1", 10000)
+        _apply_portfolio_action(db, working, "rate_escalation", {
+            "pct": 10, "from_month": "2026-01", "category": "internal",
+        })
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(10300.0)
+
+    def test_catalogue_per_person_path_still_works(self, db, seed_org_base,
+                                                   create_test_project):
+        # Catalogue payload: scope_type/scope_values drive the allocation-based path.
+        create_test_project("proj-1")
+        db.add(RateTable(
+            role_type_id="role-dev", competence_center_id="comp-dev",
+            hourly_rate=100.0, effective_date="2025-01-01",
+        ))
+        db.add(Allocation(
+            project_id="proj-1", person_id="p-dev-1", month="2026-05", hours=40,
+        ))
+        db.commit()
+        working = _make_working_state("proj-1", 10000)
+        _apply_portfolio_action(db, working, "rate_escalation", {
+            "scope_type": "role", "scope_values": ["role-dev"],
+            "increase_pct": 5, "effective_month": "2026-04",
+        })
+        # 40 hrs * 100 EUR * 5% = 200 added.
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(10200.0)
+        assert working["proj-1"]["is_affected"] is True
