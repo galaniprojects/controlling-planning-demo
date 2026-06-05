@@ -165,6 +165,57 @@ class TestComputeImpactDashboard:
         assert result == {}
 
 
+class TestReassignHierarchyRebucket:
+    """Sim no-op lever fix (A6): reassign_hierarchy moves a project's contribution
+    from its canonical top-level node to the reassigned node in the investment-mix
+    dimension, WITHOUT any financial budget change (financial.total_delta == 0).
+    Per qa/CONTRACTS-sim-noop.md §A6 + Verification anchor.
+    """
+
+    def test_rebuckets_without_budget_change(self, db, seed_personas, seed_hierarchy,
+                                             create_test_project):
+        # proj-r sits under prog-one (canonical top-level node = lob-alpha).
+        create_test_project("proj-r", forecast_amt=1000)  # 3 months → 3000 budget
+        db.add(ProjectGroupingAssignment(
+            project_id="proj-r", grouping_entity_id=seed_hierarchy["prog_one_id"],
+        ))
+        sc = Scenario(name="Reassign Test", author_id="p-dev-1", status="private")
+        db.add(sc)
+        db.flush()
+        # Reassign to lob-beta (a different top-level node).
+        db.add(ScenarioAction(
+            scenario_id=sc.id, action_order=1, scope="project",
+            action_type="reassign_hierarchy", project_id="proj-r",
+            parameters_json='{"hierarchy_node_id": "lob-beta"}',
+            lever_category="restructuring", tier=2,
+        ))
+        db.commit()
+
+        actions = (
+            db.query(ScenarioAction)
+            .filter(ScenarioAction.scenario_id == sc.id)
+            .all()
+        )
+        state = recalculate_scenario(db, sc, actions)
+        dashboard = compute_impact_dashboard(
+            db, sc.id, state, include_tier3=True, include_cost_allocation=False,
+        )
+        dims = dashboard["dimensions"]
+
+        # Financial dimension: no budget movement.
+        assert dims["financial"]["total_delta"] == pytest.approx(0.0)
+
+        # Investment mix: contribution moves lob-alpha → lob-beta.
+        mix = {it["node_id"]: it for it in dims["investment_mix"]["items"]}
+        assert "lob-alpha" in mix and "lob-beta" in mix
+        # Anchor still attributes the project to its canonical node (lob-alpha).
+        assert mix["lob-alpha"]["anchor_total"] == pytest.approx(3000.0)
+        assert mix["lob-beta"]["anchor_total"] == pytest.approx(0.0)
+        # Scenario attributes it to the reassigned node (lob-beta).
+        assert mix["lob-alpha"]["scenario_total"] == pytest.approx(0.0)
+        assert mix["lob-beta"]["scenario_total"] == pytest.approx(3000.0)
+
+
 class TestMarkRecalculated:
     def test_stamps_timestamp_and_tier3_flag(self, db, basic_scenario):
         # Add a Tier 3 action to set the flag.
