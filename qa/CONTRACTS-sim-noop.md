@@ -16,11 +16,14 @@ lob_id, is_service, is_affected, start, end, status`.
 
 ## Engine helper signatures (A1/A3/A6/A7) — in scenario_engine.py
 ```python
-def _uplift_forecast_by_category(db, working, project_ids: list[str],
-                                 category: str | None, pct: float, from_month: str) -> None:
-    """For each pid in project_ids ∩ working: sum Forecast.amount_eur where
-    (category is None or Forecast.category == category) and month >= from_month,
-    add sum * pct/100 to working[pid]['adjusted_budget'], set is_affected=True."""
+def _uplift_forecast_by_category(db, working, project_ids: list[str] | None,
+                                 category: str | None, pct: float, from_month: str,
+                                 sub_categories: list[str] | None = None) -> None:
+    """For each pid in (project_ids or all working pids) ∩ working: sum Forecast.amount_eur
+    where (category is None or Forecast.category == category) and
+    (sub_categories is None or Forecast.sub_category in sub_categories) and
+    month >= from_month; add sum * pct/100 to working[pid]['adjusted_budget'],
+    set is_affected=True. project_ids=None means 'all projects in working'."""
 
 def _resolve_top_level_node(db, node_id: str, top_type: str) -> str:
     """Walk GroupingEntity.parent_entity_id up until entity_type_id == top_type;
@@ -37,12 +40,27 @@ Reuse (already imported in scenario_engine.py):
 |---|---|---|
 | `cut_by_hierarchy` | portfolio | `hierarchy_node_id`, `percentage` (+ optional `target_years`) |
 | `cut_by_transformation` | portfolio | `transformation_level` ("T0"/"T1"/"T2"), `percentage` (+ `target_years`) |
-| `adjust_rate_table` | portfolio | `rate_table_scope` ("internal"/"external"), `location_id?`, `role_type_id?`, `percentage`, `effective_month` |
+| `adjust_rate_table` | portfolio | `rate_table_scope` ("internal"/"external"), `location_id?`, `role_type_id?`, `percentage`, `effective_month` (see CORRECTED semantics below) |
 | `change_budget_envelope` | portfolio | `mode` ("percent"/"absolute"), `value` (number), `year` (number) |
 | `inject_hypothetical_project` | portfolio | `name`, `total_budget`, `project_type` (int), `transformation_level` |
 | `reassign_hierarchy` | project | `hierarchy_node_id` |
 | `rate_escalation` (surfaces) | portfolio | EITHER `{pct, rate_scope}` OR `{pct, from_month, category, hierarchy_node_id?}` |
 | `rate_escalation` (catalogue, KEEP working) | portfolio | `scope_type, scope_values, increase_pct, effective_month` |
+
+## A3 adjust_rate_table — CORRECTED scoping (supersedes earlier allocation-based clause)
+Data model (models/financial.py:29,40; report_builder_catalog.py:90/105): for `category='internal'`
+forecast rows the **role_type_id lives in `Forecast.sub_category`**; for `external` rows
+sub_category is the cost_type_id. So scope precisely on forecast rows, NOT via allocations:
+- `rate_table_scope` → `category` ("internal"/"external").
+- `role_type_id` present → `sub_categories=[role_type_id]` passed to `_uplift_forecast_by_category`
+  (precise, on the forecast rows). No allocation join.
+- `location_id` present → forecast rows carry no location, so derive the **project set** via
+  CostCenter.location_id → Person.cost_center_id → that person's allocated projects (allocation
+  path); pass as `project_ids`. (Over-approximation is acceptable here — no finer signal exists.)
+- both → `project_ids` = location-derived set AND `sub_categories=[role_type_id]`.
+- neither → `project_ids=None` (all working), `sub_categories=None`.
+Tests: the role-filter test correctly tags via `Forecast.sub_category` and needs NO allocations;
+add a separate location-filter test that exercises the cost-centre→person→allocation project-set path.
 
 ## Lever semantics (locked decisions)
 - `change_budget_envelope` percent: per-project `adjusted_budget += scoped_year_€ * (value/100)`.
