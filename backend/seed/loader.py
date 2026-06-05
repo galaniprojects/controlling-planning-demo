@@ -148,6 +148,7 @@ def seed_database() -> dict:
     # SQL — the legacy `_seed_progress_tracker_data` Python helper has been
     # retired by S1 [F-DG-01..03] [E-04c].
     _seed_forecast_versions()
+    _seed_scenario_anchors()
     _recompute_within_cutoff()
     fixtures = load_fixtures()
     print("[seed] Seed complete.")
@@ -308,6 +309,54 @@ def _seed_forecast_versions() -> None:
         db.close()
 
 
+def _seed_scenario_anchors() -> None:
+    """Pin each seeded scenario's touched projects to their latest cycle (F11).
+
+    Seeded scenarios ship with no per-project anchor rows; without this they
+    409 "Anchor is out of date" on the first apply/promote. Runs after
+    ``_seed_forecast_versions()`` so each project's cycle versions exist, then
+    reuses ``services.scenario_anchor.ensure_anchors_for_touched`` — the same
+    helper the interactive authoring paths use — so seed and runtime stay
+    consistent (Simulator E2E Fixes Session 3, replaces the never-run
+    "set anchor on first open" assumption).
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine(
+        f"sqlite:///{get_db_path()}",
+        connect_args={"check_same_thread": False},
+    )
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
+    try:
+        import models  # noqa: F401 — registers all ORM classes
+        from models.scenarios import Scenario
+        from services.scenario_anchor import ensure_anchors_for_touched
+
+        scenarios = db.query(Scenario).all()
+        pinned = 0
+        for sc in scenarios:
+            rows = ensure_anchors_for_touched(db, sc)
+            pinned += len(rows)
+        db.commit()
+        print(
+            f"[seed] Pinned {pinned} per-project anchor(s) across "
+            f"{len(scenarios)} scenario(s) (Session 3 F11)"
+        )
+    except Exception as exc:
+        db.rollback()
+        # Fail loudly — a silent failure ships unanchored scenarios that 409 on
+        # the first apply/promote (the F11 bug this step exists to prevent).
+        print(f"[seed] ERROR: _seed_scenario_anchors failed: {exc}")
+        raise
+    finally:
+        db.close()
+
+
 def _recompute_within_cutoff() -> None:
     """Run the [A-PS-06] orchestrator so seeded ``within_cutoff`` values match
     the spec — only Approved projects carry a meaningful flag; everything
@@ -389,6 +438,7 @@ def reset_database() -> dict:
     # Progress tracker state seeded inline by s18_progress.py (S1).
     # C1: generate 2 forecast versions per project [C-FV-05]
     _seed_forecast_versions()
+    _seed_scenario_anchors()
     _recompute_within_cutoff()
     fixtures = load_fixtures()
     print("[seed] Reset complete.")

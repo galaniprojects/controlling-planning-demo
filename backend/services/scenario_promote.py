@@ -17,9 +17,10 @@ its native system workflow:
 | cost_allocation       | cost_allocation_update                    |
 | capacity_param        | capacity_param_update                     |
 
-Per [B-PR-02]: Promote requires the scenario's anchor_forecast_version_id
-to point to the latest forecast cycle version. If stale, the router returns
-409 with "rebase first" message.
+Per [B-PR-02]: Promote requires each project the scenario touches to be
+anchored to *its own* latest forecast cycle version (per-project anchoring,
+``services/scenario_anchor.py``). If any project is stale, the router returns
+409 naming the stale project(s) with a "rebase first" message.
 
 Per [B-PR-04]: Partial promotion allowed. Promoted ScenarioAction rows get
 ``promoted_at`` / ``promoted_by_id`` stamped. Un-promoted actions remain
@@ -44,7 +45,6 @@ from sqlalchemy.orm import Session
 from models.charging import (
     BTCProfile, BTCProfileLine, ChargeableEntity, Distribution,
 )
-from models.financial import ForecastVersion
 from models.projects import Project
 from models.scenarios import (
     Scenario, ScenarioAction, ScenarioPromotion, SCENARIO_ROUTING_TYPES,
@@ -52,6 +52,9 @@ from models.scenarios import (
 )
 from models.system import RolePermissionGrant
 from schemas.common import CurrentUser
+from services.scenario_anchor import (
+    anchor_version_ids, stale_message, stale_projects,
+)
 from services.scenario_cost_allocation import (
     ACTION_BTC_LINE_CHANGE,
     ACTION_DISTRIBUTION_CHANGE,
@@ -79,48 +82,19 @@ class PromoteError(Exception):
 
 def assert_anchor_is_latest_cycle(
     db: Session, scenario: Scenario,
-) -> tuple[ForecastVersion, ForecastVersion]:
-    """Per [B-PR-02], anchor must equal the latest cycle version.
+) -> None:
+    """Per [B-PR-02], every touched project must be anchored to its latest cycle.
 
-    Returns (anchor_version, latest_cycle_version) on success. Raises
-    PromoteError when stale (caller surfaces "rebase first" message).
+    Per-project guard (``services/scenario_anchor.py``): raises ``PromoteError``
+    naming the stale project(s) when any project's anchor is behind that
+    project's latest cycle. No-cycle tolerance is preserved — a project without
+    a cycle version is not evaluated.
     """
-    if scenario.anchor_forecast_version_id is None:
+    stale = stale_projects(db, scenario)
+    if stale:
         raise PromoteError(
-            "Scenario has no anchor forecast version — rebase to the latest "
-            "cycle before promoting.",
-            hint="rebase",
+            stale_message(stale, verb="promoting"), hint="rebase",
         )
-    anchor = (
-        db.query(ForecastVersion)
-        .filter(ForecastVersion.id == scenario.anchor_forecast_version_id)
-        .first()
-    )
-    if anchor is None:
-        raise PromoteError(
-            f"Anchor forecast version {scenario.anchor_forecast_version_id} "
-            "no longer exists. Rebase the scenario to a current version.",
-            hint="rebase",
-        )
-    latest_cycle = (
-        db.query(ForecastVersion)
-        .filter(ForecastVersion.version_type == "cycle")
-        .order_by(ForecastVersion.created_at.desc())
-        .first()
-    )
-    if latest_cycle is None:
-        # No cycles exist — anchor is trivially "latest".
-        return anchor, anchor
-    if anchor.id != latest_cycle.id:
-        raise PromoteError(
-            f"Scenario anchor (v{anchor.version_number} of project "
-            f"{anchor.project_id}) is behind the latest cycle "
-            f"(v{latest_cycle.version_number} of project "
-            f"{latest_cycle.project_id}). Rebase to the latest cycle "
-            "before promoting.",
-            hint="rebase",
-        )
-    return anchor, latest_cycle
 
 
 # ---------------------------------------------------------------------------
@@ -687,7 +661,7 @@ def preview_promote(
 
     return {
         "scenario_id": scenario_id,
-        "anchor_forecast_version_id": scenario.anchor_forecast_version_id,
+        "anchor_version_ids": anchor_version_ids(db, scenario),
         "decisions": decisions,
     }
 

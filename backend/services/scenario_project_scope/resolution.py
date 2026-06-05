@@ -9,8 +9,9 @@ hours / external €).
 **Anchor cell source = LIVE Forecast rows**, keyed by
 ``(project_id, month, category, sub_category, role_type_id)`` — the only true
 per-month source, the only one carrying hours, and the same keyspace the write
-paths target. ``Scenario.anchor_forecast_version_id`` stays the pinned scalar
-reference + stale-anchor guard; it is not the per-cell source.
+paths target. The per-project ``ScenarioProjectAnchor`` rows
+(``services/scenario_anchor.py``) are the pinned reference for the stale-anchor
+guard; they are not the per-cell source.
 
 Stream A implements every function here and owns the accompanying tests.
 """

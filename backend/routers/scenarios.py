@@ -50,8 +50,12 @@ from schemas.scenarios import (
     ScenarioListItem,
     ScenarioListResponse, ScenarioMetadataUpdate, ScenarioPublishRequest,
     ScenarioRebaseRequest, ToBusinessChange,
+    RebaseOptionsResponse, RebaseProjectOption, VersionOption,
 )
 from services.distribution_service import resolve_active_version
+from services.scenario_anchor import (
+    anchor_version_ids, ensure_anchors_for_touched,
+)
 from services.scenario_apply_forecast import (
     ApplyToForecastError, apply_to_forecast,
 )
@@ -79,7 +83,7 @@ router = APIRouter(prefix="/api/scenarios", tags=["What-If Simulator"])
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _serialize_scenario(s: Scenario) -> ScenarioListItem:
+def _serialize_scenario(db: Session, s: Scenario) -> ScenarioListItem:
     tags_list: Optional[list[str]] = None
     if s.tags:
         try:
@@ -98,7 +102,8 @@ def _serialize_scenario(s: Scenario) -> ScenarioListItem:
         archived=s.archived,
         archived_at=str(s.archived_at) if s.archived_at else None,
         tags=tags_list,
-        anchor_forecast_version_id=s.anchor_forecast_version_id,
+        # Active anchors only (orphan rows for untouched projects are filtered).
+        anchor_version_ids=anchor_version_ids(db, s),
         last_recalculated_at=str(s.last_recalculated_at) if s.last_recalculated_at else None,
     )
 
@@ -173,16 +178,6 @@ def _user_can_view_scenario(
     return True
 
 
-def _latest_cycle_version_id(db: Session) -> Optional[int]:
-    fv = (
-        db.query(ForecastVersion)
-        .filter(ForecastVersion.version_type == "cycle")
-        .order_by(ForecastVersion.created_at.desc())
-        .first()
-    )
-    return fv.id if fv else None
-
-
 # ---------------------------------------------------------------------------
 # Scenario Manager (extended)
 # ---------------------------------------------------------------------------
@@ -248,12 +243,12 @@ def list_scenarios(
                 pass
 
     return ScenarioListResponse(
-        my_scenarios=[_serialize_scenario(s) for s in my if matches_tag(s)],
+        my_scenarios=[_serialize_scenario(db, s) for s in my if matches_tag(s)],
         published_scenarios=[
-            _serialize_scenario(s) for s in visible_published if matches_tag(s)
+            _serialize_scenario(db, s) for s in visible_published if matches_tag(s)
         ],
         archived_scenarios=[
-            _serialize_scenario(s) for s in archived if matches_tag(s)
+            _serialize_scenario(db, s) for s in archived if matches_tag(s)
         ],
         available_tags=sorted(all_tags),
     )
@@ -295,16 +290,10 @@ def create_scenario(
                 f"'{user.cost_center_id}', got '{cc_scope}'",
             )
 
-    # Default anchor to the latest cycle if none supplied.
-    anchor_id = body.anchor_forecast_version_id
-    if anchor_id is None:
-        anchor_id = _latest_cycle_version_id(db)
-    elif (
-        db.query(ForecastVersion).filter(ForecastVersion.id == anchor_id).first()
-        is None
-    ):
-        raise HTTPException(404, f"Forecast version {anchor_id} not found")
-
+    # Per-project anchoring: each touched project is pinned to its own latest
+    # cycle (services/scenario_anchor.py). A from-scratch scenario touches no
+    # projects yet, so anchors are populated as projects are added (and below
+    # for the clone case); the former single scalar anchor is gone.
     tags_json = json.dumps(body.tags) if body.tags else None
 
     # FD-3 [F-S1-02] / OQ #3: pin the Stage 1 distribution-version anchor at
@@ -325,7 +314,6 @@ def create_scenario(
         author_id=user.person_id,
         status="private",
         visibility="private",
-        anchor_forecast_version_id=anchor_id,
         anchor_distribution_version_id=dist_anchor,
         tags=tags_json,
         cc_owner_scope_cc_id=cc_scope,
@@ -363,11 +351,14 @@ def create_scenario(
                 lever_category=a.lever_category, tier=a.tier,
             ))
 
+    # Pin per-project anchors for any projects already touched (clone case).
+    ensure_anchors_for_touched(db, scenario)
+
     db.commit()
     db.refresh(scenario)
     return {
         "id": scenario.id, "name": scenario.name, "status": scenario.status,
-        "anchor_forecast_version_id": scenario.anchor_forecast_version_id,
+        "anchor_version_ids": anchor_version_ids(db, scenario),
         "anchor_distribution_version_id": scenario.anchor_distribution_version_id,
         "visibility": scenario.visibility,
         "cc_owner_scope_cc_id": scenario.cc_owner_scope_cc_id,
@@ -491,6 +482,70 @@ def archive_scenario(
     }
 
 
+@router.get("/{scenario_id}/rebase-options", response_model=RebaseOptionsResponse)
+def rebase_options(
+    scenario_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_role(
+        "controller", "executive", "cost_center_owner", "project_lead",
+    )),
+):
+    """Per-project rebase choices for the labeled picker (F10).
+
+    One entry per touched project: its current anchor, whether it is stale, and
+    the candidate cycle versions (labeled) it can rebase to.
+    """
+    from services.scenario_anchor import (
+        touched_project_ids, latest_cycle_version_for_project,
+    )
+
+    scenario = _get_scenario_or_404(db, scenario_id)
+    has_tier3 = user_has_tier3(db, user)
+    if not _user_can_view_scenario(scenario, user, has_tier3, db):
+        raise HTTPException(403, "You do not have access to this scenario.")
+
+    anchors = {a.project_id: a for a in scenario.project_anchors}
+    # Touched projects only — never offer a stale orphan anchor's project.
+    project_ids = touched_project_ids(db, scenario)
+    name_lookup = {
+        p.id: p.name
+        for p in db.query(Project).filter(Project.id.in_(project_ids)).all()
+    } if project_ids else {}
+
+    projects: list[RebaseProjectOption] = []
+    for pid in sorted(project_ids):
+        candidates = (
+            db.query(ForecastVersion)
+            .filter(
+                ForecastVersion.project_id == pid,
+                ForecastVersion.version_type == "cycle",
+            )
+            .order_by(ForecastVersion.version_number.desc())
+            .all()
+        )
+        if not candidates:
+            continue
+        latest = candidates[0]
+        anchor = anchors.get(pid)
+        current = None
+        if anchor is not None:
+            cur_fv = next(
+                (c for c in candidates if c.id == anchor.forecast_version_id),
+                None,
+            )
+            if cur_fv is not None:
+                current = _version_option(cur_fv)
+        is_stale = anchor is None or anchor.forecast_version_id != latest.id
+        projects.append(RebaseProjectOption(
+            project_id=pid,
+            project_name=name_lookup.get(pid, pid),
+            current_anchor=current,
+            is_stale=is_stale,
+            candidates=[_version_option(c) for c in candidates],
+        ))
+    return RebaseOptionsResponse(scenario_id=scenario_id, projects=projects)
+
+
 @router.put("/{scenario_id}/rebase")
 def rebase_scenario(
     scenario_id: int,
@@ -500,32 +555,38 @@ def rebase_scenario(
         "controller", "executive", "cost_center_owner", "project_lead",
     )),
 ):
-    """Re-anchor a scenario to a newer cycle version per [B-SL-02].
+    """Re-anchor the given projects to newer cycle versions per [B-SL-02].
 
-    Manual + explicit per spec — no automatic rebase. Carries forward all
-    diffs unchanged; conflict resolution is a UI concern that this endpoint
-    does not handle (the demo surfaces "rebased" status; the user resolves
-    conflicts in the editor).
+    Manual + explicit per spec — no automatic rebase. Per-project: the body
+    carries ``{project_id: forecast_version_id}`` for the project(s) to rebase;
+    other projects keep their anchors. Carries forward all diffs unchanged;
+    conflict resolution remains a UI concern.
     """
+    from services.scenario_anchor import rebase_anchors, AnchorError
+
     scenario = _get_scenario_or_404(db, scenario_id)
     _check_scenario_owner(scenario, user)
-    new_anchor = (
-        db.query(ForecastVersion)
-        .filter(ForecastVersion.id == body.new_anchor_version_id)
-        .first()
-    )
-    if new_anchor is None:
-        raise HTTPException(
-            404, f"Forecast version {body.new_anchor_version_id} not found",
-        )
-    scenario.rebased_from_version_id = scenario.anchor_forecast_version_id
-    scenario.anchor_forecast_version_id = new_anchor.id
+    if not body.anchors:
+        raise HTTPException(400, "No projects to rebase.")
+    try:
+        rebase_anchors(db, scenario, body.anchors)
+    except AnchorError as exc:
+        raise HTTPException(exc.status_code, exc.message) from exc
     db.commit()
+    db.refresh(scenario)
     return {
         "id": scenario.id,
-        "anchor_forecast_version_id": scenario.anchor_forecast_version_id,
-        "rebased_from_version_id": scenario.rebased_from_version_id,
+        "anchor_version_ids": anchor_version_ids(db, scenario),
     }
+
+
+def _version_option(fv: "ForecastVersion") -> "VersionOption":
+    return VersionOption(
+        id=fv.id,
+        version_number=fv.version_number,
+        cycle_label=fv.cycle_label,
+        created_at=str(fv.created_at),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -562,7 +623,7 @@ def get_scenario_detail(
 
     state["metadata"]["visibility"] = scenario.visibility
     state["metadata"]["tier3_content_flag"] = scenario.tier3_content_flag
-    state["metadata"]["anchor_forecast_version_id"] = scenario.anchor_forecast_version_id
+    state["metadata"]["anchor_version_ids"] = anchor_version_ids(db, scenario)
     state["metadata"]["archived"] = scenario.archived
     state["metadata"]["last_recalculated_at"] = (
         str(scenario.last_recalculated_at) if scenario.last_recalculated_at else None
@@ -659,6 +720,8 @@ def apply_action(
 
     # Bump modified timestamp for stale indicator
     scenario.modified_at = datetime.utcnow()
+    # Pin a per-project anchor the first time this project is touched.
+    ensure_anchors_for_touched(db, scenario)
 
     # Invalidate snapshots
     db.query(ScenarioState).filter(ScenarioState.scenario_id == scenario_id).delete()
@@ -810,12 +873,18 @@ def compare_scenarios(
                 f"You do not have access to scenario {sc.id}.",
             )
     if scenarios:
-        anchors = {s.anchor_forecast_version_id for s in scenarios}
-        if len(anchors) > 1:
+        # Per-project anchoring: scenarios must share the same per-project
+        # anchor map (each touched project pinned to the same cycle version).
+        # Use the active-anchor view so orphan rows can't spuriously differ.
+        def _anchor_map(s: Scenario) -> frozenset:
+            return frozenset(anchor_version_ids(db, s).items())
+
+        anchor_maps = {_anchor_map(s) for s in scenarios}
+        if len(anchor_maps) > 1:
             raise HTTPException(
                 409,
-                "Comparison requires shared anchor — rebase scenarios so "
-                "they share the same forecast cycle version.",
+                "Comparison requires shared anchors — rebase scenarios so "
+                "every project is pinned to the same forecast cycle version.",
             )
 
     projects = db.query(Project).filter(Project.is_active.is_(True)).all()
@@ -1230,6 +1299,7 @@ def apply_advisor_path(
         db.add(action)
 
     scenario.modified_at = datetime.utcnow()
+    ensure_anchors_for_touched(db, scenario)
     db.query(ScenarioState).filter(ScenarioState.scenario_id == scenario_id).delete()
     db.query(ScenarioCapacityImpact).filter(
         ScenarioCapacityImpact.scenario_id == scenario_id,

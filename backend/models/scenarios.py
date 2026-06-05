@@ -20,9 +20,12 @@ class Scenario(Base):
     v5 Cluster B Session B1 additions (all nullable / defaulted to preserve
     existing seed and test expectations):
 
-    - ``anchor_forecast_version_id`` per [B-SL-01]: FK to forecast_versions.
-      Default at creation = the latest cycle version. Diffs are computed
-      relative to this anchor. Nullable for backward-compat.
+    - Per-project anchoring per [B-SL-01] (Simulator E2E Fixes Session 3):
+      each project a scenario touches is anchored to *its own* latest cycle
+      ``ForecastVersion`` via the ``ScenarioProjectAnchor`` association
+      (``project_anchors`` relationship), replacing the former single scalar
+      ``anchor_forecast_version_id``. Diffs and the stale-guard are computed
+      per project. See ``services/scenario_anchor.py``.
     - ``visibility`` per [B-SL-03]: 'private' | 'tier3_only' | 'all_users'.
       v4 ``status`` of 'private'/'published' continues to drive the broad
       published/unpublished split; ``visibility`` refines published scenarios
@@ -41,8 +44,8 @@ class Scenario(Base):
       scenario it is scoped to a specific cost centre and only resource
       levers within that CC are editable. Nullable; only set for CC-Owner
       scenarios.
-    - ``rebased_from_version_id`` per [B-SL-02]: previous anchor before the
-      most recent rebase, retained for audit context. Nullable.
+    - Rebase audit per [B-SL-02]: the previous anchor before the most recent
+      rebase is retained per project on ``ScenarioProjectAnchor.rebased_from_version_id``.
     - ``anchor_distribution_version_id`` per Charging/UM rework FD-3 / spec §4:
       Stage 1 distribution-version anchor. Pinned at scenario creation to the
       production ``DistributionVersion`` that was in force at the time, so
@@ -64,12 +67,9 @@ class Scenario(Base):
     modified_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # ---- v5 B1 additions ----
-    anchor_forecast_version_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("forecast_versions.id"), nullable=True,
-    )
-    rebased_from_version_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("forecast_versions.id"), nullable=True,
-    )
+    # Per-project anchoring replaces the former scalar anchor_forecast_version_id
+    # / rebased_from_version_id columns — see ScenarioProjectAnchor below and
+    # services/scenario_anchor.py (Simulator E2E Fixes Session 3).
     visibility: Mapped[str] = mapped_column(
         String(20), nullable=False, default="private", server_default="private",
     )
@@ -115,17 +115,61 @@ class Scenario(Base):
     promotions: Mapped[list["ScenarioPromotion"]] = relationship(
         back_populates="scenario", order_by="ScenarioPromotion.promoted_at.desc()",
     )
-    anchor_version = relationship(
-        "ForecastVersion", foreign_keys=[anchor_forecast_version_id],
-    )
-    rebased_from_version = relationship(
-        "ForecastVersion", foreign_keys=[rebased_from_version_id],
+    project_anchors: Mapped[list["ScenarioProjectAnchor"]] = relationship(
+        back_populates="scenario", cascade="all, delete-orphan",
     )
     cc_owner_scope_cc = relationship(
         "CostCenter", foreign_keys=[cc_owner_scope_cc_id],
     )
     anchor_distribution_version = relationship(
         "DistributionVersion", foreign_keys=[anchor_distribution_version_id],
+    )
+
+
+class ScenarioProjectAnchor(Base):
+    """Per-project forecast anchor for a scenario per [B-SL-01..02]
+    (Simulator E2E Fixes Session 3).
+
+    Replaces the single scalar ``Scenario.anchor_forecast_version_id``. A
+    scenario carries one row per project it touches, each pinned to that
+    project's latest cycle ``ForecastVersion`` at scenario-create (or rebase)
+    time. The stale-guard compares each project against *its* latest cycle and
+    refuses only the stale project(s) — fixing the non-deterministic global
+    ``created_at DESC`` tie-break the scalar guard suffered (all seeded cycle
+    versions share one timestamp). ``rebased_from_version_id`` retains the
+    prior anchor for audit after a rebase. See ``services/scenario_anchor.py``.
+    """
+
+    __tablename__ = "scenario_project_anchors"
+    __table_args__ = (
+        UniqueConstraint(
+            "scenario_id", "project_id", name="uq_scenario_project_anchor",
+        ),
+        Index("ix_scenario_project_anchors_scenario", "scenario_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    scenario_id: Mapped[int] = mapped_column(
+        ForeignKey("scenarios.id"), nullable=False,
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id"), nullable=False,
+    )
+    forecast_version_id: Mapped[int] = mapped_column(
+        ForeignKey("forecast_versions.id"), nullable=False,
+    )
+    rebased_from_version_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("forecast_versions.id"), nullable=True,
+    )
+
+    # Relationships
+    scenario: Mapped["Scenario"] = relationship(back_populates="project_anchors")
+    project: Mapped["Project"] = relationship()
+    forecast_version = relationship(
+        "ForecastVersion", foreign_keys=[forecast_version_id],
+    )
+    rebased_from_version = relationship(
+        "ForecastVersion", foreign_keys=[rebased_from_version_id],
     )
 
 
