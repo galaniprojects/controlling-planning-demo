@@ -682,6 +682,20 @@ def _apply_portfolio_action(db: Session, working: dict, action_type: str, params
                     state["adjusted_budget"] *= (1 - abs(pct) / 100)
                 state["is_affected"] = True
 
+    elif action_type == "cut_by_transformation":
+        # Sim no-op lever fix (A2): cut projects whose transformation_level matches
+        # the target ("T0"/"T1"/"T2") by a percentage. Year-scope aware.
+        target_level = params.get("transformation_level")
+        pct = float(params.get("percentage", params.get("pct", 0)))
+        for pid, state in working.items():
+            if target_level and state.get("transformation_level") == target_level:
+                if target_years:
+                    scoped = _get_year_scoped_forecast(db, pid, target_years)
+                    state["adjusted_budget"] -= scoped * (abs(pct) / 100)
+                else:
+                    state["adjusted_budget"] *= (1 - abs(pct) / 100)
+                state["is_affected"] = True
+
     elif action_type == "freeze_new_starts":
         cutoff_month = params.get("cutoff_month", DEMO_DATE)
         for state in working.values():
