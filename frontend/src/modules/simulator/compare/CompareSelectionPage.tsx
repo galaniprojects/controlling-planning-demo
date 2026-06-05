@@ -33,13 +33,18 @@ import { scenariosApi } from '../api/scenariosApi';
 import type { ScenarioListItem } from '@/types/api';
 
 /**
- * Scenario list metadata used by selection. We tolerate the backend not
- * exposing `anchor_forecast_version_id` on the list endpoint yet — when the
- * field is missing we treat all scenarios as having the "unknown" anchor and
- * skip same-anchor enforcement. T1 owns the list endpoint extension.
+ * Scenario list metadata used by selection. Anchors are per project
+ * (`anchor_version_ids`: project_id -> forecast version id); two scenarios are
+ * comparable only when their full anchor maps match. When the field is missing
+ * we treat the anchor as "unknown" and skip same-anchor enforcement (the
+ * backend 409 still protects correctness).
  */
-interface ScenarioMaybeAnchor extends ScenarioListItem {
-  anchor_forecast_version_id?: number | null;
+type ScenarioMaybeAnchor = ScenarioListItem;
+
+/** Stable string key for a per-project anchor map, for equality comparison. */
+function anchorKey(map: Record<string, number> | undefined): string {
+  if (!map || Object.keys(map).length === 0) return '';
+  return JSON.stringify(Object.entries(map).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 interface CompareSelectionPageProps {
@@ -73,11 +78,11 @@ export function CompareSelectionPage({ onBack }: CompareSelectionPageProps) {
       .finally(() => setLoading(false));
   }, []);
 
-  // Anchor of the first selected scenario; subsequent picks must match.
-  const requiredAnchor = useMemo<number | null | undefined>(() => {
+  // Anchor map of the first selected scenario; subsequent picks must match it.
+  const requiredAnchorKey = useMemo<string | undefined>(() => {
     if (selectedIds.length === 0) return undefined;
     const first = scenarios.find((s) => s.id === selectedIds[0]);
-    return first?.anchor_forecast_version_id ?? null;
+    return anchorKey(first?.anchor_version_ids);
   }, [selectedIds, scenarios]);
 
   const handleToggle = (id: number) => {
@@ -153,14 +158,14 @@ export function CompareSelectionPage({ onBack }: CompareSelectionPageProps) {
         <ul className="space-y-1">
           {scenarios.map((s) => {
             const checked = selectedIds.includes(s.id);
-            const anchor = s.anchor_forecast_version_id;
+            const anchor = anchorKey(s.anchor_version_ids);
             // Same-anchor rule: only enforce when both sides have anchor info.
             const anchorMismatch =
-              requiredAnchor !== undefined &&
+              requiredAnchorKey !== undefined &&
               !checked &&
-              anchor !== undefined &&
-              requiredAnchor !== undefined &&
-              anchor !== requiredAnchor;
+              anchor !== '' &&
+              requiredAnchorKey !== '' &&
+              anchor !== requiredAnchorKey;
             const overLimit = !checked && selectedIds.length >= 3;
             const disabled = overLimit || anchorMismatch;
             return (

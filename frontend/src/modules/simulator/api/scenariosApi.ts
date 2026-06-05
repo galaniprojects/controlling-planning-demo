@@ -24,6 +24,7 @@ import type {
   AdvisorQueryResponse,
   ComparisonResponse,
   DrillDownResponse,
+  RebaseOptionsResponse,
   ScenarioCreateResponse,
   ScenarioDetail,
   ScenarioListResponse,
@@ -40,7 +41,6 @@ export interface ScenarioCreateBody {
   name: string;
   description?: string;
   clone_from?: number;
-  anchor_forecast_version_id?: number;
   tags?: string[];
   cc_owner_scope_cc_id?: string;
 }
@@ -52,8 +52,15 @@ export interface ScenarioMetadataBody {
   visibility?: 'private' | 'tier3_only' | 'all_users';
 }
 
+// F10 per-project rebase: map of project_id -> chosen forecast version id,
+// ONLY for the projects being rebased.
 export interface ScenarioRebaseBody {
-  new_anchor_version_id: number;
+  anchors: Record<string, number>;
+}
+
+export interface ScenarioRebaseResponse {
+  id: number;
+  anchor_version_ids: Record<string, number>;
 }
 
 export interface ScenarioPublishBody {
@@ -133,7 +140,8 @@ export interface ImpactDashboardResponse {
   tier3_content: boolean;
   tier3_visible: boolean;
   stale: boolean;
-  anchor_forecast_version_id: number | null;
+  /** Per-project anchors: project_id -> forecast version id. */
+  anchor_version_ids: Record<string, number>;
   /** 8-dimension grab-bag: financial, backlog_ranking, capacity, people, outsourcing, investment_mix, running_cost, cost_allocation. */
   dimensions: Record<string, unknown>;
 }
@@ -156,7 +164,7 @@ export interface RoutingDecisionItem {
 
 export interface PromotePreviewResponse {
   scenario_id: number;
-  anchor_forecast_version_id: number | null;
+  anchor_version_ids: Record<string, number>;
   decisions: RoutingDecisionItem[];
 }
 
@@ -505,12 +513,18 @@ export const scenariosApi = {
       { archived },
     ),
 
+  // F10 — per-project rebase. Fetch the candidate cycle versions per touched
+  // project, then submit a project_id -> version_id map of the chosen anchors.
+  getRebaseOptions: (scenarioId: number) =>
+    api.get<RebaseOptionsResponse>(
+      `/api/scenarios/${scenarioId}/rebase-options`,
+    ),
+
   rebase: (scenarioId: number, body: ScenarioRebaseBody) =>
-    api.put<{
-      id: number;
-      anchor_forecast_version_id: number | null;
-      rebased_from_version_id: number | null;
-    }>(`/api/scenarios/${scenarioId}/rebase`, body),
+    api.put<ScenarioRebaseResponse>(
+      `/api/scenarios/${scenarioId}/rebase`,
+      body,
+    ),
 
   // -------------------------------------------------------------------------
   // Workspace

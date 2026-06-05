@@ -28,10 +28,12 @@ from the optional per-scenario keys ``cell_edits`` / ``line_edits`` /
 - ``scenario_plan_edits`` — project-plan (date/stage/DoI/milestone) edits.
 
 Determinism: all rows emitted in stable scenario-id × action-order ×
-project-id order (no hashing, no time.time()). Anchor forecast version FKs
-are NULL because forecast_versions are seeded post-load by
-``loader._seed_forecast_versions()`` — the simulator endpoint snaps the
-anchor to the latest cycle on first scenario open.
+project-id order (no hashing, no time.time()). Per-project anchors are NOT
+emitted here: ``forecast_versions`` are seeded post-load by
+``loader._seed_forecast_versions()``, after which ``loader._seed_scenario_anchors()``
+pins each seeded scenario's touched projects to their latest cycle via
+``services.scenario_anchor.ensure_anchors_for_touched`` (Simulator E2E Fixes
+Session 3 — replaces the former scalar ``anchor_forecast_version_id``).
 """
 from __future__ import annotations
 
@@ -63,8 +65,6 @@ def generate() -> str:
                 sql_str(s["headline_impact"]),
                 sql_str(s["created_at"]),
                 sql_str(s["modified_at"]),
-                "NULL",  # anchor_forecast_version_id — set post-load
-                "NULL",  # rebased_from_version_id
                 sql_str(s["visibility"]),
                 _bool(s["tier3_content_flag"]),
                 _bool(s["archived"]),
@@ -76,8 +76,7 @@ def generate() -> str:
         )
     parts.append(
         "\nINSERT INTO scenarios (id, name, description, author_id, status, "
-        "headline_impact, created_at, modified_at, "
-        "anchor_forecast_version_id, rebased_from_version_id, visibility, "
+        "headline_impact, created_at, modified_at, visibility, "
         "tier3_content_flag, archived, archived_at, tags, "
         "last_recalculated_at, cc_owner_scope_cc_id) VALUES\n"
         + ",\n".join(rows) + ";"

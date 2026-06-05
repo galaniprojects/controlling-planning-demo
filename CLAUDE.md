@@ -55,7 +55,7 @@ Four personas, each with different access and capabilities. Role is resolved fro
 | Change Mgmt | `ChangeRequest`, `CRChangeDetail`, `CRSubmissionSnapshot` |
 | Capacity | `Allocation`, `ResourceRequest`, `ResourceRequestAssignment`, `CapacityActionLog` |
 | Charging | `Country`, `Region`, `ChargingLocation`, `LegalEntity`, `UMVersion`, `UserMeasurement`, `ChargeableEntity`, `DistributionVersion`, `Distribution`, `BTCProfile`, `BTCProfileLine`, `RollupCache` |
-| Scenarios | `Scenario`, `ScenarioAction`, `ScenarioState`, `ScenarioCapacityImpact`, `ScenarioPromotion`, `ScenarioApplyToForecastEvent`, `ScenarioForecastCellEdit`, `ScenarioLineEdit`, `ScenarioMixChange`, `ScenarioPlanEdit` |
+| Scenarios | `Scenario`, `ScenarioProjectAnchor`, `ScenarioAction`, `ScenarioState`, `ScenarioCapacityImpact`, `ScenarioPromotion`, `ScenarioApplyToForecastEvent`, `ScenarioForecastCellEdit`, `ScenarioLineEdit`, `ScenarioMixChange`, `ScenarioPlanEdit` |
 | Submissions | `ProjectSubmissionSnapshot` |
 | System | `PlanningParameter`, `KPIDefinition`, `Notification`, `AuditLog`, `SystemSuggestion`, `RolePermissionGrant` |
 | Reporting | `ForecastSnapshot`, `SavedReport`, `SavedReportShare`, `SavedView` |

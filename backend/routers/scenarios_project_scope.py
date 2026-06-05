@@ -262,7 +262,10 @@ def _line_kind_for_key(line_key: str, category: str | None = None) -> str:
 def _recalc_after_overlay_write(db: Session, scenario: Scenario) -> dict:
     """Shared tail for cell write/revert — mirrors ``apply_action`` exactly:
     bump modified_at, invalidate snapshot rows, commit, then recalculate."""
+    from services.scenario_anchor import ensure_anchors_for_touched
     scenario.modified_at = datetime.utcnow()
+    # Pin a per-project anchor the first time an overlay touches a project.
+    ensure_anchors_for_touched(db, scenario)
     db.query(ScenarioState).filter(
         ScenarioState.scenario_id == scenario.id,
     ).delete()

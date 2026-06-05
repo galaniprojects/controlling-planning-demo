@@ -19,8 +19,6 @@
  *  - `stale` — true after any diff-changing mutation; the impact
  *    dashboard does NOT auto-refetch on diff change (matches
  *    `services/scenario_impact.py` semantics: explicit recalc only).
- *  - `anchorVersionId` — denormalised from detail metadata; used by
- *    promote / compare gates.
  *  - `isOwner` / `canPromote` / `canApplyToForecast` — derived from
  *    role context + scenario.author_id.
  *  - `tier3Visible` — derived from role context + impact response.
@@ -207,7 +205,6 @@ export interface ScenarioContextValue {
   stale: boolean;
   changeSummaryEntries: ChangeSummaryEntry[];
   // Derived
-  anchorVersionId: number | null;
   isOwner: boolean;
   canPromote: boolean;
   /**
@@ -227,7 +224,7 @@ export interface ScenarioContextValue {
   publish: (body?: ScenarioPublishBody) => Promise<void>;
   unpublish: () => Promise<void>;
   archive: (archived: boolean) => Promise<void>;
-  rebase: (newAnchorVersionId: number) => Promise<void>;
+  rebase: (anchors: Record<string, number>) => Promise<void>;
   // Mutations — Actions
   applyAction: (body: ActionBody) => Promise<ScenarioDetail | null>;
   removeAction: (actionId: number) => Promise<void>;
@@ -451,13 +448,14 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
   );
 
   const rebase = useCallback(
-    async (newAnchorVersionId: number) => {
+    async (anchors: Record<string, number>) => {
+      const projectCount = Object.keys(anchors).length;
       await wrapMutation(
-        () => scenariosApi.rebase(scenarioId, { new_anchor_version_id: newAnchorVersionId }),
+        () => scenariosApi.rebase(scenarioId, { anchors }),
         {
           kind: 'lifecycle',
-          label: 'Rebased to newer anchor',
-          detail: `version_id=${newAnchorVersionId}`,
+          label: 'Rebased to newer cycle',
+          detail: `${projectCount} project${projectCount === 1 ? '' : 's'} re-anchored`,
         },
         { markStale: true, reloadAfter: true },
       );
@@ -906,7 +904,6 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
   const detail = state.detail;
   const meta = detail?.metadata as
     | (ScenarioDetail['metadata'] & {
-        anchor_forecast_version_id?: number | null;
         cc_owner_scope_cc_id?: string | null;
         visibility?: string | null;
         archived?: boolean;
@@ -915,7 +912,6 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
       })
     | undefined;
 
-  const anchorVersionId = meta?.anchor_forecast_version_id ?? null;
   const ccOwnerScopeCcId = meta?.cc_owner_scope_cc_id ?? null;
   const visibility = meta?.visibility ?? null;
   const archived = Boolean(meta?.archived);
@@ -954,7 +950,6 @@ export function ScenarioProvider({ scenarioId, children }: ProviderProps) {
     error: state.error,
     stale: state.stale,
     changeSummaryEntries: state.changeSummaryEntries,
-    anchorVersionId,
     isOwner,
     canPromote,
     canPublish,

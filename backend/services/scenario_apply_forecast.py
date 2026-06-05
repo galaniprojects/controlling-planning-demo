@@ -30,12 +30,13 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from models.financial import Forecast, ForecastVersion
+from models.financial import Forecast
 from models.projects import Project
 from models.scenarios import (
     Scenario, ScenarioAction, ScenarioApplyToForecastEvent,
 )
 from schemas.common import CurrentUser
+from services.scenario_anchor import stale_message, stale_projects
 
 
 # ---------------------------------------------------------------------------
@@ -122,38 +123,23 @@ def assert_anchor_is_latest_cycle(db: Session, scenario: Scenario) -> None:
 
     A PL seeds *their own* live forecast cycle off the scenario, so a stale
     anchor would pre-fill the next cycle from an out-of-date baseline — exactly
-    the silent drift the guard exists to prevent. We reuse Promote's
-    ``assert_anchor_is_latest_cycle`` so a PL hitting a stale anchor gets the
-    same rebase prompt a controller does, and re-raise its ``PromoteError`` as an
-    ``ApplyToForecastError`` (the router maps that to 409) carrying ``hint="rebase"``.
+    the silent drift the guard exists to prevent. We share Promote's per-project
+    stale-guard (``services/scenario_anchor.stale_projects``) so a PL hitting a
+    stale anchor gets the same rebase prompt a controller does, raised as an
+    ``ApplyToForecastError`` (the router maps that to 409) with ``hint="rebase"``.
 
-    No-cycle tolerance: when **no** ``cycle`` ForecastVersion exists at all (the
-    legacy demo state, where scenarios carry no anchor version), there is no
-    "latest cycle" to be behind — so the guard is a no-op. Once any cycle version
-    exists, the full guard applies: a missing/absent or behind anchor is refused.
+    No-cycle tolerance: a project without a ``cycle`` ForecastVersion is not
+    evaluated, so the legacy demo state (no cycles) is a no-op. Once a project
+    has a cycle, an anchor behind that project's latest cycle is refused — and
+    only the stale project(s) are named.
     """
-    from services.scenario_promote import (
-        PromoteError, assert_anchor_is_latest_cycle as _promote_guard,
-    )
-
-    latest_cycle = (
-        db.query(ForecastVersion)
-        .filter(ForecastVersion.version_type == "cycle")
-        .order_by(ForecastVersion.created_at.desc())
-        .first()
-    )
-    if latest_cycle is None:
-        # No cycle versions exist — nothing to be stale against (legacy state).
-        return
-
-    try:
-        _promote_guard(db, scenario)
-    except PromoteError as exc:
+    stale = stale_projects(db, scenario)
+    if stale:
         raise ApplyToForecastError(
-            f"{exc.message} Apply-to-forecast would otherwise seed the next cycle "
-            "from an out-of-date baseline — rebase the scenario first.",
-            hint=exc.hint or "rebase",
-        ) from exc
+            f"{stale_message(stale, verb='applying')} Apply-to-forecast would "
+            "otherwise seed the next cycle from an out-of-date baseline.",
+            hint="rebase",
+        )
 
 
 # ---------------------------------------------------------------------------

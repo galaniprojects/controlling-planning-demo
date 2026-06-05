@@ -18,8 +18,8 @@ from models.financial import (
 from models.capacity import Allocation, ResourceRequest, ResourceRequestAssignment, CapacityActionLog
 from models.change_requests import ChangeRequest, CRChangeDetail, CRSubmissionSnapshot
 from models.scenarios import (
-    Scenario, ScenarioAction, ScenarioState, ScenarioCapacityImpact,
-    ScenarioPromotion, ScenarioApplyToForecastEvent,
+    Scenario, ScenarioProjectAnchor, ScenarioAction, ScenarioState,
+    ScenarioCapacityImpact, ScenarioPromotion, ScenarioApplyToForecastEvent,
     ScenarioForecastCellEdit, ScenarioLineEdit, ScenarioMixChange,
     ScenarioPlanEdit,
 )
@@ -48,7 +48,8 @@ __all__ = [
     "ExternalCostDelivery", "ExternalCostInvoice",
     "Allocation", "ResourceRequest", "ResourceRequestAssignment", "CapacityActionLog",
     "ChangeRequest", "CRChangeDetail", "CRSubmissionSnapshot",
-    "Scenario", "ScenarioAction", "ScenarioState", "ScenarioCapacityImpact",
+    "Scenario", "ScenarioProjectAnchor", "ScenarioAction", "ScenarioState",
+    "ScenarioCapacityImpact",
     "ScenarioPromotion", "ScenarioApplyToForecastEvent",
     "ScenarioForecastCellEdit", "ScenarioLineEdit", "ScenarioMixChange",
     "ScenarioPlanEdit",

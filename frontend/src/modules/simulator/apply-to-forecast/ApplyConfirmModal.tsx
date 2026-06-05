@@ -77,9 +77,9 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
     }
   };
 
-  const handleRebaseConfirm = async (newAnchorVersionId: number) => {
-    await ctx.rebase(newAnchorVersionId);
-    // Anchor refreshed — clear the guard so the user can retry Apply.
+  const handleRebaseConfirm = async (anchors: Record<string, number>) => {
+    await ctx.rebase(anchors);
+    // Anchors refreshed — clear the guard so the user can retry Apply.
     setStaleAnchor(false);
   };
 
@@ -264,11 +264,11 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
       <RebaseModal
         open={rebaseOpen}
         onOpenChange={setRebaseOpen}
+        scenarioId={ctx.scenarioId}
         scenarioName={
           (ctx.detail?.metadata as unknown as { name?: string })?.name ??
           `Scenario #${ctx.scenarioId}`
         }
-        currentAnchorVersionId={ctx.anchorVersionId}
         onConfirm={handleRebaseConfirm}
       />
     </Dialog>

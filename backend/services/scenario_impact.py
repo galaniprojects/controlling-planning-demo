@@ -68,18 +68,13 @@ def has_tier3_diffs(actions: list[ScenarioAction]) -> bool:
 def _anchor_total_from_version(
     db: Session, scenario: Scenario,
 ) -> Optional[float]:
-    """Return the anchor forecast version's grand total in EUR, or None."""
-    if scenario.anchor_forecast_version_id is None:
-        return None
-    from models.financial import ForecastVersion
-    fv = (
-        db.query(ForecastVersion)
-        .filter(ForecastVersion.id == scenario.anchor_forecast_version_id)
-        .first()
-    )
-    if fv is None or fv.total_amount_eur is None:
-        return None
-    return float(fv.total_amount_eur)
+    """Return the anchored versions' summed grand total in EUR, or None.
+
+    Per-project anchoring: a multi-project scenario's anchor baseline is the
+    sum of each project's pinned cycle version (``services/scenario_anchor.py``).
+    """
+    from services.scenario_anchor import anchor_total
+    return anchor_total(db, scenario)
 
 
 # ---------------------------------------------------------------------------
@@ -416,12 +411,14 @@ def compute_impact_dashboard(
     )
     tier3_present = has_tier3_diffs(actions)
 
+    from services.scenario_anchor import anchor_version_ids
+
     dashboard: dict = {
         "scenario_id": scenario_id,
         "tier3_content": tier3_present,
         "tier3_visible": include_tier3,
         "stale": _is_stale(scenario),
-        "anchor_forecast_version_id": scenario.anchor_forecast_version_id,
+        "anchor_version_ids": anchor_version_ids(db, scenario),
         "dimensions": {
             "financial": compute_financial_dimension(db, scenario, scenario_state),
             "backlog_ranking": compute_backlog_ranking_dimension(

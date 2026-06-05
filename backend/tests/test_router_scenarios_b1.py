@@ -29,6 +29,7 @@ from models.people import Person
 from models.projects import Project
 from models.scenarios import (
     Scenario, ScenarioAction, ScenarioForecastCellEdit, ScenarioPromotion,
+    ScenarioProjectAnchor,
 )
 from models.system import RolePermissionGrant
 from models.users import User
@@ -80,25 +81,47 @@ def b1_setup(db, seed_personas, seed_hierarchy, create_test_project):
 # ---------------------------------------------------------------------------
 
 class TestB1Lifecycle:
-    def test_create_with_anchor_and_tags(self, test_client, b1_setup):
+    def test_create_with_tags_starts_unanchored(self, test_client, b1_setup):
+        # Per Session 3 the create body no longer accepts a scalar
+        # anchor_forecast_version_id — anchors are pinned per-project when a
+        # project is first touched. A freshly created scenario touches nothing,
+        # so its anchor map is empty.
         resp = test_client.post(
             "/api/scenarios", headers=HEADERS_CTRL,
             json={
                 "name": "Anchored",
-                "anchor_forecast_version_id": b1_setup["version_id"],
                 "tags": ["budget-cut", "q3"],
             },
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["anchor_forecast_version_id"] == b1_setup["version_id"]
+        assert data["anchor_version_ids"] == {}
 
-    def test_create_default_anchor_uses_latest_cycle(self, test_client, b1_setup):
-        resp = test_client.post(
+    def test_anchor_pinned_when_project_touched(self, test_client, b1_setup):
+        # Touching proj-alpha via a project action pins its anchor to that
+        # project's latest cycle (the b1_setup ForecastVersion).
+        create = test_client.post(
             "/api/scenarios", headers=HEADERS_CTRL, json={"name": "Auto Anchor"},
         )
-        assert resp.status_code == 200
-        assert resp.json()["anchor_forecast_version_id"] == b1_setup["version_id"]
+        assert create.status_code == 200
+        assert create.json()["anchor_version_ids"] == {}
+        sid = create.json()["id"]
+
+        add = test_client.post(
+            f"/api/scenarios/{sid}/actions", headers=HEADERS_CTRL,
+            json={
+                "scope": "project", "action_type": "reduce_budget",
+                "project_id": "proj-alpha",
+                "parameters": {"percentage": 10},
+                "lever_category": "forecast_grid", "tier": 1,
+            },
+        )
+        assert add.status_code == 200, add.text
+
+        detail = test_client.get(f"/api/scenarios/{sid}", headers=HEADERS_CTRL)
+        assert detail.status_code == 200
+        anchors = detail.json()["metadata"]["anchor_version_ids"]
+        assert anchors == {"proj-alpha": b1_setup["version_id"]}
 
     def test_pl_can_create(self, test_client, b1_setup):
         # Session 4 (§9): Project Leads are now admitted as scenario authors.
@@ -159,7 +182,17 @@ class TestB1Lifecycle:
             "/api/scenarios", headers=HEADERS_CTRL, json={"name": "ToRebase"},
         )
         sid = create_resp.json()["id"]
-        # Make a second cycle version
+        # Touch proj-alpha so it gets a per-project anchor (its latest cycle).
+        test_client.post(
+            f"/api/scenarios/{sid}/actions", headers=HEADERS_CTRL,
+            json={
+                "scope": "project", "action_type": "reduce_budget",
+                "project_id": "proj-alpha",
+                "parameters": {"percentage": 10},
+                "lever_category": "forecast_grid", "tier": 1,
+            },
+        )
+        # Make a second cycle version for proj-alpha.
         fv2 = ForecastVersion(
             project_id="proj-alpha", version_number=2, version_type="cycle",
             cycle_label="Q2 2026", created_by_id="p-dev-1",
@@ -167,12 +200,13 @@ class TestB1Lifecycle:
         )
         db.add(fv2)
         db.commit()
+        # Per-project rebase body: {project_id: forecast_version_id}.
         rebase_resp = test_client.put(
             f"/api/scenarios/{sid}/rebase", headers=HEADERS_CTRL,
-            json={"new_anchor_version_id": fv2.id},
+            json={"anchors": {"proj-alpha": fv2.id}},
         )
-        assert rebase_resp.status_code == 200
-        assert rebase_resp.json()["anchor_forecast_version_id"] == fv2.id
+        assert rebase_resp.status_code == 200, rebase_resp.text
+        assert rebase_resp.json()["anchor_version_ids"] == {"proj-alpha": fv2.id}
 
 
 # ---------------------------------------------------------------------------
@@ -386,10 +420,15 @@ class TestB1ApplyToForecast:
         # the Session-4 stale-anchor guard on apply-to-forecast is satisfied.
         sc = Scenario(
             name="PL ATF", author_id="p-pm-1", status="private",
-            anchor_forecast_version_id=b1_setup["version_id"],
         )
         db.add(sc)
         db.flush()
+        # Per-project anchor on proj-alpha pinned to its current (latest) cycle
+        # so the Session-4 stale-anchor guard on apply-to-forecast is satisfied.
+        db.add(ScenarioProjectAnchor(
+            scenario_id=sc.id, project_id="proj-alpha",
+            forecast_version_id=b1_setup["version_id"],
+        ))
         # Overlay edit on the own project guarantees a real diff vs the live
         # forecast — apply now stages diffs as draft CRs, so a no-op action
         # (reduce_budget is a project-scope no-op) would carry nothing.

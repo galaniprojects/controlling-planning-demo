@@ -29,6 +29,7 @@ from models.scenarios import (
     Scenario,
     ScenarioForecastCellEdit,
     ScenarioLineEdit,
+    ScenarioProjectAnchor,
 )
 from schemas.common import CurrentUser
 from services.scenario_apply_forecast import (
@@ -247,19 +248,18 @@ class TestWidenedCarry:
 # Stale-anchor guard (spec §10) — matches Promote
 # ---------------------------------------------------------------------------
 
-def _make_cycle_version(db, *, version_number: int, label: str) -> ForecastVersion:
-    """Create a 'cycle' ForecastVersion (needs an FK project_id)."""
-    from models.projects import Project
-    anchor_proj_id = f"p-anchor-{version_number}"
-    if db.query(Project).filter(Project.id == anchor_proj_id).first() is None:
-        db.add(Project(
-            id=anchor_proj_id, name=f"Anchor {version_number}",
-            pipeline_stage="Active", capex_opex="capex",
-            start_month="2025-01", end_month="2026-12",
-        ))
-        db.flush()
+def _make_cycle_version(
+    db, *, version_number: int, label: str, project_id: str = "proj-own",
+) -> ForecastVersion:
+    """Create a 'cycle' ForecastVersion for the touched project.
+
+    Per Session 3 the stale-guard is per-project: a scenario's anchor is
+    compared against *its own* project's latest cycle. So the cycle versions
+    that make an anchor stale must be for the same project the scenario
+    touches (``proj-own``), not a separate placeholder project.
+    """
     fv = ForecastVersion(
-        project_id=anchor_proj_id, version_number=version_number,
+        project_id=project_id, version_number=version_number,
         version_type="cycle", cycle_label=label, created_by_id="p-pm-1",
         granularity_boundary_months=12, planning_horizon_months=60,
     )
@@ -270,22 +270,24 @@ def _make_cycle_version(db, *, version_number: int, label: str) -> ForecastVersi
 
 @pytest.fixture
 def anchored_world(db, seed_org_base, create_test_project):
-    """A PL-owned scenario with an overlay edit, anchored to a current cycle."""
+    """A PL-owned scenario with an overlay edit on proj-own, anchored (via a
+    per-project ``ScenarioProjectAnchor`` row) to proj-own's current cycle."""
     create_test_project(
         "proj-own", forecast_amt=1000, pl_person_id="p-pm-1",
         months=["2026-06"],
     )
     fv = _make_cycle_version(db, version_number=1, label="Q2 2026")
-    sc = Scenario(
-        name="Anchored", author_id="p-pm-1", status="private",
-        anchor_forecast_version_id=fv.id,
-    )
+    sc = Scenario(name="Anchored", author_id="p-pm-1", status="private")
     db.add(sc)
     db.flush()
     db.add(ScenarioForecastCellEdit(
         scenario_id=sc.id, project_id="proj-own",
         line_key="internal|role-dev||", month="2026-06",
         field="hours", value=20.0,
+    ))
+    db.add(ScenarioProjectAnchor(
+        scenario_id=sc.id, project_id="proj-own",
+        forecast_version_id=fv.id,
     ))
     db.commit()
     return {"scenario_id": sc.id, "version_id": fv.id}
@@ -357,11 +359,14 @@ class TestStaleAnchorGuard:
         )
         assert all(not r.is_provisional for r in rows)
 
-    def test_missing_anchor_refused_when_cycle_exists(
+    def test_no_anchor_row_is_not_guarded(
         self, db, seed_org_base, create_test_project, pl_user_obj,
     ):
-        """Once a cycle exists, a scenario with NO anchor is also refused
-        (it cannot be guaranteed current) — matching Promote's missing-anchor path."""
+        """Per Session 3 the stale-guard is per-anchor-row: it compares each
+        ``ScenarioProjectAnchor`` against its project's latest cycle. A scenario
+        that carries NO anchor row has nothing to be stale against, so even with
+        a cycle present apply proceeds (rather than the old scalar-model refusal).
+        Anchors are pinned at the create/touch chokepoints in the live flow."""
         create_test_project(
             "proj-own", forecast_amt=1000, pl_person_id="p-pm-1",
             months=["2026-06"],
@@ -377,9 +382,10 @@ class TestStaleAnchorGuard:
         ))
         db.commit()
 
-        with pytest.raises(ApplyToForecastError) as exc:
-            apply_to_forecast(db, scenario_id=sc.id, user=pl_user_obj)
-        assert exc.value.hint == "rebase"
+        # No anchor row → guard is a no-op → apply proceeds.
+        result = apply_to_forecast(db, scenario_id=sc.id, user=pl_user_obj)
+        db.commit()
+        assert result["diffs_carried_forward"] >= 1
 
     def test_guard_helper_no_op_without_cycle(self, db, seed_org_base):
         """assert_anchor_is_latest_cycle returns cleanly (no raise) when no cycle

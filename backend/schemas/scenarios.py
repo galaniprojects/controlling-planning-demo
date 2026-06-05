@@ -28,7 +28,8 @@ class ScenarioListItem(BaseModel):
     archived: Optional[bool] = None
     archived_at: Optional[str] = None
     tags: Optional[list[str]] = None
-    anchor_forecast_version_id: Optional[int] = None
+    # Per-project anchors: {project_id: forecast_version_id} (Session 3).
+    anchor_version_ids: dict[str, int] = {}
     last_recalculated_at: Optional[str] = None
 
 
@@ -37,7 +38,6 @@ class ScenarioCreate(BaseModel):
     description: str | None = None
     clone_from: int | None = None
     # v5 additions
-    anchor_forecast_version_id: Optional[int] = None
     tags: Optional[list[str]] = None
     cc_owner_scope_cc_id: Optional[str] = None
 
@@ -155,7 +155,7 @@ class RoutingDecisionItem(BaseModel):
 
 class PromotePreviewResponse(BaseModel):
     scenario_id: int
-    anchor_forecast_version_id: Optional[int]
+    anchor_version_ids: dict[str, int] = {}
     decisions: list[RoutingDecisionItem]
 
 
@@ -217,8 +217,35 @@ class ApplyToForecastResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ScenarioRebaseRequest(BaseModel):
-    """Body for POST /api/scenarios/{id}/rebase."""
-    new_anchor_version_id: int
+    """Body for PUT /api/scenarios/{id}/rebase.
+
+    Per-project: ``anchors`` maps ``project_id -> forecast_version_id`` for the
+    project(s) to re-anchor. Projects omitted keep their current anchor.
+    """
+    anchors: dict[str, int]
+
+
+class VersionOption(BaseModel):
+    """A labeled cycle version offered in the rebase picker (F10)."""
+    id: int
+    version_number: int
+    cycle_label: Optional[str] = None
+    created_at: str
+
+
+class RebaseProjectOption(BaseModel):
+    """Rebase choices for one touched project."""
+    project_id: str
+    project_name: str
+    current_anchor: Optional[VersionOption] = None
+    is_stale: bool
+    candidates: list[VersionOption]
+
+
+class RebaseOptionsResponse(BaseModel):
+    """GET /api/scenarios/{id}/rebase-options — per-project labeled picker data."""
+    scenario_id: int
+    projects: list[RebaseProjectOption]
 
 
 class ScenarioArchiveRequest(BaseModel):
@@ -246,7 +273,7 @@ class ImpactDashboardResponse(BaseModel):
     tier3_content: bool
     tier3_visible: bool
     stale: bool
-    anchor_forecast_version_id: Optional[int]
+    anchor_version_ids: dict[str, int] = {}
     dimensions: dict[str, Any]
 
 
