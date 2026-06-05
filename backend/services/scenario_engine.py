@@ -706,6 +706,39 @@ def _apply_portfolio_action(db: Session, working: dict, action_type: str, params
     elif action_type == "cap_cost_category":
         _apply_cap_cost_category(db, working, params)
 
+    elif action_type == "change_budget_envelope":
+        # Sim no-op lever fix (A4): set/scale the budget envelope for a year.
+        # percent: per project adjusted_budget += scoped_year * value/100.
+        # absolute (pro-rata): ratio = value / sum(scoped_year over all projects),
+        #   per project adjusted_budget += scoped * (ratio - 1) so the year
+        #   envelope sums to `value`.
+        mode = params.get("mode", "percent")
+        value = float(params.get("value", 0))
+        year = params.get("year")
+        target = [str(int(year))] if year is not None else None
+
+        scoped_by_pid: dict[str, float] = {}
+        for pid in working:
+            scoped_by_pid[pid] = (
+                _get_year_scoped_forecast(db, pid, target) if target
+                else working[pid]["original_budget"]
+            )
+
+        if mode == "absolute":
+            total_scoped = sum(scoped_by_pid.values())
+            ratio = (value / total_scoped) if total_scoped else 0.0
+            for pid, state in working.items():
+                scoped = scoped_by_pid[pid]
+                if scoped:
+                    state["adjusted_budget"] += scoped * (ratio - 1)
+                    state["is_affected"] = True
+        else:  # percent
+            for pid, state in working.items():
+                scoped = scoped_by_pid[pid]
+                if scoped:
+                    state["adjusted_budget"] += scoped * (value / 100)
+                    state["is_affected"] = True
+
     elif action_type == "adjust_rate_table":
         # Sim no-op lever fix (A3): uplift category-scoped forecast for an
         # internal/external rate-table change. If location_id/role_type_id are
