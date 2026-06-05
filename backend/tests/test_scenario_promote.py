@@ -22,6 +22,7 @@ from models.people import Person
 from models.projects import Project
 from models.scenarios import (
     Scenario, ScenarioAction, ScenarioForecastCellEdit, ScenarioPromotion,
+    ScenarioProjectAnchor,
 )
 from models.system import RolePermissionGrant
 from schemas.common import CurrentUser
@@ -72,27 +73,41 @@ def controller_user_obj():
 
 @pytest.fixture
 def cycle_anchor(db, author_person):
-    """A 'cycle' ForecastVersion + a Scenario anchored to it."""
-    fv = ForecastVersion(
-        project_id=None, version_number=1, version_type="cycle",
-        cycle_label="Q1 2026", created_by_id="p-promoter",
-        granularity_boundary_months=12, planning_horizon_months=60,
-    )
+    """A 'cycle' ForecastVersion + a Scenario that touches its project and is
+    anchored to it via a per-project ``ScenarioProjectAnchor`` row.
+
+    Per Session 3 the single scalar ``Scenario.anchor_forecast_version_id`` is
+    gone; a scenario anchors each project it touches. Here the scenario touches
+    ``p-anchor`` via a project-scoped action and carries one anchor row pinned
+    to that project's latest cycle.
+    """
     # FK on project_id is required — create a placeholder project
     from models.projects import Project
     p = Project(id="p-anchor", name="Anchor Project", pipeline_stage="Active",
                 capex_opex="capex", start_month="2025-01", end_month="2026-12")
     db.add(p)
     db.flush()
-    fv.project_id = "p-anchor"
+    fv = ForecastVersion(
+        project_id="p-anchor", version_number=1, version_type="cycle",
+        cycle_label="Q1 2026", created_by_id="p-promoter",
+        granularity_boundary_months=12, planning_horizon_months=60,
+    )
     db.add(fv)
     db.flush()
 
     scenario = Scenario(
         name="Promote Scenario", author_id="p-promoter", status="private",
-        anchor_forecast_version_id=fv.id,
     )
     db.add(scenario)
+    db.flush()
+    # The scenario is anchored to p-anchor's latest cycle via a per-project
+    # anchor row. (The anchor row alone is what the stale-guard iterates; no
+    # ScenarioAction is added so cost-allocation promote tests built on top of
+    # this fixture see only their own actions.)
+    db.add(ScenarioProjectAnchor(
+        scenario_id=scenario.id, project_id="p-anchor",
+        forecast_version_id=fv.id,
+    ))
     db.commit()
     return {"version_id": fv.id, "scenario_id": scenario.id}
 
@@ -126,22 +141,30 @@ def cost_allocation_promote_world(db, author_person, cycle_anchor):
 # ---------------------------------------------------------------------------
 
 class TestAssertAnchorIsLatestCycle:
-    def test_no_anchor_raises(self, db, author_person):
+    def test_no_anchor_no_cycle_is_no_op(self, db, author_person):
+        """A scenario with no anchor rows (and no touched projects) has nothing
+        to be stale against — the per-project guard returns None, no raise."""
         sc = Scenario(name="x", author_id="p-promoter", status="private")
         db.add(sc)
         db.commit()
-        with pytest.raises(PromoteError) as exc:
-            assert_anchor_is_latest_cycle(db, sc)
-        assert "rebase" in (exc.value.hint or "")
+        assert assert_anchor_is_latest_cycle(db, sc) is None
 
     def test_matching_anchor_passes(self, db, cycle_anchor):
+        """When every anchored project is on its latest cycle, the guard returns
+        None (it no longer returns an (anchor, latest) tuple)."""
         sc = db.query(Scenario).filter_by(id=cycle_anchor["scenario_id"]).first()
-        anchor, latest = assert_anchor_is_latest_cycle(db, sc)
-        assert anchor.id == cycle_anchor["version_id"]
-        assert latest.id == cycle_anchor["version_id"]
+        assert assert_anchor_is_latest_cycle(db, sc) is None
 
     def test_stale_anchor_raises(self, db, cycle_anchor):
-        # Create a newer cycle version
+        # Touch p-anchor so its anchor is an active (evaluated) anchor — the
+        # guard ignores anchors for projects the scenario no longer touches.
+        db.add(ScenarioAction(
+            scenario_id=cycle_anchor["scenario_id"], action_order=1,
+            scope="project", action_type="reduce_budget", project_id="p-anchor",
+            lever_category="forecast_grid", tier=1,
+        ))
+        # Create a newer cycle version for the anchored project — its anchor is
+        # now behind its own latest cycle.
         from models.financial import ForecastVersion
         fv2 = ForecastVersion(
             project_id="p-anchor", version_number=2, version_type="cycle",
@@ -154,6 +177,8 @@ class TestAssertAnchorIsLatestCycle:
         with pytest.raises(PromoteError) as exc:
             assert_anchor_is_latest_cycle(db, sc)
         assert exc.value.hint == "rebase"
+        # The 409 names the stale project.
+        assert "p-anchor" in exc.value.message
 
 
 # ---------------------------------------------------------------------------
@@ -383,6 +408,13 @@ class TestExecutePromote:
     def test_stale_anchor_blocks_promote(
         self, db, cost_allocation_promote_world, controller_user_obj,
     ):
+        # Touch p-anchor so its (soon-to-be-stale) anchor is evaluated by the
+        # guard — orphan anchors for untouched projects are ignored.
+        db.add(ScenarioAction(
+            scenario_id=cost_allocation_promote_world["scenario_id"],
+            action_order=99, scope="project", action_type="reduce_budget",
+            project_id="p-anchor", lever_category="forecast_grid", tier=1,
+        ))
         from models.financial import ForecastVersion
         fv2 = ForecastVersion(
             project_id="p-anchor", version_number=2, version_type="cycle",

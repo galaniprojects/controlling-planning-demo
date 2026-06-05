@@ -57,9 +57,11 @@ def world(db, seed_personas, create_test_project):
 
 
 def _create_scenario(test_client, headers, name, anchor_id=None):
+    # Per Session 3, scenarios no longer accept a scalar
+    # ``anchor_forecast_version_id`` in the create body — anchors are pinned
+    # per-project when a project is first touched. ``anchor_id`` is accepted
+    # for call-site compatibility but intentionally ignored.
     payload = {"name": name}
-    if anchor_id is not None:
-        payload["anchor_forecast_version_id"] = anchor_id
     resp = test_client.post("/api/scenarios", headers=headers, json=payload)
     return resp
 
