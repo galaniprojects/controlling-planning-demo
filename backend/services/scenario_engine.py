@@ -112,18 +112,22 @@ def _get_year_scoped_forecast(db: Session, project_id: str, target_years: list[s
 
 
 def _uplift_forecast_by_category(
-    db: Session, working: dict, project_ids: list[str],
+    db: Session, working: dict, project_ids: list[str] | None,
     category: str | None, pct: float, from_month: str,
+    sub_categories: list[str] | None = None,
 ) -> None:
     """Uplift adjusted_budget by a percentage of category-scoped forecast.
 
-    For each pid in project_ids that exists in working: sum Forecast.amount_eur
-    where (category is None or Forecast.category == category) and month >= from_month,
-    add sum * pct/100 to working[pid]['adjusted_budget'], and set is_affected=True.
-    Sim no-op lever fix (A0) — shared by adjust_rate_table (A3) and the
-    rate_escalation surface path (A7).
+    For each pid in (project_ids or all working pids) that exists in working: sum
+    Forecast.amount_eur where (category is None or Forecast.category == category) and
+    (sub_categories is None or Forecast.sub_category in sub_categories) and
+    month >= from_month; add sum * pct/100 to working[pid]['adjusted_budget'], and set
+    is_affected=True. project_ids=None means "all projects in working".
+    Sim no-op lever fix (A0/A3) — shared by adjust_rate_table (A3, may pass
+    sub_categories) and the rate_escalation surface path (A7, never does).
     """
-    for pid in project_ids:
+    pids = working.keys() if project_ids is None else project_ids
+    for pid in pids:
         if pid not in working:
             continue
         q = db.query(func.coalesce(func.sum(Forecast.amount_eur), 0)).filter(
@@ -132,6 +136,8 @@ def _uplift_forecast_by_category(
         )
         if category is not None:
             q = q.filter(Forecast.category == category)
+        if sub_categories is not None:
+            q = q.filter(Forecast.sub_category.in_(sub_categories))
         scoped = float(q.scalar())
         if scoped:
             working[pid]["adjusted_budget"] += scoped * (float(pct) / 100)
@@ -782,10 +788,12 @@ def _apply_portfolio_action(db: Session, working: dict, action_type: str, params
                     state["is_affected"] = True
 
     elif action_type == "adjust_rate_table":
-        # Sim no-op lever fix (A3): uplift category-scoped forecast for an
-        # internal/external rate-table change. If location_id/role_type_id are
-        # given, restrict to projects that allocate matching persons (reuses the
-        # person-filter shape from _apply_rate_escalation); else all projects.
+        # Sim no-op lever fix (A3, CORRECTED scoping): uplift category-scoped
+        # forecast for an internal/external rate-table change. The role lives in
+        # Forecast.sub_category for internal rows (cost_type_id for external), so
+        # scope role precisely on forecast rows — NOT via allocations. Location has
+        # no forecast-row signal, so derive the project set via cost-centre → person
+        # → allocated projects (over-approximation accepted).
         scope = params.get("rate_table_scope")
         category = scope if scope in ("internal", "external") else None
         pct = float(params.get("percentage", params.get("pct", 0)))
@@ -793,18 +801,20 @@ def _apply_portfolio_action(db: Session, working: dict, action_type: str, params
         location_id = params.get("location_id")
         role_type_id = params.get("role_type_id")
 
-        if location_id or role_type_id:
-            person_q = db.query(Person.id).filter(Person.is_active.is_(True))
-            if role_type_id:
-                person_q = person_q.filter(Person.role_type_id == role_type_id)
-            if location_id:
-                cc_ids = [
-                    r[0] for r in
-                    db.query(CostCenter.id)
-                    .filter(CostCenter.location_id == location_id).all()
-                ]
-                person_q = person_q.filter(Person.cost_center_id.in_(cc_ids))
-            person_ids = [r[0] for r in person_q.all()]
+        sub_categories = [role_type_id] if role_type_id else None
+        project_ids = None  # None => all working projects
+        if location_id:
+            cc_ids = [
+                r[0] for r in
+                db.query(CostCenter.id)
+                .filter(CostCenter.location_id == location_id).all()
+            ]
+            person_ids = [
+                r[0] for r in
+                db.query(Person.id)
+                .filter(Person.is_active.is_(True), Person.cost_center_id.in_(cc_ids))
+                .all()
+            ] if cc_ids else []
             if not person_ids:
                 return
             project_ids = [
@@ -813,10 +823,11 @@ def _apply_portfolio_action(db: Session, working: dict, action_type: str, params
                 .filter(Allocation.person_id.in_(person_ids))
                 .distinct().all()
             ]
-        else:
-            project_ids = list(working.keys())
 
-        _uplift_forecast_by_category(db, working, project_ids, category, pct, effective_month)
+        _uplift_forecast_by_category(
+            db, working, project_ids, category, pct, effective_month,
+            sub_categories=sub_categories,
+        )
 
     elif action_type == "rate_escalation":
         _apply_rate_escalation(db, working, params)
