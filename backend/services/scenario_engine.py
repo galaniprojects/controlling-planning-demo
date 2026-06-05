@@ -443,6 +443,10 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
             "budget_delta": round(delta, 2),
             "original_rag": state["rag"], "adjusted_rag": adj_rag,
             "is_affected": state["is_affected"],
+            # Sim no-op lever fix (A6): top-level node a reassign_hierarchy lever
+            # moved the project to; None if unmoved. Consumed by the investment-mix
+            # dimension to re-bucket scenario_total without changing financials.
+            "reassigned_node_id": state.get("reassigned_node_id"),
         })
         total_original += state["original_budget"]
         total_adjusted += state["adjusted_budget"]
@@ -618,6 +622,16 @@ def _apply_project_action(db: Session, working: dict, action_type: str,
         # Similar to cut_consulting but uses explicit percentage
         pct = float(params.get("adjustment_pct", params.get("percentage", 15)))
         state["adjusted_budget"] -= state["adjusted_budget"] * 0.3 * (abs(pct) / 100)
+
+    elif action_type == "reassign_hierarchy":
+        # Sim no-op lever fix (A6): move the project to a different hierarchy node.
+        # NO budget change — only re-buckets the investment-mix dimension. The
+        # node is resolved up to the top-level type so the mix dimension (which
+        # groups by top-level node) re-buckets correctly.
+        node_id = params.get("hierarchy_node_id")
+        if node_id:
+            top_type = get_top_level_entity_type_id(db)
+            state["reassigned_node_id"] = _resolve_top_level_node(db, node_id, top_type)
 
 
 # ---------------------------------------------------------------------------
