@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from models.capacity import Allocation
 from models.financial import Baseline, Forecast
-from models.organization import CostCenter
+from models.organization import CostCenter, GroupingEntity
 from models.people import Person, RateTable
 from models.projects import Project
 from models.scenarios import (
@@ -109,6 +109,57 @@ def _get_year_scoped_forecast(db: Session, project_id: str, target_years: list[s
         )
         .scalar()
     )
+
+
+def _uplift_forecast_by_category(
+    db: Session, working: dict, project_ids: list[str],
+    category: str | None, pct: float, from_month: str,
+) -> None:
+    """Uplift adjusted_budget by a percentage of category-scoped forecast.
+
+    For each pid in project_ids that exists in working: sum Forecast.amount_eur
+    where (category is None or Forecast.category == category) and month >= from_month,
+    add sum * pct/100 to working[pid]['adjusted_budget'], and set is_affected=True.
+    Sim no-op lever fix (A0) — shared by adjust_rate_table (A3) and the
+    rate_escalation surface path (A7).
+    """
+    for pid in project_ids:
+        if pid not in working:
+            continue
+        q = db.query(func.coalesce(func.sum(Forecast.amount_eur), 0)).filter(
+            Forecast.project_id == pid,
+            Forecast.month >= from_month,
+        )
+        if category is not None:
+            q = q.filter(Forecast.category == category)
+        scoped = float(q.scalar())
+        if scoped:
+            working[pid]["adjusted_budget"] += scoped * (float(pct) / 100)
+        working[pid]["is_affected"] = True
+
+
+def _resolve_top_level_node(db: Session, node_id: str, top_type: str) -> str:
+    """Walk GroupingEntity.parent_entity_id up to the ancestor whose entity_type_id
+    matches top_type; return that ancestor's id. If node_id is already top-level (or
+    no matching ancestor is found), return node_id. Mirrors the parent walk in
+    portfolio_service.get_project_entity_info (portfolio_service.py:110-127).
+    Sim no-op lever fix (A0) — used by reassign_hierarchy (A6).
+    """
+    current = db.query(GroupingEntity).get(node_id)
+    if not current:
+        return node_id
+    visited: set[str] = set()
+    while current:
+        if current.id in visited:
+            break
+        visited.add(current.id)
+        if current.entity_type_id == top_type:
+            return current.id
+        if current.parent_entity_id:
+            current = db.query(GroupingEntity).get(current.parent_entity_id)
+        else:
+            break
+    return node_id
 
 
 def get_scenario_state(db: Session, scenario_id: int) -> dict:
@@ -283,6 +334,10 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
             "is_service": p.is_service, "is_affected": False,
             "start": p.start_month, "end": p.end_month,
             "status": p.pipeline_stage,
+            # Sim no-op lever fix (A0): expose classification fields so portfolio
+            # levers (cut_by_transformation, inject_hypothetical_project) can scope.
+            "transformation_level": p.transformation_level,
+            "project_type": p.project_type,
         }
 
     # Project-scope recompute core (spec §6): projects whose edits use the
