@@ -667,6 +667,21 @@ def _apply_portfolio_action(db: Session, working: dict, action_type: str, params
                     state["adjusted_budget"] *= (1 - abs(pct) / 100)
                 state["is_affected"] = True
 
+    elif action_type == "cut_by_hierarchy":
+        # Sim no-op lever fix (A1): cut member projects of a hierarchy node
+        # (and its descendants) by a percentage. Year-scope aware like cut_by_type.
+        node_id = params.get("hierarchy_node_id")
+        pct = float(params.get("percentage", params.get("pct", 0)))
+        member_pids = set(_get_projects_for_entity_recursive(db, node_id)) if node_id else set()
+        for pid, state in working.items():
+            if pid in member_pids:
+                if target_years:
+                    scoped = _get_year_scoped_forecast(db, pid, target_years)
+                    state["adjusted_budget"] -= scoped * (abs(pct) / 100)
+                else:
+                    state["adjusted_budget"] *= (1 - abs(pct) / 100)
+                state["is_affected"] = True
+
     elif action_type == "freeze_new_starts":
         cutoff_month = params.get("cutoff_month", DEMO_DATE)
         for state in working.values():
