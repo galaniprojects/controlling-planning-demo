@@ -418,18 +418,17 @@ class TestAdjustRateTable:
         assert working["proj-1"]["is_affected"] is True
 
     def test_role_filter_scopes_uplift(self, db, seed_org_base, create_test_project):
-        # A role_type_id filter restricts to projects that ALLOCATE matching
-        # persons (Person.role_type_id -> Allocation.project_id), then uplifts
-        # those projects' category-scoped forecast.
+        # CORRECTED scoping (CONTRACTS A3): the role_type_id for internal forecast
+        # rows lives in Forecast.sub_category, so role scoping is precise on the
+        # forecast rows — NO allocation join. proj-1 keeps sub_category='role-dev';
+        # proj-2's internal rows are re-tagged to 'role-pm'.
+        from models.financial import Forecast
         create_test_project("proj-1", months=["2026-01", "2026-02", "2026-03"],
                             forecast_amt=1000)
         create_test_project("proj-2", name="P2",
                             months=["2026-01", "2026-02", "2026-03"], forecast_amt=1000)
-        # p-dev-1 (role-dev) works on proj-1; p-pm-1 (role-pm) works on proj-2.
-        db.add(Allocation(project_id="proj-1", person_id="p-dev-1",
-                          month="2026-05", hours=40))
-        db.add(Allocation(project_id="proj-2", person_id="p-pm-1",
-                          month="2026-05", hours=40))
+        db.query(Forecast).filter(Forecast.project_id == "proj-2").update(
+            {Forecast.sub_category: "role-pm"}, synchronize_session=False)
         db.commit()
         working = {
             **_make_working_state("proj-1", 10000),
@@ -439,7 +438,41 @@ class TestAdjustRateTable:
             "rate_table_scope": "internal", "role_type_id": "role-dev",
             "percentage": 10, "effective_month": "2026-01",
         })
-        # Only proj-1 (allocates a role-dev person) is uplifted: 3000 * 10% = 300.
+        # Only proj-1's role-dev internal forecast is uplifted: 3000 * 10% = 300.
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(10300.0)
+        assert working["proj-2"]["adjusted_budget"] == pytest.approx(10000.0)
+
+    def test_location_filter_scopes_uplift(self, db, seed_org_base, create_test_project):
+        # CORRECTED scoping (CONTRACTS A3): location has no forecast-row signal, so
+        # the project set is derived via CostCenter.location_id -> Person.cost_center_id
+        # -> that person's allocated projects. p-dev-1 sits at loc-muc (cc-muc-dev)
+        # and is allocated to proj-1; a second person at loc-ber is allocated to proj-2.
+        from models.organization import Location, CostCenter
+        from models.people import Person
+        create_test_project("proj-1", months=["2026-01", "2026-02", "2026-03"],
+                            forecast_amt=1000)
+        create_test_project("proj-2", name="P2",
+                            months=["2026-01", "2026-02", "2026-03"], forecast_amt=1000)
+        db.add(Location(id="loc-ber", city="Berlin", country="Germany"))
+        db.add(CostCenter(id="cc-ber", name="Berlin Dev", location_id="loc-ber",
+                          competence_center_id="comp-dev"))
+        db.add(Person(id="p-ber-1", name="Berlin Dev", role_type_id="role-dev",
+                      cost_center_id="cc-ber", competence_center_id="comp-dev"))
+        # loc-muc person on proj-1; loc-ber person on proj-2.
+        db.add(Allocation(project_id="proj-1", person_id="p-dev-1",
+                          month="2026-05", hours=40))
+        db.add(Allocation(project_id="proj-2", person_id="p-ber-1",
+                          month="2026-05", hours=40))
+        db.commit()
+        working = {
+            **_make_working_state("proj-1", 10000),
+            **_make_working_state("proj-2", 10000),
+        }
+        _apply_portfolio_action(db, working, "adjust_rate_table", {
+            "rate_table_scope": "internal", "location_id": "loc-muc",
+            "percentage": 10, "effective_month": "2026-01",
+        })
+        # loc-muc persons are allocated only to proj-1 → only proj-1 uplifted.
         assert working["proj-1"]["adjusted_budget"] == pytest.approx(10300.0)
         assert working["proj-2"]["adjusted_budget"] == pytest.approx(10000.0)
 
