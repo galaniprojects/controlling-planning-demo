@@ -171,11 +171,9 @@ export function ScenarioManagerPage() {
   );
 
   const handleRebaseConfirm = useCallback(
-    async (newAnchorVersionId: number) => {
+    async (anchors: Record<string, number>) => {
       if (!rebaseTarget) return;
-      await scenariosApi.rebase(rebaseTarget.id, {
-        new_anchor_version_id: newAnchorVersionId,
-      });
+      await scenariosApi.rebase(rebaseTarget.id, { anchors });
       refresh();
     },
     [rebaseTarget, refresh],
@@ -279,8 +277,8 @@ export function ScenarioManagerPage() {
         onOpenChange={(open) => {
           if (!open) setRebaseTarget(null);
         }}
+        scenarioId={rebaseTarget?.id ?? null}
         scenarioName={rebaseTarget?.name ?? ''}
-        currentAnchorVersionId={rebaseTarget?.anchor_forecast_version_id ?? null}
         onConfirm={handleRebaseConfirm}
       />
     </div>

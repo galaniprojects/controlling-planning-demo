@@ -200,7 +200,8 @@ export interface ImpactDashboardResponse {
   tier3_content: boolean;
   tier3_visible: boolean;
   stale: boolean;
-  anchor_forecast_version_id: number | null;
+  /** Per-project anchors: project_id -> forecast version id. */
+  anchor_version_ids: Record<string, number>;
   dimensions: ImpactDashboardDimensions;
 }
 
@@ -220,7 +221,7 @@ export function narrowImpact(
     tier3_content: raw.tier3_content,
     tier3_visible: raw.tier3_visible,
     stale: raw.stale,
-    anchor_forecast_version_id: raw.anchor_forecast_version_id,
+    anchor_version_ids: raw.anchor_version_ids ?? {},
     dimensions: raw.dimensions as unknown as ImpactDashboardDimensions,
   };
 }

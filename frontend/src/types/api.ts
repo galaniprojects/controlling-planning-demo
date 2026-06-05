@@ -1252,7 +1252,8 @@ export interface ScenarioListItem {
   archived?: boolean | null;
   archived_at?: string | null;
   tags?: string[] | null;
-  anchor_forecast_version_id?: number | null;
+  /** Per-project anchors: project_id -> forecast version id. */
+  anchor_version_ids?: Record<string, number>;
   last_recalculated_at?: string | null;
 }
 
@@ -1267,6 +1268,29 @@ export interface ScenarioCreateResponse {
   id: number;
   name: string;
   status: string;
+}
+
+// Per-project rebase anchors (F10). A scenario touches N projects, each
+// anchored to its own forecast cycle version. The rebase picker offers, per
+// project, the candidate cycle versions to re-anchor against.
+export interface RebaseVersionOption {
+  id: number;
+  version_number: number;
+  cycle_label: string | null;
+  created_at: string;
+}
+
+export interface RebaseProjectOption {
+  project_id: string;
+  project_name: string;
+  current_anchor: RebaseVersionOption | null;
+  is_stale: boolean;
+  candidates: RebaseVersionOption[];
+}
+
+export interface RebaseOptionsResponse {
+  scenario_id: number;
+  projects: RebaseProjectOption[];
 }
 
 export interface ScenarioAction {

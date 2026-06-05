@@ -128,9 +128,10 @@ function buildColumns(
       columnIndex: i,
       label: col.label,
       owner: meta.owner ?? null,
-      anchorLabel: impact?.anchor_forecast_version_id
-        ? `v${impact.anchor_forecast_version_id}`
-        : null,
+      anchorLabel: (() => {
+        const n = Object.keys(impact?.anchor_version_ids ?? {}).length;
+        return n > 0 ? `${n} project${n === 1 ? '' : 's'} anchored` : null;
+      })(),
       status: meta.status ?? null,
       diffCount: typeof diffCount === 'number' ? diffCount : null,
       stale: meta.stale ?? impact?.stale ?? false,
@@ -146,7 +147,7 @@ function buildColumns(
           tier3_content: false,
           tier3_visible: true,
           stale: false,
-          anchor_forecast_version_id: null,
+          anchor_version_ids: {},
           dimensions: {},
         } as ImpactDashboardResponse),
       projectBudgets: out,
