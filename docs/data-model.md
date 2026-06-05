@@ -506,10 +506,20 @@ What-if container.
 
 **Key columns.**
 - *v4 core:* `id` Integer PK, `name` String(300) NOT NULL, `description` Text, `author_id` FK → people NOT NULL, `status` String(20) default `private` (`private` | `published`), `headline_impact` Text (JSON impact summary).
-- *v5 B1 additions per `[B-SL-01..05]` `[E-06b]`:* `anchor_forecast_version_id` FK → forecast_versions (diffs computed against this anchor); `rebased_from_version_id` FK → forecast_versions (audit context for previous anchor); `visibility` String(20) default `private`/`server_default='private'` (`private` | `tier3_only` | `all_users` per `[B-SL-03]` Tier 3 gating); `tier3_content_flag` Boolean (auto-set when scenario contains Tier 3 diffs); `archived` Boolean / `archived_at` DateTime (soft archive per `[B-SL-05]`); `tags` Text (JSON list per `[B-AC-01]`); `last_recalculated_at` DateTime (drives stale indicator — UI shows stale when `modified_at > last_recalculated_at`); `cc_owner_scope_cc_id` FK → cost_centers (per `[E-06b]` when CC Owner authored).
+- *v5 B1 additions per `[B-SL-01..05]` `[E-06b]`:* `visibility` String(20) default `private`/`server_default='private'` (`private` | `tier3_only` | `all_users` per `[B-SL-03]` Tier 3 gating); `tier3_content_flag` Boolean (auto-set when scenario contains Tier 3 diffs); `archived` Boolean / `archived_at` DateTime (soft archive per `[B-SL-05]`); `tags` Text (JSON list per `[B-AC-01]`); `last_recalculated_at` DateTime (drives stale indicator — UI shows stale when `modified_at > last_recalculated_at`); `cc_owner_scope_cc_id` FK → cost_centers (per `[E-06b]` when CC Owner authored).
 - *Charging/UM rework FD-3:* `anchor_distribution_version_id` FK → distribution_versions (Stage 1 anchor pinned at scenario creation per spec §4 Open-Question #3, so production reactivations don't shift impact deltas mid-flight; NULL = legacy fallback resolve-by-`evaluated_date`).
+- *Simulator E2E Fixes Session 3:* the former scalar `anchor_forecast_version_id` / `rebased_from_version_id` columns were **removed** and replaced by the per-project `ScenarioProjectAnchor` association (see below). Forecast diffs and the stale-anchor guard are now per project.
 
-**Relationships.** `author`, `actions` (ordered by action_order), `states`, `capacity_impacts`, `promotions` (ordered by promoted_at desc), `anchor_version`, `rebased_from_version`, `cc_owner_scope_cc`, `anchor_distribution_version`.
+**Relationships.** `author`, `actions` (ordered by action_order), `states`, `capacity_impacts`, `promotions` (ordered by promoted_at desc), `project_anchors` (cascade all, delete-orphan), `cc_owner_scope_cc`, `anchor_distribution_version`.
+
+### `ScenarioProjectAnchor` — `scenario_project_anchors`
+Per-project forecast anchor for a scenario per `[B-SL-01..02]` (Simulator E2E Fixes Session 3). One row per project a scenario touches, each pinned to that project's latest cycle `ForecastVersion` at scenario-create/touch (or rebase) time. Replaces the single scalar `Scenario.anchor_forecast_version_id`: the stale-guard compares each project against *its own* latest cycle and refuses only the stale project(s), fixing the non-deterministic global `created_at DESC` tie-break the scalar guard suffered (all seeded cycle versions share one timestamp — "latest" is now resolved by max `version_number` per project, deterministically). Logic lives in `services/scenario_anchor.py`; pinned at create (clone), at the action-add / overlay-edit chokepoints (idempotent, never re-pins an existing or rebased row), and seeded by `loader._seed_scenario_anchors()` (fixes F11 — seeded scenarios previously shipped with a NULL anchor and 409'd on apply).
+
+**Key columns.** `id` Integer PK, `scenario_id` FK → scenarios NOT NULL, `project_id` FK → projects NOT NULL, `forecast_version_id` FK → forecast_versions NOT NULL (this project's anchored cycle), `rebased_from_version_id` FK → forecast_versions (audit: prior anchor after a rebase).
+
+**Constraints / indexes.** `UniqueConstraint(scenario_id, project_id)` (`uq_scenario_project_anchor` — one anchor per project per scenario); `Index ix_scenario_project_anchors_scenario`.
+
+**Relationships.** `scenario` (back_populates `project_anchors`), `project`, `forecast_version`, `rebased_from_version`.
 
 ### `ScenarioAction` — `scenario_actions`
 Ordered actions within a scenario.

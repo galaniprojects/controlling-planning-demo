@@ -12,7 +12,7 @@
     },
     {
       "title": "Scenario Workspace",
-      "body": "The workspace has a split layout: an action panel on the left and an impact dashboard on the right. Add actions to model changes, and the impact dashboard updates immediately with the recalculated results. Nine dimension tiles populate after recalculation: Financial / Ranking / Capacity / People / Outsourcing / Investment Mix / Running Cost / Cost Allocation / Change Summary. The header shows the last-recalculated indicator (e.g. 'Recalculated 36d ago') and a Stale flag if the anchor ForecastVersion has been superseded — use the Rebase action in the ⋯ menu to re-anchor."
+      "body": "The workspace has a split layout: an action panel on the left and an impact dashboard on the right. Add actions to model changes, and the impact dashboard updates immediately with the recalculated results. Nine dimension tiles populate after recalculation: Financial / Ranking / Capacity / People / Outsourcing / Investment Mix / Running Cost / Cost Allocation / Change Summary. The header shows the last-recalculated indicator (e.g. 'Recalculated 36d ago') and a Stale flag if any project's anchor forecast cycle has been superseded. Each project a scenario touches is anchored to its own latest forecast cycle, so the stale check is per project — use the Rebase action in the ⋯ menu to open the per-project picker, which lists each touched project with a labeled cycle dropdown (e.g. 'v2 — Q2 2026 Cycle') and re-anchors the ones you choose."
     },
     {
       "title": "Editing surfaces: project scope vs portfolio scope",

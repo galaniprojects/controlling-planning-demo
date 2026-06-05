@@ -281,9 +281,9 @@ const ENTITY_GROUPS: { group: string; description: string; entities: EntityDef[]
       {
         name: 'Scenario',
         table: 'scenarios',
-        description: 'What-if container. v5 additions: anchor_forecast_version_id, visibility (private/tier3_only/all_users), tier3_content_flag, archived, tags, last_recalculated_at.',
-        fields: ['id', 'name', 'description', 'author_id', 'status', 'anchor_forecast_version_id', 'visibility', 'archived', 'tags', 'last_recalculated_at'],
-        relationships: ['has ScenarioActions', 'audited by ScenarioPromotions + ScenarioApplyToForecastEvents'],
+        description: 'What-if container. v5 additions: visibility (private/tier3_only/all_users), tier3_content_flag, archived, tags, last_recalculated_at. Anchoring is per project via ScenarioProjectAnchor (each touched project pinned to its own latest forecast cycle).',
+        fields: ['id', 'name', 'description', 'author_id', 'status', 'visibility', 'archived', 'tags', 'last_recalculated_at'],
+        relationships: ['has ScenarioActions', 'has ScenarioProjectAnchors (per-project anchor)', 'audited by ScenarioPromotions + ScenarioApplyToForecastEvents'],
       },
       {
         name: 'RateTable',
