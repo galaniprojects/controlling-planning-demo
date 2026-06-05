@@ -873,13 +873,40 @@ def _apply_cap_cost_category(db: Session, working: dict, params: dict):
 
 
 def _apply_rate_escalation(db: Session, working: dict, params: dict):
-    """Model hourly rate increases by role, cost center, or location."""
+    """Model hourly rate increases.
+
+    Two payload shapes (Sim no-op lever fix A7 reconciles them):
+      * Catalogue path — ``{scope_type, scope_values, increase_pct, effective_month}``:
+        the original per-person allocation-cost model (unchanged).
+      * Surface path — ``{pct, rate_scope}`` or ``{pct, from_month, category,
+        hierarchy_node_id?}``: a category-scoped forecast uplift. ``category`` comes
+        from ``rate_scope``/``category`` ("all" → None = all categories); from_month
+        defaults to DEMO_DATE; ``hierarchy_node_id`` restricts the project set via
+        _get_projects_for_entity_recursive, else all working projects.
+    """
     scope_type = params.get("scope_type")
+    if not scope_type:
+        # Surface path — forecast-category uplift
+        pct = params.get("pct", params.get("percentage"))
+        if pct is None:
+            return
+        raw_cat = params.get("rate_scope", params.get("category"))
+        category = None if raw_cat in (None, "all") else raw_cat
+        from_month = params.get("from_month", params.get("effective_month", DEMO_DATE))
+        node_id = params.get("hierarchy_node_id")
+        if node_id:
+            project_ids = _get_projects_for_entity_recursive(db, node_id)
+        else:
+            project_ids = list(working.keys())
+        _uplift_forecast_by_category(db, working, project_ids, category, float(pct), from_month)
+        return
+
+    # Catalogue path — per-person allocation cost model (unchanged)
     scope_values = params.get("scope_values", [])
     # Support single-value legacy format
     if not scope_values and params.get("scope_value"):
         scope_values = [params["scope_value"]]
-    if not scope_type or not scope_values:
+    if not scope_values:
         return
 
     increase_pct = float(params.get("increase_pct", 5))
