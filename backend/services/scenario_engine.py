@@ -706,6 +706,43 @@ def _apply_portfolio_action(db: Session, working: dict, action_type: str, params
     elif action_type == "cap_cost_category":
         _apply_cap_cost_category(db, working, params)
 
+    elif action_type == "adjust_rate_table":
+        # Sim no-op lever fix (A3): uplift category-scoped forecast for an
+        # internal/external rate-table change. If location_id/role_type_id are
+        # given, restrict to projects that allocate matching persons (reuses the
+        # person-filter shape from _apply_rate_escalation); else all projects.
+        scope = params.get("rate_table_scope")
+        category = scope if scope in ("internal", "external") else None
+        pct = float(params.get("percentage", params.get("pct", 0)))
+        effective_month = params.get("effective_month", DEMO_DATE)
+        location_id = params.get("location_id")
+        role_type_id = params.get("role_type_id")
+
+        if location_id or role_type_id:
+            person_q = db.query(Person.id).filter(Person.is_active.is_(True))
+            if role_type_id:
+                person_q = person_q.filter(Person.role_type_id == role_type_id)
+            if location_id:
+                cc_ids = [
+                    r[0] for r in
+                    db.query(CostCenter.id)
+                    .filter(CostCenter.location_id == location_id).all()
+                ]
+                person_q = person_q.filter(Person.cost_center_id.in_(cc_ids))
+            person_ids = [r[0] for r in person_q.all()]
+            if not person_ids:
+                return
+            project_ids = [
+                r[0] for r in
+                db.query(Allocation.project_id)
+                .filter(Allocation.person_id.in_(person_ids))
+                .distinct().all()
+            ]
+        else:
+            project_ids = list(working.keys())
+
+        _uplift_forecast_by_category(db, working, project_ids, category, pct, effective_month)
+
     elif action_type == "rate_escalation":
         _apply_rate_escalation(db, working, params)
 
