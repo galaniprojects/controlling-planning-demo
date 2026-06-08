@@ -38,6 +38,13 @@ _ACTION_ALIASES = {
     "change_resources": "change_allocation",
 }
 
+# Project-scope actions that the project-scope grid "core" does NOT subsume and so
+# must still be applied even when a project is core-handled. reassign_hierarchy only
+# re-buckets the investment-mix dimension (no financial effect), so the grid recompute
+# leaves its reassigned_node_id unset — apply it explicitly to avoid a silent no-op
+# when the same project also has a Layer-2 cell edit or a macro.
+_CORE_PASSTHROUGH_ACTIONS = {"reassign_hierarchy"}
+
 
 def _get_yearly_forecasts(db: Session, project_ids: list[str]) -> dict[str, dict[int, float]]:
     """Return {project_id: {year: total_forecast}} for given projects."""
@@ -141,7 +148,10 @@ def _uplift_forecast_by_category(
         scoped = float(q.scalar())
         if scoped:
             working[pid]["adjusted_budget"] += scoped * (float(pct) / 100)
-        working[pid]["is_affected"] = True
+            # Only flag projects that actually had in-scope forecast — a project
+            # with nothing matching the category/sub_category/month filter is not
+            # "affected" and must not inflate the affected-projects count.
+            working[pid]["is_affected"] = True
 
 
 def _resolve_top_level_node(db: Session, node_id: str, top_type: str) -> str:
@@ -400,6 +410,13 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
         params = json.loads(a.parameters_json) if a.parameters_json else {}
         core_handled = a.scope == "project" and a.project_id in core_pids
 
+        # The grid core owns a core project's financial recompute but does not apply
+        # non-financial re-bucket actions (reassign_hierarchy). Apply those here so
+        # they aren't silently dropped when the project is core-handled.
+        norm_type = _ACTION_ALIASES.get(a.action_type, a.action_type)
+        if core_handled and norm_type in _CORE_PASSTHROUGH_ACTIONS:
+            _apply_action(db, working, a.action_type, a.scope, a.project_id, params)
+
         # Use pre-computed delta if available (pre-seeded scenarios)
         if a.impact_delta_json:
             if not core_handled:
@@ -637,7 +654,18 @@ def _apply_project_action(db: Session, working: dict, action_type: str,
         node_id = params.get("hierarchy_node_id")
         if node_id:
             top_type = get_top_level_entity_type_id(db)
-            state["reassigned_node_id"] = _resolve_top_level_node(db, node_id, top_type)
+            resolved = (
+                _resolve_top_level_node(db, node_id, top_type) if top_type else None
+            )
+            # Only re-bucket when resolution lands on a genuine top-level node. The
+            # mix dimension groups anchor_total by top-level node, so storing a
+            # mid-level/orphan id (the resolver's fallback when no top-type ancestor
+            # exists) would split anchor vs scenario for the same project. In that
+            # case skip the re-bucket — the project stays in its canonical bucket.
+            if resolved:
+                ent = db.query(GroupingEntity).get(resolved)
+                if ent is not None and ent.entity_type_id == top_type:
+                    state["reassigned_node_id"] = resolved
 
 
 # ---------------------------------------------------------------------------
@@ -801,7 +829,14 @@ def _apply_portfolio_action(db: Session, working: dict, action_type: str, params
         location_id = params.get("location_id")
         role_type_id = params.get("role_type_id")
 
-        sub_categories = [role_type_id] if role_type_id else None
+        # The role_type_id only lives in Forecast.sub_category for INTERNAL rows
+        # (external rows store cost_type_id there). Applying a role sub_category
+        # filter to external scope would match nothing → silent no-op, so the role
+        # filter is honoured for internal scope only; external+role uplifts all
+        # in-scope external forecast (location-scoped below if a location is given).
+        sub_categories = (
+            [role_type_id] if (role_type_id and category == "internal") else None
+        )
         project_ids = None  # None => all working projects
         if location_id:
             cc_ids = [
