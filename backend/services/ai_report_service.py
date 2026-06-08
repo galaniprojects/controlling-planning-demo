@@ -14,7 +14,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 import config
-from config import BASE_DIR, DEMO_DATE
+from config import DEMO_DATE
 from models.system import PlanningParameter
 from schemas.common import CurrentUser
 
@@ -28,32 +28,48 @@ CONVERSATION_TTL_MINUTES = 30
 MAX_SQL_RETRIES = 2
 
 BLOCKED_KEYWORDS = re.compile(
-    r"\b(CREATE|DROP|ALTER|INSERT|UPDATE|DELETE|REPLACE|ATTACH|DETACH|PRAGMA|VACUUM|REINDEX)\b",
+    r"\b(CREATE|DROP|ALTER|INSERT|UPDATE|DELETE|REPLACE|ATTACH|DETACH|PRAGMA|VACUUM|REINDEX"
+    r"|COPY|TRUNCATE|GRANT|REVOKE|CALL|DO|SET|MERGE)\b",
     re.IGNORECASE,
 )
 
+# Human-readable dialect label for the LLM prompt — derived from the configured
+# engine so the model generates SQL that matches the live database.
+_DB_DIALECT = "PostgreSQL" if config.DATABASE_URL.startswith("postgresql") else "SQLite"
+
 # ---------------------------------------------------------------------------
-# Read-only SQLite engine
+# Read-only query engine (dialect-aware)
 # ---------------------------------------------------------------------------
 
 _ro_engine = None
 
 
 def _get_readonly_engine():
-    """Return a read-only SQLite engine (singleton)."""
+    """Return a read-only engine bound to the configured database (singleton).
+
+    Read-only is enforced at the connection level, per dialect:
+      - SQLite: ``PRAGMA query_only = ON``
+      - PostgreSQL: ``SET SESSION default_transaction_read_only = on``
+    The ``BLOCKED_KEYWORDS`` denylist in :func:`validate_sql` is a second,
+    client-side guard (defense in depth).
+    """
     global _ro_engine
     if _ro_engine is None:
-        db_path = os.path.join(BASE_DIR, "viper_demo.db")
-        _ro_engine = create_engine(
-            f"sqlite:///{db_path}",
-            connect_args={"check_same_thread": False},
-        )
-        # Set query_only pragma on connect
         from sqlalchemy import event
+
+        url = config.DATABASE_URL
+        is_sqlite = url.startswith("sqlite")
+        connect_args = {"check_same_thread": False} if is_sqlite else {}
+        _ro_engine = create_engine(url, connect_args=connect_args)
 
         @event.listens_for(_ro_engine, "connect")
         def set_readonly(dbapi_conn, _rec):
-            dbapi_conn.execute("PRAGMA query_only = ON")
+            cur = dbapi_conn.cursor()
+            if is_sqlite:
+                cur.execute("PRAGMA query_only = ON")
+            else:
+                cur.execute("SET SESSION default_transaction_read_only = on")
+            cur.close()
 
     return _ro_engine
 
@@ -63,9 +79,33 @@ def _get_readonly_engine():
 # ---------------------------------------------------------------------------
 
 
+def _has_inner_semicolon(sql: str) -> bool:
+    """True if a statement-terminating ``;`` appears outside string literals.
+
+    Quote-aware (handles ``''`` escapes) so a legitimate ``SELECT 'a;b'`` is not
+    rejected. Used to forbid multi-statement payloads — a single trailing ``;``
+    has already been stripped by the caller.
+    """
+    in_str = False
+    i, n = 0, len(sql)
+    while i < n:
+        ch = sql[i]
+        if ch == "'":
+            if in_str and i + 1 < n and sql[i + 1] == "'":
+                i += 2
+                continue
+            in_str = not in_str
+        elif ch == ";" and not in_str:
+            return True
+        i += 1
+    return False
+
+
 def validate_sql(sql: str) -> str | None:
     """Return an error message if the SQL is unsafe, else None."""
     stripped = sql.strip().rstrip(";").strip()
+    if _has_inner_semicolon(stripped):
+        return "Only a single SELECT statement is allowed (no multi-statement queries)."
     if BLOCKED_KEYWORDS.search(stripped):
         return "Only SELECT queries are allowed. DDL/DML statements are blocked."
     if not stripped.upper().startswith("SELECT") and not stripped.upper().startswith("WITH"):
@@ -88,16 +128,17 @@ def execute_sql(sql: str) -> dict:
         with engine.connect() as conn:
             result = conn.execute(text(sql))
             columns = list(result.keys())
-            rows = []
-            for i, row in enumerate(result):
-                if i >= ROW_LIMIT:
-                    break
-                rows.append(dict(zip(columns, row)))
+            # Fetch one extra row to detect truncation accurately: `truncated`
+            # is True only when MORE than ROW_LIMIT rows exist (a result of
+            # exactly ROW_LIMIT is complete, not truncated).
+            fetched = result.fetchmany(ROW_LIMIT + 1)
+            truncated = len(fetched) > ROW_LIMIT
+            rows = [dict(zip(columns, row)) for row in fetched[:ROW_LIMIT]]
             return {
                 "columns": columns,
                 "rows": rows,
                 "row_count": len(rows),
-                "truncated": i >= ROW_LIMIT if rows else False,
+                "truncated": truncated,
             }
     except Exception as e:
         return {"error": f"SQL execution error: {str(e)}"}
@@ -152,13 +193,13 @@ def build_scoping_context(user: CurrentUser, db: Session | None = None) -> str:
 SYSTEM_PROMPT = """You are an AI report builder for {app_name}, a financial planning and project portfolio management application for {company_name} IT. You help users create custom reports by querying the database.
 
 ## Demo Context
-- Current date: {demo_date} (April 2026)
+- Current date: {demo_date}
 - Currency: EUR with European formatting (dot for thousands, comma for decimals: €14.400,00)
 - This is a demo with realistic mock data
 
 ## Database Schema
 
-The SQLite database contains these tables:
+The {db_dialect} database contains these tables (use {db_dialect}-compatible SQL):
 
 **projects** — IT projects
 - id (PK), name, description, status (active/completed/on_hold/proposed/cancelled), rag_status (green/amber/red), capex_opex (capex/opex), start_month (YYYY-MM), end_month, projected_end_month, pl_person_id (FK→people), is_service (bool), annual_budget, total_budget, is_active
@@ -317,7 +358,7 @@ TOOLS = [
     {
         "name": "execute_sql",
         "description": (
-            f"Execute a read-only SQL SELECT query against the {config.BRANDING['app_name']} SQLite database. "
+            f"Execute a read-only SQL SELECT query against the {config.BRANDING['app_name']} {_DB_DIALECT} database. "
             "Returns column names and rows as JSON. Maximum 500 rows returned."
         ),
         "input_schema": {
@@ -325,7 +366,7 @@ TOOLS = [
             "properties": {
                 "sql": {
                     "type": "string",
-                    "description": "A SQLite SELECT query (or WITH ... SELECT).",
+                    "description": f"A {_DB_DIALECT} SELECT query (or WITH ... SELECT).",
                 },
                 "description": {
                     "type": "string",
@@ -407,6 +448,7 @@ def process_conversation(
         app_name=config.BRANDING["app_name"],
         company_name=config.BRANDING["company_name"],
         demo_date=DEMO_DATE,
+        db_dialect=_DB_DIALECT,
         scoping_context=build_scoping_context(conv.user, db),
     )
 
