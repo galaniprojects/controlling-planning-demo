@@ -215,6 +215,49 @@ class TestReassignHierarchyRebucket:
         assert mix["lob-alpha"]["scenario_total"] == pytest.approx(0.0)
         assert mix["lob-beta"]["scenario_total"] == pytest.approx(3000.0)
 
+    def test_rebuckets_even_when_project_is_core(self, db, seed_personas,
+                                                 seed_hierarchy, create_test_project):
+        # R1 (code-review): a project that is ALSO "core-handled" (has a Layer-2
+        # cell edit, so it recomputes via the project-scope grid) must STILL get its
+        # reassign applied — the grid core owns financials but not the re-bucket, so
+        # reassign_hierarchy is applied as a passthrough. Without the fix the action
+        # is silently dropped and scenario_total stays on the canonical node.
+        from models.scenarios import ScenarioForecastCellEdit
+        create_test_project("proj-c", forecast_amt=1000)
+        db.add(ProjectGroupingAssignment(
+            project_id="proj-c", grouping_entity_id=seed_hierarchy["prog_one_id"],
+        ))
+        sc = Scenario(name="Core Reassign", author_id="p-dev-1", status="private")
+        db.add(sc)
+        db.flush()
+        # A cell edit makes proj-c "core" (grid recompute path).
+        db.add(ScenarioForecastCellEdit(
+            scenario_id=sc.id, project_id="proj-c",
+            line_key="internal|role-dev||", month="2026-06",
+            field="amount_eur", value=500.0,
+        ))
+        db.add(ScenarioAction(
+            scenario_id=sc.id, action_order=1, scope="project",
+            action_type="reassign_hierarchy", project_id="proj-c",
+            parameters_json='{"hierarchy_node_id": "lob-beta"}',
+            lever_category="restructuring", tier=2,
+        ))
+        db.commit()
+
+        actions = (
+            db.query(ScenarioAction)
+            .filter(ScenarioAction.scenario_id == sc.id)
+            .all()
+        )
+        state = recalculate_scenario(db, sc, actions)
+        dashboard = compute_impact_dashboard(
+            db, sc.id, state, include_tier3=True, include_cost_allocation=False,
+        )
+        mix = {it["node_id"]: it for it in dashboard["dimensions"]["investment_mix"]["items"]}
+        # Despite being core-handled, the reassign re-buckets proj-c to lob-beta.
+        assert mix["lob-alpha"]["scenario_total"] == pytest.approx(0.0)
+        assert mix["lob-beta"]["scenario_total"] > 0
+
 
 class TestMarkRecalculated:
     def test_stamps_timestamp_and_tier3_flag(self, db, basic_scenario):

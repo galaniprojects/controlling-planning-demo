@@ -17,6 +17,7 @@ from services.scenario_engine import (
     _apply_portfolio_action,
     _apply_project_action,
     _build_time_frame_breakdown,
+    _uplift_forecast_by_category,
     get_scenario_state,
     recalculate_scenario,
 )
@@ -476,6 +477,42 @@ class TestAdjustRateTable:
         assert working["proj-1"]["adjusted_budget"] == pytest.approx(10300.0)
         assert working["proj-2"]["adjusted_budget"] == pytest.approx(10000.0)
 
+    def test_external_scope_role_filter_not_noop(self, db, seed_org_base,
+                                                 create_test_project):
+        # R2 (code-review): role_type_id lives in Forecast.sub_category for INTERNAL
+        # rows only (external rows carry cost_type_id there). For external scope the
+        # role filter must be ignored, not applied to the wrong column → silent
+        # no-op. proj-1 gets an external forecast row of 2000.
+        from models.financial import Forecast
+        create_test_project("proj-1", months=["2026-01"], forecast_amt=1000)
+        db.add(Forecast(project_id="proj-1", month="2026-01",
+                        category="external", sub_category="EC-CONSULT",
+                        amount_eur=2000))
+        db.commit()
+        working = _make_working_state("proj-1", 10000)
+        _apply_portfolio_action(db, working, "adjust_rate_table", {
+            "rate_table_scope": "external", "role_type_id": "role-dev",
+            "percentage": 10, "effective_month": "2026-01",
+        })
+        # External forecast (2000) uplifted 10% = 200 — role filter ignored for
+        # external scope, NOT a no-op.
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(10200.0)
+        assert working["proj-1"]["is_affected"] is True
+
+    def test_uplift_no_matching_forecast_not_affected(self, db, seed_org_base,
+                                                      create_test_project):
+        # R3 (code-review): a project with no in-scope forecast must NOT be flagged
+        # is_affected — that would inflate the affected-projects count.
+        create_test_project("proj-1", months=["2026-01"], forecast_amt=1000)
+        working = _make_working_state("proj-1", 10000)
+        # sub_category that matches nothing → scoped sum is 0.
+        _uplift_forecast_by_category(
+            db, working, None, "internal", 10.0, "2026-01",
+            sub_categories=["role-nonexistent"],
+        )
+        assert working["proj-1"]["adjusted_budget"] == pytest.approx(10000.0)
+        assert working["proj-1"]["is_affected"] is False
+
 
 @patch("services.scenario_engine.DEMO_DATE", "2026-04")
 class TestChangeBudgetEnvelope:
@@ -571,6 +608,21 @@ class TestReassignHierarchy:
             "hierarchy_node_id": seed_hierarchy["lob_beta_id"],
         })
         assert working["proj-1"]["reassigned_node_id"] == seed_hierarchy["lob_beta_id"]
+
+    def test_unresolvable_node_is_not_set(self, db, seed_org_base, seed_hierarchy):
+        # R4 (code-review): a node that does NOT resolve to a top-level-type node
+        # (orphan: non-top type, no parent) must not be stored — otherwise the mix
+        # dimension would split anchor (top-level) vs scenario (mid-level) for the
+        # same project. The re-bucket is skipped; the project stays canonical.
+        from models.organization import GroupingEntity
+        db.add(GroupingEntity(id="orphan-prog", entity_type_id="get-prog",
+                              name="Orphan Programme", parent_entity_id=None))
+        db.commit()
+        working = _make_working_state("proj-1", 10000)
+        _apply_project_action(db, working, "reassign_hierarchy", "proj-1", {
+            "hierarchy_node_id": "orphan-prog",
+        })
+        assert working["proj-1"].get("reassigned_node_id") is None
 
 
 @patch("services.scenario_engine.DEMO_DATE", "2026-04")
