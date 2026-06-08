@@ -1,0 +1,57 @@
+# VIPER full stack: PostgreSQL + FastAPI backend + nginx-served frontend.
+#
+#   docker compose up --build       # whole stack (frontend on http://localhost:5173)
+#   docker compose up db            # just Postgres, for hybrid native dev
+#   docker compose down             # stop; data SURVIVES (named volume)
+#   docker compose down -v          # stop and WIPE the database volume (fresh schema next up)
+#
+# Copy .env.example to .env to override the default credentials.
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-viper}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-viper}
+      POSTGRES_DB: ${POSTGRES_DB:-viper}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Exposed so a natively-run backend can target the container DB (hybrid dev).
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-viper} -d ${POSTGRES_DB:-viper}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-viper}:${POSTGRES_PASSWORD:-viper}@db:5432/${POSTGRES_DB:-viper}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      # FastAPI's startup hook (migrations + seed) runs before the server
+      # accepts requests, so /health answering means the app is fully ready.
+      # python urllib avoids needing curl in the slim image.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+
+volumes:
+  pgdata:
