@@ -212,6 +212,18 @@ This starts both servers, resets demo data, and opens the app at **http://localh
 
 If you'd rather not use Git Bash on Windows, open two PowerShell terminals and start each server manually — see [SETUP.md](SETUP.md) for the exact commands plus environment variables, troubleshooting, and a fresh-clone smoke test.
 
+### Run with Docker (PostgreSQL)
+
+The native run above uses an embedded **SQLite** file (zero setup) — ideal for quick local work. For a persistent, production-like stack on **PostgreSQL**, use Docker (requires Docker Desktop / Engine):
+
+```bash
+docker compose up --build      # PostgreSQL + backend + frontend → http://localhost:5173
+docker compose down            # stop; data SURVIVES (named volume)
+docker compose down -v         # stop and wipe the DB (fresh schema + seed on next up)
+```
+
+The database engine is selected by the `DATABASE_URL` environment variable; with none set, the backend falls back to SQLite. So three run modes are available: **full Docker** (above), **hybrid** (`docker compose up db`, then run the backend natively against `postgresql+psycopg://viper:viper@localhost:5432/viper`), and **pure SQLite** (native, no env var). Schema is managed by **Alembic** migrations (auto-applied on startup); see [SETUP.md](SETUP.md) for details and `.env.example` for configurable credentials.
+
 ---
 
 ## Demo Personas
@@ -315,7 +327,7 @@ Restore the original demo state at any time:
 curl -X POST http://localhost:8000/api/admin/reset-demo
 ```
 
-Or use the **Reset Demo** button in Administration. The reset is destructive (drops and recreates tables, re-runs `seed.sql`, reloads JSON fixtures) but takes only a few seconds.
+Or use the **Reset Demo** button in Administration. The reset is destructive (clears all tables, re-runs `seed.sql`, reloads JSON fixtures) but takes only a few seconds. It also **re-anchors the living-demo dates to the real current month**, so on a long-running hosted instance a reset refreshes "today" without restarting the process. (Reset clears data only; the schema is managed by Alembic.)
 
 ---
 

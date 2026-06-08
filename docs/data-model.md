@@ -168,7 +168,7 @@ Central domain entity. Status lifecycle, CapEx/OpEx, Tech Navigator profile, v5 
 
 *v5 E1 progress tracker per `[E-04c]` (live-editable via `PATCH /api/projects/{id}/progress`; snapshotted at forecast cycle completion):*
 - `current_milestone_id` Integer FK → project_milestones (`use_alter=True`, name `fk_project_current_milestone` to break the create_all cycle). Pointer to currently executing milestone; service derives from demo date when NULL.
-- `progress_pct` Numeric(5,2) — intra-milestone 0–100. Auto-computed from current milestone's deliverable checklist when items exist; manually overridable when `progress_pct_manual_override=True` (`server_default="0"`).
+- `progress_pct` Numeric(5,2) — intra-milestone 0–100. Auto-computed from current milestone's deliverable checklist when items exist; manually overridable when `progress_pct_manual_override=True` (`server_default=text("false")`).
 - `status_narrative` Text — PL's free-text status (1–2 sentences). Mandatory at forecast cycle submission per `[E-04c]`.
 - `next_milestone_confidence` String(20) — `on_track` | `at_risk` | `blocked`. Service layer enforces `confidence_reason` non-empty when `at_risk`/`blocked`.
 - `confidence_reason` Text, `progress_updated_at` DateTime, `progress_updated_by_id` FK → people.
@@ -193,7 +193,7 @@ Project milestones with baseline + forecast date ranges per `[A-MS-01]`. Renamed
 ### `MilestoneDeliverable` — `milestone_deliverables`
 Per-milestone deliverable checklist item per `[E-04c]`. Max 10 items per milestone, enforced at service layer via `services/progress_tracker.MAX_CHECKLIST_ITEMS`.
 
-**Key columns.** `id` Integer PK, `milestone_id` FK `ondelete="CASCADE"`, `sequence` Integer NOT NULL, `text` Text NOT NULL, `is_complete` Boolean (`server_default="0"`), `completed_at` DateTime, `completed_by_id` FK → people.
+**Key columns.** `id` Integer PK, `milestone_id` FK `ondelete="CASCADE"`, `sequence` Integer NOT NULL, `text` Text NOT NULL, `is_complete` Boolean (`server_default=text("false")`), `completed_at` DateTime, `completed_by_id` FK → people.
 
 **Relationships.** `milestone` (back_populates).
 
@@ -236,7 +236,7 @@ Living plan updated via approved CRs. Mixed-granularity per `[C-FV-01]`.
 
 **Key columns.** Same shape as `Baseline` plus:
 - `location_id` FK → locations (nullable; **S6** same semantics as `Baseline.location_id` — workforce location for internal lines, null for external/legacy).
-- `is_provisional` Boolean (`server_default="0"`) — `True` for cells beyond granularity boundary (outer zone per `[C-FG-07]`). Manual CR writes clear this flag.
+- `is_provisional` Boolean (`server_default=text("false")`) — `True` for cells beyond granularity boundary (outer zone per `[C-FG-07]`). Manual CR writes clear this flag.
 - *External-cost procurement tracking (v5.1 `[C-09]`, all nullable, only for `category='external'`):* `po_number` String(50), `vendor`, `ext_status`, `po_amount` Numeric(14,2) (`server_default="0"`, monthly committed PO obligation), `accrual_amount` Numeric(14,2) (`server_default="0"`, monthly accrual estimate), `contract_end_month` String(7) (denormalised line-level metadata).
 
 ### `Actuals` — `actuals`
@@ -345,7 +345,7 @@ Per-month person assignment for a resource request.
 ### `CapacityActionLog` — `capacity_action_log`
 Per-action audit trail for the capacity workflow per v5.2 spec §12.10. **Distinct from system-wide `AuditLog`** — the dashboard/history page (§12.11–§12.15) and inbox "Recently completed" (§12.8) need richer per-action structured data than `AuditLog` carries.
 
-**Key columns.** `id` Integer PK, `timestamp` DateTime NOT NULL default utcnow / `server_default="CURRENT_TIMESTAMP"`, `action_type` String(20) (`confirm` | `partial_confirm` | `decline` | `decline_request` | `assign_draft` | `cr_reconfirm`), `acting_user_id` FK → people NOT NULL, `project_id` FK NOT NULL, `cost_center_id` FK NOT NULL, `summary` Text NOT NULL (human-readable, e.g. "Confirmed 3 roles, 720h total for Predictive Maintenance PoC"), `detail_payload` Text (JSON per §12.10: `{requests_affected, assignments, cr_id, decline_reason}`), `cr_id` FK → change_requests (non-null only for `cr_reconfirm`).
+**Key columns.** `id` Integer PK, `timestamp` DateTime NOT NULL default utcnow / `server_default=text("CURRENT_TIMESTAMP")` (the SQL function, not a string literal — valid on both SQLite and PostgreSQL), `action_type` String(20) (`confirm` | `partial_confirm` | `decline` | `decline_request` | `assign_draft` | `cr_reconfirm`), `acting_user_id` FK → people NOT NULL, `project_id` FK NOT NULL, `cost_center_id` FK NOT NULL, `summary` Text NOT NULL (human-readable, e.g. "Confirmed 3 roles, 720h total for Predictive Maintenance PoC"), `detail_payload` Text (JSON per §12.10: `{requests_affected, assignments, cr_id, decline_reason}`), `cr_id` FK → change_requests (non-null only for `cr_reconfirm`).
 
 **Indexes.** `ix_capacity_action_log_user` (acting_user_id, timestamp); `ix_capacity_action_log_project` (project_id, timestamp); `ix_capacity_action_log_cc` (cost_center_id, timestamp); `ix_capacity_action_log_time` (timestamp).
 
@@ -770,6 +770,12 @@ Module-level Python tuples that define authoritative value sets. When the value 
 ---
 
 ## Cross-cutting patterns
+
+### Database portability (SQLite ↔ PostgreSQL)
+The schema runs on both SQLite (local dev / tests) and PostgreSQL (Docker / on-prem hosting), selected by the `DATABASE_URL` env var. Schema is managed by **Alembic** (baseline in `backend/alembic/versions/`), applied on startup; `create_all` is used only by the in-memory SQLite test engine. PostgreSQL's stricter typing surfaced two conventions now applied:
+- **Boolean `server_default`** uses `text("false")`/`text("true")` (renders `DEFAULT (false)` cross-dialect), never the SQLite-style integer `"0"`/`"1"` on Boolean columns. Integer/Numeric/String `server_default` literals (e.g. `'0'`, `'draft'`) are unaffected.
+- **Function defaults** use `text("CURRENT_TIMESTAMP")` (the SQL function), not the string literal `"CURRENT_TIMESTAMP"`.
+- The canonical `seed.sql` stays SQLite-authored; `seed/_dialect.py` converts integer boolean literals → `TRUE`/`FALSE` (metadata-driven, INSERT + UPDATE, comment-aware) in-memory at load. seed.sql carries forward FK references (SQLite tolerates them with FK enforcement off); on PostgreSQL all FKs are `DEFERRABLE` (the `deferrable_fks` migration) and `seed/loader.py` issues `SET CONSTRAINTS ALL DEFERRED` so FK checks run at COMMIT — non-superuser-safe (needs only table ownership), unlike `session_replication_role`.
 
 ### Sparse-edge / sparse-cell storage
 - `Distribution` — only actually-flowing edges per `[F-S1-01]`. Self-retained percentage derived, not stored.

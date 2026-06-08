@@ -179,16 +179,35 @@ The active development cycle uses a wave-based approach — one wave per session
 cd backend && python3.12 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 cd frontend && npm install
 
-# Daily start
+# Daily start (native; uses SQLite by default — no DATABASE_URL set)
 cd backend && source .venv/bin/activate && python main.py  # http://localhost:8000, Swagger at /docs
 cd frontend && npm run dev                                  # http://localhost:5173
 
 # Unit tests
 cd backend && python -m pytest tests/ -v
 
-# Reset demo data (re-seeds database to clean state — use after testing destructive flows)
+# Reset demo data (re-seeds + re-anchors the living-demo dates to the real current month)
 curl -X POST http://localhost:8000/api/admin/reset-demo
 ```
+
+### Database & deployment (PostgreSQL + Docker + Alembic)
+The app is database-portable (SQLAlchemy ORM). `DATABASE_URL` (env) selects the engine; with none set it falls back to the local SQLite file. Schema is managed by **Alembic**, not `create_all` (except the in-memory SQLite test engine in `conftest.py`).
+```bash
+# Full containerized stack — PostgreSQL + backend + nginx-served frontend
+docker compose up --build        # frontend http://localhost:5173, API http://localhost:8000
+docker compose down              # stop; DB data SURVIVES (named volume `pgdata`)
+docker compose down -v           # stop and WIPE the DB volume (fresh schema + seed next up)
+
+# Hybrid local dev: container Postgres, native hot-reload backend/frontend
+docker compose up db
+DATABASE_URL=postgresql+psycopg://viper:viper@localhost:5432/viper python main.py
+
+# Migrations (run from backend/; reads DATABASE_URL, falls back to SQLite)
+alembic upgrade head                                    # apply (also auto-run on app startup)
+alembic revision --autogenerate -m "describe change"    # after a model change
+```
+- Seed portability lives in `seed/_dialect.py` (int `0/1`→`TRUE/FALSE` for PG BOOLEAN columns, comment-aware) + `seed/loader.py` (executes seed via the shared engine; PG disables FK triggers during bulk load via `session_replication_role`).
+- Schema changes on a persistent Postgres: add an Alembic revision (playground refresh = `docker compose down -v`). Reset stays data-only.
 
 ## Frontend Routes
 | Route | Module |

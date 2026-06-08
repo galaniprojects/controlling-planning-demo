@@ -76,6 +76,7 @@ The demo runs end-to-end with no environment variables set. Two optional knobs:
 | Variable | Where | Default | When you need it |
 |----------|-------|---------|------------------|
 | `ANTHROPIC_API_KEY` | Administration → Planning Parameters → Integrations (preferred) **or** shell env | unset | The AI Report Builder feature requires it. Get a key at [console.anthropic.com](https://console.anthropic.com). Without it the AI Report Builder UI loads but reports a "missing API key" error on submit. |
+| `DATABASE_URL` | shell env / Docker | unset → local SQLite file | Point the backend at PostgreSQL, e.g. `postgresql+psycopg://viper:viper@localhost:5432/viper`. Unset = embedded SQLite (`backend/viper_demo.db`). See **Database & Docker** below. |
 | `VITE_APP_TITLE` | `frontend/.env` | `VIPER — IT Financial Planning Platform` | Override the browser tab title; useful for demo whitelabeling. |
 
 Setting the Anthropic key:
@@ -97,6 +98,42 @@ setx ANTHROPIC_API_KEY "sk-ant-..."
 ```
 
 The preferred path is still the Administration UI (Controller persona → Administration → Planning Parameters → Integrations) — it persists in the database alongside other planning parameters and survives `reset-demo`. The env-var path is a headless fallback for CI / scripted runs.
+
+### Database & Docker (SQLite / PostgreSQL / Alembic)
+
+The backend uses SQLAlchemy ORM and is database-portable. The `DATABASE_URL` env var picks the engine; with none set it falls back to the embedded SQLite file. **Schema is managed by Alembic** (migrations live in `backend/alembic/versions/`) and applied automatically on app startup — `create_all` is used only by the in-memory SQLite test engine.
+
+Three ways to run:
+
+| Mode | How | Use for |
+|------|-----|---------|
+| **Pure SQLite** | Native run, no `DATABASE_URL` | Quick local work, tests — zero setup |
+| **Full Docker** | `docker compose up --build` | Production-like persistent PostgreSQL stack (frontend on `:5173`, API on `:8000`) |
+| **Hybrid** | `docker compose up db`, then run the backend natively with `DATABASE_URL=postgresql+psycopg://viper:viper@localhost:5432/viper` | Hot-reload dev against real PostgreSQL |
+
+Docker lifecycle (requires Docker Desktop / Engine):
+
+```bash
+docker compose up --build      # build + start db, backend, frontend
+docker compose down            # stop; DB data SURVIVES (named volume `pgdata`)
+docker compose down -v         # stop and WIPE the DB volume (fresh schema + seed next up)
+```
+
+Copy `.env.example` → `.env` to override the default Postgres credentials (`POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`) and set `ANTHROPIC_API_KEY`.
+
+Applying a schema change to a persistent PostgreSQL database:
+
+```bash
+cd backend                                              # reads DATABASE_URL (falls back to SQLite)
+# 1. change the SQLAlchemy model
+alembic revision --autogenerate -m "describe the change"
+# 2. review the generated migration in alembic/versions/, then:
+alembic upgrade head            # (also auto-applied on app startup)
+```
+
+In the **playground** phase, the quickest way to apply a schema change is `docker compose down -v && docker compose up` (recreates the volume → fresh schema + seed). `POST /api/admin/reset-demo` clears **data only** and re-anchors the living-demo dates; it does not change the schema.
+
+> **Note (PostgreSQL hosting):** to bulk-load `seed.sql` (which has forward FK references), the schema marks all foreign keys `DEFERRABLE` (a migration) and the seed transaction issues `SET CONSTRAINTS ALL DEFERRED`, so FK checks run at COMMIT. This needs only that the connecting role **owns the tables** (it does, having created them via migrations) — **no superuser privilege required**, so it works on a locked-down on-prem role.
 
 ### Run the app
 
