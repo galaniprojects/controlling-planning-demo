@@ -31,7 +31,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models.financial import Forecast
-from models.organization import CostCenter
+from models.organization import CostCenter, GroupingEntity
 from models.projects import Project
 from models.scenarios import (
     Scenario, ScenarioAction, ScenarioCapacityImpact, ScenarioState,
@@ -282,15 +282,30 @@ def compute_investment_mix_dimension(
         "anchor_total": 0.0,
         "scenario_total": 0.0,
     })
+    # Resolve a node id to its display name once (canonical + reassigned targets).
+    def _node_name(node_id: str) -> str:
+        if node_id == "unassigned":
+            return "Unassigned"
+        ent = db.query(GroupingEntity).get(node_id)
+        return ent.name if ent else node_id
+
     for ps in project_states:
         info = get_project_entity_info(db, ps["project_id"], top_type)
-        nid = info["id"] if info else "unassigned"
-        nname = info["name"] if info else "Unassigned"
-        bucket = by_node[nid]
-        bucket["node_id"] = nid
-        bucket["node_name"] = nname
-        bucket["anchor_total"] += float(ps.get("original_budget", 0))
-        bucket["scenario_total"] += float(ps.get("adjusted_budget", 0))
+        canonical_nid = info["id"] if info else "unassigned"
+        # Sim no-op lever fix (A6): the reassign_hierarchy lever re-buckets the
+        # scenario side only — anchor_total stays on the canonical node while
+        # scenario_total moves to the reassigned top-level node.
+        scenario_nid = ps.get("reassigned_node_id") or canonical_nid
+
+        anchor_bucket = by_node[canonical_nid]
+        anchor_bucket["node_id"] = canonical_nid
+        anchor_bucket["node_name"] = _node_name(canonical_nid)
+        anchor_bucket["anchor_total"] += float(ps.get("original_budget", 0))
+
+        scenario_bucket = by_node[scenario_nid]
+        scenario_bucket["node_id"] = scenario_nid
+        scenario_bucket["node_name"] = _node_name(scenario_nid)
+        scenario_bucket["scenario_total"] += float(ps.get("adjusted_budget", 0))
     items = []
     grand_anchor = sum(b["anchor_total"] for b in by_node.values()) or 1.0
     grand_scenario = sum(b["scenario_total"] for b in by_node.values()) or 1.0

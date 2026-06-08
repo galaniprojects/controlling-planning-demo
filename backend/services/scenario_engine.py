@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from config import DEMO_DATE
 from models.capacity import Allocation
 from models.financial import Baseline, Forecast
-from models.organization import CostCenter
+from models.organization import CostCenter, GroupingEntity
 from models.people import Person, RateTable
 from models.projects import Project
 from models.scenarios import (
@@ -37,6 +37,13 @@ _ACTION_ALIASES = {
     "pause": "pause_project",
     "change_resources": "change_allocation",
 }
+
+# Project-scope actions that the project-scope grid "core" does NOT subsume and so
+# must still be applied even when a project is core-handled. reassign_hierarchy only
+# re-buckets the investment-mix dimension (no financial effect), so the grid recompute
+# leaves its reassigned_node_id unset — apply it explicitly to avoid a silent no-op
+# when the same project also has a Layer-2 cell edit or a macro.
+_CORE_PASSTHROUGH_ACTIONS = {"reassign_hierarchy"}
 
 
 def _get_yearly_forecasts(db: Session, project_ids: list[str]) -> dict[str, dict[int, float]]:
@@ -109,6 +116,66 @@ def _get_year_scoped_forecast(db: Session, project_id: str, target_years: list[s
         )
         .scalar()
     )
+
+
+def _uplift_forecast_by_category(
+    db: Session, working: dict, project_ids: list[str] | None,
+    category: str | None, pct: float, from_month: str,
+    sub_categories: list[str] | None = None,
+) -> None:
+    """Uplift adjusted_budget by a percentage of category-scoped forecast.
+
+    For each pid in (project_ids or all working pids) that exists in working: sum
+    Forecast.amount_eur where (category is None or Forecast.category == category) and
+    (sub_categories is None or Forecast.sub_category in sub_categories) and
+    month >= from_month; add sum * pct/100 to working[pid]['adjusted_budget'], and set
+    is_affected=True. project_ids=None means "all projects in working".
+    Sim no-op lever fix (A0/A3) — shared by adjust_rate_table (A3, may pass
+    sub_categories) and the rate_escalation surface path (A7, never does).
+    """
+    pids = working.keys() if project_ids is None else project_ids
+    for pid in pids:
+        if pid not in working:
+            continue
+        q = db.query(func.coalesce(func.sum(Forecast.amount_eur), 0)).filter(
+            Forecast.project_id == pid,
+            Forecast.month >= from_month,
+        )
+        if category is not None:
+            q = q.filter(Forecast.category == category)
+        if sub_categories is not None:
+            q = q.filter(Forecast.sub_category.in_(sub_categories))
+        scoped = float(q.scalar())
+        if scoped:
+            working[pid]["adjusted_budget"] += scoped * (float(pct) / 100)
+            # Only flag projects that actually had in-scope forecast — a project
+            # with nothing matching the category/sub_category/month filter is not
+            # "affected" and must not inflate the affected-projects count.
+            working[pid]["is_affected"] = True
+
+
+def _resolve_top_level_node(db: Session, node_id: str, top_type: str) -> str:
+    """Walk GroupingEntity.parent_entity_id up to the ancestor whose entity_type_id
+    matches top_type; return that ancestor's id. If node_id is already top-level (or
+    no matching ancestor is found), return node_id. Mirrors the parent walk in
+    portfolio_service.get_project_entity_info (portfolio_service.py:110-127).
+    Sim no-op lever fix (A0) — used by reassign_hierarchy (A6).
+    """
+    current = db.query(GroupingEntity).get(node_id)
+    if not current:
+        return node_id
+    visited: set[str] = set()
+    while current:
+        if current.id in visited:
+            break
+        visited.add(current.id)
+        if current.entity_type_id == top_type:
+            return current.id
+        if current.parent_entity_id:
+            current = db.query(GroupingEntity).get(current.parent_entity_id)
+        else:
+            break
+    return node_id
 
 
 def get_scenario_state(db: Session, scenario_id: int) -> dict:
@@ -283,6 +350,10 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
             "is_service": p.is_service, "is_affected": False,
             "start": p.start_month, "end": p.end_month,
             "status": p.pipeline_stage,
+            # Sim no-op lever fix (A0): expose classification fields so portfolio
+            # levers (cut_by_transformation, inject_hypothetical_project) can scope.
+            "transformation_level": p.transformation_level,
+            "project_type": p.project_type,
         }
 
     # Project-scope recompute core (spec §6): projects whose edits use the
@@ -339,6 +410,13 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
         params = json.loads(a.parameters_json) if a.parameters_json else {}
         core_handled = a.scope == "project" and a.project_id in core_pids
 
+        # The grid core owns a core project's financial recompute but does not apply
+        # non-financial re-bucket actions (reassign_hierarchy). Apply those here so
+        # they aren't silently dropped when the project is core-handled.
+        norm_type = _ACTION_ALIASES.get(a.action_type, a.action_type)
+        if core_handled and norm_type in _CORE_PASSTHROUGH_ACTIONS:
+            _apply_action(db, working, a.action_type, a.scope, a.project_id, params)
+
         # Use pre-computed delta if available (pre-seeded scenarios)
         if a.impact_delta_json:
             if not core_handled:
@@ -388,6 +466,10 @@ def recalculate_scenario(db: Session, scenario: Scenario, actions: list[Scenario
             "budget_delta": round(delta, 2),
             "original_rag": state["rag"], "adjusted_rag": adj_rag,
             "is_affected": state["is_affected"],
+            # Sim no-op lever fix (A6): top-level node a reassign_hierarchy lever
+            # moved the project to; None if unmoved. Consumed by the investment-mix
+            # dimension to re-bucket scenario_total without changing financials.
+            "reassigned_node_id": state.get("reassigned_node_id"),
         })
         total_original += state["original_budget"]
         total_adjusted += state["adjusted_budget"]
@@ -564,6 +646,27 @@ def _apply_project_action(db: Session, working: dict, action_type: str,
         pct = float(params.get("adjustment_pct", params.get("percentage", 15)))
         state["adjusted_budget"] -= state["adjusted_budget"] * 0.3 * (abs(pct) / 100)
 
+    elif action_type == "reassign_hierarchy":
+        # Sim no-op lever fix (A6): move the project to a different hierarchy node.
+        # NO budget change — only re-buckets the investment-mix dimension. The
+        # node is resolved up to the top-level type so the mix dimension (which
+        # groups by top-level node) re-buckets correctly.
+        node_id = params.get("hierarchy_node_id")
+        if node_id:
+            top_type = get_top_level_entity_type_id(db)
+            resolved = (
+                _resolve_top_level_node(db, node_id, top_type) if top_type else None
+            )
+            # Only re-bucket when resolution lands on a genuine top-level node. The
+            # mix dimension groups anchor_total by top-level node, so storing a
+            # mid-level/orphan id (the resolver's fallback when no top-type ancestor
+            # exists) would split anchor vs scenario for the same project. In that
+            # case skip the re-bucket — the project stays in its canonical bucket.
+            if resolved:
+                ent = db.query(GroupingEntity).get(resolved)
+                if ent is not None and ent.entity_type_id == top_type:
+                    state["reassigned_node_id"] = resolved
+
 
 # ---------------------------------------------------------------------------
 # Portfolio-scoped actions
@@ -612,6 +715,35 @@ def _apply_portfolio_action(db: Session, working: dict, action_type: str, params
                     state["adjusted_budget"] *= (1 - abs(pct) / 100)
                 state["is_affected"] = True
 
+    elif action_type == "cut_by_hierarchy":
+        # Sim no-op lever fix (A1): cut member projects of a hierarchy node
+        # (and its descendants) by a percentage. Year-scope aware like cut_by_type.
+        node_id = params.get("hierarchy_node_id")
+        pct = float(params.get("percentage", params.get("pct", 0)))
+        member_pids = set(_get_projects_for_entity_recursive(db, node_id)) if node_id else set()
+        for pid, state in working.items():
+            if pid in member_pids:
+                if target_years:
+                    scoped = _get_year_scoped_forecast(db, pid, target_years)
+                    state["adjusted_budget"] -= scoped * (abs(pct) / 100)
+                else:
+                    state["adjusted_budget"] *= (1 - abs(pct) / 100)
+                state["is_affected"] = True
+
+    elif action_type == "cut_by_transformation":
+        # Sim no-op lever fix (A2): cut projects whose transformation_level matches
+        # the target ("T0"/"T1"/"T2") by a percentage. Year-scope aware.
+        target_level = params.get("transformation_level")
+        pct = float(params.get("percentage", params.get("pct", 0)))
+        for pid, state in working.items():
+            if target_level and state.get("transformation_level") == target_level:
+                if target_years:
+                    scoped = _get_year_scoped_forecast(db, pid, target_years)
+                    state["adjusted_budget"] -= scoped * (abs(pct) / 100)
+                else:
+                    state["adjusted_budget"] *= (1 - abs(pct) / 100)
+                state["is_affected"] = True
+
     elif action_type == "freeze_new_starts":
         cutoff_month = params.get("cutoff_month", DEMO_DATE)
         for state in working.values():
@@ -619,8 +751,118 @@ def _apply_portfolio_action(db: Session, working: dict, action_type: str, params
                 state["adjusted_budget"] = 0
                 state["is_affected"] = True
 
+    elif action_type == "inject_hypothetical_project":
+        # Sim no-op lever fix (A5): add a synthetic project to the working set so it
+        # shows up in project_states and the portfolio totals. Key is deterministic
+        # (slug of the name, -2/-3 suffix on collision) so recalc replay is stable.
+        name = params.get("name") or "Hypothetical Project"
+        total_budget = float(params.get("total_budget", 0))
+        slug = "".join(c if c.isalnum() else "-" for c in name.lower())
+        key = f"hypo-{slug}"
+        if key in working:
+            n = 2
+            while f"{key}-{n}" in working:
+                n += 1
+            key = f"{key}-{n}"
+        # NOTE: a hypothetical project has no rows in the Forecast table, so it
+        # cannot contribute to the per-year time_frame_breakdown (which is built
+        # from real Forecast rows / resolved grids). Its budget therefore appears
+        # in total_budget_adjusted and project_states but NOT in the year buckets.
+        working[key] = {
+            "name": name, "original_budget": 0.0,
+            "adjusted_budget": total_budget, "baseline": 0.0,
+            "rag": "green", "lob_id": "",
+            "is_service": False, "is_affected": True,
+            "start": None, "end": None,
+            "status": "Proposed",
+            "transformation_level": params.get("transformation_level"),
+            "project_type": params.get("project_type"),
+        }
+
     elif action_type == "cap_cost_category":
         _apply_cap_cost_category(db, working, params)
+
+    elif action_type == "change_budget_envelope":
+        # Sim no-op lever fix (A4): set/scale the budget envelope for a year.
+        # percent: per project adjusted_budget += scoped_year * value/100.
+        # absolute (pro-rata): ratio = value / sum(scoped_year over all projects),
+        #   per project adjusted_budget += scoped * (ratio - 1) so the year
+        #   envelope sums to `value`.
+        mode = params.get("mode", "percent")
+        value = float(params.get("value", 0))
+        year = params.get("year")
+        target = [str(int(year))] if year is not None else None
+
+        scoped_by_pid: dict[str, float] = {}
+        for pid in working:
+            scoped_by_pid[pid] = (
+                _get_year_scoped_forecast(db, pid, target) if target
+                else working[pid]["original_budget"]
+            )
+
+        if mode == "absolute":
+            total_scoped = sum(scoped_by_pid.values())
+            ratio = (value / total_scoped) if total_scoped else 0.0
+            for pid, state in working.items():
+                scoped = scoped_by_pid[pid]
+                if scoped:
+                    state["adjusted_budget"] += scoped * (ratio - 1)
+                    state["is_affected"] = True
+        else:  # percent
+            for pid, state in working.items():
+                scoped = scoped_by_pid[pid]
+                if scoped:
+                    state["adjusted_budget"] += scoped * (value / 100)
+                    state["is_affected"] = True
+
+    elif action_type == "adjust_rate_table":
+        # Sim no-op lever fix (A3, CORRECTED scoping): uplift category-scoped
+        # forecast for an internal/external rate-table change. The role lives in
+        # Forecast.sub_category for internal rows (cost_type_id for external), so
+        # scope role precisely on forecast rows — NOT via allocations. Location has
+        # no forecast-row signal, so derive the project set via cost-centre → person
+        # → allocated projects (over-approximation accepted).
+        scope = params.get("rate_table_scope")
+        category = scope if scope in ("internal", "external") else None
+        pct = float(params.get("percentage", params.get("pct", 0)))
+        effective_month = params.get("effective_month", DEMO_DATE)
+        location_id = params.get("location_id")
+        role_type_id = params.get("role_type_id")
+
+        # The role_type_id only lives in Forecast.sub_category for INTERNAL rows
+        # (external rows store cost_type_id there). Applying a role sub_category
+        # filter to external scope would match nothing → silent no-op, so the role
+        # filter is honoured for internal scope only; external+role uplifts all
+        # in-scope external forecast (location-scoped below if a location is given).
+        sub_categories = (
+            [role_type_id] if (role_type_id and category == "internal") else None
+        )
+        project_ids = None  # None => all working projects
+        if location_id:
+            cc_ids = [
+                r[0] for r in
+                db.query(CostCenter.id)
+                .filter(CostCenter.location_id == location_id).all()
+            ]
+            person_ids = [
+                r[0] for r in
+                db.query(Person.id)
+                .filter(Person.is_active.is_(True), Person.cost_center_id.in_(cc_ids))
+                .all()
+            ] if cc_ids else []
+            if not person_ids:
+                return
+            project_ids = [
+                r[0] for r in
+                db.query(Allocation.project_id)
+                .filter(Allocation.person_id.in_(person_ids))
+                .distinct().all()
+            ]
+
+        _uplift_forecast_by_category(
+            db, working, project_ids, category, pct, effective_month,
+            sub_categories=sub_categories,
+        )
 
     elif action_type == "rate_escalation":
         _apply_rate_escalation(db, working, params)
@@ -677,13 +919,40 @@ def _apply_cap_cost_category(db: Session, working: dict, params: dict):
 
 
 def _apply_rate_escalation(db: Session, working: dict, params: dict):
-    """Model hourly rate increases by role, cost center, or location."""
+    """Model hourly rate increases.
+
+    Two payload shapes (Sim no-op lever fix A7 reconciles them):
+      * Catalogue path — ``{scope_type, scope_values, increase_pct, effective_month}``:
+        the original per-person allocation-cost model (unchanged).
+      * Surface path — ``{pct, rate_scope}`` or ``{pct, from_month, category,
+        hierarchy_node_id?}``: a category-scoped forecast uplift. ``category`` comes
+        from ``rate_scope``/``category`` ("all" → None = all categories); from_month
+        defaults to DEMO_DATE; ``hierarchy_node_id`` restricts the project set via
+        _get_projects_for_entity_recursive, else all working projects.
+    """
     scope_type = params.get("scope_type")
+    if not scope_type:
+        # Surface path — forecast-category uplift
+        pct = params.get("pct", params.get("percentage"))
+        if pct is None:
+            return
+        raw_cat = params.get("rate_scope", params.get("category"))
+        category = None if raw_cat in (None, "all") else raw_cat
+        from_month = params.get("from_month", params.get("effective_month", DEMO_DATE))
+        node_id = params.get("hierarchy_node_id")
+        if node_id:
+            project_ids = _get_projects_for_entity_recursive(db, node_id)
+        else:
+            project_ids = list(working.keys())
+        _uplift_forecast_by_category(db, working, project_ids, category, float(pct), from_month)
+        return
+
+    # Catalogue path — per-person allocation cost model (unchanged)
     scope_values = params.get("scope_values", [])
     # Support single-value legacy format
     if not scope_values and params.get("scope_value"):
         scope_values = [params["scope_value"]]
-    if not scope_type or not scope_values:
+    if not scope_values:
         return
 
     increase_pct = float(params.get("increase_pct", 5))

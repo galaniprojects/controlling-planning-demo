@@ -183,3 +183,43 @@ Severity legend: **[blocker]** breaks a workflow · **[should-fix]** wrong/confu
 ## Decisions still open for the fix session to confirm with the user
 - Promote-on-other-PL CR: `draft` owned by the PL (recommended) vs straight into `pending_cc_confirmation`.
 - Whether apply should pre-group the draft CR by cost centre exactly like the wizard, or as a single CR per project.
+
+---
+
+# NEW-SIM-NOOP + NEW-1..4 — RESOLVED (branch `fix/sim-noop-levers`, 2026-06-05)
+
+> The round-2 regression pass (finding logged on branch `session/sim-e2e-regression`) reported
+> **7 simulator levers as silent no-ops** (accepted HTTP 200, recorded as `ScenarioAction`s, shown
+> in the Change Summary, but zero impact — no engine dispatch branch, or FE/engine param mismatch)
+> plus NEW-1 (hierarchy raw-ID picker), NEW-2 (nav no project_id), NEW-3 (backlog filters), NEW-4
+> (apply modal "published" copy). All now fixed and verified.
+
+| ID | Lever / item | Resolution | Verified |
+|---|---|---|---|
+| **NEW-SIM-NOOP** `cut_by_hierarchy` | no engine branch | engine branch: node → members → cut | curl Δ −650K + unit test |
+| `cut_by_transformation` | no engine branch | filter by `transformation_level`, cut | curl Δ −237K + unit test |
+| `adjust_rate_table` | no engine branch | category uplift; role→`sub_category`, location→cost-centre/allocation | curl Δ +147K/+16K + unit tests |
+| `change_budget_envelope` | no engine branch | percent + absolute pro-rata | curl Δ −325K/+1.75M + unit test |
+| `inject_hypothetical_project` | no engine branch | synthetic working entry | curl Δ +750K exact + unit test |
+| `reassign_hierarchy` | no engine branch | re-bucket only (investment-mix), no cost change | curl financial flat + mix shift + unit test |
+| `rate_escalation` | FE/engine param mismatch | engine learns the two surface contracts | curl Δ +121K/+179K + unit test |
+| **NEW-1** | hierarchy raw-ID picker | depth-indented active-hierarchy `Select` | browser |
+| **NEW-2** | nav no project_id | project `Select` when no project segment | browser |
+| **NEW-3** | backlog filters absent | `BacklogFilterBar` wired to sandbox provider | browser |
+| **NEW-4** | apply modal "published" copy | conditional on `metadata.status` | code |
+
+**Engine principle:** all Impact dimensions derive from `recalculate_scenario` working state, so a lever
+moves the dashboard iff its branch mutates `adjusted_budget` (or, for re-bucket, the aggregation node).
+
+**Verification:** isolated harness `qa/verify_sim_noop.py` (TestClient, live config 2026-06) — control
++ each lever, asserting `dimensions.financial.total_delta` moves (6 cost levers) / investment-mix
+re-buckets with financial flat (reassign): **ALL PASS**. Backend `test_scenario_engine.py` +
+`test_scenario_impact.py` = **49 passed**. Browser (Playwright @1440px, Controller): Impact strip
+**Financial +€766K** (matches harness), node/project pickers, backlog filter bar.
+
+**Out-of-scope finding (logged, not fixed — needs sign-off):** `cut_by_type` has the same param-mismatch
+class — `catalogueDef.ts` sends `target_type` = `'1'|'2'|'non_type_3'` but the engine reads
+`'all'|'service'|'project'`, so the catalogue entry never matches (the round-2 curl control used
+backend-native `target_type:"all"`, masking it). **Known limitation:** an injected hypothetical project
+(no `Forecast` rows) is absent from the per-year `time_frame_breakdown`; the Overall/Financial total is
+correct.

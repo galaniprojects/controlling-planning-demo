@@ -92,6 +92,10 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
     await navigateToWorkbenchByProject(item.project_id, navigate);
   };
 
+  // Apply-confirm copy is keyed off the scenario's published state: a private
+  // (unpublished) scenario shouldn't be described as "published".
+  const isPublished = ctx.detail?.metadata.status === 'published';
+
   // Total draft CRs created: prefer the explicit top-level count, fall back to
   // summing the per-item counts so the headline stays correct if either the
   // aggregate or the per-row field is omitted by the backend.
@@ -147,10 +151,10 @@ export function ApplyConfirmModal({ open, onOpenChange }: Props) {
                 aria-hidden="true"
               />
               <p>
-                Carry diffs from this published scenario forward into your
-                live forecast. Only diffs on projects you own will be carried;
-                cross-project diffs and Stage 1 / Stage 2 charging changes are
-                skipped.
+                Carry diffs from this {isPublished ? 'published' : 'private'}{' '}
+                scenario forward into your live forecast. Only diffs on projects
+                you own will be carried; cross-project diffs and Stage 1 /
+                Stage 2 charging changes are skipped.
               </p>
             </div>
             <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2 leading-relaxed">
