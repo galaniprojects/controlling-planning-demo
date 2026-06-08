@@ -3,7 +3,7 @@ from typing import Optional
 
 from sqlalchemy import (
     Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text,
-    UniqueConstraint,
+    UniqueConstraint, text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -92,7 +92,7 @@ class Forecast(Base):
     )
     # C1 [C-FG-07]: provisional flag — True for months beyond the granularity boundary
     is_provisional: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="0"
+        Boolean, nullable=False, default=False, server_default=text("false")
     )
 
     # Relationships

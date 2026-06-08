@@ -3,7 +3,7 @@ from typing import Optional
 
 from sqlalchemy import (
     Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer,
-    Numeric, String, Text, UniqueConstraint,
+    Numeric, String, Text, UniqueConstraint, text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -75,10 +75,10 @@ class Scenario(Base):
     )
     # 'private' | 'tier3_only' | 'all_users'
     tier3_content_flag: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False, server_default="0",
+        Boolean, default=False, nullable=False, server_default=text("false"),
     )
     archived: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False, server_default="0",
+        Boolean, default=False, nullable=False, server_default=text("false"),
     )
     archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON array

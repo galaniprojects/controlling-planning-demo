@@ -1,11 +1,17 @@
-"""Seed data loading mechanism — populates SQLite from seed.sql and JSON fixtures."""
+"""Seed data loading mechanism — populates the database from seed.sql and JSON fixtures.
+
+Dialect-agnostic: all DB access goes through the shared SQLAlchemy ``engine`` /
+``SessionLocal`` from ``database.py``, so the same code seeds SQLite (local dev,
+tests) and PostgreSQL (Docker / on-prem hosting). The canonical ``seed.sql`` is
+transformed in-memory at load time — date-shifted to the present
+(``seed/date_shift``) and boolean-portability-converted (``seed/_dialect``).
+"""
 
 import json
 import os
-import sqlite3
 
 import config
-from config import DATABASE_URL, SEED_DIR, FIXTURES_DIR
+from config import SEED_DIR, FIXTURES_DIR
 
 
 def apply_branding(text: str) -> str:
@@ -23,11 +29,6 @@ def apply_branding(text: str) -> str:
     return text
 
 
-def get_db_path() -> str:
-    """Extract file path from sqlite:/// URL."""
-    return DATABASE_URL.replace("sqlite:///", "")
-
-
 def load_seed_sql() -> None:
     """Execute seed.sql against the SQLite database.
 
@@ -37,7 +38,6 @@ def load_seed_sql() -> None:
     always reflects the present: actuals end last month, forecasts open next
     month, narrative beats keep their relative offsets.
     """
-    db_path = get_db_path()
     sql_path = os.path.join(SEED_DIR, "seed.sql")
 
     if not os.path.exists(sql_path):
@@ -45,21 +45,46 @@ def load_seed_sql() -> None:
         return
 
     from seed.date_shift import CANONICAL_BASE, month_delta, shift_sql_dates
+    from seed._dialect import convert_booleans
+    from database import engine
 
     delta = month_delta(CANONICAL_BASE, config.DEMO_DATE)
 
-    conn = sqlite3.connect(db_path)
+    with open(sql_path, "r") as f:
+        sql = f.read()
+    sql = shift_sql_dates(sql, delta)
+    # int 0/1 -> TRUE/FALSE for PostgreSQL BOOLEAN columns. Note: convert_booleans
+    # also strips SQL comments from the in-memory seed on BOTH engines, so the
+    # executed SQL differs from the committed seed.sql by comments only.
+    sql = convert_booleans(sql)
+
+    raw = engine.raw_connection()
     try:
-        with open(sql_path, "r") as f:
-            sql = f.read()
-        shifted = shift_sql_dates(sql, delta)
-        conn.executescript(shifted)
+        cursor = raw.cursor()
+        if engine.dialect.name == "sqlite":
+            cursor.executescript(sql)
+        else:
+            # seed.sql inserts rows in an order with forward FK references
+            # (SQLite tolerates this — FK enforcement is off by default; PostgreSQL
+            # enforces immediately). All FKs are DEFERRABLE (see the
+            # deferrable_fks migration), so defer their checks to COMMIT for this
+            # bulk load. Transaction-scoped — no reset needed, and a rollback on
+            # error ends the transaction cleanly. Requires only table ownership,
+            # not superuser (unlike session_replication_role).
+            cursor.execute("SET CONSTRAINTS ALL DEFERRED")
+            # psycopg/libpq runs a multi-statement script in a single execute()
+            # when no parameters are bound (simple query protocol).
+            cursor.execute(sql)
+        raw.commit()
         print(
             f"[seed] Loaded seed.sql ({os.path.getsize(sql_path)} bytes), "
             f"date-shifted +{delta} months ({CANONICAL_BASE} -> {config.DEMO_DATE})."
         )
+    except Exception:
+        raw.rollback()
+        raise
     finally:
-        conn.close()
+        raw.close()
 
 
 def load_fixtures() -> dict:
@@ -110,23 +135,22 @@ def load_fixtures() -> dict:
     return fixtures
 
 
-def is_db_seeded(db_path: str) -> bool:
-    """Check if the database already has seed data."""
-    if not os.path.exists(db_path):
-        return False
-    conn = sqlite3.connect(db_path)
+def is_db_seeded() -> bool:
+    """True if the schema exists and the ``projects`` table has rows.
+
+    Dialect-agnostic — uses the SQLAlchemy inspector rather than ``sqlite_master``.
+    """
+    from sqlalchemy import inspect, text
+    from database import engine
+
     try:
-        cur = conn.execute(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='projects'"
-        )
-        if cur.fetchone()[0] == 0:
+        if not inspect(engine).has_table("projects"):
             return False
-        cur = conn.execute("SELECT COUNT(*) FROM projects")
-        return cur.fetchone()[0] > 0
+        with engine.connect() as conn:
+            count = conn.execute(text("SELECT COUNT(*) FROM projects")).scalar()
+        return bool(count and count > 0)
     except Exception:
         return False
-    finally:
-        conn.close()
 
 
 def seed_database() -> dict:
@@ -135,9 +159,7 @@ def seed_database() -> dict:
     Only seeds if the database is empty (no projects).
     Returns the loaded fixtures dict.
     """
-    db_path = get_db_path()
-
-    if is_db_seeded(db_path):
+    if is_db_seeded():
         print("[seed] Database already seeded — loading fixtures only.")
         return load_fixtures()
 
@@ -168,18 +190,8 @@ def _seed_forecast_versions() -> None:
     Uses SQLAlchemy ORM against the live database, matching the C1 schema.
     Runs after load_seed_sql() so all tables and rows exist.
     """
-    import sys, os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from database import SessionLocal
 
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from database import Base
-
-    engine = create_engine(
-        f"sqlite:///{get_db_path()}",
-        connect_args={"check_same_thread": False},
-    )
-    SessionLocal = sessionmaker(bind=engine)
     db = SessionLocal()
 
     try:
@@ -197,7 +209,7 @@ def _seed_forecast_versions() -> None:
         # Synthetic "seed" user (controller persona)
         seed_user = CurrentUser(
             user_id="persona-controller",
-            person_id="p-controller",
+            person_id="p-meier",
             name="Anna Meier",
             role="controller",
             cost_center_id=None,
@@ -258,7 +270,7 @@ def _seed_forecast_versions() -> None:
                 cycle_label=v1_label,
                 cycle_id="seed-prior-cycle",
                 change_request_id=None,
-                created_by_id="p-controller",
+                created_by_id="p-meier",
                 created_at=v1_created,
                 granularity_boundary_months=grid_v1["granularity_boundary_months"],
                 planning_horizon_months=grid_v1["planning_horizon_months"],
@@ -286,7 +298,7 @@ def _seed_forecast_versions() -> None:
                 cycle_label=v2_label,
                 cycle_id="seed-current-cycle",
                 change_request_id=None,
-                created_by_id="p-controller",
+                created_by_id="p-meier",
                 created_at=v2_created,
                 granularity_boundary_months=grid_v2["granularity_boundary_months"],
                 planning_horizon_months=grid_v2["planning_horizon_months"],
@@ -320,17 +332,8 @@ def _seed_scenario_anchors() -> None:
     consistent (Simulator E2E Fixes Session 3, replaces the never-run
     "set anchor on first open" assumption).
     """
-    import sys, os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from database import SessionLocal
 
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-
-    engine = create_engine(
-        f"sqlite:///{get_db_path()}",
-        connect_args={"check_same_thread": False},
-    )
-    SessionLocal = sessionmaker(bind=engine)
     db = SessionLocal()
     try:
         import models  # noqa: F401 — registers all ORM classes
@@ -371,17 +374,8 @@ def _recompute_within_cutoff() -> None:
     Best-effort — silent failure on import errors so an unrelated migration
     can't block first-time seeding.
     """
-    import sys, os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from database import SessionLocal
 
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-
-    engine = create_engine(
-        f"sqlite:///{get_db_path()}",
-        connect_args={"check_same_thread": False},
-    )
-    SessionLocal = sessionmaker(bind=engine)
     db = SessionLocal()
 
     try:
@@ -404,36 +398,48 @@ def _recompute_within_cutoff() -> None:
 
 
 def reset_database() -> dict:
-    """Drop all data and re-seed from scratch.
+    """Wipe all data and re-seed from scratch (data only — schema is unchanged).
 
-    Deletes all rows from every table (respecting FK order),
-    then reloads seed data and fixtures.
+    Re-anchors the demo to the **real current month** first, so on a
+    long-running server a reset refreshes the living-demo dates without a
+    process restart, then clears every table and reloads the seed + fixtures.
+
+    Dialect-agnostic: PostgreSQL uses ``TRUNCATE ... CASCADE`` (handles FK order
+    and resets identity sequences); other engines (SQLite) delete in reverse
+    dependency order.
 
     Returns the loaded fixtures dict.
     """
-    db_path = get_db_path()
+    import models  # noqa: F401 — ensure all tables are registered on the metadata
+    from database import engine, Base
+
     print("[seed] Resetting database...")
 
-    # Use raw sqlite3 to delete all data (faster and avoids SQLAlchemy pool issues)
-    conn = sqlite3.connect(db_path)
-    try:
-        # Get all tables
-        cur = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name != 'sqlite_sequence'"
-        )
-        tables = [row[0] for row in cur.fetchall()]
+    # 1. Re-anchor "today" to the live month so the re-shifted seed reflects it.
+    config.reanchor_demo_date()
+    print(f"[seed] Re-anchored demo date to {config.DEMO_DATE}")
 
-        # Disable FK checks, delete all data, re-enable
-        conn.execute("PRAGMA foreign_keys = OFF")
-        for table in tables:
-            conn.execute(f"DELETE FROM {table}")
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.commit()
-        print(f"[seed] Cleared {len(tables)} tables")
-    finally:
-        conn.close()
+    # 2. Clear all rows (schema stays in place — managed by Alembic / create_all).
+    with engine.begin() as conn:
+        if engine.dialect.name == "postgresql":
+            names = ", ".join(f'"{t.name}"' for t in Base.metadata.tables.values())
+            if names:
+                conn.exec_driver_sql(
+                    f"TRUNCATE TABLE {names} RESTART IDENTITY CASCADE"
+                )
+        else:
+            from sqlalchemy import inspect, text
 
-    # Reload seed data and fixtures
+            for table in reversed(Base.metadata.sorted_tables):
+                conn.execute(table.delete())
+            # Match PG's RESTART IDENTITY: reset SQLite autoincrement counters.
+            # sqlite_sequence only exists when an AUTOINCREMENT table is present,
+            # so guard on it (no-op for the current string-PK-dominated schema).
+            if inspect(conn).has_table("sqlite_sequence"):
+                conn.execute(text("DELETE FROM sqlite_sequence"))
+    print(f"[seed] Cleared {len(Base.metadata.tables)} tables")
+
+    # 3. Reload seed data and fixtures
     load_seed_sql()
     # Progress tracker state seeded inline by s18_progress.py (S1).
     # C1: generate 2 forecast versions per project [C-FV-05]

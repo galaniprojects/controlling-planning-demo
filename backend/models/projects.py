@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import text as sa_text  # aliased: a column named ``text`` shadows it in-class
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -116,7 +117,7 @@ class Project(Base):
     # current milestone's deliverable checklist when items exist; manually
     # overridable when ``progress_pct_manual_override`` is True.
     progress_pct_manual_override: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False, server_default="0",
+        Boolean, default=False, nullable=False, server_default=sa_text("false"),
     )
     status_narrative: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # PL's free-text status narrative (1-2 sentences). Mandatory at forecast
@@ -256,7 +257,7 @@ class MilestoneDeliverable(Base):
     # contiguous (1..N) but service-layer reorder is not implemented in E1.
     text: Mapped[str] = mapped_column(Text, nullable=False)
     is_complete: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False, server_default="0",
+        Boolean, default=False, nullable=False, server_default=sa_text("false"),
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     completed_by_id: Mapped[Optional[str]] = mapped_column(
@@ -302,7 +303,7 @@ class ProgressSnapshot(Base):
     current_milestone_sequence: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     progress_pct: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
     progress_pct_manual_override: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False, server_default="0",
+        Boolean, default=False, nullable=False, server_default=sa_text("false"),
     )
     status_narrative: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     next_milestone_confidence: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)

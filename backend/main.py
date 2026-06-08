@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import config
-from database import Base, engine
+from database import engine, run_migrations
 
 app = FastAPI(
     title=f"{config.BRANDING['app_name']} Demo API",
@@ -28,7 +28,18 @@ def startup():
     # Import all models so metadata knows about them
     import models  # noqa: F401
 
-    Base.metadata.create_all(bind=engine)
+    # Announce the live database up front (password masked) so it's unambiguous
+    # which engine the process is bound to — SQLite (local fallback) vs
+    # PostgreSQL (Docker / on-prem), driven entirely by DATABASE_URL.
+    db_label = "PostgreSQL" if engine.dialect.name == "postgresql" else "SQLite"
+    print(
+        f"[startup] Database: {db_label} "
+        f"({engine.url.render_as_string(hide_password=True)})"
+    )
+
+    # Schema is managed by Alembic (not create_all) so it survives restarts and
+    # evolves via migrations on the persistent database.
+    run_migrations()
 
     # Seed database if empty and load JSON fixtures
     from seed.loader import seed_database

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -140,7 +140,7 @@ class CapacityActionLog(Base):
         DateTime,
         nullable=False,
         default=datetime.utcnow,
-        server_default="CURRENT_TIMESTAMP",
+        server_default=text("CURRENT_TIMESTAMP"),
     )
     action_type: Mapped[str] = mapped_column(String(20), nullable=False)
     acting_user_id: Mapped[str] = mapped_column(ForeignKey("people.id"), nullable=False)
